@@ -9,4 +9,4 @@ pre-commit:
 commit-msg:
   commands:
     conventional-commit:
-      run: 'echo "$1" | grep -qE "^(feat|fix|refactor|test|docs|chore|perf|ci|build|style)(\(.+\))?: .+" || (echo "Commit message must follow Conventional Commits format: type(scope): description" && exit 1)'
+      run: 'head -1 {1} | grep -qE "^(feat|fix|refactor|test|docs|chore|perf|ci|build|style)(\(.+\))?: .+" || (echo "Commit message must follow Conventional Commits format: type(scope): description" && exit 1)'
