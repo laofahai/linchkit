@@ -1,0 +1,96 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "linchkit",
+    },
+    "packages/cli": {
+      "name": "@linchkit/cli",
+      "version": "0.0.1",
+      "bin": {
+        "linch": "src/index.ts",
+      },
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/core": {
+      "name": "@linchkit/core",
+      "version": "0.0.1",
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/devtools": {
+      "name": "@linchkit/devtools",
+      "version": "0.0.1",
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/mcp": {
+      "name": "@linchkit/mcp",
+      "version": "0.0.1",
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/migrate": {
+      "name": "@linchkit/migrate",
+      "version": "0.0.1",
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/server": {
+      "name": "@linchkit/server",
+      "version": "0.0.1",
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "packages/ui": {
+      "name": "@linchkit/ui",
+      "version": "0.0.1",
+      "dependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+  },
+  "packages": {
+    "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
+
+    "@linchkit/core": ["@linchkit/core@workspace:packages/core"],
+
+    "@linchkit/devtools": ["@linchkit/devtools@workspace:packages/devtools"],
+
+    "@linchkit/mcp": ["@linchkit/mcp@workspace:packages/mcp"],
+
+    "@linchkit/migrate": ["@linchkit/migrate@workspace:packages/migrate"],
+
+    "@linchkit/server": ["@linchkit/server@workspace:packages/server"],
+
+    "@linchkit/ui": ["@linchkit/ui@workspace:packages/ui"],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "linchkit",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "biome check .",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "build": "bun run --filter '*' build",
+    "dev": "bun run --filter @linchkit/server dev"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "paths": {
+      "@linchkit/core": ["./packages/core/src"],
+      "@linchkit/cli": ["./packages/cli/src"],
+      "@linchkit/server": ["./packages/server/src"],
+      "@linchkit/mcp": ["./packages/mcp/src"],
+      "@linchkit/ui": ["./packages/ui/src"],
+      "@linchkit/migrate": ["./packages/migrate/src"],
+      "@linchkit/devtools": ["./packages/devtools/src"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

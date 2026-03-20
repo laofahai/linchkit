@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MCP (contains API keys)
+.mcp.json
+
+# Claude local settings (user-specific)
+.claude/settings.local.json
+
+# Test
+coverage/
+
+# Temp
+*.tmp
+*.log

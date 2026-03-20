@@ -1,143 +1,155 @@
 # LinchKit
 
-> **AI Native 的软件能力运行时。任何以数据、规则、状态为核心的软件系统，都可以在这个框架上通过 AI 与人协作逐步"生长"出来，并在统一的治理体系下安全运行和持续演进。**
+> **AI-Native Software Capability Runtime.** Any software system driven by data, rules, and state can grow incrementally on this framework through AI-human collaboration, running safely and evolving continuously under a unified governance system.
+
+[中文文档](./README.zh-CN.md)
 
 ---
 
-## 核心主张
+## Core Principles
 
-1. **统一元模型** — Schema + Action + Rule + State + Event + EventHandler + View + Flow
-2. **AI 深度参与** — 设计、生成、优化，但不能直接改生产
-3. **模块化组织** — Capability（standard / bridge / adapter），可独立演进、按需组合
-4. **统一入口** — Command Layer 统一 CLI / MCP / API / UI，Action 是唯一写入口，GraphQL 读取
-5. **变更治理** — Proposal → GitHub PR → CI → 审批 → 蓝绿部署
-6. **方法论驱动** — 框架层规范 + 业务层知识，AI 遵循 SOP 生成代码
+1. **Unified Meta-Model** — Schema + Action + Rule + State + Event + EventHandler + View + Flow
+2. **AI Deep Participation** — Design, generate, optimize — but never modify production directly
+3. **Modular Organization** — Capability (standard / bridge / adapter), independently evolvable, composable on demand
+4. **Unified Entry Point** — Command Layer unifies CLI / MCP / API / UI; Action is the sole write entry, GraphQL for reads
+5. **Change Governance** — Proposal → GitHub PR → CI → Approval → Blue-Green Deploy
+6. **Methodology-Driven** — Framework-level conventions + business-level knowledge; AI follows SOPs to generate code
 
-## 适用范围
+## Use Cases
 
-电商、SaaS、项目管理、CMS、ERP、预约系统、IoT 管理平台 — 只要核心是数据 + 规则 + 状态的软件。
+E-commerce, SaaS, project management, CMS, ERP, booking systems, IoT management — any software where the core is data + rules + state.
 
-不适用于：计算密集型、实时系统、底层系统。
+Not suitable for: compute-intensive, real-time, or low-level systems.
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 层面 | 选型 |
-|------|------|
-| 语言 | TypeScript |
-| 运行时 | Bun（不兼容 Node） |
-| 后端 | Elysia |
-| 数据库 | PostgreSQL |
+| Layer | Choice |
+|-------|--------|
+| Language | TypeScript |
+| Runtime | Bun (not Node-compatible) |
+| Backend | Elysia |
+| Database | PostgreSQL |
 | ORM | Drizzle |
 | GraphQL | graphql-yoga + Pothos (code-first) |
-| 状态机 | 自研纯 TS（XState 可选升级） |
-| 工作流 | Temporal（M1 引入） |
-| 前端 | React + Vite + TanStack Router |
+| State Machine | Custom pure TS (XState as optional upgrade) |
+| Workflow | Temporal (introduced in M1) |
+| Frontend | React + Vite + TanStack Router |
 | UI | Shadcn + Lucide + Tailwind |
-| 代码质量 | Biome + TypeScript strict |
+| Code Quality | Biome + TypeScript strict |
 
 ---
 
-## 里程碑
+## Packages
 
-### M0a — 开发基础设施 + UI 壳子（先造锤子）
-
-**目标：** 搭建 AI 辅助开发环境 + 可视化管理界面骨架。
-
-**验证标准：** AI 有完整类型和 CLAUDE.md。浏览器打开能看到 LinchKit 管理界面壳子。
-
-- [ ] Monorepo 骨架（Bun workspace）
-- [ ] tsconfig strict + biome.json + Git hooks
-- [ ] 完整类型定义（defineXxx 接口，不实现）
-- [ ] CLAUDE.md 手写第一版
-- [ ] 基础 CLI（linch init + linch dev）
-- [ ] Bun test + 第一个测试
-- [ ] GitHub Actions 基础 CI
-- [ ] App Shell UI（顶栏 + 侧边栏 + 主内容区 + 登录占位）
+```
+@linchkit/core       — Core runtime (Action/Rule/State/Event/Schema engine)
+@linchkit/cli        — CLI tool (based on citty)
+@linchkit/server     — HTTP server (Elysia + graphql-yoga + Pothos)
+@linchkit/mcp        — MCP adapter (optional)
+@linchkit/ui         — Frontend UI components + headless hooks
+@linchkit/migrate    — Migration tools
+@linchkit/devtools   — Test utilities + dev tools
+```
 
 ---
 
-### M0b — 核心运行时（每做完一块，UI 同步跟上）
+## Milestones
 
-**目标：** 用 AI 辅助开发核心引擎，UI 跟引擎同步推进。采购管理场景端到端跑通。
+### M0a — Dev Infrastructure + UI Shell
 
-**验证标准：** 浏览器看到采购管理完整界面 — 列表、表单、状态流转、操作按钮、日志。Rule 能拦截超额申请。
+**Goal:** Set up AI-assisted dev environment + management UI skeleton.
 
-- [ ] Schema 引擎（多产物生成）+ Schema 浏览页
-- [ ] Action 引擎 + Command Layer + API + GraphQL + Action 测试页
-- [ ] Rule 引擎（Level 1-2）+ Rule 列表 + 评估日志
-- [ ] State Machine + 状态流转图
-- [ ] Event + EventHandler + Outbox + 事件时间线
-- [ ] 自动生成业务 UI（list + form + 导航）— 采购管理完整界面
-- [ ] cap-auth + cap-permission + 管道插槽 + 登录页 + 权限控制
-- [ ] Execution Log + tenant_id + i18n + CLAUDE.md 升级 + 管理 Dashboard
+**Acceptance:** AI has full type definitions and CLAUDE.md. Browser shows LinchKit management UI shell.
 
-**不做：** Proposal / Validation / Version、蓝绿部署、Bridge / Adapter、AI / MCP、Temporal / Flow、多租户完整、通知 / 定时任务。
-
----
-
-### M1 — 治理体系 + 部署
-
-**目标：** 变更走 Proposal → GitHub PR → CI → 审批 → 蓝绿部署。
-
-**验证标准：** Proposal 新增 Rule → 自动创建 PR → CI 通过 → 审批 merge → Webhook 触发蓝绿部署 → 可回滚。
-
-- [ ] Proposal 模型 + Validation
-- [ ] Version 管理（Git tag、diff、回滚）
-- [ ] 审批机制（require_approval 完整流程）
-- [ ] 单机蓝绿部署 + Nginx
-- [ ] GitHub 集成（PR + CI + Webhook）
-- [ ] DB Migration（up + down）
-- [ ] Temporal 引入 + defineFlow 基础
-- [ ] Bridge 模块支持
-- [ ] Execution Log 完善
-- [ ] Metrics + Dashboard
-- [ ] 完整 CI Pipeline + AI Review
+- [x] Monorepo skeleton (Bun workspace)
+- [x] tsconfig strict + biome.json + Git hooks
+- [x] Full type definitions (defineXxx interfaces, no implementation)
+- [ ] CLAUDE.md first version
+- [ ] Basic CLI (linch init + linch dev)
+- [x] Bun test + first test
+- [x] GitHub Actions basic CI
+- [ ] App Shell UI (header + sidebar + main content + login placeholder)
 
 ---
 
-### M2 — AI 接入 + 多租户
+### M0b — Core Runtime (UI syncs with each engine)
 
-**目标：** AI 通过 MCP 调用 Action、生成 Proposal。多租户基础可用。
+**Goal:** Build core engines with AI assistance, UI follows engine progress. Purchase management scenario end-to-end.
 
-- [ ] MCP 适配器
-- [ ] CLAUDE.md + AGENTS.md 完整版
-- [ ] AI Skills 包
-- [ ] AI 辅助生成 Proposal
+**Acceptance:** Browser shows complete purchase management UI — list, form, state transitions, action buttons, logs. Rule blocks over-budget requests.
+
+- [ ] Schema Engine (multi-artifact generation) + Schema browser page
+- [ ] Action Engine + Command Layer + API + GraphQL + Action test page
+- [ ] Rule Engine (Level 1-2) + Rule list + evaluation log
+- [ ] State Machine + state transition diagram
+- [ ] Event + EventHandler + Outbox + event timeline
+- [ ] Auto-generated business UI (list + form + navigation) — purchase management
+- [ ] cap-auth + cap-permission + pipeline slots + login + access control
+- [ ] Execution Log + tenant_id + i18n + CLAUDE.md upgrade + management Dashboard
+
+**Not in scope:** Proposal / Validation / Version, blue-green deploy, Bridge / Adapter, AI / MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
+
+---
+
+### M1 — Governance + Deployment
+
+**Goal:** Changes go through Proposal → GitHub PR → CI → Approval → Blue-Green Deploy.
+
+- [ ] Proposal model + Validation
+- [ ] Version management (Git tag, diff, rollback)
+- [ ] Approval mechanism
+- [ ] Single-node blue-green deploy + Nginx
+- [ ] GitHub integration (PR + CI + Webhook)
+- [ ] DB Migration (up + down)
+- [ ] Temporal + defineFlow basics
+- [ ] Bridge module support
+- [ ] Full CI Pipeline + AI Review
+
+---
+
+### M2 — AI Integration + Multi-Tenancy
+
+**Goal:** AI calls Actions via MCP, generates Proposals. Multi-tenancy basics.
+
+- [ ] MCP adapter
+- [ ] Full CLAUDE.md + AGENTS.md
+- [ ] AI Skills package
+- [ ] AI-assisted Proposal generation
 - [ ] Rule Context Level 3-4
-- [ ] 多租户（Standalone + SaaS 双模式）
-- [ ] AI 安全（权限限制 + 速率 + 审计）
+- [ ] Multi-tenancy (Standalone + SaaS dual mode)
+- [ ] AI security (rate limiting + permissions + audit)
 
 ---
 
-### M3 — 系统能"长"
+### M3 — System Can "Grow"
 
-**目标：** AI 协助设计和生成完整 Capability，系统持续自我优化。
+**Goal:** AI assists in designing and generating complete Capabilities.
 
-- [ ] AI 生成完整 Capability
-- [ ] Rule Context Level 5（跨模块）
-- [ ] Evolution System（Observe → Propose）
-- [ ] Flow AI 步骤 + 条件分支 + 并行
-- [ ] Capability Hub 基础
-
----
-
-### M4 — 生产级
-
-- [ ] 多租户完整（Schema/DB 级隔离、计费）
-- [ ] 多机 Rolling Update
-- [ ] OpenTelemetry 接入
-- [ ] 已有系统迁移工具
-- [ ] Capability Hub 完整市场
+- [ ] AI generates full Capabilities
+- [ ] Rule Context Level 5 (cross-module)
+- [ ] Evolution System (Observe → Propose)
+- [ ] Flow AI steps + conditional branches + parallel
+- [ ] Capability Hub basics
 
 ---
 
-## 架构全景
+### M4 — Production Grade
+
+- [ ] Full multi-tenancy (Schema/DB isolation, billing)
+- [ ] Multi-node Rolling Update
+- [ ] OpenTelemetry integration
+- [ ] Legacy system migration tools
+- [ ] Capability Hub marketplace
+
+---
+
+## Architecture Overview
 
 ```
                     ┌─────────────────────────────┐
-                    │         入口层                │
+                    │         Entry Layer          │
                     │  CLI / MCP / HTTP API / UI   │
                     └──────────┬──────────────────┘
                                ↓
@@ -153,7 +165,7 @@
    ┌─────────────┐    ┌──────────────┐    ┌──────────────┐
    │ Action      │    │ GraphQL      │    │ Proposal     │
    │ Engine      │    │ Query Engine │    │ Engine       │
-   │ (写)        │    │ (读)         │    │ (变更治理)    │
+   │ (write)     │    │ (read)       │    │ (governance) │
    └──────┬──────┘    └──────────────┘    └──────────────┘
           ↓
    ┌─────────────┐
@@ -162,24 +174,33 @@
           ↓
    ┌─────────────┐    ┌──────────────┐    ┌──────────────┐
    │ State       │    │ Event Bus    │    │ Temporal     │
-   │ Machine     │    │ + Outbox     │    │ (Flow 编排)  │
+   │ Machine     │    │ + Outbox     │    │ (Flow)       │
    └─────────────┘    └──────┬───────┘    └──────────────┘
                              ↓
                     ┌──────────────────┐
                     │  EventHandler    │
-                    │  (同步 + 异步)    │
+                    │  (sync + async)  │
                     └──────────────────┘
                              ↓
                     ┌──────────────────┐
                     │   PostgreSQL     │
-                    │  业务数据 + Event │
-                    │  + Outbox + Log  │
+                    │  data + events   │
+                    │  + outbox + log  │
                     └──────────────────┘
 ```
 
 ---
 
-## 开发记录
+## Development
 
-[devlog/](devlog/) — 每次开发会话的记录，包含进度、决策、问题、下次接续点。新 AI 会话先读 devlog 最新记录了解当前状态。
+```bash
+bun install          # Install dependencies
+bun test             # Run tests
+bun run dev          # Start dev server
+bun run check        # Biome lint + format check
+bun run typecheck    # TypeScript type check
+```
 
+## License
+
+MIT

@@ -1,46 +1,67 @@
-# LinchKit - AI 开发指令
+# LinchKit - Development Instructions
 
-## 项目概述
+## Project Overview
 
-LinchKit 是 AI Native 的软件能力运行时。技术栈：TypeScript / Bun / Elysia / PostgreSQL / Drizzle / GraphQL (Pothos) / React / Vite / TanStack Router / Shadcn / Biome。
+LinchKit is an AI-Native Software Capability Runtime. Tech stack: TypeScript / Bun / Elysia / PostgreSQL / Drizzle / GraphQL (Pothos) / React / Vite / TanStack Router / Shadcn / Biome.
 
-## 核心原则
+## Core Principles
 
-- **KISS**：保持简单
-- **YAGNI**：不做不需要的
-- **数据结构优先**：先设计好数据结构
-- **中文沟通**：始终用中文
+- **KISS** — Keep it simple
+- **YAGNI** — Don't build what you don't need
+- **Data Structures First** — Design data structures before writing code
+- **Communicate in Chinese** — Always use Chinese when talking to the user
 
-## 技术约束
+## Technical Constraints
 
-- 运行时：Bun（不兼容 Node）
-- 代码质量：Biome（不用 ESLint / Prettier）
-- 测试：`bun test`
-- 包管理：Bun workspace（monorepo）
-- TypeScript：strict 模式
-- 后端框架：Elysia
-- ORM：Drizzle
-- GraphQL：graphql-yoga + Pothos（code-first）
-- 前端路由：TanStack Router
-- UI：Shadcn + Lucide + Tailwind
+- Runtime: Bun (not Node-compatible)
+- Code quality: Biome (no ESLint / Prettier)
+- Testing: `bun test`
+- Package management: Bun workspace (monorepo)
+- TypeScript: strict mode
+- Backend framework: Elysia
+- ORM: Drizzle
+- GraphQL: graphql-yoga + Pothos (code-first)
+- Frontend routing: TanStack Router
+- UI: Shadcn + Lucide + Tailwind
+- Comments and docs: English first
 
-## 常用命令
+## Packages
 
-```bash
-bun install          # 安装依赖
-bun test             # 运行测试
-bun run dev          # 启动开发服务器
-bun run build        # 生产构建
-bun run check        # Biome 检查
-bun run format       # Biome 格式化
+```
+@linchkit/core       — Core runtime (defineXxx types, engines)
+@linchkit/cli        — CLI tool (citty)
+@linchkit/server     — HTTP server (Elysia + GraphQL)
+@linchkit/mcp        — MCP adapter (optional)
+@linchkit/ui         — Frontend UI + headless hooks
+@linchkit/migrate    — Migration tools
+@linchkit/devtools   — Test utilities (testRule, testAction, etc.)
 ```
 
-## 开发流程
+## Meta-Model
 
-1. `/start` — 开始会话，加载上下文
-2. `/plan` — 分析需求，生成设计方案
-3. `/tasks` — 生成任务列表
-4. `/implement` — 按任务执行实现
-5. `/push` — 提交推送
-6. `/review-session` — 复盘
-7. `/handover` — 生成交接 prompt
+The unified meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow**
+
+- `defineSchema()` — Data model definition, auto-generates Zod / Drizzle / GraphQL / TS types
+- `defineAction()` — Write operations (declarative or handler-based)
+- `defineRule()` — Business rules: Trigger + Context + Condition + Effect
+- `defineState()` — State machine lifecycle management
+- `defineEvent()` / `defineEventHandler()` — Event-driven side effects
+- `defineView()` — UI view definitions (list / form / kanban / dashboard)
+- `defineCapability()` — Module composition unit
+
+## Commands
+
+```bash
+bun install          # Install dependencies
+bun test             # Run tests
+bun run dev          # Start dev server
+bun run build        # Production build
+bun run check        # Biome lint + format check
+bun run typecheck    # TypeScript type check
+```
+
+## Quality Gates
+
+- **Pre-commit** (lefthook): `biome check --staged` + `tsc --noEmit`
+- **Commit message**: Conventional Commits format required
+- **CI** (GitHub Actions): biome + typecheck + test

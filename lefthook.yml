@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome-check:
+      run: bunx biome check --staged
+    typecheck:
+      run: bun run typecheck
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: 'echo "$1" | grep -qE "^(feat|fix|refactor|test|docs|chore|perf|ci|build|style)(\(.+\))?: .+" || (echo "Commit message must follow Conventional Commits format: type(scope): description" && exit 1)'
