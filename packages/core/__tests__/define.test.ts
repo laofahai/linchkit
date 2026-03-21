@@ -185,9 +185,7 @@ describe("defineView", () => {
         { field: "status", filterable: true },
         { field: "department" },
       ],
-      actions: [
-        { action: "submit_request", label: "提交", position: "row" },
-      ],
+      actions: [{ action: "submit_request", label: "提交", position: "row" }],
       defaultSort: { field: "created_at", order: "desc" },
       pageSize: 20,
     });

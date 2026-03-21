@@ -30,9 +30,7 @@ export interface CapabilityValidationResult {
 /**
  * Validate internal consistency of a Capability definition.
  */
-export function validateCapability(
-  capability: CapabilityDefinition,
-): CapabilityValidationResult {
+export function validateCapability(capability: CapabilityDefinition): CapabilityValidationResult {
   const issues: ValidationIssue[] = [];
   const schemaNames = new Set((capability.schemas ?? []).map((s) => s.name));
   const actionNames = new Set((capability.actions ?? []).map((a) => a.name));

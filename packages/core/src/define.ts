@@ -5,15 +5,18 @@
  * Registration, validation, and other behaviors will be added when engines are implemented.
  */
 
-import type { ActionDefinition } from "./types/action";
+import type { ActionDefinition, ActionOverride } from "./types/action";
 import type { CapabilityDefinition } from "./types/capability";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
-import type { RuleDefinition } from "./types/rule";
-import type { FieldDefinition, SchemaDefinition, SchemaExtension, SchemaOverride } from "./types/schema";
+import type { RuleDefinition, RuleOverride } from "./types/rule";
+import type {
+  FieldDefinition,
+  SchemaDefinition,
+  SchemaExtension,
+  SchemaOverride,
+} from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
 import type { ViewDefinition, ViewExtension } from "./types/view";
-import type { ActionOverride } from "./types/action";
-import type { RuleOverride } from "./types/rule";
 
 // ── Schema ──────────────────────────────────────────
 
@@ -23,11 +26,17 @@ export function defineSchema<TFields extends Record<string, FieldDefinition>>(
   return definition;
 }
 
-export function extendSchema(target: string, extension: SchemaExtension): { target: string; extension: SchemaExtension } {
+export function extendSchema(
+  target: string,
+  extension: SchemaExtension,
+): { target: string; extension: SchemaExtension } {
   return { target, extension };
 }
 
-export function overrideSchema(target: string, override: SchemaOverride): { target: string; override: SchemaOverride } {
+export function overrideSchema(
+  target: string,
+  override: SchemaOverride,
+): { target: string; override: SchemaOverride } {
   return { target, override };
 }
 
@@ -37,7 +46,10 @@ export function defineAction(definition: ActionDefinition): ActionDefinition {
   return definition;
 }
 
-export function overrideAction(target: string, override: ActionOverride): { target: string; override: ActionOverride } {
+export function overrideAction(
+  target: string,
+  override: ActionOverride,
+): { target: string; override: ActionOverride } {
   return { target, override };
 }
 
@@ -47,7 +59,10 @@ export function defineRule(definition: RuleDefinition): RuleDefinition {
   return definition;
 }
 
-export function overrideRule(target: string, override: RuleOverride): { target: string; override: RuleOverride } {
+export function overrideRule(
+  target: string,
+  override: RuleOverride,
+): { target: string; override: RuleOverride } {
   return { target, override };
 }
 
@@ -63,7 +78,10 @@ export function defineState<TStates extends string>(
   return definition;
 }
 
-export function extendState(target: string, extension: StateExtension): { target: string; extension: StateExtension } {
+export function extendState(
+  target: string,
+  extension: StateExtension,
+): { target: string; extension: StateExtension } {
   return { target, extension };
 }
 
@@ -83,7 +101,10 @@ export function defineView(definition: ViewDefinition): ViewDefinition {
   return definition;
 }
 
-export function extendView(target: string, extension: ViewExtension): { target: string; extension: ViewExtension } {
+export function extendView(
+  target: string,
+  extension: ViewExtension,
+): { target: string; extension: ViewExtension } {
   return { target, extension };
 }
 

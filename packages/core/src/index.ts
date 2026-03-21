@@ -7,27 +7,46 @@
 
 export const VERSION = "0.0.1";
 
-// Type exports
-export type * from "./types";
-
 // Define function exports
 export {
-  defineSchema,
-  extendSchema,
-  overrideSchema,
   defineAction,
-  overrideAction,
-  defineRule,
-  overrideRule,
-  disableRule,
-  defineState,
-  extendState,
+  defineCapability,
   defineEvent,
   defineEventHandler,
+  defineRule,
+  defineSchema,
+  defineState,
   defineView,
+  disableRule,
+  extendSchema,
+  extendState,
   extendView,
-  defineCapability,
+  overrideAction,
+  overrideRule,
+  overrideSchema,
 } from "./define";
+export type { ConditionContext, RuleEvalInput, RuleEvalOutput, StateMachine } from "./engine";
+// Engine exports
+export {
+  canTransition,
+  createStateMachine,
+  evaluateCondition,
+  evaluateRules,
+  getAvailableActions,
+  resolveField,
+  transition,
+} from "./engine";
+// Error classes
+export {
+  AuthorizationError,
+  BusinessRuleError,
+  ConflictError,
+  LinchKitError,
+  SystemError,
+  ValidationError,
+} from "./errors";
+// Type exports
+export type * from "./types";
 
 // Non-type exports
 export { ERROR_STATUS_MAP } from "./types";

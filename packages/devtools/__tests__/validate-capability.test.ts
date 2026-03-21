@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { defineAction, defineCapability, defineRule, defineSchema, defineState, defineView } from "@linchkit/core";
+import {
+  defineAction,
+  defineCapability,
+  defineRule,
+  defineSchema,
+  defineState,
+  defineView,
+} from "@linchkit/core";
 import { validateCapability } from "../src/validate-capability";
 
 describe("validateCapability", () => {

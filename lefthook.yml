@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     biome-check:
-      run: bunx biome check --staged
+      run: bunx @biomejs/biome check --staged
     typecheck:
       run: bun run typecheck
 

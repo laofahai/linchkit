@@ -1,92 +1,44 @@
 /**
- * testRule — Unit test utility for individual Rule definitions
+ * Shared declarative condition evaluator
  *
- * Evaluates a Rule's condition against provided context and returns the effect.
+ * Evaluates SimpleCondition, CompositeCondition, and NotCondition
+ * against a flat context object with support for nested field paths.
  */
 
 import type {
-  CodeCondition,
   CompositeCondition,
   DeclarativeCondition,
   NotCondition,
-  RuleDefinition,
-  RuleEvaluationResult,
   SimpleCondition,
-} from "@linchkit/core";
+} from "../types/rule";
 
-export interface TestRuleInput {
-  target: Record<string, unknown>;
-  actor?: { type: string; id?: string; roles?: string[] };
-  context?: Record<string, unknown>;
-}
-
-/**
- * Evaluate a single Rule against the given input context.
- */
-export async function testRule(
-  rule: RuleDefinition,
-  input: TestRuleInput,
-): Promise<RuleEvaluationResult> {
-  const start = performance.now();
-  const actor = {
-    type: input.actor?.type ?? "human",
-    id: input.actor?.id ?? "test-actor",
-    roles: input.actor?.roles ?? [],
-  };
-
-  let triggered: boolean;
-
-  if (typeof rule.condition === "function") {
-    const codeFn = rule.condition as CodeCondition;
-    triggered = await codeFn({
-      target: input.target,
-      context: input.context ?? {},
-      actor,
-    });
-  } else {
-    triggered = evaluateDeclarative(rule.condition as DeclarativeCondition, {
-      target: input.target,
-      context: input.context ?? {},
-      actor,
-    });
-  }
-
-  const duration = performance.now() - start;
-
-  return {
-    rule: rule.name,
-    triggered,
-    effect: triggered ? rule.effect : null,
-    duration,
-  };
-}
-
-// ── Declarative condition evaluator ─────────────────
-
-interface EvalContext {
+export interface ConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
   actor: { type: string; id: string; roles: string[] };
 }
 
-function evaluateDeclarative(condition: DeclarativeCondition, ctx: EvalContext): boolean {
+/**
+ * Evaluate a declarative condition tree against the given context.
+ */
+export function evaluateCondition(condition: DeclarativeCondition, ctx: ConditionContext): boolean {
   if ("conditions" in condition) {
     return evaluateComposite(condition as CompositeCondition, ctx);
   }
   if ("condition" in condition && (condition as NotCondition).operator === "not") {
-    return !evaluateDeclarative((condition as NotCondition).condition, ctx);
+    return !evaluateCondition((condition as NotCondition).condition, ctx);
   }
   return evaluateSimple(condition as SimpleCondition, ctx);
 }
 
-function evaluateComposite(condition: CompositeCondition, ctx: EvalContext): boolean {
+function evaluateComposite(condition: CompositeCondition, ctx: ConditionContext): boolean {
   if (condition.operator === "and") {
-    return condition.conditions.every((c) => evaluateDeclarative(c, ctx));
+    return condition.conditions.every((c) => evaluateCondition(c, ctx));
   }
-  return condition.conditions.some((c) => evaluateDeclarative(c, ctx));
+  return condition.conditions.some((c) => evaluateCondition(c, ctx));
 }
 
-function evaluateSimple(condition: SimpleCondition, ctx: EvalContext): boolean {
+function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): boolean {
   const value = resolveField(condition.field, ctx);
   const expected = condition.value;
 
@@ -121,7 +73,11 @@ function evaluateSimple(condition: SimpleCondition, ctx: EvalContext): boolean {
   }
 }
 
-function resolveField(path: string, ctx: EvalContext): unknown {
+/**
+ * Resolve a dot-separated field path against the context object.
+ * E.g. "target.department.name" resolves ctx.target.department.name
+ */
+export function resolveField(path: string, ctx: ConditionContext): unknown {
   const parts = path.split(".");
   let current: unknown = ctx;
 

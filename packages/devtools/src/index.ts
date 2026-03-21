@@ -6,11 +6,9 @@
 
 export const VERSION = "0.0.1";
 
-export { testRule } from "./test-rule";
 export type { TestRuleInput } from "./test-rule";
-
-export { testStateMachine, getAvailableTransitions } from "./test-state";
+export { testRule } from "./test-rule";
 export type { TestTransitionInput } from "./test-state";
-
-export { validateCapability } from "./validate-capability";
+export { getAvailableTransitions, testStateMachine } from "./test-state";
 export type { CapabilityValidationResult, ValidationIssue } from "./validate-capability";
+export { validateCapability } from "./validate-capability";

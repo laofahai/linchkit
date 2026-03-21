@@ -8,11 +8,7 @@
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { RuleDefinition, RuleOverride } from "./rule";
-import type {
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
-} from "./schema";
+import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
 import type { ViewDefinition, ViewExtension } from "./view";
 
@@ -20,11 +16,7 @@ import type { ViewDefinition, ViewExtension } from "./view";
 
 export type CapabilityType = "standard" | "bridge" | "adapter";
 
-export type CapabilityCategory =
-  | "business"
-  | "system"
-  | "integration"
-  | (string & {});
+export type CapabilityCategory = "business" | "system" | "integration" | (string & {});
 
 // ── Capability definition ────────────────────────────────
 
