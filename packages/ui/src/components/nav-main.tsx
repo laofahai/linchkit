@@ -4,6 +4,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -12,6 +20,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { Link, type LinkProps } from "@tanstack/react-router"
 import { ChevronRightIcon } from "lucide-react"
@@ -32,6 +41,8 @@ export function NavMain({
   }[]
 }) {
   const { t } = useTranslation()
+  const { state, isMobile } = useSidebar()
+  const isCollapsed = state === "collapsed" && !isMobile
 
   return (
     <SidebarGroup>
@@ -53,6 +64,35 @@ export function NavMain({
             )
           }
 
+          // Collapsed: use DropdownMenu to show sub-items in a popover
+          if (isCollapsed) {
+            return (
+              <SidebarMenuItem key={item.title}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton tooltip={item.title}>
+                      {item.icon}
+                      <span>{item.title}</span>
+                      <ChevronRightIcon className="ml-auto" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" sideOffset={4}>
+                    <DropdownMenuLabel>{item.title}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {item.items?.map((subItem) => (
+                      <DropdownMenuItem key={subItem.title} asChild>
+                        <Link to={subItem.url as LinkProps["to"]}>
+                          {subItem.title}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            )
+          }
+
+          // Expanded: use Collapsible to show sub-items inline
           return (
             <Collapsible
               key={item.title}

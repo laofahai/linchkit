@@ -6,6 +6,7 @@ import type {
   EnumField,
   FieldDefinition,
   SchemaDefinition,
+  StateMeta,
   ViewAction,
   ViewFieldConfig,
 } from "@linchkit/core";
@@ -25,12 +26,16 @@ import { StatusBadge } from "./status-badge";
 
 type DataRow = Record<string, unknown>;
 
-export function buildColumns(
-  fields: ViewFieldConfig[],
-  schema: SchemaDefinition,
-  rowActions: ViewAction[],
-  onAction?: (actionName: string, recordId: string) => void,
-): ColumnDef<DataRow>[] {
+export interface BuildColumnsOptions {
+  fields: ViewFieldConfig[];
+  schema: SchemaDefinition;
+  rowActions: ViewAction[];
+  onAction?: (actionName: string, recordId: string) => void;
+  stateMeta?: Partial<Record<string, StateMeta>>;
+}
+
+export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
+  const { fields, schema, rowActions, onAction, stateMeta } = opts;
   const cols: ColumnDef<DataRow>[] = fields.map((vf) => {
     const fieldDef = schema.fields[vf.field];
     const label = vf.label ?? fieldDef?.label ?? vf.field;
@@ -62,7 +67,7 @@ export function buildColumns(
       cell: ({ getValue }) => {
         const value = getValue();
         if (fieldDef?.type === "state" && typeof value === "string") {
-          return <StatusBadge value={value} />;
+          return <StatusBadge value={value} meta={stateMeta} />;
         }
         if (fieldDef) {
           return (

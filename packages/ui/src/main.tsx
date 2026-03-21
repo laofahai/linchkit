@@ -1,7 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
+import { registerDefaultWidgets } from "./components/widgets";
 import "./app.css";
+
+// Register built-in widgets before rendering
+registerDefaultWidgets();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {

@@ -1,9 +1,10 @@
 /**
- * FormField — Single field row with label + value, Odoo-style layout.
+ * FormField — Single field row with label + value.
  *
- * Layout: fixed-width right-aligned label | flexible value area.
- * Required fields get a subtle blue background (no asterisk).
- * Edit mode inputs use bottom-underline style (no border box).
+ * Uses display:contents to participate in parent grid layout.
+ * Label auto-sizes; all labels in the same group align to the widest one.
+ * Required fields get a subtle slate background on the input (no asterisk).
+ * Edit mode uses standard bordered inputs (shadcn Input).
  */
 
 import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core";
@@ -40,34 +41,13 @@ export function FormFieldRow({
   const label = node.label ?? viewField?.label ?? fieldDef.label ?? node.field;
   const colspan = node.colspan ?? 1;
 
-  return (
-    <div
-      className={cn(
-        // Field row: horizontal layout with bottom border
-        "flex items-center gap-x-3 py-2 border-b border-border/20 last:border-b-0 min-h-[36px]",
-        // Responsive: stack on mobile
-        "max-md:flex-col max-md:items-start max-md:gap-0",
-        // Required field background highlight (no asterisk)
-        required && !isViewMode && "bg-blue-50/30 dark:bg-blue-950/10",
-        node.className,
-      )}
-      style={colspan > 1 ? { gridColumn: `span ${colspan}` } : undefined}
-    >
-      {/* Label column — fixed width, right-aligned (Odoo style) */}
-      {!node.nolabel && (
-        <Label
-          className={cn(
-            "w-[150px] shrink-0 text-right text-sm text-muted-foreground leading-9 truncate",
-            // Mobile: full width, left-aligned
-            "max-md:w-full max-md:text-left max-md:text-xs",
-          )}
-        >
-          {label}
-        </Label>
-      )}
-
-      {/* Value column — stretches to fill */}
-      <div className={cn("flex-1 min-w-0 text-sm leading-9", node.nolabel && "w-full")}>
+  // For nolabel fields, span both label + value columns
+  if (node.nolabel) {
+    return (
+      <div
+        className={cn("py-2 text-sm leading-9 min-h-[36px]", node.className)}
+        style={{ gridColumn: `span ${colspan * 2}` }}
+      >
         {isViewMode || readonly ? (
           <div className="text-foreground leading-9">
             <FieldDisplay
@@ -86,12 +66,65 @@ export function FormFieldRow({
             readonly={readonly}
             error={error}
             dirty={isDirty}
+            required={required}
           />
         )}
         {error && !isViewMode && !readonly && (
           <p className="mt-1 text-xs text-destructive">{error}</p>
         )}
       </div>
-    </div>
+    );
+  }
+
+  // Normal field: label in col 1, value in col 2 (via contents)
+  return (
+    <>
+      {/* Label cell — auto width, right-aligned, all labels in group align */}
+      <Label
+        className={cn(
+          "justify-end text-sm text-muted-foreground leading-9 whitespace-nowrap pr-3",
+          "py-1",
+          "max-md:justify-start max-md:text-xs max-md:pb-0",
+          node.className,
+        )}
+      >
+        {label}
+      </Label>
+
+      {/* Value cell */}
+      <div
+        className={cn(
+          "text-sm leading-9 min-h-[36px] min-w-0",
+          "py-1",
+          "max-md:pt-0",
+        )}
+        style={colspan > 1 ? { gridColumn: `span ${colspan * 2 - 1}` } : undefined}
+      >
+        {isViewMode || readonly ? (
+          <div className="text-foreground leading-9">
+            <FieldDisplay
+              field={viewField ?? { field: node.field }}
+              value={value}
+              fieldDef={fieldDef}
+            />
+          </div>
+        ) : (
+          <FieldInput
+            field={viewField ?? { field: node.field }}
+            value={value}
+            fieldDef={fieldDef}
+            onChange={onChange}
+            onBlur={onBlur}
+            readonly={readonly}
+            error={error}
+            dirty={isDirty}
+            required={required}
+          />
+        )}
+        {error && !isViewMode && !readonly && (
+          <p className="mt-1 text-xs text-destructive">{error}</p>
+        )}
+      </div>
+    </>
   );
 }

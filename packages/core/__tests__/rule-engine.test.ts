@@ -8,7 +8,7 @@ import type { RuleDefinition } from "../src/types/rule";
 
 const defaultInput: RuleEvalInput = {
   target: { amount: 5000, department: { name: "engineering" }, status: "draft" },
-  actor: { type: "human", id: "user-1", roles: ["employee"] },
+  actor: { type: "human", id: "user-1", groups: ["employee"] },
   context: {},
 };
 
@@ -29,7 +29,7 @@ describe("evaluateCondition", () => {
   const ctx = {
     target: { amount: 100, tags: ["urgent", "new"], name: "Test Item", nested: { value: 42 } },
     context: {},
-    actor: { type: "human" as const, id: "u1", roles: ["admin"] },
+    actor: { type: "human" as const, id: "u1", groups: ["admin"] },
   };
 
   it("evaluates eq operator", () => {
@@ -345,7 +345,7 @@ describe("evaluateRules", () => {
   it("supports code-based conditions", async () => {
     const rule = makeRule({
       name: "code-rule",
-      condition: (ctx) => ctx.actor.roles.includes("employee"),
+      condition: (ctx) => ctx.actor.groups.includes("employee"),
       effect: { type: "warn", message: "Employee action" },
     });
 

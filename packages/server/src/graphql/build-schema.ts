@@ -19,11 +19,14 @@ import {
 import type {
 	ActionDefinition,
 	ActionExecutor,
+	ExecutionLogger,
+	ExecutionStatus,
 	SchemaDefinition,
 } from "@linchkit/core";
 import {
 	generateGraphQLObjectType,
 	generateGraphQLInputType,
+	generateActionInputType,
 } from "./schema-to-graphql";
 import type { InMemoryStore } from "../data/in-memory-store";
 
@@ -51,7 +54,7 @@ function toCamelCase(name: string): string {
 const GRAPHQL_ACTOR = {
 	type: "human" as const,
 	id: "graphql_user",
-	roles: ["admin"],
+	groups: ["admin"],
 };
 
 // ── ActionResult GraphQL type ──────────────────────────────
@@ -127,6 +130,70 @@ export function generateCrudActions(
 	return [createAction, updateAction, deleteAction];
 }
 
+// ── ExecutionLog GraphQL types ───────────────────────────────
+
+const ExecutionActorType = new GraphQLObjectType({
+	name: "ExecutionActor",
+	fields: {
+		type: { type: new GraphQLNonNull(GraphQLString) },
+		id: { type: new GraphQLNonNull(GraphQLString) },
+	},
+});
+
+const ExecutionRuleResultType = new GraphQLObjectType({
+	name: "ExecutionRuleResult",
+	fields: {
+		rule: { type: new GraphQLNonNull(GraphQLString) },
+		result: { type: new GraphQLNonNull(GraphQLString) },
+		message: { type: GraphQLString },
+	},
+});
+
+const ExecutionStateTransitionType = new GraphQLObjectType({
+	name: "ExecutionStateTransition",
+	fields: {
+		from: { type: new GraphQLNonNull(GraphQLString) },
+		to: { type: new GraphQLNonNull(GraphQLString) },
+	},
+});
+
+const ExecutionErrorType = new GraphQLObjectType({
+	name: "ExecutionError",
+	fields: {
+		code: { type: GraphQLString },
+		message: { type: new GraphQLNonNull(GraphQLString) },
+	},
+});
+
+const ExecutionLogEntryType = new GraphQLObjectType({
+	name: "ExecutionLogEntry",
+	fields: {
+		id: { type: new GraphQLNonNull(GraphQLID) },
+		action: { type: new GraphQLNonNull(GraphQLString) },
+		capability: { type: GraphQLString },
+		schema: { type: GraphQLString },
+		recordId: { type: GraphQLString },
+		actor: { type: new GraphQLNonNull(ExecutionActorType) },
+		input: { type: GraphQLString, description: "JSON-encoded input", resolve: (e: Record<string, unknown>) => JSON.stringify(e.input) },
+		output: { type: GraphQLString, description: "JSON-encoded output", resolve: (e: Record<string, unknown>) => e.output ? JSON.stringify(e.output) : null },
+		status: { type: new GraphQLNonNull(GraphQLString) },
+		error: { type: ExecutionErrorType },
+		rulesEvaluated: { type: new GraphQLList(new GraphQLNonNull(ExecutionRuleResultType)) },
+		stateTransition: { type: ExecutionStateTransitionType },
+		duration: { type: new GraphQLNonNull(GraphQLInt) },
+		startedAt: { type: new GraphQLNonNull(GraphQLString), resolve: (e: Record<string, unknown>) => (e.startedAt as Date).toISOString() },
+		completedAt: { type: new GraphQLNonNull(GraphQLString), resolve: (e: Record<string, unknown>) => (e.completedAt as Date).toISOString() },
+	},
+});
+
+const ExecutionLogListResultType = new GraphQLObjectType({
+	name: "ExecutionLogListResult",
+	fields: {
+		items: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExecutionLogEntryType))) },
+		total: { type: new GraphQLNonNull(GraphQLInt) },
+	},
+});
+
 // ── Schema builder options ──────────────────────────────────
 
 export interface BuildGraphQLSchemaOptions {
@@ -134,6 +201,10 @@ export interface BuildGraphQLSchemaOptions {
 	executor?: ActionExecutor;
 	/** In-memory store for query resolvers */
 	store?: InMemoryStore;
+	/** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
+	actions?: ActionDefinition[];
+	/** Execution logger for log query endpoints */
+	executionLogger?: ExecutionLogger;
 }
 
 /**
@@ -152,6 +223,7 @@ export function buildGraphQLSchema(
 ): GraphQLSchema {
 	const executor = options?.executor;
 	const store = options?.store;
+	const executionLogger = options?.executionLogger;
 
 	if (schemas.length === 0) {
 		// Return a minimal valid schema with a placeholder query
@@ -171,8 +243,14 @@ export function buildGraphQLSchema(
 	const queryFields: Record<string, unknown> = {};
 	const mutationFields: Record<string, unknown> = {};
 
+	// Pre-generate object types to reuse for both CRUD and custom action return types
+	const schemaObjectTypes = new Map<string, GraphQLObjectType>();
 	for (const schema of schemas) {
-		const objectType = generateGraphQLObjectType(schema);
+		schemaObjectTypes.set(schema.name, generateGraphQLObjectType(schema));
+	}
+
+	for (const schema of schemas) {
+		const objectType = schemaObjectTypes.get(schema.name)!;
 		const inputType = generateGraphQLInputType(schema);
 		const camelName = toCamelCase(schema.name);
 		const pascalName = toPascalCase(schema.name);
@@ -201,11 +279,22 @@ export function buildGraphQLSchema(
 					}),
 		};
 
+		// ── ListResult type for paginated responses ──────────
+		const listResultType = new GraphQLObjectType({
+			name: `${pascalName}ListResult`,
+			fields: {
+				items: {
+					type: new GraphQLNonNull(
+						new GraphQLList(new GraphQLNonNull(objectType)),
+					),
+				},
+				total: { type: new GraphQLNonNull(GraphQLInt) },
+			},
+		});
+
 		// ── Query: list with filter/sort/pagination ───────────
 		queryFields[`${camelName}List`] = {
-			type: new GraphQLNonNull(
-				new GraphQLList(new GraphQLNonNull(objectType)),
-			),
+			type: new GraphQLNonNull(listResultType),
 			args: {
 				filter: {
 					type: GraphQLString,
@@ -216,8 +305,8 @@ export function buildGraphQLSchema(
 					type: GraphQLString,
 					description: "Sort order: asc or desc",
 				},
-				offset: { type: GraphQLInt, description: "Pagination offset" },
-				limit: { type: GraphQLInt, description: "Pagination limit" },
+				page: { type: GraphQLInt, description: "Page number (1-based)" },
+				pageSize: { type: GraphQLInt, description: "Number of items per page" },
 			},
 			resolve: store
 				? (
@@ -226,8 +315,8 @@ export function buildGraphQLSchema(
 							filter?: string;
 							sortField?: string;
 							sortOrder?: string;
-							offset?: number;
-							limit?: number;
+							page?: number;
+							pageSize?: number;
 						},
 					) => {
 						const filter = args.filter
@@ -240,14 +329,19 @@ export function buildGraphQLSchema(
 										order: (args.sortOrder as "asc" | "desc") ?? "asc",
 									}
 								: undefined;
-						return store.findMany(schemaName, {
+						const page = args.page ?? 1;
+						const pageSize = args.pageSize ?? undefined;
+						const offset = pageSize ? (page - 1) * pageSize : 0;
+						const items = store.findMany(schemaName, {
 							filter,
 							sort,
-							offset: args.offset ?? undefined,
-							limit: args.limit ?? undefined,
+							offset,
+							limit: pageSize,
 						});
+						const total = store.count(schemaName, filter);
+						return { items, total };
 					}
-				: () => [],
+				: () => ({ items: [], total: 0 }),
 		};
 
 		// ── Mutation: create ──────────────────────────────────
@@ -345,6 +439,155 @@ export function buildGraphQLSchema(
 						return result.success;
 					}
 				: () => true,
+		};
+	}
+
+	// ── Execution Log queries ────────────────────────────────
+	if (executionLogger) {
+		queryFields.executionLogs = {
+			type: new GraphQLNonNull(ExecutionLogListResultType),
+			args: {
+				action: { type: GraphQLString },
+				schema: { type: GraphQLString },
+				status: { type: GraphQLString },
+				actorId: { type: GraphQLString },
+				since: { type: GraphQLString },
+				until: { type: GraphQLString },
+				page: { type: GraphQLInt },
+				pageSize: { type: GraphQLInt },
+				sortField: { type: GraphQLString },
+				sortOrder: { type: GraphQLString },
+			},
+			resolve: (
+				_root: unknown,
+				args: {
+					action?: string;
+					schema?: string;
+					status?: string;
+					actorId?: string;
+					since?: string;
+					until?: string;
+					page?: number;
+					pageSize?: number;
+					sortField?: string;
+					sortOrder?: string;
+				},
+			) =>
+				executionLogger.findMany({
+					action: args.action,
+					schema: args.schema,
+					status: args.status as ExecutionStatus | undefined,
+					actorId: args.actorId,
+					since: args.since,
+					until: args.until,
+					page: args.page,
+					pageSize: args.pageSize,
+					sortField: args.sortField as "startedAt" | "duration" | "action" | undefined,
+					sortOrder: args.sortOrder as "asc" | "desc" | undefined,
+				}),
+		};
+
+		queryFields.executionLog = {
+			type: ExecutionLogEntryType,
+			args: {
+				id: { type: new GraphQLNonNull(GraphQLID) },
+			},
+			resolve: (_root: unknown, args: { id: string }) =>
+				executionLogger.getById(args.id) ?? null,
+		};
+	}
+
+	// ── Custom action typed mutations ────────────────────────
+	const customActions = options?.actions ?? [];
+	for (const action of customActions) {
+		const mutationName = toCamelCase(action.name);
+		const actionName = action.name;
+		const actionInputType = generateActionInputType(action);
+
+		// Determine return type: schema's object type if action belongs to a schema, else ActionResult
+		const returnType = action.schema && schemaObjectTypes.has(action.schema)
+			? schemaObjectTypes.get(action.schema)!
+			: ActionResultType;
+		const returnsSchemaType = returnType !== ActionResultType;
+
+		// Build args: always include id (ID!), optionally include typed input
+		const args: Record<string, unknown> = {
+			id: { type: new GraphQLNonNull(GraphQLID) },
+		};
+		if (actionInputType) {
+			args.input = { type: new GraphQLNonNull(actionInputType) };
+		}
+
+		mutationFields[mutationName] = {
+			type: returnType,
+			description: action.description ?? action.label,
+			args,
+			resolve: executor
+				? async (
+						_root: unknown,
+						resolverArgs: { id: string; input?: Record<string, unknown> },
+					) => {
+						const input: Record<string, unknown> = {
+							id: resolverArgs.id,
+							...resolverArgs.input,
+						};
+						const result = await executor.execute(
+							actionName,
+							input,
+							GRAPHQL_ACTOR,
+							{ channel: "http" },
+						);
+						if (returnsSchemaType) {
+							if (!result.success) {
+								const errData = result.data as
+									| Record<string, unknown>
+									| undefined;
+								throw new Error(
+									(errData?.error as string) ??
+										`Action "${actionName}" failed`,
+								);
+							}
+							return result.data;
+						}
+						// Return ActionResult shape
+						const errors = !result.success
+							? [
+									{
+										code: "ACTION_FAILED",
+										message:
+											(
+												result.data as
+													| Record<string, unknown>
+													| undefined
+											)?.error ?? "Action execution failed",
+									},
+								]
+							: null;
+						return {
+							success: result.success,
+							data: result.data
+								? JSON.stringify(result.data)
+								: null,
+							errors,
+							executionId: result.executionId,
+						};
+					}
+				: () => {
+						if (returnsSchemaType) {
+							return null;
+						}
+						return {
+							success: false,
+							data: null,
+							errors: [
+								{
+									code: "NOT_WIRED",
+									message: `Action executor not configured. Cannot execute "${actionName}".`,
+								},
+							],
+							executionId: null,
+						};
+					},
 		};
 	}
 

@@ -32,6 +32,7 @@ export function AutoList({
   data,
   loading = false,
   title,
+  stateMeta,
   onAction,
   onBulkAction,
   onRowClick,
@@ -70,7 +71,7 @@ export function AutoList({
   );
 
   const columns = useMemo(() => {
-    const cols = buildColumns(view.fields, schema, rowActions, onAction);
+    const cols = buildColumns({ fields: view.fields, schema, rowActions, onAction, stateMeta });
     if (selectable) {
       cols.unshift(buildSelectionColumn());
     }

@@ -4,18 +4,40 @@
 
 // Action engine
 export {
-  ActionRegistry,
-  createActionExecutor,
   type ActionExecutor,
   type ActionExecutorOptions,
+  ActionRegistry,
+  createActionExecutor,
   type DataProvider,
   type ExecuteOptions,
   type ExecutionChannel,
 } from "./action-engine";
-// Event bus
-export { createEventBus, EventBus, EventHandlerRegistry } from "./event-bus";
+// Command layer
+export {
+  type CommandContext,
+  type CommandExecuteOptions,
+  type CommandLayer,
+  type CommandLayerOptions,
+  createCommandLayer,
+  ExposureError,
+  type MiddlewareHandler,
+  type MiddlewareRegistration,
+  PipelineError,
+  type SlotName,
+} from "./command-layer";
 // Rule engine
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
+// Event bus
+export { createEventBus, EventBus, EventHandlerRegistry } from "./event-bus";
+// Execution logger
+export { InMemoryExecutionLogger } from "./execution-logger";
+// Permission engine
+export {
+  checkActionPermission,
+  PermissionRegistry,
+  resolveConditionVariables,
+  resolveDataAccess,
+} from "./permission-engine";
 export { evaluateRules, type RuleEvalInput, type RuleEvalOutput } from "./rule-engine";
 // Schema registry
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";

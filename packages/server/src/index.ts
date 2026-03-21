@@ -11,5 +11,7 @@ export { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema"
 export type { BuildGraphQLSchemaOptions } from "./graphql/build-schema";
 export { createServer } from "./server";
 export type { ServerOptions } from "./server";
+export { createRuntimeContext } from "./runtime-context";
+export type { RuntimeContext, RuntimeContextOptions } from "./runtime-context";
 export { InMemoryStore } from "./data/in-memory-store";
 export type { FindManyOptions } from "./data/in-memory-store";

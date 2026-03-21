@@ -1,5 +1,6 @@
 import type {
   SchemaDefinition,
+  StateMeta,
   ViewAction,
   ViewFieldConfig,
 } from "@linchkit/core";
@@ -33,6 +34,8 @@ export interface AutoListProps {
   loading?: boolean;
   /** Optional title rendered inline in the toolbar row. */
   title?: string;
+  /** State machine meta for rendering state field colors/labels. */
+  stateMeta?: Partial<Record<string, StateMeta>>;
   onAction?: (actionName: string, recordId: string) => void;
   /** Callback for bulk actions on selected rows. */
   onBulkAction?: (actionName: string, recordIds: string[]) => void;

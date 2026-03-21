@@ -75,6 +75,38 @@
     "page": "Page {{current}} of {{total}}",
     "selected": "selected"
   },
+  "commandPalette": {
+    "title": "Command Palette",
+    "description": "Search for pages, actions, or type a command...",
+    "placeholder": "Search...",
+    "noResults": "No results found.",
+    "navigation": "Navigation",
+    "actions": "Actions",
+    "actionsComingSoon": "Action launching coming soon...",
+    "shortcutSettings": "⌘,"
+  },
+  "executionLog": {
+    "title": "Execution Log",
+    "subtitle": "Action execution history — audit, debug, and observe system behavior.",
+    "refresh": "Refresh",
+    "allStatuses": "All Statuses",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "blocked": "Blocked",
+    "pendingApproval": "Pending Approval",
+    "entries": "entries",
+    "noEntries": "No execution logs yet.",
+    "time": "Time",
+    "action": "Action",
+    "actor": "Actor",
+    "status": "Status",
+    "duration": "Duration",
+    "input": "Input",
+    "output": "Output",
+    "error": "Error",
+    "stateTransition": "State Transition",
+    "rulesEvaluated": "Rules Evaluated"
+  },
   "language": {
     "label": "Language",
     "en": "English",

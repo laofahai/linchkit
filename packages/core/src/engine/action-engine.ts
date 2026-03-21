@@ -14,6 +14,7 @@ import type {
   Actor,
   ValidationResult,
 } from "../types/action";
+import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
 
@@ -40,6 +41,10 @@ export type ExecutionChannel = "http" | "mcp" | "cli" | "ui" | "internal";
 
 export interface ExecuteOptions {
   channel?: ExecutionChannel;
+  /** When true, skip exposure and permission checks (already handled by CommandLayer) */
+  skipPipelineChecks?: boolean;
+  /** Tenant ID resolved by CommandLayer */
+  tenantId?: string;
 }
 
 // ── ActionRegistry ──────────────────────────────────────────
@@ -135,11 +140,11 @@ function checkPermissions(action: ActionDefinition, actor: Actor): string | null
     }
   }
 
-  // Check roles
-  if (perms.roles && perms.roles.length > 0) {
-    const hasRole = actor.roles.some((r) => perms.roles!.includes(r));
-    if (!hasRole) {
-      return `Actor does not have any of the required roles: ${perms.roles.join(", ")}`;
+  // Check permission groups
+  if (perms.groups && perms.groups.length > 0) {
+    const hasGroup = actor.groups.some((g) => perms.groups!.includes(g));
+    if (!hasGroup) {
+      return `Actor does not belong to any of the required groups: ${perms.groups.join(", ")}`;
     }
   }
 
@@ -202,6 +207,7 @@ function runPreValidation(
 export interface ActionExecutorOptions {
   dataProvider: DataProvider;
   stateMachine?: StateMachine;
+  executionLogger?: ExecutionLogger;
 }
 
 /**
@@ -219,7 +225,17 @@ export interface ActionExecutorOptions {
  */
 export function createActionExecutor(options: ActionExecutorOptions): ActionExecutor {
   const registry = new ActionRegistry();
-  const { dataProvider, stateMachine } = options;
+  const { dataProvider, stateMachine, executionLogger } = options;
+
+  /** Helper: build and log an execution entry */
+  function logExecution(
+    entry: Omit<ExecutionLogEntry, "completedAt" | "duration"> & { startedAt: Date },
+  ): void {
+    if (!executionLogger) return;
+    const completedAt = new Date();
+    const duration = completedAt.getTime() - entry.startedAt.getTime();
+    executionLogger.log({ ...entry, completedAt, duration } as ExecutionLogEntry);
+  }
 
   async function execute<T = unknown>(
     actionName: string,
@@ -228,10 +244,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     execOptions?: ExecuteOptions,
   ): Promise<ActionResult<T>> {
     const executionId = generateExecutionId();
+    const startedAt = new Date();
 
     // Step 1: Look up action
     const action = registry.get(actionName);
     if (!action) {
+      logExecution({
+        id: executionId,
+        action: actionName,
+        actor,
+        input,
+        status: "failed",
+        error: { message: `Action "${actionName}" not found` },
+        startedAt,
+      });
       return {
         success: false,
         data: { error: `Action "${actionName}" not found` } as T,
@@ -239,32 +265,65 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 2: Exposure check
-    if (execOptions?.channel) {
-      if (!isExposed(action.exposure, execOptions.channel)) {
+    // Step 2 & 3: Exposure + Permission checks
+    // Skipped when CommandLayer has already performed these checks
+    if (!execOptions?.skipPipelineChecks) {
+      // Step 2: Exposure check
+      if (execOptions?.channel) {
+        if (!isExposed(action.exposure, execOptions.channel)) {
+          const errorMsg = `Action "${actionName}" is not exposed for channel "${execOptions.channel}"`;
+          logExecution({
+            id: executionId,
+            action: actionName,
+            schema: action.schema,
+            actor,
+            input,
+            status: "blocked",
+            error: { message: errorMsg },
+            startedAt,
+          });
+          return {
+            success: false,
+            data: { error: errorMsg } as T,
+            executionId,
+          };
+        }
+      }
+
+      // Step 3: Permission check
+      const permError = checkPermissions(action, actor);
+      if (permError) {
+        logExecution({
+          id: executionId,
+          action: actionName,
+          schema: action.schema,
+          actor,
+          input,
+          status: "blocked",
+          error: { message: permError },
+          startedAt,
+        });
         return {
           success: false,
-          data: {
-            error: `Action "${actionName}" is not exposed for channel "${execOptions.channel}"`,
-          } as T,
+          data: { error: permError } as T,
           executionId,
         };
       }
     }
 
-    // Step 3: Permission check
-    const permError = checkPermissions(action, actor);
-    if (permError) {
-      return {
-        success: false,
-        data: { error: permError } as T,
-        executionId,
-      };
-    }
-
     // Step 4: Input validation
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
+      logExecution({
+        id: executionId,
+        action: actionName,
+        schema: action.schema,
+        actor,
+        input,
+        status: "failed",
+        error: { message: "Input validation failed" },
+        startedAt,
+      });
       return {
         success: false,
         data: { error: "Input validation failed", details: inputValidation.errors } as T,
@@ -273,11 +332,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Build ActionContext
+    const childExecutionIds: string[] = [];
     const ctx: ActionContext = {
       input,
       actor,
       executionId,
-      timestamp: new Date(),
+      timestamp: startedAt,
       get: (schema, id) => dataProvider.get(schema, id),
       query: (schema, filter) => dataProvider.query(schema, filter),
       create: (schema, data) => dataProvider.create(schema, data),
@@ -285,6 +345,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       delete: (schema, id) => dataProvider.delete(schema, id),
       execute: async (childActionName, childInput) => {
         const childResult = await execute(childActionName, childInput, actor);
+        childExecutionIds.push(childResult.executionId);
         return childResult.data;
       },
       emit: (_eventType, _payload) => {
@@ -295,6 +356,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 5: Pre-validation
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
+      logExecution({
+        id: executionId,
+        action: actionName,
+        schema: action.schema,
+        actor,
+        input,
+        status: "failed",
+        error: { message: "Validation failed" },
+        startedAt,
+      });
       return {
         success: false,
         data: { error: "Validation failed", details: preValidation.errors } as T,
@@ -303,6 +374,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 6: State transition check
+    let stateTransitionRecord: { from: string; to: string } | undefined;
+
     if (action.stateTransition && stateMachine) {
       const fromStates = Array.isArray(action.stateTransition.from)
         ? action.stateTransition.from
@@ -324,25 +397,45 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       if (currentState !== undefined) {
         // Check if current state is in the allowed "from" states
         if (!fromStates.includes(currentState)) {
+          const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
+          logExecution({
+            id: executionId,
+            action: actionName,
+            schema: action.schema,
+            actor,
+            input,
+            status: "blocked",
+            error: { message: errorMsg },
+            startedAt,
+          });
           return {
             success: false,
-            data: {
-              error: `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`,
-            } as T,
+            data: { error: errorMsg } as T,
             executionId,
           };
         }
 
         // Also validate against state machine if available
         if (!canTransition(stateMachine, currentState, actionName)) {
+          const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
+          logExecution({
+            id: executionId,
+            action: actionName,
+            schema: action.schema,
+            actor,
+            input,
+            status: "blocked",
+            error: { message: errorMsg },
+            startedAt,
+          });
           return {
             success: false,
-            data: {
-              error: `State machine does not allow action "${actionName}" from state "${currentState}"`,
-            } as T,
+            data: { error: errorMsg } as T,
             executionId,
           };
         }
+
+        stateTransitionRecord = { from: currentState, to: action.stateTransition.to };
       }
     }
 
@@ -377,6 +470,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       }
 
+      logExecution({
+        id: executionId,
+        action: actionName,
+        schema: action.schema,
+        actor,
+        input,
+        output: resultData,
+        status: "succeeded",
+        stateTransition: stateTransitionRecord,
+        childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
+        startedAt,
+      });
+
       return {
         success: true,
         data: resultData as T,
@@ -384,6 +490,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      logExecution({
+        id: executionId,
+        action: actionName,
+        schema: action.schema,
+        actor,
+        input,
+        status: "failed",
+        error: { message: err instanceof Error ? err.message : String(err) },
+        stateTransition: stateTransitionRecord,
+        childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
+        startedAt,
+      });
       return {
         success: false,
         data: {

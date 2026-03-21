@@ -45,7 +45,7 @@ export type DeclarativeCondition = SimpleCondition | CompositeCondition | NotCon
 export interface RuleConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
-  actor: { type: string; id: string; roles: string[] };
+  actor: { type: string; id: string; groups: string[] };
 }
 
 export type CodeCondition = (ctx: RuleConditionContext) => boolean | Promise<boolean>;

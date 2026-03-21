@@ -1,8 +1,9 @@
 /**
  * FormGroup — Group container for form fields.
  *
- * Default 2-column grid layout. No outer border/card, just a grid.
- * Optional title displayed as a subtle section header.
+ * Top-level groups use a multi-column layout (default 2).
+ * Inner groups use a label-value grid (auto 1fr) so all labels
+ * within the same group auto-align to the widest one.
  */
 
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core";
@@ -15,12 +16,38 @@ interface FormGroupProps {
 }
 
 export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
-  const columns = node.columns ?? 2;
+  const columns = node.columns ?? (depth === 0 ? 2 : 1);
 
+  if (depth > 0) {
+    // Inner group: label-value grid where all labels auto-align
+    return (
+      <div className={cn(node.className)}>
+        {node.title && (
+          <div className="py-3 border-b border-border/50">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {node.title}
+            </h3>
+          </div>
+        )}
+        <div
+          className="grid gap-y-0"
+          style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}
+        >
+          {node.children.map((child, i) => (
+            <div key={getGroupChildKey(child, i)} className="contents">
+              {renderNode(child, depth + 1)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Top-level group: equal columns, each containing an inner group
   return (
     <div className={cn(node.className)}>
       {node.title && (
-        <div className="col-span-full py-3 border-b border-border/50">
+        <div className="py-3 border-b border-border/50">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {node.title}
           </h3>
@@ -29,7 +56,6 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
       <div
         className={cn(
           "grid gap-x-8",
-          // Mobile: single column
           "max-md:grid-cols-1",
         )}
         style={{

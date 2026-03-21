@@ -1,7 +1,14 @@
 import type { SchemaDefinition, ViewAction } from "@linchkit/core";
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
 import { getEnumOptions } from "./columns";
 import type { ViewFilter } from "./types";
@@ -51,9 +58,6 @@ export function ListToolbar({
 }: ListToolbarProps) {
   const { t } = useTranslation();
 
-  const hasFiltersRow =
-    filters.length > 0 || globalFilter !== "" || true; // always show search
-
   return (
     <div className="space-y-3">
       {/* Row 1: Title + primary actions */}
@@ -62,25 +66,31 @@ export function ListToolbar({
           <h1 className="text-xl font-semibold text-foreground">{title}</h1>
         )}
         <div className="flex items-center gap-2">
+          {/* Bulk actions dropdown — visible when rows are selected */}
           {selectedCount > 0 && (
             <>
-              <span className="text-sm text-muted-foreground">
-                {selectedCount} {t("list.selected")}
-              </span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => onBulkAction?.("delete")}
-              >
-                {t("common.delete")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onBulkAction?.("export")}
-              >
-                {t("common.export")}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    {selectedCount} {t("list.selected")}
+                    <ChevronDown className="ml-1 size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => onBulkAction?.("export")}
+                  >
+                    {t("common.export")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => onBulkAction?.("delete")}
+                  >
+                    {t("common.delete")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 size="sm"
@@ -108,57 +118,55 @@ export function ListToolbar({
       </div>
 
       {/* Row 2: Search + filters */}
-      {hasFiltersRow && (
-        <div className="flex items-center gap-2 border-b border-border pb-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={`${t("common.search")}...`}
-              value={globalFilter}
-              onChange={(e) => onGlobalFilterChange(e.target.value)}
-              className="h-7 w-64 pl-8 text-sm"
-            />
-          </div>
-          {filters.map((filter) => {
-            if (filter.type === "select") {
-              const options =
-                filter.options ?? getEnumOptions(schema.fields[filter.field]);
-              return (
-                <select
-                  key={filter.field}
-                  className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                  value={getColumnFilterValue(filter.field)}
-                  onChange={(e) =>
-                    onColumnFilterChange(
-                      filter.field,
-                      e.target.value || undefined,
-                    )
-                  }
-                >
-                  <option value="">{filter.label ?? filter.field}</option>
-                  {options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              );
-            }
-            return null;
-          })}
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs text-muted-foreground"
-              onClick={onClearFilters}
-            >
-              <X className="mr-1 size-3" />
-              {t("common.reset")}
-            </Button>
-          )}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={`${t("common.search")}...`}
+            value={globalFilter}
+            onChange={(e) => onGlobalFilterChange(e.target.value)}
+            className="h-7 w-64 pl-8 text-sm"
+          />
         </div>
-      )}
+        {filters.map((filter) => {
+          if (filter.type === "select") {
+            const options =
+              filter.options ?? getEnumOptions(schema.fields[filter.field]);
+            return (
+              <select
+                key={filter.field}
+                className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                value={getColumnFilterValue(filter.field)}
+                onChange={(e) =>
+                  onColumnFilterChange(
+                    filter.field,
+                    e.target.value || undefined,
+                  )
+                }
+              >
+                <option value="">{filter.label ?? filter.field}</option>
+                {options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            );
+          }
+          return null;
+        })}
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={onClearFilters}
+          >
+            <X className="mr-1 size-3" />
+            {t("common.reset")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

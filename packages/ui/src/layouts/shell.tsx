@@ -1,4 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { CommandPalette } from "@/components/command-palette"
+import { HeaderActions } from "@/components/header-actions"
 import {
   Breadcrumb,
   BreadcrumbItem as BreadcrumbItemUI,
@@ -15,14 +17,19 @@ import {
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useBreadcrumb } from "@/hooks/use-breadcrumb"
+import { SchemasProvider } from "@/hooks/use-schemas"
 import { Link, Outlet } from "@tanstack/react-router"
-import React from "react"
+import React, { useCallback, useState } from "react"
 
 /** App Shell layout: Shadcn sidebar + header with breadcrumb + main content */
 export function ShellLayout() {
   const breadcrumbItems = useBreadcrumb()
+  const [cmdkOpen, setCmdkOpen] = useState(false)
+
+  const openCommandPalette = useCallback(() => setCmdkOpen(true), [])
 
   return (
+    <SchemasProvider>
     <TooltipProvider delayDuration={0}>
       <SidebarProvider>
         <AppSidebar />
@@ -56,12 +63,17 @@ export function ShellLayout() {
                 })}
               </BreadcrumbList>
             </Breadcrumb>
+            <div className="ml-auto">
+              <HeaderActions onOpenCommandPalette={openCommandPalette} />
+            </div>
           </header>
           <div className="flex flex-1 flex-col">
             <Outlet />
           </div>
         </SidebarInset>
+        <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
       </SidebarProvider>
     </TooltipProvider>
+    </SchemasProvider>
   )
 }

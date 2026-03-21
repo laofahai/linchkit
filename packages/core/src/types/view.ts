@@ -19,7 +19,8 @@ export interface ViewFieldConfig {
   width?: number | string;
   sortable?: boolean;
   filterable?: boolean;
-  component?: string;
+  /** Widget override for this field in this view. Takes highest priority. */
+  widget?: string;
 }
 
 // ── View Action buttons ────────────────────────────────
@@ -93,8 +94,8 @@ export interface FormFieldNode {
   readonly?: boolean;
   /** Column span within parent group (1-based, default: 1) */
   colspan?: number;
-  /** Custom component override */
-  component?: string;
+  /** Widget override for this field in this form */
+  widget?: string;
   /** Hide label */
   nolabel?: boolean;
   /** Additional CSS class */

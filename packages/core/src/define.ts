@@ -17,6 +17,11 @@ import type {
   SchemaOverride,
 } from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
+import type {
+  DataAccessDefinition,
+  PermissionGroupDefinition,
+  PermissionGroupExtension,
+} from "./types/permission";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 
 // ── Schema ──────────────────────────────────────────
@@ -106,6 +111,27 @@ export function extendView(
   target: string,
   extension: ViewExtension,
 ): { target: string; extension: ViewExtension } {
+  return { target, extension };
+}
+
+// ── Permission ──────────────────────────────────────
+
+export function definePermissionGroup(
+  definition: PermissionGroupDefinition,
+): PermissionGroupDefinition {
+  return definition;
+}
+
+export function defineDataAccess(
+  definition: DataAccessDefinition,
+): DataAccessDefinition {
+  return definition;
+}
+
+export function extendPermissionGroup(
+  target: string,
+  extension: PermissionGroupExtension,
+): { target: string; extension: PermissionGroupExtension } {
   return { target, extension };
 }
 

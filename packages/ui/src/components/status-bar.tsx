@@ -1,28 +1,34 @@
 /**
- * StatusBar — Odoo-style chevron status indicator.
+ * StatusBar — Chevron status indicator.
  *
  * Uses clip-path for arrow shapes. Background stripe behind all steps
  * provides visual continuity, with the active step highlighted.
+ * Colors are resolved from state-colors utility for consistency.
  */
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
+import { getStateBarClass, resolveColorToken, type StateColorToken } from "@/lib/state-colors";
 
 export interface StatusBarStep {
-  value: string
-  label: string
-  color?: "default" | "success" | "warning" | "danger"
+  value: string;
+  label: string;
+  /** Semantic color token (e.g. "success", "danger") or StateMeta.color value */
+  color?: string;
 }
 
 export interface StatusBarProps {
-  steps: StatusBarStep[]
-  current: string
-  onStepClick?: (value: string) => void
-  className?: string
+  steps: StatusBarStep[];
+  current: string;
+  onStepClick?: (value: string) => void;
+  className?: string;
 }
 
 export function StatusBar({ steps, current, onStepClick, className }: StatusBarProps) {
-  const currentIndex = steps.findIndex((s) => s.value === current)
-  const currentColor = steps[currentIndex]?.color ?? "default"
+  const currentIndex = steps.findIndex((s) => s.value === current);
+  const currentStep = steps[currentIndex];
+  const activeColorToken: StateColorToken = currentStep?.color
+    ? resolveColorToken(currentStep.color)
+    : "default";
 
   return (
     <div
@@ -32,43 +38,30 @@ export function StatusBar({ steps, current, onStepClick, className }: StatusBarP
       )}
     >
       {steps.map((step, i) => {
-        const isActive = step.value === current
-        const isCompleted = i < currentIndex
-        const isFirst = i === 0
-        const isLast = i === steps.length - 1
+        const isActive = step.value === current;
+        const isCompleted = i < currentIndex;
+        const isFirst = i === 0;
+        const isLast = i === steps.length - 1;
 
-        let colorCls: string
+        let colorCls: string;
         if (isActive) {
-          switch (currentColor) {
-            case "success":
-              colorCls = "bg-green-600 text-white dark:bg-green-500"
-              break
-            case "warning":
-              colorCls = "bg-yellow-500 text-white dark:bg-yellow-400 dark:text-yellow-950"
-              break
-            case "danger":
-              colorCls = "bg-red-600 text-white dark:bg-red-500"
-              break
-            default:
-              colorCls = "bg-primary text-primary-foreground"
-          }
+          colorCls = getStateBarClass(activeColorToken);
         } else if (isCompleted) {
-          colorCls = "bg-muted-foreground/15 text-foreground"
+          colorCls = "bg-muted-foreground/15 text-foreground";
         } else {
-          // Future steps: slightly visible against the muted background
-          colorCls = "bg-muted text-muted-foreground"
+          colorCls = "bg-muted text-muted-foreground";
         }
 
-        const chevronSize = 8
-        let clipPath: string
+        const chevronSize = 8;
+        let clipPath: string;
         if (isFirst && isLast) {
-          clipPath = "none"
+          clipPath = "none";
         } else if (isFirst) {
-          clipPath = `polygon(0 0, calc(100% - ${chevronSize}px) 0, 100% 50%, calc(100% - ${chevronSize}px) 100%, 0 100%)`
+          clipPath = `polygon(0 0, calc(100% - ${chevronSize}px) 0, 100% 50%, calc(100% - ${chevronSize}px) 100%, 0 100%)`;
         } else if (isLast) {
-          clipPath = `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${chevronSize}px 50%)`
+          clipPath = `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${chevronSize}px 50%)`;
         } else {
-          clipPath = `polygon(0 0, calc(100% - ${chevronSize}px) 0, 100% 50%, calc(100% - ${chevronSize}px) 100%, 0 100%, ${chevronSize}px 50%)`
+          clipPath = `polygon(0 0, calc(100% - ${chevronSize}px) 0, 100% 50%, calc(100% - ${chevronSize}px) 100%, 0 100%, ${chevronSize}px 50%)`;
         }
 
         return (
@@ -88,8 +81,8 @@ export function StatusBar({ steps, current, onStepClick, className }: StatusBarP
           >
             {step.label}
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

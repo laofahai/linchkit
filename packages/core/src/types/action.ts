@@ -9,12 +9,14 @@ import type { FieldDefinition } from "./schema";
 
 // ── Actor types ──────────────────────────────────────
 
-export type ActorType = "human" | "ai" | "system" | "worker" | "timer";
+export type ActorType = "human" | "ai" | "system" | "worker" | "timer" | "external";
 
 export interface Actor {
   type: ActorType;
   id: string;
-  roles: string[];
+  name?: string;
+  groups: string[];
+  metadata?: Record<string, unknown>;
 }
 
 // ── Action execution policy ────────────────────────────────
@@ -107,7 +109,7 @@ export interface ActionContext {
 // ── Action permissions ─────────────────────────────────────
 
 export interface ActionPermissions {
-  roles?: string[];
+  groups?: string[];
   actorTypes?: ActorType[];
 }
 

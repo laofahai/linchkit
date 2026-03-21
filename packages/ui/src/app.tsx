@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import "./i18n"; // Initialize i18n before rendering
 import { ShellLayout } from "./layouts/shell";
+import { ExecutionLogsPage } from "./pages/execution-logs";
 import { LoginPage } from "./pages/login";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
@@ -46,6 +47,13 @@ const schemaFormEditRoute = createRoute({
   component: SchemaFormPage,
 });
 
+// Execution logs route
+const executionLogsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/executions",
+  component: ExecutionLogsPage,
+});
+
 // Build the route tree and create the router
 const routeTree = rootRoute.addChildren([
   workspaceRoute,
@@ -53,6 +61,7 @@ const routeTree = rootRoute.addChildren([
   schemaListRoute,
   schemaFormNewRoute,
   schemaFormEditRoute,
+  executionLogsRoute,
 ]);
 
 const router = createRouter({ routeTree });

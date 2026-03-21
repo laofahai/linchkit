@@ -16,7 +16,7 @@ import type {
 
 export interface TestRuleInput {
   target: Record<string, unknown>;
-  actor?: { type: string; id?: string; roles?: string[] };
+  actor?: { type: string; id?: string; groups?: string[] };
   context?: Record<string, unknown>;
 }
 
@@ -31,7 +31,7 @@ export async function testRule(
   const actor = {
     type: input.actor?.type ?? "human",
     id: input.actor?.id ?? "test-actor",
-    roles: input.actor?.roles ?? [],
+    groups: input.actor?.groups ?? [],
   };
 
   let triggered: boolean;
@@ -66,7 +66,7 @@ export async function testRule(
 interface EvalContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
-  actor: { type: string; id: string; roles: string[] };
+  actor: { type: string; id: string; groups: string[] };
 }
 
 function evaluateDeclarative(condition: DeclarativeCondition, ctx: EvalContext): boolean {

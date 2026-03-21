@@ -1,8 +1,8 @@
 /**
  * Error class hierarchy for LinchKit
  *
- * Provides structured error types that map to HTTP status codes
- * and produce standardized error responses.
+ * 7 error types mapped to HTTP status codes (see spec 33_error_handling.md).
+ * 401 = authentication (who are you?), 403 = authorization (no permission).
  */
 
 import type {
@@ -10,8 +10,10 @@ import type {
   BusinessRuleErrorData,
   ConflictErrorData,
   ErrorCode,
+  ErrorType,
   LinchKitErrorOptions,
   LinchKitErrorResponse,
+  NotFoundErrorData,
   SystemErrorData,
   ValidationErrorData,
 } from "./types/error";
@@ -27,11 +29,11 @@ export class LinchKitError extends Error {
   readonly code: ErrorCode;
   readonly details?: Record<string, unknown>;
   readonly statusCode: number;
-  readonly type: LinchKitErrorResponse["error"]["type"];
+  readonly type: ErrorType;
 
   constructor(
     options: LinchKitErrorOptions,
-    type: LinchKitErrorResponse["error"]["type"] = "system",
+    type: ErrorType = "system",
   ) {
     super(options.message);
     this.name = "LinchKitError";
@@ -55,7 +57,7 @@ export class LinchKitError extends Error {
   }
 }
 
-// ── Validation error ────────────────────────────────────
+// ── Validation error (400) ──────────────────────────────
 
 export class ValidationError extends LinchKitError {
   readonly fields?: ValidationErrorData["fields"];
@@ -75,25 +77,60 @@ export class ValidationError extends LinchKitError {
   }
 }
 
-// ── Authorization error ─────────────────────────────────
+// ── Not found error (404) ───────────────────────────────
+
+export class NotFoundError extends LinchKitError {
+  readonly resource?: string;
+  readonly resourceId?: string;
+
+  constructor(options: NotFoundErrorData) {
+    super(options, "not_found");
+    this.name = "NotFoundError";
+    this.resource = options.resource;
+    this.resourceId = options.resourceId;
+  }
+
+  override toResponse(): LinchKitErrorResponse {
+    const base = super.toResponse();
+    if (this.resource || this.resourceId) {
+      base.error.details = {
+        ...base.error.details,
+        ...(this.resource && { resource: this.resource }),
+        ...(this.resourceId && { resourceId: this.resourceId }),
+      };
+    }
+    return base;
+  }
+}
+
+// ── Authentication error (401) ──────────────────────────
+
+export class AuthenticationError extends LinchKitError {
+  constructor(options: LinchKitErrorOptions) {
+    super(options, "authentication");
+    this.name = "AuthenticationError";
+  }
+}
+
+// ── Authorization error (403) ───────────────────────────
 
 export class AuthorizationError extends LinchKitError {
-  readonly requiredRoles?: string[];
+  readonly requiredGroups?: string[];
   readonly requiredPermissions?: string[];
 
   constructor(options: AuthorizationErrorData) {
     super(options, "authorization");
     this.name = "AuthorizationError";
-    this.requiredRoles = options.requiredRoles;
+    this.requiredGroups = options.requiredGroups;
     this.requiredPermissions = options.requiredPermissions;
   }
 
   override toResponse(): LinchKitErrorResponse {
     const base = super.toResponse();
-    if (this.requiredRoles || this.requiredPermissions) {
+    if (this.requiredGroups || this.requiredPermissions) {
       base.error.details = {
         ...base.error.details,
-        ...(this.requiredRoles && { requiredRoles: this.requiredRoles }),
+        ...(this.requiredGroups && { requiredGroups: this.requiredGroups }),
         ...(this.requiredPermissions && {
           requiredPermissions: this.requiredPermissions,
         }),
@@ -103,7 +140,7 @@ export class AuthorizationError extends LinchKitError {
   }
 }
 
-// ── Business rule error ─────────────────────────────────
+// ── Business rule error (422) ───────────────────────────
 
 export class BusinessRuleError extends LinchKitError {
   readonly rules?: BusinessRuleErrorData["rules"];
@@ -128,7 +165,7 @@ export class BusinessRuleError extends LinchKitError {
   }
 }
 
-// ── Conflict error ──────────────────────────────────────
+// ── Conflict error (409) ────────────────────────────────
 
 export class ConflictError extends LinchKitError {
   readonly currentVersion?: number;
@@ -155,7 +192,7 @@ export class ConflictError extends LinchKitError {
   }
 }
 
-// ── System error ────────────────────────────────────────
+// ── System error (500) ──────────────────────────────────
 
 export class SystemError extends LinchKitError {
   override readonly cause?: unknown;

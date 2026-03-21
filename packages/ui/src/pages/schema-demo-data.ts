@@ -3,7 +3,7 @@
  * Used by schema-list and schema-form demo pages.
  */
 
-import type { SchemaDefinition, ViewDefinition } from "@linchkit/core";
+import type { SchemaDefinition, StateDefinition, ViewDefinition } from "@linchkit/core";
 import type { AutoListViewDefinition } from "../components/auto-list";
 
 export const demoSchema: SchemaDefinition = {
@@ -38,6 +38,28 @@ export const demoSchema: SchemaDefinition = {
     badgeField: "status",
     summaryFields: ["amount", "department", "priority"],
     icon: "ShoppingCart",
+  },
+};
+
+/** Single source of truth for purchase request state colors + labels */
+export const demoStateMachine: StateDefinition = {
+  name: "pr_lifecycle",
+  schema: "purchase_request",
+  field: "status",
+  initial: "draft",
+  states: ["draft", "pending", "approved", "rejected"],
+  transitions: [
+    { from: "draft", to: "pending", action: "submit_for_approval" },
+    { from: "draft", to: "draft", action: "cancel" },
+    { from: "pending", to: "approved", action: "approve" },
+    { from: "pending", to: "rejected", action: "reject" },
+    { from: "rejected", to: "pending", action: "submit_for_approval" },
+  ],
+  meta: {
+    draft: { label: "Draft", color: "secondary" },
+    pending: { label: "Pending", color: "warning" },
+    approved: { label: "Approved", color: "success" },
+    rejected: { label: "Rejected", color: "danger" },
   },
 };
 

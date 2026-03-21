@@ -76,18 +76,21 @@
 
 **目标：** 采购管理场景端到端跑通。
 
-*(核心引擎全部完成，服务端 + UI 集成进行中)*
+*(核心引擎全部完成，E2E 验证通过。认证/权限待做。)*
 
-- [x] Schema 引擎 — Registry + Zod 生成 + Drizzle 生成 + GraphQL 类型生成 *（216 tests passing）*
+- [x] Schema 引擎 — Registry + Zod 生成 + Drizzle 生成 + GraphQL 类型生成
 - [x] Action 引擎 — ActionRegistry + ActionExecutor（权限、校验、状态迁移、handler 执行）
 - [x] Rule 引擎（Level 1-2）核心
 - [x] State Machine 核心
 - [x] Event Bus — EventHandlerRegistry + EventBus（同步/异步分发、过滤、优先级）
-- [ ] ~~Command Layer +~~ API + GraphQL 服务 *（Elysia + graphql-yoga 搭建中）*
+- [x] ~~Command Layer +~~ API + GraphQL 服务 — REST action 端点 + GraphQL 查询/变更 + typed 自定义 Action mutation *（305 tests passing）*
 - [x] 自动生成业务 UI — AutoList + AutoForm + FieldRenderer *（Schema 驱动，purchase_request 演示）*
-- [ ] App Shell UI 升级 *（Shadcn sidebar-07 集成中）*
+- [x] App Shell UI 升级 — Odoo 风格表单、TanStack Table 列表、i18n（中/英）、Shadcn 侧边栏
+- [x] Header 工具栏 — Command Palette（⌘K）、主题切换、语言切换、通知占位
+- [x] Execution Log — REST + GraphQL 查询 API、Dashboard UI（/admin/executions）、tenant_id 支持
+- [x] CLAUDE.md 升级 — 引擎 API 文档、服务端端点、UI 架构、错误类型
+- [x] E2E 测试 — 16 个测试覆盖完整采购管理流程（创建 → 提交 → 审批 → 错误 → 日志）
 - [ ] cap-auth + cap-permission + pipeline slots + 登录 + 访问控制
-- [ ] Execution Log + tenant_id + i18n + CLAUDE.md 升级 + 管理 Dashboard
 
 ### M1 — 治理体系 + 部署
 

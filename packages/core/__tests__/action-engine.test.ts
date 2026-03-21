@@ -13,7 +13,7 @@ import type { StateDefinition } from "../src/types/state";
 const defaultActor: Actor = {
   type: "human",
   id: "user-1",
-  roles: ["admin"],
+  groups: ["admin"],
 };
 
 const simpleAction: ActionDefinition = {
@@ -51,7 +51,7 @@ const restrictedAction: ActionDefinition = {
   schema: "order",
   label: "Approve Order",
   permissions: {
-    roles: ["manager", "admin"],
+    groups: ["manager", "admin"],
     actorTypes: ["human"],
   },
   policy: { mode: "sync", transaction: true },
@@ -284,7 +284,7 @@ describe("ActionExecutor", () => {
     const executor = createActionExecutor({ dataProvider });
     executor.registry.register(restrictedAction);
 
-    const aiActor: Actor = { type: "ai", id: "bot-1", roles: ["admin"] };
+    const aiActor: Actor = { type: "ai", id: "bot-1", groups: ["admin"] };
     const result = await executor.execute("approve_order", {}, aiActor);
 
     expect(result.success).toBe(false);
@@ -298,12 +298,12 @@ describe("ActionExecutor", () => {
     const executor = createActionExecutor({ dataProvider });
     executor.registry.register(restrictedAction);
 
-    const viewerActor: Actor = { type: "human", id: "user-2", roles: ["viewer"] };
+    const viewerActor: Actor = { type: "human", id: "user-2", groups: ["viewer"] };
     const result = await executor.execute("approve_order", {}, viewerActor);
 
     expect(result.success).toBe(false);
     expect((result.data as Record<string, unknown>).error).toContain(
-      "does not have any of the required roles",
+      "does not belong to any of the required groups",
     );
   });
 

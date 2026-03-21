@@ -74,7 +74,7 @@ describe("buildGraphQLSchema", () => {
 		expect(sdl).toContain("type Query");
 		expect(sdl).toContain("type Mutation");
 		expect(sdl).toContain("task(id: ID!): Task");
-		expect(sdl).toContain("taskList: [Task!]!");
+		expect(sdl).toContain("): TaskListResult!");
 		expect(sdl).toContain("createTask(input: TaskInput!): Task");
 		expect(sdl).toContain("updateTask(id: ID!, input: TaskInput!): Task");
 	});
@@ -163,9 +163,9 @@ describe("createServer", () => {
 		expect(body.data.task._version).toBe(1);
 	});
 
-	test("action stub endpoint returns not-implemented", async () => {
+	test("action endpoint returns 500 when no executor configured", async () => {
 		const res = await fetch(
-			`http://localhost:${port}/api/v1/actions/submit_request`,
+			`http://localhost:${port}/api/actions/submit_request`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -173,12 +173,13 @@ describe("createServer", () => {
 			},
 		);
 
-		expect(res.status).toBe(200);
+		expect(res.status).toBe(500);
 		const body = (await res.json()) as {
 			success: boolean;
-			error: { code: string };
+			error: { code: string; type: string };
 		};
 		expect(body.success).toBe(false);
-		expect(body.error.code).toBe("NOT_IMPLEMENTED");
+		expect(body.error.code).toBe("SYSTEM.SERVER.NOT_CONFIGURED");
+		expect(body.error.type).toBe("system");
 	});
 });

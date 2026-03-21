@@ -25,7 +25,7 @@ import { type ConditionContext, evaluateCondition } from "./condition-evaluator"
 
 export interface RuleEvalInput {
   target: Record<string, unknown>;
-  actor: { type: string; id: string; roles: string[] };
+  actor: { type: string; id: string; groups: string[] };
   context?: Record<string, unknown>;
 }
 

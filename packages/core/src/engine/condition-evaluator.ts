@@ -15,7 +15,7 @@ import type {
 export interface ConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
-  actor: { type: string; id: string; roles: string[] };
+  actor: { type: string; id: string; groups: string[] };
 }
 
 /**

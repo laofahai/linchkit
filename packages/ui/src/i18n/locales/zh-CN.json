@@ -75,6 +75,38 @@
     "page": "第 {{current}} 页，共 {{total}} 页",
     "selected": "项已选中"
   },
+  "commandPalette": {
+    "title": "命令面板",
+    "description": "搜索页面、操作，或输入命令...",
+    "placeholder": "搜索...",
+    "noResults": "未找到结果。",
+    "navigation": "导航",
+    "actions": "操作",
+    "actionsComingSoon": "操作启动功能即将推出...",
+    "shortcutSettings": "⌘,"
+  },
+  "executionLog": {
+    "title": "执行日志",
+    "subtitle": "Action 执行历史 — 审计、调试、观察系统行为。",
+    "refresh": "刷新",
+    "allStatuses": "全部状态",
+    "succeeded": "成功",
+    "failed": "失败",
+    "blocked": "被拦截",
+    "pendingApproval": "待审批",
+    "entries": "条记录",
+    "noEntries": "暂无执行日志。",
+    "time": "时间",
+    "action": "操作",
+    "actor": "执行人",
+    "status": "状态",
+    "duration": "耗时",
+    "input": "输入",
+    "output": "输出",
+    "error": "错误",
+    "stateTransition": "状态变更",
+    "rulesEvaluated": "规则评估"
+  },
   "language": {
     "label": "语言",
     "en": "English",

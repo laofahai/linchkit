@@ -18,7 +18,7 @@ import {
 	type GraphQLOutputType,
 	type GraphQLInputType,
 } from "graphql";
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, FieldDefinition, SchemaDefinition } from "@linchkit/core";
 
 // Field types that are virtual and should not produce GraphQL fields
 const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
@@ -53,7 +53,7 @@ function mapFieldToGraphQLType(field: FieldDefinition): GraphQLOutputType | null
 /**
  * Map a LinchKit field type to a GraphQL input type.
  */
-function mapFieldToGraphQLInputType(field: FieldDefinition): GraphQLInputType | null {
+export function mapFieldToGraphQLInputType(field: FieldDefinition): GraphQLInputType | null {
 	switch (field.type) {
 		case "string":
 		case "text":
@@ -148,6 +148,46 @@ export function generateGraphQLInputType(
 			const fields: Record<string, GraphQLInputFieldConfig> = {};
 
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
+				if (SKIPPED_FIELD_TYPES.has(field.type)) {
+					continue;
+				}
+
+				const graphqlType = mapFieldToGraphQLInputType(field);
+				if (!graphqlType) {
+					continue;
+				}
+
+				fields[fieldName] = {
+					type: field.required ? new GraphQLNonNull(graphqlType) : graphqlType,
+					description: field.description ?? field.label,
+				};
+			}
+
+			return fields;
+		},
+	});
+}
+
+/**
+ * Generate a GraphQL input type from an ActionDefinition's input fields.
+ * Returns null if the action has no input definition.
+ */
+export function generateActionInputType(
+	action: ActionDefinition,
+): GraphQLInputObjectType | null {
+	if (!action.input || Object.keys(action.input).length === 0) {
+		return null;
+	}
+
+	const typeName = `${toPascalCase(action.name)}Input`;
+
+	return new GraphQLInputObjectType({
+		name: typeName,
+		description: `Input type for ${action.label ?? action.name}`,
+		fields: () => {
+			const fields: Record<string, GraphQLInputFieldConfig> = {};
+
+			for (const [fieldName, field] of Object.entries(action.input!)) {
 				if (SKIPPED_FIELD_TYPES.has(field.type)) {
 					continue;
 				}

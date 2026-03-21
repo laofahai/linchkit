@@ -145,7 +145,7 @@ describe("GraphQL queries (wired)", () => {
 		expect(task.title).toBe("Query Me");
 	});
 
-	test("taskList returns all records", async () => {
+	test("taskList returns { items, total } structure", async () => {
 		// Clear and seed
 		store.clear();
 		await store.create("task", { id: "list_1", title: "Task A" });
@@ -154,18 +154,22 @@ describe("GraphQL queries (wired)", () => {
 		const result = await gql(`
 			query {
 				taskList {
-					id
-					title
+					items {
+						id
+						title
+					}
+					total
 				}
 			}
 		`);
 
 		expect(result.errors).toBeUndefined();
-		const tasks = result.data.taskList as Array<Record<string, unknown>>;
-		expect(tasks.length).toBe(2);
+		const listResult = result.data.taskList as { items: Array<Record<string, unknown>>; total: number };
+		expect(listResult.items.length).toBe(2);
+		expect(listResult.total).toBe(2);
 	});
 
-	test("taskList supports pagination", async () => {
+	test("taskList supports page/pageSize pagination", async () => {
 		store.clear();
 		await store.create("task", { id: "p1", title: "Task 1" });
 		await store.create("task", { id: "p2", title: "Task 2" });
@@ -173,15 +177,19 @@ describe("GraphQL queries (wired)", () => {
 
 		const result = await gql(`
 			query {
-				taskList(offset: 1, limit: 1) {
-					id
+				taskList(page: 2, pageSize: 1) {
+					items {
+						id
+					}
+					total
 				}
 			}
 		`);
 
 		expect(result.errors).toBeUndefined();
-		const tasks = result.data.taskList as Array<Record<string, unknown>>;
-		expect(tasks.length).toBe(1);
+		const listResult = result.data.taskList as { items: Array<Record<string, unknown>>; total: number };
+		expect(listResult.items.length).toBe(1);
+		expect(listResult.total).toBe(3);
 	});
 
 	test("task query returns null for non-existent record", async () => {

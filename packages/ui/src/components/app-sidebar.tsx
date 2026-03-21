@@ -1,10 +1,8 @@
 import type * as React from "react"
 
-import { LanguageSwitcher } from "@/components/language-switcher"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
-import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { useSchemas } from "@/hooks/use-schemas"
 import { Link } from "@tanstack/react-router"
 import {
   ActivityIcon,
@@ -24,59 +23,79 @@ import {
   BoxIcon,
   DatabaseIcon,
   LayoutDashboardIcon,
+  ScrollTextIcon,
   Settings2Icon,
 } from "lucide-react"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
+  const { schemas } = useSchemas()
 
-  const data = {
-    user: {
-      name: "Admin",
-      email: "admin@linchkit.dev",
-      avatar: "",
-    },
-    teams: [
-      {
-        name: "LinchKit",
-        logo: <BoxIcon />,
-        plan: t("nav.workspace"),
+  const data = useMemo(() => {
+    // Build schema sub-items from API data
+    const schemaItems = schemas.map((s) => ({
+      title: s.label ?? s.name,
+      url: `/schemas/${s.name}`,
+    }))
+
+    // Fallback if API returned nothing (e.g. server not running)
+    if (schemaItems.length === 0) {
+      schemaItems.push({
+        title: "Purchase Request",
+        url: "/schemas/purchase_request",
+      })
+    }
+
+    return {
+      user: {
+        name: "Admin",
+        email: "admin@linchkit.dev",
+        avatar: "",
       },
-    ],
-    navMain: [
-      {
-        title: t("nav.capabilities"),
-        url: "/modules",
-        icon: <BlocksIcon />,
-        items: [],
-      },
-      {
-        title: t("nav.schemas"),
-        url: "#",
-        icon: <DatabaseIcon />,
-        isActive: true,
-        items: [
-          {
-            title: "Purchase Request",
-            url: "/schemas/purchase_request",
-          },
-        ],
-      },
-      {
-        title: t("nav.events"),
-        url: "/admin/events",
-        icon: <ActivityIcon />,
-        items: [],
-      },
-      {
-        title: t("nav.settings"),
-        url: "/admin/settings",
-        icon: <Settings2Icon />,
-        items: [],
-      },
-    ],
-  }
+      teams: [
+        {
+          name: "LinchKit",
+          logo: <BoxIcon />,
+          plan: t("nav.workspace"),
+        },
+      ],
+      navMain: [
+        {
+          title: t("nav.capabilities"),
+          url: "/modules",
+          icon: <BlocksIcon />,
+          items: [],
+        },
+        {
+          title: t("nav.schemas"),
+          url: "#",
+          icon: <DatabaseIcon />,
+          isActive: true,
+          items: schemaItems,
+        },
+        {
+          title: t("nav.events"),
+          url: "/admin/events",
+          icon: <ActivityIcon />,
+          items: [],
+        },
+        {
+          title: t("executionLog.title"),
+          url: "/admin/executions",
+          icon: <ScrollTextIcon />,
+          items: [],
+        },
+        {
+          title: t("nav.settings"),
+          url: "/admin/settings",
+          icon: <Settings2Icon />,
+          items: [],
+        },
+      ],
+    }
+  }, [schemas, t])
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -103,12 +122,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <LanguageSwitcher />
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <ThemeToggle />
         <NavUser user={data.user} />
       </SidebarFooter>
       <SidebarRail />

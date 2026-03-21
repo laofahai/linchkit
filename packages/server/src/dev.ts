@@ -2,13 +2,13 @@
  * Dev entry point — run with `bun --watch src/dev.ts`
  *
  * Starts the LinchKit server with demo schemas, actions, and seed data.
+ * Demonstrates end-to-end: Schema → Action → GraphQL → REST
  */
 
-import { createActionExecutor } from "@linchkit/core";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createServer } from "./server";
-import { InMemoryStore } from "./data/in-memory-store";
+import { createRuntimeContext } from "./runtime-context";
 
 // ── Demo schema ──────────────────────────────────────────
 
@@ -39,12 +39,70 @@ const purchaseRequestSchema: SchemaDefinition = {
 
 const demoSchemas: SchemaDefinition[] = [purchaseRequestSchema];
 
-// ── Initialize data store ────────────────────────────────
+// ── Custom actions (beyond CRUD) ────────────────────────
 
-const store = new InMemoryStore();
+const submitAction: ActionDefinition = {
+	name: "submit_purchase_request",
+	schema: "purchase_request",
+	label: "Submit Purchase Request",
+	description: "Submit a draft purchase request for approval",
+	input: {
+		notes: { type: "text", label: "Submission Notes" },
+	},
+	policy: { mode: "sync", transaction: true },
+	exposure: "all",
+	handler: async (ctx) => {
+		const id = ctx.input.id as string;
+		const record = await ctx.get("purchase_request", id);
+		if (record.status !== "draft") {
+			throw new Error(`Cannot submit: current status is "${record.status}", expected "draft"`);
+		}
+		return ctx.update("purchase_request", id, {
+			status: "pending",
+			submitted_at: new Date().toISOString(),
+		});
+	},
+};
+
+const approveAction: ActionDefinition = {
+	name: "approve_purchase_request",
+	schema: "purchase_request",
+	label: "Approve Purchase Request",
+	description: "Approve a pending purchase request",
+	permissions: { groups: ["admin", "manager"] },
+	policy: { mode: "sync", transaction: true },
+	exposure: "all",
+	handler: async (ctx) => {
+		const id = ctx.input.id as string;
+		const record = await ctx.get("purchase_request", id);
+		if (record.status !== "pending") {
+			throw new Error(`Cannot approve: current status is "${record.status}", expected "pending"`);
+		}
+		return ctx.update("purchase_request", id, {
+			status: "approved",
+			approved_at: new Date().toISOString(),
+			approved_by: ctx.actor.id,
+		});
+	},
+};
+
+// ── Build CRUD + custom actions ─────────────────────────
+
+const allActions: ActionDefinition[] = [
+	...demoSchemas.flatMap(generateCrudActions),
+	submitAction,
+	approveAction,
+];
+
+// ── Initialize runtime context ──────────────────────────
+
+const runtime = createRuntimeContext({
+	schemas: demoSchemas,
+	actions: allActions,
+});
 
 // Seed demo data
-store.seed("purchase_request", [
+runtime.store.seed("purchase_request", [
 	{
 		id: "pr_001",
 		title: "Office Supplies Q2",
@@ -91,27 +149,37 @@ store.seed("purchase_request", [
 	},
 ]);
 
-// ── Initialize action engine ─────────────────────────────
-
-const executor = createActionExecutor({ dataProvider: store });
-
-// Register CRUD actions for each schema
-for (const schema of demoSchemas) {
-	const crudActions = generateCrudActions(schema);
-	for (const action of crudActions) {
-		executor.registry.register(action);
-	}
-}
-
 // ── Build schema and start server ────────────────────────
 
-const graphqlSchema = buildGraphQLSchema(demoSchemas, { executor, store });
+const customActions: ActionDefinition[] = [submitAction, approveAction];
+
+const graphqlSchema = buildGraphQLSchema(demoSchemas, {
+	executor: runtime.executor,
+	store: runtime.store,
+	actions: customActions,
+	executionLogger: runtime.executionLogger,
+});
+
 const port = 3001;
-const server = createServer(graphqlSchema, { port });
+const server = createServer(graphqlSchema, {
+	port,
+	executor: runtime.executor,
+	executionLogger: runtime.executionLogger,
+	schemaRegistry: runtime.schemaRegistry,
+});
 
 server.listen(port);
 
-console.log(`LinchKit server running at http://localhost:${port}`);
-console.log(`GraphQL playground at http://localhost:${port}/graphql`);
-console.log(`Health check at http://localhost:${port}/health`);
-console.log(`Loaded ${demoSchemas.length} schema(s), ${store.count("purchase_request")} seed records`);
+console.log(`\nLinchKit Dev Server`);
+console.log(`───────────────────────────────────`);
+console.log(`  HTTP:       http://localhost:${port}`);
+console.log(`  GraphQL:    http://localhost:${port}/graphql`);
+console.log(`  Health:     http://localhost:${port}/health`);
+console.log(`  REST API:   http://localhost:${port}/api/actions/:name`);
+console.log(`  Exec Logs:  http://localhost:${port}/api/executions`);
+console.log(`───────────────────────────────────`);
+console.log(`  Schemas:    ${demoSchemas.length} (${demoSchemas.map(s => s.name).join(", ")})`);
+console.log(`  Actions:    ${allActions.length} (${allActions.map(a => a.name).join(", ")})`);
+console.log(`  Records:    ${runtime.store.count("purchase_request")} seed records`);
+console.log(`  Logger:     InMemoryExecutionLogger enabled`);
+console.log(`───────────────────────────────────\n`);

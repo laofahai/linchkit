@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
+  AuthenticationError,
   AuthorizationError,
   BusinessRuleError,
   ConflictError,
   LinchKitError,
+  NotFoundError,
   SystemError,
   ValidationError,
 } from "../src/errors";
@@ -107,37 +109,89 @@ describe("ValidationError", () => {
   });
 });
 
+// ── NotFoundError ───────────────────────────────────────
+
+describe("NotFoundError", () => {
+  it("should have status 404 and type not_found", () => {
+    const err = new NotFoundError({
+      code: "record.not_found.order",
+      message: "Order not found",
+      resource: "order",
+      resourceId: "order_999",
+    });
+
+    expect(err).toBeInstanceOf(LinchKitError);
+    expect(err.name).toBe("NotFoundError");
+    expect(err.statusCode).toBe(404);
+    expect(err.type).toBe("not_found");
+    expect(err.resource).toBe("order");
+    expect(err.resourceId).toBe("order_999");
+  });
+
+  it("toResponse() should include resource info in details", () => {
+    const err = new NotFoundError({
+      code: "action.not_found.action",
+      message: "Action not found",
+      resource: "action",
+      resourceId: "submit_order",
+    });
+    const res = err.toResponse();
+
+    expect(res.error.type).toBe("not_found");
+    expect(res.error.details).toEqual({
+      resource: "action",
+      resourceId: "submit_order",
+    });
+  });
+});
+
+// ── AuthenticationError ─────────────────────────────────
+
+describe("AuthenticationError", () => {
+  it("should have status 401 and type authentication", () => {
+    const err = new AuthenticationError({
+      code: "auth.authentication.token_expired",
+      message: "Token expired",
+    });
+
+    expect(err).toBeInstanceOf(LinchKitError);
+    expect(err.name).toBe("AuthenticationError");
+    expect(err.statusCode).toBe(401);
+    expect(err.type).toBe("authentication");
+  });
+});
+
 // ── AuthorizationError ──────────────────────────────────
 
 describe("AuthorizationError", () => {
-  it("should have status 401 and type authorization", () => {
+  it("should have status 403 and type authorization", () => {
     const err = new AuthorizationError({
       code: "auth.access.denied",
       message: "Access denied",
-      requiredRoles: ["admin"],
+      requiredGroups: ["admin"],
       requiredPermissions: ["write"],
     });
 
     expect(err).toBeInstanceOf(LinchKitError);
     expect(err.name).toBe("AuthorizationError");
-    expect(err.statusCode).toBe(401);
+    expect(err.statusCode).toBe(403);
     expect(err.type).toBe("authorization");
-    expect(err.requiredRoles).toEqual(["admin"]);
+    expect(err.requiredGroups).toEqual(["admin"]);
     expect(err.requiredPermissions).toEqual(["write"]);
   });
 
-  it("toResponse() should include requiredRoles and requiredPermissions in details", () => {
+  it("toResponse() should include requiredGroups and requiredPermissions in details", () => {
     const err = new AuthorizationError({
       code: "auth.access.denied",
       message: "Forbidden",
-      requiredRoles: ["manager"],
+      requiredGroups: ["manager"],
       requiredPermissions: ["approve"],
     });
     const res = err.toResponse();
 
     expect(res.error.type).toBe("authorization");
     expect(res.error.details).toEqual({
-      requiredRoles: ["manager"],
+      requiredGroups: ["manager"],
       requiredPermissions: ["approve"],
     });
   });
@@ -261,7 +315,9 @@ describe("SystemError", () => {
 describe("Error inheritance chain", () => {
   const errors = [
     new ValidationError({ code: "a.b.c", message: "v" }),
-    new AuthorizationError({ code: "a.b.c", message: "a" }),
+    new NotFoundError({ code: "a.b.c", message: "n" }),
+    new AuthenticationError({ code: "a.b.c", message: "authn" }),
+    new AuthorizationError({ code: "a.b.c", message: "authz" }),
     new BusinessRuleError({ code: "a.b.c", message: "b" }),
     new ConflictError({ code: "a.b.c", message: "c" }),
     new SystemError({ code: "a.b.c", message: "s" }),

@@ -82,18 +82,21 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Acceptance:** Browser shows complete purchase management UI — list, form, state transitions, action buttons, logs. Rule blocks over-budget requests.
 
-*(Core engines complete, server + UI integration in progress)*
+*(Core engines complete, E2E verified. Auth/permission remaining.)*
 
-- [x] Schema Engine — Registry + Zod generator + Drizzle generator + GraphQL type generator *(216 tests passing)*
+- [x] Schema Engine — Registry + Zod generator + Drizzle generator + GraphQL type generator
 - [x] Action Engine — ActionRegistry + ActionExecutor (permission, validation, state transition, handler execution)
 - [x] Rule Engine (Level 1-2) core
 - [x] State Machine core
 - [x] Event Bus — EventHandlerRegistry + EventBus (sync/async dispatch, filter, priority)
-- [ ] ~~Command Layer +~~ API + GraphQL server *(Elysia + graphql-yoga setup in progress)*
+- [x] ~~Command Layer +~~ API + GraphQL server — REST action endpoint + GraphQL queries/mutations + typed custom action mutations *(305 tests passing)*
 - [x] Auto-generated business UI — AutoList + AutoForm + FieldRenderer *(Schema-driven, demo with purchase_request)*
-- [ ] App Shell UI upgrade *(Shadcn sidebar-07 integration in progress)*
+- [x] App Shell UI upgrade — Odoo-style form, TanStack Table list, i18n (en/zh-CN), Shadcn sidebar
+- [x] Header toolbar — Command Palette (⌘K), theme toggle, language switcher, notification placeholder
+- [x] Execution Log — REST + GraphQL query API, Dashboard UI (/admin/executions), tenant_id support
+- [x] CLAUDE.md upgrade — full engine API docs, server endpoints, UI architecture, error types
+- [x] E2E test — 16 tests covering complete purchase management flow (create → submit → approve → error → log)
 - [ ] cap-auth + cap-permission + pipeline slots + login + access control
-- [ ] Execution Log + tenant_id + i18n + CLAUDE.md upgrade + management Dashboard
 
 **Not in scope:** Proposal / Validation / Version, blue-green deploy, Bridge / Adapter, AI / MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
 
