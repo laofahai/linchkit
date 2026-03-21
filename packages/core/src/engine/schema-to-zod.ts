@@ -45,9 +45,9 @@ export function generateZodSchema(
 
     let zodType = buildFieldZod(field, options);
 
-    // Apply optional/required
+    // Apply optional/required — nullable for types that use null as empty value
     if (!field.required) {
-      zodType = zodType.optional();
+      zodType = zodType.nullable().optional();
     }
 
     shape[fieldName] = zodType;

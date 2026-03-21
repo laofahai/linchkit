@@ -24,7 +24,7 @@ export function EnumInput({ value, fieldDef, onChange, onBlur, readonly, error, 
   return (
     <div className="space-y-1">
       <Select
-        value={value != null ? String(value) : undefined}
+        value={value != null && value !== "" ? String(value) : undefined}
         onValueChange={(val) => onChange(val)}
         disabled={readonly}
       >

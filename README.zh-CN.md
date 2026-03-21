@@ -83,14 +83,15 @@
 - [x] Rule 引擎（Level 1-2）核心
 - [x] State Machine 核心
 - [x] Event Bus — EventHandlerRegistry + EventBus（同步/异步分发、过滤、优先级）
-- [x] ~~Command Layer +~~ API + GraphQL 服务 — REST action 端点 + GraphQL 查询/变更 + typed 自定义 Action mutation *（305 tests passing）*
+- [x] Command Layer — slot 中间件管道（pre/auth/exposure/permission/tenant/pre-action/post-action）*（370 tests passing）*
+- [x] API + GraphQL 服务 — REST action 端点 + GraphQL 查询/变更 + typed 自定义 Action mutation
 - [x] 自动生成业务 UI — AutoList + AutoForm + FieldRenderer *（Schema 驱动，purchase_request 演示）*
 - [x] App Shell UI 升级 — Odoo 风格表单、TanStack Table 列表、i18n（中/英）、Shadcn 侧边栏
 - [x] Header 工具栏 — Command Palette（⌘K）、主题切换、语言切换、通知占位
 - [x] Execution Log — REST + GraphQL 查询 API、Dashboard UI（/admin/executions）、tenant_id 支持
 - [x] CLAUDE.md 升级 — 引擎 API 文档、服务端端点、UI 架构、错误类型
 - [x] E2E 测试 — 16 个测试覆盖完整采购管理流程（创建 → 提交 → 审批 → 错误 → 日志）
-- [ ] cap-auth + cap-permission + pipeline slots + 登录 + 访问控制
+- [ ] cap-auth + cap-permission + 登录 + 访问控制
 
 ### M1 — 治理体系 + 部署
 

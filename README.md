@@ -89,14 +89,15 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 - [x] Rule Engine (Level 1-2) core
 - [x] State Machine core
 - [x] Event Bus — EventHandlerRegistry + EventBus (sync/async dispatch, filter, priority)
-- [x] ~~Command Layer +~~ API + GraphQL server — REST action endpoint + GraphQL queries/mutations + typed custom action mutations *(305 tests passing)*
+- [x] Command Layer — slot-based middleware pipeline (pre/auth/exposure/permission/tenant/pre-action/post-action) *(370 tests passing)*
+- [x] API + GraphQL server — REST action endpoint + GraphQL queries/mutations + typed custom action mutations
 - [x] Auto-generated business UI — AutoList + AutoForm + FieldRenderer *(Schema-driven, demo with purchase_request)*
 - [x] App Shell UI upgrade — Odoo-style form, TanStack Table list, i18n (en/zh-CN), Shadcn sidebar
 - [x] Header toolbar — Command Palette (⌘K), theme toggle, language switcher, notification placeholder
 - [x] Execution Log — REST + GraphQL query API, Dashboard UI (/admin/executions), tenant_id support
 - [x] CLAUDE.md upgrade — full engine API docs, server endpoints, UI architecture, error types
 - [x] E2E test — 16 tests covering complete purchase management flow (create → submit → approve → error → log)
-- [ ] cap-auth + cap-permission + pipeline slots + login + access control
+- [ ] cap-auth + cap-permission + login + access control
 
 **Not in scope:** Proposal / Validation / Version, blue-green deploy, Bridge / Adapter, AI / MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
 

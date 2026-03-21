@@ -319,6 +319,9 @@ function getDefaultForType(fieldDef: FieldDefinition): unknown {
     case "boolean":
       return false;
     case "number":
+    case "enum":
+    case "state":
+    case "ref":
       return null;
     default:
       return "";
