@@ -7,6 +7,7 @@
 
 import type { ActionDefinition, ActionOverride } from "./types/action";
 import type { CapabilityDefinition } from "./types/capability";
+import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
 import type { RuleDefinition, RuleOverride } from "./types/rule";
 import type {
@@ -106,6 +107,12 @@ export function extendView(
   extension: ViewExtension,
 ): { target: string; extension: ViewExtension } {
   return { target, extension };
+}
+
+// ── Config ──────────────────────────────────────────
+
+export function defineConfig(config: LinchKitConfig): LinchKitConfig {
+  return config;
 }
 
 // ── Capability ──────────────────────────────────────

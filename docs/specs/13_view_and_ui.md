@@ -12,7 +12,77 @@ LinchKit 提供 headless 的 View 渲染引擎：
 - **逻辑层**：LinchKit 核心提供，纯逻辑
 - **渲染层**：默认 Shadcn + Lucide + Tailwind，用户可替换
 
-## 2. 架构分层
+## 2. AI-Native 设计原则
+
+LinchKit 的 UI 不是"传统后台 + AI 聊天框"，也不是"全屏聊天替代一切"。核心理念：
+
+> **AI 是工作台上的工具，不是独立界面。传统视图是基础原语，AI 增强它们而不是取代它们。**
+
+以下原则基于 2025-2026 年主流产品演进（Microsoft Copilot、Notion AI、Atlassian Rovo、Linear、Cursor）的实际验证结果：
+
+### 2.1 传统视图是基础原语
+
+List、Form、Detail、Kanban、Dashboard 等 CRUD 视图不会消失 — 它们是数据操作的基本单元。AI-native 的工作区是**容器**，CRUD 视图是容器内的**内容组件**。
+
+Height App（AI-native PM 工具）的关停证明：AI 创新不能替代产品基本面。Linear 的设计宣言："AI 不替代工作台，它是放在工作台上的工具。随着 Agent 工作流增长，工作台反而变得更重要。"
+
+### 2.2 Inline-First，按需面板
+
+AI 的存在感通过**内联**体现，不是常驻侧边栏。
+
+研究依据：
+- Microsoft Copilot 侧边栏被大量用户忽视，Microsoft 已在 2026 年 3 月回撤部分集成
+- GitHub Copilot 成功的核心是内联补全，不是侧边面板
+- Cursor/Windsurf 的成功模式是分层交互：Tab（微补全）→ Cmd+K（内联编辑）→ Cmd+I（按需 Agent 面板）
+
+LinchKit 中的对应：
+- **内联提示**：表单字段旁的 AI 建议、列表行内的异常标注、Action 按钮旁的风险指示 — 类似 IDE linting
+- **按需面板**：用户主动触发时展开 AI 协作面板（上下文摘要、深度分析、对话）
+- **不做**：常驻右侧 AI 栏，always-on 的 AI 面板
+
+### 2.3 Intent Preview 模式
+
+自然语言是入口，结构化对象是终点。中间有一个关键环节：**Intent Preview**。
+
+```
+自然语言输入 → Intent 识别 → 计划展示（Preview）→ 用户确认 → Action 执行
+```
+
+用户可以从 Command Palette 用自然语言发起任务（"帮我提交这个采购申请"），系统展示将要执行的 Action、影响的对象、命中的 Rule，用户确认后执行。AI 输出必须**对象化** — 沉淀为 Proposal、草稿、工单、审批项，不停留在聊天记录里。
+
+### 2.4 治理可视化内联
+
+LinchKit 是治理型系统，执行治理不应该在单独的 Dashboard 里，而应该**内联在操作点**。
+
+Action 执行前，内联展示：
+- 将执行什么 Action
+- 影响哪些对象
+- 命中哪些 Rule（拦截/警告/审批）
+- 风险等级
+- 是否需要审批
+
+这类似 IDE 在代码旁显示 warning/error，而不是把所有问题放到单独面板。目前没有企业软件做好这一点（研究确认），这是 LinchKit 的差异化机会。
+
+### 2.5 单一自适应工作区，不做模式切换
+
+不做"任务模式 / 对象模式 / 画布模式 / 执行模式"的切换。
+
+研究依据：
+- ServiceNow UX 研究：多 Tab 切换是最大痛点
+- Nielsen Norman Group：模式设计是 Top 10 应用设计错误之一
+- Notion 的模式：一个 workspace 渐进暴露复杂功能
+
+LinchKit 的做法：**一个工作区，根据上下文渐进式披露**。对象详情页上，基本信息、关联对象、AI 分析、执行历史、审批链都是同一页面的不同区块，按需展开/收起，不是不同模式。
+
+### 2.6 架构分层但 UX 统一
+
+Runtime（业务执行）、Design（建模配置）、Evolution（治理审批）在**架构上分层**（路由、权限、数据源不同），在**用户体验上统一**。
+
+不做三个独立应用。同一个 SPA，同一套导航，角色驱动的内容过滤。`system_admin` 看到 Schema 浏览和 Proposal 管理，业务用户只看到自己的待办和业务页面。
+
+这与 SAP Fiori 的演进方向一致：统一设计系统 + 角色驱动内容适配。
+
+## 3. 架构分层
 
 ```
 逻辑层（@linchkit/core 提供，headless）
@@ -29,7 +99,7 @@ LinchKit 提供 headless 的 View 渲染引擎：
   └── 完全自定义组件
 ```
 
-## 3. 使用方式
+## 4. 使用方式
 
 ### 3.1 开箱即用 — 默认组件
 
@@ -84,7 +154,7 @@ import { LinchForm, LinchField, LinchActions } from '@linchkit/ui'
 </LinchForm>
 ```
 
-## 4. View 定义
+## 5. View 定义
 
 ### 4.1 列表视图（list）
 
@@ -189,29 +259,30 @@ export const purchaseDashboard = defineView({
 })
 ```
 
-## 5. View 类型
+## 6. View 类型
 
 | 类型 | 说明 | 里程碑 |
 |------|------|--------|
 | `list` | 列表/表格 | M0 |
 | `form` | 表单（创建/编辑/查看） | M0 |
-| `detail` | 只读详情 | M0 |
+| `detail` | 只读详情（增强版，含时间线/关联/AI 内联） | M0 |
+| `workspace` | 首页工作台（任务聚合 + AI 关注项 + 快速发起） | M0 |
 | `kanban` | 看板 | M1 |
 | `dashboard` | 仪表盘（图表/统计） | M1 |
 | `calendar` | 日历视图 | M2 |
 | `tree` | 树形视图 | M2 |
 
-## 6. 布局优先级链
+## 7. 布局优先级链
 
-View 的最终布局由以下 5 层叠加决定（从低到高）：
+View 的最终布局由以下层叠加决定（从低到高）：
 
 ### 6.1 框架智能默认（最低优先级）
 
-如果 Schema 没有定义任何 View，框架根据字段类型和元数据**自动生成合理布局**。
+如果 Schema 没有定义任何 View，框架根据**字段类型 + Presentation 元数据 + 字段 ui 属性**自动生成合理布局。
 
 **表单自动布局规则**（参考 Directus 的 width 模型 + 语义分组）：
 
-字段宽度推断（基于 12 列 Grid）：
+字段宽度推断（基于 12 列 Grid）— 字段 `ui.width` > 以下类型默认值：
 
 | 字段类型 | 默认 span | 理由 |
 |---------|----------|------|
@@ -222,19 +293,24 @@ View 的最终布局由以下 5 层叠加决定（从低到高）：
 | has_many / many_to_many | 12（全宽） | 子表格独占 |
 | state | 4 | 状态徽章 |
 
-自动分组与排序：
-1. **头部区**：title/name 字段 + status 字段（置顶）
-2. **核心区**：required = true 的字段（优先展示）
-3. **补充区**：required = false 的普通字段
+自动分组与排序 — 字段 `ui.importance` 和 `ui.group` 优先，否则退回以下规则：
+1. **头部区**：`presentation.titleField` + `presentation.badgeField`（置顶）；无 presentation 时取 title/name + status
+2. **核心区**：`ui.importance: 'primary'` 的字段，或 `required: true` 的字段
+3. **补充区**：`ui.importance: 'secondary'` 的字段，或 `required: false` 的普通字段
 4. **关联区**：ref / belongsTo 字段
 5. **子表区**：has_many 字段，各自独占一个 section
-6. **系统区**：created_at / updated_at / created_by 等（折叠到底部）
+6. **详情区**：`ui.importance: 'detail'` 的字段（默认折叠）
+7. **系统区**：created_at / updated_at / created_by 等（折叠到底部）
 
-智能配对：同语义字段自动放同一行（如 start_date + end_date、first_name + last_name、price + currency）。
+同一 `ui.group` 的字段自动放在一起。智能配对：同语义字段自动放同一行（如 start_date + end_date、first_name + last_name、price + currency）。
 
 **列表自动列选择**（最多 6-7 列）：
 
-优先级：title/name 字段 > status 字段 > 必填短字段 > 关联字段 > created_at。排除长文本、JSON、密码、子表等不适合列表展示的类型。
+优先级：`presentation.titleField` > `presentation.badgeField` > `presentation.summaryFields` > `ui.importance: 'primary'` > 必填短字段 > 关联字段 > created_at。排除长文本、JSON、密码、子表等不适合列表展示的类型。
+
+**卡片模式**（手机端、搜索结果、工作台待办）：
+
+直接消费 `presentation` 元数据：titleField 做标题、subtitleField 做副标题、badgeField 做徽章、summaryFields 做摘要字段。无 presentation 时退回到列表自动列选择的前 3 个字段。
 
 ### 6.2 AI 辅助生成（开发时）
 
@@ -269,7 +345,7 @@ defineView({
 
 ### 6.4 Bridge extendView（模块扩展）
 
-Bridge 模块通过节点级操作精确修改已有 View（见第 8 节 View 扩展机制）。
+Bridge 模块通过节点级操作精确修改已有 View（见第 9 节 View 扩展机制）。
 
 ### 6.5 租户覆盖（最高优先级）
 
@@ -283,7 +359,7 @@ SaaS 模式下租户在 DB 中的声明式覆盖，见 30_multi_tenancy.md。
 
 每一层覆盖上一层。如果开发者写了 defineView，框架默认不再使用；如果 Bridge 做了 extendView，在 defineView 基础上叠加。
 
-## 7. Action 按钮与状态联动
+## 8. Action 按钮与状态联动
 
 表单上显示哪些 Action 按钮由以下信息自动判断：
 
@@ -293,7 +369,7 @@ SaaS 模式下租户在 DB 中的声明式覆盖，见 30_multi_tenancy.md。
 
 框架自动处理按钮的可见性和可用性，开发者不需要手动判断。
 
-## 8. View 扩展机制
+## 9. View 扩展机制
 
 ### 8.1 节点级扩展
 
@@ -463,7 +539,7 @@ export const ovr = overrideView('purchase_request_form', {
 - 节点更新用 **immer** 做不可变操作
 - 不对外暴露 Visitor/Transformer API，保证所有扩展都是可预测、可追溯的
 
-## 9. UI 架构
+## 10. UI 架构
 
 ### 9.1 单应用、角色驱动
 
@@ -473,10 +549,50 @@ export const ovr = overrideView('purchase_request_form', {
 - 导航菜单根据用户权限自动过滤 — `system_admin` 看到全部，业务用户只看到自己有权限的 Capability
 - 系统管理页面（Dashboard、Capability 列表、Schema 浏览、Event 时间线等）由框架内置
 - 业务页面由 defineView 自动生成或自定义
+- Runtime / Design / Evolution 三个关注面在架构上分层（见 2.6），在用户界面上统一呈现
 
-### 9.2 布局模式
+### 9.2 布局结构
 
-支持两种菜单布局，通过 `linchkit.config.ts` 配置：
+整体布局：**顶部命令栏 + 左侧导航 + 中间工作区**。不做常驻右侧 AI 面板。
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  顶部命令栏：Command Palette 入口 + 通知 + Agent 状态    │
+├──────────┬──────────────────────────────────────────────┤
+│          │                                              │
+│  左侧    │              主工作区                         │
+│  导航    │                                              │
+│          │  ┌─────────────────────────────────────────┐ │
+│  · 工作台 │  │ 业务视图（list / form / detail / ...）   │ │
+│  · 模块   │  │                                         │ │
+│  · 管理   │  │ AI 内联提示（字段旁、行内、按钮旁）       │ │
+│          │  │                                         │ │
+│          │  │ ┌───────────────────────────────────┐   │ │
+│          │  │ │ 按需 AI 面板（用户触发时滑出）     │   │ │
+│          │  │ └───────────────────────────────────┘   │ │
+│          │  └─────────────────────────────────────────┘ │
+└──────────┴──────────────────────────────────────────────┘
+```
+
+#### 顶部命令栏
+
+不只是品牌条，而是**全局命令入口**：
+
+- Command Palette 触发（Cmd+K）— 自然语言搜索、跳转、发起 Action
+- 当前空间 / 租户 / 环境切换
+- 通知中心（铃铛 + 未读计数）
+- Agent 状态指示（有后台任务运行时显示）
+- 用户头像 + 设置入口
+
+#### 左侧导航
+
+地位从"主入口"降级为"系统地图"，但**必须保留**：
+
+- 提供稳定的模块入口和权限边界
+- 支持高频操作的肌肉记忆
+- 培训与审计友好
+
+支持两种位置，通过 `linchkit.config.ts` 配置：
 
 ```typescript
 ui: {
@@ -489,19 +605,105 @@ ui: {
 
 两种模式共享同一套菜单数据（来自 defineNavigation），只是渲染位置不同。
 
-### 9.3 响应式设计
+#### 主工作区
+
+承载所有业务视图（list / form / detail / kanban / dashboard 等）。AI 能力以两种方式嵌入工作区：
+
+**内联 AI 提示**（始终可见，轻量）：
+- 表单字段旁：AI 填充建议、校验提示、关联数据摘要
+- 列表行内：异常标注（如"此单据金额异常偏高"）、状态预测
+- Action 按钮旁：风险等级指示、Rule 命中预览
+- 实现方式：轻量模型 + 预计算缓存，不实时调用大模型
+
+**按需 AI 面板**（用户触发时展开）：
+- 从工作区右侧滑出，不常驻
+- 内容：上下文摘要、深度分析、对话交互、推荐动作、证据引用
+- 触发方式：点击内联提示的"展开分析"、快捷键、Command Palette
+- 关闭后不占用屏幕空间
+
+### 9.3 首页工作台
+
+首页不是传统的 KPI 仪表盘，而是**任务驱动的工作台**：
+
+| 区块 | 内容 | 数据来源 |
+|------|------|----------|
+| **我的任务** | 待我处理的审批、待确认的 Proposal、状态流转中需要我操作的单据 | 跨 Capability 聚合，基于 Actor 权限 |
+| **AI 关注项** | Rule 触发的异常、EventHandler 产生的告警、AI 识别的风险 | Rule Engine + Event Bus |
+| **我的对象** | 用户收藏/负责的业务记录，最近访问的对象 | 用户偏好 + 访问历史 |
+| **快速发起** | Command Palette 的自然语言入口，常用 Action 快捷方式 | defineAction + 使用频率统计 |
+
+工作台本身也是一个 View（type: `workspace`），可以通过 `defineView` 自定义，但框架提供开箱即用的默认实现。
+
+### 9.4 对象详情页增强
+
+传统详情页只是字段堆砌。AI-native 的对象详情页围绕**对象状态与动作**组织，渐进式披露：
+
+```
+┌─────────────────────────────────────────────┐
+│ 顶部：标题 + 状态徽章 + 关键指标 + 主 Action │
+├─────────────────────────────────────────────┤
+│ 主数据区（Schema 字段，按 presentation 分组）  │
+│                                             │
+│ [AI 内联] 字段旁的建议/警告/关联摘要          │
+├─────────────────────────────────────────────┤
+│ 关联对象（ref 字段展开、has_many 子表）        │
+├─────────────────────────────────────────────┤
+│ 时间线 / 事件历史（Event + ExecutionLog）     │
+│ 审批链（配合 35_approval_mechanism.md）       │
+├─────────────────────────────────────────────┤
+│ 系统信息（created_at 等，默认折叠）            │
+└─────────────────────────────────────────────┘
+```
+
+详情页的结构由 **Schema Presentation 元数据**（见 03_schema.md）驱动：
+- `titleField` 决定顶部标题
+- `badgeField` 决定状态徽章
+- `summaryFields` 决定关键指标
+- 字段 `importance` 决定主数据区的分组和排序
+
+### 9.5 执行治理可视化
+
+Action 执行前，**内联展示治理信息**（类似 IDE 在代码旁显示 warning）：
+
+```typescript
+// 用户点击 Action 按钮后，执行前展示 Preview
+interface ActionPreview {
+  action: string                    // 将执行的 Action
+  affectedRecords: RecordRef[]      // 影响的对象
+  ruleHits: {                       // 命中的 Rule
+    rule: string
+    level: 'block' | 'warn' | 'require_approval'
+    message: string
+  }[]
+  riskLevel: 'low' | 'medium' | 'high'
+  requiresApproval: boolean         // 是否需要审批
+  stateTransition?: {               // 状态流转
+    from: string
+    to: string
+  }
+}
+```
+
+展示方式：
+- **低风险 + 无审批**：Toast 确认，一键执行
+- **中风险 或 有 Rule 警告**：弹出 Preview 卡片，显示影响和命中规则，确认后执行
+- **高风险 或 需要审批**：展开完整 Preview 面板，显示影响分析、审批链、回滚信息
+
+### 9.6 响应式设计
 
 基于 Tailwind 断点，三级适配：
 
-| 断点 | 布局 | 菜单 | 表格 | 表单 |
-|------|------|------|------|------|
-| **桌面**（>1024px） | 完整双栏 | 左侧/顶部菜单 | 完整表格 | 多列布局 |
-| **平板**（768-1024px） | 菜单收缩为图标 | 点击展开 overlay | 自动隐藏低优先级列 | 两列→单列 |
-| **手机**（<768px） | 单栏 | 底部导航栏（Tab Bar） | 卡片列表替代表格 | 单列全宽 |
+| 断点 | 布局 | 菜单 | 表格 | 表单 | AI 面板 |
+|------|------|------|------|------|---------|
+| **桌面**（>1024px） | 完整双栏 | 左侧/顶部菜单 | 完整表格 | 多列布局 | 右侧滑出 |
+| **平板**（768-1024px） | 菜单收缩为图标 | 点击展开 overlay | 自动隐藏低优先级列 | 两列→单列 | 底部 sheet 滑出 |
+| **手机**（<768px） | 单栏 | 底部导航栏（Tab Bar） | 卡片列表替代表格 | 单列全宽 | 独立页面/全屏 modal |
 
-手机端列表从表格切换为**卡片模式**：每条记录一张卡片，显示 title + status + 关键字段。
+手机端列表从表格切换为**卡片模式**：每条记录一张卡片，显示 title + status + 关键字段（由 Schema Presentation 的 `summaryFields` 驱动）。
 
-### 9.4 PWA 支持
+AI 内联提示在所有断点保持可见（它们是轻量标注，不占额外空间）。按需 AI 面板在小屏幕上**不常驻**，改为底部 sheet 或独立页面。
+
+### 9.7 PWA 支持
 
 通过 vite-plugin-pwa 配置：
 
@@ -510,18 +712,27 @@ ui: {
 - **离线缓存**：Service Worker 缓存 App Shell（HTML/JS/CSS），数据请求需在线
 - 不做完整离线数据同步（业务操作依赖数据库，离线写入一致性问题太复杂）
 
-### 9.5 全局交互组件
+### 9.8 全局交互组件
 
 以下全局组件均以**系统 Capability** 形式提供（见 14_system_capabilities.md），不硬编码在框架内核中。业务 Capability 可以通过 extensions 机制注册自己的快捷键、Command 等。
 
 #### @linchkit/cap-command-palette
 
-Command Palette（Cmd+K），全局搜索入口：
-- 跨 Capability 搜索记录（标题/名称匹配）
-- 快速跳转页面（输入 Capability 名或 View 名）
-- 快速执行 Action（输入 Action 名）
+Command Palette（Cmd+K），**全局命令入口**，不只是搜索：
+- **语义搜索**：跨 Capability 搜索记录（标题/名称匹配 + 自然语言理解）
+- **快速导航**：输入 Capability 名或 View 名跳转
+- **Action 执行**：输入 Action 名或自然语言描述，触发 Intent Preview 流程
+- **自然语言入口**：支持 "帮我查上个月超过 5 万的采购申请" 这类意图
 - 基于 Shadcn 的 `cmdk` 组件
 - 其他 Capability 可通过 extensions 注册自定义 command
+
+Intent 处理流程：
+```
+用户输入自然语言 → AI 解析为结构化 Intent
+  → 如果是查询：直接展示结果（列表/对象）
+  → 如果是操作：进入 Intent Preview → 用户确认 → 执行 Action
+  → 如果模糊：展示候选项让用户选择
+```
 
 #### @linchkit/cap-keyboard-shortcuts
 
@@ -533,10 +744,20 @@ Command Palette（Cmd+K），全局搜索入口：
 
 #### @linchkit/cap-notification（已在 14 中定义）
 
-通知中心，右上角铃铛：
+通知中心，顶部命令栏铃铛图标：
 - 审批待办（配合 35_approval_mechanism.md）
 - Rule 拦截提醒、系统告警
+- AI 关注项推送（异常检测、风险预警）
 - WebSocket 实时推送，未读计数角标
+
+#### @linchkit/cap-ai-assistant
+
+AI 协作能力（按需面板 + 内联提示的运行时支撑）：
+- 提供 `useAIInsight(schemaName, recordId)` hook — 获取记录级 AI 分析
+- 提供 `useActionPreview(actionName, input)` hook — 获取 Action 执行预览
+- 提供 AI 面板的 UI 组件（上下文摘要、推荐动作、证据引用、对话）
+- 管理 AI 调用的缓存和节流（避免 always-on 的性能和成本问题）
+- 信任校准：AI 建议使用语义标签（"高/中/低 置信度"），不展示原始概率数字
 
 #### 面包屑导航
 
@@ -545,7 +766,7 @@ Command Palette（Cmd+K），全局搜索入口：
 - 格式：`采购管理 > 采购申请 > PR-001`
 - 不需要手动配置
 
-### 9.6 表格高级功能
+### 9.9 表格高级功能
 
 列表 View 默认支持（基于 TanStack Table）：
 
@@ -555,20 +776,30 @@ Command Palette（Cmd+K），全局搜索入口：
 - 固定列（左侧固定 title 列，右侧固定操作列）
 - 行选择 + 批量操作（勾选多行 → 显示批量操作栏）
 - 单元格内联编辑（可选，View 定义中配置 `inlineEdit: true`）
+- AI 内联标注（行级异常提示、趋势指示，由 cap-ai-assistant 提供数据）
 
-### 9.7 表单高级功能
+### 9.10 表单高级功能
 
 - **自动保存草稿**：编辑中的数据每 30 秒自动存 localStorage，提交成功后清除。下次打开表单恢复草稿。
 - **离开提醒**：表单有未保存变更时，导航离开弹出确认框
 - **字段变更高亮**：编辑时变更过的字段视觉高亮，方便 review
+- **AI 辅助填写**：字段旁的内联 AI 建议（如根据标题自动推荐部门、根据历史数据建议金额）
 
-### 9.8 主题系统
+### 9.11 主题系统
 
 - **暗色/亮色模式**：Shadcn + Tailwind 天然支持，用户切换，偏好存 localStorage
 - **品牌色**：SaaS 模式下租户可自定义主色调（CSS 变量覆盖），通过 tenant config 配置
 - **Logo**：租户可上传自定义 logo（依赖 cap-file-storage）
 
-## 10. 前端技术栈
+### 9.12 无障碍（Accessibility）
+
+- 所有交互元素键盘可导航（Tab 顺序、焦点管理）
+- AI 内联提示和面板状态通过 ARIA live region 通报给辅助技术
+- AI 置信度指示器不仅用颜色，同时提供文字标签（如 "高风险" 而不只是红色）
+- 流式 AI 响应完成后再通报给 screen reader（避免逐字朗读）
+- 遵循 WCAG 2.1 AA 标准
+
+## 11. 前端技术栈
 
 | 层面 | 选型 | 理由 |
 |------|------|------|
@@ -584,7 +815,7 @@ Command Palette（Cmd+K），全局搜索入口：
 | 图表 | Recharts | React 生态，声明式，与 Shadcn 风格一致 |
 | PWA | vite-plugin-pwa | 零配置 PWA 支持 |
 
-## 10. View 与 Command Layer / GraphQL 的关系
+## 12. View 与 Command Layer / GraphQL 的关系
 
 View 层通过统一 Command Layer 获取数据和执行操作（详见 16_command_layer_and_api.md）：
 
@@ -604,7 +835,7 @@ const { data } = useQuery(`{
 await executeAction('submit_request', { id })
 ```
 
-## 11. 导航与菜单
+## 13. 导航与菜单
 
 Capability 安装后自动出现在导航中。通过 `defineNavigation` 定义菜单结构：
 
@@ -633,10 +864,13 @@ Bridge 模块可以扩展导航（给已有菜单加项）。
 
 导航可见性自动受权限控制 — 用户看不到没权限的菜单项。
 
-## 13. 待定问题
+## 14. 待定问题
 
 - 富文本编辑器选型（TipTap / Lexical / Plate）
 - 文件上传组件的详细设计（依赖 cap-file-storage）
-- 应用内多 Tab 工作区（是否需要？实现复杂度高）
 - 图表库最终确认（Recharts vs ECharts）
 - WebSocket 连接管理和频道模型的详细设计
+- AI 内联提示的具体触发策略（哪些字段/场景自动触发、哪些用户手动触发）
+- AI 辅助填写的模型选型（轻量本地模型 vs 云端 API，延迟与成本平衡）
+- Command Palette 的自然语言 Intent 解析实现方案（MCP 工具调用 vs 自定义 parser）
+- Action Preview 的影响分析深度（只分析直接影响 vs 级联影响）

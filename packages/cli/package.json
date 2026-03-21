@@ -12,7 +12,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*"
+    "@linchkit/core": "workspace:*",
+    "citty": "^0.1.6"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

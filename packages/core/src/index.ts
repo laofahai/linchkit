@@ -11,6 +11,7 @@ export const VERSION = "0.0.1";
 export {
   defineAction,
   defineCapability,
+  defineConfig,
   defineEvent,
   defineEventHandler,
   defineRule,
@@ -25,15 +26,26 @@ export {
   overrideRule,
   overrideSchema,
 } from "./define";
-export type { ConditionContext, RuleEvalInput, RuleEvalOutput, StateMachine } from "./engine";
+export type {
+  ConditionContext,
+  DrizzleGeneratorOptions,
+  RuleEvalInput,
+  RuleEvalOutput,
+  StateMachine,
+  ZodGeneratorOptions,
+} from "./engine";
 // Engine exports
 export {
   canTransition,
+  createSchemaRegistry,
   createStateMachine,
   evaluateCondition,
   evaluateRules,
+  generateDrizzleTable,
+  generateZodSchema,
   getAvailableActions,
   resolveField,
+  SchemaRegistry,
   transition,
 } from "./engine";
 // Error classes

@@ -1,5 +1,7 @@
 # Action 设计规范
 
+> 本文定义 Action 结构；Action 与 Rule / Approval / Event / Execution / Error 的统一执行时序见 `39_execution_contract.md`。
+
 ## 1. 定位
 
 Action 是系统的**唯一写入口**。UI / API / AI 都通过 Action 改变系统状态。

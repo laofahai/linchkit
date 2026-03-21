@@ -42,6 +42,8 @@ export interface BaseFieldDefinition extends FieldConstraints {
   description?: string;
   sensitive?: boolean;
   secret?: boolean;
+  /** Declarative UI hints for auto-layout and rendering */
+  ui?: FieldUIHints;
 }
 
 export interface StringField extends BaseFieldDefinition {
@@ -118,6 +120,38 @@ export type FieldDefinition =
   | StateField
   | ComputedField;
 
+// ── Field-level UI hints ──────────────────────────────────
+
+/** Field-level UI hints — declarative semantics, not component binding */
+export interface FieldUIHints {
+  /** Display priority: primary (list+summary), secondary (form main area), detail (collapsed) */
+  importance?: "primary" | "secondary" | "detail";
+  /** Value format hint: currency, percentage, filesize, duration */
+  format?: "currency" | "percentage" | "filesize" | "duration";
+  /** Display form hint: badge, progress, avatar, color, rating */
+  display?: "badge" | "progress" | "avatar" | "color" | "rating";
+  /** Semantic group name — fields with same group are placed together in auto-layout */
+  group?: string;
+  /** Form grid width hint (based on 12 columns), overrides type-inferred default */
+  width?: 3 | 4 | 6 | 8 | 12;
+}
+
+// ── Schema presentation ──────────────────────────────────
+
+/** Schema-level presentation metadata — tells the View layer how to understand and display this object */
+export interface SchemaPresentation {
+  /** Field name used as object title (cards, search results, breadcrumbs) */
+  titleField?: string;
+  /** Field name used as subtitle */
+  subtitleField?: string;
+  /** Field name used as status/category badge */
+  badgeField?: string;
+  /** Key indicator fields (max 3-4, used in cards, workspace summaries) */
+  summaryFields?: string[];
+  /** Lucide icon name (used in navigation, search results) */
+  icon?: string;
+}
+
 // ── Exposure control ──────────────────────────────────────
 
 export interface ExposureConfig {
@@ -137,6 +171,9 @@ export interface SchemaDefinition<
   description?: string;
 
   fields: TFields;
+
+  /** Presentation metadata for View layer auto-layout */
+  presentation?: SchemaPresentation;
 
   exposure?: ExposureConfig;
   fieldExposure?: FieldExposureMap;
@@ -162,4 +199,42 @@ export interface SystemFields {
   created_by: string;
   updated_by: string;
   _version: number;
+}
+
+// ── Resolved schema types ────────────────────────────────────────────────
+
+/** A field with resolution metadata */
+export interface ResolvedField {
+  /** Original field definition */
+  definition: FieldDefinition;
+  /** Whether this field is stored in DB (false for computed, has_many, many_to_many) */
+  storable: boolean;
+  /** Resolved label (from definition or generated from name) */
+  label: string;
+}
+
+/** Schema after Registry processing — system fields injected, extensions merged */
+export interface ResolvedSchema {
+  /** Original schema name */
+  name: string;
+  /** Schema label */
+  label?: string;
+  /** Presentation metadata */
+  presentation?: SchemaPresentation;
+  /** All fields including system fields, keyed by field name */
+  fields: Record<string, ResolvedField>;
+  /** Original schema definition reference */
+  source: SchemaDefinition;
+}
+
+// ── Relation info ────────────────────────────────────────────────
+
+/** Describes a relation extracted from schema fields */
+export interface SchemaRelation {
+  /** Field name on the source schema */
+  fieldName: string;
+  /** Relation type */
+  type: "ref" | "has_many" | "many_to_many";
+  /** Target schema name */
+  target: string;
 }

@@ -1,5 +1,7 @@
 # Event 设计规范
 
+> 本文定义事件模型；事件在统一执行链中的产出时序见 `39_execution_contract.md`。
+
 ## 1. 定位
 
 Event 是系统的驱动核心。它记录系统发生了什么，串联 Action、Rule、State、Execution 形成完整链路。

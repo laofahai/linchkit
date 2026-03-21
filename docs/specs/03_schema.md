@@ -30,11 +30,23 @@ export const purchaseRequest = defineSchema({
   name: 'purchase_request',
   label: '采购申请',
 
+  // Presentation 元数据 — 告诉 View 层"这个对象怎么被理解和展示"
+  presentation: {
+    titleField: 'title',
+    subtitleField: 'requester.name',
+    badgeField: 'status',
+    summaryFields: ['amount', 'department.name', 'request_date'],
+    icon: 'file-text',
+  },
+
   fields: {
     // 基础字段
-    title:        { type: 'string', required: true, label: '标题' },
-    amount:       { type: 'number', required: true, min: 0, max: 1000000, label: '金额' },
-    description:  { type: 'text', label: '说明' },
+    title:        { type: 'string', required: true, label: '标题',
+                    ui: { importance: 'primary' } },
+    amount:       { type: 'number', required: true, min: 0, max: 1000000, label: '金额',
+                    ui: { importance: 'primary', format: 'currency' } },
+    description:  { type: 'text', label: '说明',
+                    ui: { importance: 'secondary' } },
     request_date: { type: 'date', default: 'now', label: '申请日期' },
 
     // 关联字段
@@ -42,7 +54,8 @@ export const purchaseRequest = defineSchema({
     requester:    { type: 'ref', target: 'employee', required: true, label: '申请人' },
 
     // 状态字段 — 绑定状态机
-    status:       { type: 'state', machine: 'request_lifecycle', label: '状态' },
+    status:       { type: 'state', machine: 'request_lifecycle', label: '状态',
+                    ui: { display: 'badge' } },
 
     // 一对多
     items:        { type: 'has_many', target: 'purchase_item', label: '采购明细' },
@@ -52,6 +65,7 @@ export const purchaseRequest = defineSchema({
       type: 'computed',
       compute: (record) => record.items.reduce((sum, item) => sum + item.subtotal, 0),
       label: '总金额',
+      ui: { importance: 'primary', format: 'currency' },
     },
   },
 })
@@ -88,6 +102,70 @@ export const purchaseRequest = defineSchema({
   immutable: true,          // 创建后不可修改
 }
 ```
+
+## 5a. Presentation 元数据
+
+Schema 除了定义"数据怎么存"，还需要声明"数据怎么被理解和展示"。Presentation 元数据为 View 层的自动布局、对象详情页、卡片模式、Command Palette 搜索结果等提供语义依据。
+
+**这不是绑定具体 UI 组件，而是声明语义**。View 层消费这些语义来决定展示方式。
+
+### Schema 级 Presentation
+
+```typescript
+defineSchema({
+  name: 'purchase_request',
+  label: '采购申请',
+
+  presentation: {
+    titleField: 'title',                    // 对象标题（用于卡片、搜索结果、面包屑）
+    subtitleField: 'requester.name',         // 副标题
+    badgeField: 'status',                    // 状态徽章
+    summaryFields: ['amount', 'department.name', 'request_date'],  // 关键指标（用于卡片、工作台）
+    icon: 'file-text',                       // Lucide 图标名（用于导航、搜索结果）
+  },
+
+  fields: { /* ... */ },
+})
+```
+
+| 属性 | 说明 | 消费者 |
+|------|------|--------|
+| `titleField` | 对象的显示标题 | 卡片模式、Command Palette、面包屑、关联字段展示 |
+| `subtitleField` | 副标题/描述 | 卡片模式、搜索结果 |
+| `badgeField` | 状态/分类徽章 | 卡片模式、列表行内、对象详情顶部 |
+| `summaryFields` | 关键指标（最多 3-4 个） | 手机端卡片、工作台待办摘要、对象详情顶部 |
+| `icon` | Schema 图标 | 导航菜单、搜索结果、关联字段 |
+
+### 字段级 UI 提示
+
+字段可以携带 `ui` 属性，提供展示语义提示（不是绑定组件）：
+
+```typescript
+fields: {
+  title:        { type: 'string', required: true, label: '标题',
+                  ui: { importance: 'primary' } },
+  amount:       { type: 'number', required: true, label: '金额',
+                  ui: { importance: 'primary', format: 'currency' } },
+  status:       { type: 'state', machine: 'request_lifecycle', label: '状态',
+                  ui: { display: 'badge' } },
+  description:  { type: 'text', label: '说明',
+                  ui: { importance: 'secondary' } },
+  internal_note:{ type: 'text', label: '内部备注',
+                  ui: { importance: 'detail' } },
+}
+```
+
+| ui 属性 | 可选值 | 说明 |
+|---------|--------|------|
+| `importance` | `'primary'` / `'secondary'` / `'detail'` | 字段展示优先级。primary 出现在列表和摘要中，secondary 出现在表单主区域，detail 折叠到详情区 |
+| `format` | `'currency'` / `'percentage'` / `'filesize'` / `'duration'` | 数值/文本的格式化提示 |
+| `display` | `'badge'` / `'progress'` / `'avatar'` / `'color'` / `'rating'` | 展示形式提示 |
+| `group` | 任意字符串（如 `'financial'` / `'contact'`） | 语义分组，自动布局时同组字段放在一起 |
+| `width` | `3` / `4` / `6` / `8` / `12` | 表单中的栅格宽度提示（基于 12 列），覆盖类型推断的默认值 |
+
+**优先级**：字段 `ui` 属性 > 13_view_and_ui.md 中的类型推断默认值 > defineView 显式布局（最高优先级覆盖一切）。
+
+如果 Schema 没有定义 `presentation` 和字段 `ui`，框架退回到纯类型推断（见 13_view_and_ui.md 第 7.1 节）。
 
 ## 6. 系统自动字段
 

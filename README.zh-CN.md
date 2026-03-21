@@ -64,20 +64,28 @@
 - [x] Monorepo 骨架（Bun workspace）
 - [x] tsconfig strict + biome.json + Git hooks
 - [x] 完整类型定义（defineXxx 接口，不实现）
-- [ ] CLAUDE.md 手写第一版
-- [ ] 基础 CLI（linch init + linch dev）
+- [x] CLAUDE.md 手写第一版
+- [x] 基础 CLI（linch init + linch dev）
 - [x] Bun test + 第一个测试
 - [x] GitHub Actions 基础 CI
-- [ ] App Shell UI（顶栏 + 侧边栏 + 主内容区 + 登录占位）
+- [x] App Shell UI（顶栏 + 侧边栏 + 主内容区 + 登录占位）
+
+*M0a 已完成。*
 
 ### M0b — 核心运行时
 
 **目标：** 采购管理场景端到端跑通。
 
-- [ ] Schema 引擎 + Action 引擎 + Rule 引擎 + State Machine
-- [ ] Event + EventHandler + Outbox
-- [ ] 自动生成业务 UI
-- [ ] cap-auth + cap-permission + Execution Log
+*(核心引擎已提前实现，UI 组件待完成)*
+
+- [ ] Schema 引擎（多产物生成）+ Schema 浏览页 *（Schema 展示元数据类型已加入 core：`SchemaPresentation`、`FieldUIHints`、workspace `ViewType`）*
+- [ ] Action 引擎 + Command Layer + API + GraphQL + Action 测试页
+- [x] Rule 引擎（Level 1-2）核心 ~~+ Rule 列表 + 评估日志~~
+- [x] State Machine 核心 ~~+ 状态迁移图~~
+- [ ] Event + EventHandler + Outbox + 事件时间线
+- [ ] 自动生成业务 UI（列表 + 表单 + 导航）— 采购管理
+- [ ] cap-auth + cap-permission + pipeline slots + 登录 + 访问控制
+- [ ] Execution Log + tenant_id + i18n + CLAUDE.md 升级 + 管理 Dashboard
 
 ### M1 — 治理体系 + 部署
 

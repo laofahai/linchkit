@@ -1,5 +1,7 @@
 # Rule 设计规范
 
+> 本文定义 Rule 模型；Rule 在统一执行链中的时序见 `39_execution_contract.md`，`execute_action` 的使用边界见 `40_rule_execute_action_boundary.md`。
+
 ## 1. 定位
 
 Rule 是系统的业务规则层。它监听系统事件（Action 执行、状态变更、字段变更等），在执行前或执行中做判断，决定允许、阻止、警告或要求审批。
@@ -193,24 +195,25 @@ Context 中的特殊变量：
 |--------|------|------|
 | `block` | 阻止操作 | 最高优先级，Action 直接失败 |
 | `warn` | 允许但警告 | 累积，全部返回给调用方 |
-| `require_approval` | 需要审批 | 多个取最高级别，详见 31_approval_mechanism.md |
+| `require_approval` | 需要审批 | 多个取最高级别，详见 35_approval_mechanism.md |
 | `enrich` | 自动补充/修改数据 | 全部执行，修改 Action 的输入数据 |
-| `execute_action` | 触发另一个 Action | 全部执行，详见下方时序说明 |
+| `execute_action` | 触发另一个 Action | 全部执行，但必须受限使用，详见 `40_rule_execute_action_boundary.md` |
 
 ### Effect 执行时序
 
 所有 Effect 在 **Action 主逻辑执行前** 评估和生效（在 Action 13 步流程的 Step 5）：
 
 - `block` → Action 立即终止，不开事务
-- `require_approval` → Action 挂起，创建审批请求，不开事务（详见 31_approval_mechanism.md）
+- `require_approval` → Action 挂起，创建审批请求，不开事务（详见 35_approval_mechanism.md）
 - `warn` → 记录警告，继续执行
 - `enrich` → 修改 Action 的输入数据（在事务开始前），后续步骤使用修改后的数据
-- `execute_action` → 在主 Action 开事务前触发关联 Action。关联 Action 有自己独立的事务。用途示例：金额超过 50 万时自动创建风控审查单
+- `execute_action` → 在主 Action 开事务前触发关联 Action。关联 Action 有自己独立的事务。默认失败即中断，且必须做循环检测、深度限制和数量限制。详见 `40_rule_execute_action_boundary.md`
 
 **`execute_action` vs EventHandler 的区别**：
 - Rule `execute_action`：在主 Action 执行**前**触发，是前置联动
 - EventHandler：在主 Action 执行**后**触发，是后置联动
 - 如果关联动作依赖主 Action 的结果，应该用 EventHandler 而非 Rule `execute_action`
+- 如果联动超过轻量前置动作的范围，应该改用 Flow / Temporal，而不是继续堆 Rule `execute_action`
 
 ### Effect 完整结构
 

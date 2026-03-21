@@ -1,5 +1,7 @@
 # 运行时变更机制
 
+> 本文说明三层 Source of Truth 与运行模式；共享数据库蓝绿发布的兼容性协议见 `38_release_compatibility.md`。
+
 ## 1. Source of Truth 三层模型
 
 LinchKit 的定义来源分三层，从低到高依次覆盖：

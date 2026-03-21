@@ -66,11 +66,13 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 - [x] Monorepo skeleton (Bun workspace)
 - [x] tsconfig strict + biome.json + Git hooks
 - [x] Full type definitions (defineXxx interfaces, no implementation)
-- [ ] CLAUDE.md first version
-- [ ] Basic CLI (linch init + linch dev)
+- [x] CLAUDE.md first version
+- [x] Basic CLI (linch init + linch dev)
 - [x] Bun test + first test
 - [x] GitHub Actions basic CI
-- [ ] App Shell UI (header + sidebar + main content + login placeholder)
+- [x] App Shell UI (header + sidebar + main content + login placeholder)
+
+*M0a complete.*
 
 ---
 
@@ -80,10 +82,12 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Acceptance:** Browser shows complete purchase management UI — list, form, state transitions, action buttons, logs. Rule blocks over-budget requests.
 
-- [ ] Schema Engine (multi-artifact generation) + Schema browser page
+*(Core engines implemented ahead of schedule, UI components pending)*
+
+- [ ] Schema Engine (multi-artifact generation) + Schema browser page *(Schema presentation metadata types added to core: `SchemaPresentation`, `FieldUIHints`, workspace `ViewType`)*
 - [ ] Action Engine + Command Layer + API + GraphQL + Action test page
-- [ ] Rule Engine (Level 1-2) + Rule list + evaluation log
-- [ ] State Machine + state transition diagram
+- [x] Rule Engine (Level 1-2) core ~~+ Rule list + evaluation log~~
+- [x] State Machine core ~~+ state transition diagram~~
 - [ ] Event + EventHandler + Outbox + event timeline
 - [ ] Auto-generated business UI (list + form + navigation) — purchase management
 - [ ] cap-auth + cap-permission + pipeline slots + login + access control

@@ -1,5 +1,7 @@
 # Rule Engine 与 Flow 设计规范
 
+> 本文说明 Rule Engine 与 Flow 的分工；Rule `execute_action` 的具体使用边界见 `40_rule_execute_action_boundary.md`。
+
 ## 1. Rule Engine 内部工作机制
 
 ### 1.1 执行流程

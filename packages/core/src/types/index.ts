@@ -5,6 +5,7 @@
 export type * from "./action";
 export type * from "./capability";
 export type * from "./command";
+export type * from "./config";
 export type * from "./error";
 // Non-type exports
 export { ERROR_STATUS_MAP } from "./error";

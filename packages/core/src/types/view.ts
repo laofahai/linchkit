@@ -7,7 +7,7 @@
 
 // ── View types ───────────────────────────────────────
 
-export type ViewType = "list" | "form" | "kanban" | "dashboard";
+export type ViewType = "list" | "form" | "kanban" | "dashboard" | "workspace";
 
 // ── View field configuration ───────────────────────────────────
 

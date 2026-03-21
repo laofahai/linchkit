@@ -1,5 +1,7 @@
 # Execution Log 设计规范
 
+> 本文定义 Execution 的存储与查询；Execution 在统一执行链中的产生时机见 `39_execution_contract.md`。
+
 ## 1. 定位
 
 Execution Log 记录每次 Action 执行的完整过程。它是：

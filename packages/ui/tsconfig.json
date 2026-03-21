@@ -12,21 +12,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "types": ["bun-types"],
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
     "paths": {
-      "@linchkit/core": ["./packages/core/src"],
-      "@linchkit/cli": ["./packages/cli/src"],
-      "@linchkit/server": ["./packages/server/src"],
-      "@linchkit/mcp": ["./packages/mcp/src"],
-      "@linchkit/ui": ["./packages/ui/src"],
-      "@linchkit/migrate": ["./packages/migrate/src"],
-      "@linchkit/devtools": ["./packages/devtools/src"]
+      "@linchkit/core": ["../core/src"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

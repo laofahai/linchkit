@@ -5,12 +5,15 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "biome check .",
-    "format": "biome format --write .",
-    "lint": "biome lint .",
+    "check": "bunx @biomejs/biome check .",
+    "format": "bunx @biomejs/biome format --write .",
+    "lint": "bunx @biomejs/biome lint .",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "build": "bun run --filter '*' build",
     "dev": "bun run --filter @linchkit/server dev"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
   }
 }
