@@ -16,7 +16,9 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
+    "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
       "@linchkit/core": ["../core/src"]
     }
   },

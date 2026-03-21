@@ -24,7 +24,8 @@
       "@linchkit/mcp": ["./packages/mcp/src"],
       "@linchkit/ui": ["./packages/ui/src"],
       "@linchkit/migrate": ["./packages/migrate/src"],
-      "@linchkit/devtools": ["./packages/devtools/src"]
+      "@linchkit/devtools": ["./packages/devtools/src"],
+      "@/*": ["./packages/ui/src/*"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],

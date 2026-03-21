@@ -76,14 +76,16 @@
 
 **目标：** 采购管理场景端到端跑通。
 
-*(核心引擎已提前实现，UI 组件待完成)*
+*(核心引擎全部完成，服务端 + UI 集成进行中)*
 
-- [ ] Schema 引擎（多产物生成）+ Schema 浏览页 *（Schema 展示元数据类型已加入 core：`SchemaPresentation`、`FieldUIHints`、workspace `ViewType`）*
-- [ ] Action 引擎 + Command Layer + API + GraphQL + Action 测试页
-- [x] Rule 引擎（Level 1-2）核心 ~~+ Rule 列表 + 评估日志~~
-- [x] State Machine 核心 ~~+ 状态迁移图~~
-- [ ] Event + EventHandler + Outbox + 事件时间线
-- [ ] 自动生成业务 UI（列表 + 表单 + 导航）— 采购管理
+- [x] Schema 引擎 — Registry + Zod 生成 + Drizzle 生成 + GraphQL 类型生成 *（216 tests passing）*
+- [x] Action 引擎 — ActionRegistry + ActionExecutor（权限、校验、状态迁移、handler 执行）
+- [x] Rule 引擎（Level 1-2）核心
+- [x] State Machine 核心
+- [x] Event Bus — EventHandlerRegistry + EventBus（同步/异步分发、过滤、优先级）
+- [ ] ~~Command Layer +~~ API + GraphQL 服务 *（Elysia + graphql-yoga 搭建中）*
+- [x] 自动生成业务 UI — AutoList + AutoForm + FieldRenderer *（Schema 驱动，purchase_request 演示）*
+- [ ] App Shell UI 升级 *（Shadcn sidebar-07 集成中）*
 - [ ] cap-auth + cap-permission + pipeline slots + 登录 + 访问控制
 - [ ] Execution Log + tenant_id + i18n + CLAUDE.md 升级 + 管理 Dashboard
 

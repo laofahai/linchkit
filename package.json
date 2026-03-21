@@ -11,9 +11,14 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "build": "bun run --filter '*' build",
-    "dev": "bun run --filter @linchkit/server dev"
+    "dev": "bun run --filter '@linchkit/server' --filter '@linchkit/ui' dev",
+    "dev:server": "bun run --filter @linchkit/server dev",
+    "dev:ui": "bun run --filter @linchkit/ui dev"
   },
   "devDependencies": {
     "bun-types": "latest"
+  },
+  "dependencies": {
+    "@tanstack/react-table": "^8.21.3"
   }
 }

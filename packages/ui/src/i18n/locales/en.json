@@ -1,0 +1,83 @@
+{
+  "common": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "noData": "No data",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "close": "Close",
+    "reset": "Reset",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "export": "Export"
+  },
+  "nav": {
+    "home": "Home",
+    "workspace": "Workspace",
+    "administration": "Administration",
+    "capabilities": "Capabilities",
+    "schemas": "Schemas",
+    "events": "Events",
+    "settings": "Settings",
+    "teams": "Teams",
+    "addTeam": "Add team"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "subtitle": "Your task-driven home. Everything that needs your attention, in one place.",
+    "myTasks": "My Tasks",
+    "myTasksDesc": "Pending approvals, proposals awaiting confirmation, and items requiring your action.",
+    "aiWatchlist": "AI Watchlist",
+    "aiWatchlistDesc": "Anomalies triggered by rules, alerts from event handlers, and AI-identified risks.",
+    "myObjects": "My Objects",
+    "myObjectsDesc": "Bookmarked records, objects you own, and recently accessed items.",
+    "quickActions": "Quick Actions",
+    "quickActionsDesc": "Launch common actions or use natural language via Command Palette."
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "email": "Email",
+    "password": "Password",
+    "upgradeToPro": "Upgrade to Pro",
+    "account": "Account",
+    "billing": "Billing",
+    "notifications": "Notifications"
+  },
+  "form": {
+    "required": "This field is required",
+    "invalid": "Invalid value",
+    "saved": "Saved successfully",
+    "fieldModified": "Modified",
+    "sectionCore": "Core Information",
+    "sectionAdditional": "Additional Details",
+    "sectionRelated": "Related",
+    "sectionDetails": "Details",
+    "sectionSystem": "System"
+  },
+  "list": {
+    "noResults": "No results found",
+    "noRecords": "No records found",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending",
+    "recordCount": "{{count}} record",
+    "recordCount_other": "{{count}} records",
+    "filterHint": "Try adjusting your filters to find what you're looking for.",
+    "page": "Page {{current}} of {{total}}",
+    "selected": "selected"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "zhCN": "中文"
+  }
+}

@@ -27,8 +27,13 @@ export {
   overrideSchema,
 } from "./define";
 export type {
+  ActionExecutor,
+  ActionExecutorOptions,
   ConditionContext,
+  DataProvider,
   DrizzleGeneratorOptions,
+  ExecuteOptions,
+  ExecutionChannel,
   RuleEvalInput,
   RuleEvalOutput,
   StateMachine,
@@ -36,7 +41,9 @@ export type {
 } from "./engine";
 // Engine exports
 export {
+  ActionRegistry,
   canTransition,
+  createActionExecutor,
   createSchemaRegistry,
   createStateMachine,
   evaluateCondition,

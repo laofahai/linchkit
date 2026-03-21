@@ -82,14 +82,16 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Acceptance:** Browser shows complete purchase management UI — list, form, state transitions, action buttons, logs. Rule blocks over-budget requests.
 
-*(Core engines implemented ahead of schedule, UI components pending)*
+*(Core engines complete, server + UI integration in progress)*
 
-- [ ] Schema Engine (multi-artifact generation) + Schema browser page *(Schema presentation metadata types added to core: `SchemaPresentation`, `FieldUIHints`, workspace `ViewType`)*
-- [ ] Action Engine + Command Layer + API + GraphQL + Action test page
-- [x] Rule Engine (Level 1-2) core ~~+ Rule list + evaluation log~~
-- [x] State Machine core ~~+ state transition diagram~~
-- [ ] Event + EventHandler + Outbox + event timeline
-- [ ] Auto-generated business UI (list + form + navigation) — purchase management
+- [x] Schema Engine — Registry + Zod generator + Drizzle generator + GraphQL type generator *(216 tests passing)*
+- [x] Action Engine — ActionRegistry + ActionExecutor (permission, validation, state transition, handler execution)
+- [x] Rule Engine (Level 1-2) core
+- [x] State Machine core
+- [x] Event Bus — EventHandlerRegistry + EventBus (sync/async dispatch, filter, priority)
+- [ ] ~~Command Layer +~~ API + GraphQL server *(Elysia + graphql-yoga setup in progress)*
+- [x] Auto-generated business UI — AutoList + AutoForm + FieldRenderer *(Schema-driven, demo with purchase_request)*
+- [ ] App Shell UI upgrade *(Shadcn sidebar-07 integration in progress)*
 - [ ] cap-auth + cap-permission + pipeline slots + login + access control
 - [ ] Execution Log + tenant_id + i18n + CLAUDE.md upgrade + management Dashboard
 

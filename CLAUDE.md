@@ -23,6 +23,8 @@ LinchKit is an AI-Native Software Capability Runtime. Tech stack: TypeScript / B
 - GraphQL: graphql-yoga + Pothos (code-first)
 - Frontend routing: TanStack Router
 - UI: Shadcn + Lucide + Tailwind
+- Package runner: Always use `bunx` (never `npx`). E.g. `bunx shadcn@latest add ...`
+- Registry mirror: `.bunfig.toml` configured with `registry.npmmirror.com`
 - Comments and docs: English first
 
 ## Packages

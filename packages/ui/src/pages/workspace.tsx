@@ -1,70 +1,64 @@
 import { ClipboardList, Eye, FolderOpen, Zap } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
-interface WorkspaceCardProps {
-  title: string;
-  description: string;
+interface WorkspaceCardData {
+  titleKey: string;
+  descKey: string;
   icon: typeof ClipboardList;
 }
 
-/** Single card in the workspace grid */
-function WorkspaceCard({ title, description, icon: Icon }: WorkspaceCardProps) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-gray-600">
-          <Icon className="h-5 w-5" />
-        </div>
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-      </div>
-      <p className="text-sm text-gray-500">{description}</p>
-    </div>
-  );
-}
-
-const workspaceCards: WorkspaceCardProps[] = [
+const workspaceCards: WorkspaceCardData[] = [
   {
-    title: "My Tasks",
-    description:
-      "Pending approvals, proposals awaiting confirmation, and items requiring your action.",
+    titleKey: "workspace.myTasks",
+    descKey: "workspace.myTasksDesc",
     icon: ClipboardList,
   },
   {
-    title: "AI Watchlist",
-    description:
-      "Anomalies triggered by rules, alerts from event handlers, and AI-identified risks.",
+    titleKey: "workspace.aiWatchlist",
+    descKey: "workspace.aiWatchlistDesc",
     icon: Eye,
   },
   {
-    title: "My Objects",
-    description: "Bookmarked records, objects you own, and recently accessed items.",
+    titleKey: "workspace.myObjects",
+    descKey: "workspace.myObjectsDesc",
     icon: FolderOpen,
   },
   {
-    title: "Quick Actions",
-    description: "Launch common actions or use natural language via Command Palette.",
+    titleKey: "workspace.quickActions",
+    descKey: "workspace.quickActionsDesc",
     icon: Zap,
   },
 ];
 
 /** Workspace page — task-driven homepage per spec section 9.3 */
 export function WorkspacePage() {
+  const { t } = useTranslation();
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Workspace</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Your task-driven home. Everything that needs your attention, in one place.
+        <h1 className="text-xl font-semibold text-foreground">{t("workspace.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("workspace.subtitle")}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {workspaceCards.map((card) => (
-          <WorkspaceCard
-            key={card.title}
-            title={card.title}
-            description={card.description}
-            icon={card.icon}
-          />
+          <Card key={card.titleKey} className="transition-colors hover:bg-accent/50">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <card.icon className="h-5 w-5" />
+                </div>
+                <CardTitle className="text-sm">{t(card.titleKey)}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{t(card.descKey)}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
