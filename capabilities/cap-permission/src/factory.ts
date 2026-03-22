@@ -9,7 +9,7 @@ import type {
   CapabilityMiddlewareRegistration,
   CommandContext,
 } from "@linchkit/core";
-import { type PermissionRegistry, defineCapability } from "@linchkit/core";
+import { defineCapability, type PermissionRegistry } from "@linchkit/core";
 import { assignUserAction } from "./actions/assign-user";
 import { createGroupAction } from "./actions/create-group";
 import { revokeUserAction } from "./actions/revoke-user";
@@ -24,9 +24,7 @@ export interface CapPermissionOptions {
   resolveCapability?: (actionName: string, ctx: CommandContext) => string;
 }
 
-export function createCapPermission(
-  options?: CapPermissionOptions,
-): CapabilityDefinition {
+export function createCapPermission(options?: CapPermissionOptions): CapabilityDefinition {
   const middlewares: CapabilityMiddlewareRegistration[] | undefined = options
     ? [
         {
@@ -43,8 +41,7 @@ export function createCapPermission(
   return defineCapability({
     name: "cap-permission",
     label: "Permission Management",
-    description:
-      "Permission group management, user assignment, and permission slot middleware",
+    description: "Permission group management, user assignment, and permission slot middleware",
     type: "standard",
     category: "system",
     version: "0.0.1",
@@ -52,12 +49,7 @@ export function createCapPermission(
     dependencies: ["cap-auth"],
 
     schemas: [permissionGroupSchema, permissionAssignmentSchema],
-    actions: [
-      createGroupAction,
-      assignUserAction,
-      revokeUserAction,
-      updatePermissionsAction,
-    ],
+    actions: [createGroupAction, assignUserAction, revokeUserAction, updatePermissionsAction],
 
     extensions: middlewares ? { middlewares } : undefined,
 

@@ -42,10 +42,7 @@ function setup() {
 }
 
 // Auth middleware that rejects anonymous requests
-async function authMiddleware(
-  ctx: CommandContext,
-  next: () => Promise<void>,
-): Promise<void> {
+async function authMiddleware(ctx: CommandContext, next: () => Promise<void>): Promise<void> {
   const authHeader = ctx.meta?.authorization as string | undefined;
   if (!authHeader) {
     throw new AuthenticationError({
@@ -65,10 +62,7 @@ async function authMiddleware(
 }
 
 // Permission middleware that checks groups
-async function permissionMiddleware(
-  ctx: CommandContext,
-  next: () => Promise<void>,
-): Promise<void> {
+async function permissionMiddleware(ctx: CommandContext, next: () => Promise<void>): Promise<void> {
   if (ctx.command === "health") return next();
 
   if (ctx.actor.groups.length === 0) {

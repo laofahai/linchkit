@@ -6,12 +6,11 @@
 
 export const VERSION = "0.0.1";
 
-// Capability definition
-export { capAdapterUiReact } from "./capability";
-
 export { useTheme } from "@linchkit/ui-kit/hooks";
 // Utilities
 export { cn } from "@linchkit/ui-kit/lib/utils";
+// Capability definition
+export { capAdapterUiReact } from "./capability";
 // UI components
 export { AppSidebar } from "./components/app-sidebar";
 export type { AutoFormProps } from "./components/auto-form";
