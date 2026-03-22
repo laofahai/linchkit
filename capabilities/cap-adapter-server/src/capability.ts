@@ -67,6 +67,11 @@ export const capAdapterServer = defineCapability({
             commandLayer: runtime.commandLayer,
             schemaRegistry: runtime.schemaRegistry,
             views: runtime.views,
+            // Extract tenant ID from X-Tenant-ID header.
+            // TODO: support JWT-based tenant extraction via auth capability
+            resolveRequestTenantId: (request: Request) => {
+              return request.headers.get("x-tenant-id") ?? undefined;
+            },
           });
 
           return {

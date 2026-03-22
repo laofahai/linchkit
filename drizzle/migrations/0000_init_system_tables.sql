@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS "_linchkit_events" (
   "event_type" varchar(255) NOT NULL,
   "payload" jsonb,
   "source_action" varchar(255),
-  "source_execution_id" uuid,
+  "source_execution_id" text,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "processed_at" timestamp,
   "status" "_linchkit_event_status" NOT NULL DEFAULT 'pending'

@@ -75,7 +75,7 @@ export const eventsTable = pgTable("_linchkit_events", {
   eventType: varchar("event_type", { length: 255 }).notNull(),
   payload: jsonb("payload"),
   sourceAction: varchar("source_action", { length: 255 }),
-  sourceExecutionId: uuid("source_execution_id"),
+  sourceExecutionId: text("source_execution_id"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   processedAt: timestamp("processed_at", { mode: "date" }),
   status: eventStatusEnum("status").notNull().default("pending"),
