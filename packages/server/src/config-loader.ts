@@ -7,7 +7,8 @@
  */
 
 import { resolve } from "node:path";
-import type { LinchKitConfig } from "@linchkit/core";
+import type { LinchKitConfig, Logger } from "@linchkit/core";
+import { consoleLogger } from "@linchkit/core";
 import { resolveEnvVars } from "@linchkit/core/utils/env";
 
 /** Default configuration values */
@@ -53,6 +54,8 @@ export interface LoadConfigOptions {
   root?: string;
   /** Config file name (default: "linchkit.config.ts") */
   configFile?: string;
+  /** Optional structured logger (defaults to consoleLogger) */
+  logger?: Logger;
 }
 
 /**
@@ -67,6 +70,7 @@ export interface LoadConfigOptions {
 export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitConfig> {
   const root = options?.root ?? process.cwd();
   const configFile = options?.configFile ?? "linchkit.config.ts";
+  const logger = options?.logger ?? consoleLogger;
   const configPath = resolve(root, configFile);
 
   let rawConfig: LinchKitConfig;
@@ -77,7 +81,7 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitC
   } catch (err) {
     const error = err as Error;
     if (error.message?.includes("Cannot find module") || error.message?.includes("no such file")) {
-      console.warn(`[linchkit] Config file not found at ${configPath}, using defaults.`);
+      logger.warn(`Config file not found at ${configPath}, using defaults.`);
       rawConfig = {};
     } else {
       throw new Error(`[linchkit] Failed to load config from ${configPath}: ${error.message}`);
@@ -85,7 +89,7 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitC
   }
 
   // Resolve $env.VAR_NAME placeholders
-  const resolved = resolveEnvVars(rawConfig);
+  const resolved = resolveEnvVars(rawConfig, logger);
 
   // Merge with defaults (user config takes precedence)
   const config = deepMerge(

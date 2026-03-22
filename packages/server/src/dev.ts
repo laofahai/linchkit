@@ -6,7 +6,13 @@
  * Demonstrates end-to-end: Schema → Action → GraphQL → REST
  */
 
-import type { ActionDefinition, SchemaDefinition, ViewDefinition } from "@linchkit/core";
+import type {
+  ActionDefinition,
+  CapabilityDefinition,
+  MiddlewareRegistration,
+  SchemaDefinition,
+  ViewDefinition,
+} from "@linchkit/core";
 import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext } from "./runtime-context";
@@ -15,6 +21,39 @@ import { createServer } from "./server";
 // ── Load configuration ──────────────────────────────────
 
 const config = await loadConfig();
+
+// ── Extract capability contributions ────────────────────
+
+function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
+  schemas: SchemaDefinition[];
+  actions: ActionDefinition[];
+  middlewares: MiddlewareRegistration[];
+} {
+  const schemas: SchemaDefinition[] = [];
+  const actions: ActionDefinition[] = [];
+  const middlewares: MiddlewareRegistration[] = [];
+
+  for (const cap of capabilities) {
+    if (cap.schemas) schemas.push(...cap.schemas);
+    if (cap.actions) actions.push(...cap.actions);
+
+    // Convert CapabilityMiddlewareRegistration → MiddlewareRegistration
+    if (cap.extensions?.middlewares) {
+      for (const mw of cap.extensions.middlewares) {
+        middlewares.push({
+          name: `${cap.name}:${mw.slot}`,
+          slot: mw.slot,
+          order: mw.priority ?? 100,
+          handler: mw.handler,
+        });
+      }
+    }
+  }
+
+  return { schemas, actions, middlewares };
+}
+
+const capContributions = extractCapabilities(config.capabilities);
 
 // ── Demo schema ──────────────────────────────────────────
 
@@ -211,20 +250,24 @@ const approveAction: ActionDefinition = {
   },
 };
 
-// ── Build CRUD + custom actions ─────────────────────────
+// ── Merge demo + capability schemas and actions ────────────
+
+const allSchemas: SchemaDefinition[] = [...demoSchemas, ...capContributions.schemas];
 
 const allActions: ActionDefinition[] = [
   ...demoSchemas.flatMap(generateCrudActions),
   submitAction,
   approveAction,
+  ...capContributions.actions,
 ];
 
 // ── Initialize runtime context ──────────────────────────
 
 const runtime = createRuntimeContext({
-  schemas: demoSchemas,
+  schemas: allSchemas,
   actions: allActions,
   views: demoViews,
+  middlewares: capContributions.middlewares,
   ai: config.ai,
 });
 
@@ -294,6 +337,7 @@ const server = createServer(graphqlSchema, {
   port,
   host,
   executor: runtime.executor,
+  commandLayer: runtime.commandLayer,
   executionLogger: runtime.executionLogger,
   schemaRegistry: runtime.schemaRegistry,
   views: runtime.views,
@@ -315,9 +359,15 @@ console.log(`  Health:     http://${host}:${port}/health`);
 console.log(`  REST API:   http://${host}:${port}/api/actions/:name`);
 console.log(`  Exec Logs:  http://${host}:${port}/api/executions`);
 console.log(`───────────────────────────────────`);
-console.log(`  Schemas:    ${demoSchemas.length} (${demoSchemas.map((s) => s.name).join(", ")})`);
+const capNames = (config.capabilities ?? []).map((c) => c.name).join(", ") || "none";
+const mwCount = capContributions.middlewares.length;
+
+console.log(`  Schemas:    ${allSchemas.length} (${allSchemas.map((s) => s.name).join(", ")})`);
 console.log(`  Actions:    ${allActions.length} (${allActions.map((a) => a.name).join(", ")})`);
 console.log(`  Records:    ${runtime.store.count("purchase_request")} seed records`);
+console.log(`  Caps:       ${capNames}`);
+console.log(`  Middlewares: ${mwCount} registered`);
+console.log(`  CmdLayer:   enabled`);
 console.log(`  AI:         ${aiSummary}`);
 console.log(`  Logger:     InMemoryExecutionLogger enabled`);
 console.log(`───────────────────────────────────\n`);

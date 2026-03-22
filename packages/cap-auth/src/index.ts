@@ -34,6 +34,8 @@ export {
   createAuthMiddleware,
   createAuthMiddlewareRegistration,
 } from "./middleware/auth-middleware";
+// Providers
+export { createDevAuthProvider } from "./providers/dev-provider";
 // Schemas
 export { apiKeySchema } from "./schemas/api-key";
 export { sessionSchema } from "./schemas/session";

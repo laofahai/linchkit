@@ -5,6 +5,16 @@
  * Uses plain fetch — no external GraphQL client library needed.
  */
 
+// ── Auth header helper ──────────────────────────────────
+
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem("linchkit:token");
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+}
+
 // ── GraphQL ─────────────────────────────────────────────
 
 export interface GraphQLResponse<T = unknown> {
@@ -21,7 +31,7 @@ export async function graphql<T = unknown>(
 ): Promise<GraphQLResponse<T>> {
   const res = await fetch("/graphql", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ query, variables }),
   });
   return res.json();
@@ -222,7 +232,7 @@ export interface SchemaBundle {
  * Fetch all registered schemas from the server (lightweight list).
  */
 export async function fetchSchemas(): Promise<SchemaInfo[]> {
-  const res = await fetch("/api/schemas");
+  const res = await fetch("/api/schemas", { headers: getAuthHeaders() });
   const json = await res.json();
   return json.data ?? [];
 }
@@ -231,7 +241,7 @@ export async function fetchSchemas(): Promise<SchemaInfo[]> {
  * Fetch a full schema bundle (schema + views) by name.
  */
 export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | null> {
-  const res = await fetch(`/api/schemas/${name}`);
+  const res = await fetch(`/api/schemas/${name}`, { headers: getAuthHeaders() });
   if (!res.ok) return null;
   const json = await res.json();
   return json.data ?? null;
@@ -255,7 +265,7 @@ export async function executeAction(
 ): Promise<ActionResult> {
   const res = await fetch(`/api/actions/${actionName}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(input),
   });
   return res.json();

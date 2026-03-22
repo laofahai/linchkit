@@ -5,16 +5,19 @@
  * with the corresponding `process.env.VAR_NAME` value.
  */
 
+import type { Logger } from "../types/logger";
+import { consoleLogger } from "../engine/console-logger";
+
 const ENV_PATTERN = /^\$env\.(.+)$/;
 
 /**
  * Resolve `$env.VAR_NAME` placeholders in a config object.
  *
  * - Only exact-match string values are substituted (no partial interpolation).
- * - Missing env vars produce a console warning and resolve to `undefined`.
+ * - Missing env vars produce a warning and resolve to `undefined`.
  * - Non-object values pass through unchanged.
  */
-export function resolveEnvVars<T>(config: T): T {
+export function resolveEnvVars<T>(config: T, logger: Logger = consoleLogger): T {
   if (config === null || config === undefined) {
     return config;
   }
@@ -25,8 +28,8 @@ export function resolveEnvVars<T>(config: T): T {
       const varName = match[1] as string;
       const value = process.env[varName];
       if (value === undefined) {
-        console.warn(
-          `[linchkit] Environment variable "${varName}" is not set (referenced as "$env.${varName}")`,
+        logger.warn(
+          `Environment variable "${varName}" is not set (referenced as "$env.${varName}")`,
         );
       }
       return value as unknown as T;
@@ -35,13 +38,13 @@ export function resolveEnvVars<T>(config: T): T {
   }
 
   if (Array.isArray(config)) {
-    return config.map((item) => resolveEnvVars(item)) as unknown as T;
+    return config.map((item) => resolveEnvVars(item, logger)) as unknown as T;
   }
 
   if (typeof config === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config as Record<string, unknown>)) {
-      result[key] = resolveEnvVars(value);
+      result[key] = resolveEnvVars(value, logger);
     }
     return result as T;
   }

@@ -60,7 +60,12 @@ export {
   createProposalEngine,
   ProposalEngine,
 } from "./proposal-engine";
-export { evaluateRules, type RuleEvalInput, type RuleEvalOutput } from "./rule-engine";
+export {
+  evaluateRules,
+  type RuleEvalInput,
+  type RuleEvalOptions,
+  type RuleEvalOutput,
+} from "./rule-engine";
 // Schema registry
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
 // Schema-to-Drizzle generator
@@ -74,6 +79,8 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
+// Console logger
+export { consoleLogger } from "./console-logger";
 // Validation engine
 export {
   type ValidationContext,

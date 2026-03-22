@@ -468,6 +468,68 @@ describe("evaluateRules", () => {
     expect(result.results[1].error).toBeUndefined();
   });
 
+  it("async condition timeout is treated as error", async () => {
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "slow_rule",
+        condition: async () => {
+          await new Promise((r) => setTimeout(r, 500));
+          return false;
+        },
+        effect: { type: "block", message: "blocked", reason: "slow" },
+      }),
+    ];
+    const result = await evaluateRules(rules, defaultInput, { timeout: 50 });
+    expect(result.triggered).toBe(true);
+    expect(result.results[0].error).toContain("timed out");
+  });
+
+  it("async condition within timeout works normally", async () => {
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "fast_rule",
+        condition: async () => {
+          await new Promise((r) => setTimeout(r, 10));
+          return true;
+        },
+        effect: { type: "warn", message: "warning" },
+      }),
+    ];
+    const result = await evaluateRules(rules, defaultInput, { timeout: 1000 });
+    expect(result.triggered).toBe(true);
+    expect(result.results[0].error).toBeUndefined();
+  });
+
+  it("AbortSignal is passed to code condition", async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "signal_rule",
+        condition: async (ctx) => {
+          receivedSignal = ctx.signal;
+          return true;
+        },
+        effect: { type: "warn", message: "w" },
+      }),
+    ];
+    await evaluateRules(rules, defaultInput, { timeout: 1000 });
+    expect(receivedSignal).toBeDefined();
+    // Signal is aborted in the finally block after resolution
+    expect(receivedSignal?.aborted).toBe(true);
+  });
+
+  it("no timeout option works as before (backward compat)", async () => {
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "normal_rule",
+        condition: async () => true,
+        effect: { type: "warn", message: "w" },
+      }),
+    ];
+    const result = await evaluateRules(rules, defaultInput);
+    expect(result.triggered).toBe(true);
+  });
+
   it("includes duration in output", async () => {
     const rule = makeRule({
       name: "timed",

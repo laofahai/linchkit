@@ -38,11 +38,12 @@ export interface ServerOptions {
   views?: Map<string, ViewDefinition[]>;
 }
 
-/** Default anonymous actor for unauthenticated REST requests */
+/** Default anonymous actor for unauthenticated REST requests.
+ *  In dev mode (no auth capability), admin groups allow all actions. */
 const ANONYMOUS_ACTOR = {
-  type: "system" as const,
+  type: "human" as const,
   id: "anonymous",
-  groups: [],
+  groups: ["admin"],
 };
 
 /**
@@ -212,6 +213,7 @@ export function createServer(
         result = await commandLayer.execute({
           command: params.name,
           input,
+          actor: ANONYMOUS_ACTOR,
           channel: "http",
           headers,
         });

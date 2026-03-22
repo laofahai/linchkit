@@ -22,3 +22,4 @@ export type * from "./state";
 export type * from "./version";
 export type * from "./view";
 export type * from "./widget";
+export type * from "./logger";

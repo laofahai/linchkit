@@ -7,6 +7,8 @@
  */
 
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
+import type { Logger } from "../types/logger";
+import { consoleLogger } from "./console-logger";
 
 // ── Default priority ────────────────────────────────────────
 
@@ -70,10 +72,12 @@ export class EventBus {
   private eventLog: EventRecord[] = [];
   private emitDepth = 0;
   private maxEmitDepth: number;
+  private logger: Logger;
 
-  constructor(registry: EventHandlerRegistry, maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH) {
+  constructor(registry: EventHandlerRegistry, maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH, logger: Logger = consoleLogger) {
     this.registry = registry;
     this.maxEmitDepth = maxEmitDepth;
+    this.logger = logger;
   }
 
   /**
@@ -122,9 +126,8 @@ export class EventBus {
         if (handler.async) {
           // Fire-and-forget: don't await, log errors
           handler.handler(eventCopy, ctx).catch((err) => {
-            console.warn(
-              `[EventBus] Async handler "${handler.name}" failed for event "${event.type}":`,
-              err,
+            this.logger.warn(
+              `[EventBus] Async handler "${handler.name}" failed for event "${event.type}": ${err}`,
             );
           });
         } else {

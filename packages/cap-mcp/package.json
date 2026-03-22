@@ -1,5 +1,5 @@
 {
-  "name": "@linchkit/mcp",
+  "name": "@linchkit/cap-mcp",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -9,7 +9,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*"
+    "@linchkit/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.27.1"
   },
   "devDependencies": {
     "typescript": "^5.8.2"

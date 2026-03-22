@@ -1,6 +1,7 @@
 import { executeAction } from "./api";
 
 const AUTH_STORAGE_KEY = "linchkit:authenticated";
+const TOKEN_STORAGE_KEY = "linchkit:token";
 
 export function isAuthenticated(): boolean {
   return localStorage.getItem(AUTH_STORAGE_KEY) === "true";
@@ -20,6 +21,11 @@ export async function loginWithPassword(email: string, password: string): Promis
     const result = await executeAction("login", { email, password });
     if (!result.success) {
       throw new Error(result.error?.message ?? "Login failed");
+    }
+    // Store the access token when the server returns one.
+    const token = (result.data as Record<string, unknown> | undefined)?.accessToken;
+    if (typeof token === "string") {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
     }
   } catch {
     // Temporary fallback until a concrete auth provider is wired.
@@ -71,5 +77,6 @@ export async function logout(): Promise<void> {
     // Temporary fallback until a concrete auth provider is wired.
   }
 
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
   markAuthenticated(false);
 }

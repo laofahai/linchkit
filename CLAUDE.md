@@ -11,6 +11,9 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 - **KISS / YAGNI** — Don't build what you don't need
 - **Data Structures First** — Design data structures before writing code
 - **Communicate in Chinese** — Always use Chinese when talking to the user
+- **Capability-Centric** — Everything is a Capability (business, system, protocol adapter). No "plugin" concept. See spec 01, 20.
+- **Minimal Core** — Core provides only engines + types + pipeline. All concrete implementations (auth, MCP, permissions) are Capabilities.
+- **Infinite Extensibility** — New protocols (MCP, A2A, AG-UI), field types, view types, services all register via Capability `extensions`. Core never changes.
 
 ## Tech Stack
 
@@ -43,13 +46,17 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 ## Packages
 
 ```
-@linchkit/core       — Types, engines, permission — ✅
-@linchkit/cli        — CLI (citty) — ✅
-@linchkit/server     — Elysia + graphql-yoga + REST + CommandLayer — 🔧
-@linchkit/ui         — React + Shadcn + TanStack — 🔧
-@linchkit/devtools   — Test utilities — ✅
-@linchkit/mcp        — placeholder
-@linchkit/migrate    — placeholder
+packages/ (core infrastructure):
+  @linchkit/core       — Types, engines, pipeline — ✅
+  @linchkit/cli        — CLI launcher (citty) — ✅
+  @linchkit/devtools   — Test utilities — ✅
+
+capabilities/ (pluggable):
+  @linchkit/cap-adapter-server    — Elysia + graphql-yoga + REST + CommandLayer — 🔧
+  @linchkit/cap-adapter-mcp       — MCP transport (adapter capability) — 🔧
+  @linchkit/cap-adapter-ui-react  — React + Shadcn + TanStack (official UI shell) — 🔧
+  @linchkit/cap-auth              — Authentication — 🔧
+  @linchkit/cap-permission        — Permission — 🔧
 ```
 
 ## Dev Commands
@@ -77,6 +84,8 @@ bun run typecheck                        # TypeScript check
 - **bazza/ui fork**: `components/data-table-filter/` — Forked from [bazza/ui](https://ui.bazza.dev) data-table-filter. Modified to use LinchKit `DeclarativeCondition` format (`ComparisonOperator`: eq, neq, gt, gte, lt, lte, contains, in, not_in, between). Provides `useDataTableFilters` hook, `FilterSelector`, and `ActiveFilters` components.
 - **Errors**: 7 types → HTTP status (`validation→400`, `not_found→404`, `auth→401`, `authz→403`, `business→422`, `conflict→409`, `system→500`)
 - **System fields**: `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
+- **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
+- **Protocol Adapters**: Transport adapters (MCP, A2A, AG-UI) are Capabilities (`type: adapter`, `category: integration`) that register via `extensions.transports`. They wrap CommandLayer with protocol-specific transport. Core stays minimal.
 
 ## UI Routes
 
@@ -85,6 +94,15 @@ bun run typecheck                        # TypeScript check
 - `/schemas/:name/new` — Create form (AutoForm)
 - `/schemas/:name/:id` — Edit/view form (AutoForm)
 - `/admin/executions` — Execution log dashboard
+
+## AI Workflow
+
+This project is entirely AI-generated. See `AGENTS.md` for:
+- Development cycle (Claude Code → Codex review → Claude Code fix)
+- Architecture guardrails and module boundary rules
+- Security constraints (hard rules)
+- Review checklist for Codex
+- Spec reference table (when to read which spec)
 
 ## Specs
 

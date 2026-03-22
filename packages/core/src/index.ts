@@ -48,12 +48,14 @@ export type {
   MiddlewareHandler,
   MiddlewareRegistration,
   RuleEvalInput,
+  RuleEvalOptions,
   RuleEvalOutput,
   SlotName,
   StateMachine,
   ValidationContext,
   ZodGeneratorOptions,
 } from "./engine";
+export type { Logger } from "./types/logger";
 
 // Engine exports
 export {
@@ -89,6 +91,7 @@ export {
   transition,
   validatePhase1,
   validateProposal,
+  consoleLogger,
 } from "./engine";
 // Error classes
 export {

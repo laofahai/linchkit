@@ -34,7 +34,28 @@ function safeAssign(target: Record<string, unknown>, source: Record<string, unkn
   }
 }
 
+// ── Timeout helper ──────────────────────────────────
+
+/** Race a promise against a timeout. Rejects with a descriptive error on expiry. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Rule condition "${label}" timed out after ${ms}ms`)),
+        ms,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 // ── Input / Output types ────────────────────────────
+
+export interface RuleEvalOptions {
+  /** Timeout in ms for async code conditions. No timeout if omitted. */
+  timeout?: number;
+}
 
 export interface RuleEvalInput {
   target: Record<string, unknown>;
@@ -73,6 +94,7 @@ export interface RuleEvalOutput {
 export async function evaluateRules(
   rules: RuleDefinition[],
   input: RuleEvalInput,
+  options?: RuleEvalOptions,
 ): Promise<RuleEvalOutput> {
   const totalStart = performance.now();
 
@@ -110,11 +132,21 @@ export async function evaluateRules(
 
     try {
       if (typeof rule.condition === "function") {
-        triggered = await (rule.condition as CodeCondition)({
+        const controller = options?.timeout ? new AbortController() : undefined;
+        const result = (rule.condition as CodeCondition)({
           target: ctx.target,
           context: ctx.context,
           actor: ctx.actor,
+          signal: controller?.signal,
         });
+
+        if (options?.timeout && result instanceof Promise) {
+          triggered = await withTimeout(result, options.timeout, rule.name).finally(() =>
+            controller?.abort(),
+          );
+        } else {
+          triggered = await result;
+        }
       } else {
         triggered = evaluateCondition(rule.condition as DeclarativeCondition, ctx);
       }

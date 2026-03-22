@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import { afterEach, describe, expect, test } from "bun:test";
+import type { SchemaDefinition, StateDefinition } from "@linchkit/core";
 import {
   GraphQLBoolean,
+  GraphQLEnumType,
   GraphQLFloat,
   GraphQLID,
   GraphQLInputObjectType,
@@ -10,7 +11,16 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import { generateGraphQLInputType, generateGraphQLObjectType } from "../src/graphql";
+import {
+  clearEnumTypeCache,
+  generateGraphQLInputType,
+  generateGraphQLObjectType,
+} from "../src/graphql";
+
+// Clear cache between tests to avoid cross-test contamination
+afterEach(() => {
+  clearEnumTypeCache();
+});
 
 // ── Test fixtures ────────────────────────────────────────
 
@@ -36,6 +46,25 @@ const taskSchema: SchemaDefinition = {
     full_name: { type: "computed", compute: (r) => `${r.title}` },
     subtasks: { type: "has_many", target: "subtask" },
     tags: { type: "many_to_many", target: "tag" },
+  },
+};
+
+const taskLifecycleState: StateDefinition = {
+  name: "task_lifecycle",
+  schema: "task",
+  field: "status",
+  initial: "draft",
+  states: ["draft", "in_progress", "done", "cancelled"],
+  transitions: [
+    { from: "draft", to: "in_progress", action: "start_task" },
+    { from: "in_progress", to: "done", action: "complete_task" },
+    { from: ["draft", "in_progress"], to: "cancelled", action: "cancel_task" },
+  ],
+  meta: {
+    draft: { label: "Draft", color: "gray" },
+    in_progress: { label: "In Progress", color: "blue" },
+    done: { label: "Done", color: "green" },
+    cancelled: { label: "Cancelled", color: "red" },
   },
 };
 
@@ -87,9 +116,6 @@ describe("generateGraphQLObjectType", () => {
   });
 
   test("maps field types correctly", () => {
-    // Output types are always nullable to prevent resolver crashes on missing fields.
-    // Required/NonNull enforcement is only on input types.
-
     // string → String (nullable in output even if required)
     expect(fields.title.type).toBe(GraphQLString);
 
@@ -108,8 +134,13 @@ describe("generateGraphQLObjectType", () => {
     // datetime → String
     expect(fields.scheduled_at.type).toBe(GraphQLString);
 
-    // enum → String (nullable in output even if required)
-    expect(fields.priority.type).toBe(GraphQLString);
+    // enum → GraphQLEnumType
+    expect(fields.priority.type).toBeInstanceOf(GraphQLEnumType);
+    const priorityEnum = fields.priority.type as GraphQLEnumType;
+    expect(priorityEnum.name).toBe("TaskPriorityEnum");
+    const enumValues = priorityEnum.getValues();
+    expect(enumValues).toHaveLength(3);
+    expect(enumValues.map((v) => v.value)).toEqual(["low", "medium", "high"]);
 
     // json → String
     expect(fields.metadata.type).toBe(GraphQLString);
@@ -117,7 +148,7 @@ describe("generateGraphQLObjectType", () => {
     // ref → String
     expect(fields.assignee_id.type).toBe(GraphQLString);
 
-    // state → String
+    // state without machine map → String fallback
     expect(fields.status.type).toBe(GraphQLString);
   });
 
@@ -128,13 +159,133 @@ describe("generateGraphQLObjectType", () => {
   });
 
   test("output fields are always nullable to prevent resolver crashes", () => {
-    // In output types, all user-defined fields are nullable.
-    // Safe resolvers return null for missing fields instead of crashing.
-    // Required/NonNull is only enforced on input types.
     expect(fields.title.type).toBe(GraphQLString);
     expect(fields.title.type).not.toBeInstanceOf(GraphQLNonNull);
-    // description is also nullable
     expect(fields.description.type).not.toBeInstanceOf(GraphQLNonNull);
+  });
+});
+
+// ── Enum type generation ─────────────────────────────────
+
+describe("enum field generates GraphQLEnumType", () => {
+  test("enum field with options produces GraphQLEnumType", () => {
+    const objectType = generateGraphQLObjectType(taskSchema);
+    const fields = objectType.getFields();
+    const priorityType = fields.priority.type;
+
+    expect(priorityType).toBeInstanceOf(GraphQLEnumType);
+    const enumType = priorityType as GraphQLEnumType;
+    expect(enumType.name).toBe("TaskPriorityEnum");
+    const values = enumType.getValues();
+    expect(values.map((v) => v.name)).toEqual(["low", "medium", "high"]);
+    expect(values.map((v) => v.value)).toEqual(["low", "medium", "high"]);
+  });
+
+  test("enum field with labels preserves descriptions", () => {
+    const schema: SchemaDefinition = {
+      name: "ticket",
+      fields: {
+        severity: {
+          type: "enum",
+          options: [
+            { value: "low", label: "Low Priority" },
+            { value: "high", label: "High Priority" },
+          ],
+        },
+      },
+    };
+    const objectType = generateGraphQLObjectType(schema);
+    const fields = objectType.getFields();
+    const enumType = fields.severity.type as GraphQLEnumType;
+    expect(enumType.name).toBe("TicketSeverityEnum");
+    const values = enumType.getValues();
+    expect(values[0].description).toBe("Low Priority");
+    expect(values[1].description).toBe("High Priority");
+  });
+
+  test("enum values with special characters are sanitized", () => {
+    const schema: SchemaDefinition = {
+      name: "item",
+      fields: {
+        category: {
+          type: "enum",
+          options: [
+            { value: "in-stock" },
+            { value: "out-of-stock" },
+            { value: "3rd-party" },
+          ],
+        },
+      },
+    };
+    const objectType = generateGraphQLObjectType(schema);
+    const fields = objectType.getFields();
+    const enumType = fields.category.type as GraphQLEnumType;
+    const names = enumType.getValues().map((v) => v.name);
+    // Hyphens replaced with underscores, leading digit prefixed
+    expect(names).toEqual(["in_stock", "out_of_stock", "_3rd_party"]);
+    // Original values preserved
+    const values = enumType.getValues().map((v) => v.value);
+    expect(values).toEqual(["in-stock", "out-of-stock", "3rd-party"]);
+  });
+
+  test("enum field with empty options falls back to String", () => {
+    const schema: SchemaDefinition = {
+      name: "empty_enum",
+      fields: {
+        status: {
+          type: "enum",
+          options: [],
+        },
+      },
+    };
+    const objectType = generateGraphQLObjectType(schema);
+    const fields = objectType.getFields();
+    expect(fields.status.type).toBe(GraphQLString);
+  });
+});
+
+// ── State field enum generation ──────────────────────────
+
+describe("state field generates GraphQLEnumType with state machine", () => {
+  test("state field with machine map produces GraphQLEnumType", () => {
+    const machineMap = new Map<string, StateDefinition>();
+    machineMap.set("task_lifecycle", taskLifecycleState);
+
+    const objectType = generateGraphQLObjectType(taskSchema, machineMap);
+    const fields = objectType.getFields();
+    const statusType = fields.status.type;
+
+    expect(statusType).toBeInstanceOf(GraphQLEnumType);
+    const enumType = statusType as GraphQLEnumType;
+    expect(enumType.name).toBe("TaskStatusState");
+    const values = enumType.getValues();
+    expect(values.map((v) => v.value)).toEqual(["draft", "in_progress", "done", "cancelled"]);
+  });
+
+  test("state field with meta preserves label as description", () => {
+    const machineMap = new Map<string, StateDefinition>();
+    machineMap.set("task_lifecycle", taskLifecycleState);
+
+    const objectType = generateGraphQLObjectType(taskSchema, machineMap);
+    const fields = objectType.getFields();
+    const enumType = fields.status.type as GraphQLEnumType;
+    const draftValue = enumType.getValues().find((v) => v.value === "draft");
+    expect(draftValue?.description).toBe("Draft");
+  });
+
+  test("state field without matching machine falls back to String", () => {
+    const machineMap = new Map<string, StateDefinition>();
+    // No entry for "task_lifecycle"
+
+    const objectType = generateGraphQLObjectType(taskSchema, machineMap);
+    const fields = objectType.getFields();
+    expect(fields.status.type).toBe(GraphQLString);
+  });
+
+  test("state field without machine map falls back to String", () => {
+    const objectType = generateGraphQLObjectType(taskSchema);
+    const fields = objectType.getFields();
+    expect(fields.status.type).toBe(GraphQLString);
   });
 });
 
@@ -167,10 +318,46 @@ describe("generateGraphQLInputType", () => {
     expect(fields.story_points.type).toBe(GraphQLFloat);
   });
 
+  test("enum input field uses GraphQLEnumType", () => {
+    // priority is required, so it's wrapped in NonNull
+    expect(fields.priority.type).toBeInstanceOf(GraphQLNonNull);
+    const innerType = (fields.priority.type as GraphQLNonNull<GraphQLEnumType>).ofType;
+    expect(innerType).toBeInstanceOf(GraphQLEnumType);
+    expect((innerType as GraphQLEnumType).name).toBe("TaskPriorityEnum");
+  });
+
+  test("state input field uses GraphQLEnumType when machine map provided", () => {
+    const machineMap = new Map<string, StateDefinition>();
+    machineMap.set("task_lifecycle", taskLifecycleState);
+
+    const inputWithMachines = generateGraphQLInputType(taskSchema, machineMap);
+    const inputFields = inputWithMachines.getFields();
+    expect(inputFields.status.type).toBeInstanceOf(GraphQLEnumType);
+    expect((inputFields.status.type as GraphQLEnumType).name).toBe("TaskStatusState");
+  });
+
   test("skips computed, has_many, and many_to_many fields", () => {
     expect(fields.full_name).toBeUndefined();
     expect(fields.subtasks).toBeUndefined();
     expect(fields.tags).toBeUndefined();
+  });
+});
+
+// ── Enum type caching ────────────────────────────────────
+
+describe("enum type caching", () => {
+  test("output and input types share the same GraphQLEnumType instance", () => {
+    const objectType = generateGraphQLObjectType(taskSchema);
+    const inputType = generateGraphQLInputType(taskSchema);
+
+    const outputFields = objectType.getFields();
+    const inputFields = inputType.getFields();
+
+    const outputEnum = outputFields.priority.type;
+    // Input priority is NonNull-wrapped because required=true
+    const inputEnum = (inputFields.priority.type as GraphQLNonNull<GraphQLEnumType>).ofType;
+
+    expect(outputEnum).toBe(inputEnum);
   });
 });
 
@@ -219,6 +406,10 @@ describe("all field types", () => {
     for (const name of expectedFields) {
       expect(fields[name]).toBeDefined();
     }
+  });
+
+  test("enum field produces GraphQLEnumType", () => {
+    expect(fields.f_enum.type).toBeInstanceOf(GraphQLEnumType);
   });
 
   test("virtual field types are excluded", () => {

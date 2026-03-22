@@ -15,7 +15,9 @@
  */
 
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
+import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecutionChannel } from "./action-engine";
+import { consoleLogger } from "./console-logger";
 
 // ── Slot names (execution order) ────────────────────────────
 
@@ -100,6 +102,8 @@ function checkExposure(action: ActionDefinition, channel: ExecutionChannel): boo
 export interface CommandLayerOptions {
   /** The action executor to invoke after pipeline */
   executor: ActionExecutor;
+  /** Optional structured logger (defaults to consoleLogger) */
+  logger?: Logger;
 }
 
 export interface CommandLayer {
@@ -132,7 +136,7 @@ export interface CommandExecuteOptions {
  * ```
  */
 export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
-  const { executor } = options;
+  const { executor, logger = consoleLogger } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
   function use(registration: MiddlewareRegistration): void {
@@ -303,9 +307,8 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       } catch (err) {
         // Post-action errors don't affect the action result (#5)
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[CommandLayer] post-action middleware error (action=${ctx.command}):`,
-          errorMsg,
+        logger.warn(
+          `[CommandLayer] post-action middleware error (action=${ctx.command}): ${errorMsg}`,
         );
       }
     }
