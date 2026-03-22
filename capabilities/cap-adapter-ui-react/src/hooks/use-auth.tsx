@@ -47,7 +47,10 @@ function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     const raw = parts.length === 3 ? parts[1]! : token;
-    return JSON.parse(atob(raw));
+    // Normalize base64url to standard base64 (replace -/_ and pad)
+    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
   } catch {
     return null;
   }

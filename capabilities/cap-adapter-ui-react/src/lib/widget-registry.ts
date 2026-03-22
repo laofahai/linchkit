@@ -17,7 +17,7 @@ import type {
   WidgetDefinition,
   WidgetMode,
   WidgetResolutionContext,
-} from "@linchkit/core";
+} from "@linchkit/core/types";
 
 // ── Component types ──────────────────────────────────────
 

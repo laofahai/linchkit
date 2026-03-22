@@ -6,7 +6,7 @@
  * Core only defines the contract; concrete implementations live in capabilities.
  */
 
-import type { ActionExecutor } from "../engine/action-engine";
+import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { SchemaRegistry } from "../engine/schema-registry";
 import type { ActionDefinition } from "./action";
@@ -26,6 +26,8 @@ export interface TransportContext {
   middlewares: MiddlewareRegistration[];
   /** Runtime config (from linchkit.config.ts) */
   config: Record<string, unknown>;
+  /** Pre-built data provider (e.g. DrizzleDataProvider when DATABASE_URL is configured) */
+  dataProvider?: DataProvider;
 }
 
 /** Lifecycle handle returned by transport factory */

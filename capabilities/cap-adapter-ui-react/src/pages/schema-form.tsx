@@ -9,7 +9,7 @@
  *                form fields...
  */
 
-import type { SchemaDefinition, ViewAction, ViewDefinition } from "@linchkit/core";
+import type { SchemaDefinition, ViewAction, ViewDefinition } from "@linchkit/core/types";
 import { Button, Separator } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";

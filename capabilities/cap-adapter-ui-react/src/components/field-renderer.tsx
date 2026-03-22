@@ -6,7 +6,7 @@
  * via ViewFieldConfig.widget or FormFieldNode.widget.
  */
 
-import type { FieldDefinition, ViewFieldConfig } from "@linchkit/core";
+import type { FieldDefinition, ViewFieldConfig } from "@linchkit/core/types";
 import { Input, Label } from "@linchkit/ui-kit/components";
 import type { WidgetDisplayProps, WidgetInputProps } from "../lib/widget-registry";
 import { widgetRegistry } from "../lib/widget-registry";

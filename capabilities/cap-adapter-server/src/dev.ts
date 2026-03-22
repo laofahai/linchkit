@@ -89,9 +89,12 @@ const runtime = createRuntimeContext({
   ai: config.ai,
 });
 
-// Seed dev data from capabilities
-for (const [schemaName, records] of Object.entries(capContributions.seed)) {
-  runtime.store.seed(schemaName, records);
+// Seed dev data from capabilities (only works with InMemoryStore)
+const { InMemoryStore } = await import("./data/in-memory-store");
+if (runtime.dataProvider instanceof InMemoryStore) {
+  for (const [schemaName, records] of Object.entries(capContributions.seed)) {
+    runtime.dataProvider.seed(schemaName, records);
+  }
 }
 
 // ── Build schema and start server ────────────────────────
@@ -100,7 +103,7 @@ const customActions = capContributions.actions;
 
 const graphqlSchema = buildGraphQLSchema(allSchemas, {
   executor: runtime.executor,
-  store: runtime.store,
+  dataProvider: runtime.dataProvider,
   actions: customActions,
   executionLogger: runtime.executionLogger,
 });

@@ -59,13 +59,13 @@ describe("createRuntimeContext", () => {
 
     expect(ctx.schemaRegistry).toBeDefined();
     expect(ctx.executor).toBeDefined();
-    expect(ctx.store).toBeDefined();
+    expect(ctx.dataProvider).toBeDefined();
     expect(ctx.executionLogger).toBeDefined();
   });
 
-  test("store is an InMemoryStore instance", () => {
+  test("dataProvider defaults to InMemoryStore when no external provider given", () => {
     const ctx = createRuntimeContext();
-    expect(ctx.store).toBeInstanceOf(InMemoryStore);
+    expect(ctx.dataProvider).toBeInstanceOf(InMemoryStore);
   });
 
   test("executionLogger is an InMemoryExecutionLogger instance", () => {

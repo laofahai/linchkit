@@ -1,4 +1,4 @@
-import type { ComparisonOperator } from "@linchkit/core";
+import type { ComparisonOperator } from "@linchkit/core/types";
 import type { LucideIcon } from "lucide-react";
 
 /*

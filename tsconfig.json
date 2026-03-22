@@ -19,6 +19,8 @@
     "composite": true,
     "paths": {
       "@linchkit/core": ["./packages/core/src"],
+      "@linchkit/core/types": ["./packages/core/src/types-entry.ts"],
+      "@linchkit/core/define": ["./packages/core/src/define-entry.ts"],
       "@linchkit/cli": ["./packages/cli/src"],
       "@linchkit/devtools": ["./packages/devtools/src"],
       "@linchkit/cap-adapter-server": ["./capabilities/cap-adapter-server/src"],

@@ -24,25 +24,73 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
+  closeDatabase,
   createActionExecutor,
   createCommandLayer,
+  createDatabase,
+  DrizzleDataProvider,
+  generateDrizzleTable,
+  resolveEnvVars,
   SchemaRegistry,
+  syncTables,
+  TableRegistry,
 } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 
-/** Minimal no-op DataProvider for dev mode bootstrap */
-function createNoopDataProvider(): DataProvider {
-  const notImpl = () => {
-    throw new Error("No DataProvider configured. Transports should provide their own.");
+/** Simple in-memory DataProvider for dev fallback when no database is configured. */
+function createDevFallbackProvider(): DataProvider {
+  const tables = new Map<string, Map<string, Record<string, unknown>>>();
+  const table = (schema: string) => {
+    if (!tables.has(schema)) tables.set(schema, new Map());
+    return tables.get(schema)!;
   };
   return {
-    get: notImpl,
-    query: notImpl,
-    create: notImpl,
-    update: notImpl,
-    delete: notImpl,
+    async get(schema, id) {
+      const r = table(schema).get(id);
+      if (!r) throw new Error(`Record not found: ${schema}/${id}`);
+      return { ...r };
+    },
+    async query(schema, filter) {
+      let records = Array.from(table(schema).values()).map((r) => ({ ...r }));
+      // Simple equality filtering (skip meta keys)
+      const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+      for (const [k, v] of Object.entries(filter)) {
+        if (metaKeys.has(k) || v === undefined || v === null) continue;
+        records = records.filter((r) => r[k] === v);
+      }
+      const offset = (filter.offset as number | undefined) ?? 0;
+      const limit = (filter.limit as number | undefined) ?? records.length;
+      return records.slice(offset, offset + limit);
+    },
+    async create(schema, data) {
+      const now = new Date().toISOString();
+      const id = (data.id as string) || crypto.randomUUID();
+      const record = { ...data, id, created_at: now, updated_at: now, _version: 1 };
+      table(schema).set(id, record);
+      return { ...record };
+    },
+    async update(schema, id, data) {
+      const existing = table(schema).get(id);
+      if (!existing) throw new Error(`Record not found: ${schema}/${id}`);
+      const updated = { ...existing, ...data, id, updated_at: new Date().toISOString() };
+      table(schema).set(id, updated);
+      return { ...updated };
+    },
+    async delete(schema, id) {
+      if (!table(schema).has(id)) throw new Error(`Record not found: ${schema}/${id}`);
+      table(schema).delete(id);
+    },
+    async count(schema, filter) {
+      if (!filter) return table(schema).size;
+      let records = Array.from(table(schema).values());
+      for (const [k, v] of Object.entries(filter)) {
+        if (v === undefined || v === null) continue;
+        records = records.filter((r) => r[k] === v);
+      }
+      return records.length;
+    },
   };
 }
 
@@ -136,8 +184,53 @@ export const devCommand = defineCommand({
       }
     }
 
-    // Build minimal runtime context for transports
-    const executor = createActionExecutor({ dataProvider: createNoopDataProvider() });
+    // Resolve database configuration and create data provider
+    let dataProvider: DataProvider | undefined;
+    let usingDatabase = false;
+
+    const dbConfig = config.database ? resolveEnvVars(config.database) : undefined;
+
+    if (dbConfig?.url) {
+      try {
+        console.log("[linch] Connecting to PostgreSQL...");
+        const db = createDatabase({
+          url: dbConfig.url,
+          poolSize: dbConfig.poolSize,
+          debug: dbConfig.debug,
+        });
+
+        // Build Drizzle tables from schemas
+        const tableRegistry = new TableRegistry();
+        for (const schema of schemas) {
+          const table = generateDrizzleTable(schema);
+          tableRegistry.register(schema.name, table);
+        }
+
+        // Sync tables to database (CREATE TABLE IF NOT EXISTS)
+        await syncTables(db, tableRegistry, { verbose: true });
+
+        dataProvider = new DrizzleDataProvider(db, tableRegistry);
+        usingDatabase = true;
+        console.log("[linch] Using PostgreSQL data provider");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[linch] Failed to connect to PostgreSQL: ${msg}`);
+        // Clean up the database connection pool before falling back
+        await closeDatabase();
+        console.log("[linch] Falling back to InMemoryStore");
+      }
+    } else {
+      console.log("[linch] Using InMemoryStore (no DATABASE_URL configured)");
+    }
+
+    // Build minimal runtime context for transports.
+    // The local executor is a thin wrapper — each transport creates its own
+    // runtime context with the appropriate DataProvider (or InMemoryStore fallback).
+    // We create a minimal in-memory store here for the dev executor.
+    const devDataProvider: DataProvider = dataProvider ?? createDevFallbackProvider();
+    const executor = createActionExecutor({
+      dataProvider: devDataProvider,
+    });
     for (const action of actionRegistry.getAll()) {
       executor.registry.register(action);
     }
@@ -153,6 +246,7 @@ export const devCommand = defineCommand({
       states,
       middlewares,
       config: config as Record<string, unknown>,
+      dataProvider,
     };
 
     // Start all transports
@@ -189,6 +283,10 @@ export const devCommand = defineCommand({
         } catch {
           // Ignore shutdown errors
         }
+      }
+      if (usingDatabase) {
+        await closeDatabase();
+        console.log("[linch] Database connection closed.");
       }
       process.exit(0);
     });

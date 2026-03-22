@@ -1,5 +1,5 @@
 import { createAuthPageRegistry } from "@linchkit/cap-auth/ui";
-import type { PageRegistration } from "@linchkit/core";
+import type { PageRegistration } from "@linchkit/core/types";
 import type { ComponentType } from "react";
 import {
   loginWithPassword,

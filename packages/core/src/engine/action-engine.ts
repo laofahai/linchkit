@@ -21,17 +21,32 @@ import { canTransition } from "./state-machine";
 
 // ── DataProvider interface ──────────────────────────────────
 
+/** Options for data queries — tenant isolation and soft-delete control */
+export interface DataQueryOptions {
+  tenantId?: string;
+  includeDeleted?: boolean;
+}
+
 /** Abstraction for data access — injected into the executor for testability */
 export interface DataProvider {
-  get(schema: string, id: string): Promise<Record<string, unknown>>;
-  query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+  get(schema: string, id: string, options?: DataQueryOptions): Promise<Record<string, unknown>>;
+  query(
+    schema: string,
+    filter: Record<string, unknown>,
+    options?: DataQueryOptions,
+  ): Promise<Array<Record<string, unknown>>>;
   create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(
     schema: string,
     id: string,
     data: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
-  delete(schema: string, id: string): Promise<void>;
+  delete(schema: string, id: string, options?: DataQueryOptions): Promise<void>;
+  count(
+    schema: string,
+    filter?: Record<string, unknown>,
+    options?: DataQueryOptions,
+  ): Promise<number>;
 }
 
 // ── Execution channel (for exposure checks) ─────────────────

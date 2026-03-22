@@ -112,6 +112,7 @@ export function generateDrizzleTable(
   columns.created_by = varchar("created_by", { length: 128 });
   columns.updated_by = varchar("updated_by", { length: 128 });
   columns._version = integer("_version").default(1).notNull();
+  columns.deleted_at = timestamp("deleted_at", { mode: "date" });
 
   // User-defined columns
   for (const [fieldName, field] of Object.entries(schema.fields)) {

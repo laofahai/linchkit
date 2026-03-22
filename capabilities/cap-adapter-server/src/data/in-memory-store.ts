@@ -2,16 +2,21 @@
  * In-memory data store — simple DataProvider for M0b development.
  *
  * Stores records per schema in a Map. Supports basic CRUD,
- * filtering, sorting, and pagination. No persistence.
+ * filtering, sorting, pagination, soft delete, and tenant isolation.
+ * No persistence.
  */
 
-import type { DataProvider } from "@linchkit/core";
+import type { DataProvider, DataQueryOptions } from "@linchkit/core";
 
 export interface FindManyOptions {
   filter?: Record<string, unknown>;
   sort?: { field: string; order: "asc" | "desc" };
   offset?: number;
   limit?: number;
+  /** Tenant isolation — only return records matching this tenant */
+  tenantId?: string;
+  /** Include soft-deleted records (default: false) */
+  includeDeleted?: boolean;
 }
 
 export class InMemoryStore implements DataProvider {
@@ -26,9 +31,26 @@ export class InMemoryStore implements DataProvider {
     return this.store.get(schema) as Map<string, Record<string, unknown>>;
   }
 
-  async get(schema: string, id: string): Promise<Record<string, unknown>> {
+  /** Check if a record is soft-deleted */
+  private isDeleted(record: Record<string, unknown>): boolean {
+    return record.deleted_at != null;
+  }
+
+  async get(
+    schema: string,
+    id: string,
+    options?: DataQueryOptions,
+  ): Promise<Record<string, unknown>> {
     const record = this.table(schema).get(id);
     if (!record) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Soft delete check
+    if (this.isDeleted(record) && !options?.includeDeleted) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Tenant isolation check
+    if (options?.tenantId && record.tenant_id !== options.tenantId) {
       throw new Error(`Record not found: ${schema}/${id}`);
     }
     return { ...record };
@@ -37,8 +59,42 @@ export class InMemoryStore implements DataProvider {
   async query(
     schema: string,
     filter: Record<string, unknown>,
+    options?: DataQueryOptions,
   ): Promise<Array<Record<string, unknown>>> {
-    return this.findMany(schema, { filter });
+    // Extract meta keys (pagination/sort) from filter, pass the rest as data filter
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const dataFilter: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(filter)) {
+      if (!metaKeys.has(k)) {
+        dataFilter[k] = v;
+      }
+    }
+
+    const sortField = filter.sortField as string | undefined;
+    const sortOrder = (filter.sortOrder as string | undefined) ?? "asc";
+    const sort = sortField ? { field: sortField, order: sortOrder as "asc" | "desc" } : undefined;
+
+    // Support both page/pageSize and offset/limit
+    let offset: number | undefined;
+    let limit: number | undefined;
+    const page = filter.page as number | undefined;
+    const pageSize = filter.pageSize as number | undefined;
+    if (page !== undefined && pageSize !== undefined) {
+      offset = (page - 1) * pageSize;
+      limit = pageSize;
+    } else {
+      offset = filter.offset as number | undefined;
+      limit = filter.limit as number | undefined;
+    }
+
+    return this.findMany(schema, {
+      filter: dataFilter,
+      sort,
+      offset,
+      limit,
+      tenantId: options?.tenantId,
+      includeDeleted: options?.includeDeleted,
+    });
   }
 
   async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -79,7 +135,24 @@ export class InMemoryStore implements DataProvider {
     return { ...updated };
   }
 
-  async delete(schema: string, id: string): Promise<void> {
+  /** Soft delete — sets deleted_at instead of removing the record */
+  async delete(schema: string, id: string, options?: DataQueryOptions): Promise<void> {
+    const tbl = this.table(schema);
+    const record = tbl.get(id);
+    if (!record) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Tenant isolation check
+    if (options?.tenantId && record.tenant_id !== options.tenantId) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Soft delete: set deleted_at timestamp
+    record.deleted_at = new Date().toISOString();
+    tbl.set(id, record);
+  }
+
+  /** Hard delete — actually removes the record from the store */
+  hardDelete(schema: string, id: string): void {
     const tbl = this.table(schema);
     if (!tbl.has(id)) {
       throw new Error(`Record not found: ${schema}/${id}`);
@@ -87,11 +160,21 @@ export class InMemoryStore implements DataProvider {
     tbl.delete(id);
   }
 
-  /** Extended findMany with filter, sort, pagination */
+  /** Extended findMany with filter, sort, pagination, tenant isolation, soft delete */
   findMany(schema: string, options?: FindManyOptions): Array<Record<string, unknown>> {
     let records = Array.from(this.table(schema).values()).map((r) => ({
       ...r,
     }));
+
+    // Soft delete filter — exclude deleted records unless explicitly included
+    if (!options?.includeDeleted) {
+      records = records.filter((r) => !this.isDeleted(r));
+    }
+
+    // Tenant isolation
+    if (options?.tenantId) {
+      records = records.filter((r) => r.tenant_id === options.tenantId);
+    }
 
     // Filter
     if (options?.filter) {
@@ -122,12 +205,17 @@ export class InMemoryStore implements DataProvider {
     return records.slice(offset, offset + limit);
   }
 
-  /** Get total count for a schema (with optional filter) */
-  count(schema: string, filter?: Record<string, unknown>): number {
-    if (!filter) {
-      return this.table(schema).size;
-    }
-    return this.findMany(schema, { filter }).length;
+  /** Get total count for a schema (with optional filter, soft delete, and tenant isolation) */
+  async count(
+    schema: string,
+    filter?: Record<string, unknown>,
+    options?: DataQueryOptions,
+  ): Promise<number> {
+    return this.findMany(schema, {
+      filter,
+      tenantId: options?.tenantId,
+      includeDeleted: options?.includeDeleted,
+    }).length;
   }
 
   /** Seed multiple records at once */

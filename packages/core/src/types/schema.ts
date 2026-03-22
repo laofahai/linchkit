@@ -199,6 +199,7 @@ export interface SystemFields {
   created_by: string;
   updated_by: string;
   _version: number;
+  deleted_at: string | null;
 }
 
 // ── Resolved schema types ────────────────────────────────────────────────

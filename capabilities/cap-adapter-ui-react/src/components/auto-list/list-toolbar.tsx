@@ -1,4 +1,4 @@
-import type { SchemaDefinition, ViewAction } from "@linchkit/core";
+import type { SchemaDefinition, ViewAction } from "@linchkit/core/types";
 import {
   Button,
   DropdownMenu,

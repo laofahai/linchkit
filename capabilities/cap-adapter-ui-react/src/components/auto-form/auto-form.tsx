@@ -13,8 +13,8 @@ import type {
   FormNotebookNode,
   FormSeparatorNode,
   ViewAction,
-} from "@linchkit/core";
-import { generateZodSchema } from "@linchkit/core";
+} from "@linchkit/core/types";
+import { generateZodSchema } from "@linchkit/core/define";
 import { Button } from "@linchkit/ui-kit/components";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

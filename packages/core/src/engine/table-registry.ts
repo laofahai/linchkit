@@ -8,6 +8,7 @@
 
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { SchemaDefinition } from "../types/schema";
+import { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema-to-drizzle";
 
 export class TableRegistry {
   private tables = new Map<string, PgTable>();
@@ -47,10 +48,15 @@ export class TableRegistry {
    */
   buildFromSchemaRegistry(
     schemas: Map<string, SchemaDefinition>,
+    options?: DrizzleGeneratorOptions,
   ): void {
-    // TODO: iterate schemas, call generateDrizzleTable for each,
-    // and register the resulting pgTable definitions.
-    // This will be implemented when dynamic table generation is wired up.
-    void schemas;
+    for (const [name, schema] of schemas) {
+      if (this.tables.has(name)) {
+        // Skip schemas that already have a manually registered table
+        continue;
+      }
+      const table = generateDrizzleTable(schema, options);
+      this.tables.set(name, table);
+    }
   }
 }

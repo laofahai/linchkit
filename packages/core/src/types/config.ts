@@ -9,9 +9,14 @@ export interface LinchKitConfig {
   /** AI service configuration (optional — system works without it) */
   ai?: AIServiceConfig;
 
-  /** Database configuration */
+  /** Database configuration — when url is set, PostgreSQL is used instead of InMemoryStore */
   database?: {
+    /** PostgreSQL connection URL (supports $env.DATABASE_URL pattern) */
     url?: string;
+    /** Connection pool size (default: 10) */
+    poolSize?: number;
+    /** Enable query debug logging (default: false) */
+    debug?: boolean;
   };
 
   /** Server configuration */

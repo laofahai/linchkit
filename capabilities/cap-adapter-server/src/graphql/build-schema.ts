@@ -9,6 +9,7 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  DataProvider,
   ExecutionLogger,
   ExecutionStatus,
   SchemaDefinition,
@@ -25,7 +26,6 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
-import type { InMemoryStore } from "../data/in-memory-store";
 import {
   generateActionInputType,
   generateGraphQLInputType,
@@ -258,8 +258,8 @@ const ExecutionLogListResultType = new GraphQLObjectType({
 export interface BuildGraphQLSchemaOptions {
   /** Action executor for wiring mutations */
   executor?: ActionExecutor;
-  /** In-memory store for query resolvers */
-  store?: InMemoryStore;
+  /** Data provider for query resolvers (get, query, count) */
+  dataProvider?: DataProvider;
   /** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
   actions?: ActionDefinition[];
   /** Execution logger for log query endpoints */
@@ -281,7 +281,7 @@ export function buildGraphQLSchema(
   options?: BuildGraphQLSchemaOptions,
 ): GraphQLSchema {
   const executor = options?.executor;
-  const store = options?.store;
+  const dataProvider = options?.dataProvider;
   const executionLogger = options?.executionLogger;
 
   if (schemas.length === 0) {
@@ -325,10 +325,10 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: store
+      resolve: dataProvider
         ? async (_root: unknown, args: { id: string }) => {
             try {
-              return await store.get(schemaName, args.id);
+              return await dataProvider.get(schemaName, args.id);
             } catch {
               return null;
             }
@@ -366,8 +366,8 @@ export function buildGraphQLSchema(
         page: { type: GraphQLInt, description: "Page number (1-based)" },
         pageSize: { type: GraphQLInt, description: "Number of items per page" },
       },
-      resolve: store
-        ? (
+      resolve: dataProvider
+        ? async (
             _root: unknown,
             args: {
               filter?: string;
@@ -379,23 +379,25 @@ export function buildGraphQLSchema(
           ) => {
             const filter = args.filter
               ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
-              : undefined;
-            const sort = args.sortField
-              ? {
-                  field: args.sortField,
-                  order: (args.sortOrder as "asc" | "desc") ?? "asc",
-                }
-              : undefined;
+              : {};
             const page = args.page ?? 1;
             const pageSize = Math.min(Math.max(args.pageSize ?? 20, 1), MAX_PAGE_SIZE);
             const offset = (page - 1) * pageSize;
-            const items = store.findMany(schemaName, {
-              filter,
-              sort,
+
+            // Pass pagination and sort as part of the filter object
+            // DataProvider.query() supports these meta keys
+            const queryFilter: Record<string, unknown> = {
+              ...filter,
               offset,
               limit: pageSize,
-            });
-            const total = store.count(schemaName, filter);
+            };
+            if (args.sortField) {
+              queryFilter.sortField = args.sortField;
+              queryFilter.sortOrder = args.sortOrder ?? "asc";
+            }
+
+            const items = await dataProvider.query(schemaName, queryFilter);
+            const total = await dataProvider.count(schemaName, filter);
             return { items, total };
           }
         : () => ({ items: [], total: 0 }),

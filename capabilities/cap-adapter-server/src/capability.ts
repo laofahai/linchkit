@@ -38,18 +38,19 @@ export const capAdapterServer = defineCapability({
             }
           }
 
-          // Create a fully-wired runtime with real InMemoryStore
+          // Create a fully-wired runtime — uses provided dataProvider (e.g. Drizzle) or falls back to InMemoryStore
           const runtime = createRuntimeContext({
             schemas: ctx.schemas,
             actions: allActions,
             views: ctx.views,
             states: ctx.states,
             middlewares: ctx.middlewares,
+            dataProvider: ctx.dataProvider,
           });
 
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
             executor: runtime.executor,
-            store: runtime.store,
+            dataProvider: runtime.dataProvider,
           });
 
           // Read port/host from transport config or runtime config

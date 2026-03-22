@@ -43,6 +43,7 @@ export type {
   CreateProposalOptions,
   DatabaseConfig,
   DataProvider,
+  DataQueryOptions,
   DrizzleGeneratorOptions,
   ExecuteOptions,
   ExecutionChannel,
@@ -53,6 +54,7 @@ export type {
   RuleEvalOutput,
   SlotName,
   StateMachine,
+  SyncOptions,
   ValidationContext,
   ZodGeneratorOptions,
 } from "./engine";
@@ -98,6 +100,7 @@ export {
   resolveField,
   resolveModel,
   SchemaRegistry,
+  syncTables,
   TableRegistry,
   transition,
   validatePhase1,

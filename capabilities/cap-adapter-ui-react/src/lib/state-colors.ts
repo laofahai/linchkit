@@ -6,7 +6,7 @@
  * single source of truth instead of maintaining separate color maps.
  */
 
-import type { StateMeta } from "@linchkit/core";
+import type { StateMeta } from "@linchkit/core/types";
 
 /** Semantic color tokens that can be used in StateMeta.color */
 export type StateColorToken = "default" | "secondary" | "success" | "warning" | "danger" | "info";

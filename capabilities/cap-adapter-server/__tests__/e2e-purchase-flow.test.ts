@@ -89,7 +89,7 @@ for (const action of allActions) {
 
 const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
   executor,
-  store,
+  dataProvider: store,
   actions: [submitAction, approveAction],
   executionLogger,
 });

@@ -44,6 +44,10 @@ export default defineConfig({
     host: "0.0.0.0",
   },
 
+  database: {
+    url: "$env.DATABASE_URL",
+  },
+
   ai: {
     defaultProvider: "volcengine",
     providers: {

@@ -27,7 +27,7 @@ for (const action of generateCrudActions(taskSchema)) {
   executor.registry.register(action);
 }
 
-const graphqlSchema = buildGraphQLSchema([taskSchema], { executor, store });
+const graphqlSchema = buildGraphQLSchema([taskSchema], { executor, dataProvider: store });
 const app = createServer(graphqlSchema);
 const port = 3998;
 

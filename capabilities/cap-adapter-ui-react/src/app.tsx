@@ -1,4 +1,4 @@
-import type { PageAuth, PageLayout, PageRegistration } from "@linchkit/core";
+import type { PageAuth, PageLayout, PageRegistration } from "@linchkit/core/types";
 import {
   createRootRoute,
   createRoute,
@@ -13,7 +13,6 @@ import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
-import { isAuthenticated } from "./lib/auth-client";
 import { ExecutionLogsPage } from "./pages/execution-logs";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
@@ -43,13 +42,37 @@ const fullscreenRoute = createRoute({
   component: FullscreenLayout,
 });
 
+/** Check token validity (not just the localStorage flag). */
+function isTokenValid(): boolean {
+  const token = localStorage.getItem("linchkit:token");
+  if (!token) return false;
+  try {
+    const parts = token.split(".");
+    const raw = parts.length === 3 ? parts[1]! : token;
+    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(padded));
+    if (typeof payload.exp === "number") {
+      const expiresAtMs = payload.exp > 1e12 ? payload.exp : payload.exp * 1000;
+      if (Date.now() >= expiresAtMs) {
+        localStorage.removeItem("linchkit:token");
+        localStorage.removeItem("linchkit:authenticated");
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function buildPageBeforeLoad(auth: PageAuth, redirectOnFail?: string) {
   return () => {
-    if (auth === "required" && !isAuthenticated()) {
+    if (auth === "required" && !isTokenValid()) {
       throw redirect({ to: redirectOnFail ?? "/login" });
     }
 
-    if (auth === "anonymous" && isAuthenticated()) {
+    if (auth === "anonymous" && isTokenValid()) {
       throw redirect({ to: redirectOnFail ?? "/" });
     }
   };

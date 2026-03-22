@@ -9,7 +9,7 @@ import type {
   StateMeta,
   ViewAction,
   ViewFieldConfig,
-} from "@linchkit/core";
+} from "@linchkit/core/types";
 import {
   Button,
   Checkbox,

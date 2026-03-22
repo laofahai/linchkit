@@ -5,7 +5,7 @@
  * the parent border using -mb-px.
  */
 
-import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core";
+import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 
 interface FormNotebookProps {

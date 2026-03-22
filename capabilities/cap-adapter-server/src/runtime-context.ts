@@ -2,7 +2,10 @@
  * Runtime Context — assembles all core engines into a single context.
  *
  * Provides a convenient factory for creating a fully-wired runtime
- * with SchemaRegistry, ActionExecutor, EventBus, InMemoryStore, and ExecutionLogger.
+ * with SchemaRegistry, ActionExecutor, EventBus, DataProvider, and ExecutionLogger.
+ * When an external dataProvider is supplied (e.g. DrizzleDataProvider), it is used
+ * for both the action executor AND GraphQL query resolvers.
+ * Falls back to InMemoryStore only when no external provider is given.
  */
 
 import {
@@ -11,6 +14,7 @@ import {
   type AIService,
   type AIServiceConfig,
   type CommandLayer,
+  type DataProvider,
   createActionExecutor,
   createAIService,
   createCommandLayer,
@@ -30,7 +34,8 @@ export interface RuntimeContext {
   schemaRegistry: SchemaRegistry;
   executor: ActionExecutor;
   commandLayer: CommandLayer;
-  store: InMemoryStore;
+  /** DataProvider used by both action executor and GraphQL query resolvers */
+  dataProvider: DataProvider;
   executionLogger: ExecutionLogger;
   /** View definitions grouped by schema name */
   views: Map<string, ViewDefinition[]>;
@@ -46,6 +51,8 @@ export interface RuntimeContextOptions {
   middlewares?: MiddlewareRegistration[];
   /** AI service configuration (optional — system works without it) */
   ai?: AIServiceConfig;
+  /** External data provider (e.g. DrizzleDataProvider). Falls back to InMemoryStore if not set. */
+  dataProvider?: DataProvider;
 }
 
 /**
@@ -61,7 +68,8 @@ export interface RuntimeContextOptions {
  * ```
  */
 export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeContext {
-  const store = new InMemoryStore();
+  // Use external data provider if provided, otherwise fall back to InMemoryStore
+  const dataProvider: DataProvider = options?.dataProvider ?? new InMemoryStore();
   const executionLogger = new InMemoryExecutionLogger();
   const schemaRegistry = new SchemaRegistry();
 
@@ -80,7 +88,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   const ai = options?.ai ? createAIService(options.ai) : createNoopAIService();
 
   const executor = createActionExecutor({
-    dataProvider: store,
+    dataProvider,
     stateMachine,
     executionLogger,
     aiService: ai,
@@ -115,7 +123,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     schemaRegistry,
     executor,
     commandLayer,
-    store,
+    dataProvider,
     executionLogger,
     views,
     ai,

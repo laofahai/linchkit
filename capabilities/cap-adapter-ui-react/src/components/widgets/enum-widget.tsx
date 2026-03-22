@@ -1,4 +1,4 @@
-import type { EnumField } from "@linchkit/core";
+import type { EnumField } from "@linchkit/core/types";
 import {
   Badge,
   Select,

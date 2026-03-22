@@ -9,6 +9,7 @@ export {
   ActionRegistry,
   createActionExecutor,
   type DataProvider,
+  type DataQueryOptions,
   type ExecuteOptions,
   type ExecutionChannel,
 } from "./action-engine";
@@ -88,6 +89,8 @@ export {
 export { TableRegistry } from "./table-registry";
 // Schema-to-Drizzle generator
 export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema-to-drizzle";
+// Schema sync (dev mode)
+export { type SyncOptions, syncTables } from "./schema-sync";
 // Schema-to-Zod generator
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
 export type { StateMachine } from "./state-machine";

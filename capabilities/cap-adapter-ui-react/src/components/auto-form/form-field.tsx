@@ -7,7 +7,7 @@
  * Edit mode uses standard bordered inputs (shadcn Input).
  */
 
-import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core";
+import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";

@@ -2,7 +2,7 @@
  * AutoForm type definitions.
  */
 
-import type { SchemaDefinition, ViewDefinition } from "@linchkit/core";
+import type { SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
 
 export interface AutoFormProps {
   schema: SchemaDefinition;

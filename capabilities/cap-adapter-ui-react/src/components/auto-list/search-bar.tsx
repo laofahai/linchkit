@@ -10,7 +10,7 @@
  * group by, and saved searches.
  */
 
-import type { SchemaDefinition } from "@linchkit/core";
+import type { SchemaDefinition } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Search, X } from "lucide-react";
 import { useRef, useState } from "react";

@@ -183,6 +183,7 @@ describe("generateDrizzleTable", () => {
       "created_by",
       "updated_by",
       "_version",
+      "deleted_at",
     ];
 
     for (const name of systemCols) {
@@ -203,6 +204,11 @@ describe("generateDrizzleTable", () => {
     const version = getColumn(table, "_version");
     expect(version?.notNull).toBe(true);
     expect(version?.columnType).toBe("PgInteger");
+
+    // deleted_at is nullable (soft delete)
+    const deletedAt = getColumn(table, "deleted_at");
+    expect(deletedAt?.notNull).toBe(false);
+    expect(deletedAt?.columnType).toBe("PgTimestamp");
   });
 
   test("computed and has_many fields are skipped", () => {

@@ -85,7 +85,7 @@ executor.registry.register(pingAction);
 
 const graphqlSchema = buildGraphQLSchema([orderSchema], {
   executor,
-  store,
+  dataProvider: store,
   actions: [submitOrderAction, approveOrderAction, pingAction],
 });
 
