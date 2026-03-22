@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
-import type { AutoFormProps, ViewDefinitionWithStateActions } from "./types";
+import type { AutoFormProps } from "./types";
 
 export function AutoForm({
   schema,
@@ -61,7 +61,7 @@ export function AutoForm({
   const _resolvedActions = useMemo(() => {
     const allActions = view.actions ?? [];
     const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
-    const stateActions = (view as ViewDefinitionWithStateActions).stateActions;
+    const stateActions = view.stateActions;
     if (stateActions && recordStatus && recordStatus in stateActions) {
       const available = stateActions[recordStatus] ?? [];
       return headerActions.filter((a) => available.includes(a.action));

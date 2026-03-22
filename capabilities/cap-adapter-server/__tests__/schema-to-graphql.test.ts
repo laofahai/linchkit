@@ -209,11 +209,7 @@ describe("enum field generates GraphQLEnumType", () => {
       fields: {
         category: {
           type: "enum",
-          options: [
-            { value: "in-stock" },
-            { value: "out-of-stock" },
-            { value: "3rd-party" },
-          ],
+          options: [{ value: "in-stock" }, { value: "out-of-stock" }, { value: "3rd-party" }],
         },
       },
     };

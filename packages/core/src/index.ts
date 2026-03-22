@@ -55,14 +55,13 @@ export type {
   ValidationContext,
   ZodGeneratorOptions,
 } from "./engine";
-export type { Logger } from "./types/logger";
-
 // Engine exports
 export {
   ActionRegistry,
   bumpVersion,
   canTransition,
   checkActionPermission,
+  consoleLogger,
   createActionExecutor,
   createAIService,
   createApprovalEngine,
@@ -92,7 +91,6 @@ export {
   transition,
   validatePhase1,
   validateProposal,
-  consoleLogger,
 } from "./engine";
 // Error classes
 export {
@@ -107,9 +105,9 @@ export {
 } from "./errors";
 // Type exports
 export type * from "./types";
-
 // Non-type exports
 export { ERROR_STATUS_MAP } from "./types";
+export type { Logger } from "./types/logger";
 
 // Utilities
 export { resolveEnvVars } from "./utils/env";

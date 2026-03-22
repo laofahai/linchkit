@@ -84,4 +84,11 @@ export const purchaseRequestFormView: ViewDefinition = {
       variant: "default",
     },
   ],
+
+  stateActions: {
+    draft: ["submit_purchase_request"],
+    pending: ["approve_purchase_request"],
+    approved: [],
+    rejected: ["submit_purchase_request"],
+  },
 };

@@ -56,6 +56,14 @@ export interface ViewDefinition {
 
   // Form-specific
   layout?: FormLayout;
+
+  /**
+   * Maps state values to the action names available in that state.
+   * Used by form views to show/hide action buttons based on record status.
+   *
+   * Example: `{ draft: ["submit"], pending: ["approve"], approved: [] }`
+   */
+  stateActions?: Record<string, string[]>;
 }
 
 // ── Form layout (Odoo-style group nesting) ──────────────────────────────────

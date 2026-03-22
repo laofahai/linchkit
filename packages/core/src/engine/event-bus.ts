@@ -74,7 +74,11 @@ export class EventBus {
   private maxEmitDepth: number;
   private logger: Logger;
 
-  constructor(registry: EventHandlerRegistry, maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH, logger: Logger = consoleLogger) {
+  constructor(
+    registry: EventHandlerRegistry,
+    maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH,
+    logger: Logger = consoleLogger,
+  ) {
     this.registry = registry;
     this.maxEmitDepth = maxEmitDepth;
     this.logger = logger;

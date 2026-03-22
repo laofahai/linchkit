@@ -9,6 +9,7 @@ import { defineCapability } from "@linchkit/core";
 import { approveAction } from "./actions/approve";
 import { submitAction } from "./actions/submit";
 import { purchaseRequestSchema } from "./schemas/purchase-request";
+import { purchaseRequestSeedData } from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
@@ -25,4 +26,8 @@ export const capPurchaseDemo = defineCapability({
   actions: [submitAction, approveAction],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView],
+
+  seed: {
+    purchase_request: purchaseRequestSeedData,
+  },
 });

@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { FieldDefinition } from "@linchkit/core";
-import {
-  fieldToJsonSchema,
-  fieldsToJsonSchema,
-} from "../src/field-to-json-schema";
+import { fieldsToJsonSchema, fieldToJsonSchema } from "../src/field-to-json-schema";
 
 describe("fieldToJsonSchema", () => {
   test("converts string field", () => {

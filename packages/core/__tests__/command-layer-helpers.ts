@@ -57,7 +57,10 @@ export interface TestSetupOptions {
 }
 
 /** Create a test action executor with common test actions */
-export function createTestSetup(opts?: TestSetupOptions): { executor: ActionExecutor; layer: CommandLayer } {
+export function createTestSetup(opts?: TestSetupOptions): {
+  executor: ActionExecutor;
+  layer: CommandLayer;
+} {
   const dp = createTestDataProvider();
   const executor = createActionExecutor({ dataProvider: dp });
 

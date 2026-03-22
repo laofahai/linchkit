@@ -8,15 +8,9 @@
 import type { FieldDefinition } from "@linchkit/core";
 
 /** Convert a single FieldDefinition to a JSON Schema property */
-export function fieldToJsonSchema(
-  field: FieldDefinition,
-): Record<string, unknown> | null {
+export function fieldToJsonSchema(field: FieldDefinition): Record<string, unknown> | null {
   // Skip non-input field types
-  if (
-    field.type === "computed" ||
-    field.type === "has_many" ||
-    field.type === "many_to_many"
-  ) {
+  if (field.type === "computed" || field.type === "has_many" || field.type === "many_to_many") {
     return null;
   }
 
@@ -100,9 +94,7 @@ export function fieldToJsonSchema(
 }
 
 /** Convert a record of FieldDefinitions to a JSON Schema object */
-export function fieldsToJsonSchema(
-  fields: Record<string, FieldDefinition>,
-): {
+export function fieldsToJsonSchema(fields: Record<string, FieldDefinition>): {
   type: "object";
   properties: Record<string, unknown>;
   required?: string[];

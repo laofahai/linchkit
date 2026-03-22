@@ -5,7 +5,6 @@
  * with capabilities from config. No hardcoded demo data.
  */
 
-import { purchaseRequestSeedData } from "@linchkit/cap-purchase-demo";
 import type {
   ActionDefinition,
   CapabilityDefinition,
@@ -29,16 +28,26 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   actions: ActionDefinition[];
   views: ViewDefinition[];
   middlewares: MiddlewareRegistration[];
+  seed: Record<string, Array<Record<string, unknown>>>;
 } {
   const schemas: SchemaDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
+  const seed: Record<string, Array<Record<string, unknown>>> = {};
 
   for (const cap of capabilities) {
     if (cap.schemas) schemas.push(...cap.schemas);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.views) views.push(...cap.views);
+
+    // Collect seed data from capabilities
+    if (cap.seed) {
+      for (const [schemaName, records] of Object.entries(cap.seed)) {
+        if (!seed[schemaName]) seed[schemaName] = [];
+        seed[schemaName].push(...records);
+      }
+    }
 
     // Convert CapabilityMiddlewareRegistration → MiddlewareRegistration
     if (cap.extensions?.middlewares) {
@@ -53,7 +62,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     }
   }
 
-  return { schemas, actions, views, middlewares };
+  return { schemas, actions, views, middlewares, seed };
 }
 
 const capContributions = extractCapabilities(config.capabilities);
@@ -77,8 +86,10 @@ const runtime = createRuntimeContext({
   ai: config.ai,
 });
 
-// Seed demo data (purchase request)
-runtime.store.seed("purchase_request", purchaseRequestSeedData);
+// Seed dev data from capabilities
+for (const [schemaName, records] of Object.entries(capContributions.seed)) {
+  runtime.store.seed(schemaName, records);
+}
 
 // ── Build schema and start server ────────────────────────
 

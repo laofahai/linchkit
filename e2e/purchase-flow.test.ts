@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { approveAction, purchaseRequestSchema, submitAction } from "@linchkit/cap-purchase-demo";
 import { createActionExecutor, InMemoryExecutionLogger, SchemaRegistry } from "@linchkit/core";
-import {
-  approveAction,
-  purchaseRequestSchema,
-  submitAction,
-} from "@linchkit/cap-purchase-demo";
 import { InMemoryStore } from "../capabilities/cap-adapter-server/src/data/in-memory-store";
 import {
   buildGraphQLSchema,
@@ -26,7 +22,11 @@ const schemaRegistry = new SchemaRegistry();
 schemaRegistry.register(purchaseRequestSchema);
 
 const executor = createActionExecutor({ dataProvider: store, executionLogger });
-const allActions = [...generateCrudActions(purchaseRequestSchema), e2eSubmitAction, e2eApproveAction];
+const allActions = [
+  ...generateCrudActions(purchaseRequestSchema),
+  e2eSubmitAction,
+  e2eApproveAction,
+];
 for (const action of allActions) {
   executor.registry.register(action);
 }
@@ -34,7 +34,7 @@ for (const action of allActions) {
 const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
   executor,
   store,
-  actions: [submitAction, approveAction],
+  actions: [e2eSubmitAction, e2eApproveAction],
   executionLogger,
 });
 

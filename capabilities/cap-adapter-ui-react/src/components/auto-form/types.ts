@@ -16,7 +16,3 @@ export interface AutoFormProps {
   /** Hide the built-in footer (Save/Cancel) — use when page provides its own buttons */
   hideFooter?: boolean;
 }
-
-export interface ViewDefinitionWithStateActions extends ViewDefinition {
-  stateActions?: Record<string, string[]>;
-}

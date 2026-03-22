@@ -6,18 +6,18 @@
  * with GraphQL and REST endpoints.
  */
 
-import type {
-  ActionDefinition,
-  CapabilityDefinition,
-  LinchKitConfig,
-  SchemaDefinition,
-} from "@linchkit/core";
 import {
   buildGraphQLSchema,
   createRuntimeContext,
   createServer,
   generateCrudActions,
 } from "@linchkit/cap-adapter-server";
+import type {
+  ActionDefinition,
+  CapabilityDefinition,
+  LinchKitConfig,
+  SchemaDefinition,
+} from "@linchkit/core";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";

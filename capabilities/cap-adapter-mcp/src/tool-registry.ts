@@ -69,7 +69,8 @@ export function generateBuiltinTools(): McpToolDef[] {
     },
     {
       name: "list_actions",
-      description: "List all available actions with their names, labels, descriptions, and associated schemas",
+      description:
+        "List all available actions with their names, labels, descriptions, and associated schemas",
       inputSchema: { type: "object", properties: {} },
     },
   ];

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ActionRegistry } from "@linchkit/core";
 import type { ActionDefinition } from "@linchkit/core";
+import { ActionRegistry } from "@linchkit/core";
 import { generateActionTools, generateBuiltinTools } from "../src/tool-registry";
 
 function makeAction(overrides: Partial<ActionDefinition> = {}): ActionDefinition {
@@ -32,7 +32,8 @@ describe("generateActionTools", () => {
     const tools = generateActionTools(registry);
     expect(tools).toHaveLength(1);
 
-    const tool = tools[0]!;
+    const tool = tools[0];
+    expect(tool).toBeDefined();
     expect(tool.name).toBe("create_order");
     expect(tool.description).toBe("Create Order: Creates a new order");
     expect(tool.inputSchema).toEqual({
@@ -88,7 +89,7 @@ describe("generateActionTools", () => {
     registry.register(makeAction({ name: "no_input" }));
 
     const tools = generateActionTools(registry);
-    expect(tools[0]!.inputSchema).toEqual({
+    expect(tools[0]?.inputSchema).toEqual({
       type: "object",
       properties: {},
     });
@@ -105,7 +106,7 @@ describe("generateActionTools", () => {
     );
 
     const tools = generateActionTools(registry);
-    expect(tools[0]!.description).toBe("Simple Action");
+    expect(tools[0]?.description).toBe("Simple Action");
   });
 });
 
@@ -120,7 +121,8 @@ describe("generateBuiltinTools", () => {
 
   test("get_schema requires name parameter", () => {
     const tools = generateBuiltinTools();
-    const getTool = tools.find((t) => t.name === "get_schema")!;
+    const getTool = tools.find((t) => t.name === "get_schema");
+    expect(getTool).toBeDefined();
     expect(getTool.inputSchema).toHaveProperty("required");
     expect((getTool.inputSchema as { required: string[] }).required).toContain("name");
   });

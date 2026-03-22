@@ -1,11 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import {
-  ActionRegistry,
-  createSchemaRegistry,
-  defineAction,
-  defineSchema,
-} from "@linchkit/core";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
+import { ActionRegistry, createSchemaRegistry, defineAction, defineSchema } from "@linchkit/core";
 import { createMcpAdapter } from "../src/mcp-server";
 
 const testSchema = defineSchema({
@@ -18,10 +13,7 @@ const testSchema = defineSchema({
     status: {
       type: "enum",
       label: "Status",
-      options: [
-        { value: "draft" },
-        { value: "confirmed" },
-      ],
+      options: [{ value: "draft" }, { value: "confirmed" }],
     },
   },
 });
@@ -48,7 +40,10 @@ const hiddenAction = defineAction({
 });
 
 interface RegisteredTool {
-  handler: (args: Record<string, unknown>, extra: unknown) => Promise<{
+  handler: (
+    args: Record<string, unknown>,
+    extra: unknown,
+  ) => Promise<{
     content: Array<{ type: string; text: string }>;
     isError?: boolean;
   }>;
@@ -139,7 +134,7 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.create_order!.handler(
+    const result = await tools.create_order?.handler(
       { customer_name: "Acme Corp", amount: 100 },
       {},
     );
@@ -147,7 +142,10 @@ describe("createMcpAdapter", () => {
     // Verify commandLayer.execute was called
     expect(commandLayer.execute).toHaveBeenCalledTimes(1);
 
-    const callArgs = (commandLayer.execute as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+    const callArgs = (commandLayer.execute as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
     expect(callArgs.command).toBe("create_order");
     expect(callArgs.channel).toBe("mcp");
     expect((callArgs.input as Record<string, unknown>).customer_name).toBe("Acme Corp");
@@ -156,8 +154,8 @@ describe("createMcpAdapter", () => {
 
     // Verify return format
     expect(result.content).toHaveLength(1);
-    expect(result.content[0]!.type).toBe("text");
-    const parsed = JSON.parse(result.content[0]!.text);
+    expect(result.content[0]?.type).toBe("text");
+    const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.success).toBe(true);
     expect(parsed.data.id).toBe("test-123");
   });
@@ -176,9 +174,9 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.list_schemas!.handler({}, {});
+    const result = await tools.list_schemas?.handler({}, {});
 
-    const parsed = JSON.parse(result.content[0]!.text);
+    const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("order");
     expect(parsed[0].label).toBe("Order");
@@ -198,9 +196,9 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema!.handler({ name: "order" }, {});
+    const result = await tools.get_schema?.handler({ name: "order" }, {});
 
-    const parsed = JSON.parse(result.content[0]!.text);
+    const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.name).toBe("order");
     expect(parsed.fields.properties).toHaveProperty("customer_name");
     expect(parsed.fields.properties).toHaveProperty("amount");
@@ -218,10 +216,10 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema!.handler({ name: "nonexistent" }, {});
+    const result = await tools.get_schema?.handler({ name: "nonexistent" }, {});
 
     expect(result.isError).toBe(true);
-    const parsed = JSON.parse(result.content[0]!.text);
+    const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.error).toContain("not found");
   });
 
@@ -241,9 +239,9 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.list_actions!.handler({}, {});
+    const result = await tools.list_actions?.handler({}, {});
 
-    const parsed = JSON.parse(result.content[0]!.text);
+    const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("create_order");
     expect(parsed[0].schema).toBe("order");

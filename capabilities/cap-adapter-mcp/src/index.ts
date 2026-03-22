@@ -4,8 +4,8 @@
  * Exposes LinchKit Command Layer as MCP tools and resources.
  */
 
-export { createMcpAdapter } from "./mcp-server";
+export { fieldsToJsonSchema, fieldToJsonSchema } from "./field-to-json-schema";
 export type { McpAdapterOptions } from "./mcp-server";
-export { fieldToJsonSchema, fieldsToJsonSchema } from "./field-to-json-schema";
-export { generateActionTools, generateBuiltinTools } from "./tool-registry";
+export { createMcpAdapter } from "./mcp-server";
 export type { McpToolDef } from "./tool-registry";
+export { generateActionTools, generateBuiltinTools } from "./tool-registry";

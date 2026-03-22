@@ -43,6 +43,8 @@ export {
 } from "./command-layer";
 // Rule engine
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
+// Console logger
+export { consoleLogger } from "./console-logger";
 // Event bus
 export { createEventBus, EventBus, EventHandlerRegistry } from "./event-bus";
 // Execution logger
@@ -80,8 +82,6 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
-// Console logger
-export { consoleLogger } from "./console-logger";
 // Validation engine
 export {
   type ValidationContext,

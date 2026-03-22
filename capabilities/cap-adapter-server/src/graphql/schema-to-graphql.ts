@@ -8,10 +8,10 @@
 import type {
   ActionDefinition,
   FieldDefinition,
+  Logger,
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
-import type { Logger } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core";
 import {
   GraphQLBoolean,

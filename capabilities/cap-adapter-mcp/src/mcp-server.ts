@@ -6,12 +6,7 @@
  * the CommandLayer pipeline with channel="mcp".
  */
 
-import type {
-  ActionRegistry,
-  Actor,
-  CommandLayer,
-  SchemaRegistry,
-} from "@linchkit/core";
+import type { ActionRegistry, Actor, CommandLayer, SchemaRegistry } from "@linchkit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
@@ -36,9 +31,7 @@ const MCP_ACTOR: Actor = {
 };
 
 /** Create an MCP server adapter wired to the LinchKit runtime */
-export async function createMcpAdapter(
-  options: McpAdapterOptions,
-): Promise<McpServer> {
+export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpServer> {
   const {
     commandLayer,
     schemaRegistry,
@@ -178,7 +171,10 @@ function registerBuiltinTools(
       if (!schema) {
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify({ error: `Schema '${args.name}' not found` }) },
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
+            },
           ],
           isError: true,
         };
@@ -220,10 +216,7 @@ function registerBuiltinTools(
 }
 
 /** Register MCP resources */
-function registerResources(
-  server: McpServer,
-  schemaRegistry: SchemaRegistry,
-): void {
+function registerResources(server: McpServer, schemaRegistry: SchemaRegistry): void {
   server.resource(
     "schemas",
     "linchkit://schemas",

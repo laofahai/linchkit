@@ -5,9 +5,12 @@ import {
   type DataProvider,
 } from "../src/engine/action-engine";
 import type { ApprovalEngine } from "../src/engine/approval-engine";
-import { createApprovalEngine, InMemoryApprovalStore } from "../src/engine/approval-engine";
+import {
+  createApprovalEngine,
+  createApprovalVerifier,
+  InMemoryApprovalStore,
+} from "../src/engine/approval-engine";
 import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
-import { createApprovalVerifier } from "../src/engine/approval-engine";
 import { createEventBus, type EventBus } from "../src/engine/event-bus";
 import { InMemoryExecutionLogger } from "../src/engine/execution-logger";
 import { evaluateRules } from "../src/engine/rule-engine";

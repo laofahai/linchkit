@@ -50,6 +50,9 @@ export interface CapabilityDefinition {
   pages?: PageRegistration[];
   ui?: CapabilityUiDefinition;
 
+  /** Dev-only seed data keyed by schema name */
+  seed?: Record<string, Array<Record<string, unknown>>>;
+
   // Extension points (for Bridge / Adapter)
   extensions?: {
     schemas?: Array<{ target: string; extension: SchemaExtension }>;

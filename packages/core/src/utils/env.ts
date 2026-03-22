@@ -5,8 +5,8 @@
  * with the corresponding `process.env.VAR_NAME` value.
  */
 
-import type { Logger } from "../types/logger";
 import { consoleLogger } from "../engine/console-logger";
+import type { Logger } from "../types/logger";
 
 const ENV_PATTERN = /^\$env\.(.+)$/;
 

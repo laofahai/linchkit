@@ -16,7 +16,6 @@ import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
-import type { ViewDefinitionWithStateActions } from "../components/auto-form/types";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
@@ -115,12 +114,11 @@ export function SchemaFormPage() {
   const recordStatus = record ? String(record.status ?? "") : undefined;
   const businessActions = useMemo(() => {
     if (!formView) return [];
-    const viewWithState = formView as ViewDefinitionWithStateActions;
     const allActions = formView.actions ?? [];
     const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
 
-    if (viewWithState.stateActions && recordStatus && recordStatus in viewWithState.stateActions) {
-      const available = viewWithState.stateActions[recordStatus] ?? [];
+    if (formView.stateActions && recordStatus && recordStatus in formView.stateActions) {
+      const available = formView.stateActions[recordStatus] ?? [];
       return headerActions.filter((a) => available.includes(a.action));
     }
     return headerActions;

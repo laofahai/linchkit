@@ -14,14 +14,6 @@ export interface LinchKitConfig {
     url?: string;
   };
 
-  /** System capabilities toggle */
-  system?: {
-    auth?: boolean;
-    permission?: boolean;
-    notification?: boolean;
-    audit?: boolean;
-  };
-
   /** Server configuration */
   server?: {
     port?: number;
