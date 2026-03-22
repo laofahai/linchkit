@@ -320,6 +320,7 @@ export function buildGraphQLSchema(
     const mockRecord = buildMockRecord(schema);
 
     // ── Query: get by ID ──────────────────────────────────
+    // TODO: Pass tenant DataQueryOptions once GraphQL context carries authenticated user's tenantId
     queryFields[camelName] = {
       type: objectType,
       args: {
@@ -351,6 +352,7 @@ export function buildGraphQLSchema(
     });
 
     // ── Query: list with filter/sort/pagination ───────────
+    // TODO: Pass tenant DataQueryOptions once GraphQL context carries authenticated user's tenantId
     queryFields[`${camelName}List`] = {
       type: new GraphQLNonNull(listResultType),
       args: {

@@ -253,6 +253,7 @@ export class DrizzleDataProvider implements DataProvider {
     schema: string,
     id: string,
     data: Record<string, unknown>,
+    options?: DataQueryOptions,
   ): Promise<Record<string, unknown>> {
     const table = this.resolveTable(schema);
     const columns = getTableColumns(table);
@@ -282,20 +283,18 @@ export class DrizzleDataProvider implements DataProvider {
 
     // Optimistic locking: WHERE id = id AND _version = expectedVersion
     const expectedVersion = data._version as number | undefined;
-    let whereClause: ReturnType<typeof eq> | ReturnType<typeof and>;
+    const conditions = [eq(idCol, id), ...this.buildBaseConditions(table, options)];
 
     if (versionCol && expectedVersion !== undefined) {
-      whereClause = and(eq(idCol, id), eq(versionCol, expectedVersion));
+      conditions.push(eq(versionCol, expectedVersion));
       // Increment version
       updateData._version = expectedVersion + 1;
     } else if (versionCol) {
       // No version provided — increment from current
-      // Use a subquery-style approach: fetch current then increment
-      whereClause = eq(idCol, id);
       updateData._version = sql`${versionCol} + 1`;
-    } else {
-      whereClause = eq(idCol, id);
     }
+
+    const whereClause = and(...conditions);
 
     let rows: Record<string, unknown>[];
     try {

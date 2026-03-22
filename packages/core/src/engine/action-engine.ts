@@ -40,6 +40,7 @@ export interface DataProvider {
     schema: string,
     id: string,
     data: Record<string, unknown>,
+    options?: DataQueryOptions,
   ): Promise<Record<string, unknown>>;
   delete(schema: string, id: string, options?: DataQueryOptions): Promise<void>;
   count(
@@ -408,17 +409,22 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         );
       },
     };
+    // Build DataQueryOptions from ExecuteOptions for tenant isolation
+    const queryOptions: DataQueryOptions | undefined = execOptions?.tenantId
+      ? { tenantId: execOptions.tenantId }
+      : undefined;
+
     const ctx: ActionContext = {
       input,
       actor,
       ai: aiService ?? noopAi,
       executionId,
       timestamp: startedAt,
-      get: (schema, id) => dataProvider.get(schema, id),
-      query: (schema, filter) => dataProvider.query(schema, filter),
+      get: (schema, id) => dataProvider.get(schema, id, queryOptions),
+      query: (schema, filter) => dataProvider.query(schema, filter, queryOptions),
       create: (schema, data) => dataProvider.create(schema, data),
-      update: (schema, id, data) => dataProvider.update(schema, id, data),
-      delete: (schema, id) => dataProvider.delete(schema, id),
+      update: (schema, id, data) => dataProvider.update(schema, id, data, queryOptions),
+      delete: (schema, id) => dataProvider.delete(schema, id, queryOptions),
       execute: async (childActionName, childInput) => {
         const childResult = await execute(childActionName, childInput, actor, {
           _depth: currentDepth + 1,
@@ -465,7 +471,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
       if (recordId) {
         try {
-          const record = await dataProvider.get(action.schema, recordId);
+          const record = await dataProvider.get(action.schema, recordId, queryOptions);
           currentState = record.status as string | undefined;
         } catch {
           // Record fetch failed — fail closed when state transition is required
@@ -559,7 +565,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           }
 
           if (Object.keys(updates).length > 0) {
-            record = await dataProvider.update(action.schema, recordId, updates);
+            record = await dataProvider.update(action.schema, recordId, updates, queryOptions);
           }
         }
       }

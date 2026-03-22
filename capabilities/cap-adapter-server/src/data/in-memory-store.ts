@@ -118,9 +118,18 @@ export class InMemoryStore implements DataProvider {
     schema: string,
     id: string,
     data: Record<string, unknown>,
+    options?: DataQueryOptions,
   ): Promise<Record<string, unknown>> {
     const existing = this.table(schema).get(id);
     if (!existing) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Soft delete check
+    if (this.isDeleted(existing) && !options?.includeDeleted) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
+    // Tenant isolation check
+    if (options?.tenantId && existing.tenant_id !== options.tenantId) {
       throw new Error(`Record not found: ${schema}/${id}`);
     }
     const now = new Date().toISOString();
@@ -142,6 +151,10 @@ export class InMemoryStore implements DataProvider {
     if (!record) {
       throw new Error(`Record not found: ${schema}/${id}`);
     }
+    // Match Drizzle behavior: already soft-deleted records are not visible
+    if (this.isDeleted(record) && !options?.includeDeleted) {
+      throw new Error(`Record not found: ${schema}/${id}`);
+    }
     // Tenant isolation check
     if (options?.tenantId && record.tenant_id !== options.tenantId) {
       throw new Error(`Record not found: ${schema}/${id}`);
@@ -152,7 +165,7 @@ export class InMemoryStore implements DataProvider {
   }
 
   /** Hard delete — actually removes the record from the store */
-  hardDelete(schema: string, id: string): void {
+  async hardDelete(schema: string, id: string): Promise<void> {
     const tbl = this.table(schema);
     if (!tbl.has(id)) {
       throw new Error(`Record not found: ${schema}/${id}`);
@@ -211,8 +224,18 @@ export class InMemoryStore implements DataProvider {
     filter?: Record<string, unknown>,
     options?: DataQueryOptions,
   ): Promise<number> {
+    // Strip pagination/sort meta keys to match Drizzle behavior
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const dataFilter: Record<string, unknown> = {};
+    if (filter) {
+      for (const [k, v] of Object.entries(filter)) {
+        if (!metaKeys.has(k)) {
+          dataFilter[k] = v;
+        }
+      }
+    }
     return this.findMany(schema, {
-      filter,
+      filter: Object.keys(dataFilter).length > 0 ? dataFilter : undefined,
       tenantId: options?.tenantId,
       includeDeleted: options?.includeDeleted,
     }).length;
