@@ -15,6 +15,7 @@ import {
   type AIServiceConfig,
   type CommandLayer,
   type DataProvider,
+  type EventBus,
   createActionExecutor,
   createAIService,
   createCommandLayer,
@@ -41,6 +42,8 @@ export interface RuntimeContext {
   views: Map<string, ViewDefinition[]>;
   /** AI service — noop if not configured */
   ai: AIService;
+  /** Event bus for cross-capability event dispatch */
+  eventBus?: EventBus;
 }
 
 export interface RuntimeContextOptions {
@@ -53,6 +56,8 @@ export interface RuntimeContextOptions {
   ai?: AIServiceConfig;
   /** External data provider (e.g. DrizzleDataProvider). Falls back to InMemoryStore if not set. */
   dataProvider?: DataProvider;
+  /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */
+  eventBus?: EventBus;
 }
 
 /**
@@ -127,5 +132,6 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     executionLogger,
     views,
     ai,
+    eventBus: options?.eventBus,
   };
 }

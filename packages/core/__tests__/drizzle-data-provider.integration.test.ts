@@ -1,8 +1,8 @@
 /**
  * Integration tests for DrizzleDataProvider against a real PostgreSQL database.
  *
- * Requires a running PostgreSQL instance. Set DATABASE_URL env var to connect.
- * Default: postgres://linchkit:linchkit@localhost:5432/linchkit
+ * Requires a running PostgreSQL instance. Set DATABASE_TEST_URL env var to connect.
+ * Default: postgres://linchkit:linchkit@localhost:5433/linchkit_test
  *
  * Skips gracefully when no database is available (CI without PG won't fail).
  */
@@ -23,7 +23,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 // ── Test configuration ───────────────────────────────────────
 
 const DATABASE_URL =
-  process.env.DATABASE_URL ?? "postgres://linchkit:linchkit@localhost:5432/linchkit";
+  process.env.DATABASE_TEST_URL ?? "postgres://linchkit_test:linchkit_test@localhost:5433/linchkit_test";
 
 const testSchema = defineSchema({
   name: "integration_test_item",
@@ -485,5 +485,28 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     // Original should be unchanged
     const fetched = await provider.get(SCHEMA_NAME, id, { tenantId: "tenant-x" });
     expect(fetched.title).toBe("Immutable by Others");
+  });
+
+  // ── 26. tenant isolation — version conflict does not leak existence ──
+
+  test("tenant isolation — update with version conflict does not leak existence", async () => {
+    // Create record as tenant-a
+    const record = await provider.create(SCHEMA_NAME, {
+      title: "Tenant A Record",
+      tenant_id: "tenant-a",
+    });
+
+    // Tenant B tries to update with correct version — should get NotFound, not Conflict
+    // This verifies that cross-tenant updates fail with NotFoundError (record doesn't
+    // exist from tenant B's perspective) rather than ConflictError (which would leak
+    // the fact that the record exists in another tenant).
+    await expect(
+      provider.update(
+        SCHEMA_NAME,
+        record.id as string,
+        { title: "Hacked", _version: record._version },
+        { tenantId: "tenant-b" },
+      ),
+    ).rejects.toThrow(NotFoundError);
   });
 });

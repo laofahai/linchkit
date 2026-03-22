@@ -46,6 +46,7 @@ export const capAdapterServer = defineCapability({
             states: ctx.states,
             middlewares: ctx.middlewares,
             dataProvider: ctx.dataProvider,
+            eventBus: ctx.eventBus,
           });
 
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {

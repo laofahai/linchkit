@@ -538,8 +538,10 @@ export function buildGraphQLSchema(
           sortField?: string;
           sortOrder?: string;
         },
+        ctx: GraphQLContext,
       ) =>
         executionLogger.findMany({
+          tenantId: ctx.tenantId,
           action: args.action,
           schema: args.schema,
           status: args.status as ExecutionStatus | undefined,
@@ -558,7 +560,13 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: (_root: unknown, args: { id: string }) => executionLogger.getById(args.id) ?? null,
+      resolve: (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+        const entry = executionLogger.getById(args.id);
+        if (!entry) return null;
+        // Tenant isolation: reject if entry belongs to a different tenant
+        if (ctx.tenantId && entry.tenantId !== ctx.tenantId) return null;
+        return entry;
+      },
     };
   }
 

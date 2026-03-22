@@ -33,12 +33,10 @@ export const capAdapterUiReact = defineCapability({
               const uiConfig = (ctx.config?.ui ?? {}) as { port?: number };
               const port = uiConfig.port ?? 3000;
 
-              proc = Bun.spawn(["bunx", "vite", "--port", String(port)], {
-                cwd: uiDir,
-                stdout: "inherit",
-                stderr: "inherit",
-                env: { ...process.env },
-              });
+              proc = Bun.spawn(
+                ["bunx", "vite", "--configLoader", "runner", "--port", String(port)],
+                { cwd: uiDir, stdin: "ignore", stdout: "inherit", stderr: "inherit" },
+              );
 
               console.log(`[cap-adapter-ui-react] UI: http://localhost:${port}`);
             },

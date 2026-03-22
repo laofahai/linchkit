@@ -7,7 +7,7 @@
  * Usage:
  *   import { runMigrations, createDatabase } from "@linchkit/core/server";
  *   const db = createDatabase({ url: process.env.DATABASE_URL! });
- *   await runMigrations(db, "./drizzle/migrations");
+ *   await runMigrations(db, { migrationsFolder: "./drizzle/migrations" });
  */
 
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";

@@ -11,14 +11,14 @@
   "dependencies": {
     "@linchkit/core": "workspace:*",
     "@linchkit/cap-auth": "workspace:*",
-    "better-auth": "^1.2.0"
+    "better-auth": "^1.5.5"
   },
   "peerDependencies": {
     "@linchkit/core": "^0.0.1",
     "@linchkit/cap-auth": "^0.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^5.9.3"
   },
   "linchkit": {
     "minCoreVersion": "^0.0.1",

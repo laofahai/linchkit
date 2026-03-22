@@ -15,7 +15,7 @@
     "@linchkit/core": "^0.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^5.9.3"
   },
   "linchkit": {
     "minCoreVersion": "^0.0.1",

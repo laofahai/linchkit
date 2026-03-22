@@ -263,6 +263,136 @@ describe("PersistentEventBus persistence", () => {
   });
 });
 
+// ── Async handler awaiting tests ─────────────────────────────
+
+describe("PersistentEventBus async handler tracking", () => {
+  it("awaits async handlers before marking completed", async () => {
+    const { mockDb, updatedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+    let asyncFinished = false;
+
+    registry.register(
+      makeHandler({
+        name: "slow-async",
+        listen: "test.event",
+        async: true,
+        handler: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          asyncFinished = true;
+        },
+      }),
+    );
+
+    await bus.emit(makeEvent("test.event"));
+
+    // Async handler must have finished before emit() resolved
+    expect(asyncFinished).toBe(true);
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0].set.status).toBe("completed");
+  });
+
+  it("marks status as failed when async handler rejects", async () => {
+    const { mockDb, updatedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+
+    registry.register(
+      makeHandler({
+        name: "failing-async",
+        listen: "test.event",
+        async: true,
+        handler: async () => {
+          throw new Error("async handler error");
+        },
+      }),
+    );
+
+    // Should not throw (async handler failures are logged, not propagated)
+    await bus.emit(makeEvent("test.event"));
+
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0].set.status).toBe("failed");
+  });
+
+  it("marks failed if any async handler rejects among multiple", async () => {
+    const { mockDb, updatedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+    const executed: string[] = [];
+
+    registry.register(
+      makeHandler({
+        name: "ok-async",
+        listen: "test.event",
+        async: true,
+        priority: 1,
+        handler: async () => {
+          executed.push("ok");
+        },
+      }),
+    );
+
+    registry.register(
+      makeHandler({
+        name: "bad-async",
+        listen: "test.event",
+        async: true,
+        priority: 2,
+        handler: async () => {
+          executed.push("bad");
+          throw new Error("one failed");
+        },
+      }),
+    );
+
+    await bus.emit(makeEvent("test.event"));
+
+    expect(executed).toContain("ok");
+    expect(executed).toContain("bad");
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0].set.status).toBe("failed");
+  });
+
+  it("mixed sync + async: sync error stops chain and marks failed", async () => {
+    const { mockDb, updatedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+
+    registry.register(
+      makeHandler({
+        name: "sync-fail",
+        listen: "test.event",
+        priority: 1,
+        handler: async () => {
+          throw new Error("sync boom");
+        },
+      }),
+    );
+
+    registry.register(
+      makeHandler({
+        name: "after-sync",
+        listen: "test.event",
+        priority: 2,
+        async: true,
+        handler: async () => {
+          // Should not reach here
+        },
+      }),
+    );
+
+    await expect(bus.emit(makeEvent("test.event"))).rejects.toThrow("sync boom");
+
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0].set.status).toBe("failed");
+  });
+});
+
 // NOTE: Integration tests with a real PostgreSQL database are needed
 // to verify actual SQL persistence, table creation, and status updates.
 // Those should be placed in a separate integration test suite that
