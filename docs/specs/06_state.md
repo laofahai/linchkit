@@ -67,11 +67,33 @@ export const requestLifecycle = defineState({
 - 框架自动检查当前状态是否为 `from`
 - 如果不是，Action 直接失败，不需要开发者手动判断
 
+## 3a. State Machine as Primary List Navigation
+
+In list views, the state machine becomes the **primary navigation axis** via the State Ribbon:
+
+- All states from `definition.states` are rendered as horizontal clickable tabs
+- Each tab shows the state label + current record count
+- Subtle `→` arrows between states reflect valid transitions
+- Clicking a state applies a `DeclarativeCondition` filter
+- States with `meta.ribbonHidden: true` are excluded from the ribbon (e.g., archived states)
+- Bottleneck detection: states with abnormally high record counts are visually highlighted
+
+```typescript
+// State meta can control ribbon visibility
+meta: {
+  draft:    { label: 'Draft', color: 'gray' },
+  archived: { label: 'Archived', color: 'gray', ribbonHidden: true },
+}
+```
+
+See `13_view_and_ui.md` for the full four-layer list view architecture.
+
 ## 4. 与其他概念的关系
 
 - **Action** — Action 触发状态迁移
 - **Rule** — Rule 可以监听 `stateChange` 事件，在迁移前后做判断
 - **Event** — 每次状态迁移自动产生 `state.transition` 事件
+- **View** — State Machine drives the State Ribbon in list views (see 13_view_and_ui.md)
 
 ## 5. 与 Bridge 的关系
 

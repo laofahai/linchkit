@@ -7,7 +7,7 @@
 ```
 Capability
   ├── 业务能力：Schema, Action, Rule, State, Event, EventHandler, View, Flow, Navigation
-  └── 框架扩展（可选）：extensions { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares }
+  └── 框架扩展（可选）：extensions { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }
 ```
 
 ## 2. 扩展能力总览
@@ -44,9 +44,13 @@ export default defineCapability({
     services: [...],
     hooks: [...],
     middlewares: [...],
+    transports: [...],
+    commands: [...],
   },
 })
 ```
+
+> 注：`transports` 扩展用于注册新的外部协议入口（如 MCP、A2A、AG-UI），详见 §8.5。`commands` 扩展用于注册 CLI 命令，详见 §8.6。
 
 ## 3. 自定义字段类型
 
@@ -322,6 +326,137 @@ LDAP → @community/cap-auth-ldap
 
 pre / pre-action / post-action 插槽可以有多个 middleware，按 order 排序执行。
 ```
+
+### 8.5 传输适配器（Transport Adapter）
+
+Capability 可以通过 `extensions.transports` 注册新的传输入口（transport），让外部系统通过新协议访问 CommandLayer。
+
+传输适配器与中间件不同：中间件在 CommandLayer **内部**填充 slot，传输适配器在 CommandLayer **外部**接收请求并转发进入管道。
+
+```typescript
+extensions: {
+  transports: [
+    {
+      name: 'mcp',
+      label: 'Model Context Protocol',
+      // Transport factory — receives runtime context, returns start/stop lifecycle
+      factory: async (ctx) => {
+        const server = createMcpServer({
+          executor: ctx.executor,
+          schemaRegistry: ctx.schemaRegistry,
+          commandLayer: ctx.commandLayer,
+        });
+        return {
+          start: () => server.listen(),
+          stop: () => server.close(),
+        };
+      },
+      // Optional: mount HTTP routes on the main server
+      routes: (app) => {
+        app.all('/mcp', mcpStreamableHttpHandler);
+      },
+      config: {
+        // Transport-specific configuration schema
+        bearerToken: { type: 'string', secret: true },
+        enableStdio: { type: 'boolean', default: true },
+        enableHttp: { type: 'boolean', default: true },
+      },
+    },
+  ],
+}
+```
+
+传输适配器的生命周期：
+- 系统启动时，按注册顺序调用 `factory(ctx)` 创建实例
+- 调用 `start()` 启动监听
+- 系统关闭时调用 `stop()` 优雅退出
+- 如果提供了 `routes`，自动挂载到主 HTTP Server
+
+传输适配器与 CommandLayer 的关系：
+
+```
+CLI ──────────┐
+cap-adapter-mcp ──────┤
+cap-adapter-server ───┤──→ Command Layer ──→ Action Engine
+cap-adapter-a2a ──────┤
+cap-adapter-ag-ui ────┘
+```
+
+所有传输适配器共享同一个 CommandLayer 管道，认证、权限、日志等中间件自动生效。
+
+**示例：最小化 MCP 适配器 Capability**
+
+```typescript
+export default defineCapability({
+  name: 'cap-adapter-mcp',
+  type: 'adapter',
+  category: 'integration',
+  version: '0.1.0',
+  label: 'MCP Adapter',
+  description: 'Expose LinchKit Actions as MCP Tools for AI agents',
+
+  dependencies: [],
+  systemPermissions: ['network.internal'],
+
+  extensions: {
+    transports: [
+      {
+        name: 'mcp',
+        label: 'Model Context Protocol',
+        factory: createMcpTransport,
+        routes: mountMcpRoutes,
+        config: {
+          bearerToken: { type: 'string', secret: true },
+        },
+      },
+    ],
+  },
+})
+```
+
+未来的协议适配器（如 A2A、AG-UI）遵循同样的模式，Core 无需修改。
+
+### 8.6 CLI 命令注册
+
+Capability 可以通过 `extensions.commands` 注册 CLI 命令。CLI 在启动时动态构建命令树。
+
+```typescript
+extensions: {
+  commands: [
+    {
+      name: 'dev',
+      namespace: 'server',       // → linch server dev
+      description: 'Start HTTP/GraphQL development server',
+      handler: serverDevHandler,
+      args: {
+        port: { type: 'string', default: '3001', description: 'Server port' },
+        host: { type: 'string', default: '0.0.0.0', description: 'Server host' },
+      },
+      isDefault: true,           // linch server → 直接执行 dev
+      devOnly: true,             // 生产环境隐藏
+    },
+  ],
+}
+```
+
+命名空间约定：
+
+| Capability 类型 | namespace | 示例命令 |
+|---|---|---|
+| adapter (transport) | 协议名 | `linch server dev`, `linch mcp start` |
+| utility | 功能名 | `linch proposal create`, `linch scaffold capability` |
+| business | 按需 | `linch purchase import`（可选） |
+
+CLI 内置命令（不由 Capability 注册）：
+
+| 命令 | 作用 |
+|---|---|
+| `linch init` | 初始化新项目 |
+| `linch dev` | 加载所有 capabilities + 启动所有 transports |
+| `linch exec <action>` | 直接执行 Action |
+| `linch capabilities list` | 列出已安装的 capabilities |
+
+CLI 是极简引导器，只负责加载 config → 扫描 capabilities → 构建命令树 → 分发执行。
 
 ## 9. 示例：文件存储 Capability
 

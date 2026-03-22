@@ -104,6 +104,18 @@ This project is entirely AI-generated. See `AGENTS.md` for:
 - Review checklist for Codex
 - Spec reference table (when to read which spec)
 
+## Serena MCP — Token-Efficient Code Navigation
+
+Project has Serena MCP server configured for semantic code analysis. **Prefer Serena tools over `Read`/`Grep` to minimize token consumption.**
+
+**Exploration workflow:**
+1. `get_symbols_overview` — Understand file structure (returns symbol list, ~90% fewer tokens than `Read`)
+2. `find_symbol` with `include_body=true` — Read only the specific function/class you need
+3. `find_referencing_symbols` — Find where a symbol is used (more precise than `Grep`)
+4. `search_for_pattern` — Targeted regex search with scope control
+
+**Fall back to `Read` only when:** reading non-code files, needing full file context, or Serena doesn't cover the use case.
+
 ## Specs
 
 Full specs in Obsidian vault: `~/Documents/obsidian-vault/01_Projects/AIRE/LinchKit/specs/` (40+ docs).

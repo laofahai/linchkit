@@ -6,6 +6,8 @@
 
 export const VERSION = "0.0.1";
 
+export { capAdapterServer } from "./capability";
+
 export type { FindManyOptions } from "./data/in-memory-store";
 export { InMemoryStore } from "./data/in-memory-store";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";

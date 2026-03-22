@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * @linchkit/cli — CLI entry point
  *

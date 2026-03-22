@@ -1,123 +1,175 @@
 /**
- * linch dev — Start the LinchKit development server
+ * linch dev — Start all LinchKit transports in development mode
  *
  * Loads linchkit.config.ts from the current directory,
- * initializes the runtime context, and starts an Elysia server
- * with GraphQL and REST endpoints.
+ * extracts schemas/actions from capabilities, and starts
+ * all transports declared via extensions.transports.
+ *
+ * CLI only depends on @linchkit/core — adapter packages provide
+ * transport factories through the capability contract.
  */
 
-import {
-  buildGraphQLSchema,
-  createRuntimeContext,
-  createServer,
-  generateCrudActions,
-} from "@linchkit/cap-adapter-server";
 import type {
   ActionDefinition,
   CapabilityDefinition,
+  DataProvider,
   LinchKitConfig,
   SchemaDefinition,
+  TransportAdapterDefinition,
+  TransportContext,
+  TransportLifecycle,
+} from "@linchkit/core";
+import {
+  ActionRegistry,
+  createActionExecutor,
+  createCommandLayer,
+  SchemaRegistry,
 } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 
+/** Minimal no-op DataProvider for dev mode bootstrap */
+function createNoopDataProvider(): DataProvider {
+  const notImpl = () => {
+    throw new Error("No DataProvider configured. Transports should provide their own.");
+  };
+  return {
+    get: notImpl,
+    query: notImpl,
+    create: notImpl,
+    update: notImpl,
+    delete: notImpl,
+  };
+}
+
 export const devCommand = defineCommand({
   meta: {
     name: "dev",
-    description: "Start the LinchKit development server",
+    description: "Start all LinchKit transports in development mode",
   },
   args: {
     port: {
       type: "string",
-      description: "Server port (default: 3000)",
-      default: "3000",
+      description: "Override port (default: 3001)",
+      default: "3001",
     },
     host: {
       type: "string",
-      description: "Server host (default: localhost)",
-      default: "localhost",
+      description: "Override host (default: 0.0.0.0)",
+      default: "0.0.0.0",
     },
   },
-  async run({ args }) {
-    const port = Number.parseInt(args.port, 10);
-    const host = args.host;
-
-    console.log("Loading LinchKit configuration...");
+  async run({ args: _args }) {
+    console.log("[linch] Loading configuration...");
 
     // Load project config
     let config: LinchKitConfig = {};
     try {
       const result = await loadConfig();
       config = result.config;
-      console.log(`  Config loaded from ${result.configPath}`);
-    } catch (_err) {
-      // If no config file, start with empty config (dev mode)
-      console.log("  No linchkit.config.ts found, starting with empty configuration.");
+      console.log(`[linch] Config loaded from ${result.configPath}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Config file not found")) {
+        console.log("[linch] No config found, using defaults.");
+      } else {
+        console.error("[linch] Failed to load config:", msg);
+        process.exit(1);
+      }
     }
 
-    // Extract schemas and actions from config capabilities
+    // Extract from capabilities
     const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
+    // Generate capability stylesheet if UI adapter is present
     const generatedStylesheet = generateCapabilityStylesheet(capabilities);
     if (generatedStylesheet?.updated) {
-      console.log(`  Generated capability stylesheet: ${generatedStylesheet.path}`);
+      console.log(`[linch] Generated capability stylesheet: ${generatedStylesheet.path}`);
     }
 
     const schemas: SchemaDefinition[] = [];
     const actions: ActionDefinition[] = [];
+    const transports: TransportAdapterDefinition[] = [];
 
     for (const cap of capabilities) {
       if (cap.schemas) schemas.push(...cap.schemas);
       if (cap.actions) actions.push(...cap.actions);
+      if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
     }
 
-    // Generate CRUD actions for schemas that don't have custom actions
+    console.log(
+      `[linch] Loaded ${capabilities.length} capabilities, ${schemas.length} schemas, ${actions.length} actions`,
+    );
+    console.log(
+      `[linch] Found ${transports.length} transport(s): ${transports.map((t) => t.name).join(", ") || "none"}`,
+    );
+
+    // Build registries
+    const schemaRegistry = new SchemaRegistry();
     for (const schema of schemas) {
-      const crudActions = generateCrudActions(schema);
-      for (const crud of crudActions) {
-        // Only add if not already registered by a custom action
-        if (!actions.some((a) => a.name === crud.name)) {
-          actions.push(crud);
-        }
+      schemaRegistry.register(schema);
+    }
+
+    const actionRegistry = new ActionRegistry();
+    for (const action of actions) {
+      if (!actionRegistry.has(action.name)) {
+        actionRegistry.register(action);
       }
     }
 
-    // Create runtime context
-    const runtime = createRuntimeContext({ schemas, actions });
+    // Build minimal runtime context for transports
+    const executor = createActionExecutor({ dataProvider: createNoopDataProvider() });
+    for (const action of actionRegistry.getAll()) {
+      executor.registry.register(action);
+    }
+    const commandLayer = createCommandLayer({ executor });
 
-    // Build GraphQL schema
-    const graphqlSchema = buildGraphQLSchema(schemas, {
-      executor: runtime.executor,
-      store: runtime.store,
-    });
+    const transportCtx: TransportContext = {
+      commandLayer,
+      executor,
+      schemaRegistry,
+      schemas,
+      actions,
+      config: config as Record<string, unknown>,
+    };
 
-    // Resolve server port from: CLI arg > config > default
-    const serverPort = port || (config.server as { port?: number })?.port || 3000;
-    const serverHost = host || (config.server as { host?: string })?.host || "localhost";
+    // Start all transports
+    const lifecycles: TransportLifecycle[] = [];
 
-    // Create and start server
-    const server = createServer(graphqlSchema, {
-      port: serverPort,
-      executor: runtime.executor,
-    });
+    for (const transport of transports) {
+      try {
+        console.log(`[linch] Starting transport: ${transport.label ?? transport.name}...`);
+        const lifecycle = await transport.factory(transportCtx);
+        await lifecycle.start();
+        lifecycles.push(lifecycle);
+        console.log(`[linch] Transport ${transport.name} started.`);
+      } catch (err) {
+        const error = err as Error;
+        console.error(`[linch] Failed to start transport "${transport.name}":`, error.message);
+      }
+    }
 
-    server.listen(serverPort, serverHost);
-
-    const displayHost = serverHost === "0.0.0.0" ? "localhost" : serverHost;
+    if (lifecycles.length === 0) {
+      console.log(
+        "[linch] Warning: No transports started. Install adapter capabilities (e.g. @linchkit/cap-adapter-server).",
+      );
+    }
 
     console.log("");
-    console.log("LinchKit Dev Server");
-    console.log("-----------------------------------");
-    console.log(`  HTTP:       http://${displayHost}:${serverPort}`);
-    console.log(`  GraphQL:    http://${displayHost}:${serverPort}/graphql`);
-    console.log(`  Health:     http://${displayHost}:${serverPort}/health`);
-    console.log(`  REST API:   http://${displayHost}:${serverPort}/api/actions/:name`);
-    console.log("-----------------------------------");
-    console.log(`  Schemas:    ${schemas.length}`);
-    console.log(`  Actions:    ${actions.length}`);
-    console.log("-----------------------------------");
-    console.log("");
-    console.log("Press Ctrl+C to stop.");
+    console.log("[linch] Dev server ready. Press Ctrl+C to stop.");
+
+    // Graceful shutdown
+    process.on("SIGINT", async () => {
+      console.log("\n[linch] Shutting down...");
+      for (const lc of lifecycles) {
+        try {
+          await lc.stop();
+        } catch {
+          // Ignore shutdown errors
+        }
+      }
+      process.exit(0);
+    });
   },
 });

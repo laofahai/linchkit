@@ -1,20 +1,26 @@
 # 错误处理与分类规范
 
+> HTTP 状态码映射策略和统一响应格式见 [16_command_layer_and_api](16_command_layer_and_api.md) §2.3–2.5。
+
 ## 1. 定位
 
-框架级统一错误模型。Action 13 步流程、Rule 评估、权限校验、GraphQL 查询——每一层都会产生错误，必须有统一的分类、错误码和前端展示策略。
+框架级统一错误模型。Action 执行流程、Rule 评估、权限校验、GraphQL 查询——每一层都会产生错误，必须有统一的分类、错误码和前端展示策略。
 
 ## 2. 错误分类
 
-### 5 类框架级错误
+### 7 类框架级错误
 
 | 类别 | 说明 | HTTP 状态码 | 前端展示 |
 |------|------|-----------|---------|
 | `ValidationError` | 输入不合法（字段类型错误、必填缺失、格式不符） | 400 | 字段级标红 + 错误提示 |
-| `AuthorizationError` | 权限不足（未登录、无 Action 权限、数据权限拒绝） | 401 / 403 | 未登录→跳转登录；无权限→提示信息 |
+| `NotFoundError` | 目标不存在（Action / 记录 / Schema 不存在） | 404 | 提示"目标不存在"或 404 页面 |
+| `AuthenticationError` | 未登录（token 缺失 / 过期 / 无效） | 401 | 跳转登录页 |
+| `AuthorizationError` | 已认证但无权限（无 Action 权限、数据权限拒绝） | 403 | 提示"权限不足" |
 | `BusinessRuleError` | Rule 拦截（block / require_approval） | 422 | Toast 显示 Rule message，多条合并展示 |
 | `ConflictError` | 并发冲突（乐观锁版本不匹配、状态机非法迁移） | 409 | 提示"数据已被修改，请刷新后重试" |
 | `SystemError` | 基础设施故障（数据库连接失败、Outbox 异常等） | 500 | 通用错误页，不暴露内部细节 |
+
+**关键区分**：401（Authentication）= "你是谁？"；403（Authorization）= "我知道你是谁，但你没权限"。
 
 ### 错误继承关系
 
@@ -23,9 +29,9 @@ LinchKitError (基类)
   ├── ValidationError
   │     ├── FieldValidationError     — 单字段校验失败
   │     └── InputValidationError     — 整体输入校验失败
-  ├── AuthorizationError
-  │     ├── AuthenticationError      — 未登录 / token 过期
-  │     └── PermissionDeniedError    — 有身份但无权限
+  ├── NotFoundError                  — Action / 记录 / 资源不存在
+  ├── AuthenticationError            — 未登录 / token 过期（401）
+  ├── AuthorizationError             — 有身份但无权限（403）
   ├── BusinessRuleError
   │     ├── RuleBlockError           — Rule block
   │     └── ApprovalRequiredError    — require_approval
@@ -39,32 +45,37 @@ LinchKitError (基类)
 
 格式：`DOMAIN.CATEGORY.SPECIFIC`
 
-| 错误码示例 | 含义 |
-|-----------|------|
-| `ACTION.VALIDATION.FIELD_REQUIRED` | Action 输入缺少必填字段 |
-| `ACTION.VALIDATION.FIELD_TYPE` | Action 输入字段类型错误 |
-| `ACTION.VALIDATION.FIELD_FORMAT` | 格式不符（如 email 格式） |
-| `AUTH.AUTHENTICATION.TOKEN_EXPIRED` | Token 过期 |
-| `AUTH.AUTHENTICATION.INVALID_CREDENTIALS` | 用户名密码错误 |
-| `AUTH.PERMISSION.ACTION_DENIED` | 无权执行此 Action |
-| `AUTH.PERMISSION.DATA_DENIED` | 无权访问此条数据 |
-| `RULE.BLOCK.{rule_name}` | 被某条 Rule 拦截 |
-| `RULE.APPROVAL_REQUIRED.{rule_name}` | 需要审批 |
-| `STATE.TRANSITION.INVALID` | 当前状态不允许此迁移 |
-| `STATE.TRANSITION.CONFLICT` | 乐观锁冲突 |
-| `SYSTEM.DATABASE.CONNECTION` | 数据库连接失败 |
-| `SYSTEM.OUTBOX.HANDLER_FAILED` | EventHandler 执行失败 |
+| 错误码示例 | 错误类型 | HTTP | 含义 |
+|-----------|---------|------|------|
+| `ACTION.VALIDATION.FIELD_REQUIRED` | validation | 400 | Action 输入缺少必填字段 |
+| `ACTION.VALIDATION.FIELD_TYPE` | validation | 400 | Action 输入字段类型错误 |
+| `ACTION.VALIDATION.FIELD_FORMAT` | validation | 400 | 格式不符（如 email 格式） |
+| `ACTION.NOT_FOUND.ACTION` | not_found | 404 | Action 不存在 |
+| `RECORD.NOT_FOUND.{schema}` | not_found | 404 | 记录不存在 |
+| `AUTH.AUTHENTICATION.TOKEN_EXPIRED` | authentication | 401 | Token 过期 |
+| `AUTH.AUTHENTICATION.TOKEN_INVALID` | authentication | 401 | Token 无效 |
+| `AUTH.AUTHENTICATION.INVALID_CREDENTIALS` | authentication | 401 | 用户名密码错误 |
+| `AUTH.PERMISSION.ACTION_DENIED` | authorization | 403 | 无权执行此 Action |
+| `AUTH.PERMISSION.DATA_DENIED` | authorization | 403 | 无权访问此条数据 |
+| `RULE.BLOCK.{rule_name}` | business_rule | 422 | 被某条 Rule 拦截 |
+| `RULE.APPROVAL_REQUIRED.{rule_name}` | business_rule | 422 | 需要审批 |
+| `STATE.TRANSITION.INVALID` | conflict | 409 | 当前状态不允许此迁移 |
+| `STATE.TRANSITION.CONFLICT` | conflict | 409 | 乐观锁冲突 |
+| `SYSTEM.DATABASE.CONNECTION` | system | 500 | 数据库连接失败 |
+| `SYSTEM.OUTBOX.HANDLER_FAILED` | system | 500 | EventHandler 执行失败 |
 
 错误码在框架内唯一，可用于：前端差异化展示、i18n 错误消息映射、日志检索、监控告警。
 
 ## 4. 统一错误结构
+
+此结构与 [16_command_layer_and_api](16_command_layer_and_api.md) §2.3 的 `CommandResponse.error` 对齐。
 
 ```typescript
 interface LinchKitErrorResponse {
   success: false
   error: {
     code: string                    // 错误码，如 'ACTION.VALIDATION.FIELD_REQUIRED'
-    type: string                    // 错误类别，如 'ValidationError'
+    type: 'validation' | 'not_found' | 'authentication' | 'authorization' | 'business_rule' | 'conflict' | 'system'
     message: string                 // 人类可读消息
     details?: object                // 额外信息
 
@@ -130,7 +141,10 @@ RULE.BLOCK.amount_check → t:error.rule.block.amount_check
 
 ## 8. 日志中的错误记录
 
-- `ValidationError` / `AuthorizationError` → 日志级别 `warn`（预期内的业务拦截）
+- `ValidationError` → 日志级别 `warn`（预期内的输入拦截）
+- `NotFoundError` → 日志级别 `warn`（可能是前端传了无效 ID）
+- `AuthenticationError` → 日志级别 `warn`（可能是 token 过期）
+- `AuthorizationError` → 日志级别 `warn`（可能是权限配置问题）
 - `BusinessRuleError` → 日志级别 `info`（Rule 正常工作）
 - `ConflictError` → 日志级别 `warn`（需要关注频率）
 - `SystemError` → 日志级别 `error`（需要立即处理）

@@ -23,9 +23,8 @@ export const languageNames: Record<SupportedLanguage, string> = {
 
 /** Detect browser language, mapping to supported languages */
 function detectBrowserLanguage(): SupportedLanguage {
-  if (typeof navigator === "undefined") return "en";
-
-  const browserLang = navigator.language;
+  const browserLang = typeof navigator !== "undefined" ? navigator?.language : undefined;
+  if (!browserLang) return "en";
 
   // Exact match
   if (supportedLanguages.includes(browserLang as SupportedLanguage)) {

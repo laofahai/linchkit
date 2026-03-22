@@ -6,6 +6,9 @@
 
 export const VERSION = "0.0.1";
 
+// Capability definition
+export { capAdapterUiReact } from "./capability";
+
 export { useTheme } from "@linchkit/ui-kit/hooks";
 // Utilities
 export { cn } from "@linchkit/ui-kit/lib/utils";

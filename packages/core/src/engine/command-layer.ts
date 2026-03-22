@@ -14,6 +14,7 @@
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
 
+import { LinchKitError } from "../errors";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
@@ -335,6 +336,13 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         return {
           success: false,
           data: { error: err.message, code: err.code },
+          executionId: generatePipelineId(),
+        };
+      }
+      if (err instanceof LinchKitError) {
+        return {
+          success: false,
+          data: { error: err.message, code: err.code, details: err.details },
           executionId: generatePipelineId(),
         };
       }

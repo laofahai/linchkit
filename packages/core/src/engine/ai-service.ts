@@ -194,11 +194,14 @@ async function getLanguageModel(
         ? "OPENAI_API_KEY"
         : `${resolved.provider.toUpperCase()}_API_KEY`;
       const apiKey = resolveApiKey(envVar);
+      const isThirdParty = !inferProviderType(resolved.provider);
       const openai = createOpenAI({
         apiKey: apiKey ?? "",
         ...(providerConfig.endpoint ? { baseURL: providerConfig.endpoint } : {}),
       });
-      return openai(resolved.modelId);
+      // Third-party OpenAI-compatible providers use /chat/completions,
+      // not the OpenAI Responses API (/responses)
+      return isThirdParty ? openai.chat(resolved.modelId) : openai(resolved.modelId);
     }
 
     default:

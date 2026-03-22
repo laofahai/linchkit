@@ -167,6 +167,35 @@ fields: {
 
 如果 Schema 没有定义 `presentation` 和字段 `ui`，框架退回到纯类型推断（见 13_view_and_ui.md 第 7.1 节）。
 
+## 5b. State Field — List View Presentation
+
+When a Schema has a state field, it can be configured as the **primary navigation axis** in list views via the State Ribbon.
+
+```typescript
+// Field-level: mark as ribbon primary
+status: {
+  type: 'state',
+  machine: 'request_lifecycle',
+  label: '状态',
+  ui: {
+    display: 'badge',
+    ribbonPrimary: true,   // Show as State Ribbon in list views
+  },
+}
+
+// Schema-level: presentation.stateRibbon config
+presentation: {
+  titleField: 'title',
+  badgeField: 'status',
+  stateRibbon: {
+    enabled: true,          // Enable State Ribbon for list views
+    field: 'status',        // Which state field drives the ribbon
+  },
+}
+```
+
+The State Ribbon renders all states from `StateFieldConfig.states` as clickable tabs with record counts. Clicking a state applies a `DeclarativeCondition` filter: `{ field: "status", operator: "eq", value: "submitted" }`. See `13_view_and_ui.md` for full list view architecture.
+
 ## 6. 系统自动字段
 
 每个 Schema 自动包含以下字段，不需要手动定义：

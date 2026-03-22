@@ -82,6 +82,8 @@ UI ───────┘         │
 | 前端 | React + Vite + TanStack Router | SPA 管理界面 |
 | UI | Shadcn UI + Lucide + Tailwind | 组件 + 图标 + 样式 |
 | i18n | i18next（或类似方案） | 多语言 |
+| 认证 | **better-auth** | OAuth2/OIDC、Session、Organization plugin、API Key 管理。Elysia 原生集成。详见 [10a_authentication.md](10a_authentication.md) |
+| 前端权限 | **CASL.js** | 客户端权限能力对象，基于服务端返回的权限组构建 ability。详见 [10_actor_permission.md](10_actor_permission.md) §7.5 |
 
 ### 4.2 M1 集成
 

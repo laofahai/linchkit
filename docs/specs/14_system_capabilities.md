@@ -17,11 +17,11 @@ LinchKit 的系统功能不是框架硬编码的功能，而是官方 Capability
   └── View 渲染引擎
 
 @linchkit/base                        ← 官方基础能力包（一组 Capability）
-  ├── 必装（框架运行依赖）
-  │   ├── @linchkit/cap-auth          — 认证
-  │   └── @linchkit/cap-permission    — 权限
+  ├── 推荐安装（不装也能跑，功能降级）
+  │   ├── @linchkit/cap-auth          — 不装 = 匿名模式，所有请求使用默认 Actor
+  │   └── @linchkit/cap-permission    — 不装 = 无权限控制，所有 Action 可执行
   │
-  ├── 推荐安装
+  ├── 建议安装
   │   ├── @linchkit/cap-audit         — 审计日志
   │   ├── @linchkit/cap-notification  — 通知中心
   │   ├── @linchkit/cap-file-storage  — 文件存储（提供 file 字段类型）
@@ -40,9 +40,9 @@ LinchKit 的系统功能不是框架硬编码的功能，而是官方 Capability
       ├── @linchkit/cap-proposal      — Proposal 管理 UI
       └── @linchkit/cap-user-profile  — 个人资料
 
-官方启动包（强依赖一组基础能力的打包 Capability）
+官方启动包（打包一组推荐能力，方便快速上手）
   ├── @linchkit/starter-business    — 企业应用全家桶
-  ├── @linchkit/starter-minimal     — 最小化（auth + permission）
+  ├── @linchkit/starter-minimal     — 最小化（auth + permission，推荐基线）
   ├── @linchkit/starter-saas        — SaaS 平台（+ 多租户管理 + 计费）
   └── @linchkit/starter-api-only    — 纯 API 服务（无 UI）
 
@@ -64,9 +64,11 @@ linch init my-project --starter=business
 # 最小化
 linch init my-project --starter=minimal
 
-# 裸框架（完全自主）
+# 裸框架（零 Capability，完全自主）
 linch init my-project --bare
 ```
+
+> **`--bare` 模式**：不安装任何 Capability（包括 cap-auth 和 cap-permission）。框架仍可正常运行：匿名模式 + 无权限控制。适合快速原型开发，后续按需添加。
 
 ### 启动包定义
 
@@ -110,14 +112,51 @@ export default defineCapability({
 
 每一层都是 Capability，没有特殊机制。用户也可以做自己的启动包（行业启动包、公司内部启动包等）。
 
+### 降级行为
+
+框架核心不依赖任何 Capability。cap-auth 和 cap-permission 是"推荐安装"而非"必装"：
+
+| 安装情况 | 行为 |
+|---------|------|
+| 无 cap-auth | 匿名模式：所有请求使用默认 Actor `{ type: "system", id: "anonymous", groups: [] }`，无需登录 |
+| 无 cap-permission | 无权限控制：所有 Action 可执行，无数据访问过滤 |
+| 有 cap-auth，无 cap-permission | 已认证但无授权检查：知道"你是谁"，但不限制"你能干啥" |
+| 都不装 | 框架正常运行，完全开放模式。Rule Engine 仍然生效（Rule 在 core 中，不是 Capability） |
+
+这使得开发/原型阶段的工作流非常顺畅：先装业务 Capability（如采购管理），开始开发，后续再加 auth/permission。
+
 ## 4. 基础能力提供什么
 
-### 4.1 @linchkit/cap-auth（认证）
+### 4.1 @linchkit/cap-auth（认证）— 合约/实现分离
+
+cap-auth 采用**合约/实现分离**架构：
+
+| 包 | 角色 | 依赖 |
+|---|------|------|
+| `@linchkit/cap-auth` | 合约层 | 仅依赖 `@linchkit/core` |
+| `@linchkit/cap-auth-better-auth` | 实现层 | 依赖 cap-auth + better-auth |
 
 ```
-Schema: user, session, token
-Action: login, logout, refresh_token, reset_password
-State: user_lifecycle (active / disabled / locked)
+合约层 (cap-auth):
+  Schema: user, session, token, api_key
+  Action: login, logout, refresh_token, reset_password, create_api_key (无 handler)
+  State: user_lifecycle (active / disabled / locked)
+  Interface: AuthProvider (定义认证引擎合约)
+  Factory: createCapAuth({ provider }) → 组装完整 Capability
+
+实现层 (cap-auth-better-auth):
+  Provider: createBetterAuthProvider({ auth }) → 实现 AuthProvider
+  Engine: better-auth (OAuth2/OIDC, Session, Organization)
+```
+
+使用方式：
+```typescript
+import { createCapAuth } from '@linchkit/cap-auth'
+import { createBetterAuthProvider } from '@linchkit/cap-auth-better-auth'
+
+const capAuth = createCapAuth({
+  provider: createBetterAuthProvider({ auth: betterAuth({ ... }) }),
+})
 ```
 
 ### 4.2 @linchkit/cap-permission（权限）

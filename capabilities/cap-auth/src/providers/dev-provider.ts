@@ -26,7 +26,7 @@ interface DevUser {
 }
 
 const DEV_USERS: DevUser[] = [
-  { id: "admin", email: "admin@linchkit.dev", groups: ["admin"] },
+  { id: "admin", email: "admin@linchkit.dev", groups: ["system_admin"] },
   { id: "user1", email: "user@linchkit.dev", groups: ["user"] },
 ];
 

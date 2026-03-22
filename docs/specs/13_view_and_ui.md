@@ -1,5 +1,26 @@
 # View 与 UI 设计规范
 
+> **UI 架构原则**：UI 不是 Core 的一部分，而是由 Capability 提供。
+>
+> - `cap-adapter-ui-react` — 官方 UI Shell Capability（React + Shadcn + TanStack），在 `capabilities/` 中。内含基础组件库（原 ui-kit）。
+> - 各业务 Capability — 通过 `defineCapability({ pages, views })` 声明自己的页面和视图
+> - 第三方可实现其他 UI Shell（如 cap-adapter-ui-vue），只要遵守相同的 View/Widget 抽象声明
+>
+> 安装 Capability 自动获得 UI 页面，卸载后路由自动移除。不需要 UI 的应用（如纯 MCP 或 Headless API）不安装 cap-adapter-ui-react 即可。
+>
+> **UI 与逻辑完全解耦**：Core 中的 ViewDefinition、FormLayout、WidgetDefinition 都是纯数据声明，不包含任何框架特定代码（无 React/Vue/Angular 依赖）。Capability 只声明"要什么"，UI Shell 负责"怎么渲染"。
+>
+> - `extensions.viewTypes` 中的自定义视图类型（map, gantt 等）由 UI Shell 注册具体渲染组件
+> - Widget Registry 由 UI Shell 维护（cap-adapter-ui-react 用 React 组件，cap-adapter-ui-vue 用 Vue 组件）
+> - 没装任何 UI Shell → 所有 pages/views 声明被忽略，系统以 Headless 模式运行
+>
+> cap-adapter-ui-react 负责：
+> - 路由注册（扫描所有 Capability 的 `pages` 声明）
+> - Sidebar 导航（根据 Capability 的 category + pages 自动生成）
+> - AutoForm / AutoList（Schema 驱动的通用表单和列表）
+> - Widget Registry（字段级 React 组件注册/覆盖）
+> - 主题 / i18n / 响应式布局
+
 ## 1. 定位
 
 View 是 Capability 元模型的一部分，定义业务数据的展示方式。
@@ -188,6 +209,80 @@ export const requestList = defineView({
   rowActions: ['submit_request', 'cancel_request'],  // 每行的操作按钮
 })
 ```
+
+### 4.1.1 List View Advanced Features — Unified SearchBar Architecture
+
+The list view uses a **unified SearchBar** approach (inspired by Odoo Search View and Linear) where all filtering lives inside a single input-like component:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ ListToolbar                                                         │
+│  ┌─────────────────────────────────────┐                            │
+│  │ 🔍 [pill: status=draft ×] [pill ×] │ ▼ × │  [+ Create] [⋯]    │
+│  │     SearchBar (text + filters)      │      │                     │
+│  └─────────────────────────────────────┘                            │
+├─────────────────────────────────────────────────────────────────────┤
+│ TanStack Table (sorting, selection, widget-rendered cells)           │
+├─────────────────────────────────────────────────────────────────────┤
+│ Pagination                                                          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### SearchBar — Unified Search + Filter Component
+
+`components/auto-list/search-bar.tsx` — The primary search and filtering interface:
+
+- **Global fuzzy text search**: Free-text input that filters across all columns via TanStack Table's `globalFilter`
+- **bazza/ui filter selector**: Icon button (▼) inside the search bar opens a popover to add field-level filters. Schema fields are auto-mapped to filter types via `filter-columns.ts`
+- **Active filter pills**: Applied filters display as inline removable pills (bazza `ActiveFilters` component) within the search bar, before the text input
+- **Clear all**: Single `×` button clears both text search and all filter pills
+- Focus ring on the container, click-to-focus on the input area
+
+#### filter-columns.ts — Schema-to-Filter Bridge
+
+`components/auto-list/filter-columns.ts` — Converts `SchemaDefinition` fields into bazza `ColumnConfig[]`:
+
+| LinchKit Field Type | bazza ColumnDataType | Notes |
+|---------------------|---------------------|-------|
+| `string`, `text` | `text` | Text contains filter |
+| `number` | `number` | Min/max computed from data |
+| `date`, `datetime` | `date` | Date range filter |
+| `enum`, `state` | `option` | Options from field def or data |
+| `boolean` | `option` | Yes/No options |
+| `computed`, `ref`, `json`, `has_many`, `many_to_many` | *(skipped)* | Not filterable |
+
+#### ListToolbar — Single-Row Layout
+
+`components/auto-list/list-toolbar.tsx` — Arranges the toolbar as:
+
+- **Left**: SearchBar (unified search + filters)
+- **Right**: Primary action button + overflow menu (⋯) with secondary actions, column toggle, export
+- **Bulk mode**: When rows are selected, shows count + bulk action dropdown + clear selection button
+
+#### Data Filtering Pipeline
+
+1. bazza `useDataTableFilters` hook manages filter state using `DeclarativeCondition`-compatible operators (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `in`, `not_in`, `between`)
+2. `AutoList` pre-filters data using bazza filter state before passing to TanStack Table
+3. TanStack Table applies global text filter and column sorting on the pre-filtered data
+4. Selection state resets automatically when filters change
+
+#### TanStack Table — Data Grid
+
+The core table powered by TanStack Table v8:
+- Column header click to sort
+- Row selection + batch operations
+- Pagination (offset-based, configurable `pageSize`)
+- Cells rendered via Widget Registry (`columns.ts` → `widgetRegistry`)
+- State fields rendered with `StatusBadge` using `state-colors.ts`
+
+#### Tool Chain
+
+| Tool | Purpose |
+|------|---------|
+| bazza/ui fork (`components/data-table-filter/`) | Linear-style filter UI, modified to use `ComparisonOperator` from LinchKit `DeclarativeCondition` format |
+| TanStack Table | Sorting, pagination, global text filter, row selection |
+| `DeclarativeCondition` | Unified filter format shared with Rule engine |
+| Widget Registry | Field-type-aware cell rendering in table columns |
 
 ### 4.2 表单视图（form）
 

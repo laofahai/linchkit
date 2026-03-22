@@ -1,7 +1,42 @@
-import { capAuth } from "@linchkit/cap-auth";
-import { capPermission } from "@linchkit/cap-permission";
+import { capAdapterServer } from "@linchkit/cap-adapter-server";
+import { capAdapterUiReact } from "@linchkit/cap-adapter-ui-react";
+import { createCapAuth, createDevAuthProvider } from "@linchkit/cap-auth";
+import { createCapPermission } from "@linchkit/cap-permission";
 import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
-import { defineConfig } from "@linchkit/core";
+import { PermissionRegistry, defineConfig } from "@linchkit/core";
+
+const permissionRegistry = new PermissionRegistry();
+permissionRegistry.register({
+  name: "system_admin",
+  label: "Administrator",
+  description: "Full access (bypasses permission checks via system_admin shortcut)",
+  permissions: {},
+});
+permissionRegistry.register({
+  name: "user",
+  label: "Standard User",
+  description: "Read access and limited write operations",
+  permissions: {
+    cap_purchase_demo: {
+      purchase_request: {
+        actions: {
+          create_purchase_request: true,
+          list_purchase_request: true,
+        },
+        data: {
+          read: "all",
+          write: {
+            condition: {
+              field: "created_by",
+              operator: "eq",
+              value: "$actor.id",
+            },
+          },
+        },
+      },
+    },
+  },
+});
 
 export default defineConfig({
   server: {
@@ -10,7 +45,7 @@ export default defineConfig({
   },
 
   ai: {
-    defaultProvider: "anthropic",
+    defaultProvider: "volcengine",
     providers: {
       anthropic: {
         apiKey: "$env.ANTHROPIC_API_KEY",
@@ -21,8 +56,28 @@ export default defineConfig({
           advanced: "claude-opus-4-20250514",
         },
       },
+      volcengine: {
+        type: "openai",
+        apiKey: "$env.VOLCENGINE_API_KEY",
+        endpoint: "https://ark.cn-beijing.volces.com/api/coding/v3",
+        defaultModel: "ark-code-latest",
+        models: {
+          fast: "ark-code-latest",
+          standard: "ark-code-latest",
+          advanced: "ark-code-latest",
+        },
+      },
     },
   },
 
-  capabilities: [capAuth, capPermission, capPurchaseDemo],
+  capabilities: [
+    capAdapterServer,
+    capAdapterUiReact,
+    createCapAuth({ provider: createDevAuthProvider() }),
+    createCapPermission({
+      registry: permissionRegistry,
+      publicActions: ["login", "health"],
+    }),
+    capPurchaseDemo,
+  ],
 });

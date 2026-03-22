@@ -118,6 +118,29 @@ export const complexCheck = defineRule({
 | `or` | 逻辑或（组合） | |
 | `not` | 逻辑非（组合） | |
 
+## 4a. DeclarativeCondition as Unified Filter DSL
+
+The `DeclarativeCondition` type defined in `@linchkit/core/types/rule.ts` is the **unified filter format** shared across the entire system:
+
+| Subsystem | Usage |
+|-----------|-------|
+| **Rule conditions** | `rule.condition` — evaluate whether a rule applies |
+| **View filters** | Lens Filter output, saved view configs, defaultFilter |
+| **GraphQL queries** | `filter` parameter in list queries |
+| **State Ribbon** | Click a state → generates `{ field, operator: "eq", value }` |
+| **Saved Views** | Persisted as serialized DeclarativeCondition arrays |
+
+Additional operators beyond the core set (for View/search use cases):
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `between` | Range (inclusive) | `{ field: 'amount', operator: 'between', value: [1000, 5000] }` |
+| `startsWith` | String prefix match | `{ field: 'title', operator: 'startsWith', value: 'PR-' }` |
+| `endsWith` | String suffix match | |
+| `notContains` | String does not contain | |
+
+This format is JSON-serializable, AI-friendly (LLMs can generate/parse it), and evaluated by `condition-evaluator.ts` on both client and server.
+
 ## 5. Trigger 类型
 
 ```typescript

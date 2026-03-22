@@ -145,7 +145,75 @@ export const aiAgent = definePermissionGroup({
 })
 ```
 
-## 4. 与里程碑的关系
+## 4. AI Agent 认证与审计
+
+> 认证通道详见 [10a_authentication.md](10a_authentication.md) §6
+
+### 4.1 MCP 认证：OAuth 2.1
+
+MCP (Model Context Protocol) 采用 **OAuth 2.1** 标准流程。核心原则：**Agent 不接触用户的原始凭证**。
+
+```
+LLM Host (Claude Desktop 等)
+    │
+    ├── 1. OAuth 2.1 Authorization Code + PKCE
+    │      → 用户在浏览器中确认授权范围
+    │      → Agent 获得 scoped access token
+    │
+    └── 2. 每次 MCP 请求携带 Bearer token
+           → cap-auth 验证 + 构造 Actor (type: 'ai')
+           → 权限 = token scopes ∩ 权限组权限
+```
+
+Agent 的权限由授权它的人类用户（或系统管理员）决定，Agent 只在被授予的 scope 范围内操作。
+
+### 4.2 速率限制：Token-based
+
+AI Agent 的速率限制不仅限于请求频率，还包括 token 用量：
+
+| 限制维度 | 说明 | 默认值 |
+|---------|------|-------|
+| TPM (Tokens Per Minute) | 每分钟 token 消耗上限 | 100,000 |
+| Monthly Quota | 每月 token 消耗上限 | 10,000,000 |
+| Actions Per Minute | 每分钟 Action 调用上限 | 60 |
+| Actions Per Hour | 每小时 Action 调用上限 | 500 |
+| Proposals Per Day | 每天 Proposal 提交上限 | 10 |
+
+```typescript
+// AI Permission Group 的速率配置
+constraints: {
+  rateLimit: {
+    maxActionsPerMinute: 60,
+    maxActionsPerHour: 500,
+    maxProposalsPerDay: 10,
+    maxTokensPerMinute: 100_000,    // TPM
+    maxTokensPerMonth: 10_000_000,  // Monthly quota
+  },
+}
+```
+
+超出限制返回 HTTP 429，响应头包含重试信息。
+
+### 4.3 AI 审计：扩展字段
+
+AI Agent 的 Execution Log 记录额外字段，用于追踪和计费：
+
+```typescript
+interface AiExecutionLogExtension {
+  agent_model: string          // 模型标识，如 'claude-3.5-sonnet'
+  agent_session_id: string     // 会话唯一标识
+  parent_user_id: string       // 授权此 Agent 的人类用户 ID
+  token_usage?: {
+    input_tokens: number       // 输入 token 数
+    output_tokens: number      // 输出 token 数
+    total_tokens: number       // 总 token 数
+  }
+}
+```
+
+这些字段通过 `Actor.metadata` 自动注入到 Execution Log，无需开发者手动处理。审计查询支持按 `agent_model`、`parent_user_id`、`agent_session_id` 过滤。
+
+## 5. 与里程碑的关系
 
 ### M0
 - Schema 字段 sensitive / secret 标记

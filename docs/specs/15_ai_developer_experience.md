@@ -46,6 +46,8 @@ LinchKit 不只是"AI 能用"，而是"AI 天然知道怎么在上面开发"。
 
 ### 2.2 AGENTS.md（可自定义）
 
+> 注：AGENTS.md 同时作为标准化文件使用，见 §2.3。
+
 定义专业化 AI Agent：
 
 ```markdown
@@ -64,7 +66,41 @@ LinchKit 不只是"AI 能用"，而是"AI 天然知道怎么在上面开发"。
 分析运行数据，发现异常模式，建议新 Rule，优化流程。
 ```
 
+### 2.3 AGENTS.md（标准化）
+
+AGENTS.md 遵循 https://agents.md/ 开放标准（60,000+ 项目采用），让所有 AI 编码工具（Claude Code、Cursor、GitHub Copilot、OpenAI Codex、Gemini CLI 等）理解 LinchKit 项目。
+
+由框架自动生成，与 CLAUDE.md 互补：CLAUDE.md 面向 Claude 特定指令，AGENTS.md 是通用标准。
+
+### 2.4 协议层次架构
+
+LinchKit 通过多层协议与 AI 生态集成。每层协议解决不同问题，互补而非竞争：
+
+```
+知识层    Agent Skills / AGENTS.md / CLAUDE.md    ← 静态上下文，AI 理解项目
+          ↕
+接口层    OpenAPI Spec / Function Calling          ← 接口定义标准
+          ↕
+工具层    MCP (Agent ↔ Tool/Resource)              ← AI 调用工具，cap-adapter-mcp
+          ↕
+编排层    A2A (Agent ↔ Agent)                      ← Agent 间协作，cap-adapter-a2a
+          ↕
+用户层    AG-UI (Agent ↔ UI)                       ← Agent 与前端交互，cap-adapter-ag-ui
+```
+
+| 层次 | 协议 | LinchKit 实现 | 优先级 |
+|------|------|---------------|--------|
+| 知识层 | AGENTS.md + CLAUDE.md | 框架自动生成 | P0 |
+| 工具层 | MCP | cap-adapter-mcp（adapter capability） | P0 |
+| 接口层 | OpenAPI Spec | Elysia 自动生成 | P1 |
+| 用户层 | AG-UI | cap-adapter-ag-ui（adapter capability） | P2 |
+| 编排层 | A2A | cap-a2a（adapter capability） | P3 |
+
+所有协议适配器都是 Capability（type: adapter, category: integration），通过 `extensions.transports` 注册，Core 不需改动。详见 20_extension_mechanism.md §8.5。
+
 ## 3. MCP 工具
+
+> MCP 在 LinchKit 中以 Capability 形式提供（`cap-adapter-mcp`，type: adapter），而非 Core 内置。安装 cap-adapter-mcp 后自动注册 MCP transport，卸载后系统不受影响。
 
 MCP 工具直接复用统一 Command Layer（详见 16_command_layer_and_api.md），CLI / MCP / API 共享同一套 Command，MCP 只是传输适配器。
 
@@ -248,22 +284,55 @@ AI 调用 create_proposal
 CLAUDE.md 自动更新（包含新 Rule 的信息）
 ```
 
+### 6.5 未来协议支持
+
+#### AG-UI (Agent-User Interaction Protocol)
+
+CopilotKit 团队推出的开放标准，定义 AI Agent 与前端 UI 的双向实时通信。
+
+LinchKit 场景：
+- AI 辅助填写表单（AutoForm 实时建议）
+- 审批流程中的 Human-in-the-Loop（AI 提交 Proposal → UI 展示 → 用户确认）
+- Agent 操作进度的实时流式展示
+
+实现方式：`cap-adapter-ag-ui`（adapter capability），基于 SSE 与 cap-adapter-ui-react 集成。
+
+#### A2A (Agent-to-Agent Protocol)
+
+Google 发起、Linux Foundation 托管的 Agent 间通信协议。
+
+LinchKit 场景：
+- LinchKit 作为"一个 Agent"被外部 Agent 编排系统调用
+- 多个 LinchKit 实例之间的跨系统协作
+
+实现方式：`cap-adapter-a2a`（adapter capability）。当前优先级低，等协议成熟后实现。
+
+#### Agent Skills
+
+将 LinchKit 的 Schema + Action + Rule 打包为可移植的技能模块，让 AI 编码工具理解如何在 LinchKit 上开发。
+
+实现方式：框架自动生成 skill 文件到 `.linchkit/skills/` 目录。
+
 ## 7. 与里程碑的关系
 
 ### M0
 - CLAUDE.md 自动生成（基础版）
 - 基础 MCP 工具（list_capabilities, get_schema, execute_action）
+- AGENTS.md 自动生成
 
 ### M1
-- 完整 MCP 工具集
+- cap-adapter-mcp 完整实现（Tools + Resources + Prompts）
 - Skills 基础框架
+- OpenAPI Spec 自动生成
 
 ### M2
 - AGENTS.md + 专业化 Agent
 - 完整 Skills 包
 - scaffold 工具
 - create_proposal → PR 自动化
+- cap-ag-ui 基础实现（AI ↔ UI 实时交互）
 
 ### M3
 - evolver Agent（自动优化建议）
 - AI 上下文随系统演进自动增强
+- cap-a2a（Agent 间协作，视协议成熟度）

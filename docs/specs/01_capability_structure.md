@@ -14,6 +14,54 @@ Capability 是 LinchKit 中系统能力的基本组织单位。一个 Capability
 - ❌ 采购单 和 采购明细不应拆成两个 Capability — 它们是一体的
 - ❌ 仓库 和 库位不应拆成两个 Capability — 库位离开仓库没意义
 
+## 2.5 项目目录结构
+
+核心基础设施和可插拔能力分为两个顶层目录：
+
+```
+packages/                          ← 核心基础设施（不可替换，极简）
+  core/                            — 引擎 + 类型 + 管道（最小内核）
+  cli/                             — 极简引导器（init + dev + 动态加载 capability commands）
+  devtools/                        — 测试工具（devDependency，不参与运行时）
+
+capabilities/                      ← 可插拔能力（全部可选安装）
+  cap-adapter-server/              — HTTP/GraphQL transport
+  cap-adapter-mcp/                 — MCP transport
+  cap-adapter-ui-react/            — 官方 UI Shell（React + Shadcn + TanStack）
+  cap-auth/                        — 认证契约
+  cap-auth-better-auth/            — 认证实现（Better Auth）
+  cap-permission/                  — 权限
+  cap-admin/                       — 管理后台（execution log、schema 浏览器）
+  purchase_management/             — 业务模块示例
+  cap-bridge-purchase-inventory/   — 桥接模块示例
+```
+
+**分离原则**：
+- `packages/` 只有 3 个包：core（内核）、cli（引导器）、devtools（开发工具）
+- `capabilities/` 中的包全部可选，按需组合
+- CLI 是极简引导器：读 `linchkit.config.ts` → 加载 Core → 扫描 capabilities → 注册 extensions → 启动 transports
+- CLI 自身只提供 `linch init` 和 `linch start`，其他命令由 Capability 注册
+
+**命名规范**：
+
+| 前缀 | type | 说明 | 示例 |
+|------|------|------|------|
+| `cap-adapter-*` | adapter | 协议/传输适配器 | cap-adapter-server, cap-adapter-mcp, cap-adapter-ui-react |
+| `cap-bridge-*` | bridge | 跨模块桥接 | cap-bridge-purchase-inventory |
+| `cap-*` | standard | 标准能力模块 | cap-auth, cap-permission, cap-admin |
+| 无前缀 | standard | 业务模块 | purchase_management, inventory_management |
+
+npm 发包名：`@linchkit/cap-adapter-mcp`、`@linchkit/cap-auth`、`@linchkit/cap-bridge-xxx`。
+
+**不同场景的组合**：
+
+| 场景 | 加载的 Capabilities |
+|------|-------------------|
+| 完整 Web 应用 | cap-adapter-server + cap-adapter-ui-react + cap-auth + cap-permission + 业务 cap |
+| AI-only（纯 MCP） | cap-adapter-mcp + cap-auth + 业务 cap |
+| CLI 工具 | 业务 cap（cli 直接调 CommandLayer） |
+| Headless API | cap-adapter-server + cap-auth + 业务 cap |
+
 ## 3. 文件组织
 
 每个 Capability 一个目录，内部按类型拆分文件：
@@ -80,8 +128,9 @@ export default defineCapability({
   tags: ['procurement', 'finance'],        // 标签
 
   dependencies: [
+    // 弱依赖 — cap-auth 未安装时进入匿名模式，业务功能仍可运行
+    { capability: '@linchkit/cap-auth', required: false },
     // 强依赖 — 未安装则拒绝启动
-    { capability: '@linchkit/cap-auth', required: true },
     { capability: 'employee_management', required: true,
       use: { schemas: ['employee', 'department'] } },
 
@@ -139,9 +188,9 @@ starter
 |----------|------|---------|------|
 | `system` | 框架核心能力 | 按需 | auth, permission, audit |
 | `infrastructure` | 基础设施服务 | 需要声明 | queue, search, storage, cache |
-| `integration` | 外部系统集成 | network.external | sms, email, payment, oauth |
+| `integration` | 外部系统集成 | network.external | **cap-adapter-server (HTTP/GraphQL)**, cap-adapter-mcp, cap-adapter-a2a, cap-adapter-ag-ui, sms, email, payment |
 | `business` | 业务模块 | 无 | 采购管理, 库存管理, HR |
-| `ui` | UI 增强 | 无 | dashboard, report, gantt view |
+| `ui` | UI 增强 | 无 | **cap-adapter-ui-react (shell)**, cap-admin, dashboard, report, gantt view |
 | `utility` | 通用工具 | 无 | import-export, tag, comment |
 | `starter` | 启动包 | 无 | starter-business, starter-saas |
 
@@ -172,7 +221,37 @@ Capability 可以声明需要的系统级权限，安装时用户确认：
 
 ### 7.2 适配器 Capability (type: adapter)
 
-接管/代理已有系统。详见 17_legacy_system_migration.md。
+适配器有两类用途：
+
+**A. 协议适配器** — 为 CommandLayer 注册新的传输入口，让外部系统通过新协议访问 LinchKit。
+
+| Capability | 协议 | 用途 |
+|---|---|---|
+| `cap-adapter-mcp` | Model Context Protocol | AI Agent 调用 Actions/查询 Schemas |
+| `cap-adapter-server` | HTTP / GraphQL | REST API + GraphQL 查询/变更 |
+| `cap-adapter-a2a` | Agent-to-Agent Protocol | Agent 间协作通信 |
+| `cap-adapter-ag-ui` | AG-UI Protocol | AI Agent 与前端 UI 实时交互 |
+
+协议适配器通过 `extensions.transports` 注册（详见 20_extension_mechanism.md §8.5）。Core 不需要为新协议做任何改动。
+
+```typescript
+export default defineCapability({
+  name: 'cap-adapter-mcp',
+  type: 'adapter',
+  category: 'integration',
+  version: '0.1.0',
+
+  extensions: {
+    transports: [
+      { name: 'mcp', factory: createMcpTransport },
+    ],
+  },
+
+  systemPermissions: ['network.internal'],
+})
+```
+
+**B. 遗留系统适配器** — 接管/代理已有系统，将旧系统封装为 LinchKit Capability。详见 17_legacy_system_migration.md。
 
 ### 5.3 桥接 Capability (type: bridge)
 

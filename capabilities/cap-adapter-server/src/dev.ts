@@ -71,10 +71,13 @@ const capContributions = extractCapabilities(config.capabilities);
 
 const allSchemas = capContributions.schemas;
 
-const allActions: ActionDefinition[] = [
-  ...allSchemas.flatMap(generateCrudActions),
-  ...capContributions.actions,
-];
+// Generate CRUD actions, skip if capability already defined one with same name
+const capActionNames = new Set(capContributions.actions.map((a) => a.name));
+const crudActions = allSchemas
+  .flatMap(generateCrudActions)
+  .filter((crud) => !capActionNames.has(crud.name));
+
+const allActions: ActionDefinition[] = [...crudActions, ...capContributions.actions];
 
 // ── Initialize runtime context ──────────────────────────
 

@@ -7,11 +7,13 @@
 
 import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
+import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { PageRegistration } from "./page";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
+import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
 
 // ── Capability types ────────────────────────────────
@@ -54,18 +56,26 @@ export interface CapabilityDefinition {
   seed?: Record<string, Array<Record<string, unknown>>>;
 
   // Extension points (for Bridge / Adapter)
-  extensions?: {
-    schemas?: Array<{ target: string; extension: SchemaExtension }>;
-    schemaOverrides?: Array<{ target: string; override: SchemaOverride }>;
-    actions?: Array<{ target: string; override: ActionOverride }>;
-    rules?: Array<{ target: string; override: RuleOverride }>;
-    states?: Array<{ target: string; extension: StateExtension }>;
-    views?: Array<{ target: string; extension: ViewExtension }>;
-    middlewares?: CapabilityMiddlewareRegistration[];
-  };
+  extensions?: CapabilityExtensions;
 
   // System permission declarations
   systemPermissions?: SystemPermission[];
+}
+
+/** Extension points a capability can register */
+export interface CapabilityExtensions {
+  /** Schema extensions (for Bridge / Adapter) */
+  schemas?: Array<{ target: string; extension: SchemaExtension }>;
+  schemaOverrides?: Array<{ target: string; override: SchemaOverride }>;
+  actions?: Array<{ target: string; override: ActionOverride }>;
+  rules?: Array<{ target: string; override: RuleOverride }>;
+  states?: Array<{ target: string; extension: StateExtension }>;
+  views?: Array<{ target: string; extension: ViewExtension }>;
+  middlewares?: CapabilityMiddlewareRegistration[];
+  /** CLI commands registered by this capability */
+  commands?: CliCommand[];
+  /** Transport adapters (protocol entry points for CommandLayer) */
+  transports?: TransportAdapterDefinition[];
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

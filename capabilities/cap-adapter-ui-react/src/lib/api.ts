@@ -15,6 +15,14 @@ function getAuthHeaders(): Record<string, string> {
   return {};
 }
 
+function handleUnauthorized(res: Response): void {
+  if (res.status === 401) {
+    localStorage.removeItem("linchkit:token");
+    localStorage.removeItem("linchkit:authenticated");
+    window.location.href = "/login";
+  }
+}
+
 // ── GraphQL ─────────────────────────────────────────────
 
 export interface GraphQLResponse<T = unknown> {
@@ -34,6 +42,7 @@ export async function graphql<T = unknown>(
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ query, variables }),
   });
+  handleUnauthorized(res);
   return res.json();
 }
 
@@ -233,6 +242,7 @@ export interface SchemaBundle {
  */
 export async function fetchSchemas(): Promise<SchemaInfo[]> {
   const res = await fetch("/api/schemas", { headers: getAuthHeaders() });
+  handleUnauthorized(res);
   const json = await res.json();
   return json.data ?? [];
 }
@@ -242,6 +252,7 @@ export async function fetchSchemas(): Promise<SchemaInfo[]> {
  */
 export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | null> {
   const res = await fetch(`/api/schemas/${name}`, { headers: getAuthHeaders() });
+  handleUnauthorized(res);
   if (!res.ok) return null;
   const json = await res.json();
   return json.data ?? null;
@@ -268,5 +279,6 @@ export async function executeAction(
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(input),
   });
+  if (actionName !== "login") handleUnauthorized(res);
   return res.json();
 }

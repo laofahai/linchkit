@@ -17,20 +17,15 @@ export function markAuthenticated(authenticated: boolean): void {
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<void> {
-  try {
-    const result = await executeAction("login", { email, password });
-    if (!result.success) {
-      throw new Error(result.error?.message ?? "Login failed");
-    }
-    // Store the access token when the server returns one.
-    const token = (result.data as Record<string, unknown> | undefined)?.accessToken;
-    if (typeof token === "string") {
-      localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    }
-  } catch {
-    // Temporary fallback until a concrete auth provider is wired.
+  const result = await executeAction("login", { email, password });
+  if (!result.success) {
+    throw new Error(result.error?.message ?? "Login failed");
   }
-
+  // Store the access token when the server returns one.
+  const token = (result.data as Record<string, unknown> | undefined)?.accessToken;
+  if (typeof token === "string") {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  }
   markAuthenticated(true);
 }
 
@@ -46,27 +41,19 @@ export async function registerWithPassword(data: {
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  try {
-    const result = await executeAction("reset_password", { email });
-    if (!result.success) {
-      throw new Error(result.error?.message ?? "Password reset request failed");
-    }
-  } catch {
-    // Temporary fallback until a concrete auth provider is wired.
+  const result = await executeAction("reset_password", { email });
+  if (!result.success) {
+    throw new Error(result.error?.message ?? "Password reset request failed");
   }
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
-  try {
-    const result = await executeAction("reset_password", {
-      token,
-      new_password: newPassword,
-    });
-    if (!result.success) {
-      throw new Error(result.error?.message ?? "Password reset failed");
-    }
-  } catch {
-    // Temporary fallback until a concrete auth provider is wired.
+  const result = await executeAction("reset_password", {
+    token,
+    new_password: newPassword,
+  });
+  if (!result.success) {
+    throw new Error(result.error?.message ?? "Password reset failed");
   }
 }
 

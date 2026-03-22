@@ -38,12 +38,11 @@ export interface ServerOptions {
   views?: Map<string, ViewDefinition[]>;
 }
 
-/** Default anonymous actor for unauthenticated REST requests.
- *  In dev mode (no auth capability), admin groups allow all actions. */
+/** Default anonymous actor for unauthenticated REST requests. */
 const ANONYMOUS_ACTOR = {
   type: "human" as const,
   id: "anonymous",
-  groups: ["admin"],
+  groups: [] as string[],
 };
 
 /**
@@ -51,18 +50,28 @@ const ANONYMOUS_ACTOR = {
  * Preferred over message-text matching when a code is available.
  */
 const ERROR_CODE_STATUS: Record<string, number> = {
-  "AUTH.REQUIRED": 401,
-  "AUTH.TOKEN_EXPIRED": 401,
-  "PERMISSION.DENIED": 403,
-  "PERMISSION.GROUP_REQUIRED": 403,
-  "EXPOSURE.BLOCKED": 403,
-  "VALIDATION.FAILED": 400,
-  "VALIDATION.INPUT": 400,
-  "NOT_FOUND.ACTION": 404,
-  "NOT_FOUND.RECORD": 404,
-  "CONFLICT.STATE": 409,
-  "CONFLICT.VERSION": 409,
-  "RATE_LIMIT.EXCEEDED": 429,
+  "auth": 401,
+  "auth.required": 401,
+  "auth.credentials.required": 401,
+  "auth.token.invalid": 401,
+  "auth.token.expired": 401,
+  "auth.api_key.invalid": 401,
+  "auth.session.invalid": 401,
+  "authz": 403,
+  "authz.action.denied": 403,
+  "authz.group_required": 403,
+  "exposure.blocked": 403,
+  "validation": 400,
+  "validation.failed": 400,
+  "validation.input": 400,
+  "not_found": 404,
+  "not_found.action": 404,
+  "not_found.record": 404,
+  "conflict": 409,
+  "conflict.state": 409,
+  "conflict.version": 409,
+  "rate_limit.exceeded": 429,
+  "business": 422,
 };
 
 /**

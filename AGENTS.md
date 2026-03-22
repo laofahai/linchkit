@@ -146,3 +146,14 @@ Design specs live in `~/Documents/obsidian-vault/01_Projects/AIRE/LinchKit/specs
 Key refs: `03_schema`, `04_action`, `05_rule`, `06_state`, `07_event`, `10_actor_permission`, `13_view_and_ui`, `16_command_layer_and_api`, `33_error_handling`, `35_approval_mechanism`, `36_ai_service`, `39_execution_contract`.
 
 **Rule**: If you are making changes that touch a spec'd area, read the spec first. Do not guess the design.
+
+## Serena MCP — Token-Efficient Code Navigation
+
+Use Serena's semantic tools instead of reading entire files to save tokens:
+
+1. `get_symbols_overview` — File structure overview (~90% fewer tokens than reading the file)
+2. `find_symbol(name, include_body=true)` — Read only the function/class you need
+3. `find_referencing_symbols` — Precise reference search (better than grep for symbols)
+4. `search_for_pattern` — Scoped regex search
+
+Fall back to full file reads only for non-code files or when full context is truly needed.

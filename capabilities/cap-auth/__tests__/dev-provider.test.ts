@@ -35,7 +35,7 @@ describe("DevAuthProvider", () => {
     expect(actor).not.toBeNull();
     expect(actor?.id).toBe("admin");
     expect(actor?.name).toBe("admin@linchkit.dev");
-    expect(actor?.groups).toEqual(["admin"]);
+    expect(actor?.groups).toEqual(["system_admin"]);
     expect(actor?.type).toBe("human");
   });
 

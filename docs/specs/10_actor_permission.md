@@ -1,6 +1,7 @@
 # Actor 与权限模型设计规范
 
 > 权限管理本身作为系统内置 Capability 实现，见 14_system_capabilities.md
+> 认证机制详见 [10a_authentication.md](10a_authentication.md)
 
 ## 1. Actor 模型
 
@@ -26,7 +27,7 @@ interface Actor {
   type: 'human' | 'ai' | 'system' | 'worker' | 'timer' | 'external'
   id: string              // 唯一标识
   name?: string           // 显示名
-  roles: string[]         // 角色列表
+  groups: string[]        // 权限组列表（不叫 roles，避免与传统 RBAC 混淆）
   metadata?: object       // 附加信息（如 AI 的 model、external 的 system_name）
 }
 ```
@@ -186,6 +187,49 @@ Action 请求进来
 
 权限检查在 Rule 评估之前。权限不够直接拒绝，不进入 Rule 流程。
 
+### 2.5 system_admin 定义
+
+`system_admin` 是一个特殊的权限组，具有以下特性：
+
+- 拥有所有 Capability 的所有 Action 权限
+- 可以跨 tenant 操作（SaaS 模式下）
+- 不受 DataAccess 行级过滤限制
+- 可以模拟任何用户的权限视角
+
+```typescript
+export const systemAdmin = definePermissionGroup({
+  name: 'system_admin',
+  label: '系统管理员',
+  description: '拥有所有权限的超级管理员',
+  permissions: {}, // 空 = 所有权限（特殊处理）
+  constraints: {
+    auditLevel: 'full', // 所有操作必须记录
+  },
+})
+```
+
+**注意**：`system_admin` 是权限组，不是 Actor 类型。任何 Actor 类型（human、ai 等）都可以属于此权限组，但 AI 类型的 Actor 即使属于 system_admin 组，仍受 `requireHumanApproval` 约束。
+
+### 2.6 Permission Group 分配
+
+权限组通过 cap-permission Capability 管理：
+
+```typescript
+// 分配用户到权限组
+await ctx.executeAction('assign_permission_group', {
+  actor_id: 'user_001',
+  group: 'purchase_approver',
+})
+
+// 移除用户的权限组
+await ctx.executeAction('remove_permission_group', {
+  actor_id: 'user_001',
+  group: 'purchase_approver',
+})
+```
+
+权限组信息存储在用户记录中，登录时加载到 JWT claims 的 `groups[]` 字段。
+
 ## 3. 数据权限（行级）
 
 除了"能不能调 Action"，还需要控制"能操作哪些数据"。
@@ -193,7 +237,7 @@ Action 请求进来
 ```typescript
 // 数据权限规则
 export const staffDataAccess = defineDataAccess({
-  role: 'staff',
+  group: 'staff',
   schema: 'purchase_request',
 
   // 读：只能看自己部门的
@@ -210,27 +254,293 @@ export const staffDataAccess = defineDataAccess({
 
 数据权限在 ctx.get / ctx.query 时自动附加，开发者不需要在 Action handler 里手动过滤。
 
+### 3.1 变量解析
+
+DataAccess 条件中支持以下变量：
+
+| 变量 | 解析为 | 示例 |
+|------|--------|------|
+| `$actor.id` | 当前 Actor 的 ID | `{ field: 'created_by', operator: 'eq', value: '$actor.id' }` |
+| `$actor.groups` | 当前 Actor 的权限组列表 | 用于 `in` 操作符 |
+| `$actor.metadata.*` | Actor 元数据的任意字段 | `$actor.metadata.department` |
+| `$tenant.id` | 当前租户 ID | 自动附加，无需手动使用 |
+
+变量在 ActionExecutor 执行权限检查时解析，替换为实际值后作为查询条件附加到数据访问层。
+
+```typescript
+// 解析示例
+function resolveVariable(variable: string, ctx: CommandContext): unknown {
+  if (variable === '$actor.id') return ctx.actor.id
+  if (variable === '$actor.groups') return ctx.actor.groups
+  if (variable.startsWith('$actor.metadata.')) {
+    const key = variable.slice('$actor.metadata.'.length)
+    return ctx.actor.metadata?.[key]
+  }
+  if (variable === '$tenant.id') return ctx.tenantId
+  throw new Error(`Unknown variable: ${variable}`)
+}
+```
+
 ## 4. 与 Capability 的关系
 
 权限定义属于哪里？
 
-- **通用角色**（admin、staff）→ 系统级定义
-- **业务角色**（采购经理、仓库管理员）→ Capability 级定义
-- **Bridge 可以扩展角色权限** — 安装桥接模块后，角色获得跨模块能力
+- **通用权限组**（admin、staff）→ 系统级定义
+- **业务权限组**（采购经理、仓库管理员）→ Capability 级定义
+- **Bridge 可以扩展权限组** — 安装桥接模块后，权限组获得跨模块能力
 
 ```typescript
 // 在 purchase_inventory_bridge 中
-import { extendRole } from '@linchkit/core'
+import { extendPermissionGroup } from '@linchkit/core'
 
-export const ext = extendRole('warehouse_manager', {
-  permissions: [
-    // 仓库管理员安装桥接模块后，可以查看采购单的入库状态
-    { type: 'read', target: 'purchase_request', fields: ['inbound_status'] },
-  ],
+export const ext = extendPermissionGroup('warehouse_manager', {
+  permissions: {
+    purchase_management: {
+      purchase_request: {
+        fields: { visible: ['inbound_status'] },
+      },
+    },
+  },
 })
 ```
 
-## 5. 与里程碑的关系
+## 6. 认证技术选型
+
+> 详细认证机制设计见 [10a_authentication.md](10a_authentication.md)
+
+### 6.0 合约/实现分离架构
+
+认证采用**合约/实现分离**模式（Contract/Implementation Split）：
+
+```
+@linchkit/core                   ← auth slot + Actor 类型
+@linchkit/cap-auth               ← 合约层：Schema 定义 + Action 接口 + AuthProvider 接口 + 中间件壳
+@linchkit/cap-auth-better-auth   ← 实现层：better-auth 引擎 + 具体 resolver + OAuth 路由
+```
+
+- **cap-auth** 是纯合约包：定义 `AuthProvider` 接口、Schema 形状、Action 签名，但不包含任何具体认证逻辑
+- **cap-auth-better-auth** 实现 `AuthProvider`，将 better-auth 的能力注入 cap-auth 合约
+- 通过 `createCapAuth({ provider })` 工厂函数组装完整的认证能力
+
+```typescript
+import { createCapAuth } from '@linchkit/cap-auth'
+import { createBetterAuthProvider } from '@linchkit/cap-auth-better-auth'
+
+const capAuth = createCapAuth({
+  provider: createBetterAuthProvider({ auth: betterAuth({ ... }) }),
+})
+```
+
+这种分离使得：
+- 未来可替换认证引擎（如 Lucia、自研）而不影响 Schema 和 Action 合约
+- cap-auth 本身无第三方依赖，保持轻量
+- 测试时可注入 mock provider，无需真实认证引擎
+
+### 6.1 核心选型：better-auth
+
+选择 **better-auth** 作为默认认证引擎（通过 `@linchkit/cap-auth-better-auth` 提供），理由：
+
+| 考虑因素 | better-auth 优势 |
+|---------|-----------------|
+| Elysia 集成 | 官方支持 Elysia plugin + macro 模式，零适配成本 |
+| Organization plugin | 内置组织/租户模型，天然匹配 LinchKit 多租户需求 |
+| TypeScript-first | 类型安全，与 LinchKit 全栈 TS 一致 |
+| 动态角色 | 支持运行时动态分配权限组，无需重启 |
+| Session 管理 | 内置 server-side session store，支持 JWT + Refresh Token |
+
+### 6.2 三种认证通道
+
+| 通道 | 适用场景 | 认证方式 | Token 类型 |
+|------|---------|---------|-----------|
+| Human（浏览器） | Web UI 登录 | OAuth2/OIDC + Session Cookie | 短生命周期 JWT (5-15min) + Refresh Token (httpOnly cookie) |
+| M2M（机器间） | 服务间调用、CI/CD、Webhook | API Key | `lk_` 前缀，hashed 存储，scoped，可轮换，绑定 tenant_id |
+| AI Agent（MCP/Tool-use） | LLM 工具调用 | Scoped Bearer Token，服务端注入 | 短生命周期 JWT，scope 受限，权限 = scopes ∩ groups_permissions |
+
+### 6.3 Token 策略
+
+- **Access Token**：短生命周期 JWT（默认 15 分钟），内存/sessionStorage 存储
+- **Refresh Token**：不透明字符串，httpOnly + Secure + SameSite=Strict cookie
+- **API Key**：256-bit 随机 hex，数据库只存 SHA-256 hash，原始 key 仅创建时返回一次
+- **AI Agent Token**：由平台注入，Agent 不决定自己的权限
+
+### 6.4 API Key 管理
+
+```typescript
+interface ApiKeyRecord {
+  id: string
+  name: string               // 人类可读标识，如 "CI Pipeline Key"
+  key_hash: string           // SHA-256(raw_key)
+  key_prefix: string         // 前 8 字符，用于辨识（如 "lk_a1b2"）
+  tenant_id: string          // 绑定租户
+  actor_id: string           // 关联的 Actor
+  scopes: string[]           // 允许的 capability/action
+  expires_at?: Date          // 可选过期时间
+  last_used_at?: Date
+  revoked_at?: Date          // 吊销时间
+}
+```
+
+生命周期：创建 → 使用中 → 轮换（grace period）→ 吊销。支持 key rotation，旧 key 在 grace period 内仍有效。
+
+## 7. 权限评估机制
+
+### 7.1 合并策略：explicit-deny-wins
+
+采用 AWS IAM 模型的合并策略。用户属于多个权限组时：
+
+1. **收集**所有权限组的权限声明
+2. 如果任何一个组 **显式拒绝**（`false`），最终结果为拒绝
+3. 如果没有显式拒绝，任何一个组 **允许**（`true`），最终结果为允许
+4. 如果没有任何声明，最终结果为拒绝（**默认拒绝**）
+
+```typescript
+// 张三 = [staff, purchase_approver]
+// staff:             create_request: true,  approve_request: (未声明)
+// purchase_approver: create_request: false, approve_request: true
+
+// 合并结果：
+// create_request: false  ← explicit deny wins
+// approve_request: true  ← 只有一个声明，允许
+```
+
+### 7.2 Action 权限检查
+
+```typescript
+interface PermissionCheckResult {
+  allowed: boolean
+  reason?: string              // 拒绝原因（用于"为什么不能"诊断）
+  deniedBy?: string            // 哪个权限组拒绝的
+}
+
+/**
+ * Check if an actor can execute an action.
+ * @param actor - The actor attempting the action
+ * @param actionName - Action name, e.g. 'approve_request'
+ * @param capabilityName - Capability name, e.g. 'purchase_management'
+ */
+function checkActionPermission(
+  actor: Actor,
+  actionName: string,
+  capabilityName: string,
+): PermissionCheckResult
+```
+
+### 7.3 数据权限解析
+
+```typescript
+type DataAccessCondition = {
+  field: string
+  operator: 'eq' | 'ne' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte'
+  value: unknown
+}
+
+/**
+ * Resolve the data access condition for an actor on a schema.
+ * Returns 'all' (unrestricted), 'none' (no access), or a condition to filter.
+ */
+function resolveDataAccess(
+  actor: Actor,
+  schemaName: string,
+  operation: 'read' | 'write',
+): DataAccessCondition | 'all' | 'none'
+```
+
+### 7.4 system_admin 权限组
+
+`system_admin` 是一个 **特殊权限组**（不是 Actor 类型），拥有以下特性：
+
+- 跳过所有 Action 权限检查（`checkActionPermission` 直接返回 `allowed: true`）
+- 跳过所有数据权限过滤（`resolveDataAccess` 直接返回 `'all'`）
+- 仍然受 Rule Engine 约束（业务规则不跳过）
+- 所有操作仍记录 Execution Log（审计不跳过）
+
+```typescript
+export const systemAdmin = definePermissionGroup({
+  name: 'system_admin',
+  label: '系统管理员',
+  description: 'Bypasses all permission checks. Does NOT bypass rules or audit.',
+
+  // 不需要逐条声明权限，引擎识别 system_admin 后直接放行
+  systemLevel: 'admin',
+})
+```
+
+> 注意：`system_admin` 是权限组，不是 Actor 类型。任何 Actor 类型（human、ai、external）都可以被分配到 `system_admin` 组，但应严格控制。
+
+### 7.5 前端权限：CASL.js
+
+前端使用 **CASL.js** 构建客户端权限能力对象：
+
+```typescript
+import { defineAbility } from '@casl/ability'
+
+// 服务端返回当前用户的权限组解析结果
+const serverPermissions = await fetch('/api/my-permissions')
+
+// 构建 CASL ability
+const ability = defineAbility((can, cannot) => {
+  for (const perm of serverPermissions) {
+    if (perm.allowed) {
+      can(perm.action, perm.subject, perm.conditions)
+    } else {
+      cannot(perm.action, perm.subject)
+    }
+  }
+})
+
+// 在 UI 中使用
+ability.can('execute', 'approve_request')  // → boolean
+```
+
+前端权限仅用于 UI 交互体验（隐藏/禁用按钮），服务端始终做二次校验。
+
+### 7.6 数据库层：Drizzle RLS
+
+使用 Drizzle ORM 的 `pgPolicy` 实现数据库级行级安全（RLS），作为数据权限的最后一道防线：
+
+```typescript
+import { pgPolicy } from 'drizzle-orm/pg-core'
+
+// Drizzle schema 中声明 RLS policy
+export const purchaseRequestPolicy = pgPolicy('tenant_isolation', {
+  for: 'all',
+  using: sql`tenant_id = current_setting('app.tenant_id')::text`,
+})
+```
+
+RLS 确保即使应用层代码有 bug，数据也不会跨租户泄露。
+
+### 7.7 cap-auth 与 cap-permission
+
+认证和权限作为两个独立的 Capability 实现，分别填充 Command Layer 的 slot（见 [16_command_layer_and_api.md](16_command_layer_and_api.md) §2.2）：
+
+| 包 | 角色 | 职责 |
+|---|------|------|
+| `cap-auth` | 合约层 | 定义 AuthProvider 接口、Schema、Action 签名、中间件壳 |
+| `cap-auth-better-auth` | 实现层 | 实现 AuthProvider：better-auth 引擎 + token/session/API key resolver |
+| `cap-permission` | 独立能力 | 填充 `permission` slot：读取 Actor.groups → 合并权限（explicit-deny-wins）→ 检查 Action/Data 权限 |
+
+cap-auth 通过 `createCapAuth({ provider })` 工厂函数组装，`provider` 由 cap-auth-better-auth 提供。
+
+未安装 cap-auth 时 → 匿名模式（所有请求使用默认 Actor）。
+未安装 cap-permission 时 → 无权限控制（所有 Action 可执行）。
+
+> **注意**：cap-permission 不需要合约/实现分离。权限评估逻辑在 core 中（`checkActionPermission`、`resolveDataAccess`），cap-permission 只是提供管理用的 Schema 和 Action，不存在可替换的"引擎"。
+
+### 7.8 无 Capability 降级行为
+
+cap-auth 和 cap-permission 是**推荐安装**的 Capability，不是框架运行的必要条件。降级行为如下：
+
+| 场景 | Command Layer slot | ctx.actor | 权限检查 | 数据过滤 |
+|------|-------------------|-----------|---------|---------|
+| 无 cap-auth | auth slot 为空，跳过 | 默认匿名 Actor：`{ type: "system", id: "anonymous", groups: [] }` | — | — |
+| 无 cap-permission | permission slot 为空，跳过 | 取决于 cap-auth 是否安装 | 不检查，所有 Action 可执行 | 不过滤，所有数据可访问 |
+| 有 cap-auth，无 cap-permission | auth slot 正常，permission slot 跳过 | 正常解析（已认证的真实用户） | 不检查，所有 Action 可执行 | 不过滤 |
+| 都不装 | 两个 slot 都为空 | 匿名 Actor | 不检查 | 不过滤 |
+
+**注意：** Rule Engine 是框架核心的一部分（不是 Capability），无论是否安装 cap-auth / cap-permission，所有 Rule 仍然正常执行。业务规则不受认证/权限 Capability 的安装状态影响。
+
+## 8. 与里程碑的关系
 
 ### M0
 - Actor 模型基础实现（记录谁做了什么）
@@ -238,11 +548,15 @@ export const ext = extendRole('warehouse_manager', {
 - 不做字段级权限和数据权限
 
 ### M1
+- better-auth 集成 + cap-auth Capability 实现
+- cap-permission 实现（explicit-deny-wins 合并）
 - 数据权限（行级）
+- CASL.js 前端权限集成
 - Proposal / Version 权限
 - AI 权限约束
 
 ### M2
 - 字段级权限
+- Drizzle RLS（pgPolicy）
 - AI 速率限制
 - 完整审计
