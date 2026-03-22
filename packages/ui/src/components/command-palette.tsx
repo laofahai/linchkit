@@ -14,51 +14,54 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "@/components/ui/command"
+} from "@linchkit/ui-kit/components";
 import {
+  ActivityIcon,
   BlocksIcon,
   DatabaseIcon,
   LayoutDashboardIcon,
-  ActivityIcon,
   ScrollTextIcon,
   Settings2Icon,
-} from "lucide-react"
-import { useEffect, useState, useCallback } from "react"
-import { useTranslation } from "react-i18next"
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface CommandPaletteProps {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPaletteProps) {
-  const [internalOpen, setInternalOpen] = useState(false)
-  const open = controlledOpen ?? internalOpen
-  const { t } = useTranslation()
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const { t } = useTranslation();
 
-  const setOpen = useCallback((value: boolean) => {
-    setInternalOpen(value)
-    onOpenChange?.(value)
-  }, [onOpenChange])
+  const setOpen = useCallback(
+    (value: boolean) => {
+      setInternalOpen(value);
+      onOpenChange?.(value);
+    },
+    [onOpenChange],
+  );
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setOpen(!open)
+        e.preventDefault();
+        setOpen(!open);
       }
-    }
-    document.addEventListener("keydown", down)
-    return () => document.removeEventListener("keydown", down)
-  }, [open, setOpen])
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [open, setOpen]);
 
   const runCommand = (href: string) => {
-    setOpen(false)
+    setOpen(false);
     // Use history.pushState + popstate to trigger TanStack Router navigation
     // without needing router context (avoids portal context issues)
-    window.history.pushState({}, "", href)
-    window.dispatchEvent(new PopStateEvent("popstate"))
-  }
+    window.history.pushState({}, "", href);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
 
   return (
     <CommandDialog
@@ -95,9 +98,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
           <CommandItem onSelect={() => runCommand("/admin/settings")}>
             <Settings2Icon />
             <span>{t("nav.settings")}</span>
-            <CommandShortcut>
-              {t("commandPalette.shortcutSettings")}
-            </CommandShortcut>
+            <CommandShortcut>{t("commandPalette.shortcutSettings")}</CommandShortcut>
           </CommandItem>
         </CommandGroup>
 
@@ -110,5 +111,5 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
         </CommandGroup>
       </CommandList>
     </CommandDialog>
-  )
+  );
 }

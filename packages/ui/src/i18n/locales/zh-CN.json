@@ -73,7 +73,13 @@
     "recordCount_other": "{{count}} 条记录",
     "filterHint": "尝试调整筛选条件以查找目标内容。",
     "page": "第 {{current}} 页，共 {{total}} 页",
-    "selected": "项已选中"
+    "selected": "项已选中",
+    "stateRibbon": "按状态筛选",
+    "allStates": "全部",
+    "filteredBy": "已筛选 ({{count}})",
+    "clearAll": "清除全部",
+    "showLess": "收起",
+    "quickFilters": "快速筛选"
   },
   "commandPalette": {
     "title": "命令面板",
@@ -107,9 +113,65 @@
     "stateTransition": "状态变更",
     "rulesEvaluated": "规则评估"
   },
+  "viewTabs": {
+    "newView": "新视图",
+    "saveView": "将当前筛选条件保存为视图",
+    "noFilters": "请先应用筛选条件再保存视图",
+    "saveViewTitle": "保存视图",
+    "saveViewDesc": "将当前筛选条件保存为命名视图，方便快速访问。",
+    "viewName": "视图名称",
+    "viewNamePlaceholder": "例如：我的待办项"
+  },
+  "lens": {
+    "title": "筛选",
+    "description": "按字段搜索和筛选",
+    "trigger": "筛选",
+    "selectField": "选择字段",
+    "selectOperator": "选择运算符",
+    "searchFields": "搜索字段...",
+    "searchOperators": "搜索运算符...",
+    "searchValues": "搜索值...",
+    "noFields": "没有匹配的字段。",
+    "noOperators": "没有匹配的运算符。",
+    "noValues": "没有匹配的值。",
+    "enterValue": "输入值后按回车确认"
+  },
   "language": {
     "label": "语言",
     "en": "English",
     "zhCN": "中文"
+  },
+  "schemas": {
+    "purchase_request": {
+      "_label": "采购申请",
+      "fields": {
+        "title": "标题",
+        "description": "描述",
+        "amount": "金额",
+        "department": "部门",
+        "requester": "申请人",
+        "status": "状态",
+        "priority": "优先级",
+        "requested_at": "申请日期",
+        "approved": "已批准",
+        "notes": "备注"
+      },
+      "enums": {
+        "priority": { "low": "低", "medium": "中", "high": "高", "urgent": "紧急" }
+      },
+      "states": {
+        "draft": "草稿",
+        "pending": "待审批",
+        "approved": "已批准",
+        "rejected": "已拒绝"
+      },
+      "actions": {
+        "create_request": "新建申请",
+        "submit_for_approval": "提交审批",
+        "approve": "批准",
+        "reject": "拒绝",
+        "cancel": "取消申请"
+      }
+    }
   }
 }

@@ -8,30 +8,44 @@ import type { AutoListViewDefinition } from "../components/auto-list";
 
 export const demoSchema: SchemaDefinition = {
   name: "purchase_request",
-  label: "Purchase Request",
+  label: "t:schemas.purchase_request._label",
   fields: {
-    title: { type: "string", required: true, label: "Title", min: 2, max: 100 },
+    title: {
+      type: "string",
+      required: true,
+      label: "t:schemas.purchase_request.fields.title",
+      min: 2,
+      max: 100,
+    },
     amount: {
       type: "number",
       required: true,
-      label: "Amount",
+      label: "t:schemas.purchase_request.fields.amount",
       min: 0,
       ui: { importance: "primary", format: "currency", width: 4 },
     },
-    department: { type: "string", label: "Department" },
-    status: { type: "state", machine: "pr_lifecycle", label: "Status" },
+    department: { type: "string", label: "t:schemas.purchase_request.fields.department" },
+    status: {
+      type: "state",
+      machine: "pr_lifecycle",
+      label: "t:schemas.purchase_request.fields.status",
+    },
     priority: {
       type: "enum",
-      label: "Priority",
+      label: "t:schemas.purchase_request.fields.priority",
       options: [
-        { value: "low", label: "Low" },
-        { value: "medium", label: "Medium" },
-        { value: "high", label: "High" },
+        { value: "low", label: "t:schemas.purchase_request.enums.priority.low" },
+        { value: "medium", label: "t:schemas.purchase_request.enums.priority.medium" },
+        { value: "high", label: "t:schemas.purchase_request.enums.priority.high" },
       ],
     },
-    description: { type: "text", label: "Description", description: "Provide a detailed description of the purchase request." },
-    requested_at: { type: "datetime", label: "Requested At" },
-    approved: { type: "boolean", label: "Approved" },
+    description: {
+      type: "text",
+      label: "t:schemas.purchase_request.fields.description",
+      description: "Provide a detailed description of the purchase request.",
+    },
+    requested_at: { type: "datetime", label: "t:schemas.purchase_request.fields.requested_at" },
+    approved: { type: "boolean", label: "t:schemas.purchase_request.fields.approved" },
   },
   presentation: {
     titleField: "title",
@@ -56,10 +70,10 @@ export const demoStateMachine: StateDefinition = {
     { from: "rejected", to: "pending", action: "submit_for_approval" },
   ],
   meta: {
-    draft: { label: "Draft", color: "secondary" },
-    pending: { label: "Pending", color: "warning" },
-    approved: { label: "Approved", color: "success" },
-    rejected: { label: "Rejected", color: "danger" },
+    draft: { label: "t:schemas.purchase_request.states.draft", color: "secondary" },
+    pending: { label: "t:schemas.purchase_request.states.pending", color: "warning" },
+    approved: { label: "t:schemas.purchase_request.states.approved", color: "success" },
+    rejected: { label: "t:schemas.purchase_request.states.rejected", color: "danger" },
   },
 };
 
@@ -79,26 +93,47 @@ export const demoListView: AutoListViewDefinition = {
   ],
   filters: [
     { field: "title", type: "text", placeholder: "Search by title..." },
-    { field: "status", type: "select", label: "Status", options: [
-      { value: "draft", label: "Draft" },
-      { value: "pending", label: "Pending" },
-      { value: "approved", label: "Approved" },
-      { value: "rejected", label: "Rejected" },
-    ]},
-    { field: "priority", type: "select", label: "Priority" },
-    { field: "department", type: "select", label: "Department", options: [
-      { value: "Operations", label: "Operations" },
-      { value: "Engineering", label: "Engineering" },
-      { value: "Marketing", label: "Marketing" },
-      { value: "HR", label: "HR" },
-    ]},
+    {
+      field: "status",
+      type: "select",
+      label: "t:schemas.purchase_request.fields.status",
+      options: [
+        { value: "draft", label: "t:schemas.purchase_request.states.draft" },
+        { value: "pending", label: "t:schemas.purchase_request.states.pending" },
+        { value: "approved", label: "t:schemas.purchase_request.states.approved" },
+        { value: "rejected", label: "t:schemas.purchase_request.states.rejected" },
+      ],
+    },
+    { field: "priority", type: "select", label: "t:schemas.purchase_request.fields.priority" },
+    {
+      field: "department",
+      type: "select",
+      label: "t:schemas.purchase_request.fields.department",
+      options: [
+        { value: "Operations", label: "Operations" },
+        { value: "Engineering", label: "Engineering" },
+        { value: "Marketing", label: "Marketing" },
+        { value: "HR", label: "HR" },
+      ],
+    },
   ],
   defaultSort: { field: "requested_at", order: "desc" },
   pageSize: 5,
   actions: [
-    { action: "create", label: "New Request", position: "toolbar", variant: "default" },
-    { action: "edit", label: "Edit", position: "row" },
-    { action: "delete", label: "Delete", position: "row", variant: "destructive", confirm: "Are you sure you want to delete this request?" },
+    {
+      action: "create",
+      label: "t:schemas.purchase_request.actions.create_request",
+      position: "toolbar",
+      variant: "default",
+    },
+    { action: "edit", label: "t:common.edit", position: "row" },
+    {
+      action: "delete",
+      label: "t:common.delete",
+      position: "row",
+      variant: "destructive",
+      confirm: "Are you sure you want to delete this request?",
+    },
   ],
 };
 
@@ -153,9 +188,7 @@ export const demoFormView: ViewDefinition & { stateActions?: Record<string, stri
               {
                 type: "group",
                 columns: 1,
-                children: [
-                  { type: "field", field: "description", nolabel: true },
-                ],
+                children: [{ type: "field", field: "description", nolabel: true }],
               },
             ],
           },
@@ -164,10 +197,30 @@ export const demoFormView: ViewDefinition & { stateActions?: Record<string, stri
     ],
   },
   actions: [
-    { action: "submit_for_approval", label: "Submit for Approval", position: "form-header", variant: "default" },
-    { action: "approve", label: "Approve", position: "form-header", variant: "default" },
-    { action: "reject", label: "Reject", position: "form-header", variant: "destructive" },
-    { action: "cancel", label: "Cancel Request", position: "form-header", variant: "ghost" },
+    {
+      action: "submit_for_approval",
+      label: "t:schemas.purchase_request.actions.submit_for_approval",
+      position: "form-header",
+      variant: "default",
+    },
+    {
+      action: "approve",
+      label: "t:schemas.purchase_request.actions.approve",
+      position: "form-header",
+      variant: "default",
+    },
+    {
+      action: "reject",
+      label: "t:schemas.purchase_request.actions.reject",
+      position: "form-header",
+      variant: "destructive",
+    },
+    {
+      action: "cancel",
+      label: "t:schemas.purchase_request.actions.cancel",
+      position: "form-header",
+      variant: "ghost",
+    },
   ],
   // State-driven action mapping: status -> available action names
   stateActions: {

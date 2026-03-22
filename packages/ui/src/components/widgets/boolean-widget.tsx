@@ -1,5 +1,5 @@
+import { Switch } from "@linchkit/ui-kit/components";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { Switch } from "../ui/switch";
 
 export function BooleanDisplay({ value }: WidgetDisplayProps) {
   if (value == null) return <span className="text-muted-foreground">&mdash;</span>;
@@ -15,9 +15,7 @@ export function BooleanInput({ value, onChange, readonly, error }: WidgetInputPr
           onCheckedChange={(checked) => onChange(checked)}
           disabled={readonly}
         />
-        <span className="text-sm text-muted-foreground">
-          {value ? "Yes" : "No"}
-        </span>
+        <span className="text-sm text-muted-foreground">{value ? "Yes" : "No"}</span>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

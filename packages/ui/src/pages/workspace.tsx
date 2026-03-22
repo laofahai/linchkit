@@ -1,6 +1,6 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@linchkit/ui-kit/components";
 import { ClipboardList, Eye, FolderOpen, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
 interface WorkspaceCardData {
   titleKey: string;
@@ -39,9 +39,7 @@ export function WorkspacePage() {
     <div className="space-y-6 p-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">{t("workspace.title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("workspace.subtitle")}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("workspace.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -32,11 +32,15 @@ export {
 export type {
   ActionExecutor,
   ActionExecutorOptions,
+  ApprovalEngine,
+  ApprovalEngineOptions,
   CommandContext,
   CommandExecuteOptions,
   CommandLayer,
   CommandLayerOptions,
   ConditionContext,
+  CreateApprovalOptions,
+  CreateProposalOptions,
   DataProvider,
   DrizzleGeneratorOptions,
   ExecuteOptions,
@@ -47,31 +51,44 @@ export type {
   RuleEvalOutput,
   SlotName,
   StateMachine,
+  ValidationContext,
   ZodGeneratorOptions,
 } from "./engine";
+
 // Engine exports
 export {
   ActionRegistry,
+  bumpVersion,
   canTransition,
   checkActionPermission,
   createActionExecutor,
+  createAIService,
+  createApprovalEngine,
   createCommandLayer,
+  createNoopAIService,
+  createProposalEngine,
   createSchemaRegistry,
   createStateMachine,
+  defaultAIConfig,
   ExposureError,
   evaluateCondition,
   evaluateRules,
   generateDrizzleTable,
   generateZodSchema,
   getAvailableActions,
+  InMemoryApprovalStore,
   InMemoryExecutionLogger,
   PermissionRegistry,
   PipelineError,
+  ProposalEngine,
   resolveConditionVariables,
   resolveDataAccess,
   resolveField,
+  resolveModel,
   SchemaRegistry,
   transition,
+  validatePhase1,
+  validateProposal,
 } from "./engine";
 // Error classes
 export {
@@ -89,3 +106,6 @@ export type * from "./types";
 
 // Non-type exports
 export { ERROR_STATUS_MAP } from "./types";
+
+// Utilities
+export { resolveEnvVars } from "./utils/env";

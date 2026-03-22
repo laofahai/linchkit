@@ -1,12 +1,12 @@
-import { cn } from "@/lib/utils";
-import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
+} from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
+import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 
 export function RefDisplay({ value }: WidgetDisplayProps) {
   if (value == null) return <span className="text-muted-foreground">&mdash;</span>;

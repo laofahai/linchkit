@@ -9,6 +9,11 @@ import type { ActionDefinition, ActionOverride } from "./types/action";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
+import type {
+  DataAccessDefinition,
+  PermissionGroupDefinition,
+  PermissionGroupExtension,
+} from "./types/permission";
 import type { RuleDefinition, RuleOverride } from "./types/rule";
 import type {
   FieldDefinition,
@@ -17,11 +22,6 @@ import type {
   SchemaOverride,
 } from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
-import type {
-  DataAccessDefinition,
-  PermissionGroupDefinition,
-  PermissionGroupExtension,
-} from "./types/permission";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 
 // ── Schema ──────────────────────────────────────────
@@ -122,9 +122,7 @@ export function definePermissionGroup(
   return definition;
 }
 
-export function defineDataAccess(
-  definition: DataAccessDefinition,
-): DataAccessDefinition {
+export function defineDataAccess(definition: DataAccessDefinition): DataAccessDefinition {
   return definition;
 }
 

@@ -2,16 +2,12 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -21,35 +17,35 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { Link, type LinkProps } from "@tanstack/react-router"
-import { ChevronRightIcon } from "lucide-react"
-import { useTranslation } from "react-i18next"
+} from "@linchkit/ui-kit/components";
+import { Link, type LinkProps } from "@tanstack/react-router";
+import { ChevronRightIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function NavMain({
   items,
 }: {
   items: {
-    title: string
-    url: string
-    icon?: React.ReactNode
-    isActive?: boolean
+    title: string;
+    url: string;
+    icon?: React.ReactNode;
+    isActive?: boolean;
     items?: {
-      title: string
-      url: string
-    }[]
-  }[]
+      title: string;
+      url: string;
+    }[];
+  }[];
 }) {
-  const { t } = useTranslation()
-  const { state, isMobile } = useSidebar()
-  const isCollapsed = state === "collapsed" && !isMobile
+  const { t } = useTranslation();
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
-          const hasChildren = item.items && item.items.length > 0
+          const hasChildren = item.items && item.items.length > 0;
 
           if (!hasChildren) {
             return (
@@ -61,7 +57,7 @@ export function NavMain({
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            )
+            );
           }
 
           // Collapsed: use DropdownMenu to show sub-items in a popover
@@ -81,15 +77,13 @@ export function NavMain({
                     <DropdownMenuSeparator />
                     {item.items?.map((subItem) => (
                       <DropdownMenuItem key={subItem.title} asChild>
-                        <Link to={subItem.url as LinkProps["to"]}>
-                          {subItem.title}
-                        </Link>
+                        <Link to={subItem.url as LinkProps["to"]}>{subItem.title}</Link>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </SidebarMenuItem>
-            )
+            );
           }
 
           // Expanded: use Collapsible to show sub-items inline
@@ -123,9 +117,9 @@ export function NavMain({
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
-          )
+          );
         })}
       </SidebarMenu>
     </SidebarGroup>
-  )
+  );
 }

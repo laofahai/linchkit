@@ -73,7 +73,13 @@
     "recordCount_other": "{{count}} records",
     "filterHint": "Try adjusting your filters to find what you're looking for.",
     "page": "Page {{current}} of {{total}}",
-    "selected": "selected"
+    "selected": "selected",
+    "stateRibbon": "Filter by state",
+    "allStates": "All",
+    "filteredBy": "Filtered by ({{count}})",
+    "clearAll": "Clear all",
+    "showLess": "Show less",
+    "quickFilters": "Filters"
   },
   "commandPalette": {
     "title": "Command Palette",
@@ -107,9 +113,65 @@
     "stateTransition": "State Transition",
     "rulesEvaluated": "Rules Evaluated"
   },
+  "viewTabs": {
+    "newView": "New View",
+    "saveView": "Save current filters as view",
+    "noFilters": "Apply filters first to save a view",
+    "saveViewTitle": "Save View",
+    "saveViewDesc": "Save the current filters as a named view for quick access.",
+    "viewName": "View Name",
+    "viewNamePlaceholder": "e.g. My Pending Items"
+  },
+  "lens": {
+    "title": "Filter",
+    "description": "Search and filter by schema fields",
+    "trigger": "Filter",
+    "selectField": "Select a field",
+    "selectOperator": "Select operator",
+    "searchFields": "Search fields...",
+    "searchOperators": "Search operators...",
+    "searchValues": "Search values...",
+    "noFields": "No matching fields.",
+    "noOperators": "No matching operators.",
+    "noValues": "No matching values.",
+    "enterValue": "Enter a value and press Enter"
+  },
   "language": {
     "label": "Language",
     "en": "English",
     "zhCN": "中文"
+  },
+  "schemas": {
+    "purchase_request": {
+      "_label": "Purchase Request",
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "amount": "Amount",
+        "department": "Department",
+        "requester": "Requester",
+        "status": "Status",
+        "priority": "Priority",
+        "requested_at": "Requested At",
+        "approved": "Approved",
+        "notes": "Notes"
+      },
+      "enums": {
+        "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }
+      },
+      "states": {
+        "draft": "Draft",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "actions": {
+        "create_request": "New Request",
+        "submit_for_approval": "Submit for Approval",
+        "approve": "Approve",
+        "reject": "Reject",
+        "cancel": "Cancel Request"
+      }
+    }
   }
 }

@@ -6,7 +6,7 @@
  * Colors are resolved from state-colors utility for consistency.
  */
 
-import { cn } from "@/lib/utils";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import { getStateBarClass, resolveColorToken, type StateColorToken } from "@/lib/state-colors";
 
 export interface StatusBarStep {
@@ -31,12 +31,7 @@ export function StatusBar({ steps, current, onStepClick, className }: StatusBarP
     : "default";
 
   return (
-    <div
-      className={cn(
-        "inline-flex items-stretch rounded bg-muted",
-        className,
-      )}
-    >
+    <div className={cn("inline-flex items-stretch rounded bg-muted", className)}>
       {steps.map((step, i) => {
         const isActive = step.value === current;
         const isCompleted = i < currentIndex;

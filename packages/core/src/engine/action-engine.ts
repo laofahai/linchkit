@@ -14,6 +14,7 @@ import type {
   Actor,
   ValidationResult,
 } from "../types/action";
+import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
@@ -41,10 +42,21 @@ export type ExecutionChannel = "http" | "mcp" | "cli" | "ui" | "internal";
 
 export interface ExecuteOptions {
   channel?: ExecutionChannel;
-  /** When true, skip exposure and permission checks (already handled by CommandLayer) */
-  skipPipelineChecks?: boolean;
+  /** Skip exposure check (already handled by CommandLayer built-in exposure slot) */
+  skipExposureCheck?: boolean;
+  /** Skip permission check (already handled by CommandLayer permission middleware) */
+  skipPermissionCheck?: boolean;
   /** Tenant ID resolved by CommandLayer */
   tenantId?: string;
+  /**
+   * Rule names to skip during re-execution after approval.
+   * The CommandLayer / caller is responsible for checking this list
+   * before evaluating rules, so approved actions don't re-trigger
+   * the same approval flow.
+   */
+  skipRules?: string[];
+  /** Approval ID that authorized this re-execution */
+  approvalId?: string;
 }
 
 // ── ActionRegistry ──────────────────────────────────────────
@@ -107,7 +119,10 @@ function generateExecutionId(): string {
 }
 
 /** Check if the action is exposed for the given channel */
-function isExposed(exposure: ActionExposure | "all" | undefined, channel: ExecutionChannel): boolean {
+function isExposed(
+  exposure: ActionExposure | "all" | undefined,
+  channel: ExecutionChannel,
+): boolean {
   // Default: all channels allowed
   if (exposure === undefined || exposure === "all") {
     return true;
@@ -142,7 +157,7 @@ function checkPermissions(action: ActionDefinition, actor: Actor): string | null
 
   // Check permission groups
   if (perms.groups && perms.groups.length > 0) {
-    const hasGroup = actor.groups.some((g) => perms.groups!.includes(g));
+    const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
     if (!hasGroup) {
       return `Actor does not belong to any of the required groups: ${perms.groups.join(", ")}`;
     }
@@ -152,10 +167,7 @@ function checkPermissions(action: ActionDefinition, actor: Actor): string | null
 }
 
 /** Validate required input fields */
-function validateInput(
-  action: ActionDefinition,
-  input: Record<string, unknown>,
-): ValidationResult {
+function validateInput(action: ActionDefinition, input: Record<string, unknown>): ValidationResult {
   // Check required fields from input definition
   if (action.input) {
     const errors: Array<{ field: string; message: string }> = [];
@@ -173,10 +185,7 @@ function validateInput(
 }
 
 /** Run pre-validation (validate.required on the record, validate.custom) */
-function runPreValidation(
-  action: ActionDefinition,
-  ctx: ActionContext,
-): ValidationResult {
+function runPreValidation(action: ActionDefinition, ctx: ActionContext): ValidationResult {
   if (!action.validate) {
     return { valid: true };
   }
@@ -208,6 +217,8 @@ export interface ActionExecutorOptions {
   dataProvider: DataProvider;
   stateMachine?: StateMachine;
   executionLogger?: ExecutionLogger;
+  /** AI service instance — optional, noop if not provided */
+  aiService?: AIService;
 }
 
 /**
@@ -225,7 +236,7 @@ export interface ActionExecutorOptions {
  */
 export function createActionExecutor(options: ActionExecutorOptions): ActionExecutor {
   const registry = new ActionRegistry();
-  const { dataProvider, stateMachine, executionLogger } = options;
+  const { dataProvider, stateMachine, executionLogger, aiService } = options;
 
   /** Helper: build and log an execution entry */
   function logExecution(
@@ -266,31 +277,34 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 2 & 3: Exposure + Permission checks
-    // Skipped when CommandLayer has already performed these checks
-    if (!execOptions?.skipPipelineChecks) {
-      // Step 2: Exposure check
-      if (execOptions?.channel) {
-        if (!isExposed(action.exposure, execOptions.channel)) {
-          const errorMsg = `Action "${actionName}" is not exposed for channel "${execOptions.channel}"`;
-          logExecution({
-            id: executionId,
-            action: actionName,
-            schema: action.schema,
-            actor,
-            input,
-            status: "blocked",
-            error: { message: errorMsg },
-            startedAt,
-          });
-          return {
-            success: false,
-            data: { error: errorMsg } as T,
-            executionId,
-          };
-        }
-      }
+    // Granular flags allow CommandLayer to skip only the checks it has handled
+    const skipExposure = execOptions?.skipExposureCheck ?? false;
+    const skipPermission = execOptions?.skipPermissionCheck ?? false;
 
-      // Step 3: Permission check
+    // Step 2: Exposure check
+    if (!skipExposure && execOptions?.channel) {
+      if (!isExposed(action.exposure, execOptions.channel)) {
+        const errorMsg = `Action "${actionName}" is not exposed for channel "${execOptions.channel}"`;
+        logExecution({
+          id: executionId,
+          action: actionName,
+          schema: action.schema,
+          actor,
+          input,
+          status: "blocked",
+          error: { message: errorMsg },
+          startedAt,
+        });
+        return {
+          success: false,
+          data: { error: errorMsg } as T,
+          executionId,
+        };
+      }
+    }
+
+    // Step 3: Permission check
+    if (!skipPermission) {
       const permError = checkPermissions(action, actor);
       if (permError) {
         logExecution({
@@ -333,9 +347,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Build ActionContext
     const childExecutionIds: string[] = [];
+    const noopAi: AIService = {
+      complete: () => {
+        throw new Error(
+          "AI service is not configured. Add an 'ai' section to your LinchKit config.",
+        );
+      },
+    };
     const ctx: ActionContext = {
       input,
       actor,
+      ai: aiService ?? noopAi,
       executionId,
       timestamp: startedAt,
       get: (schema, id) => dataProvider.get(schema, id),
@@ -441,7 +463,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Step 7: Execute
     try {
-      let resultData: unknown = undefined;
+      let resultData: unknown;
       let record: Record<string, unknown> | undefined;
 
       if (action.handler) {

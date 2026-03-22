@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  createActionExecutor,
-  type DataProvider,
-} from "../src/engine/action-engine";
+import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
 import { InMemoryExecutionLogger } from "../src/engine/execution-logger";
 import type { ActionDefinition, Actor } from "../src/types/action";
 
@@ -213,7 +210,11 @@ describe("ActionExecutor with ExecutionLogger", () => {
     });
 
     executor.registry.register(createOrderAction);
-    const result = await executor.execute("create_order", { title: "Test Order", amount: 100 }, defaultActor);
+    const result = await executor.execute(
+      "create_order",
+      { title: "Test Order", amount: 100 },
+      defaultActor,
+    );
 
     expect(result.success).toBe(true);
     expect(logger.size).toBe(1);
@@ -302,7 +303,7 @@ describe("ActionExecutor with ExecutionLogger", () => {
     const childEntry = logger.getByAction("child_action")[0];
 
     expect(parentEntry.childExecutionIds).toHaveLength(1);
-    expect(parentEntry.childExecutionIds![0]).toBe(childEntry.id);
+    expect(parentEntry.childExecutionIds?.[0]).toBe(childEntry.id);
   });
 
   it("should not break when no logger is provided", async () => {

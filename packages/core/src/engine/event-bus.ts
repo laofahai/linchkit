@@ -6,11 +6,7 @@
  * priority ordering, filtering, and sync/async execution modes.
  */
 
-import type {
-  EventHandlerContext,
-  EventHandlerDefinition,
-  EventRecord,
-} from "../types/event";
+import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 
 // ── Default priority ────────────────────────────────────────
 
@@ -57,10 +53,7 @@ export class EventHandlerRegistry {
  * Simple field matching: every key in the filter must match the
  * corresponding field in the event payload.
  */
-function matchesFilter(
-  payload: Record<string, unknown>,
-  filter: Record<string, unknown>,
-): boolean {
+function matchesFilter(payload: Record<string, unknown>, filter: Record<string, unknown>): boolean {
   for (const [key, value] of Object.entries(filter)) {
     if (payload[key] !== value) {
       return false;
@@ -102,9 +95,7 @@ export class EventBus {
     });
 
     // Sort by priority (lower number = higher priority)
-    matched.sort(
-      (a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY),
-    );
+    matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
 
     // Build handler context
     const ctx = this.createHandlerContext();

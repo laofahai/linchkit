@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
+import { Textarea } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { Textarea } from "../ui/textarea";
 
 export function JsonDisplay({ value }: WidgetDisplayProps) {
   if (value == null) return <span className="text-muted-foreground">&mdash;</span>;
@@ -11,11 +11,10 @@ export function JsonInput({ value, onChange, onBlur, readonly, error, dirty }: W
   return (
     <div className="space-y-1">
       <Textarea
-        className={cn(
-          "min-h-[120px] font-mono text-xs",
-          dirty && !error && "border-blue-300",
-        )}
-        value={value != null ? (typeof value === "string" ? value : JSON.stringify(value, null, 2)) : ""}
+        className={cn("min-h-[120px] font-mono text-xs", dirty && !error && "border-blue-300")}
+        value={
+          value != null ? (typeof value === "string" ? value : JSON.stringify(value, null, 2)) : ""
+        }
         onChange={(e) => {
           try {
             onChange(JSON.parse(e.target.value));

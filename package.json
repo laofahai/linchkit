@@ -19,6 +19,9 @@
     "bun-types": "latest"
   },
   "dependencies": {
-    "@tanstack/react-table": "^8.21.3"
+    "@ai-sdk/anthropic": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.47",
+    "@tanstack/react-table": "^8.21.3",
+    "ai": "^6.0.134"
   }
 }

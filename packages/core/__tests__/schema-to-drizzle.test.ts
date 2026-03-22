@@ -34,9 +34,9 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "code");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgVarchar");
+    expect(col?.columnType).toBe("PgVarchar");
     // max should be used as varchar length
-    expect((col as any).length).toBe(100);
+    expect((col as Record<string, unknown>).length).toBe(100);
   });
 
   test("string field without max defaults to varchar(255)", () => {
@@ -49,8 +49,8 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "name");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgVarchar");
-    expect((col as any).length).toBe(255);
+    expect(col?.columnType).toBe("PgVarchar");
+    expect((col as Record<string, unknown>).length).toBe(255);
   });
 
   test("text field maps to text", () => {
@@ -63,7 +63,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "description");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgText");
+    expect(col?.columnType).toBe("PgText");
   });
 
   test("number field maps to numeric", () => {
@@ -76,7 +76,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "amount");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgNumeric");
+    expect(col?.columnType).toBe("PgNumeric");
   });
 
   test("boolean field maps to boolean", () => {
@@ -89,7 +89,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "active");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgBoolean");
+    expect(col?.columnType).toBe("PgBoolean");
   });
 
   test("date field maps to date", () => {
@@ -102,7 +102,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "start_date");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgDateString");
+    expect(col?.columnType).toBe("PgDateString");
   });
 
   test("datetime field maps to timestamp", () => {
@@ -115,7 +115,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "event_time");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgTimestamp");
+    expect(col?.columnType).toBe("PgTimestamp");
   });
 
   test("enum field maps to varchar", () => {
@@ -131,7 +131,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "priority");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgVarchar");
+    expect(col?.columnType).toBe("PgVarchar");
   });
 
   test("json field maps to jsonb", () => {
@@ -144,7 +144,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "metadata");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgJsonb");
+    expect(col?.columnType).toBe("PgJsonb");
   });
 
   test("ref field maps to varchar (ID storage)", () => {
@@ -157,7 +157,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "department");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgVarchar");
+    expect(col?.columnType).toBe("PgVarchar");
   });
 
   test("state field maps to varchar", () => {
@@ -170,7 +170,7 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "status");
     expect(col).toBeDefined();
-    expect(col!.columnType).toBe("PgVarchar");
+    expect(col?.columnType).toBe("PgVarchar");
   });
 
   test("system columns (id, tenant_id, etc.) are always included", () => {
@@ -192,17 +192,17 @@ describe("generateDrizzleTable", () => {
 
     // Verify specific system column properties
     const id = getColumn(table, "id");
-    expect(id!.config.primaryKey).toBe(true);
+    expect((id as Record<string, unknown>).config).toHaveProperty("primaryKey", true);
 
     const createdAt = getColumn(table, "created_at");
-    expect(createdAt!.notNull).toBe(true);
+    expect(createdAt?.notNull).toBe(true);
 
     const updatedAt = getColumn(table, "updated_at");
-    expect(updatedAt!.notNull).toBe(true);
+    expect(updatedAt?.notNull).toBe(true);
 
     const version = getColumn(table, "_version");
-    expect(version!.notNull).toBe(true);
-    expect(version!.columnType).toBe("PgInteger");
+    expect(version?.notNull).toBe(true);
+    expect(version?.columnType).toBe("PgInteger");
   });
 
   test("computed and has_many fields are skipped", () => {
@@ -239,8 +239,8 @@ describe("generateDrizzleTable", () => {
     };
     const table = generateDrizzleTable(schema);
 
-    expect(getColumn(table, "name")!.notNull).toBe(true);
-    expect(getColumn(table, "bio")!.notNull).toBe(false);
+    expect(getColumn(table, "name")?.notNull).toBe(true);
+    expect(getColumn(table, "bio")?.notNull).toBe(false);
   });
 
   test("unique fields have unique constraint", () => {
@@ -252,7 +252,7 @@ describe("generateDrizzleTable", () => {
     };
     const table = generateDrizzleTable(schema);
     const col = getColumn(table, "email");
-    expect(col!.isUnique).toBe(true);
+    expect(col?.isUnique).toBe(true);
   });
 
   test("table prefix option works", () => {

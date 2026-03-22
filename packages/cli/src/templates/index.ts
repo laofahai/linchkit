@@ -4,6 +4,8 @@
 
 export function linchkitConfigTemplate(dbName: string): string {
   return `import { defineConfig } from '@linchkit/core'
+import { capAuth } from '@linchkit/cap-auth'
+import { capPermission } from '@linchkit/cap-permission'
 
 export default defineConfig({
   // Database
@@ -24,6 +26,12 @@ export default defineConfig({
     port: 3000,
     host: '0.0.0.0',
   },
+
+  // Installed capabilities
+  capabilities: [
+    capAuth,
+    capPermission,
+  ],
 })
 `;
 }
@@ -41,6 +49,8 @@ export function packageJsonTemplate(projectName: string): string {
       dependencies: {
         "@linchkit/core": "^0.0.1",
         "@linchkit/cli": "^0.0.1",
+        "@linchkit/cap-auth": "^0.0.1",
+        "@linchkit/cap-permission": "^0.0.1",
       },
     },
     null,

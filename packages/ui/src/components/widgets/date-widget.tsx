@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
+import { Input } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { Input } from "../ui/input";
 import { formatDate, requiredBg, toDateInputValue } from "./utils";
 
 export function DateDisplay({ value }: WidgetDisplayProps) {
@@ -8,7 +8,15 @@ export function DateDisplay({ value }: WidgetDisplayProps) {
   return <span>{formatDate(value)}</span>;
 }
 
-export function DateInput({ value, onChange, onBlur, readonly, error, dirty, required }: WidgetInputProps) {
+export function DateInput({
+  value,
+  onChange,
+  onBlur,
+  readonly,
+  error,
+  dirty,
+  required,
+}: WidgetInputProps) {
   return (
     <div className="space-y-1">
       <Input

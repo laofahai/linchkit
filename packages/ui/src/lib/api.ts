@@ -8,8 +8,8 @@
 // ── GraphQL ─────────────────────────────────────────────
 
 export interface GraphQLResponse<T = unknown> {
-  data?: T
-  errors?: { message: string; locations?: unknown[]; path?: string[] }[]
+  data?: T;
+  errors?: { message: string; locations?: unknown[]; path?: string[] }[];
 }
 
 /**
@@ -23,41 +23,48 @@ export async function graphql<T = unknown>(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
-  })
-  return res.json()
+  });
+  return res.json();
 }
 
 /** Throw if a GraphQL response contains errors. */
 function throwOnErrors(res: GraphQLResponse): void {
-  const errors = res.errors
+  const errors = res.errors;
   if (errors && errors.length > 0) {
-    throw new Error(errors[0]!.message)
+    const firstError = errors.at(0);
+    throw new Error(firstError?.message ?? "Unknown GraphQL error");
   }
 }
 
 // ── Typed query helpers ─────────────────────────────────
 
 export interface ListQueryOptions {
-  schema: string
-  filter?: Record<string, unknown>
-  sortField?: string
-  sortOrder?: "asc" | "desc"
-  page?: number
-  pageSize?: number
-  fields: string[]
+  schema: string;
+  filter?: Record<string, unknown>;
+  sortField?: string;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+  fields: string[];
 }
 
 export interface ListResult<T = Record<string, unknown>> {
-  items: T[]
-  total: number
+  items: T[];
+  total: number;
 }
 
 /**
  * Convert snake_case schema name to camelCase for GraphQL query names.
  */
 function toCamelCase(name: string): string {
-  const parts = name.split(/[_-]/)
-  return parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join("")
+  const parts = name.split(/[_-]/);
+  return (
+    parts[0] +
+    parts
+      .slice(1)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join("")
+  );
 }
 
 /**
@@ -66,8 +73,8 @@ function toCamelCase(name: string): string {
 export async function queryList<T = Record<string, unknown>>(
   options: ListQueryOptions,
 ): Promise<ListResult<T>> {
-  const queryName = `${toCamelCase(options.schema)}List`
-  const fieldList = options.fields.join(" ")
+  const queryName = `${toCamelCase(options.schema)}List`;
+  const fieldList = options.fields.join(" ");
 
   const query = `
     query ($filter: String, $sortField: String, $sortOrder: String, $page: Int, $pageSize: Int) {
@@ -76,21 +83,21 @@ export async function queryList<T = Record<string, unknown>>(
         total
       }
     }
-  `
+  `;
 
   const variables: Record<string, unknown> = {
     sortField: options.sortField,
     sortOrder: options.sortOrder,
     page: options.page,
     pageSize: options.pageSize,
-  }
+  };
   if (options.filter && Object.keys(options.filter).length > 0) {
-    variables.filter = JSON.stringify(options.filter)
+    variables.filter = JSON.stringify(options.filter);
   }
 
-  const res = await graphql<Record<string, ListResult<T>>>(query, variables)
-  throwOnErrors(res)
-  return res.data?.[queryName] ?? { items: [], total: 0 }
+  const res = await graphql<Record<string, ListResult<T>>>(query, variables);
+  throwOnErrors(res);
+  return res.data?.[queryName] ?? { items: [], total: 0 };
 }
 
 /**
@@ -101,24 +108,27 @@ export async function queryRecord<T = Record<string, unknown>>(
   id: string,
   fields: string[],
 ): Promise<T | null> {
-  const queryName = toCamelCase(schema)
-  const fieldList = fields.join(" ")
+  const queryName = toCamelCase(schema);
+  const fieldList = fields.join(" ");
 
   const query = `
     query ($id: ID!) {
       ${queryName}(id: $id) { ${fieldList} }
     }
-  `
+  `;
 
-  const res = await graphql<Record<string, T | null>>(query, { id })
-  throwOnErrors(res)
-  return res.data?.[queryName] ?? null
+  const res = await graphql<Record<string, T | null>>(query, { id });
+  throwOnErrors(res);
+  return res.data?.[queryName] ?? null;
 }
 
 // ── Mutations ───────────────────────────────────────────
 
 function toPascalCase(name: string): string {
-  return name.split(/[_-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join("")
+  return name
+    .split(/[_-]/)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join("");
 }
 
 /**
@@ -129,20 +139,20 @@ export async function createRecord<T = Record<string, unknown>>(
   input: Record<string, unknown>,
   fields: string[],
 ): Promise<T> {
-  const mutationName = `create${toPascalCase(schema)}`
-  const fieldList = fields.join(" ")
+  const mutationName = `create${toPascalCase(schema)}`;
+  const fieldList = fields.join(" ");
 
   const query = `
     mutation ($input: ${toPascalCase(schema)}Input!) {
       ${mutationName}(input: $input) { ${fieldList} }
     }
-  `
+  `;
 
-  const res = await graphql<Record<string, T>>(query, { input })
-  throwOnErrors(res)
-  const result = res.data?.[mutationName]
-  if (result === undefined) throw new Error("No data returned")
-  return result
+  const res = await graphql<Record<string, T>>(query, { input });
+  throwOnErrors(res);
+  const result = res.data?.[mutationName];
+  if (result === undefined) throw new Error("No data returned");
+  return result;
 }
 
 /**
@@ -154,80 +164,86 @@ export async function updateRecord<T = Record<string, unknown>>(
   input: Record<string, unknown>,
   fields: string[],
 ): Promise<T> {
-  const mutationName = `update${toPascalCase(schema)}`
-  const fieldList = fields.join(" ")
+  const mutationName = `update${toPascalCase(schema)}`;
+  const fieldList = fields.join(" ");
 
   const query = `
     mutation ($id: ID!, $input: ${toPascalCase(schema)}Input!) {
       ${mutationName}(id: $id, input: $input) { ${fieldList} }
     }
-  `
+  `;
 
-  const res = await graphql<Record<string, T>>(query, { id, input })
-  throwOnErrors(res)
-  const result = res.data?.[mutationName]
-  if (result === undefined) throw new Error("No data returned")
-  return result
+  const res = await graphql<Record<string, T>>(query, { id, input });
+  throwOnErrors(res);
+  const result = res.data?.[mutationName];
+  if (result === undefined) throw new Error("No data returned");
+  return result;
 }
 
 /**
  * Delete a record via GraphQL mutation.
  */
-export async function deleteRecord(
-  schema: string,
-  id: string,
-): Promise<boolean> {
-  const mutationName = `delete${toPascalCase(schema)}`
+export async function deleteRecord(schema: string, id: string): Promise<boolean> {
+  const mutationName = `delete${toPascalCase(schema)}`;
 
   const query = `
     mutation ($id: ID!) {
       ${mutationName}(id: $id)
     }
-  `
+  `;
 
-  const res = await graphql<Record<string, boolean>>(query, { id })
-  throwOnErrors(res)
-  const result = res.data?.[mutationName]
-  if (result === undefined) throw new Error("No data returned")
-  return result
+  const res = await graphql<Record<string, boolean>>(query, { id });
+  throwOnErrors(res);
+  const result = res.data?.[mutationName];
+  if (result === undefined) throw new Error("No data returned");
+  return result;
 }
 
 // ── Schema metadata ─────────────────────────────────────
 
+/** Lightweight schema info for navigation (from GET /api/schemas) */
 export interface SchemaInfo {
-  name: string
-  label?: string
-  description?: string
-  fields: Record<string, unknown>
-  presentation?: Record<string, unknown>
+  name: string;
+  label?: string;
+  description?: string;
+}
+
+/** Full schema bundle with views (from GET /api/schemas/:name) */
+export interface SchemaBundle {
+  name: string;
+  label?: string;
+  description?: string;
+  fields: Record<string, unknown>;
+  presentation?: Record<string, unknown>;
+  views: Record<string, unknown>;
 }
 
 /**
- * Fetch all registered schemas from the server.
+ * Fetch all registered schemas from the server (lightweight list).
  */
 export async function fetchSchemas(): Promise<SchemaInfo[]> {
-  const res = await fetch("/api/schemas")
-  const json = await res.json()
-  return json.data ?? []
+  const res = await fetch("/api/schemas");
+  const json = await res.json();
+  return json.data ?? [];
 }
 
 /**
- * Fetch a single schema definition by name.
+ * Fetch a full schema bundle (schema + views) by name.
  */
-export async function fetchSchema(name: string): Promise<SchemaInfo | null> {
-  const res = await fetch(`/api/schemas/${name}`)
-  if (!res.ok) return null
-  const json = await res.json()
-  return json.data ?? null
+export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | null> {
+  const res = await fetch(`/api/schemas/${name}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data ?? null;
 }
 
 // ── REST Action execution ───────────────────────────────
 
 export interface ActionResult {
-  success: boolean
-  data?: unknown
-  error?: { code: string; message: string; details?: unknown }
-  meta?: { executionId?: string }
+  success: boolean;
+  data?: unknown;
+  error?: { code: string; message: string; details?: unknown };
+  meta?: { executionId?: string };
 }
 
 /**
@@ -241,6 +257,6 @@ export async function executeAction(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
-  })
-  return res.json()
+  });
+  return res.json();
 }

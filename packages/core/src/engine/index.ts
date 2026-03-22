@@ -12,6 +12,21 @@ export {
   type ExecuteOptions,
   type ExecutionChannel,
 } from "./action-engine";
+// AI service
+export {
+  createAIService,
+  createNoopAIService,
+  defaultAIConfig,
+  resolveModel,
+} from "./ai-service";
+// Approval engine
+export {
+  type ApprovalEngine,
+  type ApprovalEngineOptions,
+  type CreateApprovalOptions,
+  createApprovalEngine,
+  InMemoryApprovalStore,
+} from "./approval-engine";
 // Command layer
 export {
   type CommandContext,
@@ -38,6 +53,13 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "./permission-engine";
+// Proposal engine
+export {
+  bumpVersion,
+  type CreateProposalOptions,
+  createProposalEngine,
+  ProposalEngine,
+} from "./proposal-engine";
 export { evaluateRules, type RuleEvalInput, type RuleEvalOutput } from "./rule-engine";
 // Schema registry
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
@@ -52,3 +74,9 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
+// Validation engine
+export {
+  type ValidationContext,
+  validatePhase1,
+  validateProposal,
+} from "./validation-engine";

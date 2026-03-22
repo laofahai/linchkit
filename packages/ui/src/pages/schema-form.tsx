@@ -1,59 +1,83 @@
 /**
- * SchemaFormPage — Record view with Sheet layout.
+ * SchemaFormPage — Dynamic record view powered by schema bundle from API.
  *
- * Fetches record from GraphQL API, submits create/update mutations,
- * executes business actions via REST. Falls back to demo data if API unavailable.
+ * Fetches schema + view definitions from server, falls back to demo data
+ * if API unavailable. Control panel with business actions + edit/save.
  *
  * Control panel: [← back] ............... [business actions | edit/save]
  * Sheet card:    [Record Title]  [Status Bar]
  *                form fields...
  */
 
+import type { SchemaDefinition, ViewAction, ViewDefinition } from "@linchkit/core";
+import { Button, Separator } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AutoForm } from "../components/auto-form";
-import { Separator } from "../components/ui/separator";
+import type { ViewDefinitionWithStateActions } from "../components/auto-form/types";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
-import { Button } from "../components/ui/button";
-import { queryRecord, createRecord, updateRecord, executeAction } from "../lib/api";
-import { demoSchema, demoFormView, demoData, demoStateMachine } from "./schema-demo-data";
+import { useSchemaBundle } from "../hooks/use-schema-bundle";
+import { useSchemaLabel } from "../i18n/use-schema-label";
+import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
+import { demoData, demoFormView, demoSchema, demoStateMachine } from "./schema-demo-data";
 
-// Derive StatusBar steps from state machine definition
-const purchaseStatusSteps: StatusBarStep[] = demoStateMachine.states.map((state) => {
-  const meta = demoStateMachine.meta?.[state];
-  return {
-    value: state,
-    label: meta?.label ?? state.charAt(0).toUpperCase() + state.slice(1),
-    color: meta?.color,
-  };
-});
+/** Derive StatusBar steps from state machine meta in schema presentation */
+function deriveStatusSteps(schema: SchemaDefinition): StatusBarStep[] | null {
+  // Look for a state field and its meta info in presentation
+  const stateField = Object.entries(schema.fields).find(([, f]) => f.type === "state");
+  if (!stateField) return null;
+  // For now we don't have state machine info in schema bundle — return null
+  return null;
+}
 
-/** GraphQL fields to fetch for the record */
-const RECORD_FIELDS = ["id", "title", "amount", "department", "status", "priority", "description", "notes", "requester"];
+/** Extract GraphQL field names from view fields */
+function getRecordFields(view: ViewDefinition): string[] {
+  const fields = new Set<string>(["id"]);
+  for (const f of view.fields) {
+    if (!f.field.includes(".")) {
+      fields.add(f.field);
+    }
+  }
+  return Array.from(fields);
+}
 
-function getBusinessActions(status?: string) {
-  if (!status) return [];
-  const mapping: Record<string, { action: string; label: string; variant?: string }[]> = {
-    draft: [
-      { action: "submit_purchase_request", label: "Submit for Approval" },
-    ],
-    pending: [
-      { action: "approve_purchase_request", label: "Approve" },
-    ],
-    approved: [],
-    rejected: [
-      { action: "submit_purchase_request", label: "Resubmit" },
-    ],
-  };
-  return mapping[status] ?? [];
+function getPrimaryView<TView extends { type: string }>(
+  views: Record<string, TView> | undefined,
+  type: TView["type"],
+): TView | undefined {
+  return Object.values(views ?? {}).find((view) => view.type === type);
 }
 
 export function SchemaFormPage() {
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
-
   const schemaName = params.name ?? demoSchema.name;
+  const { resolveLabel } = useSchemaLabel();
+
+  // Fetch schema bundle from API
+  const { bundle, loading: bundleLoading, error: bundleError } = useSchemaBundle(schemaName);
+
+  // Resolve schema + view from bundle or fallback to demo
+  const schema: SchemaDefinition = bundle?.schema ?? demoSchema;
+  const formView: ViewDefinition = getPrimaryView(bundle?.views, "form") ?? demoFormView;
+  const usingDemoFallback = !bundle || bundleError;
+
+  // Status bar steps: from demo state machine when using fallback
+  const statusSteps = useMemo((): StatusBarStep[] | null => {
+    if (usingDemoFallback) {
+      return demoStateMachine.states.map((state) => {
+        const meta = demoStateMachine.meta?.[state];
+        return {
+          value: state,
+          label: resolveLabel(meta?.label, state.charAt(0).toUpperCase() + state.slice(1)),
+          color: meta?.color,
+        };
+      });
+    }
+    return deriveStatusSteps(schema);
+  }, [schema, usingDemoFallback, resolveLabel]);
+
   const isCreate = !params.id || params.id === "new";
   const [formMode, setFormMode] = useState<"create" | "edit" | "view">(
     isCreate ? "create" : "view",
@@ -63,36 +87,50 @@ export function SchemaFormPage() {
   const [saving, setSaving] = useState(false);
   const [usingApi, setUsingApi] = useState(false);
 
+  const recordFields = useMemo(() => getRecordFields(formView), [formView]);
+
   const fetchRecord = useCallback(async () => {
     if (isCreate || !params.id) return;
     setLoading(true);
     try {
-      const result = await queryRecord(schemaName, params.id, RECORD_FIELDS);
+      const result = await queryRecord(schemaName, params.id, recordFields);
       if (result) {
         setRecord(result as Record<string, unknown>);
         setUsingApi(true);
       } else {
-        // Fall back to demo data
         const demo = demoData.find((r) => r.id === params.id);
         setRecord(demo);
         setUsingApi(false);
       }
     } catch {
-      // API unavailable — fall back to demo data
       const demo = demoData.find((r) => r.id === params.id);
       setRecord(demo);
       setUsingApi(false);
     } finally {
       setLoading(false);
     }
-  }, [isCreate, params.id, schemaName]);
+  }, [isCreate, params.id, schemaName, recordFields]);
 
   useEffect(() => {
-    fetchRecord();
-  }, [fetchRecord]);
+    if (!bundleLoading) {
+      fetchRecord();
+    }
+  }, [fetchRecord, bundleLoading]);
 
+  // Resolve business actions from view's stateActions mapping
   const recordStatus = record ? String(record.status ?? "") : undefined;
-  const businessActions = getBusinessActions(recordStatus);
+  const businessActions = useMemo(() => {
+    const viewWithState = formView as ViewDefinitionWithStateActions;
+    const allActions = formView.actions ?? [];
+    const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
+
+    if (viewWithState.stateActions && recordStatus && recordStatus in viewWithState.stateActions) {
+      const available = viewWithState.stateActions[recordStatus] ?? [];
+      return headerActions.filter((a) => available.includes(a.action));
+    }
+    return headerActions;
+  }, [formView, recordStatus]);
+
   const isEditing = formMode === "edit" || formMode === "create";
 
   async function handleSubmit(data: Record<string, unknown>) {
@@ -100,9 +138,9 @@ export function SchemaFormPage() {
     try {
       if (usingApi || isCreate) {
         if (isCreate) {
-          await createRecord(schemaName, data, RECORD_FIELDS);
+          await createRecord(schemaName, data, recordFields);
         } else if (params.id) {
-          await updateRecord(schemaName, params.id, data, RECORD_FIELDS);
+          await updateRecord(schemaName, params.id, data, recordFields);
         }
       }
       if (isCreate) {
@@ -150,7 +188,7 @@ export function SchemaFormPage() {
     navigate({ to: "/schemas/$name", params: { name: schemaName } });
   }
 
-  if (loading) {
+  if (bundleLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -158,9 +196,11 @@ export function SchemaFormPage() {
     );
   }
 
+  // Resolve record title from schema's presentation.titleField
+  const titleField = schema.presentation?.titleField as string | undefined;
   const recordTitle = isCreate
     ? "New"
-    : String(record?.title ?? params.id ?? "");
+    : String((titleField && record?.[titleField]) ?? record?.title ?? params.id ?? "");
 
   return (
     <div className="bg-muted/30 min-h-full">
@@ -176,11 +216,17 @@ export function SchemaFormPage() {
               <Button
                 key={a.action}
                 size="sm"
-                variant={a.variant === "destructive" ? "destructive" : a.variant === "ghost" ? "ghost" : "default"}
+                variant={
+                  a.variant === "destructive"
+                    ? "destructive"
+                    : a.variant === "ghost"
+                      ? "ghost"
+                      : "default"
+                }
                 disabled={saving}
                 onClick={() => handleAction(a.action)}
               >
-                {a.label}
+                {resolveLabel(a.label, a.action)}
               </Button>
             ))}
 
@@ -214,17 +260,15 @@ export function SchemaFormPage() {
         <div className="flex-1 min-w-0">
           <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-semibold text-foreground">
-                {recordTitle}
-              </h1>
-              {!isCreate && recordStatus && (
-                <StatusBar steps={purchaseStatusSteps} current={recordStatus} />
+              <h1 className="text-xl font-semibold text-foreground">{recordTitle}</h1>
+              {!isCreate && recordStatus && statusSteps && (
+                <StatusBar steps={statusSteps} current={recordStatus} />
               )}
             </div>
 
             <AutoForm
-              schema={demoSchema}
-              view={demoFormView}
+              schema={schema}
+              view={formView}
               data={record}
               recordStatus={recordStatus}
               mode={formMode}

@@ -31,10 +31,7 @@ export class LinchKitError extends Error {
   readonly statusCode: number;
   readonly type: ErrorType;
 
-  constructor(
-    options: LinchKitErrorOptions,
-    type: ErrorType = "system",
-  ) {
+  constructor(options: LinchKitErrorOptions, type: ErrorType = "system") {
     super(options.message);
     this.name = "LinchKitError";
     this.code = options.code;

@@ -12,13 +12,12 @@ import type {
   FormLayoutNode,
   FormNotebookNode,
   FormSeparatorNode,
-  SchemaDefinition,
   ViewAction,
 } from "@linchkit/core";
 import { generateZodSchema } from "@linchkit/core";
+import { Button } from "@linchkit/ui-kit/components";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../ui/button";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
@@ -31,7 +30,7 @@ export function AutoForm({
   recordStatus,
   onSubmit,
   onCancel,
-  onAction,
+  onAction: _onAction,
   mode = "create",
   hideFooter = false,
 }: AutoFormProps) {
@@ -44,8 +43,7 @@ export function AutoForm({
       if (vf.visible === false) continue;
       const fieldDef = schema.fields[vf.field];
       if (!fieldDef) continue;
-      initial[vf.field] =
-        data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
+      initial[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
     }
     return initial;
   });
@@ -60,11 +58,9 @@ export function AutoForm({
 
   // ── State-driven action buttons ──
 
-  const resolvedActions = useMemo(() => {
+  const _resolvedActions = useMemo(() => {
     const allActions = view.actions ?? [];
-    const headerActions = allActions.filter(
-      (a: ViewAction) => a.position === "form-header",
-    );
+    const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
     const stateActions = (view as ViewDefinitionWithStateActions).stateActions;
     if (stateActions && recordStatus && recordStatus in stateActions) {
       const available = stateActions[recordStatus] ?? [];
@@ -119,7 +115,11 @@ export function AutoForm({
       const err = validateField(fieldName, value);
       setErrors((prev) => {
         const next = { ...prev };
-        err ? (next[fieldName] = err) : delete next[fieldName];
+        if (err) {
+          next[fieldName] = err;
+        } else {
+          delete next[fieldName];
+        }
         return next;
       });
     }
@@ -130,7 +130,11 @@ export function AutoForm({
     const err = validateField(fieldName, formData[fieldName]);
     setErrors((prev) => {
       const next = { ...prev };
-      err ? (next[fieldName] = err) : delete next[fieldName];
+      if (err) {
+        next[fieldName] = err;
+      } else {
+        delete next[fieldName];
+      }
       return next;
     });
   }
@@ -185,13 +189,7 @@ export function AutoForm({
   }
 
   function renderGroup(node: FormGroupNode, depth = 0) {
-    return (
-      <FormGroup
-        node={node}
-        depth={depth}
-        renderNode={renderNode}
-      />
-    );
+    return <FormGroup node={node} depth={depth} renderNode={renderNode} />;
   }
 
   function renderNotebook(node: FormNotebookNode) {
@@ -202,9 +200,7 @@ export function AutoForm({
       <FormNotebook
         node={node}
         activeTab={currentTab}
-        onTabChange={(i) =>
-          setActiveTab((prev) => ({ ...prev, [notebookId]: i }))
-        }
+        onTabChange={(i) => setActiveTab((prev) => ({ ...prev, [notebookId]: i }))}
         renderNode={renderNode}
       />
     );
@@ -255,21 +251,15 @@ export function AutoForm({
           type: "group",
           title: section.title,
           columns: 1,
-          children: section.fields.map(
-            (f): FormFieldNode => ({ type: "field", field: f }),
-          ),
+          children: section.fields.map((f): FormFieldNode => ({ type: "field", field: f })),
         }),
       );
     }
-    const visibleFields = view.fields
-      .filter((f) => f.visible !== false)
-      .map((f) => f.field);
+    const visibleFields = view.fields.filter((f) => f.visible !== false).map((f) => f.field);
     return [
       {
         type: "group",
-        children: visibleFields.map(
-          (f): FormFieldNode => ({ type: "field", field: f }),
-        ),
+        children: visibleFields.map((f): FormFieldNode => ({ type: "field", field: f })),
       },
     ];
   }, [view]);
@@ -328,9 +318,7 @@ function getDefaultForType(fieldDef: FieldDefinition): unknown {
   }
 }
 
-function mapVariant(
-  v?: string,
-): "default" | "destructive" | "outline" | "ghost" | "secondary" {
+function _mapVariant(v?: string): "default" | "destructive" | "outline" | "ghost" | "secondary" {
   if (
     v === "default" ||
     v === "destructive" ||

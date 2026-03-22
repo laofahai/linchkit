@@ -1,6 +1,4 @@
-"use client"
-
-import * as React from "react"
+"use client";
 
 import {
   DropdownMenu,
@@ -10,31 +8,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { ChevronsUpDownIcon, PlusIcon } from "lucide-react"
-import { useTranslation } from "react-i18next"
+} from "@linchkit/ui-kit/components";
+import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 export function TeamSwitcher({
   teams,
 }: {
   teams: {
-    name: string
-    logo: React.ReactNode
-    plan: string
-  }[]
+    name: string;
+    logo: React.ReactNode;
+    plan: string;
+  }[];
 }) {
-  const { isMobile } = useSidebar()
-  const { t } = useTranslation()
-  const [activeTeam, setActiveTeam] = React.useState(teams[0])
+  const { isMobile } = useSidebar();
+  const { t } = useTranslation();
+  const [activeTeam, setActiveTeam] = React.useState(teams[0]);
 
   if (!activeTeam) {
-    return null
+    return null;
   }
 
   return (
@@ -89,5 +86,5 @@ export function TeamSwitcher({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }

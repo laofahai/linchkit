@@ -9,22 +9,14 @@
 import type { StateMeta } from "@linchkit/core";
 
 /** Semantic color tokens that can be used in StateMeta.color */
-export type StateColorToken =
-  | "default"
-  | "secondary"
-  | "success"
-  | "warning"
-  | "danger"
-  | "info";
+export type StateColorToken = "default" | "secondary" | "success" | "warning" | "danger" | "info";
 
 /** Badge-style classes (filled background, small pill) for list/form badges */
 const BADGE_CLASSES: Record<StateColorToken, string> = {
   default: "bg-muted text-muted-foreground",
   secondary: "bg-muted text-muted-foreground",
-  success:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  warning:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+  success: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   danger: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   info: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
 };
@@ -33,10 +25,8 @@ const BADGE_CLASSES: Record<StateColorToken, string> = {
 const STATUS_BAR_CLASSES: Record<StateColorToken, string> = {
   default: "bg-primary/15 text-primary",
   secondary: "bg-muted text-muted-foreground",
-  success:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  warning:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+  success: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  warning: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   danger: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   info: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
 };
@@ -84,12 +74,9 @@ export function resolveStateColor(
 /** Heuristic: guess color from common state value names */
 function guessColorFromName(value: string): StateColorToken {
   const v = value.toLowerCase();
-  if (["approved", "completed", "active", "done", "published"].includes(v))
-    return "success";
-  if (["pending", "submitted", "in_progress", "review"].includes(v))
-    return "warning";
+  if (["approved", "completed", "active", "done", "published"].includes(v)) return "success";
+  if (["pending", "submitted", "in_progress", "review"].includes(v)) return "warning";
   if (["rejected", "failed", "error", "blocked"].includes(v)) return "danger";
-  if (["draft", "cancelled", "inactive", "archived"].includes(v))
-    return "secondary";
+  if (["draft", "cancelled", "inactive", "archived"].includes(v)) return "secondary";
   return "default";
 }

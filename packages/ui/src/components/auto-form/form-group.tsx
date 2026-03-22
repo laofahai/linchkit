@@ -7,7 +7,7 @@
  */
 
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core";
-import { cn } from "../../lib/utils";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 
 interface FormGroupProps {
   node: FormGroupNode;
@@ -29,10 +29,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
             </h3>
           </div>
         )}
-        <div
-          className="grid gap-y-0"
-          style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}
-        >
+        <div className="grid gap-y-0" style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}>
           {node.children.map((child, i) => (
             <div key={getGroupChildKey(child, i)} className="contents">
               {renderNode(child, depth + 1)}
@@ -54,18 +51,13 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
         </div>
       )}
       <div
-        className={cn(
-          "grid gap-x-8",
-          "max-md:grid-cols-1",
-        )}
+        className={cn("grid gap-x-8", "max-md:grid-cols-1")}
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
       >
         {node.children.map((child, i) => (
-          <div key={getGroupChildKey(child, i)}>
-            {renderNode(child, depth + 1)}
-          </div>
+          <div key={getGroupChildKey(child, i)}>{renderNode(child, depth + 1)}</div>
         ))}
       </div>
     </div>

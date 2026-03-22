@@ -6,111 +6,118 @@
  * with GraphQL and REST endpoints.
  */
 
-import { defineCommand } from "citty";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type {
+  ActionDefinition,
+  CapabilityDefinition,
+  LinchKitConfig,
+  SchemaDefinition,
+} from "@linchkit/core";
 import {
-	buildGraphQLSchema,
-	createRuntimeContext,
-	createServer,
-	generateCrudActions,
+  buildGraphQLSchema,
+  createRuntimeContext,
+  createServer,
+  generateCrudActions,
 } from "@linchkit/server";
+import { defineCommand } from "citty";
+import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 
 export const devCommand = defineCommand({
-	meta: {
-		name: "dev",
-		description: "Start the LinchKit development server",
-	},
-	args: {
-		port: {
-			type: "string",
-			description: "Server port (default: 3000)",
-			default: "3000",
-		},
-		host: {
-			type: "string",
-			description: "Server host (default: localhost)",
-			default: "localhost",
-		},
-	},
-	async run({ args }) {
-		const port = Number.parseInt(args.port, 10);
-		const host = args.host;
+  meta: {
+    name: "dev",
+    description: "Start the LinchKit development server",
+  },
+  args: {
+    port: {
+      type: "string",
+      description: "Server port (default: 3000)",
+      default: "3000",
+    },
+    host: {
+      type: "string",
+      description: "Server host (default: localhost)",
+      default: "localhost",
+    },
+  },
+  async run({ args }) {
+    const port = Number.parseInt(args.port, 10);
+    const host = args.host;
 
-		console.log("Loading LinchKit configuration...");
+    console.log("Loading LinchKit configuration...");
 
-		// Load project config
-		let config: Record<string, unknown>;
-		try {
-			const result = await loadConfig();
-			config = result.config;
-			console.log(`  Config loaded from ${result.configPath}`);
-		} catch (err) {
-			// If no config file, start with empty config (dev mode)
-			console.log("  No linchkit.config.ts found, starting with empty configuration.");
-			config = {};
-		}
+    // Load project config
+    let config: LinchKitConfig = {};
+    try {
+      const result = await loadConfig();
+      config = result.config;
+      console.log(`  Config loaded from ${result.configPath}`);
+    } catch (_err) {
+      // If no config file, start with empty config (dev mode)
+      console.log("  No linchkit.config.ts found, starting with empty configuration.");
+    }
 
-		// Extract schemas and actions from config capabilities
-		const capabilities = (config.capabilities ?? []) as Array<{
-			schemas?: SchemaDefinition[];
-			actions?: ActionDefinition[];
-		}>;
+    // Extract schemas and actions from config capabilities
+    const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
-		const schemas: SchemaDefinition[] = [];
-		const actions: ActionDefinition[] = [];
+    const generatedStylesheet = generateCapabilityStylesheet(capabilities);
+    if (generatedStylesheet?.updated) {
+      console.log(`  Generated capability stylesheet: ${generatedStylesheet.path}`);
+    }
 
-		for (const cap of capabilities) {
-			if (cap.schemas) schemas.push(...cap.schemas);
-			if (cap.actions) actions.push(...cap.actions);
-		}
+    const schemas: SchemaDefinition[] = [];
+    const actions: ActionDefinition[] = [];
 
-		// Generate CRUD actions for schemas that don't have custom actions
-		for (const schema of schemas) {
-			const crudActions = generateCrudActions(schema);
-			for (const crud of crudActions) {
-				// Only add if not already registered by a custom action
-				if (!actions.some((a) => a.name === crud.name)) {
-					actions.push(crud);
-				}
-			}
-		}
+    for (const cap of capabilities) {
+      if (cap.schemas) schemas.push(...cap.schemas);
+      if (cap.actions) actions.push(...cap.actions);
+    }
 
-		// Create runtime context
-		const runtime = createRuntimeContext({ schemas, actions });
+    // Generate CRUD actions for schemas that don't have custom actions
+    for (const schema of schemas) {
+      const crudActions = generateCrudActions(schema);
+      for (const crud of crudActions) {
+        // Only add if not already registered by a custom action
+        if (!actions.some((a) => a.name === crud.name)) {
+          actions.push(crud);
+        }
+      }
+    }
 
-		// Build GraphQL schema
-		const graphqlSchema = buildGraphQLSchema(schemas, {
-			executor: runtime.executor,
-			store: runtime.store,
-		});
+    // Create runtime context
+    const runtime = createRuntimeContext({ schemas, actions });
 
-		// Resolve server port from: CLI arg > config > default
-		const serverPort = port || (config.server as { port?: number })?.port || 3000;
-		const serverHost = host || (config.server as { host?: string })?.host || "localhost";
+    // Build GraphQL schema
+    const graphqlSchema = buildGraphQLSchema(schemas, {
+      executor: runtime.executor,
+      store: runtime.store,
+    });
 
-		// Create and start server
-		const server = createServer(graphqlSchema, {
-			port: serverPort,
-			executor: runtime.executor,
-		});
+    // Resolve server port from: CLI arg > config > default
+    const serverPort = port || (config.server as { port?: number })?.port || 3000;
+    const serverHost = host || (config.server as { host?: string })?.host || "localhost";
 
-		server.listen(serverPort, serverHost);
+    // Create and start server
+    const server = createServer(graphqlSchema, {
+      port: serverPort,
+      executor: runtime.executor,
+    });
 
-		const displayHost = serverHost === "0.0.0.0" ? "localhost" : serverHost;
+    server.listen(serverPort, serverHost);
 
-		console.log("");
-		console.log("LinchKit Dev Server");
-		console.log("-----------------------------------");
-		console.log(`  HTTP:       http://${displayHost}:${serverPort}`);
-		console.log(`  GraphQL:    http://${displayHost}:${serverPort}/graphql`);
-		console.log(`  Health:     http://${displayHost}:${serverPort}/health`);
-		console.log(`  REST API:   http://${displayHost}:${serverPort}/api/actions/:name`);
-		console.log("-----------------------------------");
-		console.log(`  Schemas:    ${schemas.length}`);
-		console.log(`  Actions:    ${actions.length}`);
-		console.log("-----------------------------------");
-		console.log("");
-		console.log("Press Ctrl+C to stop.");
-	},
+    const displayHost = serverHost === "0.0.0.0" ? "localhost" : serverHost;
+
+    console.log("");
+    console.log("LinchKit Dev Server");
+    console.log("-----------------------------------");
+    console.log(`  HTTP:       http://${displayHost}:${serverPort}`);
+    console.log(`  GraphQL:    http://${displayHost}:${serverPort}/graphql`);
+    console.log(`  Health:     http://${displayHost}:${serverPort}/health`);
+    console.log(`  REST API:   http://${displayHost}:${serverPort}/api/actions/:name`);
+    console.log("-----------------------------------");
+    console.log(`  Schemas:    ${schemas.length}`);
+    console.log(`  Actions:    ${actions.length}`);
+    console.log("-----------------------------------");
+    console.log("");
+    console.log("Press Ctrl+C to stop.");
+  },
 });

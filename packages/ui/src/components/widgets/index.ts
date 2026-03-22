@@ -7,21 +7,25 @@
  */
 
 import { widgetRegistry } from "@/lib/widget-registry";
-
-import { StringDisplay, StringInput } from "./string-widget";
-import { TextDisplay, TextInput } from "./text-widget";
-import { NumberDisplay, NumberInput } from "./number-widget";
 import { BooleanDisplay, BooleanInput } from "./boolean-widget";
 import { DateDisplay, DateInput } from "./date-widget";
 import { DateTimeDisplay, DateTimeInput } from "./datetime-widget";
 import { EnumDisplay, EnumInput } from "./enum-widget";
-import { StateDisplay, StateInput } from "./state-widget";
-import { RefDisplay, RefInput } from "./ref-widget";
 import { JsonDisplay, JsonInput } from "./json-widget";
+import { NumberDisplay, NumberInput } from "./number-widget";
+import { RefDisplay, RefInput } from "./ref-widget";
+import { StateDisplay, StateInput } from "./state-widget";
+import { StringDisplay, StringInput } from "./string-widget";
+import { TextDisplay, TextInput } from "./text-widget";
 
 export function registerDefaultWidgets() {
   widgetRegistry.register({
-    definition: { id: "string", fieldTypes: "string", modes: ["display", "input"], isDefault: true },
+    definition: {
+      id: "string",
+      fieldTypes: "string",
+      modes: ["display", "input"],
+      isDefault: true,
+    },
     display: StringDisplay,
     input: StringInput,
   });
@@ -33,13 +37,23 @@ export function registerDefaultWidgets() {
   });
 
   widgetRegistry.register({
-    definition: { id: "number", fieldTypes: "number", modes: ["display", "input"], isDefault: true },
+    definition: {
+      id: "number",
+      fieldTypes: "number",
+      modes: ["display", "input"],
+      isDefault: true,
+    },
     display: NumberDisplay,
     input: NumberInput,
   });
 
   widgetRegistry.register({
-    definition: { id: "boolean", fieldTypes: "boolean", modes: ["display", "input"], isDefault: true },
+    definition: {
+      id: "boolean",
+      fieldTypes: "boolean",
+      modes: ["display", "input"],
+      isDefault: true,
+    },
     display: BooleanDisplay,
     input: BooleanInput,
   });
@@ -51,7 +65,12 @@ export function registerDefaultWidgets() {
   });
 
   widgetRegistry.register({
-    definition: { id: "datetime", fieldTypes: "datetime", modes: ["display", "input"], isDefault: true },
+    definition: {
+      id: "datetime",
+      fieldTypes: "datetime",
+      modes: ["display", "input"],
+      isDefault: true,
+    },
     display: DateTimeDisplay,
     input: DateTimeInput,
   });

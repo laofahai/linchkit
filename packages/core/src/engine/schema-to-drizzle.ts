@@ -29,9 +29,17 @@ const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
 /**
  * Build a Drizzle column definition for a single field.
  */
-// biome-ignore lint/suspicious/noExplicitAny: Drizzle column builder types are complex and vary per column type
-function buildColumn(name: string, field: FieldDefinition): any {
-  let col: any;
+function buildColumn(name: string, field: FieldDefinition): unknown {
+  let col: ReturnType<
+    | typeof varchar
+    | typeof text
+    | typeof numeric
+    | typeof boolean
+    | typeof date
+    | typeof timestamp
+    | typeof jsonb
+    | typeof integer
+  >;
 
   switch (field.type) {
     case "string":
@@ -76,8 +84,8 @@ function buildColumn(name: string, field: FieldDefinition): any {
   if (field.unique) {
     col = col.unique();
   }
-  if (field.default !== undefined) {
-    col = col.default(field.default);
+  if (field.default !== undefined && field.default !== null) {
+    col = col.default(field.default as string & number & boolean);
   }
 
   return col;

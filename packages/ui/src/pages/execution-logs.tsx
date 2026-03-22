@@ -5,47 +5,42 @@
  * Spec ref: 11_execution_log.md, 39_execution_contract.md
  */
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
+  Badge,
+  Button,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  RefreshCwIcon,
-} from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
+} from "@linchkit/ui-kit/components";
+import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // ── Types ────────────────────────────────────────────────
 
 interface ExecutionLogEntry {
-  id: string
-  action: string
-  capability?: string
-  schema?: string
-  recordId?: string
-  actor: { type: string; id: string }
-  input: Record<string, unknown>
-  output?: unknown
-  status: "succeeded" | "failed" | "blocked" | "pending_approval"
-  error?: { code?: string; message: string }
-  rulesEvaluated?: Array<{ rule: string; result: string; message?: string }>
-  stateTransition?: { from: string; to: string }
-  duration: number
-  startedAt: string
-  completedAt: string
+  id: string;
+  action: string;
+  capability?: string;
+  schema?: string;
+  recordId?: string;
+  actor: { type: string; id: string };
+  input: Record<string, unknown>;
+  output?: unknown;
+  status: "succeeded" | "failed" | "blocked" | "pending_approval";
+  error?: { code?: string; message: string };
+  rulesEvaluated?: Array<{ rule: string; result: string; message?: string }>;
+  stateTransition?: { from: string; to: string };
+  duration: number;
+  startedAt: string;
+  completedAt: string;
 }
 
 interface ExecutionLogListResult {
-  items: ExecutionLogEntry[]
-  total: number
+  items: ExecutionLogEntry[];
+  total: number;
 }
 
 // ── Status badge styling ────────────────────────────────
@@ -55,32 +50,28 @@ const STATUS_VARIANTS: Record<string, "default" | "destructive" | "outline" | "s
   failed: "destructive",
   blocked: "secondary",
   pending_approval: "outline",
-}
+};
 
 function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge variant={STATUS_VARIANTS[status] ?? "outline"}>
-      {status}
-    </Badge>
-  )
+  return <Badge variant={STATUS_VARIANTS[status] ?? "outline"}>{status}</Badge>;
 }
 
 // ── Duration formatter ──────────────────────────────────
 
 function formatDuration(ms: number): string {
-  if (ms < 1) return "<1ms"
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
+  if (ms < 1) return "<1ms";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // ── Demo data ───────────────────────────────────────────
@@ -122,7 +113,9 @@ const DEMO_ENTRIES: ExecutionLogEntry[] = [
     input: { id: "pr_002" },
     status: "blocked",
     error: { code: "RULE.BUDGET.EXCEEDED", message: "Amount exceeds department budget" },
-    rulesEvaluated: [{ rule: "budget_check", result: "blocked", message: "Amount 25000 > limit 20000" }],
+    rulesEvaluated: [
+      { rule: "budget_check", result: "blocked", message: "Amount 25000 > limit 20000" },
+    ],
     duration: 5,
     startedAt: new Date(Date.now() - 1800000).toISOString(),
     completedAt: new Date(Date.now() - 1800000 + 5).toISOString(),
@@ -152,61 +145,61 @@ const DEMO_ENTRIES: ExecutionLogEntry[] = [
     startedAt: new Date(Date.now() - 600000).toISOString(),
     completedAt: new Date(Date.now() - 600000 + 15).toISOString(),
   },
-]
+];
 
 // ── Component ───────────────────────────────────────────
 
 export function ExecutionLogsPage() {
-  const { t } = useTranslation()
-  const [entries, setEntries] = useState<ExecutionLogEntry[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [loading, setLoading] = useState(false)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const { t } = useTranslation();
+  const [entries, setEntries] = useState<ExecutionLogEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const applyDemoData = useCallback(() => {
+    let filtered: ExecutionLogEntry[] = DEMO_ENTRIES;
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((e) => e.status === statusFilter);
+    }
+    setTotal(filtered.length);
+    const offset = (page - 1) * pageSize;
+    setEntries(filtered.slice(offset, offset + pageSize));
+  }, [statusFilter, page, pageSize]);
 
   const fetchLogs = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const params = new URLSearchParams()
-      params.set("page", String(page))
-      params.set("pageSize", String(pageSize))
-      if (statusFilter !== "all") params.set("status", statusFilter)
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      if (statusFilter !== "all") params.set("status", statusFilter);
 
-      const res = await fetch(`/api/executions?${params.toString()}`)
+      const res = await fetch(`/api/executions?${params.toString()}`);
       if (res.ok) {
-        const json = await res.json()
-        const result = json.data as ExecutionLogListResult
-        setEntries(result.items)
-        setTotal(result.total)
+        const json = await res.json();
+        const result = json.data as ExecutionLogListResult;
+        setEntries(result.items);
+        setTotal(result.total);
       } else {
         // Fallback to demo data
-        useDemoData()
+        applyDemoData();
       }
     } catch {
       // API not available — use demo data
-      useDemoData()
+      applyDemoData();
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [page, pageSize, statusFilter])
-
-  function useDemoData() {
-    let filtered = DEMO_ENTRIES
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((e) => e.status === statusFilter)
-    }
-    setTotal(filtered.length)
-    const offset = (page - 1) * pageSize
-    setEntries(filtered.slice(offset, offset + pageSize))
-  }
+  }, [page, pageSize, statusFilter, applyDemoData]);
 
   useEffect(() => {
-    fetchLogs()
-  }, [fetchLogs])
+    fetchLogs();
+  }, [fetchLogs]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="p-4 space-y-4">
@@ -224,7 +217,13 @@ export function ExecutionLogsPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-2">
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-40">
             <SelectValue placeholder={t("executionLog.allStatuses")} />
           </SelectTrigger>
@@ -299,7 +298,7 @@ export function ExecutionLogsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ── Log row with expandable detail ──────────────────────
@@ -309,9 +308,9 @@ function LogRow({
   expanded,
   onToggle,
 }: {
-  entry: ExecutionLogEntry
-  expanded: boolean
-  onToggle: () => void
+  entry: ExecutionLogEntry;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   return (
     <>
@@ -329,7 +328,9 @@ function LogRow({
         <td className="p-2">
           <div className="font-mono text-xs">{entry.action}</div>
           {entry.recordId && (
-            <div className="text-xs text-muted-foreground">{entry.schema}/{entry.recordId}</div>
+            <div className="text-xs text-muted-foreground">
+              {entry.schema}/{entry.recordId}
+            </div>
           )}
         </td>
         <td className="p-2">
@@ -339,9 +340,7 @@ function LogRow({
         <td className="p-2">
           <StatusBadge status={entry.status} />
         </td>
-        <td className="p-2 text-right font-mono text-xs">
-          {formatDuration(entry.duration)}
-        </td>
+        <td className="p-2 text-right font-mono text-xs">{formatDuration(entry.duration)}</td>
       </tr>
       {expanded && (
         <tr className="border-b bg-muted/20">
@@ -351,13 +350,13 @@ function LogRow({
         </tr>
       )}
     </>
-  )
+  );
 }
 
 // ── Expanded detail view ────────────────────────────────
 
 function LogDetail({ entry }: { entry: ExecutionLogEntry }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 gap-4 text-sm">
       <div>
@@ -397,10 +396,13 @@ function LogDetail({ entry }: { entry: ExecutionLogEntry }) {
         <div className="col-span-2">
           <h4 className="font-medium mb-1">{t("executionLog.rulesEvaluated")}</h4>
           <div className="space-y-1">
-            {entry.rulesEvaluated.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
+            {entry.rulesEvaluated.map((r) => (
+              <div key={`${r.rule}-${r.result}`} className="flex items-center gap-2 text-xs">
                 <span className="font-mono">{r.rule}</span>
-                <Badge variant={r.result === "passed" ? "default" : "destructive"} className="text-[10px]">
+                <Badge
+                  variant={r.result === "passed" ? "default" : "destructive"}
+                  className="text-[10px]"
+                >
                   {r.result}
                 </Badge>
                 {r.message && <span className="text-muted-foreground">{r.message}</span>}
@@ -409,9 +411,7 @@ function LogDetail({ entry }: { entry: ExecutionLogEntry }) {
           </div>
         </div>
       )}
-      <div className="col-span-2 text-xs text-muted-foreground">
-        ID: {entry.id}
-      </div>
+      <div className="col-span-2 text-xs text-muted-foreground">ID: {entry.id}</div>
     </div>
-  )
+  );
 }

@@ -1,0 +1,11 @@
+@import "@linchkit/ui-kit/styles.css";
+
+/*
+ * Capability UI asset aggregation point.
+ *
+ * Future CLI/install tooling should append imports here based on
+ * capability.ui.styles declarations, for example:
+ *
+ * @import "@linchkit/cap-auth/styles.css";
+ * @import "@linchkit/cap-permission/styles.css";
+ */

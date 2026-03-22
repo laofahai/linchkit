@@ -1,18 +1,29 @@
-import { cn } from "@/lib/utils";
+import { Input } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { Input } from "../ui/input";
 import { formatCurrency, requiredBg } from "./utils";
 
 export function NumberDisplay({ value, fieldDef }: WidgetDisplayProps) {
   if (value == null) return <span className="text-muted-foreground">&mdash;</span>;
-  const formatted = fieldDef.ui?.format === "currency"
-    ? formatCurrency(Number(value))
-    : Number(value).toLocaleString();
+  const formatted =
+    fieldDef.ui?.format === "currency"
+      ? formatCurrency(Number(value))
+      : Number(value).toLocaleString();
   return <span className="tabular-nums">{formatted}</span>;
 }
 
-export function NumberInput({ value, fieldDef, onChange, onBlur, readonly, error, dirty, required }: WidgetInputProps) {
-  const placeholder = fieldDef.description ?? (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : "0");
+export function NumberInput({
+  value,
+  fieldDef,
+  onChange,
+  onBlur,
+  readonly,
+  error,
+  dirty,
+  required,
+}: WidgetInputProps) {
+  const placeholder =
+    fieldDef.description ?? (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : "0");
   return (
     <div className="space-y-1">
       <Input

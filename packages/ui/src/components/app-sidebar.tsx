@@ -1,8 +1,3 @@
-import type * as React from "react"
-
-import { NavMain } from "@/components/nav-main"
-import { NavUser } from "@/components/nav-user"
-import { TeamSwitcher } from "@/components/team-switcher"
 import {
   Sidebar,
   SidebarContent,
@@ -14,9 +9,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
-import { useSchemas } from "@/hooks/use-schemas"
-import { Link } from "@tanstack/react-router"
+} from "@linchkit/ui-kit/components";
+import { Link } from "@tanstack/react-router";
 import {
   ActivityIcon,
   BlocksIcon,
@@ -25,27 +19,32 @@ import {
   LayoutDashboardIcon,
   ScrollTextIcon,
   Settings2Icon,
-} from "lucide-react"
-import { useMemo } from "react"
-import { useTranslation } from "react-i18next"
+} from "lucide-react";
+import type * as React from "react";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { NavMain } from "@/components/nav-main";
+import { NavUser } from "@/components/nav-user";
+import { TeamSwitcher } from "@/components/team-switcher";
+import { useSchemas } from "@/hooks/use-schemas";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { t } = useTranslation()
-  const { schemas } = useSchemas()
+  const { t } = useTranslation();
+  const { schemas } = useSchemas();
 
   const data = useMemo(() => {
     // Build schema sub-items from API data
     const schemaItems = schemas.map((s) => ({
       title: s.label ?? s.name,
       url: `/schemas/${s.name}`,
-    }))
+    }));
 
     // Fallback if API returned nothing (e.g. server not running)
     if (schemaItems.length === 0) {
       schemaItems.push({
         title: "Purchase Request",
         url: "/schemas/purchase_request",
-      })
+      });
     }
 
     return {
@@ -94,8 +93,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items: [],
         },
       ],
-    }
-  }, [schemas, t])
+    };
+  }, [schemas, t]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -126,5 +125,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

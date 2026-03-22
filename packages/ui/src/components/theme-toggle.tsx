@@ -3,15 +3,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { SidebarMenuButton } from "@/components/ui/sidebar"
-import { useTheme } from "@/hooks/use-theme"
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react"
+  SidebarMenuButton,
+} from "@linchkit/ui-kit/components";
+import { useTheme } from "@linchkit/ui-kit/hooks";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme } = useTheme();
 
-  const Icon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon
+  const Icon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon;
 
   return (
     <DropdownMenu>
@@ -38,5 +38,5 @@ export function ThemeToggle() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

@@ -112,20 +112,14 @@ export function createWidgetRegistry(): WidgetRegistry {
     }
   }
 
-  function overrideDisplay(
-    widgetId: string,
-    component: WidgetDisplayComponent,
-  ): void {
+  function overrideDisplay(widgetId: string, component: WidgetDisplayComponent): void {
     const entry = widgets.get(widgetId);
     if (entry) {
       entry.display = component;
     }
   }
 
-  function overrideInput(
-    widgetId: string,
-    component: WidgetInputComponent,
-  ): void {
+  function overrideInput(widgetId: string, component: WidgetInputComponent): void {
     const entry = widgets.get(widgetId);
     if (entry) {
       entry.input = component;
@@ -144,13 +138,8 @@ export function createWidgetRegistry(): WidgetRegistry {
     if (format) {
       for (const [id, entry] of widgets) {
         const def = entry.definition;
-        if (
-          def.supportedFormats?.includes(format) &&
-          def.modes.includes(mode)
-        ) {
-          const types = Array.isArray(def.fieldTypes)
-            ? def.fieldTypes
-            : [def.fieldTypes];
+        if (def.supportedFormats?.includes(format) && def.modes.includes(mode)) {
+          const types = Array.isArray(def.fieldTypes) ? def.fieldTypes : [def.fieldTypes];
           if (types.includes(fieldType)) {
             return id;
           }

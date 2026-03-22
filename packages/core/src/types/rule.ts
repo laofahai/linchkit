@@ -18,7 +18,14 @@ export type ComparisonOperator =
   | "not_in"
   | "is_null"
   | "not_null"
-  | "contains";
+  | "contains"
+  | "notContains"
+  | "between"
+  | "notBetween"
+  | "startsWith"
+  | "endsWith"
+  | "includesAll"
+  | "excludesAny";
 
 // ── Declarative conditions ──────────────────────────────────────
 

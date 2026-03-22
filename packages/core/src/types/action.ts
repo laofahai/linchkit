@@ -5,6 +5,7 @@
  * Actions are not CRUD — they are controlled execution units with business semantics.
  */
 
+import type { AIService } from "./ai";
 import type { FieldDefinition } from "./schema";
 
 // ── Actor types ──────────────────────────────────────
@@ -83,6 +84,9 @@ export interface ValidationResult {
 export interface ActionContext {
   input: Record<string, unknown>;
   actor: Actor;
+
+  /** AI service — optional, throws if not configured */
+  ai: AIService;
 
   // Data operations
   get(schema: string, id: string): Promise<Record<string, unknown>>;

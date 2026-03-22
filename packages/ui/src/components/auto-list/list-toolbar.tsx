@@ -1,53 +1,51 @@
 import type { SchemaDefinition, ViewAction } from "@linchkit/core";
-import { ChevronDown, Search, X } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { Button } from "../ui/button";
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Input } from "../ui/input";
-import { getEnumOptions } from "./columns";
-import type { ViewFilter } from "./types";
+} from "@linchkit/ui-kit/components";
+import { ChevronDown, Columns3, Download, MoreHorizontal, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
+import type {
+  Column,
+  DataTableFilterActions,
+  FilterStrategy,
+  FiltersState,
+} from "../data-table-filter/core/types";
+import { SearchBar } from "./search-bar";
 
 interface ListToolbarProps {
-  /** Title displayed in the header row. */
   title?: string;
-  filters: ViewFilter[];
   schema: SchemaDefinition;
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
-  getColumnFilterValue: (field: string) => string;
-  onColumnFilterChange: (field: string, value: string | undefined) => void;
   hasActiveFilters: boolean;
   onClearFilters: () => void;
   toolbarActions: ViewAction[];
   onAction?: (actionName: string, recordId: string) => void;
-  /** Number of currently selected rows. */
   selectedCount?: number;
-  /** Bulk action callback for selected rows. */
   onBulkAction?: (actionName: string) => void;
-  /** Clear current selection. */
   onClearSelection?: () => void;
+  /** bazza filter props passed through to SearchBar */
+  bazzaColumns?: Column<Record<string, unknown>>[] | undefined;
+  bazzaFilters?: FiltersState | undefined;
+  bazzaActions?: DataTableFilterActions | undefined;
+  bazzaStrategy?: FilterStrategy | undefined;
 }
 
 /**
- * ListToolbar — Two-row control panel for AutoList.
+ * ListToolbar — Single-row toolbar for AutoList.
  *
- * Row 1: Title (left) + primary actions (right)
- * Row 2: Search input + filter selects + clear button
+ * Layout: SearchBar (search + filters unified) | spacer | Actions
  */
 export function ListToolbar({
-  title,
-  filters,
   schema,
   globalFilter,
   onGlobalFilterChange,
-  getColumnFilterValue,
-  onColumnFilterChange,
   hasActiveFilters,
   onClearFilters,
   toolbarActions,
@@ -55,117 +53,109 @@ export function ListToolbar({
   selectedCount = 0,
   onBulkAction,
   onClearSelection,
+  bazzaColumns,
+  bazzaFilters,
+  bazzaActions,
+  bazzaStrategy,
 }: ListToolbarProps) {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
+
+  const primaryAction = toolbarActions[0];
+  const overflowActions = toolbarActions.slice(1);
 
   return (
-    <div className="space-y-3">
-      {/* Row 1: Title + primary actions */}
-      <div className="flex items-center justify-between">
-        {title && (
-          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        )}
-        <div className="flex items-center gap-2">
-          {/* Bulk actions dropdown — visible when rows are selected */}
-          {selectedCount > 0 && (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    {selectedCount} {t("list.selected")}
-                    <ChevronDown className="ml-1 size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => onBulkAction?.("export")}
-                  >
-                    {t("common.export")}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => onBulkAction?.("delete")}
-                  >
-                    {t("common.delete")}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground"
-                onClick={onClearSelection}
-              >
-                <X className="mr-1 size-3" />
-                {t("common.cancel")}
-              </Button>
-            </>
-          )}
-          {toolbarActions.map((a) => (
-            <Button
-              key={a.action}
-              variant={
-                a.variant === "destructive" ? "destructive" : "default"
-              }
-              size="sm"
-              onClick={() => onAction?.(a.action, "")}
-            >
-              {a.label ?? a.action}
-            </Button>
-          ))}
-        </div>
-      </div>
+    <div className="flex items-center gap-3">
+      {/* Left: Unified SearchBar */}
+      <SearchBar
+        schema={schema}
+        globalFilter={globalFilter}
+        onGlobalFilterChange={onGlobalFilterChange}
+        onClearAll={hasActiveFilters ? onClearFilters : undefined}
+        bazzaColumns={bazzaColumns}
+        bazzaFilters={bazzaFilters}
+        bazzaActions={bazzaActions}
+        bazzaStrategy={bazzaStrategy}
+        className="max-w-md"
+      />
 
-      {/* Row 2: Search + filters */}
-      <div className="flex items-center gap-2 border-b border-border pb-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={`${t("common.search")}...`}
-            value={globalFilter}
-            onChange={(e) => onGlobalFilterChange(e.target.value)}
-            className="h-7 w-64 pl-8 text-sm"
-          />
-        </div>
-        {filters.map((filter) => {
-          if (filter.type === "select") {
-            const options =
-              filter.options ?? getEnumOptions(schema.fields[filter.field]);
-            return (
-              <select
-                key={filter.field}
-                className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                value={getColumnFilterValue(filter.field)}
-                onChange={(e) =>
-                  onColumnFilterChange(
-                    filter.field,
-                    e.target.value || undefined,
-                  )
-                }
-              >
-                <option value="">{filter.label ?? filter.field}</option>
-                {options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            );
-          }
-          return null;
-        })}
-        {hasActiveFilters && (
+      <div className="flex-1" />
+
+      {/* Right: Actions */}
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Bulk actions */}
+        {selectedCount > 0 && (
+          <>
+            <span className="text-sm text-muted-foreground">
+              {selectedCount} {t("list.selected")}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {t("common.actions")}
+                  <ChevronDown className="ml-1 size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onBulkAction?.("export")}>
+                  <Download className="mr-2 size-3.5" />
+                  {t("common.export")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => onBulkAction?.("delete")}
+                >
+                  {t("common.delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground"
+              onClick={onClearSelection}
+            >
+              <X className="size-3" />
+            </Button>
+          </>
+        )}
+
+        {/* Primary action */}
+        {primaryAction && (
           <Button
-            variant="ghost"
+            variant={primaryAction.variant === "destructive" ? "destructive" : "default"}
             size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground"
-            onClick={onClearFilters}
+            onClick={() => onAction?.(primaryAction.action, "")}
           >
-            <X className="mr-1 size-3" />
-            {t("common.reset")}
+            {resolveLabel(primaryAction.label, primaryAction.action)}
           </Button>
         )}
+
+        {/* Overflow menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="size-8 p-0">
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {overflowActions.map((a) => (
+              <DropdownMenuItem key={a.action} onClick={() => onAction?.(a.action, "")}>
+                {resolveLabel(a.label, a.action)}
+              </DropdownMenuItem>
+            ))}
+            {overflowActions.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem disabled>
+              <Columns3 className="mr-2 size-3.5" />
+              {t("list.columns", "Columns")}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled>
+              <Download className="mr-2 size-3.5" />
+              {t("common.export", "Export")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

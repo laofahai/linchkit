@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
+import { Textarea } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { Textarea } from "../ui/textarea";
 import { requiredBg } from "./utils";
 
 export function TextDisplay({ value }: WidgetDisplayProps) {
@@ -12,8 +12,18 @@ export function TextDisplay({ value }: WidgetDisplayProps) {
   );
 }
 
-export function TextInput({ value, fieldDef, onChange, onBlur, readonly, error, dirty, required }: WidgetInputProps) {
-  const placeholder = fieldDef.description ?? (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : undefined);
+export function TextInput({
+  value,
+  fieldDef,
+  onChange,
+  onBlur,
+  readonly,
+  error,
+  dirty,
+  required,
+}: WidgetInputProps) {
+  const placeholder =
+    fieldDef.description ?? (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : undefined);
   return (
     <div className="space-y-1">
       <Textarea

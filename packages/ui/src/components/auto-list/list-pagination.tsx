@@ -1,12 +1,7 @@
+import { Button } from "@linchkit/ui-kit/components";
 import type { Table } from "@tanstack/react-table";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../ui/button";
 
 interface ListPaginationProps {
   table: Table<Record<string, unknown>>;

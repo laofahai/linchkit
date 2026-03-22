@@ -10,18 +10,18 @@ import type {
   ViewAction,
   ViewFieldConfig,
 } from "@linchkit/core";
-import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from "lucide-react";
-import { Checkbox } from "../ui/checkbox";
-import { FieldDisplay } from "../field-renderer";
-import { Button } from "../ui/button";
 import {
+  Button,
+  Checkbox,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+} from "@linchkit/ui-kit/components";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { FieldDisplay } from "../field-renderer";
 import { StatusBadge } from "./status-badge";
 
 type DataRow = Record<string, unknown>;
@@ -32,13 +32,17 @@ export interface BuildColumnsOptions {
   rowActions: ViewAction[];
   onAction?: (actionName: string, recordId: string) => void;
   stateMeta?: Partial<Record<string, StateMeta>>;
+  /** Resolve labels that may use the `t:` i18n prefix convention. */
+  resolveLabel?: (label: string | undefined, fallback: string) => string;
 }
 
 export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
-  const { fields, schema, rowActions, onAction, stateMeta } = opts;
+  const { fields, schema, rowActions, onAction, stateMeta, resolveLabel } = opts;
+  const resolve = resolveLabel ?? ((l: string | undefined, fb: string) => l ?? fb);
   const cols: ColumnDef<DataRow>[] = fields.map((vf) => {
     const fieldDef = schema.fields[vf.field];
-    const label = vf.label ?? fieldDef?.label ?? vf.field;
+    const rawLabel = vf.label ?? fieldDef?.label ?? vf.field;
+    const label = resolve(rawLabel, vf.field);
 
     return {
       accessorKey: vf.field,
@@ -70,9 +74,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
           return <StatusBadge value={value} meta={stateMeta} />;
         }
         if (fieldDef) {
-          return (
-            <FieldDisplay field={vf} value={value} fieldDef={fieldDef} />
-          );
+          return <FieldDisplay field={vf} value={value} fieldDef={fieldDef} />;
         }
         return String(value ?? "");
       },
@@ -88,9 +90,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
       header: () => null,
       cell: ({ row }) => {
         const recordId = String(row.original.id ?? "");
-        const destructive = rowActions.filter(
-          (a) => a.variant === "destructive",
-        );
+        const destructive = rowActions.filter((a) => a.variant === "destructive");
         const normal = rowActions.filter((a) => a.variant !== "destructive");
         return (
           <DropdownMenu>
@@ -108,12 +108,10 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
                     onAction?.(a.action, recordId);
                   }}
                 >
-                  {a.label ?? a.action}
+                  {resolve(a.label, a.action)}
                 </DropdownMenuItem>
               ))}
-              {destructive.length > 0 && normal.length > 0 && (
-                <DropdownMenuSeparator />
-              )}
+              {destructive.length > 0 && normal.length > 0 && <DropdownMenuSeparator />}
               {destructive.map((a) => (
                 <DropdownMenuItem
                   key={a.action}
@@ -123,7 +121,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
                     onAction?.(a.action, recordId);
                   }}
                 >
-                  {a.label ?? a.action}
+                  {resolve(a.label, a.action)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -170,9 +168,7 @@ export function buildSelectionColumn(): ColumnDef<DataRow> {
   };
 }
 
-export function getEnumOptions(
-  fieldDef?: FieldDefinition,
-): { value: string; label: string }[] {
+export function getEnumOptions(fieldDef?: FieldDefinition): { value: string; label: string }[] {
   if (!fieldDef) return [];
   if (fieldDef.type === "enum" && (fieldDef as EnumField).options) {
     return (fieldDef as EnumField).options.map((o) => ({

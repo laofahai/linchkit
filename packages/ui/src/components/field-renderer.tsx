@@ -7,10 +7,9 @@
  */
 
 import type { FieldDefinition, ViewFieldConfig } from "@linchkit/core";
-import { widgetRegistry } from "../lib/widget-registry";
+import { Input, Label } from "@linchkit/ui-kit/components";
 import type { WidgetDisplayProps, WidgetInputProps } from "../lib/widget-registry";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { widgetRegistry } from "../lib/widget-registry";
 
 // ── Display component ─────────────────────────────────────
 
@@ -106,6 +105,6 @@ export function FieldInput({
   );
 }
 
+export type { WidgetDisplayProps, WidgetInputProps };
 // Re-export for use in AutoForm
 export { Label };
-export type { WidgetDisplayProps, WidgetInputProps };

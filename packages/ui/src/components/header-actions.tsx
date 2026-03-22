@@ -5,50 +5,32 @@
  * Spec ref: 13_view_and_ui.md §9.2 Top Command Bar.
  */
 
-import { Button } from "@/components/ui/button"
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { useTheme } from "@/hooks/use-theme"
-import {
-  changeLanguage,
-  supportedLanguages,
-  languageNames,
-  type SupportedLanguage,
-} from "@/i18n"
-import {
-  BellIcon,
-  GlobeIcon,
-  MonitorIcon,
-  MoonIcon,
-  SearchIcon,
-  SunIcon,
-} from "lucide-react"
-import { useTranslation } from "react-i18next"
+} from "@linchkit/ui-kit/components";
+import { useTheme } from "@linchkit/ui-kit/hooks";
+import { BellIcon, GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { changeLanguage, languageNames, type SupportedLanguage, supportedLanguages } from "@/i18n";
 
-export function HeaderActions({
-  onOpenCommandPalette,
-}: {
-  onOpenCommandPalette?: () => void
-}) {
-  const { theme, setTheme } = useTheme()
-  const { i18n, t } = useTranslation()
-  const currentLang = i18n.language as SupportedLanguage
+export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?: () => void }) {
+  const { theme, setTheme } = useTheme();
+  const { i18n, t } = useTranslation();
+  const currentLang = i18n.language as SupportedLanguage;
 
-  const ThemeIcon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon
+  const ThemeIcon = theme === "dark" ? MoonIcon : theme === "light" ? SunIcon : MonitorIcon;
 
   const cycleTheme = () => {
-    const order = { light: "dark", dark: "system", system: "light" } as const
-    setTheme(order[theme])
-  }
+    const order = { light: "dark", dark: "system", system: "light" } as const;
+    setTheme(order[theme]);
+  };
 
   return (
     <div className="flex items-center gap-1">
@@ -62,9 +44,7 @@ export function HeaderActions({
             onClick={onOpenCommandPalette}
           >
             <SearchIcon className="size-4" />
-            <span className="hidden text-xs sm:inline-flex">
-              {t("commandPalette.placeholder")}
-            </span>
+            <span className="hidden text-xs sm:inline-flex">{t("commandPalette.placeholder")}</span>
             <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
               <span className="text-xs">⌘</span>K
             </kbd>
@@ -125,5 +105,5 @@ export function HeaderActions({
         </TooltipContent>
       </Tooltip>
     </div>
-  )
+  );
 }

@@ -112,7 +112,10 @@ function createMemoryDataProvider(): DataProvider {
     if (!store.has(schema)) {
       store.set(schema, new Map());
     }
-    return store.get(schema)!;
+    // biome-safe: we just called store.set() above so the value is guaranteed
+    const table = store.get(schema);
+    if (!table) throw new Error(`Unreachable: store missing key ${schema}`);
+    return table;
   }
 
   return {
@@ -132,7 +135,7 @@ function createMemoryDataProvider(): DataProvider {
     },
     async create(schema, data) {
       const table = getTable(schema);
-      const id = data.id as string || `id_${table.size + 1}`;
+      const id = (data.id as string) || `id_${table.size + 1}`;
       const record = { ...data, id };
       table.set(id, record);
       return record;
@@ -178,7 +181,7 @@ describe("ActionRegistry", () => {
 
     const result = registry.get("create_order");
     expect(result).toBeDefined();
-    expect(result!.name).toBe("create_order");
+    expect(result?.name).toBe("create_order");
   });
 
   it("returns undefined for unknown action", () => {
@@ -258,16 +261,12 @@ describe("ActionExecutor", () => {
       status: "draft",
     });
 
-    const result = await executor.execute(
-      "submit_order",
-      { id: "order-1" },
-      defaultActor,
-    );
+    const result = await executor.execute("submit_order", { id: "order-1" }, defaultActor);
 
     expect(result.success).toBe(true);
     expect(result.record).toBeDefined();
-    expect(result.record!.status).toBe("submitted");
-    expect(result.record!.submitted_at).toBe("now");
+    expect(result.record?.status).toBe("submitted");
+    expect(result.record?.submitted_at).toBe("now");
   });
 
   it("returns failure for unknown action", async () => {
@@ -340,11 +339,7 @@ describe("ActionExecutor", () => {
     const executor = createActionExecutor({ dataProvider });
     executor.registry.register(customValidatedAction);
 
-    const result = await executor.execute(
-      "special_order",
-      { amount: 50000 },
-      defaultActor,
-    );
+    const result = await executor.execute("special_order", { amount: 50000 }, defaultActor);
 
     expect(result.success).toBe(false);
     const details = (result.data as Record<string, unknown>).details as Array<{
@@ -367,11 +362,7 @@ describe("ActionExecutor", () => {
       status: "submitted",
     });
 
-    const result = await executor.execute(
-      "submit_order",
-      { id: "order-2" },
-      defaultActor,
-    );
+    const result = await executor.execute("submit_order", { id: "order-2" }, defaultActor);
 
     expect(result.success).toBe(false);
     expect((result.data as Record<string, unknown>).error).toContain(
@@ -392,14 +383,10 @@ describe("ActionExecutor", () => {
       status: "draft",
     });
 
-    const result = await executor.execute(
-      "submit_order",
-      { id: "order-3" },
-      defaultActor,
-    );
+    const result = await executor.execute("submit_order", { id: "order-3" }, defaultActor);
 
     expect(result.success).toBe(true);
-    expect(result.record!.status).toBe("submitted");
+    expect(result.record?.status).toBe("submitted");
   });
 
   it("rejects action not exposed for channel", async () => {
@@ -408,12 +395,7 @@ describe("ActionExecutor", () => {
     executor.registry.register(exposedAction);
 
     // Try via HTTP — should be blocked
-    const result = await executor.execute(
-      "internal_sync",
-      {},
-      defaultActor,
-      { channel: "http" },
-    );
+    const result = await executor.execute("internal_sync", {}, defaultActor, { channel: "http" });
 
     expect(result.success).toBe(false);
     expect((result.data as Record<string, unknown>).error).toContain(
@@ -421,12 +403,9 @@ describe("ActionExecutor", () => {
     );
 
     // Try via internal — should work
-    const result2 = await executor.execute(
-      "internal_sync",
-      {},
-      defaultActor,
-      { channel: "internal" },
-    );
+    const result2 = await executor.execute("internal_sync", {}, defaultActor, {
+      channel: "internal",
+    });
 
     expect(result2.success).toBe(true);
   });

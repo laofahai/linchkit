@@ -20,14 +20,27 @@
     "paths": {
       "@linchkit/core": ["./packages/core/src"],
       "@linchkit/cli": ["./packages/cli/src"],
+      "@linchkit/cap-auth": ["./packages/cap-auth/src"],
+      "@linchkit/cap-auth/ui": ["./packages/cap-auth/ui/index.ts"],
+      "@linchkit/cap-permission": ["./packages/cap-permission/src"],
       "@linchkit/server": ["./packages/server/src"],
       "@linchkit/mcp": ["./packages/mcp/src"],
       "@linchkit/ui": ["./packages/ui/src"],
+      "@linchkit/ui-kit": ["./packages/ui-kit/src"],
+      "@linchkit/ui-kit/components": ["./packages/ui-kit/src/components"],
+      "@linchkit/ui-kit/hooks": ["./packages/ui-kit/src/hooks"],
+      "@linchkit/ui-kit/lib/utils": ["./packages/ui-kit/src/lib/utils"],
       "@linchkit/migrate": ["./packages/migrate/src"],
       "@linchkit/devtools": ["./packages/devtools/src"],
       "@/*": ["./packages/ui/src/*"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+  "include": [
+    "linchkit.config.ts",
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "packages/*/ui/**/*.ts",
+    "packages/*/ui/**/*.tsx"
+  ],
   "exclude": ["node_modules", "dist"]
 }

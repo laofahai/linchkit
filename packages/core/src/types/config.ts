@@ -2,7 +2,13 @@
  * LinchKit project configuration types
  */
 
+import type { AIServiceConfig } from "./ai";
+import type { CapabilityDefinition } from "./capability";
+
 export interface LinchKitConfig {
+  /** AI service configuration (optional — system works without it) */
+  ai?: AIServiceConfig;
+
   /** Database configuration */
   database?: {
     url?: string;
@@ -33,4 +39,7 @@ export interface LinchKitConfig {
     repo?: string;
     token?: string;
   };
+
+  /** Installed capabilities loaded by the host project */
+  capabilities?: CapabilityDefinition[];
 }

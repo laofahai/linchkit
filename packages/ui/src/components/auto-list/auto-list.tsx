@@ -1,37 +1,44 @@
 /**
  * AutoList — Schema-driven list view powered by TanStack Table.
  *
- * Orchestrates: columns, toolbar, table rendering, pagination.
- * Sub-components handle individual concerns.
+ * Orchestrates: toolbar (search + filter), table rendering, pagination.
+ * Uses bazza/ui DataTableFilter for column filtering (integrated into SearchBar).
  */
 
+import { Skeleton } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
   type ColumnFiltersState,
-  type RowSelectionState,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type RowSelectionState,
+  type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
 import { Inbox } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "../../lib/utils";
-import { Skeleton } from "../ui/skeleton";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useDataTableFilters } from "../data-table-filter";
+import type { FiltersState } from "../data-table-filter/core/types";
 import { buildColumns, buildSelectionColumn } from "./columns";
+import { buildFilterColumns } from "./filter-columns";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
 import type { AutoListProps } from "./types";
+
+/** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
+const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
 
 export function AutoList({
   schema,
   view,
   data,
   loading = false,
-  title,
+  title: _title,
   stateMeta,
   onAction,
   onBulkAction,
@@ -39,15 +46,11 @@ export function AutoList({
   selectable = false,
 }: AutoListProps) {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     if (view.defaultSort) {
-      return [
-        {
-          id: view.defaultSort.field,
-          desc: view.defaultSort.order === "desc",
-        },
-      ];
+      return [{ id: view.defaultSort.field, desc: view.defaultSort.order === "desc" }];
     }
     return [];
   });
@@ -55,11 +58,32 @@ export function AutoList({
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  // Bazza filter column configs from schema
+  const filterColumnsConfig = useMemo(
+    () => buildFilterColumns(schema, data, stateMeta, resolveLabel),
+    [schema, data, stateMeta, resolveLabel],
+  );
+
+  // Bazza filter state
+  const [bazzaFilters, setBazzaFilters] = useState<FiltersState>([]);
+  const {
+    columns: bazzaColumns,
+    filters: bazzaFilterState,
+    actions: bazzaActions,
+    strategy: bazzaStrategy,
+  } = useDataTableFilters({
+    strategy: "client",
+    data,
+    columnsConfig: filterColumnsConfig,
+    filters: bazzaFilters,
+    onFiltersChange: setBazzaFilters,
+  });
+
   // Clear selection when filters change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on filter change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset
   useEffect(() => {
     setRowSelection({});
-  }, [columnFilters, globalFilter]);
+  }, [columnFilters, globalFilter, bazzaFilterState]);
 
   const toolbarActions = useMemo(
     () => (view.actions ?? []).filter((a) => a.position === "toolbar"),
@@ -70,16 +94,57 @@ export function AutoList({
     [view.actions],
   );
 
+  // Pre-filter data using bazza filter logic before passing to TanStack Table
+  const filteredData = useMemo(() => {
+    if (bazzaFilterState.length === 0) return data;
+    return data.filter((row) =>
+      bazzaFilterState.every((f) => {
+        const val = row[f.field];
+        const fv = f.values;
+        if (fv.length === 0) return true;
+        switch (f.operator) {
+          case "eq":
+          case "in":
+            return fv.includes(val as string);
+          case "neq":
+          case "not_in":
+            return !fv.includes(val as string);
+          case "contains":
+            return String(val ?? "")
+              .toLowerCase()
+              .includes(String(fv[0] ?? "").toLowerCase());
+          case "gt":
+            return Number(val) > Number(fv[0]);
+          case "gte":
+            return Number(val) >= Number(fv[0]);
+          case "lt":
+            return Number(val) < Number(fv[0]);
+          case "lte":
+            return Number(val) <= Number(fv[0]);
+          case "between":
+            return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
+          default:
+            return true;
+        }
+      }),
+    );
+  }, [data, bazzaFilterState]);
+
   const columns = useMemo(() => {
-    const cols = buildColumns({ fields: view.fields, schema, rowActions, onAction, stateMeta });
-    if (selectable) {
-      cols.unshift(buildSelectionColumn());
-    }
+    const cols = buildColumns({
+      fields: view.fields,
+      schema,
+      rowActions,
+      onAction,
+      stateMeta,
+      resolveLabel,
+    });
+    if (selectable) cols.unshift(buildSelectionColumn());
     return cols;
-  }, [view.fields, schema, rowActions, onAction, selectable]);
+  }, [view.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: { sorting, columnFilters, globalFilter, rowSelection },
     onSortingChange: setSorting,
@@ -91,13 +156,10 @@ export function AutoList({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: { pageSize: view.pageSize ?? 10 },
-    },
+    initialState: { pagination: { pageSize: view.pageSize ?? 10 } },
   });
 
-  const filters = view.filters ?? [];
-  const hasActiveFilters = columnFilters.length > 0 || globalFilter !== "";
+  const hasActiveFilters = globalFilter !== "" || bazzaFilterState.length > 0;
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const selectedIds = useMemo(
@@ -105,11 +167,17 @@ export function AutoList({
     [selectedRows],
   );
 
+  const handleClearAllFilters = useCallback(() => {
+    setColumnFilters([]);
+    setBazzaFilters([]);
+    setGlobalFilter("");
+  }, []);
+
   if (loading) {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={`skel-${i}`} className="h-10 w-full" />
+        {SKELETON_KEYS.map((key) => (
+          <Skeleton key={key} className="h-10 w-full" />
         ))}
       </div>
     );
@@ -118,27 +186,20 @@ export function AutoList({
   return (
     <div className="space-y-4">
       <ListToolbar
-        title={title}
-        filters={filters}
         schema={schema}
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}
-        getColumnFilterValue={(field) =>
-          (table.getColumn(field)?.getFilterValue() as string) ?? ""
-        }
-        onColumnFilterChange={(field, value) =>
-          table.getColumn(field)?.setFilterValue(value)
-        }
         hasActiveFilters={hasActiveFilters}
-        onClearFilters={() => {
-          setColumnFilters([]);
-          setGlobalFilter("");
-        }}
+        onClearFilters={handleClearAllFilters}
         toolbarActions={toolbarActions}
         onAction={onAction}
         selectedCount={selectedIds.length}
         onBulkAction={(actionName) => onBulkAction?.(actionName, selectedIds)}
         onClearSelection={() => setRowSelection({})}
+        bazzaColumns={bazzaColumns}
+        bazzaFilters={bazzaFilterState}
+        bazzaActions={bazzaActions}
+        bazzaStrategy={bazzaStrategy}
       />
 
       {/* Table */}
@@ -146,26 +207,16 @@ export function AutoList({
         <table className="w-full text-sm">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr
-                key={headerGroup.id}
-                className="border-b border-border bg-muted/50"
-              >
+              <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
                     className="px-3 py-2 text-left font-medium text-muted-foreground"
-                    style={
-                      header.getSize() !== 150
-                        ? { width: header.getSize() }
-                        : undefined
-                    }
+                    style={header.getSize() !== 150 ? { width: header.getSize() } : undefined}
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
               </tr>
@@ -174,15 +225,10 @@ export function AutoList({
           <tbody>
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="py-12 text-center text-muted-foreground"
-                >
+                <td colSpan={columns.length} className="py-12 text-center text-muted-foreground">
                   <Inbox className="mx-auto mb-2 size-8 opacity-40" />
                   <p className="text-sm">{t("list.noRecords")}</p>
-                  {hasActiveFilters && (
-                    <p className="mt-1 text-xs">{t("list.filterHint")}</p>
-                  )}
+                  {hasActiveFilters && <p className="mt-1 text-xs">{t("list.filterHint")}</p>}
                 </td>
               </tr>
             ) : (
@@ -201,10 +247,7 @@ export function AutoList({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-3 py-1.5">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>

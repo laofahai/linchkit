@@ -10,8 +10,8 @@
  *   label: undefined            -> fallback value
  */
 
-import { useTranslation } from "react-i18next";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 const I18N_PREFIX = "t:";
 
@@ -21,21 +21,21 @@ const I18N_PREFIX = "t:";
  * and looks up the translation. Otherwise returns the literal string.
  */
 export function useSchemaLabel() {
-	const { t } = useTranslation();
+  const { t } = useTranslation();
 
-	const resolveLabel = useCallback(
-		(label: string | undefined, fallback: string): string => {
-			if (!label) return fallback;
-			if (label.startsWith(I18N_PREFIX)) {
-				const key = label.slice(I18N_PREFIX.length);
-				return t(key, { defaultValue: fallback });
-			}
-			return label;
-		},
-		[t],
-	);
+  const resolveLabel = useCallback(
+    (label: string | undefined, fallback: string): string => {
+      if (!label) return fallback;
+      if (label.startsWith(I18N_PREFIX)) {
+        const key = label.slice(I18N_PREFIX.length);
+        return t(key, { defaultValue: fallback });
+      }
+      return label;
+    },
+    [t],
+  );
 
-	return { resolveLabel };
+  return { resolveLabel };
 }
 
 /**
@@ -43,14 +43,14 @@ export function useSchemaLabel() {
  * Uses the i18n instance directly.
  */
 export function resolveSchemaLabel(
-	i18n: { t: (key: string, options?: Record<string, unknown>) => string },
-	label: string | undefined,
-	fallback: string,
+  i18n: { t: (key: string, options?: Record<string, unknown>) => string },
+  label: string | undefined,
+  fallback: string,
 ): string {
-	if (!label) return fallback;
-	if (label.startsWith(I18N_PREFIX)) {
-		const key = label.slice(I18N_PREFIX.length);
-		return i18n.t(key, { defaultValue: fallback });
-	}
-	return label;
+  if (!label) return fallback;
+  if (label.startsWith(I18N_PREFIX)) {
+    const key = label.slice(I18N_PREFIX.length);
+    return i18n.t(key, { defaultValue: fallback });
+  }
+  return label;
 }

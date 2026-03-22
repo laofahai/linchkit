@@ -4,10 +4,7 @@ import type { EventHandlerDefinition, EventRecord } from "../src/types/event";
 
 // ── Test helpers ────────────────────────────────────────────
 
-function makeEvent(
-  type: string,
-  payload: Record<string, unknown> = {},
-): EventRecord {
+function makeEvent(type: string, payload: Record<string, unknown> = {}): EventRecord {
   return {
     id: crypto.randomUUID(),
     type,
@@ -56,9 +53,9 @@ describe("EventHandlerRegistry", () => {
     const { registry } = createEventBus();
     registry.register(makeHandler({ name: "h1", listen: "a" }));
 
-    expect(() =>
-      registry.register(makeHandler({ name: "h1", listen: "b" })),
-    ).toThrow("already registered");
+    expect(() => registry.register(makeHandler({ name: "h1", listen: "b" }))).toThrow(
+      "already registered",
+    );
   });
 
   it("gets handlers by event type", () => {

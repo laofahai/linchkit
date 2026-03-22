@@ -8,7 +8,8 @@
  */
 
 import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core";
-import { cn } from "../../lib/utils";
+import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 
 export interface FormFieldRowProps {
@@ -38,7 +39,9 @@ export function FormFieldRow({
   onChange,
   onBlur,
 }: FormFieldRowProps) {
-  const label = node.label ?? viewField?.label ?? fieldDef.label ?? node.field;
+  const { resolveLabel } = useSchemaLabel();
+  const rawLabel = node.label ?? viewField?.label ?? fieldDef.label ?? node.field;
+  const label = resolveLabel(rawLabel, node.field);
   const colspan = node.colspan ?? 1;
 
   // For nolabel fields, span both label + value columns
@@ -93,11 +96,7 @@ export function FormFieldRow({
 
       {/* Value cell */}
       <div
-        className={cn(
-          "text-sm leading-9 min-h-[36px] min-w-0",
-          "py-1",
-          "max-md:pt-0",
-        )}
+        className={cn("text-sm leading-9 min-h-[36px] min-w-0", "py-1", "max-md:pt-0")}
         style={colspan > 1 ? { gridColumn: `span ${colspan * 2 - 1}` } : undefined}
       >
         {isViewMode || readonly ? (

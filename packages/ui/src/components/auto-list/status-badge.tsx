@@ -1,6 +1,7 @@
 import type { StateMeta } from "@linchkit/core";
-import { cn } from "@/lib/utils";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import { getStateBadgeClass, resolveStateColor } from "@/lib/state-colors";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
 
 interface StatusBadgeProps {
   value: string;
@@ -8,8 +9,11 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ value, meta }: StatusBadgeProps) {
+  const { resolveLabel } = useSchemaLabel();
   const token = resolveStateColor(value, meta);
   const colorClass = getStateBadgeClass(token);
+  const fallback = value.charAt(0).toUpperCase() + value.slice(1);
+  const label = resolveLabel(meta?.[value]?.label, fallback);
   return (
     <span
       className={cn(
@@ -17,7 +21,7 @@ export function StatusBadge({ value, meta }: StatusBadgeProps) {
         colorClass,
       )}
     >
-      {meta?.[value]?.label ?? value.charAt(0).toUpperCase() + value.slice(1)}
+      {label}
     </span>
   );
 }

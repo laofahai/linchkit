@@ -248,6 +248,9 @@ describe("defineCapability", () => {
           effect: { type: "warn", message: "大额采购" },
         }),
       ],
+      ui: {
+        styles: ["@linchkit/cap-purchase/styles.css"],
+      },
     });
 
     expect(cap.name).toBe("purchase_management");
@@ -255,5 +258,6 @@ describe("defineCapability", () => {
     expect(cap.schemas).toHaveLength(1);
     expect(cap.actions).toHaveLength(1);
     expect(cap.rules).toHaveLength(1);
+    expect(cap.ui?.styles).toEqual(["@linchkit/cap-purchase/styles.css"]);
   });
 });

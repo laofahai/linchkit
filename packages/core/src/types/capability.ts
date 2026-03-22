@@ -5,8 +5,10 @@
  * Types: standard (standalone business module), bridge (cross-module bridge), adapter (external system adapter)
  */
 
+import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
+import type { PageRegistration } from "./page";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
@@ -17,6 +19,14 @@ import type { ViewDefinition, ViewExtension } from "./view";
 export type CapabilityType = "standard" | "bridge" | "adapter";
 
 export type CapabilityCategory = "business" | "system" | "integration" | (string & {});
+
+export interface CapabilityUiDefinition {
+  /**
+   * CSS entrypoints that the host app should import when this capability is installed.
+   * Prefer package export paths such as "@linchkit/cap-foo/styles.css".
+   */
+  styles?: string[];
+}
 
 // ── Capability definition ────────────────────────────────
 
@@ -37,6 +47,8 @@ export interface CapabilityDefinition {
   events?: EventDefinition[];
   eventHandlers?: EventHandlerDefinition[];
   views?: ViewDefinition[];
+  pages?: PageRegistration[];
+  ui?: CapabilityUiDefinition;
 
   // Extension points (for Bridge / Adapter)
   extensions?: {
@@ -46,7 +58,7 @@ export interface CapabilityDefinition {
     rules?: Array<{ target: string; override: RuleOverride }>;
     states?: Array<{ target: string; extension: StateExtension }>;
     views?: Array<{ target: string; extension: ViewExtension }>;
-    middlewares?: MiddlewareRegistration[];
+    middlewares?: CapabilityMiddlewareRegistration[];
   };
 
   // System permission declarations
@@ -64,9 +76,13 @@ export type SlotName =
   | "pre-action"
   | "post-action";
 
-export interface MiddlewareRegistration {
+/**
+ * @deprecated Use MiddlewareRegistration from engine/command-layer instead.
+ * Kept for backward compatibility — the command-layer version has name + order fields.
+ */
+export interface CapabilityMiddlewareRegistration {
   slot: SlotName;
-  handler: (ctx: unknown, next: () => Promise<void>) => Promise<void>;
+  handler: (ctx: CommandContext, next: () => Promise<void>) => Promise<void>;
   priority?: number;
 }
 
