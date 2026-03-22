@@ -17,7 +17,7 @@ import {
   createRuntimeContext,
   createServer,
   generateCrudActions,
-} from "@linchkit/server";
+} from "@linchkit/cap-adapter-server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";

@@ -35,9 +35,9 @@ export function generateCapabilityStylesheet(
   cwd?: string,
 ): { path: string; updated: boolean } | null {
   const baseDir = cwd ?? process.cwd();
-  const stylesheetPath = resolve(baseDir, "packages/ui/src/capability-styles.css");
+  const stylesheetPath = resolve(baseDir, "capabilities/cap-adapter-ui-react/src/capability-styles.css");
 
-  if (!existsSync(resolve(baseDir, "packages/ui/package.json"))) {
+  if (!existsSync(resolve(baseDir, "capabilities/cap-adapter-ui-react/package.json"))) {
     return null;
   }
 

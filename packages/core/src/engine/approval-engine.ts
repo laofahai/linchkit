@@ -513,3 +513,18 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     setExecutor,
   };
 }
+
+/**
+ * Create a verifyApproval callback from an ApprovalStore.
+ *
+ * Returns true only when the approvalId exists AND has status "approved".
+ * Use this to wire CommandLayerOptions.verifyApproval for secure approval re-execution.
+ */
+export function createApprovalVerifier(
+  store: ApprovalStore,
+): (approvalId: string) => Promise<boolean> {
+  return async (approvalId: string): Promise<boolean> => {
+    const request = store.getById(approvalId);
+    return !!request && request.status === "approved";
+  };
+}

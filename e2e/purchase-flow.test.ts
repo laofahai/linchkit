@@ -1,69 +1,20 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryExecutionLogger, SchemaRegistry } from "@linchkit/core";
-import { InMemoryStore } from "../packages/server/src/data/in-memory-store";
+import {
+  approveAction,
+  purchaseRequestSchema,
+  submitAction,
+} from "@linchkit/cap-purchase-demo";
+import { InMemoryStore } from "../capabilities/cap-adapter-server/src/data/in-memory-store";
 import {
   buildGraphQLSchema,
   generateCrudActions,
-} from "../packages/server/src/graphql/build-schema";
-import { createServer } from "../packages/server/src/server";
+} from "../capabilities/cap-adapter-server/src/graphql/build-schema";
+import { createServer } from "../capabilities/cap-adapter-server/src/server";
 
-// ── Schema (matches dev.ts, includes default state) ─────
-const purchaseRequestSchema: SchemaDefinition = {
-  name: "purchase_request",
-  label: "Purchase Request",
-  fields: {
-    title: { type: "string", required: true, label: "Title" },
-    description: { type: "text", label: "Description" },
-    amount: { type: "number", required: true, label: "Amount" },
-    department: { type: "string", label: "Department" },
-    requester: { type: "string", label: "Requester" },
-    status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
-    priority: {
-      type: "enum",
-      options: [
-        { value: "low", label: "Low" },
-        { value: "medium", label: "Medium" },
-        { value: "high", label: "High" },
-      ],
-      label: "Priority",
-    },
-  },
-};
-
-// ── Custom actions (no permission restrictions for E2E) ──
-const submitAction: ActionDefinition = {
-  name: "submit_purchase_request",
-  schema: "purchase_request",
-  label: "Submit",
-  policy: { mode: "sync", transaction: true },
-  exposure: "all",
-  handler: async (ctx) => {
-    const id = ctx.input.id as string;
-    const record = await ctx.get("purchase_request", id);
-    if (record.status !== "draft") {
-      throw new Error(`Cannot submit: current status is "${record.status}", expected "draft"`);
-    }
-    return ctx.update("purchase_request", id, { status: "pending" });
-  },
-};
-
-const approveAction: ActionDefinition = {
-  name: "approve_purchase_request",
-  schema: "purchase_request",
-  label: "Approve",
-  // No permission restriction for E2E testing with anonymous actor
-  policy: { mode: "sync", transaction: true },
-  exposure: "all",
-  handler: async (ctx) => {
-    const id = ctx.input.id as string;
-    const record = await ctx.get("purchase_request", id);
-    if (record.status !== "pending") {
-      throw new Error(`Cannot approve: current status is "${record.status}", expected "pending"`);
-    }
-    return ctx.update("purchase_request", id, { status: "approved" });
-  },
-};
+// Strip permission restrictions for E2E testing with anonymous actor
+const e2eSubmitAction = { ...submitAction, permissions: undefined };
+const e2eApproveAction = { ...approveAction, permissions: undefined };
 
 // ── Setup: in-process server (no subprocess spawn) ───────
 const PORT = 4021;
@@ -75,7 +26,7 @@ const schemaRegistry = new SchemaRegistry();
 schemaRegistry.register(purchaseRequestSchema);
 
 const executor = createActionExecutor({ dataProvider: store, executionLogger });
-const allActions = [...generateCrudActions(purchaseRequestSchema), submitAction, approveAction];
+const allActions = [...generateCrudActions(purchaseRequestSchema), e2eSubmitAction, e2eApproveAction];
 for (const action of allActions) {
   executor.registry.register(action);
 }

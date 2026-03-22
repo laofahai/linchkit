@@ -62,8 +62,8 @@ capabilities/ (pluggable):
 ## Dev Commands
 
 ```bash
-bun --watch packages/server/src/dev.ts   # Server on :3001
-cd packages/ui && bun run dev            # UI on :3000, proxies API to :3001
+bun run dev:server                       # Server on :3001
+bun run dev:ui                           # UI on :3000, proxies API to :3001
 bun test                                 # Run all tests
 bun run check                            # Biome lint + format
 bun run typecheck                        # TypeScript check

@@ -1,5 +1,5 @@
 {
-  "name": "@linchkit/server",
+  "name": "@linchkit/cap-adapter-server",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -18,5 +18,10 @@
   },
   "devDependencies": {
     "typescript": "^5.8.2"
+  },
+  "linchkit": {
+    "type": "adapter",
+    "category": "integration",
+    "trustLevel": "official"
   }
 }

@@ -171,6 +171,8 @@ export interface RuleEvaluationResult {
   duration: number;
   /** Error message if the rule's condition threw an exception */
   error?: string;
+  /** Whether the rule was skipped (e.g., after approval was granted) */
+  skipped?: boolean;
 }
 
 // ── Rule override (for Bridge) ─────────────────────────

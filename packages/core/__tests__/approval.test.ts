@@ -7,6 +7,7 @@ import {
 import type { ApprovalEngine } from "../src/engine/approval-engine";
 import { createApprovalEngine, InMemoryApprovalStore } from "../src/engine/approval-engine";
 import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
+import { createApprovalVerifier } from "../src/engine/approval-engine";
 import { createEventBus, type EventBus } from "../src/engine/event-bus";
 import { InMemoryExecutionLogger } from "../src/engine/execution-logger";
 import { evaluateRules } from "../src/engine/rule-engine";
@@ -1016,7 +1017,10 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
     executor = createActionExecutor({ dataProvider, executionLogger });
     executor.registry.register(submitRequestAction);
 
-    commandLayer = createCommandLayer({ executor });
+    commandLayer = createCommandLayer({
+      executor,
+      verifyApproval: createApprovalVerifier(store),
+    });
     const { bus } = createEventBus();
     eventBus = bus;
   });
@@ -1166,6 +1170,74 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
     expect(result.success).toBe(true);
+  });
+
+  it("approve() propagates commandLayer.execute error", async () => {
+    // Create a mock commandLayer that throws on execute
+    const throwingCommandLayer: CommandLayer = {
+      use: () => {},
+      execute: async () => {
+        throw new Error("Pipeline exploded");
+      },
+      getMiddlewares: () => [],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      commandLayer: throwingCommandLayer,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-err-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    // The error from commandLayer.execute should propagate (not be swallowed)
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, managerActor),
+    ).rejects.toThrow("Pipeline exploded");
+  });
+
+  it("passes correct approvalId to commandLayer.execute", async () => {
+    let capturedApprovalId: string | undefined;
+
+    // Create a spy commandLayer that captures the approvalId
+    const spyCommandLayer: CommandLayer = {
+      use: () => {},
+      execute: async (opts) => {
+        capturedApprovalId = opts.approvalId;
+        // Delegate to the real commandLayer for actual execution
+        return commandLayer.execute(opts);
+      },
+      getMiddlewares: () => [],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      commandLayer: spyCommandLayer,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-id-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+
+    // The approvalId passed to commandLayer must match the actual approval record ID
+    expect(capturedApprovalId).toBe(createResult.approvalId);
   });
 });
 

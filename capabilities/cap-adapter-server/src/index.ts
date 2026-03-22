@@ -1,5 +1,5 @@
 /**
- * @linchkit/server — HTTP server
+ * @linchkit/cap-adapter-server — HTTP server
  *
  * Built on Elysia + graphql-yoga
  */

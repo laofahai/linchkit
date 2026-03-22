@@ -19,11 +19,11 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@linchkit/core": ["../core/src"],
-      "@linchkit/ui-kit": ["../ui-kit/src"],
-      "@linchkit/ui-kit/components": ["../ui-kit/src/components"],
-      "@linchkit/ui-kit/hooks": ["../ui-kit/src/hooks"],
-      "@linchkit/ui-kit/lib/utils": ["../ui-kit/src/lib/utils"]
+      "@linchkit/core": ["../../packages/core/src"],
+      "@linchkit/ui-kit": ["./ui-kit/src"],
+      "@linchkit/ui-kit/components": ["./ui-kit/src/components"],
+      "@linchkit/ui-kit/hooks": ["./ui-kit/src/hooks"],
+      "@linchkit/ui-kit/lib/utils": ["./ui-kit/src/lib/utils"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

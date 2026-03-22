@@ -316,8 +316,10 @@ describe("Command Layer: Core Pipeline", () => {
   });
 
   describe("Approval re-execution (approvalId)", () => {
-    test("execute with approvalId skips auth/exposure/permission but runs other slots", async () => {
-      const { layer } = createTestSetup();
+    test("execute with valid approvalId and verifyApproval skips auth/exposure/permission but runs other slots", async () => {
+      const { layer } = createTestSetup({
+        verifyApproval: async () => true,
+      });
       const slotsExecuted: string[] = [];
 
       layer.use({
@@ -421,10 +423,12 @@ describe("Command Layer: Core Pipeline", () => {
       expect(slotsExecuted).toContain("permission");
     });
 
-    test("approval re-execution skips exposure check for non-exposed channel", async () => {
-      const { layer } = createTestSetup();
+    test("approval re-execution with valid verifyApproval skips exposure check for non-exposed channel", async () => {
+      const { layer } = createTestSetup({
+        verifyApproval: async () => true,
+      });
 
-      // internal_only is not exposed for http, but with approvalId it should pass
+      // internal_only is not exposed for http, but with valid approvalId it should pass
       const result = await layer.execute({
         command: "internal_only",
         input: {},
@@ -434,6 +438,120 @@ describe("Command Layer: Core Pipeline", () => {
       });
 
       expect(result.success).toBe(true);
+    });
+
+    test("fake approvalId without verifyApproval configured — slots NOT skipped (fail-closed)", async () => {
+      const { layer } = createTestSetup(); // No verifyApproval
+      const slotsExecuted: string[] = [];
+
+      layer.use({
+        name: "track_auth",
+        slot: "auth",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("auth");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_permission",
+        slot: "permission",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("permission");
+          await next();
+        },
+      });
+
+      const result = await layer.execute({
+        command: "create_item",
+        input: { name: "fake-approval" },
+        approvalId: "fake_approval_id",
+        actor: { type: "human", id: "attacker", groups: [] },
+      });
+
+      // Action still succeeds (no middleware blocks it), but security slots ran
+      expect(result.success).toBe(true);
+      expect(slotsExecuted).toContain("auth");
+      expect(slotsExecuted).toContain("permission");
+    });
+
+    test("fake approvalId with verifyApproval returning false — error returned", async () => {
+      const { layer } = createTestSetup({
+        verifyApproval: async () => false,
+      });
+
+      const result = await layer.execute({
+        command: "create_item",
+        input: { name: "fake-approval" },
+        approvalId: "fake_approval_id",
+        actor: { type: "human", id: "attacker", groups: [] },
+      });
+
+      expect(result.success).toBe(false);
+      const data = result.data as Record<string, unknown>;
+      expect(data.error).toContain("Invalid or unapproved approvalId");
+      expect(data.code).toBe("APPROVAL.INVALID");
+    });
+
+    test("valid approvalId with verifyApproval returning true — slots skipped correctly", async () => {
+      const verifiedIds = new Set(["real_approval_001"]);
+      const { layer } = createTestSetup({
+        verifyApproval: async (id) => verifiedIds.has(id),
+      });
+      const slotsExecuted: string[] = [];
+
+      layer.use({
+        name: "track_auth",
+        slot: "auth",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("auth");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_permission",
+        slot: "permission",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("permission");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_tenant",
+        slot: "tenant",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("tenant");
+          await next();
+        },
+      });
+
+      const result = await layer.execute({
+        command: "create_item",
+        input: { name: "approved-item" },
+        approvalId: "real_approval_001",
+        actor: { type: "human", id: "user_1", groups: [] },
+      });
+
+      expect(result.success).toBe(true);
+      expect(slotsExecuted).not.toContain("auth");
+      expect(slotsExecuted).not.toContain("permission");
+      expect(slotsExecuted).toContain("tenant");
+    });
+
+    test("without verifyApproval, exposure check still applies to non-exposed channels", async () => {
+      const { layer } = createTestSetup(); // No verifyApproval
+
+      // internal_only is not exposed for http; without verifyApproval, exposure check runs
+      const result = await layer.execute({
+        command: "internal_only",
+        input: {},
+        channel: "http",
+        approvalId: "fake_approval_id",
+        actor: { type: "human", id: "user_1", groups: [] },
+      });
+
+      expect(result.success).toBe(false);
+      const data = result.data as Record<string, unknown>;
+      expect(data.error as string).toContain("not exposed");
     });
   });
 });

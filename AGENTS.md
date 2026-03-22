@@ -25,14 +25,18 @@
 ## Project Structure
 
 ```
-packages/
-  core/       — Types, engines (Action, Rule, State, Event, Schema), permission
-  cli/        — CLI tool (citty): linch init, linch dev
-  server/     — Elysia HTTP + graphql-yoga + REST + CommandLayer
-  ui/        — React + Shadcn + TanStack (AutoList, AutoForm, widgets)
-  devtools/   — Test utilities
-  mcp/        — MCP adapter (type: adapter)
-  migrate/    — Migration tools (placeholder)
+packages/ (core infrastructure):
+  @linchkit/core       — Engines, types, pipeline
+  @linchkit/cli        — CLI launcher (citty)
+  @linchkit/devtools   — Test utilities
+
+capabilities/ (pluggable):
+  @linchkit/cap-adapter-server    — HTTP/GraphQL transport (Elysia + graphql-yoga)
+  @linchkit/cap-adapter-mcp       — MCP transport for AI agents
+  @linchkit/cap-adapter-ui-react  — Official UI shell (React + Shadcn + TanStack)
+  @linchkit/cap-auth              — Authentication
+  @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
+  @linchkit/cap-permission        — Permission engine
 ```
 
 **Module boundaries:**
@@ -91,8 +95,8 @@ pre → auth → exposure → permission → tenant → pre-action → [action] 
 ## Development
 
 ```bash
-bun --watch packages/server/src/dev.ts   # Server :3001
-cd packages/ui && bun run dev            # UI :3000 (proxies to :3001)
+bun run dev:server                       # Server :3001
+bun run dev:ui                           # UI :3000 (proxies to :3001)
 bun test                                 # All tests
 bun run check                            # Biome lint + format
 bun run typecheck                        # TypeScript check

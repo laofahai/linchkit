@@ -3,7 +3,7 @@ import type { Subprocess } from "bun";
 let serverProcess: Subprocess | null = null;
 
 export async function startServer(port = 3001): Promise<void> {
-  serverProcess = Bun.spawn(["bun", "packages/server/src/dev.ts"], {
+  serverProcess = Bun.spawn(["bun", "capabilities/cap-adapter-server/src/dev.ts"], {
     env: { ...process.env, PORT: String(port) },
     stdout: "pipe",
     stderr: "pipe",

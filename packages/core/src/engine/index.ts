@@ -25,6 +25,7 @@ export {
   type ApprovalEngineOptions,
   type CreateApprovalOptions,
   createApprovalEngine,
+  createApprovalVerifier,
   InMemoryApprovalStore,
 } from "./approval-engine";
 // Command layer

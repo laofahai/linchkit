@@ -24,7 +24,68 @@
         "typescript": "^5.8.2",
       },
     },
-    "packages/cap-auth": {
+    "capabilities/cap-adapter-server": {
+      "name": "@linchkit/cap-adapter-server",
+      "version": "0.0.1",
+      "dependencies": {
+        "@elysiajs/cors": "^1.3.1",
+        "@linchkit/core": "workspace:*",
+        "elysia": "^1.3.2",
+        "graphql": "^16.10.0",
+        "graphql-yoga": "^5.12.0",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.2",
+      },
+    },
+    "capabilities/cap-adapter-ui-react": {
+      "name": "@linchkit/cap-adapter-ui-react",
+      "version": "0.0.1",
+      "dependencies": {
+        "@fontsource-variable/geist": "^5.2.8",
+        "@linchkit/core": "workspace:*",
+        "@linchkit/ui-kit": "workspace:*",
+        "@tanstack/react-router": "^1.120.0",
+        "cmdk": "^1.1.1",
+        "date-fns": "^4.1.0",
+        "i18next": "^25.1.3",
+        "lucide-react": "^0.577.0",
+        "react": "^19.0.0",
+        "react-day-picker": "^9.14.0",
+        "react-dom": "^19.0.0",
+        "react-i18next": "^15.5.2",
+        "shadcn": "^4.1.0",
+      },
+      "devDependencies": {
+        "@tailwindcss/vite": "^4.1.0",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "@vitejs/plugin-react": "^4.5.0",
+        "autoprefixer": "^10.4.20",
+        "tailwindcss": "^4.1.0",
+        "typescript": "^5.8.2",
+        "vite": "^6.3.0",
+      },
+    },
+    "capabilities/cap-adapter-ui-react/ui-kit": {
+      "name": "@linchkit/ui-kit",
+      "version": "0.0.1",
+      "dependencies": {
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "cmdk": "^1.1.1",
+        "lucide-react": "^0.577.0",
+        "radix-ui": "^1.4.3",
+        "react-day-picker": "^9.14.0",
+        "tailwind-merge": "^3.5.0",
+        "tw-animate-css": "^1.4.0",
+      },
+      "peerDependencies": {
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+    },
+    "capabilities/cap-auth": {
       "name": "@linchkit/cap-auth",
       "version": "0.0.1",
       "dependencies": {
@@ -43,7 +104,7 @@
         "react",
       ],
     },
-    "packages/cap-auth-better-auth": {
+    "capabilities/cap-auth-better-auth": {
       "name": "@linchkit/cap-auth-better-auth",
       "version": "0.0.1",
       "dependencies": {
@@ -59,7 +120,7 @@
         "@linchkit/core": "^0.0.1",
       },
     },
-    "packages/cap-permission": {
+    "capabilities/cap-permission": {
       "name": "@linchkit/cap-permission",
       "version": "0.0.1",
       "dependencies": {
@@ -79,8 +140,8 @@
         "linch": "src/index.ts",
       },
       "dependencies": {
+        "@linchkit/cap-adapter-server": "workspace:*",
         "@linchkit/core": "workspace:*",
-        "@linchkit/server": "workspace:*",
         "citty": "^0.1.6",
       },
       "devDependencies": {
@@ -109,77 +170,6 @@
       },
       "devDependencies": {
         "typescript": "^5.8.2",
-      },
-    },
-    "packages/migrate": {
-      "name": "@linchkit/migrate",
-      "version": "0.0.1",
-      "dependencies": {
-        "@linchkit/core": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "^5.8.2",
-      },
-    },
-    "packages/server": {
-      "name": "@linchkit/server",
-      "version": "0.0.1",
-      "dependencies": {
-        "@elysiajs/cors": "^1.3.1",
-        "@linchkit/core": "workspace:*",
-        "elysia": "^1.3.2",
-        "graphql": "^16.10.0",
-        "graphql-yoga": "^5.12.0",
-      },
-      "devDependencies": {
-        "typescript": "^5.8.2",
-      },
-    },
-    "packages/ui": {
-      "name": "@linchkit/ui",
-      "version": "0.0.1",
-      "dependencies": {
-        "@fontsource-variable/geist": "^5.2.8",
-        "@linchkit/core": "workspace:*",
-        "@linchkit/ui-kit": "workspace:*",
-        "@tanstack/react-router": "^1.120.0",
-        "cmdk": "^1.1.1",
-        "date-fns": "^4.1.0",
-        "i18next": "^25.1.3",
-        "lucide-react": "^0.577.0",
-        "react": "^19.0.0",
-        "react-day-picker": "^9.14.0",
-        "react-dom": "^19.0.0",
-        "react-i18next": "^15.5.2",
-        "shadcn": "^4.1.0",
-      },
-      "devDependencies": {
-        "@tailwindcss/vite": "^4.1.0",
-        "@types/react": "^19.0.0",
-        "@types/react-dom": "^19.0.0",
-        "@vitejs/plugin-react": "^4.5.0",
-        "autoprefixer": "^10.4.20",
-        "tailwindcss": "^4.1.0",
-        "typescript": "^5.8.2",
-        "vite": "^6.3.0",
-      },
-    },
-    "packages/ui-kit": {
-      "name": "@linchkit/ui-kit",
-      "version": "0.0.1",
-      "dependencies": {
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "cmdk": "^1.1.1",
-        "lucide-react": "^0.577.0",
-        "radix-ui": "^1.4.3",
-        "react-day-picker": "^9.14.0",
-        "tailwind-merge": "^3.5.0",
-        "tw-animate-css": "^1.4.0",
-      },
-      "peerDependencies": {
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
       },
     },
   },
@@ -394,11 +384,15 @@
 
     "@linchkit/cap-adapter-mcp": ["@linchkit/cap-adapter-mcp@workspace:capabilities/cap-adapter-mcp"],
 
-    "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:packages/cap-auth"],
+    "@linchkit/cap-adapter-server": ["@linchkit/cap-adapter-server@workspace:capabilities/cap-adapter-server"],
 
-    "@linchkit/cap-auth-better-auth": ["@linchkit/cap-auth-better-auth@workspace:packages/cap-auth-better-auth"],
+    "@linchkit/cap-adapter-ui-react": ["@linchkit/cap-adapter-ui-react@workspace:capabilities/cap-adapter-ui-react"],
 
-    "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:packages/cap-permission"],
+    "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:capabilities/cap-auth"],
+
+    "@linchkit/cap-auth-better-auth": ["@linchkit/cap-auth-better-auth@workspace:capabilities/cap-auth-better-auth"],
+
+    "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:capabilities/cap-permission"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 
@@ -406,13 +400,7 @@
 
     "@linchkit/devtools": ["@linchkit/devtools@workspace:packages/devtools"],
 
-    "@linchkit/migrate": ["@linchkit/migrate@workspace:packages/migrate"],
-
-    "@linchkit/server": ["@linchkit/server@workspace:packages/server"],
-
-    "@linchkit/ui": ["@linchkit/ui@workspace:packages/ui"],
-
-    "@linchkit/ui-kit": ["@linchkit/ui-kit@workspace:packages/ui-kit"],
+    "@linchkit/ui-kit": ["@linchkit/ui-kit@workspace:capabilities/cap-adapter-ui-react/ui-kit"],
 
     "@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.27.1", "https://registry.npmmirror.com/@modelcontextprotocol/sdk/-/sdk-1.27.1.tgz", { "dependencies": { "@hono/node-server": "^1.19.9", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "content-type": "^1.0.5", "cors": "^2.8.5", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "eventsource-parser": "^3.0.0", "express": "^5.2.1", "express-rate-limit": "^8.2.1", "hono": "^4.11.4", "jose": "^6.1.3", "json-schema-typed": "^8.0.2", "pkce-challenge": "^5.0.0", "raw-body": "^3.0.0", "zod": "^3.25 || ^4.0", "zod-to-json-schema": "^3.25.1" }, "peerDependencies": { "@cfworker/json-schema": "^4.1.1" }, "optionalPeers": ["@cfworker/json-schema"] }, "sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA=="],
 

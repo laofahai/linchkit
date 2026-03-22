@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@linchkit/core": "workspace:*",
-    "@linchkit/server": "workspace:*",
+    "@linchkit/cap-adapter-server": "workspace:*",
     "citty": "^0.1.6"
   },
   "devDependencies": {

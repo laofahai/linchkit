@@ -1,5 +1,5 @@
 /**
- * @linchkit/ui — Frontend UI components + Headless hooks
+ * @linchkit/cap-adapter-ui-react — Frontend UI components + Headless hooks
  *
  * Shadcn + React + TanStack Router/Query/Table
  */

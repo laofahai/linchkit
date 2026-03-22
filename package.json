@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "capabilities/*"
+    "capabilities/*",
+    "capabilities/cap-adapter-ui-react/ui-kit"
   ],
   "scripts": {
     "check": "bunx @biomejs/biome check .",
@@ -12,9 +13,9 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "build": "bun run --filter '*' build",
-    "dev": "bun run --filter '@linchkit/server' --filter '@linchkit/ui' dev",
-    "dev:server": "bun run --filter @linchkit/server dev",
-    "dev:ui": "bun run --filter @linchkit/ui dev"
+    "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui-react' dev",
+    "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
+    "dev:ui": "bun run --filter @linchkit/cap-adapter-ui-react dev"
   },
   "devDependencies": {
     "bun-types": "latest"

@@ -1,7 +1,7 @@
 /**
  * View type definitions
  *
- * Headless architecture: logic layer (@linchkit/core) and rendering layer (@linchkit/ui) are separated.
+ * Headless architecture: logic layer (@linchkit/core) and rendering layer (@linchkit/cap-adapter-ui-react) are separated.
  * Supports four view types: list / form / kanban / dashboard.
  */
 

@@ -66,6 +66,7 @@ export {
   createActionExecutor,
   createAIService,
   createApprovalEngine,
+  createApprovalVerifier,
   createCommandLayer,
   createNoopAIService,
   createProposalEngine,

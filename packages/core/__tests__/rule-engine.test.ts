@@ -530,6 +530,72 @@ describe("evaluateRules", () => {
     expect(result.triggered).toBe(true);
   });
 
+  it("skipRules skips named rules", async () => {
+    const approvalRule = makeRule({
+      name: "needs-approval",
+      priority: 10,
+      condition: { field: "target.amount", operator: "gt", value: 1000 },
+      effect: { type: "require_approval", level: "manager", message: "Manager approval needed" },
+    });
+    const warnRule = makeRule({
+      name: "warn-large",
+      priority: 5,
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Large amount" },
+    });
+
+    const result = await evaluateRules([approvalRule, warnRule], defaultInput, {
+      skipRules: ["needs-approval"],
+    });
+    // The approval rule should be skipped
+    expect(result.requiredApproval).toBeNull();
+    expect(result.results[0].rule).toBe("needs-approval");
+    expect(result.results[0].skipped).toBe(true);
+    expect(result.results[0].triggered).toBe(false);
+    expect(result.results[0].duration).toBe(0);
+    // The warn rule should still evaluate normally
+    expect(result.warnings).toHaveLength(1);
+    expect(result.results[1].rule).toBe("warn-large");
+    expect(result.results[1].skipped).toBeUndefined();
+  });
+
+  it("non-skipped rules still evaluate normally when skipRules is provided", async () => {
+    const rule1 = makeRule({
+      name: "rule-a",
+      priority: 10,
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Warning A" },
+    });
+    const rule2 = makeRule({
+      name: "rule-b",
+      priority: 5,
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Warning B" },
+    });
+
+    const result = await evaluateRules([rule1, rule2], defaultInput, {
+      skipRules: ["rule-a"],
+    });
+    // rule-a skipped, rule-b evaluates
+    expect(result.results[0].skipped).toBe(true);
+    expect(result.results[1].triggered).toBe(true);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].message).toBe("Warning B");
+  });
+
+  it("empty skipRules has no effect (backward compat)", async () => {
+    const rule = makeRule({
+      name: "always-warn",
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Warning" },
+    });
+
+    const result = await evaluateRules([rule], defaultInput, { skipRules: [] });
+    expect(result.triggered).toBe(true);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.results[0].skipped).toBeUndefined();
+  });
+
   it("includes duration in output", async () => {
     const rule = makeRule({
       name: "timed",

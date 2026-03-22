@@ -55,6 +55,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export interface RuleEvalOptions {
   /** Timeout in ms for async code conditions. No timeout if omitted. */
   timeout?: number;
+  /** Rule names to skip (e.g., rules that triggered an approval that has been granted) */
+  skipRules?: string[];
 }
 
 export interface RuleEvalInput {
@@ -125,6 +127,18 @@ export async function evaluateRules(
   };
 
   for (const rule of sorted) {
+    // Skip rules that have already been approved
+    if (options?.skipRules?.includes(rule.name)) {
+      output.results.push({
+        rule: rule.name,
+        triggered: false,
+        effect: null,
+        duration: 0,
+        skipped: true,
+      });
+      continue;
+    }
+
     const ruleStart = performance.now();
 
     let triggered: boolean;

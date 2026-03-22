@@ -51,8 +51,13 @@ export function createTestDataProvider() {
   };
 }
 
+export interface TestSetupOptions {
+  /** Optional verifyApproval callback for CommandLayer */
+  verifyApproval?: (approvalId: string) => Promise<boolean>;
+}
+
 /** Create a test action executor with common test actions */
-export function createTestSetup(): { executor: ActionExecutor; layer: CommandLayer } {
+export function createTestSetup(opts?: TestSetupOptions): { executor: ActionExecutor; layer: CommandLayer } {
   const dp = createTestDataProvider();
   const executor = createActionExecutor({ dataProvider: dp });
 
@@ -93,6 +98,6 @@ export function createTestSetup(): { executor: ActionExecutor; layer: CommandLay
   };
   executor.registry.register(adminAction);
 
-  const layer = createCommandLayer({ executor });
+  const layer = createCommandLayer({ executor, verifyApproval: opts?.verifyApproval });
   return { executor, layer };
 }

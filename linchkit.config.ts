@@ -1,5 +1,6 @@
 import { capAuth } from "@linchkit/cap-auth";
 import { capPermission } from "@linchkit/cap-permission";
+import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
 import { defineConfig } from "@linchkit/core";
 
 export default defineConfig({
@@ -23,5 +24,5 @@ export default defineConfig({
     },
   },
 
-  capabilities: [capAuth, capPermission],
+  capabilities: [capAuth, capPermission, capPurchaseDemo],
 });

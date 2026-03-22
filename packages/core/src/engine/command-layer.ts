@@ -104,6 +104,12 @@ export interface CommandLayerOptions {
   executor: ActionExecutor;
   /** Optional structured logger (defaults to consoleLogger) */
   logger?: Logger;
+  /**
+   * Verify that an approvalId is valid and approved.
+   * Called when approvalId is provided in execute options.
+   * If not configured, approvalId is ignored (fail-closed — security slots are NOT skipped).
+   */
+  verifyApproval?: (approvalId: string) => Promise<boolean>;
 }
 
 export interface CommandLayer {
@@ -144,7 +150,7 @@ export interface CommandExecuteOptions {
  * ```
  */
 export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
-  const { executor, logger = consoleLogger } = options;
+  const { executor, logger = consoleLogger, verifyApproval } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
   function use(registration: MiddlewareRegistration): void {
@@ -223,8 +229,28 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // Determine if permission middleware is registered (#1 — fail-closed)
     const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
 
-    // Approval re-execution: skip auth, exposure, permission slots
-    const isApprovalReExecution = !!execOptions.approvalId;
+    // Approval re-execution: skip auth, exposure, permission slots ONLY when
+    // a verifyApproval callback is configured AND it confirms the approvalId is valid.
+    // Fail-closed: without verifyApproval, approvalId is ignored and all slots run.
+    let isApprovalReExecution = false;
+    if (execOptions.approvalId) {
+      if (!verifyApproval) {
+        // No verification function configured — fail-closed, do NOT skip security slots
+        logger.warn(
+          `[CommandLayer] approvalId provided but no verifyApproval configured — ignoring (fail-closed)`,
+        );
+      } else {
+        const isValid = await verifyApproval(execOptions.approvalId);
+        if (!isValid) {
+          return {
+            success: false,
+            data: { error: "Invalid or unapproved approvalId", code: "APPROVAL.INVALID" },
+            executionId: generatePipelineId(),
+          };
+        }
+        isApprovalReExecution = true;
+      }
+    }
     const skippedSlots: Set<SlotName> = isApprovalReExecution
       ? new Set(["auth", "exposure", "permission"])
       : new Set();
