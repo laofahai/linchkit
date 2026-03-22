@@ -36,6 +36,12 @@ export interface ServerOptions {
   schemaRegistry?: SchemaRegistry;
   /** View definitions grouped by schema name */
   views?: Map<string, ViewDefinition[]>;
+  /**
+   * Resolve tenant ID from a request for GraphQL tenant isolation.
+   * Called on each GraphQL request to extract the tenant context.
+   * Return undefined for no tenant filtering (e.g., admin/system users).
+   */
+  resolveRequestTenantId?: (request: Request) => Promise<string | undefined> | string | undefined;
 }
 
 /** Default anonymous actor for unauthenticated REST requests. */
@@ -141,13 +147,19 @@ export function createServer(
   const executionLogger = options?.executionLogger;
   const schemaRegistry = options?.schemaRegistry;
   const views = options?.views;
+  const resolveRequestTenantId = options?.resolveRequestTenantId;
 
-  // Create graphql-yoga instance
+  // Create graphql-yoga instance with tenant context factory
   const yoga = createYoga({
     schema: graphqlSchema,
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
+    // Build GraphQL context with tenant isolation info from the request
+    context: async ({ request }) => {
+      const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
+      return { tenantId };
+    },
   });
 
   const app = new Elysia()

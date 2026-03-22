@@ -10,6 +10,7 @@ import type {
   ActionDefinition,
   ActionExecutor,
   DataProvider,
+  DataQueryOptions,
   ExecutionLogger,
   ExecutionStatus,
   SchemaDefinition,
@@ -66,6 +67,12 @@ const ANONYMOUS_ACTOR = {
   id: "anonymous",
   groups: [] as string[],
 };
+
+/** GraphQL resolver context — carries tenant isolation info from the authenticated request */
+export interface GraphQLContext {
+  /** Tenant ID resolved from the authenticated user; undefined means no tenant filtering */
+  tenantId?: string;
+}
 
 /** Maximum page size for list queries */
 const MAX_PAGE_SIZE = 100;
@@ -320,16 +327,18 @@ export function buildGraphQLSchema(
     const mockRecord = buildMockRecord(schema);
 
     // ── Query: get by ID ──────────────────────────────────
-    // TODO: Pass tenant DataQueryOptions once GraphQL context carries authenticated user's tenantId
     queryFields[camelName] = {
       type: objectType,
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
       resolve: dataProvider
-        ? async (_root: unknown, args: { id: string }) => {
+        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+            const opts: DataQueryOptions | undefined = ctx.tenantId
+              ? { tenantId: ctx.tenantId }
+              : undefined;
             try {
-              return await dataProvider.get(schemaName, args.id);
+              return await dataProvider.get(schemaName, args.id, opts);
             } catch {
               return null;
             }
@@ -352,7 +361,6 @@ export function buildGraphQLSchema(
     });
 
     // ── Query: list with filter/sort/pagination ───────────
-    // TODO: Pass tenant DataQueryOptions once GraphQL context carries authenticated user's tenantId
     queryFields[`${camelName}List`] = {
       type: new GraphQLNonNull(listResultType),
       args: {
@@ -378,7 +386,11 @@ export function buildGraphQLSchema(
               page?: number;
               pageSize?: number;
             },
+            ctx: GraphQLContext,
           ) => {
+            const opts: DataQueryOptions | undefined = ctx.tenantId
+              ? { tenantId: ctx.tenantId }
+              : undefined;
             const filter = args.filter
               ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
               : {};
@@ -398,8 +410,8 @@ export function buildGraphQLSchema(
               queryFilter.sortOrder = args.sortOrder ?? "asc";
             }
 
-            const items = await dataProvider.query(schemaName, queryFilter);
-            const total = await dataProvider.count(schemaName, filter);
+            const items = await dataProvider.query(schemaName, queryFilter, opts);
+            const total = await dataProvider.count(schemaName, filter, opts);
             return { items, total };
           }
         : () => ({ items: [], total: 0 }),
@@ -412,12 +424,12 @@ export function buildGraphQLSchema(
         input: { type: new GraphQLNonNull(inputType) },
       },
       resolve: executor
-        ? async (_root: unknown, args: { input: Record<string, unknown> }) => {
+        ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const result = await executor.execute(
               `create_${schemaName}`,
               args.input,
               ANONYMOUS_ACTOR,
-              { channel: "http" },
+              { channel: "http", tenantId: ctx.tenantId },
             );
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
@@ -438,26 +450,41 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
         input: { type: new GraphQLNonNull(inputType) },
+        _version: {
+          type: GraphQLInt,
+          description: "Expected record version for optimistic locking",
+        },
       },
       resolve: executor
-        ? async (_root: unknown, args: { id: string; input: Record<string, unknown> }) => {
-            const result = await executor.execute(
-              `update_${schemaName}`,
-              { id: args.id, ...args.input },
-              ANONYMOUS_ACTOR,
-              { channel: "http" },
-            );
+        ? async (
+            _root: unknown,
+            args: { id: string; input: Record<string, unknown>; _version?: number },
+            ctx: GraphQLContext,
+          ) => {
+            const input: Record<string, unknown> = { id: args.id, ...args.input };
+            // Pass _version through for optimistic locking when provided
+            if (args._version !== undefined && args._version !== null) {
+              input._version = args._version;
+            }
+            const result = await executor.execute(`update_${schemaName}`, input, ANONYMOUS_ACTOR, {
+              channel: "http",
+              tenantId: ctx.tenantId,
+            });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Update action failed");
             }
             return result.data;
           }
-        : (_root: unknown, args: { id: string; input: Record<string, unknown> }) => ({
+        : (
+            _root: unknown,
+            args: { id: string; input: Record<string, unknown>; _version?: number },
+          ) => ({
             ...mockRecord,
             ...args.input,
             id: args.id,
             updated_at: new Date().toISOString(),
+            _version: args._version !== undefined ? args._version + 1 : 2,
           }),
     };
 
@@ -468,12 +495,12 @@ export function buildGraphQLSchema(
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
       resolve: executor
-        ? async (_root: unknown, args: { id: string }) => {
+        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
             const result = await executor.execute(
               `delete_${schemaName}`,
               { id: args.id },
               ANONYMOUS_ACTOR,
-              { channel: "http" },
+              { channel: "http", tenantId: ctx.tenantId },
             );
             return result.success;
           }
@@ -562,7 +589,11 @@ export function buildGraphQLSchema(
       description: action.description ?? action.label,
       args,
       resolve: executor
-        ? async (_root: unknown, resolverArgs: { id: string; input?: Record<string, unknown> }) => {
+        ? async (
+            _root: unknown,
+            resolverArgs: { id: string; input?: Record<string, unknown> },
+            ctx: GraphQLContext,
+          ) => {
             // Spread input first so explicit id argument takes precedence
             const input: Record<string, unknown> = {
               ...resolverArgs.input,
@@ -570,6 +601,7 @@ export function buildGraphQLSchema(
             };
             const result = await executor.execute(actionName, input, ANONYMOUS_ACTOR, {
               channel: "http",
+              tenantId: ctx.tenantId,
             });
             if (returnsSchemaType) {
               if (!result.success) {
@@ -626,10 +658,11 @@ export function buildGraphQLSchema(
       },
     },
     resolve: executor
-      ? async (_root: unknown, args: { name: string; input: string }) => {
+      ? async (_root: unknown, args: { name: string; input: string }, ctx: GraphQLContext) => {
           const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
           const result = await executor.execute(args.name, input, ANONYMOUS_ACTOR, {
             channel: "http",
+            tenantId: ctx.tenantId,
           });
           const errors = !result.success
             ? [

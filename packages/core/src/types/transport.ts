@@ -8,6 +8,7 @@
 
 import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
+import type { EventBus } from "../engine/event-bus";
 import type { SchemaRegistry } from "../engine/schema-registry";
 import type { ActionDefinition } from "./action";
 import type { SchemaDefinition } from "./schema";
@@ -28,6 +29,8 @@ export interface TransportContext {
   config: Record<string, unknown>;
   /** Pre-built data provider (e.g. DrizzleDataProvider when DATABASE_URL is configured) */
   dataProvider?: DataProvider;
+  /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */
+  eventBus?: EventBus;
 }
 
 /** Lifecycle handle returned by transport factory */

@@ -218,7 +218,7 @@ export class DrizzleDataProvider implements DataProvider {
 
   async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
     const table = this.resolveTable(schema);
-    const now = new Date().toISOString();
+    const now = new Date();
     const id = (data.id as string) || crypto.randomUUID();
 
     const record: Record<string, unknown> = {
@@ -269,7 +269,7 @@ export class DrizzleDataProvider implements DataProvider {
       });
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
 
     // Build update payload, filtering to existing columns only
     const updateData: Record<string, unknown> = {};
@@ -360,7 +360,7 @@ export class DrizzleDataProvider implements DataProvider {
 
       const rows = await this.db
         .update(table)
-        .set({ deleted_at: new Date().toISOString() } as Record<string, unknown>)
+        .set({ deleted_at: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
 

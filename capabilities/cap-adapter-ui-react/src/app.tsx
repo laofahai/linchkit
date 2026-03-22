@@ -6,7 +6,11 @@ import {
   RouterProvider,
   redirect,
 } from "@tanstack/react-router";
-import config from "../../../linchkit.config";
+// Import capability page declarations directly (avoid importing full config
+// which pulls in server-only deps like postgres via @linchkit/core)
+import { capAuth } from "@linchkit/cap-auth";
+import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
+import type { CapabilityDefinition } from "@linchkit/core/types";
 import "./i18n"; // Initialize i18n before rendering
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
 import { AuthProvider } from "./hooks/use-auth";
@@ -89,7 +93,9 @@ function getLayoutRoute(layout: PageLayout) {
   }
 }
 
-const capabilityPages = (config.capabilities ?? []).flatMap((capability) => capability.pages ?? []);
+// Collect pages from capabilities that provide UI pages
+const uiCapabilities: CapabilityDefinition[] = [capAuth, capPurchaseDemo].filter(Boolean);
+const capabilityPages = uiCapabilities.flatMap((capability) => capability.pages ?? []);
 
 function createCapabilityPageRoute(page: PageRegistration) {
   const parentRoute = getLayoutRoute(page.layout);

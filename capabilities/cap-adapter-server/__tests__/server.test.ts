@@ -80,7 +80,12 @@ describe("buildGraphQLSchema", () => {
     expect(sdl).toContain("task(id: ID!): Task");
     expect(sdl).toContain("): TaskListResult!");
     expect(sdl).toContain("createTask(input: TaskInput!): Task");
-    expect(sdl).toContain("updateTask(id: ID!, input: TaskInput!): Task");
+    // updateTask is multiline in SDL due to arg descriptions; verify key parts
+    expect(sdl).toContain("updateTask(");
+    expect(sdl).toContain("id: ID!");
+    expect(sdl).toContain("input: TaskInput!");
+    expect(sdl).toContain("_version: Int");
+    expect(sdl).toContain("): Task");
   });
 
   test("handles empty schemas array with a placeholder query", () => {

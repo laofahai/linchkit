@@ -39,6 +39,18 @@ export const approvalStatusEnum = pgEnum("_linchkit_approval_status", [
   "expired",
 ]);
 
+// ── Schema definitions table ────────────────────────────────
+// Persists registered SchemaDefinition objects so they survive restarts.
+// Dynamic user-defined tables are still generated at runtime from these definitions.
+
+export const schemaDefinitionsTable = pgTable("_linchkit_schema_definitions", {
+  name: varchar("name", { length: 255 }).primaryKey(),
+  label: varchar("label", { length: 255 }),
+  definition: jsonb("definition").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // ── Execution log table ─────────────────────────────────────
 
 export const executionsTable = pgTable("_linchkit_executions", {

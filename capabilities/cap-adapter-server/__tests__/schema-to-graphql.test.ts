@@ -16,6 +16,7 @@ import {
   generateGraphQLInputType,
   generateGraphQLObjectType,
 } from "../src/graphql";
+import { buildGraphQLSchema } from "../src/graphql/build-schema";
 
 // Clear cache between tests to avoid cross-test contamination
 afterEach(() => {
@@ -412,5 +413,49 @@ describe("all field types", () => {
     expect(fields.f_computed).toBeUndefined();
     expect(fields.f_has_many).toBeUndefined();
     expect(fields.f_m2m).toBeUndefined();
+  });
+});
+
+// ── Update mutation _version arg ─────────────────────────
+
+describe("buildGraphQLSchema update mutation _version arg", () => {
+  const simpleSchema: SchemaDefinition = {
+    name: "item",
+    label: "Item",
+    fields: {
+      name: { type: "string", required: true },
+    },
+  };
+
+  test("update mutation has optional _version: Int argument", () => {
+    const schema = buildGraphQLSchema([simpleSchema]);
+    const mutationType = schema.getMutationType();
+    expect(mutationType).toBeDefined();
+
+    const updateField = mutationType!.getFields().updateItem;
+    expect(updateField).toBeDefined();
+
+    const versionArg = updateField.args.find((a) => a.name === "_version");
+    expect(versionArg).toBeDefined();
+    // Should be nullable Int (not NonNull)
+    expect(versionArg!.type).toBe(GraphQLInt);
+  });
+
+  test("create mutation does not have _version argument", () => {
+    const schema = buildGraphQLSchema([simpleSchema]);
+    const mutationType = schema.getMutationType();
+    expect(mutationType).toBeDefined();
+
+    const createField = mutationType!.getFields().createItem;
+    expect(createField).toBeDefined();
+
+    const versionArg = createField.args.find((a) => a.name === "_version");
+    expect(versionArg).toBeUndefined();
+  });
+
+  test("_version is not in the input type (system field excluded)", () => {
+    const inputType = generateGraphQLInputType(simpleSchema);
+    const fields = inputType.getFields();
+    expect(fields._version).toBeUndefined();
   });
 });

@@ -121,6 +121,109 @@ describe("GraphQL mutations (wired)", () => {
   });
 });
 
+describe("GraphQL update with _version (optimistic locking)", () => {
+  test("updateTask accepts optional _version argument", async () => {
+    await store.create("task", {
+      id: "version_test_1",
+      title: "Versioned",
+      story_points: 1,
+    });
+
+    const result = await gql(`
+			mutation {
+				updateTask(id: "version_test_1", input: { title: "V2" }, _version: 1) {
+					id
+					title
+					_version
+				}
+			}
+		`);
+
+    expect(result.errors).toBeUndefined();
+    const task = result.data.updateTask as Record<string, unknown>;
+    expect(task.title).toBe("V2");
+    expect(task._version).toBe(2);
+  });
+
+  test("updateTask works without _version argument", async () => {
+    await store.create("task", {
+      id: "version_test_2",
+      title: "No Version",
+      story_points: 1,
+    });
+
+    const result = await gql(`
+			mutation {
+				updateTask(id: "version_test_2", input: { title: "Updated No Version" }) {
+					id
+					title
+					_version
+				}
+			}
+		`);
+
+    expect(result.errors).toBeUndefined();
+    const task = result.data.updateTask as Record<string, unknown>;
+    expect(task.title).toBe("Updated No Version");
+    // _version should still increment (InMemoryStore always increments)
+    expect(task._version).toBe(2);
+  });
+
+  test("_version is passed through to the data provider", async () => {
+    await store.create("task", {
+      id: "version_test_3",
+      title: "Pass Through",
+      story_points: 1,
+    });
+
+    // First update with _version: 1
+    const result1 = await gql(`
+			mutation {
+				updateTask(id: "version_test_3", input: { title: "V2" }, _version: 1) {
+					id
+					_version
+				}
+			}
+		`);
+    expect(result1.errors).toBeUndefined();
+    const task1 = result1.data.updateTask as Record<string, unknown>;
+    expect(task1._version).toBe(2);
+
+    // Second update with _version: 2
+    const result2 = await gql(`
+			mutation {
+				updateTask(id: "version_test_3", input: { title: "V3" }, _version: 2) {
+					id
+					title
+					_version
+				}
+			}
+		`);
+    expect(result2.errors).toBeUndefined();
+    const task2 = result2.data.updateTask as Record<string, unknown>;
+    expect(task2.title).toBe("V3");
+    expect(task2._version).toBe(3);
+  });
+});
+
+describe("GraphQL create returns _version", () => {
+  test("createTask response includes _version field", async () => {
+    const result = await gql(`
+			mutation {
+				createTask(input: { title: "Version Check" }) {
+					id
+					title
+					_version
+				}
+			}
+		`);
+
+    expect(result.errors).toBeUndefined();
+    const task = result.data.createTask as Record<string, unknown>;
+    expect(task._version).toBe(1);
+  });
+});
+
 describe("GraphQL queries (wired)", () => {
   test("task query returns a record from store", async () => {
     await store.create("task", {

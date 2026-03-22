@@ -24,17 +24,21 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
-  closeDatabase,
   createActionExecutor,
   createCommandLayer,
-  createDatabase,
-  DrizzleDataProvider,
-  generateDrizzleTable,
+  createEventBus,
   resolveEnvVars,
   SchemaRegistry,
+} from "@linchkit/core";
+import {
+  closeDatabase,
+  createDatabase,
+  createPersistentEventBus,
+  DrizzleDataProvider,
+  generateDrizzleTable,
   syncTables,
   TableRegistry,
-} from "@linchkit/core";
+} from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
@@ -187,13 +191,14 @@ export const devCommand = defineCommand({
     // Resolve database configuration and create data provider
     let dataProvider: DataProvider | undefined;
     let usingDatabase = false;
+    let dbInstance: ReturnType<typeof createDatabase> | undefined;
 
     const dbConfig = config.database ? resolveEnvVars(config.database) : undefined;
 
     if (dbConfig?.url) {
       try {
         console.log("[linch] Connecting to PostgreSQL...");
-        const db = createDatabase({
+        dbInstance = createDatabase({
           url: dbConfig.url,
           poolSize: dbConfig.poolSize,
           debug: dbConfig.debug,
@@ -207,9 +212,9 @@ export const devCommand = defineCommand({
         }
 
         // Sync tables to database (CREATE TABLE IF NOT EXISTS)
-        await syncTables(db, tableRegistry, { verbose: true });
+        await syncTables(dbInstance, tableRegistry, { verbose: true });
 
-        dataProvider = new DrizzleDataProvider(db, tableRegistry);
+        dataProvider = new DrizzleDataProvider(dbInstance, tableRegistry);
         usingDatabase = true;
         console.log("[linch] Using PostgreSQL data provider");
       } catch (err) {
@@ -217,6 +222,7 @@ export const devCommand = defineCommand({
         console.error(`[linch] Failed to connect to PostgreSQL: ${msg}`);
         // Clean up the database connection pool before falling back
         await closeDatabase();
+        dbInstance = undefined;
         console.log("[linch] Falling back to InMemoryStore");
       }
     } else {
@@ -236,6 +242,15 @@ export const devCommand = defineCommand({
     }
     const commandLayer = createCommandLayer({ executor });
 
+    // Create event bus — use PersistentEventBus when database is available
+    const { bus: eventBus } = dbInstance ? createPersistentEventBus(dbInstance) : createEventBus();
+
+    if (dbInstance) {
+      console.log("[linch] Using PersistentEventBus (events persisted to database)");
+    } else {
+      console.log("[linch] Using in-memory EventBus");
+    }
+
     const transportCtx: TransportContext = {
       commandLayer,
       executor,
@@ -247,6 +262,7 @@ export const devCommand = defineCommand({
       middlewares,
       config: config as Record<string, unknown>,
       dataProvider,
+      eventBus,
     };
 
     // Start all transports
