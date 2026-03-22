@@ -185,7 +185,11 @@ describe("createAIService — config validation", () => {
       createAIService({
         defaultProvider: "bedrock",
         providers: {
-          bedrock: { type: "anthropic", defaultModel: "claude-3-sonnet", endpoint: "https://bedrock.amazonaws.com" },
+          bedrock: {
+            type: "anthropic",
+            defaultModel: "claude-3-sonnet",
+            endpoint: "https://bedrock.amazonaws.com",
+          },
         },
       }),
     ).not.toThrow();

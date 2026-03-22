@@ -88,10 +88,7 @@ export function checkActionPermission(
   }
 
   // system_admin shortcut: only if group is actually registered in registry
-  if (
-    actor.groups.includes(SYSTEM_ADMIN_GROUP) &&
-    registry.get(SYSTEM_ADMIN_GROUP) !== undefined
-  ) {
+  if (actor.groups.includes(SYSTEM_ADMIN_GROUP) && registry.get(SYSTEM_ADMIN_GROUP) !== undefined) {
     return {
       allowed: true,
       decidedBy: SYSTEM_ADMIN_GROUP,
@@ -164,10 +161,7 @@ export function resolveDataAccess(
   }
 
   // system_admin shortcut: only if group is actually registered in registry
-  if (
-    actor.groups.includes(SYSTEM_ADMIN_GROUP) &&
-    registry.get(SYSTEM_ADMIN_GROUP) !== undefined
-  ) {
+  if (actor.groups.includes(SYSTEM_ADMIN_GROUP) && registry.get(SYSTEM_ADMIN_GROUP) !== undefined) {
     return "all";
   }
 
@@ -258,7 +252,8 @@ function resolveActorPath(actor: Actor, path: string): unknown {
   const parts = path.split(".");
 
   // Validate top-level path is whitelisted
-  if (parts.length === 0 || !ALLOWED_ACTOR_PATHS.has(parts[0])) {
+  const firstPart = parts[0];
+  if (parts.length === 0 || !firstPart || !ALLOWED_ACTOR_PATHS.has(firstPart)) {
     return undefined;
   }
 

@@ -190,7 +190,9 @@ async function getLanguageModel(
 
     case "openai": {
       const { createOpenAI } = await import("@ai-sdk/openai");
-      const envVar = inferProviderType(resolved.provider) ? "OPENAI_API_KEY" : `${resolved.provider.toUpperCase()}_API_KEY`;
+      const envVar = inferProviderType(resolved.provider)
+        ? "OPENAI_API_KEY"
+        : `${resolved.provider.toUpperCase()}_API_KEY`;
       const apiKey = resolveApiKey(envVar);
       const openai = createOpenAI({
         apiKey: apiKey ?? "",

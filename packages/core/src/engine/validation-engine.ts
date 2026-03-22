@@ -168,7 +168,8 @@ export function validatePhase1(options: {
         validateAction(change.definition as ActionDefinition, change.name, errors, warnings, {
           schemaExists,
           actionExists,
-          resolveStateMachine: (schemaName: string) => resolveStateMachine(schemaName, changes, context),
+          resolveStateMachine: (schemaName: string) =>
+            resolveStateMachine(schemaName, changes, context),
         });
         break;
       case "rule":
@@ -213,7 +214,7 @@ export function validatePhase1(options: {
 function resolveStateMachine(
   schemaName: string,
   changes: ProposalChange[],
-  context?: ValidationContext,
+  _context?: ValidationContext,
 ): Set<string> | undefined {
   // Look through proposal changes for a state definition referencing this schema
   for (const change of changes) {
@@ -676,9 +677,7 @@ export function validateProposal(options: {
   };
 
   const phases = [phase1, phase2, phase3, phase4];
-  const passed = phases
-    .filter((p) => p.status !== "skipped")
-    .every((p) => p.status === "passed");
+  const passed = phases.filter((p) => p.status !== "skipped").every((p) => p.status === "passed");
 
   // Generate impact summary
   const affectedTypes = new Set(proposal.changes.map((c) => c.target));

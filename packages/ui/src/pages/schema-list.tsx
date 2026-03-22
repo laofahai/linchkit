@@ -142,7 +142,10 @@ export function SchemaListPage() {
           {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
         </p>
         <p className="text-xs">
-          {t("errors.checkServer", "Check that the server is running and the schema is registered.")}
+          {t(
+            "errors.checkServer",
+            "Check that the server is running and the schema is registered.",
+          )}
         </p>
         <Button variant="outline" size="sm" onClick={reloadBundle}>
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />

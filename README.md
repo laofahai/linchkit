@@ -32,7 +32,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 | Backend | Elysia |
 | Database | PostgreSQL |
 | ORM | Drizzle |
-| GraphQL | graphql-yoga + Pothos (code-first) |
+| GraphQL | graphql-yoga + graphql-js (code-first) |
 | State Machine | Custom pure TS (XState as optional upgrade) |
 | Workflow | Temporal (introduced in M1) |
 | Frontend | React + Vite + TanStack Router |
@@ -82,7 +82,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Acceptance:** Browser shows complete purchase management UI — list, form, state transitions, action buttons, logs. Rule blocks over-budget requests.
 
-*(Core engines complete, E2E verified. Auth/permission remaining.)*
+*(Core engines + Approval + Proposal + AI Service complete. Auth/permission remaining.)*
 
 - [x] Schema Engine — Registry + Zod generator + Drizzle generator + GraphQL type generator
 - [x] Action Engine — ActionRegistry + ActionExecutor (permission, validation, state transition, handler execution)
@@ -97,9 +97,13 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 - [x] Execution Log — REST + GraphQL query API, Dashboard UI (/admin/executions), tenant_id support
 - [x] CLAUDE.md upgrade — full engine API docs, server endpoints, UI architecture, error types
 - [x] E2E test — 16 tests covering complete purchase management flow (create → submit → approve → error → log)
+- [x] Business Approval Engine — Create/approve/reject/expire + Rule Engine integration (33 tests)
+- [x] Proposal + Validation Engine — Change governance lifecycle + Phase 1 static validation (64 tests)
+- [x] AI Service (ctx.ai) — Vercel AI SDK wrapper, Anthropic/OpenAI/custom endpoint support (25 tests)
+- [x] Config loading — .env → linchkit.config.ts → resolveEnvVars → RuntimeContext
 - [ ] cap-auth + cap-permission + login + access control
 
-**Not in scope:** Proposal / Validation / Version, blue-green deploy, Bridge / Adapter, AI / MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
+**Not in scope:** blue-green deploy, Bridge / Adapter, MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
 
 ---
 
@@ -107,9 +111,9 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Goal:** Changes go through Proposal → GitHub PR → CI → Approval → Blue-Green Deploy.
 
-- [ ] Proposal model + Validation
+- [x] Proposal model + Validation *(Core engines built in M0b; M1 adds GitHub PR integration + deploy workflow)*
 - [ ] Version management (Git tag, diff, rollback)
-- [ ] Approval mechanism
+- [x] Approval mechanism *(Core engines built in M0b; M1 adds GitHub PR integration + deploy workflow)*
 - [ ] Single-node blue-green deploy + Nginx
 - [ ] GitHub integration (PR + CI + Webhook)
 - [ ] DB Migration (up + down)

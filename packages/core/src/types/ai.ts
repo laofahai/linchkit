@@ -83,9 +83,7 @@ export interface AICompletionOptions {
   /** Max output tokens */
   maxTokens?: number;
   /** Response format — 'json' requires a Zod schema for structured output */
-  responseFormat?:
-    | { type: "text" }
-    | { type: "json"; schema: ZodSchema };
+  responseFormat?: { type: "text" } | { type: "json"; schema: ZodSchema };
   /** Tools available for the model to call */
   tools?: AITool[];
   /** Request timeout in milliseconds */

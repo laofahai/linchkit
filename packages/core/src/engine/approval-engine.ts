@@ -212,9 +212,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     switch (assignee.type) {
       case "user":
         if (actor.id !== assignee.value) {
-          throw new Error(
-            `Actor "${actor.id}" is not the assigned user "${assignee.value}"`,
-          );
+          throw new Error(`Actor "${actor.id}" is not the assigned user "${assignee.value}"`);
         }
         break;
       case "group":

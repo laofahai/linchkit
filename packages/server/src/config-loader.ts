@@ -6,9 +6,9 @@
  * defaults are merged.
  */
 
-import { resolveEnvVars } from "@linchkit/core/utils/env";
-import type { LinchKitConfig } from "@linchkit/core";
 import { resolve } from "node:path";
+import type { LinchKitConfig } from "@linchkit/core";
+import { resolveEnvVars } from "@linchkit/core/utils/env";
 
 /** Default configuration values */
 const CONFIG_DEFAULTS: LinchKitConfig = {
@@ -77,14 +77,10 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitC
   } catch (err) {
     const error = err as Error;
     if (error.message?.includes("Cannot find module") || error.message?.includes("no such file")) {
-      console.warn(
-        `[linchkit] Config file not found at ${configPath}, using defaults.`,
-      );
+      console.warn(`[linchkit] Config file not found at ${configPath}, using defaults.`);
       rawConfig = {};
     } else {
-      throw new Error(
-        `[linchkit] Failed to load config from ${configPath}: ${error.message}`,
-      );
+      throw new Error(`[linchkit] Failed to load config from ${configPath}: ${error.message}`);
     }
   }
 
@@ -92,7 +88,10 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitC
   const resolved = resolveEnvVars(rawConfig);
 
   // Merge with defaults (user config takes precedence)
-  const config = deepMerge(CONFIG_DEFAULTS as Record<string, unknown>, resolved as Record<string, unknown>) as LinchKitConfig;
+  const config = deepMerge(
+    CONFIG_DEFAULTS as Record<string, unknown>,
+    resolved as Record<string, unknown>,
+  ) as LinchKitConfig;
 
   // Validate: if AI is configured, ensure at least one provider exists
   if (config.ai) {

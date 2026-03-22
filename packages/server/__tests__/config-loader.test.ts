@@ -1,10 +1,10 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { loadConfig } from "../src/config-loader";
+import { afterEach, describe, expect, it } from "bun:test";
 import { resolve } from "node:path";
+import { loadConfig } from "../src/config-loader";
 
 describe("loadConfig", () => {
   const originalEnv = { ...process.env };
-  const fixturesDir = resolve(import.meta.dir, "fixtures");
+  const _fixturesDir = resolve(import.meta.dir, "fixtures");
 
   afterEach(() => {
     process.env = { ...originalEnv };

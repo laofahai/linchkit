@@ -22,7 +22,7 @@ export function resolveEnvVars<T>(config: T): T {
   if (typeof config === "string") {
     const match = config.match(ENV_PATTERN);
     if (match) {
-      const varName = match[1];
+      const varName = match[1] as string;
       const value = process.env[varName];
       if (value === undefined) {
         console.warn(

@@ -787,7 +787,7 @@ describe("ApprovalEngine — assignee authorization", () => {
     // otherActor.id === "user-2" does NOT match assignee.value "manager-1"
     await expect(
       engine.approve({ approvalId: createResult.approvalId }, otherActor),
-    ).rejects.toThrow('not the assigned user');
+    ).rejects.toThrow("not the assigned user");
   });
 
   it("authorized group-assignee approve succeeds when enforceAssignee is true", async () => {
@@ -826,7 +826,7 @@ describe("ApprovalEngine — assignee authorization", () => {
     // defaultActor.groups is ["employee"], not "manager"
     await expect(
       engine.approve({ approvalId: createResult.approvalId }, defaultActor),
-    ).rejects.toThrow('not a member of assigned group');
+    ).rejects.toThrow("not a member of assigned group");
   });
 
   it("unauthorized reject fails when enforceAssignee is true", async () => {
@@ -846,7 +846,7 @@ describe("ApprovalEngine — assignee authorization", () => {
     // otherActor is not the assigned user
     await expect(
       engine.reject({ approvalId: createResult.approvalId, note: "No budget" }, otherActor),
-    ).rejects.toThrow('not the assigned user');
+    ).rejects.toThrow("not the assigned user");
   });
 
   it("skips assignee check when enforceAssignee is false (default)", async () => {

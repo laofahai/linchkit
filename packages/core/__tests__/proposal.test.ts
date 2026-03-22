@@ -1144,9 +1144,9 @@ describe("ProposalEngine: duplicate version detection", () => {
     engine.submitProposal({ proposalId: p2.id });
     engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
 
-    expect(() =>
-      engine.commitProposal({ proposalId: p2.id, previousVersion: "1.0.0" }),
-    ).toThrow('Version "1.1.0" already exists');
+    expect(() => engine.commitProposal({ proposalId: p2.id, previousVersion: "1.0.0" })).toThrow(
+      'Version "1.1.0" already exists',
+    );
   });
 });
 
@@ -1198,9 +1198,9 @@ describe("validatePhase1: stateTransition against state machine", () => {
 
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "TRANSITION_INVALID_STATE")).toBe(true);
-    expect(
-      result.errors.find((e) => e.code === "TRANSITION_INVALID_STATE")?.message,
-    ).toContain("'nonexistent'");
+    expect(result.errors.find((e) => e.code === "TRANSITION_INVALID_STATE")?.message).toContain(
+      "'nonexistent'",
+    );
   });
 
   it("fails when stateTransition.to references invalid state", () => {
@@ -1245,9 +1245,9 @@ describe("validatePhase1: stateTransition against state machine", () => {
 
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "TRANSITION_INVALID_STATE")).toBe(true);
-    expect(
-      result.errors.find((e) => e.code === "TRANSITION_INVALID_STATE")?.message,
-    ).toContain("'shipped'");
+    expect(result.errors.find((e) => e.code === "TRANSITION_INVALID_STATE")?.message).toContain(
+      "'shipped'",
+    );
   });
 
   it("passes when stateTransition references valid states", () => {
