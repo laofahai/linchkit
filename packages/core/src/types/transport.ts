@@ -7,10 +7,12 @@
  */
 
 import type { ActionExecutor } from "../engine/action-engine";
-import type { CommandLayer } from "../engine/command-layer";
+import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { SchemaRegistry } from "../engine/schema-registry";
 import type { ActionDefinition } from "./action";
 import type { SchemaDefinition } from "./schema";
+import type { StateDefinition } from "./state";
+import type { ViewDefinition } from "./view";
 
 /** Runtime context passed to transport factory */
 export interface TransportContext {
@@ -19,6 +21,9 @@ export interface TransportContext {
   schemaRegistry: SchemaRegistry;
   schemas: SchemaDefinition[];
   actions: ActionDefinition[];
+  views: ViewDefinition[];
+  states: StateDefinition[];
+  middlewares: MiddlewareRegistration[];
   /** Runtime config (from linchkit.config.ts) */
   config: Record<string, unknown>;
 }

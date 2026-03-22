@@ -42,6 +42,9 @@ export const capAdapterServer = defineCapability({
           const runtime = createRuntimeContext({
             schemas: ctx.schemas,
             actions: allActions,
+            views: ctx.views,
+            states: ctx.states,
+            middlewares: ctx.middlewares,
           });
 
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
@@ -62,6 +65,7 @@ export const capAdapterServer = defineCapability({
             executor: runtime.executor,
             commandLayer: runtime.commandLayer,
             schemaRegistry: runtime.schemaRegistry,
+            views: runtime.views,
           });
 
           return {

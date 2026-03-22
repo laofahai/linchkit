@@ -41,6 +41,10 @@ export {
   PipelineError,
   type SlotName,
 } from "./command-layer";
+// Database connection manager
+export { type DatabaseConfig, closeDatabase, createDatabase } from "./database";
+// Drizzle data provider
+export { DrizzleDataProvider } from "./drizzle-data-provider";
 // Rule engine
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
 // Console logger
@@ -71,6 +75,17 @@ export {
 } from "./rule-engine";
 // Schema registry
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
+// System tables
+export {
+  approvalStatusEnum,
+  approvalsTable,
+  eventStatusEnum,
+  eventsTable,
+  executionStatusEnum,
+  executionsTable,
+} from "./system-tables";
+// Table registry
+export { TableRegistry } from "./table-registry";
 // Schema-to-Drizzle generator
 export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema-to-drizzle";
 // Schema-to-Zod generator

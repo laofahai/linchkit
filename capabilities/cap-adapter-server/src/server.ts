@@ -50,28 +50,28 @@ const ANONYMOUS_ACTOR = {
  * Preferred over message-text matching when a code is available.
  */
 const ERROR_CODE_STATUS: Record<string, number> = {
-  "auth": 401,
+  auth: 401,
   "auth.required": 401,
   "auth.credentials.required": 401,
   "auth.token.invalid": 401,
   "auth.token.expired": 401,
   "auth.api_key.invalid": 401,
   "auth.session.invalid": 401,
-  "authz": 403,
+  authz: 403,
   "authz.action.denied": 403,
   "authz.group_required": 403,
   "exposure.blocked": 403,
-  "validation": 400,
+  validation: 400,
   "validation.failed": 400,
   "validation.input": 400,
-  "not_found": 404,
+  not_found: 404,
   "not_found.action": 404,
   "not_found.record": 404,
-  "conflict": 409,
+  conflict: 409,
   "conflict.state": 409,
   "conflict.version": 409,
   "rate_limit.exceeded": 429,
-  "business": 422,
+  business: 422,
 };
 
 /**

@@ -14,10 +14,13 @@ import type {
   CapabilityDefinition,
   DataProvider,
   LinchKitConfig,
+  MiddlewareRegistration,
   SchemaDefinition,
+  StateDefinition,
   TransportAdapterDefinition,
   TransportContext,
   TransportLifecycle,
+  ViewDefinition,
 } from "@linchkit/core";
 import {
   ActionRegistry,
@@ -90,11 +93,26 @@ export const devCommand = defineCommand({
 
     const schemas: SchemaDefinition[] = [];
     const actions: ActionDefinition[] = [];
+    const views: ViewDefinition[] = [];
+    const states: StateDefinition[] = [];
+    const middlewares: MiddlewareRegistration[] = [];
     const transports: TransportAdapterDefinition[] = [];
 
     for (const cap of capabilities) {
       if (cap.schemas) schemas.push(...cap.schemas);
       if (cap.actions) actions.push(...cap.actions);
+      if (cap.views) views.push(...cap.views);
+      if (cap.states) states.push(...cap.states);
+      if (cap.extensions?.middlewares) {
+        for (const [i, mw] of cap.extensions.middlewares.entries()) {
+          middlewares.push({
+            name: (mw as MiddlewareRegistration).name ?? `${cap.name}_${mw.slot}_${String(i)}`,
+            slot: mw.slot,
+            handler: mw.handler,
+            order: mw.priority ?? (mw as MiddlewareRegistration).order,
+          });
+        }
+      }
       if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
     }
 
@@ -131,6 +149,9 @@ export const devCommand = defineCommand({
       schemaRegistry,
       schemas,
       actions,
+      views,
+      states,
+      middlewares,
       config: config as Record<string, unknown>,
     };
 
