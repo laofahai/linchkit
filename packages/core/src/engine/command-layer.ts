@@ -16,7 +16,7 @@
 
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
-import type { ActionExecutor, ExecutionChannel } from "./action-engine";
+import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
 import { consoleLogger } from "./console-logger";
 
 // ── Slot names (execution order) ────────────────────────────
@@ -123,6 +123,14 @@ export interface CommandExecuteOptions {
   headers?: Record<string, string>;
   tenantId?: string;
   meta?: Record<string, unknown>;
+  /**
+   * When set, this is an approval re-execution. The pipeline will:
+   * - SKIP auth, exposure, permission slots (already checked on original submission)
+   * - RUN pre, tenant, pre-action, post-action slots
+   */
+  approvalId?: string;
+  /** Rule names to skip during re-execution (forwarded to executor) */
+  skipRules?: string[];
 }
 
 /**
@@ -215,10 +223,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // Determine if permission middleware is registered (#1 — fail-closed)
     const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
 
+    // Approval re-execution: skip auth, exposure, permission slots
+    const isApprovalReExecution = !!execOptions.approvalId;
+    const skippedSlots: Set<SlotName> = isApprovalReExecution
+      ? new Set(["auth", "exposure", "permission"])
+      : new Set();
+
     // Build the pipeline: collect handlers from each slot in order
     const pipeline: Array<(ctx: CommandContext, next: () => Promise<void>) => Promise<void>> = [];
 
     for (const slot of SLOT_ORDER) {
+      // Skip slots that are not needed for approval re-execution
+      if (skippedSlots.has(slot)) {
+        continue;
+      }
+
       if (slot === "exposure") {
         // Built-in exposure check
         pipeline.push(async (c, next) => {
@@ -239,6 +258,20 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       }
     }
 
+    // Build executor options, forwarding approval-related fields when present
+    const executorOptions: ExecuteOptions = {
+      channel: ctx.channel,
+      skipExposureCheck: true, // Always handled by pipeline built-in slot
+      skipPermissionCheck: isApprovalReExecution || hasPermissionMiddleware,
+      tenantId: ctx.tenantId,
+    };
+    if (execOptions.approvalId) {
+      executorOptions.approvalId = execOptions.approvalId;
+    }
+    if (execOptions.skipRules) {
+      executorOptions.skipRules = execOptions.skipRules;
+    }
+
     // Action execution as the innermost handler in the compose chain (#2).
     // If any middleware does not call next(), the action will NOT run.
     // Use `action.name` (resolved before pipeline) instead of `c.command` to prevent
@@ -246,10 +279,8 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
       try {
         const result = await executor.execute(action.name, c.input, c.actor, {
-          channel: c.channel,
-          skipExposureCheck: true, // Always handled by pipeline built-in slot
-          skipPermissionCheck: hasPermissionMiddleware, // Only skip if pipeline handled it
-          tenantId: c.tenantId,
+          ...executorOptions,
+          tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
         });
         c.result = result;
       } catch (_err) {

@@ -24,7 +24,7 @@
       "@linchkit/cap-auth/ui": ["./packages/cap-auth/ui/index.ts"],
       "@linchkit/cap-permission": ["./packages/cap-permission/src"],
       "@linchkit/server": ["./packages/server/src"],
-      "@linchkit/cap-mcp": ["./packages/cap-mcp/src"],
+      "@linchkit/cap-adapter-mcp": ["./capabilities/cap-adapter-mcp/src"],
       "@linchkit/ui": ["./packages/ui/src"],
       "@linchkit/ui-kit": ["./packages/ui-kit/src"],
       "@linchkit/ui-kit/components": ["./packages/ui-kit/src/components"],
@@ -41,6 +41,8 @@
     "packages/*/src/**/*.tsx",
     "packages/*/ui/**/*.ts",
     "packages/*/ui/**/*.tsx",
+    "capabilities/*/src/**/*.ts",
+    "capabilities/*/src/**/*.tsx",
     "e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]

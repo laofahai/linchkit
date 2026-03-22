@@ -24,6 +24,7 @@ import type {
 import type { EventRecord } from "../types/event";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor, ExecuteOptions } from "./action-engine";
+import type { CommandLayer } from "./command-layer";
 import type { EventBus } from "./event-bus";
 
 // ── InMemoryApprovalStore ──────────────────────────────────
@@ -127,8 +128,14 @@ function createApprovalEvent(options: {
 export interface ApprovalEngineOptions {
   store: ApprovalStore;
   eventBus?: EventBus;
-  /** The action executor for re-execution on approval */
+  /** The action executor for re-execution on approval (fallback when commandLayer is not set) */
   executor?: ActionExecutor;
+  /**
+   * The CommandLayer for re-execution on approval.
+   * When set, approval re-execution routes through the pipeline (skipping auth/exposure/permission).
+   * When not set, falls back to direct executor.execute() with a deprecation warning.
+   */
+  commandLayer?: CommandLayer;
   /**
    * When true, enforce that the acting actor matches the request assignee
    * before allowing approve/reject. Default: false (M0b — cap-permission not integrated yet).
@@ -182,6 +189,7 @@ export interface ApprovalEngine {
 export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEngine {
   const { store, eventBus, enforceAssignee = false } = options;
   let executor = options.executor;
+  const commandLayer = options.commandLayer;
 
   // Fix #5: Counter scoped inside factory to avoid module-level shared state
   let approvalCounter = 0;
@@ -310,8 +318,8 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // P1: Check assignee authorization (optional, controlled by enforceAssignee option)
     checkAssigneeAuthorization(approver, request.assignee);
 
-    // Verify executor exists BEFORE updating status to avoid zombie approved requests
-    if (!executor) {
+    // Verify that either commandLayer or executor is available BEFORE updating status
+    if (!commandLayer && !executor) {
       throw new Error("Action executor not configured — cannot re-execute");
     }
 
@@ -334,31 +342,32 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       }),
     );
 
-    // Fix #2: Pass skipRules and approvalId via ExecuteOptions, not mixed into input.
-    //
-    // P1 NOTE — skipRules integration with CommandLayer:
-    // `skipRules` is passed here in ExecuteOptions so the re-executed action can skip
-    // the rules that originally triggered this approval. However, the CommandLayer does
-    // NOT yet check `options.skipRules` before evaluating rules — that integration
-    // requires additional design (e.g., passing ExecuteOptions into the rule-evaluation
-    // slot). Full integration will be done when CommandLayer is updated to support
-    // approval re-execution. Until then, the approval engine bypasses CommandLayer
-    // entirely by calling executor.execute() directly.
-    const execOptions: ExecuteOptions = {
-      skipExposureCheck: true,
-      skipPermissionCheck: true,
-      tenantId: request.tenantId,
-      skipRules: request.triggerRules,
-      approvalId: input.approvalId,
-    };
+    // Re-execute the original action.
+    // Prefer CommandLayer (runs pre/tenant/pre-action/post-action, skips auth/exposure/permission).
+    // Fall back to direct executor.execute() for backward compatibility.
+    let result: ActionResult;
 
-    // Re-execute as original actor
-    const result = await executor.execute(
-      request.action,
-      request.input,
-      request.requestedBy,
-      execOptions,
-    );
+    if (commandLayer) {
+      result = await commandLayer.execute({
+        command: request.action,
+        input: request.input,
+        actor: request.requestedBy,
+        tenantId: request.tenantId,
+        channel: "internal",
+        approvalId: input.approvalId,
+        skipRules: request.triggerRules,
+      });
+    } else {
+      // Backward-compatible fallback — direct executor call (deprecated path)
+      // biome-ignore lint/style/noNonNullAssertion: checked above that either commandLayer or executor exists
+      result = await executor!.execute(request.action, request.input, request.requestedBy, {
+        skipExposureCheck: true,
+        skipPermissionCheck: true,
+        tenantId: request.tenantId,
+        skipRules: request.triggerRules,
+        approvalId: input.approvalId,
+      });
+    }
 
     // Fix #3: Update approval with execution result.
     // Status stays "approved" regardless of re-execution outcome.

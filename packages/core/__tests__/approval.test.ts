@@ -6,6 +6,7 @@ import {
 } from "../src/engine/action-engine";
 import type { ApprovalEngine } from "../src/engine/approval-engine";
 import { createApprovalEngine, InMemoryApprovalStore } from "../src/engine/approval-engine";
+import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
 import { createEventBus, type EventBus } from "../src/engine/event-bus";
 import { InMemoryExecutionLogger } from "../src/engine/execution-logger";
 import { evaluateRules } from "../src/engine/rule-engine";
@@ -994,6 +995,173 @@ describe("ApprovalEngine — expiration checks", () => {
       effect: { type: "require_approval", level: "manager" },
       triggerRules: ["amount_check"],
       expiresAt: future,
+    });
+
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("ApprovalEngine — CommandLayer re-execution", () => {
+  let store: InMemoryApprovalStore;
+  let dataProvider: DataProvider;
+  let executor: ActionExecutor;
+  let commandLayer: CommandLayer;
+  let eventBus: EventBus;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    dataProvider = createMemoryDataProvider();
+    const executionLogger = new InMemoryExecutionLogger();
+    executor = createActionExecutor({ dataProvider, executionLogger });
+    executor.registry.register(submitRequestAction);
+
+    commandLayer = createCommandLayer({ executor });
+    const { bus } = createEventBus();
+    eventBus = bus;
+  });
+
+  it("re-executes through CommandLayer when available", async () => {
+    const engine = createApprovalEngine({ store, eventBus, commandLayer });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+
+    expect(result.success).toBe(true);
+    expect(result.executionId).toBeDefined();
+
+    // Verify approval request was updated with execution result
+    const stored = store.getById(createResult.approvalId);
+    expect(stored?.status).toBe("approved");
+    expect(stored?.executionId).toBe(result.executionId);
+  });
+
+  it("pre/tenant/pre-action/post-action slots fire on re-execution", async () => {
+    const slotsExecuted: string[] = [];
+
+    commandLayer.use({
+      name: "test_pre",
+      slot: "pre",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("pre");
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "test_tenant",
+      slot: "tenant",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("tenant");
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "test_pre_action",
+      slot: "pre-action",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("pre-action");
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "test_post_action",
+      slot: "post-action",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("post-action");
+        await next();
+      },
+    });
+
+    const engine = createApprovalEngine({ store, eventBus, commandLayer });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+
+    expect(slotsExecuted).toContain("pre");
+    expect(slotsExecuted).toContain("tenant");
+    expect(slotsExecuted).toContain("pre-action");
+    expect(slotsExecuted).toContain("post-action");
+  });
+
+  it("auth/exposure/permission slots are SKIPPED on re-execution", async () => {
+    const slotsExecuted: string[] = [];
+
+    commandLayer.use({
+      name: "test_auth",
+      slot: "auth",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("auth");
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "test_permission",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("permission");
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "test_pre",
+      slot: "pre",
+      handler: async (_ctx, next) => {
+        slotsExecuted.push("pre");
+        await next();
+      },
+    });
+
+    const engine = createApprovalEngine({ store, eventBus, commandLayer });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-3",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+
+    // Auth and permission should NOT have been called
+    expect(slotsExecuted).not.toContain("auth");
+    expect(slotsExecuted).not.toContain("permission");
+    // Pre should have been called
+    expect(slotsExecuted).toContain("pre");
+  });
+
+  it("falls back to direct executor when commandLayer is not provided", async () => {
+    // No commandLayer, only executor — backward compatibility
+    const engine = createApprovalEngine({ store, eventBus, executor });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-cl-4",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
     });
 
     const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);

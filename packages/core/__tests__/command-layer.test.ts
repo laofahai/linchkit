@@ -314,4 +314,126 @@ describe("Command Layer: Core Pipeline", () => {
       expect(mws[1].name).toBe("mw_b");
     });
   });
+
+  describe("Approval re-execution (approvalId)", () => {
+    test("execute with approvalId skips auth/exposure/permission but runs other slots", async () => {
+      const { layer } = createTestSetup();
+      const slotsExecuted: string[] = [];
+
+      layer.use({
+        name: "track_pre",
+        slot: "pre",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("pre");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_auth",
+        slot: "auth",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("auth");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_permission",
+        slot: "permission",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("permission");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_tenant",
+        slot: "tenant",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("tenant");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_pre_action",
+        slot: "pre-action",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("pre-action");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_post_action",
+        slot: "post-action",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("post-action");
+          await next();
+        },
+      });
+
+      const result = await layer.execute({
+        command: "create_item",
+        input: { name: "approved-item" },
+        approvalId: "approval_123",
+        actor: { type: "human", id: "user_1", groups: [] },
+      });
+
+      expect(result.success).toBe(true);
+
+      // Skipped slots
+      expect(slotsExecuted).not.toContain("auth");
+      expect(slotsExecuted).not.toContain("permission");
+      // Exposure is built-in, not tracked by middleware, but should be skipped internally
+
+      // Executed slots
+      expect(slotsExecuted).toContain("pre");
+      expect(slotsExecuted).toContain("tenant");
+      expect(slotsExecuted).toContain("pre-action");
+      expect(slotsExecuted).toContain("post-action");
+    });
+
+    test("execute without approvalId runs all slots normally", async () => {
+      const { layer } = createTestSetup();
+      const slotsExecuted: string[] = [];
+
+      layer.use({
+        name: "track_auth",
+        slot: "auth",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("auth");
+          await next();
+        },
+      });
+      layer.use({
+        name: "track_permission",
+        slot: "permission",
+        handler: async (_ctx, next) => {
+          slotsExecuted.push("permission");
+          await next();
+        },
+      });
+
+      const result = await layer.execute({
+        command: "create_item",
+        input: { name: "normal-item" },
+      });
+
+      expect(result.success).toBe(true);
+      expect(slotsExecuted).toContain("auth");
+      expect(slotsExecuted).toContain("permission");
+    });
+
+    test("approval re-execution skips exposure check for non-exposed channel", async () => {
+      const { layer } = createTestSetup();
+
+      // internal_only is not exposed for http, but with approvalId it should pass
+      const result = await layer.execute({
+        command: "internal_only",
+        input: {},
+        channel: "http",
+        approvalId: "approval_456",
+        actor: { type: "human", id: "user_1", groups: [] },
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
 });
