@@ -3,7 +3,7 @@ import { capAdapterUiReact } from "@linchkit/cap-adapter-ui-react";
 import { createCapAuth, createDevAuthProvider } from "@linchkit/cap-auth";
 import { createCapPermission } from "@linchkit/cap-permission";
 import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
-import { PermissionRegistry, defineConfig } from "@linchkit/core";
+import { defineConfig, PermissionRegistry } from "@linchkit/core";
 
 const permissionRegistry = new PermissionRegistry();
 permissionRegistry.register({
@@ -76,7 +76,7 @@ export default defineConfig({
     createCapAuth({ provider: createDevAuthProvider() }),
     createCapPermission({
       registry: permissionRegistry,
-      publicActions: ["login", "health"],
+      publicActions: ["login", "logout", "health"],
     }),
     capPurchaseDemo,
   ],

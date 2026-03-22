@@ -22,7 +22,9 @@ export async function loginWithPassword(email: string, password: string): Promis
     throw new Error(result.error?.message ?? "Login failed");
   }
   // Store the access token when the server returns one.
-  const token = (result.data as Record<string, unknown> | undefined)?.accessToken;
+  // Server returns snake_case field names (access_token).
+  const data = result.data as Record<string, unknown> | undefined;
+  const token = data?.access_token ?? data?.accessToken;
   if (typeof token === "string") {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
   }

@@ -42,11 +42,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // No hardcoded fallback — sidebar reflects actual server state
 
     return {
-      user: {
-        name: "Admin",
-        email: "admin@linchkit.dev",
-        avatar: "",
-      },
       teams: [
         {
           name: "LinchKit",
@@ -115,7 +110,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

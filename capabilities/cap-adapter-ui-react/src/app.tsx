@@ -9,6 +9,7 @@ import {
 import config from "../../../linchkit.config";
 import "./i18n"; // Initialize i18n before rendering
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
+import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
@@ -147,5 +148,9 @@ declare module "@tanstack/react-router" {
 
 /** Root App component */
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }
