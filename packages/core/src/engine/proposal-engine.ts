@@ -247,12 +247,9 @@ export class ProposalEngine {
     proposal.updatedAt = new Date();
 
     // Find latest version for this capability to avoid duplicate version numbers
-    const existingVersions = Array.from(this.versions.values()).filter(
-      (v) => v.capability === proposal.capability,
-    );
-    const latestVersion = existingVersions
-      .sort((a, b) => compareSemver(a.version, b.version))
-      .pop();
+    const existingVersions = this.listVersions(proposal.capability);
+    // listVersions returns newest-first, so [0] is the latest
+    const latestVersion = existingVersions.length > 0 ? existingVersions[0] : undefined;
     const prev = previousVersion ?? latestVersion?.version ?? "0.0.0";
     const newVersion = bumpVersion(prev, proposal.changeType);
 

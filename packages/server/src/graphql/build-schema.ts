@@ -15,6 +15,7 @@ import type {
 } from "@linchkit/core";
 import {
   GraphQLBoolean,
+  GraphQLError,
   type GraphQLFieldConfig,
   GraphQLID,
   GraphQLInt,
@@ -31,15 +32,23 @@ import {
   generateGraphQLObjectType,
 } from "./schema-to-graphql";
 
+const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
+
 /**
- * Convert a schema name to PascalCase.
+ * Convert a schema name to PascalCase with GraphQL name sanitization.
  * e.g. "purchase_request" -> "PurchaseRequest"
  */
 function toPascalCase(name: string): string {
-  return name
+  const raw = name
     .split(/[_-]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");
+
+  // Strip characters not allowed in GraphQL names
+  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
+
+  // Ensure name starts with a letter or underscore
+  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
 }
 
 /**
@@ -51,12 +60,40 @@ function toCamelCase(name: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-/** Default system actor for GraphQL requests */
-const GRAPHQL_ACTOR = {
-  type: "human" as const,
-  id: "graphql_user",
-  groups: ["admin"],
+/** Anonymous actor for GraphQL requests (no elevated privileges) */
+const ANONYMOUS_ACTOR = {
+  type: "system" as const,
+  id: "anonymous",
+  groups: [] as string[],
 };
+
+/** Maximum page size for list queries */
+const MAX_PAGE_SIZE = 100;
+
+/** Maximum allowed length for JSON string arguments */
+const MAX_JSON_LENGTH = 10_000;
+
+/**
+ * Safely parse a JSON string argument with size validation.
+ * Throws a GraphQLError on invalid input.
+ */
+function safeParseJSON(value: string, argName: string): Record<string, unknown> {
+  if (value.length > MAX_JSON_LENGTH) {
+    throw new GraphQLError(
+      `Argument "${argName}" exceeds maximum allowed length of ${MAX_JSON_LENGTH} characters`,
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new GraphQLError(`Argument "${argName}" contains invalid JSON`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new GraphQLError(`Argument "${argName}" must be a JSON object`);
+  }
+  return parsed as Record<string, unknown>;
+}
 
 // ── ActionResult GraphQL type ──────────────────────────────
 
@@ -94,7 +131,16 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
     policy: { mode: "sync", transaction: false },
     exposure: "all",
     handler: async (ctx) => {
-      return ctx.create(name, ctx.input);
+      // Inject default state values for state fields not provided in input
+      const inputWithDefaults = { ...ctx.input };
+      for (const [fieldName, field] of Object.entries(schema.fields)) {
+        if (field.type === "state" && inputWithDefaults[fieldName] === undefined) {
+          if (field.default !== undefined) {
+            inputWithDefaults[fieldName] = field.default;
+          }
+        }
+      }
+      return ctx.create(name, inputWithDefaults);
     },
   };
 
@@ -331,7 +377,9 @@ export function buildGraphQLSchema(
               pageSize?: number;
             },
           ) => {
-            const filter = args.filter ? JSON.parse(args.filter) : undefined;
+            const filter = args.filter
+              ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
+              : undefined;
             const sort = args.sortField
               ? {
                   field: args.sortField,
@@ -339,8 +387,8 @@ export function buildGraphQLSchema(
                 }
               : undefined;
             const page = args.page ?? 1;
-            const pageSize = args.pageSize ?? undefined;
-            const offset = pageSize ? (page - 1) * pageSize : 0;
+            const pageSize = Math.min(Math.max(args.pageSize ?? 20, 1), MAX_PAGE_SIZE);
+            const offset = (page - 1) * pageSize;
             const items = store.findMany(schemaName, {
               filter,
               sort,
@@ -364,7 +412,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(
               `create_${schemaName}`,
               args.input,
-              GRAPHQL_ACTOR,
+              ANONYMOUS_ACTOR,
               { channel: "http" },
             );
             if (!result.success) {
@@ -392,7 +440,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(
               `update_${schemaName}`,
               { id: args.id, ...args.input },
-              GRAPHQL_ACTOR,
+              ANONYMOUS_ACTOR,
               { channel: "http" },
             );
             if (!result.success) {
@@ -420,7 +468,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(
               `delete_${schemaName}`,
               { id: args.id },
-              GRAPHQL_ACTOR,
+              ANONYMOUS_ACTOR,
               { channel: "http" },
             );
             return result.success;
@@ -511,11 +559,12 @@ export function buildGraphQLSchema(
       args,
       resolve: executor
         ? async (_root: unknown, resolverArgs: { id: string; input?: Record<string, unknown> }) => {
+            // Spread input first so explicit id argument takes precedence
             const input: Record<string, unknown> = {
-              id: resolverArgs.id,
               ...resolverArgs.input,
+              id: resolverArgs.id,
             };
-            const result = await executor.execute(actionName, input, GRAPHQL_ACTOR, {
+            const result = await executor.execute(actionName, input, ANONYMOUS_ACTOR, {
               channel: "http",
             });
             if (returnsSchemaType) {
@@ -574,8 +623,8 @@ export function buildGraphQLSchema(
     },
     resolve: executor
       ? async (_root: unknown, args: { name: string; input: string }) => {
-          const input = JSON.parse(args.input);
-          const result = await executor.execute(args.name, input, GRAPHQL_ACTOR, {
+          const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
+          const result = await executor.execute(args.name, input, ANONYMOUS_ACTOR, {
             channel: "http",
           });
           const errors = !result.success

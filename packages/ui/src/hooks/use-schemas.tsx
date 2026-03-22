@@ -29,7 +29,7 @@ export function SchemasProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchSchemas();
       setSchemas(data);
     } catch {
-      // API unavailable — empty list, pages will use demo data
+      // API unavailable — empty list, sidebar shows no schemas
       setSchemas([]);
     } finally {
       setLoading(false);

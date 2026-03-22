@@ -203,6 +203,33 @@ export function validatePhase1(options: {
   };
 }
 
+// ── State machine resolution helper ──────────────────────
+
+/**
+ * Resolve the state machine for a given schema by looking at proposal changes
+ * and/or the schema registry context.
+ * Returns the set of valid states, or undefined if no state machine is found.
+ */
+function resolveStateMachine(
+  schemaName: string,
+  changes: ProposalChange[],
+  context?: ValidationContext,
+): Set<string> | undefined {
+  // Look through proposal changes for a state definition referencing this schema
+  for (const change of changes) {
+    if (change.target === "state" && change.operation !== "delete" && change.definition) {
+      const stateDef = change.definition as StateDefinition;
+      if (stateDef.schema === schemaName && stateDef.states) {
+        return new Set(stateDef.states);
+      }
+    }
+  }
+
+  // Look through schema registry for state definitions (if available)
+  // The registry doesn't store state machines directly, so we only check proposal changes for now.
+  return undefined;
+}
+
 // ── Schema validation ────────────────────────────────────
 
 function validateSchema(
@@ -300,6 +327,7 @@ function validateAction(
   helpers: {
     schemaExists: (name: string) => boolean;
     actionExists: (name: string) => boolean;
+    resolveStateMachine: (schemaName: string) => Set<string> | undefined;
   },
 ): void {
   // Check schema reference
@@ -333,6 +361,30 @@ function validateAction(
         message: `Action "${name}" state transition is missing "to" state`,
         target: name,
       });
+    }
+
+    // Validate from/to states against the state machine for the action's schema
+    if (def.schema && from && to) {
+      const validStates = helpers.resolveStateMachine(def.schema);
+      if (validStates) {
+        const fromStates = Array.isArray(from) ? from : [from];
+        for (const s of fromStates) {
+          if (!validStates.has(s)) {
+            errors.push({
+              code: "TRANSITION_INVALID_STATE",
+              message: `State '${s}' not found in state machine for schema '${def.schema}'`,
+              target: name,
+            });
+          }
+        }
+        if (!validStates.has(to)) {
+          errors.push({
+            code: "TRANSITION_INVALID_STATE",
+            message: `State '${to}' not found in state machine for schema '${def.schema}'`,
+            target: name,
+          });
+        }
+      }
     }
   }
 

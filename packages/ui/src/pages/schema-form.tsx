@@ -1,8 +1,8 @@
 /**
  * SchemaFormPage — Dynamic record view powered by schema bundle from API.
  *
- * Fetches schema + view definitions from server, falls back to demo data
- * if API unavailable. Control panel with business actions + edit/save.
+ * Fetches schema + view definitions from server. Shows error states
+ * when API is unavailable — no silent demo data fallback.
  *
  * Control panel: [← back] ............... [business actions | edit/save]
  * Sheet card:    [Record Title]  [Status Bar]
@@ -12,22 +12,22 @@
 import type { SchemaDefinition, ViewAction, ViewDefinition } from "@linchkit/core";
 import { Button, Separator } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
 import type { ViewDefinitionWithStateActions } from "../components/auto-form/types";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
-import { demoData, demoFormView, demoSchema, demoStateMachine } from "./schema-demo-data";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
 function deriveStatusSteps(schema: SchemaDefinition): StatusBarStep[] | null {
   // Look for a state field and its meta info in presentation
   const stateField = Object.entries(schema.fields).find(([, f]) => f.type === "state");
   if (!stateField) return null;
-  // For now we don't have state machine info in schema bundle — return null
+  // TODO: load state machine from server when available
   return null;
 }
 
@@ -51,32 +51,27 @@ function getPrimaryView<TView extends { type: string }>(
 
 export function SchemaFormPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
-  const schemaName = params.name ?? demoSchema.name;
+  const schemaName = params.name;
   const { resolveLabel } = useSchemaLabel();
 
   // Fetch schema bundle from API
-  const { bundle, loading: bundleLoading, error: bundleError } = useSchemaBundle(schemaName);
+  const {
+    bundle,
+    loading: bundleLoading,
+    error: bundleError,
+    reload: reloadBundle,
+  } = useSchemaBundle(schemaName ?? "");
 
-  // Resolve schema + view from bundle or fallback to demo
-  const schema: SchemaDefinition = bundle?.schema ?? demoSchema;
-  const formView: ViewDefinition = getPrimaryView(bundle?.views, "form") ?? demoFormView;
-  const usingDemoFallback = !bundle || bundleError;
+  const schema = bundle?.schema;
+  const formView = getPrimaryView(bundle?.views, "form");
 
-  // Status bar steps: from demo state machine when using fallback
+  // Status bar steps derived from schema
   const statusSteps = useMemo((): StatusBarStep[] | null => {
-    if (usingDemoFallback) {
-      return demoStateMachine.states.map((state) => {
-        const meta = demoStateMachine.meta?.[state];
-        return {
-          value: state,
-          label: resolveLabel(meta?.label, state.charAt(0).toUpperCase() + state.slice(1)),
-          color: meta?.color,
-        };
-      });
-    }
+    if (!schema) return null;
     return deriveStatusSteps(schema);
-  }, [schema, usingDemoFallback, resolveLabel]);
+  }, [schema]);
 
   const isCreate = !params.id || params.id === "new";
   const [formMode, setFormMode] = useState<"create" | "edit" | "view">(
@@ -85,41 +80,41 @@ export function SchemaFormPage() {
   const [record, setRecord] = useState<Record<string, unknown> | undefined>(undefined);
   const [loading, setLoading] = useState(!isCreate);
   const [saving, setSaving] = useState(false);
-  const [usingApi, setUsingApi] = useState(false);
+  const [recordError, setRecordError] = useState<string | null>(null);
 
-  const recordFields = useMemo(() => getRecordFields(formView), [formView]);
+  const recordFields = useMemo(() => (formView ? getRecordFields(formView) : []), [formView]);
 
   const fetchRecord = useCallback(async () => {
-    if (isCreate || !params.id) return;
+    if (isCreate || !params.id || !schemaName || !formView) return;
     setLoading(true);
+    setRecordError(null);
     try {
       const result = await queryRecord(schemaName, params.id, recordFields);
       if (result) {
         setRecord(result as Record<string, unknown>);
-        setUsingApi(true);
       } else {
-        const demo = demoData.find((r) => r.id === params.id);
-        setRecord(demo);
-        setUsingApi(false);
+        setRecordError(t("errors.recordNotFound", 'Record "{{id}}" not found.', { id: params.id }));
       }
-    } catch {
-      const demo = demoData.find((r) => r.id === params.id);
-      setRecord(demo);
-      setUsingApi(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load record";
+      setRecordError(message);
     } finally {
       setLoading(false);
     }
-  }, [isCreate, params.id, schemaName, recordFields]);
+  }, [isCreate, params.id, schemaName, recordFields, formView, t]);
 
   useEffect(() => {
-    if (!bundleLoading) {
+    if (!bundleLoading && bundle) {
       fetchRecord();
+    } else if (!bundleLoading && !bundle) {
+      setLoading(false);
     }
-  }, [fetchRecord, bundleLoading]);
+  }, [fetchRecord, bundleLoading, bundle]);
 
   // Resolve business actions from view's stateActions mapping
   const recordStatus = record ? String(record.status ?? "") : undefined;
   const businessActions = useMemo(() => {
+    if (!formView) return [];
     const viewWithState = formView as ViewDefinitionWithStateActions;
     const allActions = formView.actions ?? [];
     const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
@@ -134,18 +129,14 @@ export function SchemaFormPage() {
   const isEditing = formMode === "edit" || formMode === "create";
 
   async function handleSubmit(data: Record<string, unknown>) {
+    if (!schemaName) return;
     setSaving(true);
     try {
-      if (usingApi || isCreate) {
-        if (isCreate) {
-          await createRecord(schemaName, data, recordFields);
-        } else if (params.id) {
-          await updateRecord(schemaName, params.id, data, recordFields);
-        }
-      }
       if (isCreate) {
+        await createRecord(schemaName, data, recordFields);
         navigate({ to: "/schemas/$name", params: { name: schemaName } });
-      } else {
+      } else if (params.id) {
+        await updateRecord(schemaName, params.id, data, recordFields);
         await fetchRecord();
         setFormMode("view");
       }
@@ -157,6 +148,7 @@ export function SchemaFormPage() {
   }
 
   function handleCancel() {
+    if (!schemaName) return;
     if (isCreate) {
       navigate({ to: "/schemas/$name", params: { name: schemaName } });
     } else {
@@ -167,15 +159,13 @@ export function SchemaFormPage() {
   async function handleAction(actionName: string) {
     setSaving(true);
     try {
-      if (usingApi && params.id) {
+      if (params.id) {
         const result = await executeAction(actionName, { id: params.id });
         if (result.success) {
           await fetchRecord();
         } else {
           console.error("Action failed:", result.error);
         }
-      } else {
-        console.log(`Action: ${actionName}`, { recordId: params.id, mode: "demo" });
       }
     } catch (err) {
       console.error("Action failed:", err);
@@ -185,9 +175,23 @@ export function SchemaFormPage() {
   }
 
   function handleBack() {
+    if (!schemaName) return;
     navigate({ to: "/schemas/$name", params: { name: schemaName } });
   }
 
+  // Missing schema name in route
+  if (!schemaName) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <ServerCrash className="h-10 w-10" />
+        <p className="text-sm">
+          {t("errors.missingSchemaName", "No schema specified in the URL.")}
+        </p>
+      </div>
+    );
+  }
+
+  // Loading bundle or record
   if (bundleLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -196,10 +200,56 @@ export function SchemaFormPage() {
     );
   }
 
+  // Bundle fetch error
+  if (bundleError || !schema || !formView) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+        <ServerCrash className="h-10 w-10" />
+        <p className="text-sm font-medium">
+          {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
+        </p>
+        <p className="text-xs">
+          {t(
+            "errors.checkServer",
+            "Check that the server is running and the schema is registered.",
+          )}
+        </p>
+        <Button variant="outline" size="sm" onClick={reloadBundle}>
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          {t("common.retry", "Retry")}
+        </Button>
+      </div>
+    );
+  }
+
+  // Record fetch error (not create mode)
+  if (recordError && !isCreate) {
+    return (
+      <div className="bg-muted/30 min-h-full">
+        <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+          <ServerCrash className="h-10 w-10" />
+          <p className="text-sm font-medium">
+            {t("errors.recordLoadFailed", "Failed to load record.")}
+          </p>
+          <p className="text-xs text-destructive">{recordError}</p>
+          <Button variant="outline" size="sm" onClick={fetchRecord}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            {t("common.retry", "Retry")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Resolve record title from schema's presentation.titleField
   const titleField = schema.presentation?.titleField as string | undefined;
   const recordTitle = isCreate
-    ? "New"
+    ? t("common.new", "New")
     : String((titleField && record?.[titleField]) ?? record?.title ?? params.id ?? "");
 
   return (
@@ -237,17 +287,17 @@ export function SchemaFormPage() {
             {!isCreate && !isEditing && (
               <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                Edit
+                {t("common.edit", "Edit")}
               </Button>
             )}
             {isEditing && (
               <>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </Button>
                 <Button size="sm" type="submit" form="auto-form" disabled={saving}>
                   {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                  Save
+                  {t("common.save", "Save")}
                 </Button>
               </>
             )}

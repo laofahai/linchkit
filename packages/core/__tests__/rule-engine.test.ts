@@ -399,6 +399,75 @@ describe("evaluateRules", () => {
     expect(result.blockReasons).toEqual(["Not allowed"]);
   });
 
+  it("filters out prototype-polluting keys from enrich setFields", async () => {
+    const rule = makeRule({
+      name: "enrich-pollute",
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: {
+        type: "enrich",
+        setFields: {
+          safe_key: "ok",
+          __proto__: { polluted: true },
+          constructor: "bad",
+          prototype: "bad",
+        },
+      },
+    });
+
+    const result = await evaluateRules([rule], defaultInput);
+    expect(result.enrichFields).toEqual({ safe_key: "ok" });
+    // Verify no prototype pollution occurred
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("isolates per-rule condition errors (fail-closed)", async () => {
+    const throwingRule = makeRule({
+      name: "throwing-rule",
+      priority: 10,
+      condition: () => {
+        throw new Error("condition exploded");
+      },
+      effect: { type: "block", message: "Blocked by error", reason: "error_block" },
+    });
+    const normalRule = makeRule({
+      name: "normal-rule",
+      priority: 5,
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Should not be reached (block short-circuits)" },
+    });
+
+    const result = await evaluateRules([throwingRule, normalRule], defaultInput);
+    // Fail-closed: throwing rule treated as triggered, block effect applied
+    expect(result.blocked).toBe(true);
+    expect(result.blockReasons).toEqual(["error_block"]);
+    // Error recorded in result
+    expect(result.results[0].error).toBe("condition exploded");
+    expect(result.results[0].triggered).toBe(true);
+  });
+
+  it("isolates per-rule condition errors for non-block rules", async () => {
+    const throwingWarn = makeRule({
+      name: "throwing-warn",
+      priority: 10,
+      condition: () => {
+        throw new Error("oops");
+      },
+      effect: { type: "warn", message: "Warning from errored rule" },
+    });
+    const normalWarn = makeRule({
+      name: "normal-warn",
+      priority: 5,
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "warn", message: "Normal warning" },
+    });
+
+    const result = await evaluateRules([throwingWarn, normalWarn], defaultInput);
+    // Both rules should produce warnings (no short-circuit for warn)
+    expect(result.warnings).toHaveLength(2);
+    expect(result.results[0].error).toBe("oops");
+    expect(result.results[1].error).toBeUndefined();
+  });
+
   it("includes duration in output", async () => {
     const rule = makeRule({
       name: "timed",

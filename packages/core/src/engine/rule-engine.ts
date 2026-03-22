@@ -21,6 +21,19 @@ import type {
 } from "../types/rule";
 import { type ConditionContext, evaluateCondition } from "./condition-evaluator";
 
+// ── Helpers ─────────────────────────────────────────
+
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Assign properties from source to target, filtering out prototype-polluting keys. */
+function safeAssign(target: Record<string, unknown>, source: Record<string, unknown>): void {
+  for (const key of Object.keys(source)) {
+    if (!DANGEROUS_KEYS.has(key)) {
+      target[key] = source[key];
+    }
+  }
+}
+
 // ── Input / Output types ────────────────────────────
 
 export interface RuleEvalInput {
@@ -93,14 +106,22 @@ export async function evaluateRules(
     const ruleStart = performance.now();
 
     let triggered: boolean;
-    if (typeof rule.condition === "function") {
-      triggered = await (rule.condition as CodeCondition)({
-        target: ctx.target,
-        context: ctx.context,
-        actor: ctx.actor,
-      });
-    } else {
-      triggered = evaluateCondition(rule.condition as DeclarativeCondition, ctx);
+    let error: string | undefined;
+
+    try {
+      if (typeof rule.condition === "function") {
+        triggered = await (rule.condition as CodeCondition)({
+          target: ctx.target,
+          context: ctx.context,
+          actor: ctx.actor,
+        });
+      } else {
+        triggered = evaluateCondition(rule.condition as DeclarativeCondition, ctx);
+      }
+    } catch (err) {
+      // Fail-closed: treat as triggered so block rules still block on error
+      triggered = true;
+      error = err instanceof Error ? err.message : String(err);
     }
 
     const duration = performance.now() - ruleStart;
@@ -110,6 +131,7 @@ export async function evaluateRules(
       triggered,
       effect: triggered ? rule.effect : null,
       duration,
+      ...(error !== undefined && { error }),
     };
     output.results.push(result);
 
@@ -160,11 +182,15 @@ function mergeEffect(output: RuleEvalOutput, effect: RuleEffect): void {
     }
     case "enrich": {
       const enrich = effect as EnrichEffect;
-      Object.assign(output.enrichFields, enrich.setFields);
+      safeAssign(output.enrichFields, enrich.setFields);
       break;
     }
     case "execute_action": {
       output.actions.push(effect as ExecuteActionEffect);
+      break;
+    }
+    default: {
+      const _exhaustive: never = effect;
       break;
     }
   }

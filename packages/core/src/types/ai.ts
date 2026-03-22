@@ -12,10 +12,18 @@ import type { ZodSchema } from "zod";
 
 // ── Provider configuration ──────────────────────────────────
 
+/** SDK protocol type for the provider */
+export type AIProviderType = "anthropic" | "openai";
+
 export interface AIProviderConfig {
-  /** API key (or read from environment variable) */
+  /** SDK protocol type. Inferred from provider name if omitted:
+   * - name "anthropic" → "anthropic"
+   * - name "openai" → "openai"
+   * - others → must be explicitly set */
+  type?: AIProviderType;
+  /** API key (or $env.VAR_NAME for environment variable) */
   apiKey?: string;
-  /** OpenAI-compatible endpoint for custom/local providers */
+  /** Custom base URL (required for openai-compatible providers) */
   endpoint?: string;
   /** Default model ID for this provider */
   defaultModel: string;

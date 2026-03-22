@@ -75,15 +75,33 @@ export function mapFieldToGraphQLInputType(field: FieldDefinition): GraphQLInput
   }
 }
 
+/** Regex for valid GraphQL names */
+const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
+
 /**
  * Convert a schema name to PascalCase for GraphQL type naming.
+ * Strips illegal characters and validates the result.
  * e.g. "order_item" → "OrderItem"
  */
 function toPascalCase(name: string): string {
-  return name
+  const raw = name
     .split(/[_-]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");
+
+  // Strip characters not allowed in GraphQL names
+  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
+
+  // Ensure name starts with a letter or underscore
+  const result = GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
+
+  if (result !== raw) {
+    console.warn(
+      `[schema-to-graphql] Name "${name}" sanitized to "${result}" for GraphQL compatibility`,
+    );
+  }
+
+  return result;
 }
 
 /**
@@ -97,24 +115,49 @@ export function generateGraphQLObjectType(schema: SchemaDefinition): GraphQLObje
     name: typeName,
     description: schema.description ?? schema.label,
     fields: () => {
-      const fields: Record<string, { type: GraphQLOutputType; description?: string }> = {};
+      const fields: Record<
+        string,
+        {
+          type: GraphQLOutputType;
+          description?: string;
+          resolve?: (obj: Record<string, unknown>) => unknown;
+        }
+      > = {};
 
-      // System fields
-      fields.id = { type: new GraphQLNonNull(GraphQLID) };
-      fields.tenant_id = { type: GraphQLString };
+      // System fields — use safe resolvers to handle missing values
+      fields.id = {
+        type: new GraphQLNonNull(GraphQLID),
+        resolve: (obj: Record<string, unknown>) => obj.id ?? "",
+      };
+      fields.tenant_id = {
+        type: GraphQLString,
+        resolve: (obj: Record<string, unknown>) => obj.tenant_id ?? null,
+      };
       fields.created_at = {
         type: new GraphQLNonNull(GraphQLString),
         description: "ISO 8601 timestamp",
+        resolve: (obj: Record<string, unknown>) => obj.created_at ?? new Date().toISOString(),
       };
       fields.updated_at = {
         type: new GraphQLNonNull(GraphQLString),
         description: "ISO 8601 timestamp",
+        resolve: (obj: Record<string, unknown>) => obj.updated_at ?? new Date().toISOString(),
       };
-      fields.created_by = { type: GraphQLString };
-      fields.updated_by = { type: GraphQLString };
-      fields._version = { type: new GraphQLNonNull(GraphQLInt) };
+      fields.created_by = {
+        type: GraphQLString,
+        resolve: (obj: Record<string, unknown>) => obj.created_by ?? null,
+      };
+      fields.updated_by = {
+        type: GraphQLString,
+        resolve: (obj: Record<string, unknown>) => obj.updated_by ?? null,
+      };
+      fields._version = {
+        type: new GraphQLNonNull(GraphQLInt),
+        resolve: (obj: Record<string, unknown>) => obj._version ?? 1,
+      };
 
-      // User-defined fields
+      // User-defined fields — always nullable in output with safe resolvers
+      // to prevent crashes when records are missing fields
       for (const [fieldName, field] of Object.entries(schema.fields)) {
         if (SKIPPED_FIELD_TYPES.has(field.type)) {
           continue;
@@ -125,9 +168,11 @@ export function generateGraphQLObjectType(schema: SchemaDefinition): GraphQLObje
           continue;
         }
 
+        const name = fieldName;
         fields[fieldName] = {
-          type: field.required ? new GraphQLNonNull(graphqlType) : graphqlType,
+          type: graphqlType, // Always nullable in output to prevent resolver crashes
           description: field.description ?? field.label,
+          resolve: (obj: Record<string, unknown>) => obj[name] ?? null,
         };
       }
 

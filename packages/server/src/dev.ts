@@ -1,14 +1,20 @@
 /**
  * Dev entry point — run with `bun --watch src/dev.ts`
  *
- * Starts the LinchKit server with demo schemas, actions, and seed data.
+ * Loads linchkit.config.ts, then starts the LinchKit server
+ * with demo schemas, actions, and seed data.
  * Demonstrates end-to-end: Schema → Action → GraphQL → REST
  */
 
 import type { ActionDefinition, SchemaDefinition, ViewDefinition } from "@linchkit/core";
+import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext } from "./runtime-context";
 import { createServer } from "./server";
+
+// ── Load configuration ──────────────────────────────────
+
+const config = await loadConfig();
 
 // ── Demo schema ──────────────────────────────────────────
 
@@ -22,7 +28,7 @@ const purchaseRequestSchema: SchemaDefinition = {
     amount: { type: "number", required: true, label: "Amount" },
     department: { type: "string", label: "Department" },
     requester: { type: "string", label: "Requester" },
-    status: { type: "state", machine: "purchase_lifecycle" },
+    status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
     priority: {
       type: "enum",
       options: [
@@ -219,6 +225,7 @@ const runtime = createRuntimeContext({
   schemas: demoSchemas,
   actions: allActions,
   views: demoViews,
+  ai: config.ai,
 });
 
 // Seed demo data
@@ -280,9 +287,12 @@ const graphqlSchema = buildGraphQLSchema(demoSchemas, {
   executionLogger: runtime.executionLogger,
 });
 
-const port = 3001;
+const port = config.server?.port ?? 3001;
+const host = config.server?.host ?? "0.0.0.0";
+
 const server = createServer(graphqlSchema, {
   port,
+  host,
   executor: runtime.executor,
   executionLogger: runtime.executionLogger,
   schemaRegistry: runtime.schemaRegistry,
@@ -291,16 +301,23 @@ const server = createServer(graphqlSchema, {
 
 server.listen(port);
 
+// ── Startup summary ──────────────────────────────────────
+
+const aiSummary = config.ai
+  ? `${config.ai.defaultProvider} (${Object.keys(config.ai.providers).join(", ")})`
+  : "not configured";
+
 console.log(`\nLinchKit Dev Server`);
 console.log(`───────────────────────────────────`);
-console.log(`  HTTP:       http://localhost:${port}`);
-console.log(`  GraphQL:    http://localhost:${port}/graphql`);
-console.log(`  Health:     http://localhost:${port}/health`);
-console.log(`  REST API:   http://localhost:${port}/api/actions/:name`);
-console.log(`  Exec Logs:  http://localhost:${port}/api/executions`);
+console.log(`  HTTP:       http://${host}:${port}`);
+console.log(`  GraphQL:    http://${host}:${port}/graphql`);
+console.log(`  Health:     http://${host}:${port}/health`);
+console.log(`  REST API:   http://${host}:${port}/api/actions/:name`);
+console.log(`  Exec Logs:  http://${host}:${port}/api/executions`);
 console.log(`───────────────────────────────────`);
 console.log(`  Schemas:    ${demoSchemas.length} (${demoSchemas.map((s) => s.name).join(", ")})`);
 console.log(`  Actions:    ${allActions.length} (${allActions.map((a) => a.name).join(", ")})`);
 console.log(`  Records:    ${runtime.store.count("purchase_request")} seed records`);
+console.log(`  AI:         ${aiSummary}`);
 console.log(`  Logger:     InMemoryExecutionLogger enabled`);
 console.log(`───────────────────────────────────\n`);

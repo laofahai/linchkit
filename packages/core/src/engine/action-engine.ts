@@ -57,6 +57,8 @@ export interface ExecuteOptions {
   skipRules?: string[];
   /** Approval ID that authorized this re-execution */
   approvalId?: string;
+  /** Internal: current recursion depth for child action execution */
+  _depth?: number;
 }
 
 // ── ActionRegistry ──────────────────────────────────────────
@@ -203,9 +205,21 @@ function runPreValidation(action: ActionDefinition, ctx: ActionContext): Validat
     }
   }
 
-  // validate.custom
+  // validate.custom — wrap in try/catch so exceptions don't escape
   if (action.validate.custom) {
-    return action.validate.custom(ctx);
+    try {
+      return action.validate.custom(ctx);
+    } catch (err) {
+      return {
+        valid: false,
+        errors: [
+          {
+            field: "_custom",
+            message: err instanceof Error ? err.message : String(err),
+          },
+        ],
+      };
+    }
   }
 
   return { valid: true };
@@ -239,14 +253,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
   const { dataProvider, stateMachine, executionLogger, aiService } = options;
 
   /** Helper: build and log an execution entry */
-  function logExecution(
+  async function logExecution(
     entry: Omit<ExecutionLogEntry, "completedAt" | "duration"> & { startedAt: Date },
-  ): void {
+  ): Promise<void> {
     if (!executionLogger) return;
     const completedAt = new Date();
     const duration = completedAt.getTime() - entry.startedAt.getTime();
-    executionLogger.log({ ...entry, completedAt, duration } as ExecutionLogEntry);
+    await executionLogger.log({ ...entry, completedAt, duration } as ExecutionLogEntry);
   }
+
+  /** Maximum recursion depth for child action execution */
+  const MAX_CHILD_DEPTH = 10;
 
   async function execute<T = unknown>(
     actionName: string,
@@ -257,10 +274,31 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const executionId = generateExecutionId();
     const startedAt = new Date();
 
+    // Step 0: Recursion depth check
+    const currentDepth = execOptions?._depth ?? 0;
+    if (currentDepth > MAX_CHILD_DEPTH) {
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        actor,
+        input,
+        status: "failed",
+        error: { message: `Maximum child action recursion depth (${MAX_CHILD_DEPTH}) exceeded` },
+        startedAt,
+      });
+      return {
+        success: false,
+        data: {
+          error: `Maximum child action recursion depth (${MAX_CHILD_DEPTH}) exceeded`,
+        } as T,
+        executionId,
+      };
+    }
+
     // Step 1: Look up action
     const action = registry.get(actionName);
     if (!action) {
-      logExecution({
+      await logExecution({
         id: executionId,
         action: actionName,
         actor,
@@ -281,11 +319,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const skipExposure = execOptions?.skipExposureCheck ?? false;
     const skipPermission = execOptions?.skipPermissionCheck ?? false;
 
-    // Step 2: Exposure check
-    if (!skipExposure && execOptions?.channel) {
-      if (!isExposed(action.exposure, execOptions.channel)) {
-        const errorMsg = `Action "${actionName}" is not exposed for channel "${execOptions.channel}"`;
-        logExecution({
+    // Step 2: Exposure check — default channel to "internal" so the check always runs
+    const channel: ExecutionChannel = execOptions?.channel ?? "internal";
+    if (!skipExposure) {
+      if (!isExposed(action.exposure, channel)) {
+        const errorMsg = `Action "${actionName}" is not exposed for channel "${channel}"`;
+        await logExecution({
           id: executionId,
           action: actionName,
           schema: action.schema,
@@ -307,7 +346,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     if (!skipPermission) {
       const permError = checkPermissions(action, actor);
       if (permError) {
-        logExecution({
+        await logExecution({
           id: executionId,
           action: actionName,
           schema: action.schema,
@@ -328,7 +367,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 4: Input validation
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
-      logExecution({
+      await logExecution({
         id: executionId,
         action: actionName,
         schema: action.schema,
@@ -366,7 +405,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       update: (schema, id, data) => dataProvider.update(schema, id, data),
       delete: (schema, id) => dataProvider.delete(schema, id),
       execute: async (childActionName, childInput) => {
-        const childResult = await execute(childActionName, childInput, actor);
+        const childResult = await execute(childActionName, childInput, actor, {
+          _depth: currentDepth + 1,
+        });
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
       },
@@ -378,7 +419,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 5: Pre-validation
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
-      logExecution({
+      await logExecution({
         id: executionId,
         action: actionName,
         schema: action.schema,
@@ -412,7 +453,23 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           const record = await dataProvider.get(action.schema, recordId);
           currentState = record.status as string | undefined;
         } catch {
-          // Record not found — cannot check state
+          // Record fetch failed — fail closed when state transition is required
+          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in schema "${action.schema}"`;
+          await logExecution({
+            id: executionId,
+            action: actionName,
+            schema: action.schema,
+            actor,
+            input,
+            status: "failed",
+            error: { message: errorMsg },
+            startedAt,
+          });
+          return {
+            success: false,
+            data: { error: errorMsg } as T,
+            executionId,
+          };
         }
       }
 
@@ -420,7 +477,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Check if current state is in the allowed "from" states
         if (!fromStates.includes(currentState)) {
           const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
-          logExecution({
+          await logExecution({
             id: executionId,
             action: actionName,
             schema: action.schema,
@@ -440,7 +497,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Also validate against state machine if available
         if (!canTransition(stateMachine, currentState, actionName)) {
           const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
-          logExecution({
+          await logExecution({
             id: executionId,
             action: actionName,
             schema: action.schema,
@@ -492,7 +549,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       }
 
-      logExecution({
+      await logExecution({
         id: executionId,
         action: actionName,
         schema: action.schema,
@@ -512,7 +569,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
-      logExecution({
+      await logExecution({
         id: executionId,
         action: actionName,
         schema: action.schema,

@@ -167,6 +167,8 @@ export interface RuleEvaluationResult {
   triggered: boolean;
   effect: RuleEffect | null;
   duration: number;
+  /** Error message if the rule's condition threw an exception */
+  error?: string;
 }
 
 // ── Rule override (for Bridge) ─────────────────────────

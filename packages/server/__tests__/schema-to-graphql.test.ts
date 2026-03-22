@@ -87,9 +87,11 @@ describe("generateGraphQLObjectType", () => {
   });
 
   test("maps field types correctly", () => {
-    // string → String (required → NonNull)
-    expect(fields.title.type).toBeInstanceOf(GraphQLNonNull);
-    expect((fields.title.type as GraphQLNonNull<typeof GraphQLString>).ofType).toBe(GraphQLString);
+    // Output types are always nullable to prevent resolver crashes on missing fields.
+    // Required/NonNull enforcement is only on input types.
+
+    // string → String (nullable in output even if required)
+    expect(fields.title.type).toBe(GraphQLString);
 
     // text → String (optional)
     expect(fields.description.type).toBe(GraphQLString);
@@ -106,11 +108,8 @@ describe("generateGraphQLObjectType", () => {
     // datetime → String
     expect(fields.scheduled_at.type).toBe(GraphQLString);
 
-    // enum → String (required → NonNull)
-    expect(fields.priority.type).toBeInstanceOf(GraphQLNonNull);
-    expect((fields.priority.type as GraphQLNonNull<typeof GraphQLString>).ofType).toBe(
-      GraphQLString,
-    );
+    // enum → String (nullable in output even if required)
+    expect(fields.priority.type).toBe(GraphQLString);
 
     // json → String
     expect(fields.metadata.type).toBe(GraphQLString);
@@ -128,10 +127,13 @@ describe("generateGraphQLObjectType", () => {
     expect(fields.tags).toBeUndefined();
   });
 
-  test("required fields are non-nullable", () => {
-    // title is required
-    expect(fields.title.type).toBeInstanceOf(GraphQLNonNull);
-    // description is not required
+  test("output fields are always nullable to prevent resolver crashes", () => {
+    // In output types, all user-defined fields are nullable.
+    // Safe resolvers return null for missing fields instead of crashing.
+    // Required/NonNull is only enforced on input types.
+    expect(fields.title.type).toBe(GraphQLString);
+    expect(fields.title.type).not.toBeInstanceOf(GraphQLNonNull);
+    // description is also nullable
     expect(fields.description.type).not.toBeInstanceOf(GraphQLNonNull);
   });
 });

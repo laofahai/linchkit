@@ -590,4 +590,106 @@ describe("resolveConditionVariables", () => {
     expect(result.value).toBe("user-42");
     expect(result).not.toBe(condition);
   });
+
+  it("rejects __proto__ path segment", () => {
+    const condition = {
+      field: "hack",
+      operator: "eq" as const,
+      value: "$actor.__proto__.constructor",
+    };
+    const result = resolveConditionVariables(condition, actor);
+
+    expect(result.value).toBeUndefined();
+  });
+
+  it("rejects constructor path segment", () => {
+    const condition = {
+      field: "hack",
+      operator: "eq" as const,
+      value: "$actor.constructor.prototype",
+    };
+    const result = resolveConditionVariables(condition, actor);
+
+    expect(result.value).toBeUndefined();
+  });
+
+  it("rejects prototype path segment", () => {
+    const condition = {
+      field: "hack",
+      operator: "eq" as const,
+      value: "$actor.prototype.something",
+    };
+    const result = resolveConditionVariables(condition, actor);
+
+    expect(result.value).toBeUndefined();
+  });
+
+  it("rejects non-whitelisted top-level paths", () => {
+    const condition = {
+      field: "hack",
+      operator: "eq" as const,
+      value: "$actor.password",
+    };
+    const result = resolveConditionVariables(condition, actor);
+
+    expect(result.value).toBeUndefined();
+  });
+
+  it("allows whitelisted paths: id, type, groups, metadata", () => {
+    for (const path of ["id", "type", "groups", "metadata"]) {
+      const condition = {
+        field: "test",
+        operator: "eq" as const,
+        value: `$actor.${path}`,
+      };
+      const result = resolveConditionVariables(condition, actor);
+      expect(result.value).toBeDefined();
+    }
+  });
+});
+
+// ── system_admin registry verification ──────────────
+
+describe("system_admin registry check", () => {
+  it("checkActionPermission denies system_admin if group is not registered", () => {
+    const registry = new PermissionRegistry();
+    // Do NOT register system_admin group
+    const actor = makeActor({ groups: ["system_admin"] });
+
+    const result = checkActionPermission(registry, actor, "any", "any");
+
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("no registered permission groups");
+  });
+
+  it("checkActionPermission allows system_admin only when registered", () => {
+    const registry = new PermissionRegistry();
+    registry.register(makeGroup({ name: "system_admin", label: "System Admin" }));
+    const actor = makeActor({ groups: ["system_admin"] });
+
+    const result = checkActionPermission(registry, actor, "any", "any");
+
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("system_admin");
+  });
+
+  it("resolveDataAccess returns 'none' for unregistered system_admin", () => {
+    const registry = new PermissionRegistry();
+    // Do NOT register system_admin group
+    const actor = makeActor({ groups: ["system_admin"] });
+
+    const result = resolveDataAccess(registry, actor, "purchase", "purchase_request", "read");
+
+    expect(result).toBe("none");
+  });
+
+  it("resolveDataAccess returns 'all' for registered system_admin", () => {
+    const registry = new PermissionRegistry();
+    registry.register(makeGroup({ name: "system_admin", label: "System Admin" }));
+    const actor = makeActor({ groups: ["system_admin"] });
+
+    const result = resolveDataAccess(registry, actor, "purchase", "purchase_request", "read");
+
+    expect(result).toBe("all");
+  });
 });

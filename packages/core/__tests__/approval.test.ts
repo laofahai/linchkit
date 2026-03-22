@@ -734,6 +734,273 @@ describe("Rule Engine + Approval Integration", () => {
   });
 });
 
+describe("ApprovalEngine — assignee authorization", () => {
+  let store: InMemoryApprovalStore;
+  let dataProvider: DataProvider;
+  let executor: ActionExecutor;
+  let eventBus: EventBus;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    dataProvider = createMemoryDataProvider();
+    const executionLogger = new InMemoryExecutionLogger();
+    executor = createActionExecutor({ dataProvider, executionLogger });
+    executor.registry.register(submitRequestAction);
+
+    const { bus } = createEventBus();
+    eventBus = bus;
+  });
+
+  it("authorized user-assignee approve succeeds when enforceAssignee is true", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor, enforceAssignee: true });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // managerActor.id === "manager-1" matches assignee.value
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("unauthorized user-assignee approve fails when enforceAssignee is true", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor, enforceAssignee: true });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // otherActor.id === "user-2" does NOT match assignee.value "manager-1"
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, otherActor),
+    ).rejects.toThrow('not the assigned user');
+  });
+
+  it("authorized group-assignee approve succeeds when enforceAssignee is true", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor, enforceAssignee: true });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-3",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "group", value: "manager" },
+    });
+
+    // managerActor.groups includes "manager"
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("unauthorized group-assignee approve fails when enforceAssignee is true", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor, enforceAssignee: true });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-4",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "group", value: "manager" },
+    });
+
+    // defaultActor.groups is ["employee"], not "manager"
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow('not a member of assigned group');
+  });
+
+  it("unauthorized reject fails when enforceAssignee is true", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor, enforceAssignee: true });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-5",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // otherActor is not the assigned user
+    await expect(
+      engine.reject({ approvalId: createResult.approvalId, note: "No budget" }, otherActor),
+    ).rejects.toThrow('not the assigned user');
+  });
+
+  it("skips assignee check when enforceAssignee is false (default)", async () => {
+    const engine = createApprovalEngine({ store, eventBus, executor });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-auth-6",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // otherActor doesn't match, but enforceAssignee is false so it should succeed
+    const result = await engine.approve({ approvalId: createResult.approvalId }, otherActor);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("ApprovalEngine — rejection note validation", () => {
+  let store: InMemoryApprovalStore;
+  let engine: ApprovalEngine;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    engine = createApprovalEngine({ store });
+  });
+
+  it("rejects with empty note throws error", async () => {
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-note-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    await expect(
+      engine.reject({ approvalId: createResult.approvalId, note: "" }, managerActor),
+    ).rejects.toThrow("Rejection note is required");
+  });
+
+  it("rejects with whitespace-only note throws error", async () => {
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-note-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    await expect(
+      engine.reject({ approvalId: createResult.approvalId, note: "   " }, managerActor),
+    ).rejects.toThrow("Rejection note is required");
+  });
+});
+
+describe("ApprovalEngine — expiration checks", () => {
+  let store: InMemoryApprovalStore;
+  let engine: ApprovalEngine;
+  let executor: ActionExecutor;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    const dataProvider = createMemoryDataProvider();
+    const executionLogger = new InMemoryExecutionLogger();
+    executor = createActionExecutor({ dataProvider, executionLogger });
+    executor.registry.register(submitRequestAction);
+    engine = createApprovalEngine({ store, executor });
+  });
+
+  it("rejects approve on expired request", async () => {
+    const past = new Date(Date.now() - 60000);
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-exp-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      expiresAt: past,
+    });
+
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, managerActor),
+    ).rejects.toThrow("Approval request has expired");
+  });
+
+  it("rejects reject on expired request", async () => {
+    const past = new Date(Date.now() - 60000);
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-exp-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      expiresAt: past,
+    });
+
+    await expect(
+      engine.reject({ approvalId: createResult.approvalId, note: "Too late" }, managerActor),
+    ).rejects.toThrow("Approval request has expired");
+  });
+
+  it("rejects cancel on expired request", async () => {
+    const past = new Date(Date.now() - 60000);
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-exp-3",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      expiresAt: past,
+    });
+
+    await expect(
+      engine.cancel({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow("Approval request has expired");
+  });
+
+  it("allows approve on non-expired request", async () => {
+    const future = new Date(Date.now() + 60000);
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-exp-4",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      expiresAt: future,
+    });
+
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("ApprovalEngine — deferred executor wiring", () => {
   it("setExecutor allows late binding of the action executor", async () => {
     const store = new InMemoryApprovalStore();
@@ -758,17 +1025,9 @@ describe("ApprovalEngine — deferred executor wiring", () => {
       engine.approve({ approvalId: pendingResult.approvalId }, managerActor),
     ).rejects.toThrow("executor not configured");
 
-    // The approval status was set to "approved" before the executor check,
-    // so we need a new request for the success case.
-    const pendingResult2 = await engine.createRequest({
-      action: "submit_request",
-      schema: "purchase_request",
-      input: { title: "Laptop 2", amount: 20000 },
-      actor: defaultActor,
-      executionId: "exec-deferred-2",
-      effect: { type: "require_approval", level: "manager" },
-      triggerRules: ["amount_check"],
-    });
+    // Status should still be "pending" since executor check happens before status update
+    const stored = store.getById(pendingResult.approvalId);
+    expect(stored?.status).toBe("pending");
 
     // Now wire up the executor
     const dataProvider = createMemoryDataProvider();
@@ -776,9 +1035,9 @@ describe("ApprovalEngine — deferred executor wiring", () => {
     executor.registry.register(submitRequestAction);
     engine.setExecutor(executor);
 
-    // Approve should now succeed
+    // Approve the same request should now succeed
     const successResult = await engine.approve(
-      { approvalId: pendingResult2.approvalId },
+      { approvalId: pendingResult.approvalId },
       managerActor,
     );
     expect(successResult.success).toBe(true);

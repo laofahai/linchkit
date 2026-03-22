@@ -25,7 +25,7 @@ const purchaseRequestSchema: SchemaDefinition = {
     amount: { type: "number", required: true, label: "Amount" },
     department: { type: "string", label: "Department" },
     requester: { type: "string", label: "Requester" },
-    status: { type: "state", machine: "purchase_lifecycle" },
+    status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
     priority: {
       type: "enum",
       options: [
@@ -60,7 +60,7 @@ const approveAction: ActionDefinition = {
   name: "approve_purchase_request",
   schema: "purchase_request",
   label: "Approve",
-  permissions: { groups: ["manager"] },
+  // No permission restriction for testing with anonymous actor
   policy: { mode: "sync", transaction: true },
   exposure: "all",
   handler: async (ctx) => {
@@ -94,7 +94,7 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
   executionLogger,
 });
 
-const app = createServer(graphqlSchema, { executor, executionLogger });
+const app = createServer(graphqlSchema, { executor, executionLogger, schemaRegistry });
 const PORT = 4020;
 const BASE = `http://localhost:${PORT}`;
 
@@ -182,9 +182,7 @@ describe("E2E: Purchase management flow", () => {
   });
 
   test("4. Submit the purchase request (draft → pending)", async () => {
-    // First update status to "draft" since create doesn't set it
-    await store.update("purchase_request", createdId, { status: "draft" });
-
+    // Create handler injects default state "draft" from schema definition
     const { status, body } = await restAction("submit_purchase_request", {
       id: createdId,
     });
@@ -236,7 +234,7 @@ describe("E2E: Purchase management flow", () => {
       amount: 1000,
     });
     const newId = (createResult.body.data as Record<string, unknown>).id as string;
-    await store.update("purchase_request", newId, { status: "draft" });
+    // Default state "draft" is injected by create handler, no manual override needed
 
     const result = await graphql(`mutation {
 			submitPurchaseRequest(id: "${newId}") {

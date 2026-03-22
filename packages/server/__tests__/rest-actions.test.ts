@@ -162,7 +162,7 @@ describe("REST action endpoint — status codes", () => {
   });
 
   test("(c) permission denied → 403", async () => {
-    // The REST_ACTOR has role "admin", but the action requires "manager"
+    // Anonymous actor has no groups, but the action requires "manager"
     const { status, body } = await postAction("do_restricted", {});
 
     expect(status).toBe(403);

@@ -17,27 +17,29 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
   private entries: ExecutionLogEntry[] = [];
 
   log(entry: ExecutionLogEntry): void {
-    this.entries.push(entry);
+    // Deep copy to prevent caller from mutating audit history
+    this.entries.push(structuredClone(entry));
   }
 
   getAll(): ExecutionLogEntry[] {
-    return [...this.entries];
+    return this.entries.map((e) => structuredClone(e));
   }
 
   getByAction(action: string): ExecutionLogEntry[] {
-    return this.entries.filter((e) => e.action === action);
+    return this.entries.filter((e) => e.action === action).map((e) => structuredClone(e));
   }
 
   getBySchema(schema: string): ExecutionLogEntry[] {
-    return this.entries.filter((e) => e.schema === schema);
+    return this.entries.filter((e) => e.schema === schema).map((e) => structuredClone(e));
   }
 
   getByStatus(status: ExecutionStatus): ExecutionLogEntry[] {
-    return this.entries.filter((e) => e.status === status);
+    return this.entries.filter((e) => e.status === status).map((e) => structuredClone(e));
   }
 
   getById(id: string): ExecutionLogEntry | undefined {
-    return this.entries.find((e) => e.id === id);
+    const entry = this.entries.find((e) => e.id === id);
+    return entry ? structuredClone(entry) : undefined;
   }
 
   findMany(options?: ExecutionLogFindOptions): ExecutionLogListResult {
@@ -61,10 +63,16 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
     }
     if (options?.since) {
       const since = new Date(options.since);
+      if (Number.isNaN(since.getTime())) {
+        throw new Error(`Invalid "since" date: ${options.since}`);
+      }
       filtered = filtered.filter((e) => e.startedAt >= since);
     }
     if (options?.until) {
       const until = new Date(options.until);
+      if (Number.isNaN(until.getTime())) {
+        throw new Error(`Invalid "until" date: ${options.until}`);
+      }
       filtered = filtered.filter((e) => e.startedAt <= until);
     }
 
@@ -83,11 +91,11 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
       return sortOrder === "desc" ? -cmp : cmp;
     });
 
-    // Pagination
-    const page = options?.page ?? 1;
-    const pageSize = options?.pageSize ?? 20;
+    // Pagination (normalize bounds)
+    const page = Math.max(1, options?.page ?? 1);
+    const pageSize = Math.min(1000, Math.max(1, options?.pageSize ?? 20));
     const offset = (page - 1) * pageSize;
-    const items = filtered.slice(offset, offset + pageSize);
+    const items = filtered.slice(offset, offset + pageSize).map((e) => structuredClone(e));
 
     return { items, total };
   }

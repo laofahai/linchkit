@@ -13,10 +13,18 @@
 import type {
   AICompletionOptions,
   AICompletionResult,
+  AIProviderType,
   AIService,
   AIServiceConfig,
   AIToolCall,
 } from "../types/ai";
+
+/** Infer provider type from well-known provider names */
+function inferProviderType(name: string): AIProviderType | undefined {
+  if (name === "anthropic") return "anthropic";
+  if (name === "openai") return "openai";
+  return undefined;
+}
 
 // ── Resolved model info ─────────────────────────────────────
 
@@ -85,9 +93,16 @@ function validateConfig(config: AIServiceConfig): void {
     if (!provider.defaultModel) {
       throw new Error(`Provider "${name}" must have a defaultModel`);
     }
-    // Custom providers (not built-in) require an endpoint
-    if (name !== "anthropic" && name !== "openai" && !provider.endpoint) {
-      throw new Error(`Custom provider "${name}" requires an 'endpoint' field`);
+    // Resolve provider type from explicit type or infer from name
+    const resolvedType = provider.type ?? inferProviderType(name);
+    if (!resolvedType) {
+      throw new Error(
+        `Provider "${name}" must have an explicit 'type' field ("anthropic" | "openai")`,
+      );
+    }
+    // Custom providers (non-built-in names) require an endpoint
+    if (!inferProviderType(name) && !provider.endpoint) {
+      throw new Error(`Provider "${name}" requires an 'endpoint' field`);
     }
   }
 }
@@ -159,36 +174,35 @@ async function getLanguageModel(
     return process.env[envVar];
   };
 
-  switch (resolved.provider) {
+  // Resolve provider type: explicit type > inferred from name
+  const providerType = providerConfig.type ?? inferProviderType(resolved.provider);
+
+  switch (providerType) {
     case "anthropic": {
       const { createAnthropic } = await import("@ai-sdk/anthropic");
       const apiKey = resolveApiKey("ANTHROPIC_API_KEY");
-      const anthropic = createAnthropic({ apiKey });
+      const anthropic = createAnthropic({
+        apiKey,
+        ...(providerConfig.endpoint ? { baseURL: providerConfig.endpoint } : {}),
+      });
       return anthropic(resolved.modelId);
     }
 
     case "openai": {
       const { createOpenAI } = await import("@ai-sdk/openai");
-      const apiKey = resolveApiKey("OPENAI_API_KEY");
-      const openai = createOpenAI({ apiKey });
+      const envVar = inferProviderType(resolved.provider) ? "OPENAI_API_KEY" : `${resolved.provider.toUpperCase()}_API_KEY`;
+      const apiKey = resolveApiKey(envVar);
+      const openai = createOpenAI({
+        apiKey: apiKey ?? "",
+        ...(providerConfig.endpoint ? { baseURL: providerConfig.endpoint } : {}),
+      });
       return openai(resolved.modelId);
     }
 
-    default: {
-      // For custom/local providers, use OpenAI-compatible endpoint
-      if (providerConfig.endpoint) {
-        const { createOpenAI } = await import("@ai-sdk/openai");
-        const apiKey = resolveApiKey(`${resolved.provider.toUpperCase()}_API_KEY`);
-        const custom = createOpenAI({
-          apiKey: apiKey ?? "",
-          baseURL: providerConfig.endpoint,
-        });
-        return custom(resolved.modelId);
-      }
+    default:
       throw new Error(
-        `Unknown provider "${resolved.provider}" — set an endpoint for custom providers`,
+        `Provider "${resolved.provider}" has no 'type' — set type to "anthropic" or "openai"`,
       );
-    }
   }
 }
 

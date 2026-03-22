@@ -32,11 +32,12 @@ export class InMemoryApprovalStore implements ApprovalStore {
   private requests = new Map<string, ApprovalRequest>();
 
   create(request: ApprovalRequest): void {
-    this.requests.set(request.id, request);
+    this.requests.set(request.id, structuredClone(request));
   }
 
   getById(id: string): ApprovalRequest | undefined {
-    return this.requests.get(id);
+    const request = this.requests.get(id);
+    return request ? structuredClone(request) : undefined;
   }
 
   update(id: string, data: Partial<ApprovalRequest>): ApprovalRequest | undefined {
@@ -44,11 +45,11 @@ export class InMemoryApprovalStore implements ApprovalStore {
     if (!existing) return undefined;
     const updated = { ...existing, ...data, updatedAt: new Date() };
     this.requests.set(id, updated);
-    return updated;
+    return structuredClone(updated);
   }
 
   query(options?: ApprovalQuery): ApprovalRequest[] {
-    let results = Array.from(this.requests.values());
+    let results = Array.from(this.requests.values()).map((r) => structuredClone(r));
 
     if (options?.status) {
       results = results.filter((r) => r.status === options.status);
@@ -77,9 +78,9 @@ export class InMemoryApprovalStore implements ApprovalStore {
 
   getExpired(): ApprovalRequest[] {
     const now = new Date();
-    return Array.from(this.requests.values()).filter(
-      (r) => r.status === "pending" && r.expiresAt && r.expiresAt <= now,
-    );
+    return Array.from(this.requests.values())
+      .filter((r) => r.status === "pending" && r.expiresAt && r.expiresAt <= now)
+      .map((r) => structuredClone(r));
   }
 
   /** Clear all entries (useful for testing) */
@@ -303,8 +304,18 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       throw new Error(`Approval request is not pending (current: ${request.status})`);
     }
 
+    // Check expiration before processing
+    if (request.expiresAt && request.expiresAt <= new Date()) {
+      throw new Error("Approval request has expired");
+    }
+
     // P1: Check assignee authorization (optional, controlled by enforceAssignee option)
     checkAssigneeAuthorization(approver, request.assignee);
+
+    // Verify executor exists BEFORE updating status to avoid zombie approved requests
+    if (!executor) {
+      throw new Error("Action executor not configured — cannot re-execute");
+    }
 
     // Update status to approved with decision metadata
     store.update(input.approvalId, {
@@ -324,11 +335,6 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         extraPayload: { decidedBy: approver.id, note: input.note },
       }),
     );
-
-    // Re-execute the original action with skipRules for the trigger rules
-    if (!executor) {
-      throw new Error("Action executor not configured — cannot re-execute");
-    }
 
     // Fix #2: Pass skipRules and approvalId via ExecuteOptions, not mixed into input.
     //
@@ -392,6 +398,11 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       throw new Error(`Approval request is not pending (current: ${request.status})`);
     }
 
+    // Check expiration before processing
+    if (request.expiresAt && request.expiresAt <= new Date()) {
+      throw new Error("Approval request has expired");
+    }
+
     // P1: Check assignee authorization (optional, controlled by enforceAssignee option)
     checkAssigneeAuthorization(approver, request.assignee);
 
@@ -424,6 +435,11 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
 
     if (request.status !== "pending") {
       throw new Error(`Approval request is not pending (current: ${request.status})`);
+    }
+
+    // Check expiration before processing
+    if (request.expiresAt && request.expiresAt <= new Date()) {
+      throw new Error("Approval request has expired");
     }
 
     // Only the original initiator can cancel

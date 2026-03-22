@@ -91,7 +91,9 @@ describe("EventBus.emit", () => {
     await bus.emit(event);
 
     expect(received).toHaveLength(1);
-    expect(received[0]).toBe(event);
+    // Event is shallow-copied per handler, so not the same reference
+    expect(received[0]).not.toBe(event);
+    expect(received[0]).toEqual(event);
   });
 
   it("handler does NOT receive non-matching event", async () => {
@@ -282,6 +284,89 @@ describe("EventBus.emit", () => {
     await bus.emit(makeEvent("record.deleted"));
 
     expect(received).toEqual(["record.created", "record.updated"]);
+  });
+});
+
+// ── Recursion guard tests ────────────────────────────────────
+
+describe("EventBus recursion guard", () => {
+  it("stops recursive emission via ctx.emit beyond maxDepth", async () => {
+    const { registry, bus } = createEventBus();
+
+    // Handler that re-emits the same event type via ctx.emit (fire-and-forget)
+    registry.register(
+      makeHandler({
+        name: "recursive",
+        listen: "loop.event",
+        handler: async (_event, ctx) => {
+          ctx.emit("loop.event", {});
+        },
+      }),
+    );
+
+    await bus.emit(makeEvent("loop.event"));
+
+    // Wait a tick for fire-and-forget re-emissions to settle
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Without the depth guard this would grow unbounded.
+    // With default maxDepth=10 the log should be capped.
+    const log = bus.getEmittedEvents();
+    expect(log.length).toBeLessThanOrEqual(10);
+    expect(log.length).toBeGreaterThan(1);
+  });
+
+  it("throws directly when emit depth exceeds maxDepth in sync path", async () => {
+    const { registry, bus } = createEventBus();
+
+    // Handler that directly awaits bus.emit (sync recursion path)
+    registry.register(
+      makeHandler({
+        name: "sync-recursive",
+        listen: "loop.sync",
+        handler: async () => {
+          await bus.emit(makeEvent("loop.sync"));
+        },
+      }),
+    );
+
+    await expect(bus.emit(makeEvent("loop.sync"))).rejects.toThrow("max emit depth");
+  });
+
+  it("handler mutation does not affect subsequent handlers", async () => {
+    const { registry, bus } = createEventBus();
+    const payloads: Record<string, unknown>[] = [];
+
+    registry.register(
+      makeHandler({
+        name: "mutator",
+        listen: "test.event",
+        priority: 1,
+        handler: async (event) => {
+          event.payload.injected = true;
+          payloads.push({ ...event.payload });
+        },
+      }),
+    );
+
+    registry.register(
+      makeHandler({
+        name: "reader",
+        listen: "test.event",
+        priority: 2,
+        handler: async (event) => {
+          payloads.push({ ...event.payload });
+        },
+      }),
+    );
+
+    await bus.emit(makeEvent("test.event", { original: true }));
+
+    // First handler mutated its copy
+    expect(payloads[0].injected).toBe(true);
+    // Second handler got a clean copy without the mutation
+    expect(payloads[1].injected).toBeUndefined();
+    expect(payloads[1].original).toBe(true);
   });
 });
 

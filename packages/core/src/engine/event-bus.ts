@@ -11,6 +11,7 @@ import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from ".
 // ── Default priority ────────────────────────────────────────
 
 const DEFAULT_PRIORITY = 100;
+const DEFAULT_MAX_EMIT_DEPTH = 10;
 
 // ── EventHandlerRegistry ────────────────────────────────────
 
@@ -67,9 +68,12 @@ function matchesFilter(payload: Record<string, unknown>, filter: Record<string, 
 export class EventBus {
   private registry: EventHandlerRegistry;
   private eventLog: EventRecord[] = [];
+  private emitDepth = 0;
+  private maxEmitDepth: number;
 
-  constructor(registry: EventHandlerRegistry) {
+  constructor(registry: EventHandlerRegistry, maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH) {
     this.registry = registry;
+    this.maxEmitDepth = maxEmitDepth;
   }
 
   /**
@@ -79,38 +83,57 @@ export class EventBus {
    * - Applies handler.filter if present (simple payload field matching)
    * - Sorts by priority (lower = higher priority, default 100)
    * - Sync handlers execute in sequence; errors stop the chain
-   * - Async handlers are fire-and-forget (errors are swallowed)
+   * - Async handlers are fire-and-forget (errors logged but not thrown)
+   * - Recursion is guarded by maxEmitDepth (default 10)
    */
   async emit(event: EventRecord): Promise<void> {
-    // Record the event
-    this.eventLog.push(event);
+    // Guard against infinite recursion
+    if (this.emitDepth >= this.maxEmitDepth) {
+      throw new Error(
+        `EventBus max emit depth (${this.maxEmitDepth}) exceeded for event "${event.type}". Possible infinite loop.`,
+      );
+    }
 
-    // Find matching handlers
-    const handlers = this.registry.getByEvent(event.type);
+    this.emitDepth++;
+    try {
+      // Record the event
+      this.eventLog.push(event);
 
-    // Apply filters
-    const matched = handlers.filter((h) => {
-      if (!h.filter) return true;
-      return matchesFilter(event.payload, h.filter);
-    });
+      // Find matching handlers
+      const handlers = this.registry.getByEvent(event.type);
 
-    // Sort by priority (lower number = higher priority)
-    matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
+      // Apply filters
+      const matched = handlers.filter((h) => {
+        if (!h.filter) return true;
+        return matchesFilter(event.payload, h.filter);
+      });
 
-    // Build handler context
-    const ctx = this.createHandlerContext();
+      // Sort by priority (lower number = higher priority)
+      matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
 
-    // Execute handlers
-    for (const handler of matched) {
-      if (handler.async) {
-        // Fire-and-forget: don't await, swallow errors
-        handler.handler(event, ctx).catch(() => {
-          // Intentionally swallowed for M0b
-        });
-      } else {
-        // Sync: execute in sequence, propagate errors
-        await handler.handler(event, ctx);
+      // Build handler context
+      const ctx = this.createHandlerContext();
+
+      // Execute handlers
+      for (const handler of matched) {
+        // Shallow copy event record so handlers cannot mutate shared state
+        const eventCopy = { ...event, payload: { ...event.payload } };
+
+        if (handler.async) {
+          // Fire-and-forget: don't await, log errors
+          handler.handler(eventCopy, ctx).catch((err) => {
+            console.warn(
+              `[EventBus] Async handler "${handler.name}" failed for event "${event.type}":`,
+              err,
+            );
+          });
+        } else {
+          // Sync: execute in sequence, propagate errors
+          await handler.handler(eventCopy, ctx);
+        }
       }
+    } finally {
+      this.emitDepth--;
     }
   }
 

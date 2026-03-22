@@ -161,7 +161,7 @@ describe("Custom action typed mutations", () => {
     const order = result.data.approveOrder as Record<string, unknown>;
     expect(order.id).toBe("ord_002");
     expect(order.status).toBe("approved");
-    expect(order.approved_by).toBe("graphql_user");
+    expect(order.approved_by).toBe("anonymous");
   });
 
   test("pingSystem mutation without schema returns ActionResult", async () => {

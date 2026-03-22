@@ -1,0 +1,200 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import { createActionExecutor, InMemoryExecutionLogger, SchemaRegistry } from "@linchkit/core";
+import { InMemoryStore } from "../packages/server/src/data/in-memory-store";
+import {
+  buildGraphQLSchema,
+  generateCrudActions,
+} from "../packages/server/src/graphql/build-schema";
+import { createServer } from "../packages/server/src/server";
+
+// ── Schema (matches dev.ts, includes default state) ─────
+const purchaseRequestSchema: SchemaDefinition = {
+  name: "purchase_request",
+  label: "Purchase Request",
+  fields: {
+    title: { type: "string", required: true, label: "Title" },
+    description: { type: "text", label: "Description" },
+    amount: { type: "number", required: true, label: "Amount" },
+    department: { type: "string", label: "Department" },
+    requester: { type: "string", label: "Requester" },
+    status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
+    priority: {
+      type: "enum",
+      options: [
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium" },
+        { value: "high", label: "High" },
+      ],
+      label: "Priority",
+    },
+  },
+};
+
+// ── Custom actions (no permission restrictions for E2E) ──
+const submitAction: ActionDefinition = {
+  name: "submit_purchase_request",
+  schema: "purchase_request",
+  label: "Submit",
+  policy: { mode: "sync", transaction: true },
+  exposure: "all",
+  handler: async (ctx) => {
+    const id = ctx.input.id as string;
+    const record = await ctx.get("purchase_request", id);
+    if (record.status !== "draft") {
+      throw new Error(`Cannot submit: current status is "${record.status}", expected "draft"`);
+    }
+    return ctx.update("purchase_request", id, { status: "pending" });
+  },
+};
+
+const approveAction: ActionDefinition = {
+  name: "approve_purchase_request",
+  schema: "purchase_request",
+  label: "Approve",
+  // No permission restriction for E2E testing with anonymous actor
+  policy: { mode: "sync", transaction: true },
+  exposure: "all",
+  handler: async (ctx) => {
+    const id = ctx.input.id as string;
+    const record = await ctx.get("purchase_request", id);
+    if (record.status !== "pending") {
+      throw new Error(`Cannot approve: current status is "${record.status}", expected "pending"`);
+    }
+    return ctx.update("purchase_request", id, { status: "approved" });
+  },
+};
+
+// ── Setup: in-process server (no subprocess spawn) ───────
+const PORT = 4021;
+const BASE = `http://localhost:${PORT}`;
+
+const store = new InMemoryStore();
+const executionLogger = new InMemoryExecutionLogger();
+const schemaRegistry = new SchemaRegistry();
+schemaRegistry.register(purchaseRequestSchema);
+
+const executor = createActionExecutor({ dataProvider: store, executionLogger });
+const allActions = [...generateCrudActions(purchaseRequestSchema), submitAction, approveAction];
+for (const action of allActions) {
+  executor.registry.register(action);
+}
+
+const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
+  executor,
+  store,
+  actions: [submitAction, approveAction],
+  executionLogger,
+});
+
+const app = createServer(graphqlSchema, {
+  executor,
+  executionLogger,
+  schemaRegistry,
+});
+
+// ── Helper functions ─────────────────────────────────────
+async function executeActionReq(name: string, body: Record<string, unknown> = {}) {
+  const res = await fetch(`${BASE}/api/actions/${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json() as Promise<{
+    success: boolean;
+    data?: Record<string, unknown>;
+    error?: { code: string; message: string };
+  }>;
+}
+
+async function fetchSchemas() {
+  const res = await fetch(`${BASE}/api/schemas`);
+  const json = (await res.json()) as { success: boolean; data: { name: string; label: string }[] };
+  return json.data;
+}
+
+async function gql<T = unknown>(query: string): Promise<T> {
+  const res = await fetch(`${BASE}/graphql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
+  if (json.errors?.length) {
+    throw new Error(`GraphQL error: ${json.errors[0]?.message}`);
+  }
+  return json.data as T;
+}
+
+// ── Lifecycle ────────────────────────────────────────────
+describe("Purchase Request E2E Flow", () => {
+  beforeAll(() => {
+    app.listen(PORT);
+  });
+
+  afterAll(() => {
+    app.stop();
+  });
+
+  test("server health check", async () => {
+    const res = await fetch(`${BASE}/health`);
+    expect(res.ok).toBe(true);
+    const body = (await res.json()) as { status: string };
+    expect(body.status).toBe("ok");
+  });
+
+  test("schemas API returns purchase_request", async () => {
+    const schemas = await fetchSchemas();
+    expect(schemas.length).toBeGreaterThanOrEqual(1);
+    expect(schemas.some((s) => s.name === "purchase_request")).toBe(true);
+  });
+
+  test("GraphQL introspection works", async () => {
+    const data = await gql<{
+      __schema: { queryType: { fields: { name: string }[] } };
+    }>("{ __schema { queryType { fields { name } } } }");
+    const fieldNames = data.__schema.queryType.fields.map((f) => f.name);
+    expect(fieldNames).toContain("purchaseRequestList");
+  });
+
+  let createdId: string;
+
+  test("create purchase request", async () => {
+    const result = await executeActionReq("create_purchase_request", {
+      title: "E2E Test Request",
+      amount: 5000,
+      priority: "high",
+      department: "Engineering",
+      requester: "e2e-tester",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toBeDefined();
+    createdId = result.data?.id as string;
+    expect(createdId).toBeTruthy();
+    // Verify default state was injected
+    expect(result.data?.status).toBe("draft");
+  });
+
+  test("submit purchase request", async () => {
+    const result = await executeActionReq("submit_purchase_request", {
+      id: createdId,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.status).toBe("pending");
+  });
+
+  test("approve purchase request", async () => {
+    const result = await executeActionReq("approve_purchase_request", {
+      id: createdId,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.status).toBe("approved");
+  });
+
+  test("verify final state via GraphQL", async () => {
+    const data = await gql<{
+      purchaseRequest: { id: string; status: string };
+    }>(`{ purchaseRequest(id: "${createdId}") { id status } }`);
+    expect(data.purchaseRequest.status).toBe("approved");
+  });
+});

@@ -87,8 +87,11 @@ export function checkActionPermission(
     };
   }
 
-  // system_admin shortcut: always allowed
-  if (actor.groups.includes(SYSTEM_ADMIN_GROUP)) {
+  // system_admin shortcut: only if group is actually registered in registry
+  if (
+    actor.groups.includes(SYSTEM_ADMIN_GROUP) &&
+    registry.get(SYSTEM_ADMIN_GROUP) !== undefined
+  ) {
     return {
       allowed: true,
       decidedBy: SYSTEM_ADMIN_GROUP,
@@ -160,8 +163,11 @@ export function resolveDataAccess(
     return "none";
   }
 
-  // system_admin shortcut
-  if (actor.groups.includes(SYSTEM_ADMIN_GROUP)) {
+  // system_admin shortcut: only if group is actually registered in registry
+  if (
+    actor.groups.includes(SYSTEM_ADMIN_GROUP) &&
+    registry.get(SYSTEM_ADMIN_GROUP) !== undefined
+  ) {
     return "all";
   }
 
@@ -238,15 +244,39 @@ export function resolveConditionVariables(
   };
 }
 
+// Allowed top-level keys for actor path resolution
+const ALLOWED_ACTOR_PATHS = new Set(["id", "type", "groups", "metadata"]);
+
+// Forbidden path segments to prevent prototype pollution
+const FORBIDDEN_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * Resolve a dot-path against an Actor object.
+ * Only allows whitelisted top-level paths and rejects dangerous segments.
  */
 function resolveActorPath(actor: Actor, path: string): unknown {
   const parts = path.split(".");
+
+  // Validate top-level path is whitelisted
+  if (parts.length === 0 || !ALLOWED_ACTOR_PATHS.has(parts[0])) {
+    return undefined;
+  }
+
+  // Reject any forbidden segment anywhere in the path
+  for (const part of parts) {
+    if (FORBIDDEN_SEGMENTS.has(part)) {
+      return undefined;
+    }
+  }
+
   let current: unknown = actor;
 
   for (const part of parts) {
-    if (current === null || current === undefined) {
+    if (current === null || current === undefined || typeof current !== "object") {
+      return undefined;
+    }
+    // Only access own properties to prevent prototype chain leakage
+    if (!Object.hasOwn(current as Record<string, unknown>, part)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[part];

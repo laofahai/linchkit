@@ -39,13 +39,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: `/schemas/${s.name}`,
     }));
 
-    // Fallback if API returned nothing (e.g. server not running)
-    if (schemaItems.length === 0) {
-      schemaItems.push({
-        title: "Purchase Request",
-        url: "/schemas/purchase_request",
-      });
-    }
+    // No hardcoded fallback — sidebar reflects actual server state
 
     return {
       user: {

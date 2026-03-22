@@ -38,21 +38,65 @@ export interface ServerOptions {
   views?: Map<string, ViewDefinition[]>;
 }
 
-/** Default system actor for REST requests */
-const REST_ACTOR = {
-  type: "human" as const,
-  id: "rest_user",
-  groups: ["admin"],
+/** Default anonymous actor for unauthenticated REST requests */
+const ANONYMOUS_ACTOR = {
+  type: "system" as const,
+  id: "anonymous",
+  groups: [],
 };
 
 /**
+ * Map structured error codes to HTTP status codes.
+ * Preferred over message-text matching when a code is available.
+ */
+const ERROR_CODE_STATUS: Record<string, number> = {
+  "AUTH.REQUIRED": 401,
+  "AUTH.TOKEN_EXPIRED": 401,
+  "PERMISSION.DENIED": 403,
+  "PERMISSION.GROUP_REQUIRED": 403,
+  "EXPOSURE.BLOCKED": 403,
+  "VALIDATION.FAILED": 400,
+  "VALIDATION.INPUT": 400,
+  "NOT_FOUND.ACTION": 404,
+  "NOT_FOUND.RECORD": 404,
+  "CONFLICT.STATE": 409,
+  "CONFLICT.VERSION": 409,
+  "RATE_LIMIT.EXCEEDED": 429,
+};
+
+/**
+ * Map an error code string to HTTP status, supporting both exact and
+ * prefix matches (e.g. "PERMISSION.DENIED.FOO" matches "PERMISSION.DENIED").
+ */
+function mapErrorCodeToStatus(code: string): number | undefined {
+  // Exact match first
+  if (code in ERROR_CODE_STATUS) return ERROR_CODE_STATUS[code];
+  // Prefix match — walk from most specific to least
+  const parts = code.split(".");
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const prefix = parts.slice(0, i).join(".");
+    if (prefix in ERROR_CODE_STATUS) return ERROR_CODE_STATUS[prefix];
+  }
+  return undefined;
+}
+
+/**
  * Determine HTTP status code from action result.
- * Maps error patterns to appropriate status codes per spec 33.
+ * Checks structured error code first, falls back to message-text matching.
  */
 function resolveStatusCode(result: { success: boolean; data?: unknown }): number {
   if (result.success) return 200;
 
   const errData = result.data as Record<string, unknown> | undefined;
+
+  // Prefer structured error code when available (e.g. from PipelineError)
+  const errorCode = typeof errData?.code === "string" ? errData.code : undefined;
+  if (errorCode) {
+    const codeStatus = mapErrorCodeToStatus(errorCode);
+    if (codeStatus !== undefined) return codeStatus;
+  }
+
+  // Fallback: match on error message text
   const errorMsg = (errData?.error as string) ?? "";
 
   // Not found patterns
@@ -97,7 +141,12 @@ export function createServer(
   });
 
   const app = new Elysia()
-    .use(cors())
+    .use(
+      cors({
+        origin: ["http://localhost:3000", "http://localhost:3001"],
+        credentials: false,
+      }),
+    )
     // Health check
     .get("/health", () => ({
       status: "ok",
@@ -178,7 +227,7 @@ export function createServer(
             },
           };
         }
-        result = await executor.execute(params.name, input, REST_ACTOR, { channel: "http" });
+        result = await executor.execute(params.name, input, ANONYMOUS_ACTOR, { channel: "http" });
       }
 
       if (result.success) {
@@ -191,12 +240,18 @@ export function createServer(
 
       set.status = resolveStatusCode(result);
       const errData = result.data as Record<string, unknown> | undefined;
+      const rawMessage = (errData?.error as string) ?? "Action execution failed";
+
+      // In production, sanitize internal error details to prevent information leakage
+      const isDevMode = process.env.NODE_ENV !== "production";
+      const safeMessage = isDevMode ? rawMessage : "Action execution failed";
+
       return {
         success: false,
         error: {
           code: "ACTION.EXECUTION.FAILED",
-          message: (errData?.error as string) ?? "Action execution failed",
-          ...(errData?.details ? { details: errData.details } : {}),
+          message: safeMessage,
+          ...(isDevMode && errData?.details ? { details: errData.details } : {}),
         },
         meta: { executionId: result.executionId },
       };
@@ -207,19 +262,60 @@ export function createServer(
         set.status = 500;
         return { success: false, error: { message: "Execution logger not configured." } };
       }
-      const result = executionLogger.findMany({
-        action: query.action as string | undefined,
-        schema: query.schema as string | undefined,
-        status: query.status as ExecutionStatus | undefined,
-        actorId: query.actorId as string | undefined,
-        since: query.since as string | undefined,
-        until: query.until as string | undefined,
-        page: query.page ? Number(query.page) : undefined,
-        pageSize: query.pageSize ? Number(query.pageSize) : undefined,
-        sortField: query.sortField as "startedAt" | "duration" | "action" | undefined,
-        sortOrder: query.sortOrder as "asc" | "desc" | undefined,
-      });
-      return { success: true, data: result };
+
+      // Validate date parameters
+      const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+      if (query.since && !ISO_DATE_RE.test(query.since as string)) {
+        set.status = 400;
+        return { success: false, error: { message: "Invalid 'since' date format." } };
+      }
+      if (query.until && !ISO_DATE_RE.test(query.until as string)) {
+        set.status = 400;
+        return { success: false, error: { message: "Invalid 'until' date format." } };
+      }
+
+      // Validate and clamp pagination
+      let page = query.page ? Number(query.page) : undefined;
+      let pageSize = query.pageSize ? Number(query.pageSize) : undefined;
+      if (page !== undefined) {
+        if (Number.isNaN(page)) {
+          set.status = 400;
+          return { success: false, error: { message: "Invalid 'page' parameter." } };
+        }
+        page = Math.max(1, Math.floor(page));
+      }
+      if (pageSize !== undefined) {
+        if (Number.isNaN(pageSize)) {
+          set.status = 400;
+          return { success: false, error: { message: "Invalid 'pageSize' parameter." } };
+        }
+        pageSize = Math.max(1, Math.min(100, Math.floor(pageSize)));
+      }
+
+      try {
+        const result = executionLogger.findMany({
+          action: query.action as string | undefined,
+          schema: query.schema as string | undefined,
+          status: query.status as ExecutionStatus | undefined,
+          actorId: query.actorId as string | undefined,
+          since: query.since as string | undefined,
+          until: query.until as string | undefined,
+          page,
+          pageSize,
+          sortField: query.sortField as "startedAt" | "duration" | "action" | undefined,
+          sortOrder: query.sortOrder as "asc" | "desc" | undefined,
+        });
+        return { success: true, data: result };
+      } catch (err) {
+        set.status = 500;
+        const message =
+          process.env.NODE_ENV === "production"
+            ? "Failed to query execution logs."
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        return { success: false, error: { message } };
+      }
     })
     .get("/api/executions/:id", ({ params, set }) => {
       if (!executionLogger) {
