@@ -23,13 +23,14 @@ import {
 import { sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { createYoga } from "graphql-yoga";
-import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import type { GraphQLContext } from "../src/graphql/build-schema";
+import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 
 // ── Test configuration ───────────────────────────────────────
 
 const DATABASE_URL =
-  process.env.DATABASE_TEST_URL ?? "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
+  process.env.DATABASE_TEST_URL ??
+  "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
 const testSchema = defineSchema({
   name: "gql_drizzle_test",
@@ -147,7 +148,9 @@ export default defineConfig({
     rmSync(tmpDir, { recursive: true, force: true });
 
     if (result.exitCode !== 0) {
-      throw new Error(`drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`);
+      throw new Error(
+        `drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`,
+      );
     }
 
     // Set up DrizzleDataProvider
@@ -392,7 +395,7 @@ export default defineConfig({
 
     // GraphQL wraps errors — check for error in response
     expect(staleResult.errors).toBeDefined();
-    expect(staleResult.errors!.length).toBeGreaterThan(0);
+    expect(staleResult.errors?.length).toBeGreaterThan(0);
   });
 
   // ── 6. Delete mutation — soft-delete hides from queries ───

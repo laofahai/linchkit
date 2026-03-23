@@ -136,7 +136,7 @@ export default defineConfig({
   });
 
   beforeEach(async () => {
-    provider = new DrizzleDataProvider(db!, tableRegistry);
+    provider = new DrizzleDataProvider(db as NonNullable<typeof db>, tableRegistry);
   });
 
   afterEach(async () => {

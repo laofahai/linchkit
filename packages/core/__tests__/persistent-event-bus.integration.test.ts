@@ -52,6 +52,12 @@ function makeHandler(
 
 let db: PostgresJsDatabase | null = null;
 
+/** Safe accessor for db — avoids non-null assertions in tests */
+function getDb(): PostgresJsDatabase {
+  if (!db) throw new Error("Database not initialized");
+  return db;
+}
+
 async function canConnect(): Promise<boolean> {
   try {
     const testDb = createDatabase({ url: DATABASE_URL });
@@ -148,7 +154,7 @@ export default defineConfig({
   // ── 1. Event emission — persisted with status 'pending' ──
 
   test("emit — event is persisted to DB and completed when no handlers registered", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { bus } = createPersistentEventBus(getDb());
 
     // Register a slow async handler so we can check persistence happened
     // before handler completes (though emit awaits all handlers in PersistentEventBus)
@@ -168,7 +174,7 @@ export default defineConfig({
   });
 
   test("emit — event without handlers is persisted and completed", async () => {
-    const { bus } = createPersistentEventBus(db!);
+    const { bus } = createPersistentEventBus(getDb());
 
     await bus.emit(makeEvent("unhandled.event"));
 
@@ -182,7 +188,7 @@ export default defineConfig({
   // ── 2. Subscription + processing — handler called, status updated ──
 
   test("emit with sync handler — handler called and status becomes 'completed'", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     const received: EventRecord[] = [];
 
     registry.register(
@@ -210,7 +216,7 @@ export default defineConfig({
   });
 
   test("emit with async handler — handler awaited and status becomes 'completed'", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     let asyncFinished = false;
 
     registry.register(
@@ -239,7 +245,7 @@ export default defineConfig({
   // ── 3. Error handling — handler throws, status 'failed' + errorMessage ──
 
   test("sync handler error — status becomes 'failed' with errorMessage", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
 
     registry.register(
       makeHandler({
@@ -263,7 +269,7 @@ export default defineConfig({
   });
 
   test("async handler error — status becomes 'failed' with errorMessage", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
 
     registry.register(
       makeHandler({
@@ -289,7 +295,7 @@ export default defineConfig({
   // ── 4. Multiple subscribers ──────────────────────────────
 
   test("multiple sync handlers — all execute in priority order", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     const order: string[] = [];
 
     registry.register(
@@ -337,7 +343,7 @@ export default defineConfig({
   });
 
   test("multiple async handlers — all awaited, one failure marks event failed", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     const executed: string[] = [];
 
     registry.register(
@@ -379,7 +385,7 @@ export default defineConfig({
   });
 
   test("mixed sync + async handlers — sync error stops chain", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     const executed: string[] = [];
 
     registry.register(
@@ -421,7 +427,7 @@ export default defineConfig({
   // ── 5. Event query — verify events queryable from DB ─────
 
   test("multiple events — each independently persisted and queryable", async () => {
-    const { bus } = createPersistentEventBus(db!);
+    const { bus } = createPersistentEventBus(getDb());
 
     await bus.emit(makeEvent("order.created", { action: "create_order" }));
     await bus.emit(makeEvent("order.updated", { action: "update_order" }));
@@ -446,7 +452,7 @@ export default defineConfig({
   });
 
   test("events queryable by status", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
 
     // This handler will fail for specific events
     registry.register(
@@ -484,7 +490,7 @@ export default defineConfig({
   });
 
   test("event payload and metadata are fully persisted", async () => {
-    const { bus } = createPersistentEventBus(db!);
+    const { bus } = createPersistentEventBus(getDb());
 
     const event = makeEvent("audit.action", {
       action: "approve_invoice",
@@ -511,7 +517,7 @@ export default defineConfig({
   // ── 6. Edge cases ────────────────────────────────────────
 
   test("handler filter — only matching handlers are invoked", async () => {
-    const { registry, bus } = createPersistentEventBus(db!);
+    const { registry, bus } = createPersistentEventBus(getDb());
     const received: string[] = [];
 
     registry.register(
@@ -552,7 +558,7 @@ export default defineConfig({
   });
 
   test("event with null payload.action — sourceAction is null", async () => {
-    const { bus } = createPersistentEventBus(db!);
+    const { bus } = createPersistentEventBus(getDb());
 
     await bus.emit(makeEvent("custom.event", { data: "no action field" }));
 

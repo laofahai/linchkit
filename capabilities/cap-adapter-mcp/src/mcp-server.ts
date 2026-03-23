@@ -57,24 +57,29 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpS
     const zodShape = buildZodShape(action.input);
 
     // Cast needed: project zod v4 types differ from SDK's bundled zod types
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    server.tool(tool.name, tool.description, zodShape as any, async (args: Record<string, unknown>) => {
-      const result = await commandLayer.execute({
-        command: tool.name,
-        input: args as Record<string, unknown>,
-        channel: "mcp",
-        actor: MCP_ACTOR,
-      });
+    server.tool(
+      tool.name,
+      tool.description,
+      // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+      zodShape as any,
+      async (args: Record<string, unknown>) => {
+        const result = await commandLayer.execute({
+          command: tool.name,
+          input: args as Record<string, unknown>,
+          channel: "mcp",
+          actor: MCP_ACTOR,
+        });
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      },
+    );
   }
 
   // Register built-in tools
