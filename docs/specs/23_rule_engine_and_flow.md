@@ -94,22 +94,32 @@ State：真相 — "当前是什么状态，能迁移到哪"
 | 数据迁移 | introspect → 生成 Schema → 迁移数据 → 验证 |
 | Proposal 流程 | 生成代码 → 创建 PR → CI 检查 → 等审批 → 部署 |
 
-### 2.3 技术选型：Temporal
+### 2.3 技术选型：Restate
 
-**不自己造编排引擎，使用 Temporal。**
+**不自己造编排引擎，使用 Restate。**
 
 理由：
 - 覆盖面最广 — 业务/AI/部署/迁移全能做
-- 持久化 — 工作流状态持久存储，进程崩溃后能恢复
+- 持久化 — 工作流状态持久存储（durable execution），进程崩溃后能恢复
 - Saga 补偿 — 跨步骤失败时自动执行补偿逻辑
-- TS SDK 成熟 — `@temporalio/client` + `@temporalio/worker`
-- 可自托管 — 开源，部署在自己服务器
-- 可视化 — 自带 Web UI，查看工作流执行状态
+- TS SDK 成熟 — `@restatedev/restate-sdk` (v1.11.1)，Bun 官方支持
+- 极轻量 — 单个 Rust 二进制，无外部依赖（不需要 Cassandra/PG backend）
+- 可自托管 — 开源，Docker 一行启动：`docker.restate.dev/restatedev/restate:latest`
+- 可视化 — 自带 Web UI（端口 9070），查看工作流执行状态
 - 统一 — 不需要为 AI 编排单独引入 LangGraph
 
-### 2.4 defineFlow = Temporal 的薄封装
+**为什么不选 Temporal：**
+- Temporal 需要 Go server + Cassandra 或 PostgreSQL 后端，运维成本高
+- Temporal TS SDK 与 Bun 兼容性不佳（需要 Node.js runtime）
+- Restate 功能等价但架构更简单
 
-开发者用 LinchKit DSL 写流程，框架编译成 Temporal Workflow：
+**双模式运行：**
+- 有 Restate server → 完整 durable execution（持久化、重试、超时、Saga）
+- 无 Restate server → 简单同步执行（FlowDefinition 按顺序执行 steps，无持久化）
+
+### 2.4 defineFlow = Restate 的薄封装
+
+开发者用 LinchKit DSL 写流程，框架编译成 Restate Workflow：
 
 ```typescript
 import { defineFlow } from '@linchkit/core'
@@ -150,11 +160,28 @@ export const purchaseApprovalFlow = defineFlow({
 })
 ```
 
-框架自动编译为 Temporal Workflow，开发者不需要直接写 Temporal 代码。复杂场景也可以直接写 Temporal Workflow。
+框架自动编译为 Restate Workflow，开发者不需要直接写 Restate 代码。复杂场景也可以直接写 Restate virtual object handler。
+
+#### Implementation Notes (from Spike Validation)
+
+**DurablePromise vs Awakeable:**
+- `ctx.promise()` returns `DurablePromise` — does NOT support combinators (`RestatePromise.race/all`) or `orTimeout()`
+- `ctx.awakeable()` returns `RestatePromise` — DOES support `orTimeout()` and all combinators
+- **Approval pattern**: Use awakeable (not DurablePromise) when timeout is needed. Store `awakeableId` in workflow state, external callers resolve via `ctx.resolveAwakeable(id, data)`
+- **Simple signal pattern** (no timeout): DurablePromise is fine
+- **WaitFlowStep mapping**: `duration` → `ctx.sleep(ms)`, `signal` → `ctx.awakeable()` with external resolution
+
+**Race condition: approve before awakeableId is set:**
+- Between workflow start and the awakeable creation, the `approve` handler could be called before `awakeableId` is stored
+- FlowCompiler must handle this: either queue approval signals until the workflow reaches the approval step, or use a DurablePromise to coordinate readiness
+
+**Journal determinism:**
+- Restate replays from journal on retry. Code path changes (adding/removing/reordering `ctx.run`/`ctx.sleep`/`ctx.awakeable` calls) break replay of existing invocations
+- Flow version changes must be handled carefully — running instances continue on old code path, new instances use new code
 
 ### 2.5 AI 编排
 
-AI 的多步任务也走 Temporal：
+AI 的多步任务也走 Restate：
 
 ```typescript
 export const evolutionFlow = defineFlow({
@@ -210,12 +237,12 @@ export const evolutionFlow = defineFlow({
 | 引擎 | 适用场景 | 实现 |
 |------|---------|------|
 | **Action Engine** | 单步操作，不需要等待或编排 | 自研 |
-| **Temporal** | 多步骤、有等待、有分支、需要持久化 | 集成 |
+| **Restate** | 多步骤、有等待、有分支、需要持久化 | 集成 |
 | **Outbox Worker** | 事件触发的轻量异步任务（通知、索引） | 自研 |
 
 判断标准：
 - 一步能完成 → Action Engine
-- 需要等人/等事件/多步串联 → Temporal
+- 需要等人/等事件/多步串联 → Restate
 - 事件触发的即发即忘任务 → Outbox
 
 ## 4. Flow 不负责的事
@@ -228,20 +255,20 @@ export const evolutionFlow = defineFlow({
 ## 5. 与里程碑的关系
 
 ### M0
-- 不引入 Temporal
+- 不引入 Restate
 - Action 直接执行（单步）
 - Outbox 处理异步任务
 - 简单审批用 Rule 的 require_approval（无 Flow）
 
 ### M1
-- 引入 Temporal
+- 引入 Restate（双模式：有 Restate server = durable execution，无 = 同步执行）
 - defineFlow 基础实现（顺序步骤 + 审批 + 超时）
-- 部署流程用 Temporal 编排
+- 部署流程用 Restate 编排
 
 ### M2
 - Flow 的 AI 步骤（type: 'ai'）
 - 条件分支、并行步骤
-- Proposal 流程用 Temporal 编排
+- Proposal 流程用 Restate 编排
 - AI 进化分析流程
 
 ### M3

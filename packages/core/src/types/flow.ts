@@ -61,6 +61,8 @@ export interface ApprovalFlowStep extends FlowStepBase {
   timeout?: number;
   /** Behavior when approval times out */
   onTimeout?: "reject" | "escalate" | "skip";
+  /** Step ID to jump to when approval is rejected (default: flow terminates) */
+  onRejection?: string;
 }
 
 /** Conditional branching */

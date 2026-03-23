@@ -28,6 +28,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.63",
     "@ai-sdk/openai": "^3.0.47",
+    "@restatedev/restate-sdk": "1.11.1",
     "@tanstack/react-table": "^8.21.3",
     "ai": "^6.0.134"
   }

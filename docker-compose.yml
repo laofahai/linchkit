@@ -14,3 +14,21 @@ services:
       interval: 2s
       timeout: 5s
       retries: 5
+
+  restate:
+    image: docker.restate.dev/restatedev/restate:latest
+    ports:
+      - "8080:8080"   # ingress (invoke workflows)
+      - "9070:9070"   # admin API + Web UI
+    environment:
+      - RESTATE_OBSERVABILITY__LOG__FILTER=restate=info
+    volumes:
+      - restate-data:/target/restate-data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9070/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  restate-data:

@@ -125,14 +125,15 @@ M1b: Ecosystem + AI (~6 weeks)
 | Task | Description | New/Modify | Size | Dep |
 |------|-------------|------------|------|-----|
 | 5.1 | `FlowDefinition` types: trigger, steps (action/approval/wait), branches | `core/src/types/flow.ts` (new) | S | — |
-| 5.2 | Temporal infrastructure: client + worker setup | `core/src/engine/flow/temporal-client.ts` (new) | M | — |
-| 5.3 | Flow-to-Temporal compiler: FlowDefinition → Temporal Workflow + Activities | `core/src/engine/flow/flow-compiler.ts` (new) | L | 5.1, 5.2 |
+| 5.2 | Restate infrastructure: SDK setup + service endpoint registration | `core/src/engine/flow/restate-service.ts` (new) | M | — |
+| 5.3 | FlowDefinition → Restate workflow compiler: compile steps into Restate virtual object handlers | `core/src/engine/flow/flow-compiler.ts` (new) | L | 5.1, 5.2 |
 | 5.4 | FlowRegistry + trigger binding (listen to `action.succeeded` events) | `core/src/engine/flow/flow-registry.ts` (new) | M | 5.3 |
 
-**Critical risk: Temporal + Bun compatibility is UNVERIFIED.**
-- Week 1: spike test (1-2 days)
-- If incompatible: fallback to lightweight PG state-table orchestrator
-- FlowDefinition types designed for Temporal's final form, runtime can use simplified engine initially
+**Runtime: Restate** — single Rust binary, no external dependencies, Bun officially supported.
+- SDK: `@restatedev/restate-sdk` (v1.11.1)
+- Docker: `docker.restate.dev/restatedev/restate:latest` (ports: 8080 ingress, 9070 admin + Web UI)
+- Dual mode: with Restate server = full durable Flow execution; without = simple sync Flow fallback
+- Temporal explicitly NOT chosen (too heavy: requires Go server + Cassandra/PG backend)
 
 ### M1a Dependency Graph
 
@@ -170,7 +171,7 @@ Stage 4 (Events)                   │
 | 4.2 EventBus persistence | M | 1 |
 | 4.3 OutboxWorker | L | 2 |
 | 5.1 Flow types | S | 0.5 |
-| 5.2 Temporal infra | M | 1 |
+| 5.2 Restate infra | M | 1 |
 | 5.3 Flow compiler | L | 3 |
 | 5.4 FlowRegistry | M | 1 |
 | **Total** | | **~19 days** |
@@ -195,10 +196,10 @@ Stage 4 (Events)                   │
 | Task | Description | Size | Dep |
 |------|-------------|------|-----|
 | 2.1 | Flow type definitions (including `AIStep` with model/prompt/tools/responseFormat) | M | — |
-| 2.2 | Lightweight FlowEngine (sequential steps, no Temporal — simple state machine) | L | 2.1 |
+| 2.2 | FlowEngine with Restate (durable execution) + sync fallback (no Restate server) | L | 2.1 |
 | 2.3 | AI Step tool calling: Action → Vercel AI SDK tool format, multi-turn execution | M | 2.2 |
 
-**Architecture decision**: M1b implements lightweight FlowEngine (in-memory, no persistence). M2 migrates to Temporal. `defineFlow` DSL stays the same.
+**Architecture decision**: M1b implements FlowEngine backed by Restate for durable execution. Without Restate server, falls back to simple sync execution. `defineFlow` DSL stays the same regardless of runtime mode.
 
 ### Phase 3 — AI Proposal Assistance
 
@@ -266,10 +267,10 @@ Stage 4 (Events)                   │
 | 2 | `postgres` (postgres.js) driver | Best Bun compatibility, Drizzle recommended |
 | 3 | System table prefix `_linchkit_` | Avoid business table name collisions |
 | 4 | Dev mode uses `drizzle-kit push` | Simple sync, no migration files needed for dev |
-| 5 | Temporal spike first, PG fallback | Temporal + Bun compatibility unverified |
+| 5 | Restate for Flow Engine | Single Rust binary, Bun officially supported, no external deps |
 | 6 | M1a: no cross-operation transactions | Each DB operation has own transaction; full txn integration in M1b |
 | 7 | TransportContext expands to full registry access | MCP tools need direct schema/action/rule introspection |
-| 8 | Flow: lightweight engine in M1b, Temporal in M2 | FlowDefinition DSL designed for Temporal, runtime swappable |
+| 8 | Flow: Restate durable execution + sync fallback | FlowDefinition DSL compiles to Restate workflows; sync fallback when no Restate server |
 | 9 | AI Proposals require human approval | Security: AI cannot auto-commit changes to production |
 | 10 | i18n: backend data layer only in M1b | Frontend widgets deferred to M2 |
 
@@ -277,7 +278,7 @@ Stage 4 (Events)                   │
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| Temporal + Bun incompatible | Flow Engine blocked | Medium | Week 1 spike; fallback to PG state-table orchestrator |
+| Restate server unavailable in prod | Durable Flow unavailable | Low | Dual-mode: sync fallback executes flows without durability; Restate is a single binary with no external deps |
 | Drizzle dynamic table TypeScript issues | DrizzleDataProvider dev friction | Low | Use `any` bridge, runtime safety via SchemaDefinition |
 | PostgreSQL adds DX complexity | Slower onboarding | Low | `docker-compose.yml`; InMemory mode preserved for prototyping |
 | MCP SDK breaking changes | Adapter rework | Low | Pin SDK version; SSE as optional transport |

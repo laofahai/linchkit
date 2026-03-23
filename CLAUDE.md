@@ -32,6 +32,7 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 | Command Palette | cmdk |
 | i18n | react-i18next (en / zh-CN) |
 | Code quality | Biome (no ESLint / Prettier) |
+| Flow Engine | Restate (`@restatedev/restate-sdk` v1.11.1) — durable execution, dual-mode |
 | Testing | bun test |
 
 ## Constraints (MUST follow)
@@ -103,6 +104,7 @@ bun ./packages/cli/src/index.ts db studio
 - **System fields**: `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
 - **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
 - **Protocol Adapters**: Transport adapters (MCP, A2A, AG-UI) are Capabilities (`type: adapter`, `category: integration`) that register via `extensions.transports`. They wrap CommandLayer with protocol-specific transport. Core stays minimal.
+- **Flow Engine**: Uses Restate for durable workflow execution. `defineFlow` DSL compiles to Restate virtual object handlers. Dual-mode: with Restate server = full durable execution (persistence, retries, timeouts, Saga compensation); without Restate server = simple sync execution (steps run sequentially, no durability). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
 
 ## UI Routes
 
@@ -135,5 +137,5 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 
 ## Specs
 
-Full specs in Obsidian vault: `~/Documents/obsidian-vault/01_Projects/AIRE/LinchKit/specs/` (40+ docs).
+Full specs in project: `docs/specs/` (47 files, 00–50).
 Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`.
