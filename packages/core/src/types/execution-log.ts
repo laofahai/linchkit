@@ -64,12 +64,15 @@ export interface ExecutionLogEntry {
   parentExecutionId?: string;
   childExecutionIds?: string[];
 
+  // Transport channel (e.g. "rest", "graphql", "mcp")
+  channel?: string;
+
   // Performance
   duration: number;
 
   // Timestamps
   startedAt: Date;
-  completedAt: Date;
+  completedAt?: Date;
 }
 
 // ── Execution log query options ──────────────────────────

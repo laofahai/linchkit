@@ -137,13 +137,11 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
       .select()
       .from(eventsTable)
       .where(
-        or(
-          // Failed events ready for retry
-          and(
-            eq(eventsTable.status, "failed"),
-            lte(eventsTable.retryCount, maxRetries - 1),
-            or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
-          ),
+        // Failed events ready for retry
+        and(
+          eq(eventsTable.status, "failed"),
+          lte(eventsTable.retryCount, maxRetries - 1),
+          or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
         ),
       )
       .limit(batchSize);

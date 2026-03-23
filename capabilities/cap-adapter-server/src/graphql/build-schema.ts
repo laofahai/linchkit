@@ -247,8 +247,9 @@ const ExecutionLogEntryType = new GraphQLObjectType({
       resolve: (e: Record<string, unknown>) => (e.startedAt as Date).toISOString(),
     },
     completedAt: {
-      type: new GraphQLNonNull(GraphQLString),
-      resolve: (e: Record<string, unknown>) => (e.completedAt as Date).toISOString(),
+      type: GraphQLString,
+      resolve: (e: Record<string, unknown>) =>
+        e.completedAt ? (e.completedAt as Date).toISOString() : null,
     },
   },
 });

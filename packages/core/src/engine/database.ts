@@ -21,6 +21,12 @@ let activeSql: ReturnType<typeof postgres> | null = null;
  * @returns A Drizzle PostgresJsDatabase instance ready for queries.
  */
 export function createDatabase(config: DatabaseConfig): PostgresJsDatabase {
+  if (activeSql) {
+    throw new Error(
+      "A database connection is already active. Call closeDatabase() before creating a new one.",
+    );
+  }
+
   const sql = postgres(config.url, {
     max: config.poolSize ?? 10,
     debug: config.debug ?? false,

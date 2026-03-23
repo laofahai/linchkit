@@ -42,6 +42,7 @@ export class DrizzleExecutionLogger {
       schemaName: entry.schema ?? null,
       recordId: entry.recordId ?? null,
       capability: entry.capability ?? null,
+      channel: entry.channel ?? null,
       input: entry.input,
       output: entry.output ?? null,
       actorId: entry.actor.id,
@@ -170,7 +171,8 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     childExecutionIds: meta.childExecutionIds,
     duration: row.durationMs ?? 0,
     startedAt: row.startedAt,
-    completedAt: row.completedAt ?? row.startedAt,
+    channel: row.channel ?? undefined,
+    completedAt: row.completedAt ?? undefined,
   };
 }
 

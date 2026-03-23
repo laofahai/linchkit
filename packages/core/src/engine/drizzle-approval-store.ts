@@ -70,7 +70,15 @@ export class DrizzleApprovalStore {
 
     const updateValues: Record<string, unknown> = { updatedAt: new Date() };
     if (data.status !== undefined) updateValues.status = data.status;
-    if (data.decidedBy !== undefined) updateValues.decidedBy = data.decidedBy.id;
+    if (data.decidedBy !== undefined) {
+      updateValues.decidedBy = data.decidedBy.id;
+      // Also update metadata JSONB with full Actor object
+      const meta: ApprovalMetadata = {
+        requestedBy: existing.requestedBy,
+        decidedBy: data.decidedBy,
+      };
+      updateValues.metadata = meta;
+    }
     if (data.decidedAt !== undefined) updateValues.decidedAt = data.decidedAt;
     if (data.decisionNote !== undefined) updateValues.decisionNote = data.decisionNote;
     if (data.executionId !== undefined) updateValues.executionId = data.executionId;
