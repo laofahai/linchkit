@@ -76,6 +76,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
           },
           stop: async () => {
             await mcpServer.close();
+            console.log("[cap-adapter-mcp] MCP server stopped");
           },
         };
       }
@@ -130,8 +131,12 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
             },
           },
           handler: async (_ctx: CliCommandContext) => {
-            console.log("[cap-adapter-mcp] Starting MCP server...");
-            // Full implementation wired via transport factory
+            // The CLI wires transport startup separately via transportCtx.
+            // This handler is for standalone `linch mcp start` invocations.
+            console.log("[cap-adapter-mcp] Use `linch dev` to start the MCP transport.");
+            console.log(
+              "[cap-adapter-mcp] The MCP transport is started alongside other transports.",
+            );
           },
         },
       ],

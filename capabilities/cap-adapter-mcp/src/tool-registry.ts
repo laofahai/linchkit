@@ -48,17 +48,19 @@ export function generateActionTools(registry: ActionRegistry): McpToolDef[] {
   return tools;
 }
 
-/** Generate built-in MCP tools for schema/action introspection */
+/** Generate built-in MCP tools for schema/action/rule/state introspection */
 export function generateBuiltinTools(): McpToolDef[] {
   return [
     {
       name: "list_schemas",
-      description: "List all available schemas with their names, labels, and descriptions",
+      description:
+        "List all available schemas with their names, labels, descriptions, and field names",
       inputSchema: { type: "object", properties: {} },
     },
     {
       name: "get_schema",
-      description: "Get the full definition of a schema by name, including all fields",
+      description:
+        "Get the full definition of a schema by name, including all fields with types and constraints",
       inputSchema: {
         type: "object",
         properties: {
@@ -70,8 +72,43 @@ export function generateBuiltinTools(): McpToolDef[] {
     {
       name: "list_actions",
       description:
-        "List all available actions with their names, labels, descriptions, and associated schemas",
+        "List all available actions with their names, labels, descriptions, schemas, and input field summaries",
       inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "get_rules",
+      description: "List business rules, optionally filtered by schema or action name",
+      inputSchema: {
+        type: "object",
+        properties: {
+          schema: { type: "string", description: "Filter rules by schema name" },
+          action: { type: "string", description: "Filter rules by action name" },
+        },
+      },
+    },
+    {
+      name: "get_state_machine",
+      description:
+        "Get the state machine definition for a schema, including states, transitions, and metadata",
+      inputSchema: {
+        type: "object",
+        properties: {
+          schema: { type: "string", description: "Schema name to get state machine for" },
+        },
+        required: ["schema"],
+      },
+    },
+    {
+      name: "query",
+      description: "Execute a GraphQL query against the LinchKit server",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "GraphQL query string" },
+          variables: { type: "object", description: "GraphQL variables" },
+        },
+        required: ["query"],
+      },
     },
   ];
 }

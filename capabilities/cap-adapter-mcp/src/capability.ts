@@ -2,9 +2,11 @@
  * Capability definition for cap-adapter-mcp
  *
  * Registers the MCP transport and CLI command for starting the MCP server.
+ * The transport factory wires the MCP server to LinchKit's CommandLayer
+ * via stdio transport, exposing all MCP-eligible actions as MCP tools.
  */
 
-import type { CliCommandContext, TransportContext } from "@linchkit/core";
+import type { CliCommandContext, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
 
 export const capAdapterMcp = defineCapability({
@@ -19,16 +21,31 @@ export const capAdapterMcp = defineCapability({
       {
         name: "mcp",
         label: "Model Context Protocol",
-        factory: async (_ctx: TransportContext) => {
-          // Lazy import — createMcpAdapter needs more than just commandLayer
+        factory: async (ctx: TransportContext): Promise<TransportLifecycle> => {
+          // Lazy import to avoid loading heavy deps at registration time
           const { createMcpAdapter } = await import("./mcp-server");
-          void createMcpAdapter;
+          const { StdioServerTransport } = await import(
+            "@modelcontextprotocol/sdk/server/stdio.js"
+          );
+
+          // Create MCP server wired to LinchKit registries
+          const mcpServer = await createMcpAdapter({
+            commandLayer: ctx.commandLayer,
+            schemaRegistry: ctx.schemaRegistry,
+            actionRegistry: ctx.executor.registry,
+          });
+
+          // Create stdio transport instance
+          const stdioTransport = new StdioServerTransport();
+
           return {
-            start: () => {
-              console.log("[cap-adapter-mcp] MCP transport ready (stdio)");
+            start: async () => {
+              await mcpServer.connect(stdioTransport);
+              console.log("[cap-adapter-mcp] MCP server running on stdio");
             },
-            stop: () => {
-              /* cleanup */
+            stop: async () => {
+              await mcpServer.close();
+              console.log("[cap-adapter-mcp] MCP server stopped");
             },
           };
         },
@@ -50,7 +67,7 @@ export const capAdapterMcp = defineCapability({
       {
         name: "start",
         namespace: "mcp",
-        description: "Start MCP server",
+        description: "Start MCP server (stdio transport)",
         isDefault: true,
         args: {
           stdio: {
@@ -60,8 +77,10 @@ export const capAdapterMcp = defineCapability({
           },
         },
         handler: async (_ctx: CliCommandContext) => {
-          console.log("[cap-adapter-mcp] Starting MCP server...");
-          // Full implementation will be wired in CLI integration
+          // The CLI wires transport startup separately via transportCtx.
+          // This handler is for standalone `linch mcp start` invocations.
+          console.log("[cap-adapter-mcp] Use `linch dev` to start the MCP transport.");
+          console.log("[cap-adapter-mcp] The MCP transport is started alongside other transports.");
         },
       },
     ],
