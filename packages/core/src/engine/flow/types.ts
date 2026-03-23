@@ -11,6 +11,9 @@ import type { FlowDefinition, FlowInstance } from "../../types/flow";
 
 /** Main Flow Engine — manages flow lifecycle */
 export interface FlowEngine {
+  /** Register a flow definition with the engine */
+  registerFlow(definition: FlowDefinition): void;
+
   /** Start a new flow instance */
   startFlow(
     flowName: string,

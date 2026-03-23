@@ -12,7 +12,7 @@ export { closeDatabase, createDatabase, type DatabaseConfig } from "./engine/dat
 // Drizzle approval store (requires database)
 export { DrizzleApprovalStore } from "./engine/drizzle-approval-store";
 // Drizzle data provider
-export { DrizzleDataProvider } from "./engine/drizzle-data-provider";
+export { DrizzleDataProvider, type I18nQueryOptions } from "./engine/drizzle-data-provider";
 // Drizzle execution logger (requires database)
 export { DrizzleExecutionLogger } from "./engine/drizzle-execution-logger";
 // Drizzle schema (system tables for drizzle-kit migrations)

@@ -51,6 +51,22 @@ export { consoleLogger } from "./console-logger";
 export { createEventBus, EventBus, EventHandlerRegistry } from "./event-bus";
 // Execution logger
 export { InMemoryExecutionLogger } from "./execution-logger";
+// Flow engine
+export {
+  type CompiledFlow,
+  compileFlow,
+  createFlowRegistry,
+  createSyncFlowEngine,
+  createTriggerBinding,
+  type FlowCompiler,
+  type FlowEngine,
+  type FlowEngineConfig,
+  type FlowRegistry,
+  FlowRegistryImpl,
+  type FlowStepContext,
+  type RestateConfig,
+  type TriggerBinding,
+} from "./flow";
 // Permission engine
 export {
   checkActionPermission,
@@ -82,6 +98,13 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
+// Translatable field helpers
+export {
+  getTranslatableFields,
+  normalizeTranslatableValue,
+  resolveTranslatableValue,
+  type TranslatableValue,
+} from "./translatable";
 // Validation engine
 export {
   type ValidationContext,

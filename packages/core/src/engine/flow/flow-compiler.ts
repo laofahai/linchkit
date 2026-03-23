@@ -211,7 +211,15 @@ export function compileFlow(
       if (!step) break;
       ctx.set("current_step", step.id);
 
-      const result = await executeStep(ctx, step, stepIndex, steps, flowCtx, stepContext);
+      const result = await executeStep(
+        ctx,
+        step,
+        stepIndex,
+        steps,
+        flowCtx,
+        stepContext,
+        definition.name,
+      );
 
       // Handle jump instructions from condition/approval steps
       if (
@@ -267,13 +275,23 @@ export function compileFlow(
       ctx: restate.WorkflowSharedContext,
       data: { approved: boolean; approver: string },
     ): Promise<{ acknowledged: boolean }> => {
-      const awakeableId = await ctx.get<string>(`awakeable_${step.id}`);
-      if (!awakeableId) {
-        throw new restate.TerminalError(`No pending approval for step "${step.id}"`);
-      }
-      ctx.resolveAwakeable(awakeableId, data);
+      // Use DurablePromise to deliver approval data (works even if workflow hasn't reached the step yet)
+      await ctx
+        .promise<{ approved: boolean; approver: string }>(`approval_${step.id}`)
+        .resolve(data);
       return { acknowledged: true };
     };
+  }
+
+  // Timeout handler — called by delayed self-call to reject approval DurablePromise
+  if (approvalSteps.some((s) => s.timeout)) {
+    handlers._timeout_approval = async (
+      ctx: restate.WorkflowSharedContext,
+      data: { stepId: string },
+    ): Promise<void> => {
+      await ctx.promise(`approval_${data.stepId}`).reject("Approval timed out");
+    };
+    signalHandlerNames.push("_timeout_approval");
   }
 
   // Generic signal handler for WaitFlowStep.signal
@@ -319,6 +337,7 @@ async function executeStep(
   steps: FlowStep[],
   flowCtx: FlowExecutionContext,
   stepContext: FlowStepContext,
+  workflowName: string,
 ): Promise<unknown> {
   switch (step.type) {
     case "action":
@@ -326,7 +345,7 @@ async function executeStep(
     case "condition":
       return executeConditionStep(step, flowCtx, stepContext);
     case "approval":
-      return executeApprovalStep(ctx, step);
+      return executeApprovalStep(ctx, step, workflowName);
     case "ai":
       return executeAIStep(ctx, step, flowCtx, stepContext);
     case "wait":
@@ -376,47 +395,36 @@ function executeConditionStep(
 async function executeApprovalStep(
   ctx: restate.WorkflowContext,
   step: ApprovalFlowStep,
+  workflowName: string,
 ): Promise<unknown> {
-  const { id: awakeableId, promise } = ctx.awakeable<{
-    approved: boolean;
-    approver: string;
-  }>();
-
-  ctx.set(`awakeable_${step.id}`, awakeableId);
+  // DurablePromise is race-safe: resolve() can be called before or after await.
+  // For timeout: schedule a delayed self-call that rejects the promise after the specified duration.
   ctx.set("status", `waiting_approval:${step.id}`);
 
-  let approval: { approved: boolean; approver: string };
-
+  // Schedule timeout rejection via delayed self-call
   if (step.timeout) {
-    try {
-      approval = await promise.orTimeout(step.timeout);
-    } catch (e) {
-      if (e instanceof restate.TimeoutError) {
-        switch (step.onTimeout) {
-          case "skip":
-            // Return undefined to continue to next step
-            return undefined;
-          case "escalate":
-            // Return escalated termination — caller can emit event
-            return {
-              __terminate: {
-                status: "escalated" as const,
-                stepId: step.id,
-              },
-            };
-          default:
-            return {
-              __terminate: {
-                status: "timeout_rejected" as const,
-                stepId: step.id,
-              },
-            };
-        }
-      }
-      throw e;
+    ctx.genericSend({
+      service: workflowName,
+      method: "_timeout_approval",
+      key: ctx.key,
+      parameter: { stepId: step.id },
+      delay: step.timeout,
+    });
+  }
+
+  let approval: { approved: boolean; approver: string };
+  try {
+    approval = await ctx.promise<{ approved: boolean; approver: string }>(`approval_${step.id}`);
+  } catch {
+    // DurablePromise was rejected (timeout or explicit rejection)
+    switch (step.onTimeout) {
+      case "skip":
+        return undefined;
+      case "escalate":
+        return { __terminate: { status: "escalated" as const, stepId: step.id } };
+      default:
+        return { __terminate: { status: "timeout_rejected" as const, stepId: step.id } };
     }
-  } else {
-    approval = await promise;
   }
 
   if (!approval.approved) {
@@ -525,6 +533,7 @@ async function executeParallelStep(
   // Use the appropriate combinator
   if (step.joinType === "any") {
     const winner = await restate.RestatePromise.any(parallelPromises);
+    // Store winner output under the parallel step ID
     return winner;
   }
 

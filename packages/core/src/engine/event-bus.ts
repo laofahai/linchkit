@@ -157,6 +157,26 @@ export class EventBus {
     this.eventLog = [];
   }
 
+  /**
+   * Subscribe to a specific event type with a callback.
+   * Returns an unsubscribe function. Used by TriggerBinding.
+   */
+  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void {
+    const name = `__sub_${eventType}_${crypto.randomUUID().slice(0, 8)}`;
+    const handlerDef: EventHandlerDefinition = {
+      name,
+      listen: eventType,
+      async: true,
+      handler: (event) => handler(event),
+    };
+    this.registry.register(handlerDef);
+    return () => {
+      // Remove from registry by deleting from internal map
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Map for unsubscribe
+      (this.registry as any).handlers.delete(name);
+    };
+  }
+
   /** Create a minimal EventHandlerContext for handler execution */
   protected createHandlerContext(): EventHandlerContext {
     return {

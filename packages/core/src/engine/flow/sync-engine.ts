@@ -69,7 +69,7 @@ function resolveExpression(expr: string, flowContext: Record<string, unknown>): 
   const parts = expr.split(".");
   let current: unknown = flowContext;
 
-  // Map $prev → the __prev key, $steps → __steps, $input → __input
+  // Map $-prefixed roots to internal keys
   const root = parts[0];
   if (root === "$prev") {
     parts[0] = "__prev";
@@ -77,6 +77,8 @@ function resolveExpression(expr: string, flowContext: Record<string, unknown>): 
     parts[0] = "__steps";
   } else if (root === "$input") {
     parts[0] = "__input";
+  } else if (root === "$flow") {
+    parts[0] = "__flow";
   } else {
     // Unknown prefix — return as-is
     return expr;
@@ -305,6 +307,7 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
       __input: input,
       __steps: {} as Record<string, unknown>,
       __prev: { output: input },
+      __flow: { instanceId },
     };
 
     // Create instance
@@ -334,9 +337,9 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
 
         const { output, nextStepId } = await executeStep(step, flowContext, stepMap);
 
-        // Store step output in context
+        // Store step output in context (wrapped in { output } to match compiler format)
         const stepsCtx = flowContext.__steps as Record<string, unknown>;
-        stepsCtx[step.id] = output;
+        stepsCtx[step.id] = { output };
         flowContext.__prev = { output };
 
         // Handle branching (condition steps may jump to a specific step)
@@ -402,9 +405,8 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
       }
     },
 
-    // Expose registry methods for the sync engine (non-interface, cast-safe)
     registerFlow(definition: FlowDefinition) {
       flowDefs.set(definition.name, definition);
     },
-  } as FlowEngine & { registerFlow(definition: FlowDefinition): void };
+  };
 }

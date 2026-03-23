@@ -99,7 +99,7 @@ class TriggerBindingImpl implements TriggerBinding {
 
       await engine.startFlow(flowName, event.payload, {
         instanceId,
-        tenantId: event.schema, // Pass through tenant context if available
+        tenantId: (event.payload.tenant_id as string) ?? undefined,
         actor: event.actor,
       });
     });
