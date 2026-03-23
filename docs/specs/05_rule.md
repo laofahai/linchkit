@@ -236,7 +236,7 @@ Context 中的特殊变量：
 - Rule `execute_action`：在主 Action 执行**前**触发，是前置联动
 - EventHandler：在主 Action 执行**后**触发，是后置联动
 - 如果关联动作依赖主 Action 的结果，应该用 EventHandler 而非 Rule `execute_action`
-- 如果联动超过轻量前置动作的范围，应该改用 Flow / Temporal，而不是继续堆 Rule `execute_action`
+- 如果联动超过轻量前置动作的范围，应该改用 Flow / Restate，而不是继续堆 Rule `execute_action`
 
 ### Effect 完整结构
 

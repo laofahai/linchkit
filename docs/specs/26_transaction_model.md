@@ -34,7 +34,7 @@ Flow: 采购 → 入库 → 付款
   - 需要补偿：执行"取消入库"Action
 ```
 
-**跨动作不用数据库事务，用 Saga 补偿模式。** 由 Temporal 编排。
+**跨动作不用数据库事务，用 Saga 补偿模式。** 由 Restate Flow 编排。
 
 ```typescript
 defineFlow({
@@ -137,7 +137,7 @@ await executeAction('submit_request', { id: 'pr_001' }, {
 | 时机 | 事务内失败 | 事务已提交后失败 |
 | 机制 | 数据库事务回滚 | 执行反向 Action |
 | 范围 | 单 Action 内 | 跨 Action（Saga） |
-| 由谁管 | Action Engine + Postgres | Temporal |
+| 由谁管 | Action Engine + Postgres | Restate Flow |
 
 **不能混用。** 事务内失败用回滚，跨事务失败用补偿。
 
@@ -149,7 +149,7 @@ await executeAction('submit_request', { id: 'pr_001' }, {
 - 基础幂等
 
 ### M1
-- Saga 补偿（Temporal）
+- Saga 补偿（Restate Flow）
 - 变更事务（蓝绿部署原子性）
 - 幂等键管理
 

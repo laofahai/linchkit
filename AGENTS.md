@@ -21,6 +21,8 @@
 - **Code Quality:** Biome (no ESLint / Prettier)
 - **Testing:** bun test
 - **i18n:** react-i18next (en / zh-CN)
+- **Flow Engine:** Restate (`@restatedev/restate-sdk` v1.11.1) — dual-mode (durable + sync fallback)
+- **Config:** `defineConfigSchema` + `ConfigRegistry` for system/capability-level config
 
 ## Project Structure
 
@@ -36,7 +38,8 @@ capabilities/ (pluggable):
   @linchkit/cap-adapter-ui-react  — Official UI shell (React + Shadcn + TanStack)
   @linchkit/cap-auth              — Authentication
   @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
-  @linchkit/cap-permission        — Permission engine
+  @linchkit/cap-permission        — Permission engine (RBAC)
+  @linchkit/cap-purchase-demo     — Demo: purchase management scenario (private)
 ```
 
 **Module boundaries:**
@@ -73,7 +76,7 @@ Capabilities extend the framework via `extensions`:
 - **Event** — Domain events emitted by actions/state transitions
 - **EventHandler** — Sync/async reactions to events (priority, filter)
 - **View** — UI rendering config (list, form, kanban) driven by schema
-- **Flow** — Multi-step workflows (Temporal, M1+)
+- **Flow** — Multi-step durable workflows (Restate dual-mode: durable execution with Restate server, sync fallback without)
 
 ## Command Layer
 

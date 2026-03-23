@@ -87,17 +87,19 @@ Capability 类型：standard, bridge, adapter
 - 共享 CI/CD、Biome 配置、TypeScript 配置
 
 ```
-linchkit/                         ← 主 monorepo
+linchkit/                                ← 主 monorepo
   packages/
-    core/                         ← @linchkit/core
-    cli/                          ← @linchkit/cli
-    server/                       ← @linchkit/server
-    ui/                           ← @linchkit/ui
-    cap-auth/                     ← @linchkit/cap-auth
-    cap-permission/               ← @linchkit/cap-permission
-    cap-audit/                    ← @linchkit/cap-audit
-    starter-minimal/              ← @linchkit/starter-minimal
-    starter-business/             ← @linchkit/starter-business
+    core/                                ← @linchkit/core
+    cli/                                 ← @linchkit/cli
+    devtools/                            ← @linchkit/devtools
+  capabilities/
+    cap-adapter-server/                  ← @linchkit/cap-adapter-server
+    cap-adapter-mcp/                     ← @linchkit/cap-adapter-mcp
+    cap-adapter-ui-react/                ← @linchkit/cap-adapter-ui-react
+    cap-auth/                            ← @linchkit/cap-auth
+    cap-auth-better-auth/                ← @linchkit/cap-auth-better-auth
+    cap-permission/                      ← @linchkit/cap-permission
+    cap-purchase-demo/                   ← @linchkit/cap-purchase-demo (demo)
 ```
 
 **优势：** 开发效率高，类型检查即时反馈，统一 CI 管道。
@@ -218,9 +220,9 @@ $ linch install some-random-package
 
 | 类别 | 内容 |
 |------|------|
-| 框架 | `@linchkit/core`, `@linchkit/cli`, `@linchkit/server`, `@linchkit/ui` |
-| 基础能力 | `cap-auth`, `cap-permission`, `cap-audit` |
-| 启动包 | `starter-minimal` |
+| 框架 | `@linchkit/core`, `@linchkit/cli`, `@linchkit/devtools` |
+| 官方适配器 | `cap-adapter-server`, `cap-adapter-mcp`, `cap-adapter-ui-react` |
+| 基础能力 | `cap-auth`, `cap-auth-better-auth`, `cap-permission` |
 | 社区生态 | 所有社区 Capability |
 
 ### 6.2 付费层（Enterprise 许可）

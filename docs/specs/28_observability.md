@@ -113,7 +113,7 @@ Observability 数据是 AI 进化（Evolution System）的输入：
 ```
 Metrics + Events + Execution Logs
     ↓
-AI 分析（通过 Temporal Flow）
+AI 分析（通过 Restate Flow）
     ↓
 发现：某个 Action 错误率突增
     ↓

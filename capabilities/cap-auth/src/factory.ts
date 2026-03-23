@@ -80,34 +80,12 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
             ctx.input as { email?: string; token?: string; new_password?: string },
           ),
         ),
-        wireAction(registerAction, async (ctx) => {
-          const input = ctx.input as { name: string; email: string; password: string };
-
-          // Check if email already exists
-          const existing = await ctx.query("user", { email: input.email, limit: 1 });
-          if (existing.length > 0) {
-            throw new Error("A user with this email already exists");
-          }
-
-          // Hash password
-          const passwordHash = await Bun.password.hash(input.password);
-
-          // Create user
-          const user = await ctx.create("user", {
-            name: input.name,
-            email: input.email,
-            password_hash: passwordHash,
-            status: "active",
-            groups: ["user"],
-          });
-
-          // Return user without password_hash
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-          };
-        }),
+        wireAction(registerAction, async (ctx) =>
+          provider.register(
+            ctx,
+            ctx.input as { name: string; email: string; password: string },
+          ),
+        ),
       ]
     : [
         loginAction,

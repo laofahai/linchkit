@@ -34,7 +34,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 | ORM | Drizzle |
 | GraphQL | graphql-yoga + graphql-js (code-first) |
 | State Machine | Custom pure TS (XState as optional upgrade) |
-| Workflow | Temporal (introduced in M1) |
+| Flow Engine | Restate (`@restatedev/restate-sdk` v1.11.1) — durable execution, dual-mode |
 | Frontend | React + Vite + TanStack Router |
 | UI | Shadcn + Lucide + Tailwind |
 | Code Quality | Biome + TypeScript strict |
@@ -44,13 +44,19 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 ## Packages
 
 ```
-@linchkit/core       — Core runtime (Action/Rule/State/Event/Schema engine)
-@linchkit/cli        — CLI tool (based on citty)
-@linchkit/server     — HTTP server (Elysia + graphql-yoga + Pothos)
-@linchkit/mcp        — MCP adapter (optional)
-@linchkit/ui         — Frontend UI components + headless hooks
-@linchkit/migrate    — Migration tools
-@linchkit/devtools   — Test utilities + dev tools
+packages/ (core infrastructure):
+  @linchkit/core       — Types, engines, pipeline
+  @linchkit/cli        — CLI launcher (citty)
+  @linchkit/devtools   — Test utilities
+
+capabilities/ (pluggable):
+  @linchkit/cap-adapter-server    — HTTP/GraphQL transport (Elysia + graphql-yoga)
+  @linchkit/cap-adapter-mcp       — MCP transport for AI agents
+  @linchkit/cap-adapter-ui-react  — Official UI shell (React + Shadcn + TanStack)
+  @linchkit/cap-auth              — Authentication (JWT, sessions)
+  @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
+  @linchkit/cap-permission        — Permission engine (RBAC)
+  @linchkit/cap-purchase-demo     — Demo: purchase management scenario
 ```
 
 ---
@@ -103,7 +109,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 - [x] Config loading — .env → linchkit.config.ts → resolveEnvVars → RuntimeContext
 - [ ] cap-auth + cap-permission + login + access control
 
-**Not in scope:** blue-green deploy, Bridge / Adapter, MCP, Temporal / Flow, full multi-tenancy, notifications / scheduled tasks.
+**Not in scope:** blue-green deploy, Bridge / Adapter, full multi-tenancy, notifications / scheduled tasks.
 
 ---
 
@@ -117,7 +123,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 - [ ] Single-node blue-green deploy + Nginx
 - [ ] GitHub integration (PR + CI + Webhook)
 - [ ] DB Migration (up + down)
-- [ ] Temporal + defineFlow basics
+- [x] Restate Flow Engine (dual-mode: durable + sync fallback)
 - [ ] Bridge module support
 - [ ] Full CI Pipeline + AI Review
 
@@ -127,10 +133,10 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
 
 **Goal:** AI calls Actions via MCP, generates Proposals. Multi-tenancy basics.
 
-- [ ] MCP adapter
-- [ ] Full CLAUDE.md + AGENTS.md
+- [x] MCP adapter *(implemented in M1b)*
+- [x] Full CLAUDE.md + AGENTS.md *(maintained throughout)*
 - [ ] AI Skills package
-- [ ] AI-assisted Proposal generation
+- [x] AI-assisted Proposal generation *(implemented in M1b)*
 - [ ] Rule Context Level 3-4
 - [ ] Multi-tenancy (Standalone + SaaS dual mode)
 - [ ] AI security (rate limiting + permissions + audit)
@@ -187,7 +193,7 @@ Not suitable for: compute-intensive, real-time, or low-level systems.
    └──────┬──────┘
           ↓
    ┌─────────────┐    ┌──────────────┐    ┌──────────────┐
-   │ State       │    │ Event Bus    │    │ Temporal     │
+   │ State       │    │ Event Bus    │    │ Restate      │
    │ Machine     │    │ + Outbox     │    │ (Flow)       │
    └─────────────┘    └──────┬───────┘    └──────────────┘
                              ↓

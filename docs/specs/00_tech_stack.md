@@ -9,7 +9,7 @@
 | 数据库 | PostgreSQL | 事务强，JSONB 灵活，Outbox 友好 |
 | ORM | Drizzle ORM | Type-safe，轻量，接近 SQL |
 | 后端框架 | **Elysia**（HTTP 层做薄抽象，保留切换能力） | Bun 原生，type-safe，性能最好 |
-| GraphQL | **graphql-yoga + Pothos**（code-first） | 读操作统一用 GraphQL，The Guild 维护，Bun 原生兼容 |
+| GraphQL | **graphql-yoga + graphql-js**（code-first，NOT Pothos） | 读操作统一用 GraphQL，The Guild 维护，Bun 原生兼容 |
 | 测试 | **Bun 内置测试运行器** | 不需要 Vitest |
 | 包管理 | **Bun workspace** (monorepo) | Bun 原生 workspace |
 | 前端框架 | **React + Vite + TanStack Router** | SPA，type-safe routing |
@@ -72,7 +72,7 @@ UI ───────┘         │
 | Schema → 产物 | Zod（校验）、Drizzle（DB）、GraphQL types（查询） | 一个 Schema 定义自动生成多种产物 |
 | 事件总线(进程内) | mitt / EventEmitter3 | 进程内事件分发 |
 | 数据库迁移 | Drizzle Kit | Schema 变更自动生成迁移 |
-| GraphQL | **graphql-yoga + Pothos** | 读操作，code-first schema builder，通过 @elysiajs/graphql-yoga 集成到 Elysia |
+| GraphQL | **graphql-yoga + graphql-js** | 读操作，code-first schema builder（NOT Pothos），通过 graphql-yoga 集成到 Elysia |
 | CLI | citty (UnJS) | 命令行工具 |
 | MCP | @modelcontextprotocol/sdk | AI 能力暴露，复用 Command Layer |
 | 日志 | pino | 结构化日志 |
@@ -89,7 +89,7 @@ UI ───────┘         │
 
 | 领域 | 方案 | 用途 |
 |------|------|------|
-| 工作流编排 | **Temporal** | 所有多步骤流程（业务/AI/部署/迁移），defineFlow 编译为 Temporal Workflow |
+| 工作流编排 | **Restate** (`@restatedev/restate-sdk` v1.11.1) | 所有多步骤流程（业务/AI/部署/迁移），FlowDefinition 编译为 Restate virtual object。单 Rust 二进制，无外部依赖，Bun 官方支持。双模式：有 Restate server = 持久化执行；无 = 同步回退 |
 
 ### 4.3 稍后集成
 
@@ -115,13 +115,19 @@ UI ───────┘         │
 ## 5. Monorepo 包结构
 
 ```
-@linchkit/core          — 核心运行时（Action/Rule/State/Event/Schema 引擎 + CLAUDE.md 自动生成）
-@linchkit/cli           — CLI 工具（基于 citty，含 Skills、linch init、AGENTS.md 模板）
-@linchkit/server        — HTTP 服务（基于 Elysia + graphql-yoga + Pothos）
-@linchkit/mcp           — MCP 适配器（可选安装，含 MCP 工具描述生成）
-@linchkit/ui            — 前端 UI 组件 + Headless hooks（Shadcn + React + TanStack）
-@linchkit/migrate       — 迁移工具（introspect, CDC, External Action）
-@linchkit/devtools      — 测试工具 + 开发调试（view:diff, view:resolve 等）
+packages/ (core infrastructure):
+  @linchkit/core                  — 核心运行时（Action/Rule/State/Event/Schema/Flow 引擎 + 类型 + 管道）
+  @linchkit/cli                   — CLI 工具（基于 citty，linch init/dev/db 命令）
+  @linchkit/devtools              — 测试工具 + 开发调试
+
+capabilities/ (pluggable):
+  @linchkit/cap-adapter-server    — HTTP/GraphQL transport（Elysia + graphql-yoga + REST + CommandLayer）
+  @linchkit/cap-adapter-mcp       — MCP transport（AI 代理接入）
+  @linchkit/cap-adapter-ui-react  — 官方 UI shell（React + Shadcn + TanStack）
+  @linchkit/cap-auth              — 认证（JWT, sessions）
+  @linchkit/cap-auth-better-auth  — Auth provider（Better Auth 集成）
+  @linchkit/cap-permission        — 权限引擎（RBAC）
+  @linchkit/cap-purchase-demo     — 演示：采购管理场景（private）
 ```
 
 拆包原则：

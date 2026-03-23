@@ -34,7 +34,7 @@
 这些场景应转向：
 
 - EventHandler
-- Flow / Temporal
+- Flow / Restate
 - 主 Action handler 中显式编排
 
 ## 3. 允许使用的场景
@@ -69,7 +69,7 @@
 这些应该分别使用：
 
 - 通知 / 搜索索引 / 报表：EventHandler / Outbox
-- 多步业务编排：Flow / Temporal
+- 多步业务编排：Flow / Restate
 - 强业务组合：主 Action handler 显式调用
 
 ## 4. 选择规则
@@ -98,7 +98,7 @@
 
 如果答案是“是”，禁止使用。
 
-应交给 Temporal / Saga。
+应交给 Restate Flow / Saga。
 
 ## 5. 默认执行模型
 
@@ -260,7 +260,7 @@ submit_request
 - 允许异步重试
 - 不应阻断主流程
 
-### 10.3 用 Flow / Temporal
+### 10.3 用 Flow / Restate
 
 适用：
 
@@ -295,7 +295,7 @@ Validation 至少必须检查：
 
 1. 主 Action handler 显式调用
 2. EventHandler
-3. Flow / Temporal
+3. Flow / Restate
 4. 最后才考虑 Rule `execute_action`
 
 原因很简单：
@@ -326,4 +326,4 @@ Validation 至少必须检查：
 
 ### M2
 
-- 若出现大量复杂联动，应推动迁移到 Flow / Temporal
+- 若出现大量复杂联动，应推动迁移到 Flow / Restate

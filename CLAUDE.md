@@ -58,8 +58,10 @@ capabilities/ (pluggable):
   @linchkit/cap-adapter-server    — Elysia + graphql-yoga + REST + CommandLayer — 🔧
   @linchkit/cap-adapter-mcp       — MCP transport (adapter capability) — 🔧
   @linchkit/cap-adapter-ui-react  — React + Shadcn + TanStack (official UI shell) — 🔧
-  @linchkit/cap-auth              — Authentication — 🔧
-  @linchkit/cap-permission        — Permission — 🔧
+  @linchkit/cap-auth              — Authentication (JWT, sessions) — 🔧
+  @linchkit/cap-auth-better-auth  — Auth provider (Better Auth) — 🔧
+  @linchkit/cap-permission        — Permission (RBAC) — 🔧
+  @linchkit/cap-purchase-demo     — Demo: purchase management scenario (private)
 ```
 
 ## Dev Commands
@@ -98,13 +100,13 @@ bun ./packages/cli/src/index.ts db studio
 - **bazza/ui fork**: `components/data-table-filter/` — Forked from [bazza/ui](https://ui.bazza.dev) data-table-filter. Modified to use LinchKit `DeclarativeCondition` format (`ComparisonOperator`: eq, neq, gt, gte, lt, lte, contains, in, not_in, between). Provides `useDataTableFilters` hook, `FilterSelector`, and `ActiveFilters` components.
 - **Database Schema Management**: Single bridge function `generateDrizzleSchemaFile()` serializes `SchemaDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts` for drizzle-kit consumption. Dev: auto-push on startup. Prod: `db:generate` → `db:migrate`. Core never does hand-rolled DDL.
 - **Data Provider**: `DrizzleDataProvider` (PostgreSQL) or `InMemoryStore` fallback (no DB configured). Switch happens in `linch dev` based on `config.database.url`.
-- **System Tables**: `_linchkit_executions`, `_linchkit_events`, `_linchkit_approvals` (prefix `_linchkit_` to avoid collision with business tables). Defined in `packages/core/src/engine/system-tables.ts`.
+- **System Tables**: `_linchkit_executions`, `_linchkit_events`, `_linchkit_approvals` (prefix `_linchkit_` to avoid collision with business tables). Defined in `packages/core/src/persistence/system-tables.ts`.
 - **PersistentEventBus**: Events persisted to `_linchkit_events` table when DB is available, in-memory fallback otherwise.
 - **Errors**: 7 types → HTTP status (`validation→400`, `not_found→404`, `auth→401`, `authz→403`, `business→422`, `conflict→409`, `system→500`)
 - **System fields**: `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
 - **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
 - **Protocol Adapters**: Transport adapters (MCP, A2A, AG-UI) are Capabilities (`type: adapter`, `category: integration`) that register via `extensions.transports`. They wrap CommandLayer with protocol-specific transport. Core stays minimal.
-- **Flow Engine**: Uses Restate for durable workflow execution. `defineFlow` DSL compiles to Restate virtual object handlers. Dual-mode: with Restate server = full durable execution (persistence, retries, timeouts, Saga compensation); without Restate server = simple sync execution (steps run sequentially, no durability). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
+- **Flow Engine**: Uses Restate for durable workflow execution. `FlowDefinition` interface defines flows with step types (action, ai, condition, wait, approval, parallel). `FlowCompiler` compiles definitions to executable form. Dual-mode: with Restate server = full durable execution (persistence, retries, timeouts, Saga compensation); without Restate server = `SyncFlowEngine` (steps run sequentially, no durability). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
 
 ## UI Routes
 

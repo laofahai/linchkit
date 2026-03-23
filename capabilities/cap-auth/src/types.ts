@@ -67,6 +67,15 @@ export interface AuthProvider {
   ): Promise<CreateApiKeyResult>;
 
   /**
+   * Register a new user account.
+   * Returns login tokens so the user is immediately authenticated.
+   */
+  register(
+    ctx: ActionContext,
+    input: { name: string; email: string; password: string },
+  ): Promise<LoginResult>;
+
+  /**
    * Request or complete a password reset.
    * Phase 1 (email only): send reset email.
    * Phase 2 (token + new_password): validate token and set new password.

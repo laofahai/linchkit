@@ -27,6 +27,11 @@ function createMockProvider(): AuthProvider {
       key: "lk_test_key_abc123",
       key_prefix: "lk_test",
     }),
+    register: async (_ctx, _input) => ({
+      access_token: "jwt_token",
+      refresh_token: "refresh_token",
+      expires_in: 900,
+    }),
     resetPassword: async (_ctx, _input) => ({
       success: true,
     }),

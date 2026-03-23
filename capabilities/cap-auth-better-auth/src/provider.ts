@@ -5,6 +5,10 @@
  * authentication engine. Uses better-auth's server-side API for session
  * management, token handling, and user registration.
  *
+ * Plugins enabled:
+ * - bearer: Allows session resolution via Authorization: Bearer header
+ * - admin: Provides role management for user groups (e.g., system_admin)
+ *
  * better-auth manages its own database tables (user, session, account,
  * verification) via the Drizzle adapter. These tables are separate from
  * LinchKit's cap-auth schema tables.
@@ -20,6 +24,8 @@ import type {
 import type { ActionContext, Actor } from "@linchkit/core";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin } from "better-auth/plugins/admin";
+import { bearer } from "better-auth/plugins/bearer";
 
 // ── Configuration ──────────────────────────────────────
 
@@ -72,7 +78,7 @@ async function sha256(input: string): Promise<string> {
 
 // ── Helper: build Headers from session token ───────────
 
-function headersWithSessionToken(token: string): Headers {
+function headersWithBearerToken(token: string): Headers {
   const headers = new Headers();
   headers.set("authorization", `Bearer ${token}`);
   return headers;
@@ -85,6 +91,47 @@ function headersWithSessionCookie(
   const headers = new Headers();
   headers.set("cookie", `${cookieName}=${sessionToken}`);
   return headers;
+}
+
+// ── Extract groups from better-auth user ────────────────
+
+/**
+ * Map better-auth user role to LinchKit groups array.
+ * The admin plugin adds a `role` field (default "user").
+ */
+// biome-ignore lint/suspicious/noExplicitAny: better-auth user type varies by plugins
+function extractGroups(user: any): string[] {
+  // admin plugin role field
+  const role = user?.role as string | undefined;
+  if (role === "admin") return ["system_admin"];
+  if (role && role !== "user") return [role];
+  return ["user"];
+}
+
+// ── Create auth instance helper ─────────────────────────
+
+function createAuthInstance(options: BetterAuthProviderOptions) {
+  const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
+  const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+
+  return betterAuth({
+    database: drizzleAdapter(options.database, {
+      provider: "pg",
+      ...(options.schema ? { schema: options.schema } : {}),
+    }),
+    secret,
+    baseURL,
+    emailAndPassword: {
+      enabled: true,
+    },
+    plugins: [bearer(), admin()],
+    session: {
+      // 7-day session expiry
+      expiresIn: 60 * 60 * 24 * 7,
+      // Auto-refresh when session is within 1 day of expiry
+      updateAge: 60 * 60 * 24,
+    },
+  });
 }
 
 // ── Provider implementation ─────────────────────────────
@@ -103,29 +150,7 @@ function headersWithSessionCookie(
  * ```
  */
 export function createBetterAuthProvider(options: BetterAuthProviderOptions): AuthProvider {
-  const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
-  const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
-
-  const auth = betterAuth({
-    database: drizzleAdapter(options.database, {
-      provider: "pg",
-      ...(options.schema ? { schema: options.schema } : {}),
-    }),
-    secret,
-    baseURL,
-    emailAndPassword: {
-      enabled: true,
-    },
-    session: {
-      // 7-day session expiry
-      expiresIn: 60 * 60 * 24 * 7,
-      // Auto-refresh when session is within 1 day of expiry
-      updateAge: 60 * 60 * 24,
-    },
-  });
-
-  // Store the auth instance for access in seed/admin functions
-  (createBetterAuthProvider as BetterAuthProviderFactory).__authInstance = auth;
+  const auth = createAuthInstance(options);
 
   return {
     async login(
@@ -139,29 +164,52 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
         },
       });
 
-      // better-auth signInEmail returns { token, user, redirect }
       const token = result.token;
-
       if (!token) {
         throw new Error("Login failed: no token returned from better-auth");
       }
 
-      // Use the token as both access and refresh token
-      // (better-auth uses session tokens, not separate JWT access/refresh pairs)
       return {
         access_token: token,
         refresh_token: token,
-        expires_in: 60 * 60 * 24 * 7, // 7 days (matches session config)
+        expires_in: 60 * 60 * 24 * 7,
+      };
+    },
+
+    async register(
+      _ctx: ActionContext,
+      input: { name: string; email: string; password: string },
+    ): Promise<LoginResult> {
+      const result = await auth.api.signUpEmail({
+        body: {
+          email: input.email,
+          password: input.password,
+          name: input.name,
+        },
+      });
+
+      if (!result?.token) {
+        throw new Error("Registration failed: no token returned from better-auth");
+      }
+
+      return {
+        access_token: result.token,
+        refresh_token: result.token,
+        expires_in: 60 * 60 * 24 * 7,
       };
     },
 
     async logout(_ctx: ActionContext, input: { session_id?: string }): Promise<void> {
-      if (!input.session_id) return;
+      // Try to revoke via session_id (cookie) or bearer token from context
+      const token = input.session_id;
+      if (!token) {
+        // No session info available — client-side cleanup only
+        return;
+      }
 
       try {
-        // Revoke session by calling signOut with session token in headers
         await auth.api.signOut({
-          headers: headersWithSessionCookie(input.session_id),
+          headers: headersWithBearerToken(token),
         });
       } catch {
         // Session may already be invalidated — ignore
@@ -172,23 +220,18 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       _ctx: ActionContext,
       input: { refresh_token: string },
     ): Promise<RefreshResult> {
-      // better-auth handles session refresh via getSession
-      // Pass the session token to get a refreshed session
       try {
         const result = await auth.api.getSession({
-          headers: headersWithSessionCookie(input.refresh_token),
+          headers: headersWithBearerToken(input.refresh_token),
         });
 
-        if (!result || !result.session) {
+        if (!result?.session) {
           throw new Error("Invalid or expired refresh token");
         }
 
-        // The session token itself acts as the access token in better-auth
-        const expiresAt = new Date(result.session.expiresAt).toISOString();
-
         return {
           access_token: result.session.token,
-          expires_at: expiresAt,
+          expires_at: new Date(result.session.expiresAt).toISOString(),
         };
       } catch {
         throw new Error("Invalid or expired refresh token");
@@ -199,11 +242,8 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       ctx: ActionContext,
       input: { name: string; scopes?: unknown; expires_at?: string },
     ): Promise<CreateApiKeyResult> {
-      // better-auth does not have built-in API key support,
-      // so we implement it using LinchKit's DataProvider via ctx.
-      // This stores API keys in LinchKit's api_key schema table.
       const rawKey = `lk_${generateRandomToken()}`;
-      const keyPrefix = rawKey.slice(0, 11); // "lk_" + first 8 hex chars
+      const keyPrefix = rawKey.slice(0, 11);
       const keyHash = await sha256(rawKey);
 
       await ctx.create("api_key", {
@@ -224,14 +264,12 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       _ctx: ActionContext,
       input: { email?: string; token?: string; new_password?: string },
     ): Promise<ResetPasswordResult> {
-      // Phase 1: Request password reset (send token)
+      const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+
       if (input.email && !input.token) {
         try {
           await auth.api.requestPasswordReset({
-            body: {
-              email: input.email,
-              redirectTo: `${baseURL}/reset-password`,
-            },
+            body: { email: input.email, redirectTo: `${baseURL}/reset-password` },
           });
         } catch {
           // Silently succeed to prevent email enumeration
@@ -239,14 +277,10 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
         return { success: true };
       }
 
-      // Phase 2: Reset password with token
       if (input.token && input.new_password) {
         try {
           await auth.api.resetPassword({
-            body: {
-              newPassword: input.new_password,
-              token: input.token,
-            },
+            body: { newPassword: input.new_password, token: input.token },
           });
           return { success: true };
         } catch {
@@ -262,16 +296,16 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
     async resolveToken(token: string): Promise<Actor | null> {
       try {
         const result = await auth.api.getSession({
-          headers: headersWithSessionToken(token),
+          headers: headersWithBearerToken(token),
         });
 
-        if (!result || !result.user) return null;
+        if (!result?.user) return null;
 
         return {
           type: "human",
           id: result.user.id,
           name: result.user.name ?? result.user.email,
-          groups: [], // better-auth doesn't have built-in groups; extend via plugin or metadata
+          groups: extractGroups(result.user),
         };
       } catch {
         return null;
@@ -279,9 +313,10 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
     },
 
     async resolveApiKey(_key: string): Promise<Actor | null> {
-      // API keys are not managed by better-auth.
-      // This would need to be handled via LinchKit's DataProvider at a higher level.
-      // For now, return null — the DrizzleAuthProvider in cap-auth handles this.
+      // TODO: Implement API key resolution via DataProvider
+      // Need prefix extraction → DB lookup → hash verification → Actor mapping
+      // This requires access to DataProvider which is not available in the provider.
+      // API key resolution should be handled at the middleware level.
       return null;
     },
 
@@ -291,77 +326,18 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
           headers: headersWithSessionCookie(sessionId),
         });
 
-        if (!result || !result.user) return null;
+        if (!result?.user) return null;
 
         return {
           type: "human",
           id: result.user.id,
           name: result.user.name ?? result.user.email,
-          groups: [],
+          groups: extractGroups(result.user),
         };
       } catch {
         return null;
       }
     },
-  };
-}
-
-// ── Type for accessing the auth instance ────────────────
-
-interface BetterAuthProviderFactory {
-  (options: BetterAuthProviderOptions): AuthProvider;
-  // biome-ignore lint/suspicious/noExplicitAny: Auth type varies by config
-  __authInstance?: any;
-}
-
-// ── Registration / Sign-up helper ───────────────────────
-
-/**
- * Register a new user via better-auth's signUpEmail API.
- *
- * This is exposed as a standalone function because the AuthProvider
- * interface does not include a `register` method — registration is
- * handled by the cap-auth factory action handler.
- *
- * Usage:
- * ```ts
- * const provider = createBetterAuthProvider({ database: db })
- * await registerUser({ email: 'user@example.com', password: 'pass', name: 'User' })
- * ```
- */
-export async function registerUser(
-  options: BetterAuthProviderOptions,
-  input: { email: string; password: string; name: string },
-): Promise<{ id: string; email: string; name: string }> {
-  const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
-  const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
-
-  const auth = betterAuth({
-    database: drizzleAdapter(options.database, {
-      provider: "pg",
-      ...(options.schema ? { schema: options.schema } : {}),
-    }),
-    secret,
-    baseURL,
-    emailAndPassword: { enabled: true },
-  });
-
-  const result = await auth.api.signUpEmail({
-    body: {
-      email: input.email,
-      password: input.password,
-      name: input.name,
-    },
-  });
-
-  if (!result || !result.user) {
-    throw new Error("Registration failed");
-  }
-
-  return {
-    id: result.user.id,
-    email: result.user.email,
-    name: result.user.name,
   };
 }
 
@@ -381,7 +357,7 @@ export interface SeedAdminOptions {
  * Seed the initial system admin user via better-auth's signUp API.
  *
  * Reads ADMIN_EMAIL and ADMIN_PASSWORD from env (or accepts explicit values).
- * If the admin user does not already exist, creates one via better-auth.
+ * Creates the user and assigns the "admin" role via the admin plugin.
  */
 export async function seedSystemAdmin(options: SeedAdminOptions): Promise<void> {
   const email = options.email ?? process.env.ADMIN_EMAIL;
@@ -393,24 +369,16 @@ export async function seedSystemAdmin(options: SeedAdminOptions): Promise<void> 
     return;
   }
 
-  const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
-  const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
-
-  const auth = betterAuth({
-    database: drizzleAdapter(options.database, {
-      provider: "pg",
-      ...(options.schema ? { schema: options.schema } : {}),
-    }),
-    secret,
-    baseURL,
-    emailAndPassword: { enabled: true },
+  const auth = createAuthInstance({
+    database: options.database,
+    secret: options.secret,
+    baseURL: options.baseURL,
+    schema: options.schema,
   });
 
   // Check if admin already exists by trying to sign in
   try {
-    await auth.api.signInEmail({
-      body: { email, password },
-    });
+    await auth.api.signInEmail({ body: { email, password } });
     console.log(`[better-auth] System admin already exists: ${email}`);
     return;
   } catch {
@@ -424,11 +392,19 @@ export async function seedSystemAdmin(options: SeedAdminOptions): Promise<void> 
     });
 
     if (result?.user) {
-      console.log(`[better-auth] System admin created: ${email}`);
+      // Assign admin role via admin plugin
+      try {
+        await auth.api.setRole({
+          headers: headersWithBearerToken(result.token ?? ""),
+          body: { userId: result.user.id, role: "admin" },
+        });
+        console.log(`[better-auth] System admin created with admin role: ${email}`);
+      } catch {
+        console.warn(`[better-auth] Admin created but failed to set role: ${email}`);
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // If user already exists with different password, that's OK
     if (msg.includes("already") || msg.includes("exists")) {
       console.log(`[better-auth] System admin already exists: ${email}`);
     } else {

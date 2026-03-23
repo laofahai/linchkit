@@ -27,4 +27,4 @@
 export type { CapAuthBetterAuthOptions } from "./capability";
 export { capAuthBetterAuth } from "./capability";
 export type { BetterAuthProviderOptions, SeedAdminOptions } from "./provider";
-export { createBetterAuthProvider, registerUser, seedSystemAdmin } from "./provider";
+export { createBetterAuthProvider, seedSystemAdmin } from "./provider";

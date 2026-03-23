@@ -32,9 +32,9 @@
 | 后端 | Elysia |
 | 数据库 | PostgreSQL |
 | ORM | Drizzle |
-| GraphQL | graphql-yoga + Pothos (code-first) |
+| GraphQL | graphql-yoga + graphql-js (code-first, NOT Pothos) |
 | 状态机 | 自研纯 TS（XState 可选升级） |
-| 工作流 | Temporal（M1 引入） |
+| 工作流引擎 | Restate (`@restatedev/restate-sdk` v1.11.1) — 持久化执行，双模式 |
 | 前端 | React + Vite + TanStack Router |
 | UI | Shadcn + Lucide + Tailwind |
 | 代码质量 | Biome + TypeScript strict |
@@ -44,13 +44,19 @@
 ## 包结构
 
 ```
-@linchkit/core       — 核心运行时（Action/Rule/State/Event/Schema 引擎）
-@linchkit/cli        — CLI 工具（基于 citty）
-@linchkit/server     — HTTP 服务（Elysia + graphql-yoga + Pothos）
-@linchkit/mcp        — MCP 适配器（可选安装）
-@linchkit/ui         — 前端 UI 组件 + Headless hooks
-@linchkit/migrate    — 迁移工具
-@linchkit/devtools   — 测试工具 + 开发调试
+packages/ (核心基础设施):
+  @linchkit/core                  — 类型、引擎、管道
+  @linchkit/cli                   — CLI 启动器（citty）
+  @linchkit/devtools              — 测试工具
+
+capabilities/ (可插拔):
+  @linchkit/cap-adapter-server    — HTTP/GraphQL transport（Elysia + graphql-yoga）
+  @linchkit/cap-adapter-mcp       — MCP transport（AI 代理接入）
+  @linchkit/cap-adapter-ui-react  — 官方 UI shell（React + Shadcn + TanStack）
+  @linchkit/cap-auth              — 认证（JWT, sessions）
+  @linchkit/cap-auth-better-auth  — Auth provider（Better Auth）
+  @linchkit/cap-permission        — 权限引擎（RBAC）
+  @linchkit/cap-purchase-demo     — 演示：采购管理场景
 ```
 
 ---

@@ -150,6 +150,30 @@ class DrizzleAuthProvider implements AuthProvider {
     };
   }
 
+  async register(
+    ctx: ActionContext,
+    input: { name: string; email: string; password: string },
+  ): Promise<LoginResult> {
+    // Check if email already exists
+    const existing = await this.dp.query("user", { email: input.email, limit: 1 });
+    if (existing.length > 0) {
+      throw new Error("A user with this email already exists");
+    }
+
+    // Hash password and create user
+    const passwordHash = await Bun.password.hash(input.password);
+    await this.dp.create("user", {
+      name: input.name,
+      email: input.email,
+      password_hash: passwordHash,
+      status: "active",
+      groups: ["user"],
+    });
+
+    // Auto-login after registration
+    return this.login(ctx, { email: input.email, password: input.password });
+  }
+
   async logout(_ctx: ActionContext, input: { session_id?: string }): Promise<void> {
     if (!input.session_id) return;
 
