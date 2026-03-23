@@ -77,7 +77,7 @@ export {
   resolveField,
 } from "./engine/condition-evaluator";
 export type { PermissionRegistry } from "./engine/permission-engine";
-export type { CreateProposalOptions } from "./engine/proposal-engine";
+export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
 export type {
   RuleEvalInput,
@@ -98,7 +98,17 @@ export {
   ValidationError,
 } from "./errors";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
-export type { FlowStepContext, FlowStepContextDeps } from "./flow";
+export type {
+  CompiledFlow,
+  FlowCompiler,
+  FlowEngine,
+  FlowEngineConfig,
+  FlowRegistry,
+  FlowStepContext,
+  FlowStepContextDeps,
+  RestateConfig,
+  TriggerBinding,
+} from "./flow";
 export type { TraceState } from "./observability/trace-context";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
