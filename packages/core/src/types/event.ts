@@ -32,6 +32,7 @@ export interface EventRecord {
     id: string;
   };
 
+  tenantId?: string;
   schema?: string;
   recordId?: string;
   action?: string;

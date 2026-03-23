@@ -68,7 +68,10 @@ export const executionsTable = pgTable(
     completedAt: timestamp("completed_at", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (table) => [index("idx_executions_action_created").on(table.actionName, table.createdAt)],
+  (table) => [
+    index("idx_executions_action_created").on(table.actionName, table.createdAt),
+    index("idx_executions_tenant").on(table.tenantId, table.createdAt),
+  ],
 );
 
 // ── Event store table ───────────────────────────────────────
@@ -77,6 +80,7 @@ export const eventsTable = pgTable(
   "_linchkit_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: varchar("tenant_id", { length: 255 }),
     eventType: varchar("event_type", { length: 255 }).notNull(),
     payload: jsonb("payload"),
     sourceAction: varchar("source_action", { length: 255 }),
@@ -93,6 +97,7 @@ export const eventsTable = pgTable(
   (table) => [
     index("idx_events_type_status").on(table.eventType, table.status),
     index("idx_events_retry").on(table.status, table.nextRetryAt),
+    index("idx_events_tenant").on(table.tenantId, table.eventType),
   ],
 );
 

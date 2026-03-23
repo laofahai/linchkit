@@ -403,8 +403,8 @@ export class DrizzleDataProvider implements DataProvider {
     }
   }
 
-  /** Physical delete — bypasses soft-delete, removes the row permanently. */
-  async hardDelete(schema: string, id: string): Promise<void> {
+  /** Physical delete — bypasses soft-delete, removes the row permanently. Respects tenant isolation. */
+  async hardDelete(schema: string, id: string, options?: DataQueryOptions): Promise<void> {
     const table = this.resolveTable(schema);
     const idCol = this.getColumn(table, "id");
     if (!idCol) {
@@ -416,7 +416,18 @@ export class DrizzleDataProvider implements DataProvider {
       });
     }
 
-    const rows = await this.db.delete(table).where(eq(idCol, id)).returning();
+    const conditions = [eq(idCol, id)];
+
+    // Apply tenant isolation
+    const tenantCol = this.getColumn(table, "tenant_id");
+    if (tenantCol && options?.tenantId) {
+      conditions.push(eq(tenantCol, options.tenantId));
+    }
+
+    const rows = await this.db
+      .delete(table)
+      .where(and(...conditions))
+      .returning();
 
     if (rows.length === 0) {
       throw new NotFoundError({

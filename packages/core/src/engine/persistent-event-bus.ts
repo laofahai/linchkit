@@ -64,6 +64,7 @@ export class PersistentEventBus extends EventBus {
         .insert(eventsTable)
         .values({
           eventType: event.type,
+          tenantId: event.tenantId ?? null,
           payload: event.payload as Record<string, unknown>,
           sourceAction: (event.payload?.action as string) ?? null,
           sourceExecutionId: event.executionId ?? null,
