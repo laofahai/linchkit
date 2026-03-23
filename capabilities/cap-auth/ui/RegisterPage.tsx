@@ -87,8 +87,8 @@ export function RegisterPage({
     description = "Enter your details to get started",
     nameLabel = "Name",
     namePlaceholder = "",
-    emailLabel = "Email",
-    emailPlaceholder = "m@example.com",
+    emailLabel = "Email or Phone",
+    emailPlaceholder = "Email or phone number",
     passwordLabel = "Password",
     passwordPlaceholder = "",
     confirmPasswordLabel = "Confirm password",
@@ -159,13 +159,13 @@ export function RegisterPage({
                 <Label htmlFor="register-email">{emailLabel}</Label>
                 <Input
                   id="register-email"
-                  type="email"
+                  type="text"
                   placeholder={emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={loading}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
 

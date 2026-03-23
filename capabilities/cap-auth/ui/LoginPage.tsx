@@ -69,9 +69,9 @@ export function LoginPage({
 
   const {
     title = "Login",
-    description = "Enter your email below to login to your account",
-    emailLabel = "Email",
-    emailPlaceholder = "m@example.com",
+    description = "Enter your email or phone number to login",
+    emailLabel = "Email or Phone",
+    emailPlaceholder = "Email or phone number",
     passwordLabel = "Password",
     passwordPlaceholder = "",
     submitButton = "Login",
@@ -116,13 +116,13 @@ export function LoginPage({
                 <Label htmlFor="login-email">{emailLabel}</Label>
                 <Input
                   id="login-email"
-                  type="email"
+                  type="text"
                   placeholder={emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={loading}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
               </div>
 

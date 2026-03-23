@@ -24,6 +24,8 @@ export interface CapAuthBetterAuthOptions {
   secret?: string;
   /** Base URL for better-auth (used for callbacks, redirects). Defaults to "http://localhost:3001". */
   baseURL?: string;
+  /** SMS gateway callback for phone OTP login. If not provided, OTP codes are logged to console. */
+  sendOTP?: (data: { phoneNumber: string; code: string }) => Promise<void>;
 }
 
 /**
@@ -51,6 +53,7 @@ export function capAuthBetterAuth(options?: CapAuthBetterAuthOptions): Capabilit
             database: ctx.database,
             secret: options?.secret,
             baseURL: options?.baseURL,
+            sendOTP: options?.sendOTP,
           }),
         seedAdmin: (ctx) => seedSystemAdmin({ database: ctx.database }),
       },

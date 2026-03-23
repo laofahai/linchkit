@@ -8,6 +8,8 @@
  * Plugins enabled:
  * - bearer: Allows session resolution via Authorization: Bearer header
  * - admin: Provides role management for user groups (e.g., system_admin)
+ * - username: Allows login via username (used for phone number login)
+ * - phoneNumber: Enables phone + OTP authentication flow
  *
  * better-auth manages its own database tables (user, session, account,
  * verification) via the Drizzle adapter. These tables are separate from
@@ -26,6 +28,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins/admin";
 import { bearer } from "better-auth/plugins/bearer";
+import { phoneNumber } from "better-auth/plugins/phone-number";
+import { username } from "better-auth/plugins/username";
 
 // ── Configuration ──────────────────────────────────────
 
@@ -55,6 +59,12 @@ export interface BetterAuthProviderOptions {
    */
   // biome-ignore lint/suspicious/noExplicitAny: schema type varies
   schema?: Record<string, any>;
+
+  /**
+   * SMS gateway callback for phone OTP login.
+   * If not provided, OTP codes are logged to console (dev mode).
+   */
+  sendOTP?: (data: { phoneNumber: string; code: string }) => Promise<void>;
 }
 
 // ── Crypto helpers for API keys ────────────────────────
@@ -108,11 +118,37 @@ function extractGroups(user: any): string[] {
   return ["user"];
 }
 
+// ── Phone number detection ──────────────────────────────
+
+/**
+ * Check if a string looks like a phone number (7-15 digits, optional + prefix).
+ */
+function isPhoneNumber(value: string): boolean {
+  return /^\+?\d{7,15}$/.test(value);
+}
+
+/**
+ * Generate a placeholder email for phone-only registrations.
+ * Uses a `.phone.local` domain so it is clearly synthetic.
+ */
+function phonePlaceholderEmail(phone: string): string {
+  const sanitized = phone.replace(/[^0-9]/g, "");
+  return `${sanitized}@phone.local`;
+}
+
 // ── Create auth instance helper ─────────────────────────
 
 function createAuthInstance(options: BetterAuthProviderOptions) {
   const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
   const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+
+  const sendOTPHandler =
+    options.sendOTP ??
+    (async ({ phoneNumber: phone, code }: { phoneNumber: string; code: string }) => {
+      console.log(
+        `[better-auth] OTP for ${phone}: ${code} (configure SMS gateway for production)`,
+      );
+    });
 
   return betterAuth({
     database: drizzleAdapter(options.database, {
@@ -124,7 +160,18 @@ function createAuthInstance(options: BetterAuthProviderOptions) {
     emailAndPassword: {
       enabled: true,
     },
-    plugins: [bearer(), admin()],
+    plugins: [
+      bearer(),
+      admin(),
+      username({
+        usernameValidator: (u) => /^[\w\d+\-@.]+$/.test(u),
+        minUsernameLength: 3,
+        maxUsernameLength: 30,
+      }),
+      phoneNumber({
+        sendOTP: sendOTPHandler,
+      }),
+    ],
     session: {
       // 7-day session expiry
       expiresIn: 60 * 60 * 24 * 7,
@@ -157,14 +204,28 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       _ctx: ActionContext,
       input: { email: string; password: string },
     ): Promise<LoginResult> {
-      const result = await auth.api.signInEmail({
-        body: {
-          email: input.email,
-          password: input.password,
-        },
-      });
+      let token: string | undefined;
 
-      const token = result.token;
+      if (isPhoneNumber(input.email)) {
+        // Phone number detected — sign in via username plugin
+        const result = await auth.api.signInUsername({
+          body: {
+            username: input.email,
+            password: input.password,
+          },
+        });
+        token = result.token;
+      } else {
+        // Default: email login
+        const result = await auth.api.signInEmail({
+          body: {
+            email: input.email,
+            password: input.password,
+          },
+        });
+        token = result.token;
+      }
+
       if (!token) {
         throw new Error("Login failed: no token returned from better-auth");
       }
@@ -180,11 +241,17 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       _ctx: ActionContext,
       input: { name: string; email: string; password: string },
     ): Promise<LoginResult> {
+      const isPhone = isPhoneNumber(input.email);
+      const email = isPhone ? phonePlaceholderEmail(input.email) : input.email;
+
       const result = await auth.api.signUpEmail({
         body: {
-          email: input.email,
+          email,
           password: input.password,
           name: input.name,
+          // When registering with a phone number, store it as the username
+          // so they can log in via signInUsername later.
+          ...(isPhone ? { username: input.email } : {}),
         },
       });
 
