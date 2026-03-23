@@ -42,6 +42,8 @@ export interface BaseFieldDefinition extends FieldConstraints {
   description?: string;
   sensitive?: boolean;
   secret?: boolean;
+  /** Whether this field stores translatable content (i18n). When true, values are stored as JSONB { locale: value }. */
+  translatable?: boolean;
   /** Declarative UI hints for auto-layout and rendering */
   ui?: FieldUIHints;
 }
@@ -163,6 +165,14 @@ export type FieldExposureMap = Record<string, ExposureConfig>;
 
 // ── Schema definition ──────────────────────────────────────
 
+/** Internationalization configuration for a schema's translatable fields */
+export interface SchemaI18nConfig {
+  /** Default locale for this schema's translatable fields */
+  defaultLocale?: string;
+  /** Supported locales */
+  supportedLocales?: string[];
+}
+
 export interface SchemaDefinition<
   TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
 > {
@@ -174,6 +184,9 @@ export interface SchemaDefinition<
 
   /** Presentation metadata for View layer auto-layout */
   presentation?: SchemaPresentation;
+
+  /** Internationalization configuration for this schema */
+  i18n?: SchemaI18nConfig;
 
   exposure?: ExposureConfig;
   fieldExposure?: FieldExposureMap;

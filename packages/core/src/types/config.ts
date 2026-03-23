@@ -2,6 +2,7 @@
  * LinchKit project configuration types
  */
 
+import type { FlowEngineConfig } from "../engine/flow/types";
 import type { AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 
@@ -36,6 +37,9 @@ export interface LinchKitConfig {
     repo?: string;
     token?: string;
   };
+
+  /** Flow engine configuration */
+  flow?: FlowEngineConfig;
 
   /** Installed capabilities loaded by the host project */
   capabilities?: CapabilityDefinition[];

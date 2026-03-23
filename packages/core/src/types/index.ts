@@ -6,6 +6,17 @@ export type * from "./action";
 export type * from "./ai";
 export type * from "./approval";
 export type * from "./capability";
+export type {
+  CapabilityMetadata,
+  CapabilityMetadataValidationError,
+  CapabilityMetadataValidationResult,
+} from "./capability-metadata";
+export {
+  capabilityCategoryEnum,
+  capabilityMetadataSchema,
+  capabilityTypeEnum,
+  validateCapabilityMetadata,
+} from "./capability-metadata";
 export type * from "./cli";
 export type * from "./command";
 export type * from "./config";

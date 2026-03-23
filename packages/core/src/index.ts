@@ -108,7 +108,13 @@ export {
 // Type exports
 export type * from "./types";
 // Non-type exports
-export { ERROR_STATUS_MAP } from "./types";
+export {
+  capabilityCategoryEnum,
+  capabilityMetadataSchema,
+  capabilityTypeEnum,
+  ERROR_STATUS_MAP,
+  validateCapabilityMetadata,
+} from "./types";
 export type { Logger } from "./types/logger";
 
 // Utilities
