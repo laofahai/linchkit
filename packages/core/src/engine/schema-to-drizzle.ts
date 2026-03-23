@@ -26,8 +26,14 @@ export interface DrizzleGeneratorOptions {
 // Field types that are virtual and should not produce columns
 const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
 
+// Field types that support translatable content (stored as JSONB { locale: value })
+const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
 /**
  * Build a Drizzle column definition for a single field.
+ *
+ * When a field has `translatable: true`, generates a jsonb column instead of the
+ * normal column type. The JSONB stores `{ [locale]: value }`.
  */
 function buildColumn(name: string, field: FieldDefinition): unknown {
   let col: ReturnType<
@@ -40,6 +46,20 @@ function buildColumn(name: string, field: FieldDefinition): unknown {
     | typeof jsonb
     | typeof integer
   >;
+
+  // Translatable fields are stored as JSONB regardless of their declared type
+  if (field.translatable && TRANSLATABLE_FIELD_TYPES.has(field.type)) {
+    col = jsonb(name);
+
+    // Apply constraints (notNull, unique) then return early
+    if (field.required) {
+      col = col.notNull();
+    }
+    if (field.unique) {
+      col = col.unique();
+    }
+    return col;
+  }
 
   switch (field.type) {
     case "string":

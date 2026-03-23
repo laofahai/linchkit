@@ -20,14 +20,43 @@ import {
   SystemError,
   ValidationError,
 } from "../errors";
+import type { SchemaDefinition } from "../types/schema";
 import type { DataProvider, DataQueryOptions } from "./action-engine";
 import type { TableRegistry } from "./table-registry";
+import {
+  getTranslatableFields,
+  normalizeTranslatableValue,
+  resolveTranslatableValue,
+} from "./translatable";
+
+/** Extended query options that include locale for translatable field resolution */
+export interface I18nQueryOptions extends DataQueryOptions {
+  /** Locale for resolving translatable fields on read */
+  locale?: string;
+}
 
 export class DrizzleDataProvider implements DataProvider {
+  /** Schema definitions keyed by schema name, for translatable field metadata */
+  private readonly schemaDefinitions = new Map<string, SchemaDefinition>();
+
   constructor(
     private readonly db: PostgresJsDatabase,
     private readonly tableRegistry: TableRegistry,
-  ) {}
+    schemaDefinitions?: SchemaDefinition[],
+  ) {
+    if (schemaDefinitions) {
+      for (const sd of schemaDefinitions) {
+        this.schemaDefinitions.set(sd.name, sd);
+      }
+    }
+  }
+
+  /** Register or update schema definitions (e.g., when capabilities load after construction). */
+  registerSchemaDefinitions(schemas: SchemaDefinition[]): void {
+    for (const sd of schemas) {
+      this.schemaDefinitions.set(sd.name, sd);
+    }
+  }
 
   /** Resolve table from registry; throws if not registered. */
   private resolveTable(schemaName: string): PgTable {
@@ -115,6 +144,62 @@ export class DrizzleDataProvider implements DataProvider {
     }
   }
 
+  /**
+   * Normalize translatable fields in input data before writing to DB.
+   * Wraps plain string values as `{ [defaultLocale]: value }` for translatable fields.
+   */
+  private normalizeTranslatableInput(
+    schemaName: string,
+    data: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const schemaDef = this.schemaDefinitions.get(schemaName);
+    if (!schemaDef?.i18n?.defaultLocale) return data;
+
+    const translatableFields = getTranslatableFields(schemaDef);
+    if (translatableFields.size === 0) return data;
+
+    const defaultLocale = schemaDef.i18n.defaultLocale;
+    const result = { ...data };
+
+    for (const fieldName of translatableFields) {
+      if (fieldName in result) {
+        result[fieldName] = normalizeTranslatableValue(result[fieldName], defaultLocale);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve translatable fields in a row returned from DB.
+   * When a locale is provided, extracts the single-language value from JSONB.
+   * Without locale, returns raw JSONB (locale map).
+   */
+  private resolveTranslatableOutput(
+    schemaName: string,
+    row: Record<string, unknown>,
+    locale?: string,
+  ): Record<string, unknown> {
+    if (!locale) return row;
+
+    const schemaDef = this.schemaDefinitions.get(schemaName);
+    if (!schemaDef?.i18n?.defaultLocale) return row;
+
+    const translatableFields = getTranslatableFields(schemaDef);
+    if (translatableFields.size === 0) return row;
+
+    const defaultLocale = schemaDef.i18n.defaultLocale;
+    const result = { ...row };
+
+    for (const fieldName of translatableFields) {
+      if (fieldName in result) {
+        result[fieldName] = resolveTranslatableValue(result[fieldName], locale, defaultLocale);
+      }
+    }
+
+    return result;
+  }
+
   async get(
     schema: string,
     id: string,
@@ -148,7 +233,9 @@ export class DrizzleDataProvider implements DataProvider {
       });
     }
 
-    return rows[0] as Record<string, unknown>;
+    const row = rows[0] as Record<string, unknown>;
+    const locale = (options as I18nQueryOptions | undefined)?.locale;
+    return this.resolveTranslatableOutput(schema, row, locale);
   }
 
   async query(
@@ -219,22 +306,26 @@ export class DrizzleDataProvider implements DataProvider {
     }
 
     const rows = await query;
-    return rows as Array<Record<string, unknown>>;
+    const locale = (options as I18nQueryOptions | undefined)?.locale;
+    return (rows as Array<Record<string, unknown>>).map((row) =>
+      this.resolveTranslatableOutput(schema, row, locale),
+    );
   }
 
   async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
     const table = this.resolveTable(schema);
+    const normalizedData = this.normalizeTranslatableInput(schema, data);
     const now = new Date();
-    const id = (data.id as string) || crypto.randomUUID();
+    const id = (normalizedData.id as string) || crypto.randomUUID();
 
     const record: Record<string, unknown> = {
-      ...data,
+      ...normalizedData,
       id,
-      tenant_id: data.tenant_id ?? null,
+      tenant_id: normalizedData.tenant_id ?? null,
       created_at: now,
       updated_at: now,
-      created_by: data.created_by ?? null,
-      updated_by: data.updated_by ?? null,
+      created_by: normalizedData.created_by ?? null,
+      updated_by: normalizedData.updated_by ?? null,
       _version: 1,
     };
 
@@ -276,10 +367,11 @@ export class DrizzleDataProvider implements DataProvider {
     }
 
     const now = new Date();
+    const normalizedData = this.normalizeTranslatableInput(schema, data);
 
     // Build update payload, filtering to existing columns only
     const updateData: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(data)) {
+    for (const [key, value] of Object.entries(normalizedData)) {
       if (key === "id" || key === "_version") continue; // Don't allow overwriting id or _version directly
       if (key in columns) {
         updateData[key] = value;
@@ -288,7 +380,7 @@ export class DrizzleDataProvider implements DataProvider {
     updateData.updated_at = now;
 
     // Optimistic locking: WHERE id = id AND _version = expectedVersion
-    const expectedVersion = data._version as number | undefined;
+    const expectedVersion = normalizedData._version as number | undefined;
     const conditions = [eq(idCol, id), ...this.buildBaseConditions(table, options)];
 
     if (versionCol && expectedVersion !== undefined) {

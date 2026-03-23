@@ -25,6 +25,10 @@ export const capabilityCategoryEnum = z.enum([
 // ── Extension manifest (declared, not runtime) ──────
 
 const extensionManifestSchema = z.object({
+  /** Schema names this capability provides */
+  schemas: z.array(z.string()).optional(),
+  /** Action names this capability provides */
+  actions: z.array(z.string()).optional(),
   /** Custom field type names this capability registers */
   fieldTypes: z.array(z.string()).optional(),
   /** Custom view type names */
@@ -62,6 +66,16 @@ export const capabilityMetadataSchema = z.object({
   dependencies: z.array(z.string()).optional(),
   /** Which extension points this capability uses (declarative manifest) */
   extensions: extensionManifestSchema.optional(),
+  /** Author name or organization */
+  author: z.string().optional(),
+  /** SPDX license identifier */
+  license: z.string().optional(),
+  /** Repository URL */
+  repository: z.string().url().optional(),
+  /** Main entry point (default: "src/index.ts") */
+  main: z.string().optional().default("src/index.ts"),
+  /** UI entry point for capabilities that provide frontend components */
+  ui: z.string().optional(),
   /** Compatibility constraints */
   linchkit: z
     .object({

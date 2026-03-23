@@ -23,10 +23,17 @@ const validFull = {
   description: "Model Context Protocol transport for LinchKit",
   dependencies: ["@linchkit/cap-auth"],
   extensions: {
+    schemas: ["mcp_connections"],
+    actions: ["mcp:connect", "mcp:disconnect"],
     transports: ["mcp"],
     services: ["mcp-client"],
     commands: ["mcp:serve"],
   },
+  author: "LinchKit Team",
+  license: "MIT",
+  repository: "https://github.com/linchkit/cap-adapter-mcp",
+  main: "src/index.ts",
+  ui: "ui/index.ts",
   linchkit: {
     minVersion: "0.1.0",
   },
@@ -45,7 +52,14 @@ describe("capabilityMetadataSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.extensions?.transports).toEqual(["mcp"]);
+      expect(result.data.extensions?.schemas).toEqual(["mcp_connections"]);
+      expect(result.data.extensions?.actions).toEqual(["mcp:connect", "mcp:disconnect"]);
       expect(result.data.linchkit?.minVersion).toBe("0.1.0");
+      expect(result.data.author).toBe("LinchKit Team");
+      expect(result.data.license).toBe("MIT");
+      expect(result.data.repository).toBe("https://github.com/linchkit/cap-adapter-mcp");
+      expect(result.data.main).toBe("src/index.ts");
+      expect(result.data.ui).toBe("ui/index.ts");
     }
   });
 
@@ -122,6 +136,45 @@ describe("capabilityMetadataSchema", () => {
         type: t,
       });
       expect(result.success).toBe(true);
+    }
+  });
+
+  it("defaults main to 'src/index.ts' when omitted", () => {
+    const result = capabilityMetadataSchema.safeParse(validMinimal);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.main).toBe("src/index.ts");
+    }
+  });
+
+  it("rejects invalid repository URL", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      repository: "not-a-url",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid repository URL", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      repository: "https://github.com/linchkit/cap-auth",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts extensions with schemas and actions", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      extensions: {
+        schemas: ["users", "sessions"],
+        actions: ["auth:login", "auth:logout"],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.extensions?.schemas).toEqual(["users", "sessions"]);
+      expect(result.data.extensions?.actions).toEqual(["auth:login", "auth:logout"]);
     }
   });
 

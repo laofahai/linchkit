@@ -265,4 +265,108 @@ describe("generateDrizzleTable", () => {
     const table = generateDrizzleTable(simpleSchema, { tablePrefix: "app" });
     expect(getTableName(table)).toBe("app_task");
   });
+
+  // ── Translatable field tests ──────────────────────────────
+
+  test("translatable string field generates jsonb column", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "name");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+    expect(col?.notNull).toBe(true);
+  });
+
+  test("translatable text field generates jsonb column", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        description: { type: "text", translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "description");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+  });
+
+  test("translatable enum field generates jsonb column", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        category_label: {
+          type: "enum",
+          options: [{ value: "a" }, { value: "b" }],
+          translatable: true,
+        },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "category_label");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+  });
+
+  test("non-translatable fields remain unchanged alongside translatable ones", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+        sku: { type: "string", required: true, unique: true },
+        description: { type: "text", translatable: true },
+        price: { type: "number", required: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+
+    // Translatable fields → jsonb
+    const nameCol = getColumn(table, "name");
+    expect(nameCol?.columnType).toBe("PgJsonb");
+    expect(nameCol?.notNull).toBe(true);
+
+    const descCol = getColumn(table, "description");
+    expect(descCol?.columnType).toBe("PgJsonb");
+    expect(descCol?.notNull).toBe(false);
+
+    // Non-translatable fields → normal types
+    const skuCol = getColumn(table, "sku");
+    expect(skuCol?.columnType).toBe("PgVarchar");
+    expect(skuCol?.notNull).toBe(true);
+    expect(skuCol?.isUnique).toBe(true);
+
+    const priceCol = getColumn(table, "price");
+    expect(priceCol?.columnType).toBe("PgNumeric");
+    expect(priceCol?.notNull).toBe(true);
+  });
+
+  test("translatable field with unique constraint is preserved", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        slug: { type: "string", translatable: true, unique: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "slug");
+    expect(col?.columnType).toBe("PgJsonb");
+    expect(col?.isUnique).toBe(true);
+  });
+
+  test("translatable flag on non-text type (e.g. number) is ignored", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        price: { type: "number", translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "price");
+    // number is not in TRANSLATABLE_FIELD_TYPES, so stays numeric
+    expect(col?.columnType).toBe("PgNumeric");
+  });
 });
