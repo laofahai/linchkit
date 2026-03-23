@@ -122,8 +122,8 @@ export class EventBus {
       // Sort by priority (lower number = higher priority)
       matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
 
-      // Build handler context
-      const ctx = this.createHandlerContext();
+      // Build handler context, propagating tenant scope to chained events
+      const ctx = this.createHandlerContext(event.tenantId);
 
       // Execute handlers
       for (const handler of matched) {
@@ -177,8 +177,9 @@ export class EventBus {
     };
   }
 
-  /** Create a minimal EventHandlerContext for handler execution */
-  protected createHandlerContext(): EventHandlerContext {
+  /** Create a minimal EventHandlerContext for handler execution.
+   *  Accepts optional tenantId to propagate tenant scope to chained events. */
+  protected createHandlerContext(tenantId?: string): EventHandlerContext {
     return {
       execute: () => {
         throw new Error("execute() is not wired");
@@ -192,6 +193,7 @@ export class EventBus {
           actor: { type: "system", id: "event-bus" },
           executionId: crypto.randomUUID(),
           payload,
+          tenantId,
         };
         // Fire-and-forget re-emission
         this.emit(record).catch(() => {

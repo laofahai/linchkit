@@ -83,6 +83,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
       timestamp: row.createdAt,
       actor: { type: "system", id: "outbox-worker" },
       executionId: row.sourceExecutionId ?? "",
+      tenantId: row.tenantId ?? undefined,
       payload,
     };
   }
