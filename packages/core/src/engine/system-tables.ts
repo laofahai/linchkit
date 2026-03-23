@@ -81,8 +81,13 @@ export const eventsTable = pgTable("_linchkit_events", {
   processedAt: timestamp("processed_at", { mode: "date" }),
   status: eventStatusEnum("status").notNull().default("pending"),
   errorMessage: text("error_message"),
+  /** Number of retry attempts so far (0 = first attempt) */
+  retryCount: integer("retry_count").notNull().default(0),
+  /** When to next attempt processing (null = immediate or no retry scheduled) */
+  nextRetryAt: timestamp("next_retry_at", { mode: "date" }),
 }, (table) => [
   index("idx_events_type_status").on(table.eventType, table.status),
+  index("idx_events_retry").on(table.status, table.nextRetryAt),
 ]);
 
 // ── Approval records table ──────────────────────────────────

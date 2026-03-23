@@ -48,6 +48,7 @@ export const capAdapterServer = defineCapability({
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
             executor: ctx.executor,
             dataProvider: ctx.dataProvider,
+            executionLogger: ctx.executionLogger,
           });
 
           // Read port/host from config
@@ -63,6 +64,7 @@ export const capAdapterServer = defineCapability({
             port,
             executor: ctx.executor,
             commandLayer: ctx.commandLayer,
+            executionLogger: ctx.executionLogger,
             schemaRegistry: ctx.schemaRegistry,
             views: viewsMap,
             // Extract tenant ID from X-Tenant-ID header.

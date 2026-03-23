@@ -25,18 +25,26 @@ import type {
 import {
   ActionRegistry,
   createActionExecutor,
+  createApprovalEngine,
+  createApprovalVerifier,
   createCommandLayer,
   createEventBus,
+  InMemoryApprovalStore,
+  InMemoryExecutionLogger,
   resolveEnvVars,
   SchemaRegistry,
 } from "@linchkit/core";
 import {
   closeDatabase,
   createDatabase,
+  createOutboxWorker,
   createPersistentEventBus,
+  DrizzleApprovalStore,
   DrizzleDataProvider,
+  DrizzleExecutionLogger,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
+  type OutboxWorker,
   TableRegistry,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
@@ -249,26 +257,57 @@ export const devCommand = defineCommand({
     }
 
     // Build minimal runtime context for transports.
-    // The local executor is a thin wrapper — each transport creates its own
-    // runtime context with the appropriate DataProvider (or InMemoryStore fallback).
-    // We create a minimal in-memory store here for the dev executor.
     const devDataProvider: DataProvider = dataProvider ?? createDevFallbackProvider();
+
+    // Create execution logger — Drizzle-backed when DB is available
+    const executionLogger = dbInstance
+      ? new DrizzleExecutionLogger(dbInstance)
+      : new InMemoryExecutionLogger();
+    console.log(`[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`);
+
+    // Create approval store — Drizzle-backed when DB is available
+    const approvalStore = dbInstance
+      ? new DrizzleApprovalStore(dbInstance)
+      : new InMemoryApprovalStore();
+    console.log(`[linch] Using ${dbInstance ? "DrizzleApprovalStore" : "InMemoryApprovalStore"}`);
+
     const executor = createActionExecutor({
       dataProvider: devDataProvider,
+      executionLogger,
     });
     for (const action of actionRegistry.getAll()) {
       executor.registry.register(action);
     }
-    const commandLayer = createCommandLayer({ executor });
+    const commandLayer = createCommandLayer({
+      executor,
+      verifyApproval: createApprovalVerifier(approvalStore),
+    });
 
     // Create event bus — use PersistentEventBus when database is available
-    const { bus: eventBus } = dbInstance ? createPersistentEventBus(dbInstance) : createEventBus();
+    const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
+      ? createPersistentEventBus(dbInstance)
+      : createEventBus();
 
-    if (dbInstance) {
-      console.log("[linch] Using PersistentEventBus (events persisted to database)");
+    // Start OutboxWorker for reliable event retry when DB is available
+    let outboxWorker: OutboxWorker | undefined;
+    if (dbInstance && eventHandlerRegistry) {
+      outboxWorker = createOutboxWorker({
+        db: dbInstance,
+        registry: eventHandlerRegistry,
+      });
+      outboxWorker.start();
+      console.log("[linch] Using PersistentEventBus + OutboxWorker (events persisted to database)");
     } else {
       console.log("[linch] Using in-memory EventBus");
     }
+
+    // Create approval engine — wired with event bus and command layer for re-execution
+    const approvalEngine = createApprovalEngine({
+      store: approvalStore,
+      eventBus,
+      commandLayer,
+      enforceAssignee: false, // M0b: not enforced yet
+    });
 
     const transportCtx: TransportContext = {
       commandLayer,
@@ -282,6 +321,8 @@ export const devCommand = defineCommand({
       config: config as Record<string, unknown>,
       dataProvider: devDataProvider,
       eventBus,
+      executionLogger,
+      approvalEngine,
     };
 
     // Start all transports
@@ -318,6 +359,9 @@ export const devCommand = defineCommand({
         } catch {
           // Ignore shutdown errors
         }
+      }
+      if (outboxWorker) {
+        await outboxWorker.stop();
       }
       if (usingDatabase) {
         await closeDatabase();

@@ -21,6 +21,8 @@ export * as drizzleSchema from "./engine/drizzle-schema";
 export { generateDrizzleSchemaFile } from "./engine/generate-drizzle-schema";
 // Programmatic migration runner
 export { type MigrateOptions, runMigrations } from "./engine/migrate";
+// Outbox worker — reliable event retry with exponential backoff
+export { createOutboxWorker, type OutboxWorker, type OutboxWorkerOptions } from "./engine/outbox-worker";
 // Persistent event bus (requires database)
 export { createPersistentEventBus, PersistentEventBus } from "./engine/persistent-event-bus";
 // Schema-to-Drizzle generator

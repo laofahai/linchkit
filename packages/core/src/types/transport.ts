@@ -7,10 +7,12 @@
  */
 
 import type { ActionExecutor, DataProvider } from "../engine/action-engine";
+import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { EventBus } from "../engine/event-bus";
 import type { SchemaRegistry } from "../engine/schema-registry";
 import type { ActionDefinition } from "./action";
+import type { ExecutionLogger } from "./execution-log";
 import type { SchemaDefinition } from "./schema";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
@@ -31,6 +33,10 @@ export interface TransportContext {
   dataProvider?: DataProvider;
   /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */
   eventBus?: EventBus;
+  /** Execution logger — DrizzleExecutionLogger when DB is available, InMemory otherwise */
+  executionLogger?: ExecutionLogger;
+  /** Approval engine — wired with DrizzleApprovalStore when DB is available */
+  approvalEngine?: ApprovalEngine;
 }
 
 /** Lifecycle handle returned by transport factory */
