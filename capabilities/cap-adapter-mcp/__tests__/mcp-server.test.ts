@@ -83,7 +83,7 @@ describe("createMcpAdapter", () => {
 
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -107,7 +107,7 @@ describe("createMcpAdapter", () => {
 
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -127,7 +127,7 @@ describe("createMcpAdapter", () => {
 
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -167,7 +167,7 @@ describe("createMcpAdapter", () => {
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -189,7 +189,7 @@ describe("createMcpAdapter", () => {
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -209,7 +209,7 @@ describe("createMcpAdapter", () => {
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -232,7 +232,7 @@ describe("createMcpAdapter", () => {
 
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -252,7 +252,7 @@ describe("createMcpAdapter", () => {
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -270,7 +270,7 @@ describe("createMcpAdapter", () => {
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
-    const server = await createMcpAdapter({
+    const { server } = await createMcpAdapter({
       commandLayer,
       schemaRegistry,
       actionRegistry,
@@ -278,5 +278,100 @@ describe("createMcpAdapter", () => {
 
     const resources = getResources(server);
     expect(resources["linchkit://schemas"]).toBeDefined();
+  });
+});
+
+describe("createMcpAdapter — bearer token auth", () => {
+  test("authEnabled is false when no bearerToken is provided", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { authEnabled, validateAuth } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    expect(authEnabled).toBe(false);
+    // When no token is configured, any token (or none) passes
+    expect(validateAuth(undefined)).toBe(true);
+    expect(validateAuth("anything")).toBe(true);
+  });
+
+  test("authEnabled is false when bearerToken is empty string", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { authEnabled, validateAuth } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      bearerToken: "",
+    });
+
+    expect(authEnabled).toBe(false);
+    expect(validateAuth(undefined)).toBe(true);
+  });
+
+  test("authEnabled is true when bearerToken is provided", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { authEnabled } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      bearerToken: "my-secret-token",
+    });
+
+    expect(authEnabled).toBe(true);
+  });
+
+  test("validateAuth rejects missing token when auth is enabled", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { validateAuth } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      bearerToken: "my-secret-token",
+    });
+
+    expect(validateAuth(undefined)).toBe(false);
+  });
+
+  test("validateAuth rejects wrong token when auth is enabled", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { validateAuth } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      bearerToken: "my-secret-token",
+    });
+
+    expect(validateAuth("wrong-token")).toBe(false);
+  });
+
+  test("validateAuth accepts correct token when auth is enabled", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { validateAuth } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      bearerToken: "my-secret-token",
+    });
+
+    expect(validateAuth("my-secret-token")).toBe(true);
   });
 });

@@ -29,13 +29,14 @@ export const capAdapterMcp = defineCapability({
           );
 
           // Create MCP server wired to LinchKit registries
-          const mcpServer = await createMcpAdapter({
+          const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
             schemaRegistry: ctx.schemaRegistry,
             actionRegistry: ctx.executor.registry,
           });
 
           // Create stdio transport instance
+          // stdio transport: process-level security — no token enforcement needed
           const stdioTransport = new StdioServerTransport();
 
           return {

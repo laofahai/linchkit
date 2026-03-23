@@ -39,8 +39,30 @@ export interface McpAdapterOptions {
   graphqlEndpoint?: string;
   name?: string;
   version?: string;
-  /** Simple bearer token for Phase 1 auth */
+  /**
+   * Bearer token for Phase 1 auth.
+   *
+   * Auth strategy by transport:
+   * - **stdio**: Process-level security — the token is stored but not enforced
+   *   (the client process is already trusted).
+   * - **SSE**: HTTP Bearer header validation — enforced at the HTTP transport
+   *   level (see M1b 1.4).
+   */
   bearerToken?: string;
+}
+
+/**
+ * Result of createMcpAdapter — the McpServer plus auth utilities.
+ */
+export interface McpAdapterResult {
+  server: McpServer;
+  /**
+   * Validate a bearer token against the configured token.
+   * Returns true if auth passes (no token configured = always passes).
+   */
+  validateAuth: (token: string | undefined) => boolean;
+  /** Whether bearer token auth is configured */
+  authEnabled: boolean;
 }
 
 /** Default actor for MCP clients */
@@ -52,7 +74,7 @@ const MCP_ACTOR: Actor = {
 };
 
 /** Create an MCP server adapter wired to the LinchKit runtime */
-export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpServer> {
+export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpAdapterResult> {
   const {
     commandLayer,
     schemaRegistry,
@@ -62,9 +84,19 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpS
     graphqlEndpoint,
     name = "linchkit",
     version = "1.0.0",
+    bearerToken,
   } = options;
 
   const server = new McpServer({ name, version });
+
+  // Build auth validator.
+  // When no token is configured, auth is not enforced (open access).
+  // When a token is configured, the provided token must match exactly.
+  const authEnabled = typeof bearerToken === "string" && bearerToken.length > 0;
+  const validateAuth = (token: string | undefined): boolean => {
+    if (!authEnabled) return true;
+    return token === bearerToken;
+  };
 
   // Register action tools
   const actionTools = generateActionTools(actionRegistry);
@@ -107,7 +139,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpS
   // Register resources
   registerResources(server, schemaRegistry);
 
-  return server;
+  return { server, validateAuth, authEnabled };
 }
 
 /** Build a Zod shape from FieldDefinition input record */

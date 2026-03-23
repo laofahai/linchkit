@@ -56,7 +56,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
       // Lazy import to avoid loading heavy deps at registration time
       const { createMcpAdapter } = await import("./mcp-server");
 
-      const mcpServer = await createMcpAdapter({
+      const { server: mcpServer, authEnabled } = await createMcpAdapter({
         commandLayer: ctx.commandLayer,
         schemaRegistry: ctx.schemaRegistry,
         actionRegistry: ctx.executor.registry,
@@ -66,11 +66,19 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
       });
 
       if (transportMode === "stdio") {
+        // stdio transport: process-level security — bearer token is not enforced
+        // (the client process is already trusted via OS-level access control).
         const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
         const stdioTransport = new StdioServerTransport();
 
         return {
           start: async () => {
+            if (authEnabled) {
+              console.log(
+                "[cap-adapter-mcp] Bearer token configured but stdio transport relies on process-level security. " +
+                  "Token will be enforced when SSE transport is used (M1b 1.4).",
+              );
+            }
             await mcpServer.connect(stdioTransport);
             console.log("[cap-adapter-mcp] MCP server running on stdio");
           },
@@ -81,9 +89,16 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         };
       }
 
-      // SSE transport — placeholder for future implementation
+      // SSE transport — placeholder for future implementation (M1b 1.4)
+      // When SSE is implemented, validateAuth will be called on incoming HTTP
+      // requests to enforce bearer token authentication at the transport level.
       return {
         start: () => {
+          if (authEnabled) {
+            console.log(
+              "[cap-adapter-mcp] Bearer token configured. SSE auth enforcement is planned for M1b 1.4.",
+            );
+          }
           console.log("[cap-adapter-mcp] MCP SSE transport not yet implemented");
         },
         stop: () => {
