@@ -81,6 +81,8 @@ export interface MiddlewareRegistration {
   order?: number;
   /** Koa-style handler */
   handler: MiddlewareHandler;
+  /** If true, post-action failure is surfaced as a warning on the result */
+  critical?: boolean;
 }
 
 // ── Anonymous actor default ─────────────────────────────────
@@ -370,18 +372,33 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       };
     }
 
-    // Run post-action middlewares
+    // Run post-action middlewares individually to track critical failures
     const postMiddlewares = getSlotMiddlewares("post-action");
     if (postMiddlewares.length > 0) {
-      try {
-        const runPost = compose(postMiddlewares.map((m) => m.handler));
-        await runPost(ctx);
-      } catch (err) {
-        // Post-action errors don't affect the action result (#5)
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        logger.warn(
-          `[CommandLayer] post-action middleware error (action=${ctx.command}): ${errorMsg}`,
-        );
+      for (const mw of postMiddlewares) {
+        try {
+          await mw.handler(ctx, async () => {});
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          if (mw.critical) {
+            // Critical post-action failure: log as error and add warning to result
+            logger.error(
+              `[CommandLayer] critical post-action middleware "${mw.name}" failed (action=${ctx.command}): ${errorMsg}`,
+            );
+            if (ctx.result) {
+              // biome-ignore lint/suspicious/noExplicitAny: ActionResult shape varies
+              const warnings = ((ctx.result as any).warnings as string[]) ?? [];
+              warnings.push(`Post-action "${mw.name}" failed: ${errorMsg}`);
+              // biome-ignore lint/suspicious/noExplicitAny: ActionResult shape varies
+              (ctx.result as any).warnings = warnings;
+            }
+          } else {
+            // Non-critical: log warn and continue
+            logger.warn(
+              `[CommandLayer] post-action middleware "${mw.name}" error (action=${ctx.command}): ${errorMsg}`,
+            );
+          }
+        }
       }
     }
 

@@ -12,6 +12,8 @@ export {
   type DataQueryOptions,
   type ExecuteOptions,
   type ExecutionChannel,
+  type PendingEvent,
+  type TransactionManager,
 } from "./action-engine";
 // AI service
 export {
@@ -105,6 +107,8 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
+// Trace context
+export { getCurrentTrace, getTraceDepth, type TraceState, withTrace } from "./trace-context";
 // Translatable field helpers
 export {
   getTranslatableFields,

@@ -19,6 +19,7 @@ import type { Logger } from "../types/logger";
 import { consoleLogger } from "./console-logger";
 import { EventBus, EventHandlerRegistry, matchesFilter } from "./event-bus";
 import { eventsTable } from "./system-tables";
+import { withTrace } from "./trace-context";
 
 const DEFAULT_PRIORITY = 100;
 
@@ -116,7 +117,7 @@ export class PersistentEventBus extends EventBus {
         if (handler.async) {
           // Collect async handler promises to await later
           asyncPromises.push(
-            handler.handler(eventCopy, ctx).catch((err) => {
+            (withTrace(() => handler.handler(eventCopy, ctx)) as Promise<void>).catch((err) => {
               this.logger.warn(
                 `[PersistentEventBus] Async handler "${handler.name}" failed for event "${event.type}": ${err}`,
               );
@@ -126,7 +127,7 @@ export class PersistentEventBus extends EventBus {
         } else {
           // Sync: execute in sequence, capture error
           try {
-            await handler.handler(eventCopy, ctx);
+            await withTrace(() => handler.handler(eventCopy, ctx));
           } catch (err) {
             syncError = err;
           }

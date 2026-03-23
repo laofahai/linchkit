@@ -378,12 +378,16 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         executionId: result.executionId,
       });
     } else {
+      const errorMessage =
+        typeof result.data === "object" && result.data !== null
+          ? (result.data as Record<string, unknown>).error?.toString()
+          : String(result.data);
+      console.warn(
+        `[ApprovalEngine] Re-execution failed for approval "${input.approvalId}": ${errorMessage}`,
+      );
       await store.update(input.approvalId, {
         executionId: result.executionId,
-        executionError:
-          typeof result.data === "object" && result.data !== null
-            ? (result.data as Record<string, unknown>).error?.toString()
-            : String(result.data),
+        executionError: errorMessage,
       });
     }
 

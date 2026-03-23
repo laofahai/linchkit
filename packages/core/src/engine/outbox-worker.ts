@@ -131,18 +131,27 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
   async function processBatch(): Promise<number> {
     const now = new Date();
 
-    // Find events eligible for retry:
-    // 1. status = 'failed' AND retryCount < maxRetries AND (nextRetryAt IS NULL OR nextRetryAt <= now)
-    // 2. status = 'pending' AND createdAt is old (stuck events) — nextRetryAt IS NULL means immediate
+    // Find events eligible for processing:
+    // 1. status = 'pending' — new events from Transactional Outbox
+    // 2. status = 'failed' AND retryCount < maxRetries AND nextRetryAt ready — retries
+    // 3. status = 'processing' AND stuck for > 5 minutes — crash recovery
+    const stuckThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+
     const rows = await db
       .select()
       .from(eventsTable)
       .where(
-        // Failed events ready for retry
-        and(
-          eq(eventsTable.status, "failed"),
-          lte(eventsTable.retryCount, maxRetries - 1),
-          or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
+        or(
+          // New pending events (from Transactional Outbox)
+          eq(eventsTable.status, "pending"),
+          // Failed events ready for retry
+          and(
+            eq(eventsTable.status, "failed"),
+            lte(eventsTable.retryCount, maxRetries - 1),
+            or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
+          ),
+          // Stuck processing events (worker crashed — release after 5 min)
+          and(eq(eventsTable.status, "processing"), lte(eventsTable.createdAt, stuckThreshold)),
         ),
       )
       .limit(batchSize);

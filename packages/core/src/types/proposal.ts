@@ -38,7 +38,14 @@ export interface ProposalAuthor {
 
 // ── Proposal change ──────────────────────────────────────
 
-export type ProposalChangeTarget = "schema" | "action" | "rule" | "view" | "state" | "event";
+export type ProposalChangeTarget =
+  | "schema"
+  | "action"
+  | "rule"
+  | "view"
+  | "state"
+  | "event"
+  | "flow";
 
 export type ProposalChangeOperation = "create" | "update" | "delete";
 

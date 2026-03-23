@@ -442,8 +442,10 @@ function registerBuiltinTools(
 
       // Block mutation/subscription operations — MCP writes must go through action tools
       // which pass through the CommandLayer middleware pipeline.
-      const trimmed = args.query.replace(/^\s+/, "");
-      if (/^mutation\b/i.test(trimmed) || /^subscription\b/i.test(trimmed)) {
+      // Strip GraphQL comments and leading whitespace before checking the operation type,
+      // since queries may start with comments, whitespace, or fragment definitions.
+      const stripped = args.query.replace(/#[^\n]*\n/g, "").replace(/^\s+/, "");
+      if (/^(mutation|subscription)\b/i.test(stripped)) {
         return {
           content: [
             {

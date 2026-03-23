@@ -17,6 +17,7 @@ const VALID_CATEGORIES = [
   "integration",
   "ui",
   "utility",
+  "starter",
 ] as const;
 
 function capabilityJsonTemplate(name: string, type: string, category: string): string {
@@ -37,10 +38,18 @@ function capabilityJsonTemplate(name: string, type: string, category: string): s
   );
 }
 
+/** Convert a capability name to a valid TypeScript identifier */
+function toSafeIdentifier(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_]/g, "_");
+}
+
 function srcIndexTemplate(name: string): string {
+  // Use sanitized name for the variable to avoid invalid TS identifiers
+  // e.g. "cap-inventory" → "cap_inventory"
+  const safeId = toSafeIdentifier(name);
   return `import type { CapabilityDefinition } from "@linchkit/core";
 
-export const capability: CapabilityDefinition = {
+export const ${safeId}: CapabilityDefinition = {
   name: "${name}",
   schemas: [],
   actions: [],

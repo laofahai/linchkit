@@ -58,6 +58,19 @@ export class DrizzleDataProvider implements DataProvider {
     }
   }
 
+  /** Get all registered schema definitions (used for creating transactional copies). */
+  getSchemaDefinitions(): SchemaDefinition[] {
+    return Array.from(this.schemaDefinitions.values());
+  }
+
+  /**
+   * Create a copy of this provider backed by a different database connection.
+   * Used to create transactional copies (tx has the same API as db).
+   */
+  withConnection(conn: PostgresJsDatabase): DrizzleDataProvider {
+    return new DrizzleDataProvider(conn, this.tableRegistry, this.getSchemaDefinitions());
+  }
+
   /** Resolve table from registry; throws if not registered. */
   private resolveTable(schemaName: string): PgTable {
     const table = this.tableRegistry.getTable(schemaName);

@@ -110,7 +110,8 @@ describe("linch create capability", () => {
     const content = readFileSync(resolve(capDir, "src/index.ts"), "utf-8");
 
     expect(content).toContain('import type { CapabilityDefinition } from "@linchkit/core"');
-    expect(content).toContain("export const capability: CapabilityDefinition");
+    // Variable name is derived from sanitized capability name (hyphens → underscores)
+    expect(content).toContain("cap_check: CapabilityDefinition");
     expect(content).toContain('"cap-check"');
   });
 

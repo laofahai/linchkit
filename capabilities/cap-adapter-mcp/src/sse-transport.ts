@@ -130,8 +130,10 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
   return {
     httpServer,
     start: async () => {
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        httpServer.on("error", reject);
         httpServer.listen(port, () => {
+          httpServer.removeListener("error", reject);
           if (authEnabled) {
             console.log("[cap-adapter-mcp] SSE transport: bearer token auth enabled");
           }

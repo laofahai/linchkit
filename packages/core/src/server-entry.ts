@@ -17,6 +17,8 @@ export { DrizzleDataProvider, type I18nQueryOptions } from "./engine/drizzle-dat
 export { DrizzleExecutionLogger } from "./engine/drizzle-execution-logger";
 // Drizzle schema (system tables for drizzle-kit migrations)
 export * as drizzleSchema from "./engine/drizzle-schema";
+// Drizzle transaction manager (Transactional Outbox pattern)
+export { DrizzleTransactionManager } from "./engine/drizzle-transaction-manager";
 // Drizzle schema file generator (bridge: SchemaDefinition[] → .ts file for drizzle-kit)
 export { generateDrizzleSchemaFile } from "./engine/generate-drizzle-schema";
 // Programmatic migration runner

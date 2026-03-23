@@ -42,6 +42,7 @@ import {
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
+  DrizzleTransactionManager,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   type OutboxWorker,
@@ -273,8 +274,18 @@ export const devCommand = defineCommand({
       : new InMemoryApprovalStore();
     console.log(`[linch] Using ${dbInstance ? "DrizzleApprovalStore" : "InMemoryApprovalStore"}`);
 
+    // Create transaction manager when DB is available (Transactional Outbox pattern)
+    const transactionManager =
+      dbInstance && dataProvider instanceof DrizzleDataProvider
+        ? new DrizzleTransactionManager(dbInstance, dataProvider)
+        : undefined;
+    if (transactionManager) {
+      console.log("[linch] Using DrizzleTransactionManager (Transactional Outbox)");
+    }
+
     const executor = createActionExecutor({
       dataProvider: devDataProvider,
+      transactionManager,
       executionLogger,
     });
     for (const action of actionRegistry.getAll()) {

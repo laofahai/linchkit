@@ -77,6 +77,8 @@ export interface ExecuteOptions {
   skipRules?: string[];
   /** Approval ID that authorized this re-execution */
   approvalId?: string;
+  /** Idempotency key — if provided and an execution with this key already succeeded, return cached result */
+  idempotencyKey?: string;
   /** Internal: current recursion depth for child action execution */
   _depth?: number;
 }
@@ -245,10 +247,46 @@ function runPreValidation(action: ActionDefinition, ctx: ActionContext): Validat
   return { valid: true };
 }
 
+// ── Transactional event collection ──────────────────────────
+
+/** Data needed to persist an event within a transaction */
+export interface PendingEvent {
+  type: string;
+  payload: Record<string, unknown>;
+  tenantId?: string;
+  sourceAction?: string;
+  sourceExecutionId?: string;
+}
+
+/**
+ * Abstraction for running action handlers within database transactions.
+ * Implementations handle DB-specific transaction management.
+ *
+ * When a TransactionManager is provided, the executor wraps handler
+ * execution in a transaction. After the handler succeeds, pendingEvents
+ * collected via ctx.emit() are written to the events table within the
+ * same transaction — guaranteeing atomicity (Transactional Outbox pattern).
+ */
+export interface TransactionManager {
+  /**
+   * Execute fn within a database transaction.
+   * @param fn - Receives a transactional DataProvider; all data ops use the same tx.
+   * @param pendingEvents - Events collected during handler execution; persisted in the same tx.
+   * @returns The value returned by fn.
+   */
+  runInTransaction<T>(
+    fn: (txDataProvider: DataProvider) => Promise<T>,
+    pendingEvents: PendingEvent[],
+  ): Promise<T>;
+}
+
 // ── Factory ─────────────────────────────────────────────────
 
 export interface ActionExecutorOptions {
   dataProvider: DataProvider;
+  /** Transaction manager for wrapping handler execution in DB transactions.
+   *  When provided, actions run within a transaction and events are persisted atomically. */
+  transactionManager?: TransactionManager;
   stateMachine?: StateMachine;
   executionLogger?: ExecutionLogger;
   /** AI service instance — optional, noop if not provided */
@@ -270,7 +308,7 @@ export interface ActionExecutorOptions {
  */
 export function createActionExecutor(options: ActionExecutorOptions): ActionExecutor {
   const registry = new ActionRegistry();
-  const { dataProvider, stateMachine, executionLogger, aiService } = options;
+  const { dataProvider, transactionManager, stateMachine, executionLogger, aiService } = options;
 
   /** Helper: build and log an execution entry */
   async function logExecution(
@@ -313,6 +351,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         } as T,
         executionId,
       };
+    }
+
+    // Step 0b: Idempotency check
+    const idempotencyKey = execOptions?.idempotencyKey;
+    if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
+      const existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
+      if (existing && existing.status === "succeeded") {
+        return {
+          success: true,
+          data: existing.output as T,
+          executionId: existing.id,
+        };
+      }
     }
 
     // Step 1: Look up action
@@ -406,6 +457,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Build ActionContext
     const childExecutionIds: string[] = [];
+    const pendingEvents: PendingEvent[] = [];
     const noopAi: AIService = {
       complete: () => {
         throw new Error(
@@ -419,26 +471,37 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         ? { tenantId: execOptions?.tenantId, locale: execOptions?.locale }
         : undefined;
 
+    // Mutable provider reference — reassigned inside transaction callback
+    // so that ctx closures automatically use the transactional connection.
+    let activeProvider: DataProvider = dataProvider;
+
     const ctx: ActionContext = {
       input,
       actor,
       ai: aiService ?? noopAi,
       executionId,
       timestamp: startedAt,
-      get: (schema, id) => dataProvider.get(schema, id, queryOptions),
-      query: (schema, filter) => dataProvider.query(schema, filter, queryOptions),
-      create: (schema, data) => dataProvider.create(schema, data),
-      update: (schema, id, data) => dataProvider.update(schema, id, data, queryOptions),
-      delete: (schema, id) => dataProvider.delete(schema, id, queryOptions),
+      get: (schema, id) => activeProvider.get(schema, id, queryOptions),
+      query: (schema, filter) => activeProvider.query(schema, filter, queryOptions),
+      create: (schema, data) => activeProvider.create(schema, data),
+      update: (schema, id, data) => activeProvider.update(schema, id, data, queryOptions),
+      delete: (schema, id) => activeProvider.delete(schema, id, queryOptions),
       execute: async (childActionName, childInput) => {
         const childResult = await execute(childActionName, childInput, actor, {
+          ...execOptions,
           _depth: currentDepth + 1,
         });
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
       },
-      emit: (_eventType, _payload) => {
-        // M0b: event emission is a no-op
+      emit: (eventType, payload) => {
+        pendingEvents.push({
+          type: eventType,
+          payload,
+          tenantId: execOptions?.tenantId,
+          sourceAction: actionName,
+          sourceExecutionId: executionId,
+        });
       },
     };
 
@@ -545,34 +608,52 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 7: Execute
+    //
+    // When a TransactionManager is provided, the handler runs within a
+    // database transaction. Events collected via ctx.emit() are persisted
+    // to _linchkit_events in the same transaction (Transactional Outbox).
+    // On failure, both data changes and events roll back atomically.
     try {
       let resultData: unknown;
       let record: Record<string, unknown> | undefined;
 
-      if (action.handler) {
-        // Code-based action
-        resultData = await action.handler(ctx);
-      } else {
-        // Declarative action
-        const recordId = input.id as string | undefined;
+      /** Run the action handler or declarative logic against a given DataProvider */
+      const runHandler = async (dp: DataProvider): Promise<void> => {
+        activeProvider = dp;
+        if (action.handler) {
+          resultData = await action.handler(ctx);
+        } else {
+          // Declarative action
+          const recordId = input.id as string | undefined;
 
-        if (recordId) {
-          const updates: Record<string, unknown> = {};
+          if (recordId) {
+            const updates: Record<string, unknown> = {};
 
-          // Apply setFields
-          if (action.setFields) {
-            Object.assign(updates, action.setFields);
-          }
+            if (action.setFields) {
+              Object.assign(updates, action.setFields);
+            }
 
-          // Apply state transition
-          if (action.stateTransition) {
-            updates.status = action.stateTransition.to;
-          }
+            if (action.stateTransition) {
+              updates.status = action.stateTransition.to;
+            }
 
-          if (Object.keys(updates).length > 0) {
-            record = await dataProvider.update(action.schema, recordId, updates, queryOptions);
+            if (Object.keys(updates).length > 0) {
+              record = await dp.update(action.schema, recordId, updates, queryOptions);
+            }
           }
         }
+      };
+
+      // Use transaction when available and not explicitly disabled
+      const useTransaction = transactionManager && action.policy?.transaction !== false;
+
+      if (useTransaction) {
+        await transactionManager.runInTransaction(
+          (txProvider) => runHandler(txProvider),
+          pendingEvents,
+        );
+      } else {
+        await runHandler(dataProvider);
       }
 
       await logExecution({
@@ -585,6 +666,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "succeeded",
         stateTransition: stateTransitionRecord,
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
+        idempotencyKey,
         startedAt,
       });
 
@@ -595,6 +677,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      // On failure, pendingEvents were NOT persisted (transaction rolled back)
       await logExecution({
         id: executionId,
         action: actionName,

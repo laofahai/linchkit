@@ -10,6 +10,7 @@
  * - Validation is Phase 1 static checks only
  */
 
+import { z } from "zod";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
 import type {
@@ -166,9 +167,27 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
         temperature: 0,
         responseFormat: {
           type: "json",
-          // We pass the schema shape via the Zod-like interface the AI service expects.
-          // In practice, the mock returns data directly; real calls use generateObject.
-          schema: undefined as never,
+          schema: z.object({
+            title: z.string(),
+            description: z.string(),
+            capability: z.string().optional(),
+            changes: z.array(
+              z.object({
+                type: z.enum(["create", "modify", "delete"]),
+                target: z.enum(["schema", "action", "rule", "flow", "view"]),
+                name: z.string(),
+                definition: z.record(z.string(), z.unknown()).optional(),
+                diff: z.string().optional(),
+              }),
+            ),
+            impact: z.object({
+              schemas: z.array(z.string()),
+              actions: z.array(z.string()),
+              rules: z.array(z.string()),
+              dependents: z.array(z.string()),
+              migrationRequired: z.boolean(),
+            }),
+          }),
         },
       });
 
@@ -177,9 +196,8 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
         ? (result.data as AIProposalResponse)
         : JSON.parse(result.content);
 
-      // Map AI response target "flow" to valid ProposalChangeTarget
+      // Map AI response target to ProposalChangeTarget (pass through as-is)
       const mapTarget = (t: string): ProposalChange["target"] => {
-        if (t === "flow") return "action"; // flows map to action target for now
         return t as ProposalChange["target"];
       };
 

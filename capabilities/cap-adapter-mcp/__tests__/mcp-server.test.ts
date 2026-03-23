@@ -436,10 +436,7 @@ describe("createMcpAdapter — query proxy security", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.query?.handler(
-      { query: "{ orders { id } }" },
-      {},
-    );
+    const result = await tools.query?.handler({ query: "{ orders { id } }" }, {});
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0]?.text);
@@ -453,11 +450,12 @@ describe("createMcpAdapter — query proxy security", () => {
 
     // Mock global fetch to simulate a successful GraphQL response
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: { orders: [{ id: "1" }] } }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    globalThis.fetch = mock(
+      async () =>
+        new Response(JSON.stringify({ data: { orders: [{ id: "1" }] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
 
     try {
@@ -469,10 +467,7 @@ describe("createMcpAdapter — query proxy security", () => {
       });
 
       const tools = getTools(server);
-      const result = await tools.query?.handler(
-        { query: "{ orders { id } }" },
-        {},
-      );
+      const result = await tools.query?.handler({ query: "{ orders { id } }" }, {});
 
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0]?.text);
@@ -488,11 +483,12 @@ describe("createMcpAdapter — query proxy security", () => {
     const commandLayer = createMockCommandLayer();
 
     const originalFetch = globalThis.fetch;
-    const mockFetchFn = mock(async () =>
-      new Response(JSON.stringify({ data: {} }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    const mockFetchFn = mock(
+      async () =>
+        new Response(JSON.stringify({ data: {} }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     );
     globalThis.fetch = mockFetchFn;
 

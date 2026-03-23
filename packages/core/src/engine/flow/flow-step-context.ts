@@ -17,8 +17,10 @@ export interface FlowStepContextDeps {
     execute: (
       actionName: string,
       input: Record<string, unknown>,
-      // biome-ignore lint/suspicious/noExplicitAny: ActionExecutor.execute has complex generic signature
-      options?: any,
+      options?: {
+        actor?: { type: string; id: string; name?: string };
+        tenantId?: string;
+      },
       // biome-ignore lint/suspicious/noExplicitAny: ActionExecutor returns ActionResult<T> with varying T
     ) => Promise<any>;
   };
@@ -169,7 +171,9 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
     },
 
     async executeAction(actionName, input) {
-      const result = await actionEngine.execute(actionName, input);
+      // Pass a system actor so the action engine can identify the caller
+      const systemActor = { type: "system", id: "flow-engine", name: "Flow Engine" };
+      const result = await actionEngine.execute(actionName, input, { actor: systemActor });
       // ActionExecutor returns ActionResult with { success, data, executionId }
       // Return the data as the step output
       if (typeof result === "object" && result !== null && "data" in result) {

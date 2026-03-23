@@ -9,6 +9,7 @@
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
 import { consoleLogger } from "./console-logger";
+import { withTrace } from "./trace-context";
 
 // ── Default priority ────────────────────────────────────────
 
@@ -132,14 +133,14 @@ export class EventBus {
 
         if (handler.async) {
           // Fire-and-forget: don't await, log errors
-          handler.handler(eventCopy, ctx).catch((err) => {
+          (withTrace(() => handler.handler(eventCopy, ctx)) as Promise<void>).catch((err) => {
             this.logger.warn(
               `[EventBus] Async handler "${handler.name}" failed for event "${event.type}": ${err}`,
             );
           });
         } else {
           // Sync: execute in sequence, propagate errors
-          await handler.handler(eventCopy, ctx);
+          await withTrace(() => handler.handler(eventCopy, ctx));
         }
       }
     } finally {

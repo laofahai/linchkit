@@ -48,12 +48,15 @@ export type {
   FlowStepContextDeps,
   MiddlewareHandler,
   MiddlewareRegistration,
+  PendingEvent,
   ProposalGeneratorDeps,
   RuleEvalInput,
   RuleEvalOptions,
   RuleEvalOutput,
   SlotName,
   StateMachine,
+  TraceState,
+  TransactionManager,
   ValidationContext,
   ZodGeneratorOptions,
 } from "./engine";
@@ -84,6 +87,8 @@ export {
   evaluateRules,
   generateZodSchema,
   getAvailableActions,
+  getCurrentTrace,
+  getTraceDepth,
   getTranslatableFields,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
@@ -103,6 +108,7 @@ export {
   transition,
   validatePhase1,
   validateProposal,
+  withTrace,
   wrapTranslatableValue,
 } from "./engine";
 // Error classes

@@ -100,6 +100,11 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
     return { items, total };
   }
 
+  getByIdempotencyKey(key: string): ExecutionLogEntry | null {
+    const entry = this.entries.find((e) => e.idempotencyKey === key);
+    return entry ? structuredClone(entry) : null;
+  }
+
   /** Clear all entries (useful for testing) */
   clear(): void {
     this.entries = [];

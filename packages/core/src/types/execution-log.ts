@@ -64,6 +64,9 @@ export interface ExecutionLogEntry {
   parentExecutionId?: string;
   childExecutionIds?: string[];
 
+  // Idempotency
+  idempotencyKey?: string;
+
   // Transport channel (e.g. "rest", "graphql", "mcp")
   channel?: string;
 
@@ -121,6 +124,9 @@ export interface ExecutionLogger {
 
   /** Get a single entry by id */
   getById(id: string): ExecutionLogEntry | undefined | Promise<ExecutionLogEntry | undefined>;
+
+  /** Look up a completed execution by idempotency key */
+  getByIdempotencyKey?(key: string): ExecutionLogEntry | null | Promise<ExecutionLogEntry | null>;
 
   /** Paginated query with filters */
   findMany(
