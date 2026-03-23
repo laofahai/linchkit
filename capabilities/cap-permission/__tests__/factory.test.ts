@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { PermissionRegistry } from "@linchkit/core";
+import { PermissionRegistry } from "@linchkit/core/server";
 import { createCapPermission } from "../src/factory";
 
 describe("createCapPermission", () => {

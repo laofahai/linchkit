@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ActionDefinition } from "@linchkit/core";
-import { ActionRegistry } from "@linchkit/core";
+import { ActionRegistry } from "@linchkit/core/server";
 import { generateActionTools, generateBuiltinTools } from "../src/tool-registry";
 
 function makeAction(overrides: Partial<ActionDefinition> = {}): ActionDefinition {

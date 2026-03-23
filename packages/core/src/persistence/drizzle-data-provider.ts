@@ -13,6 +13,7 @@
 import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import {
   ConflictError,
   LinchKitError,
@@ -20,14 +21,13 @@ import {
   SystemError,
   ValidationError,
 } from "../errors";
-import type { SchemaDefinition } from "../types/schema";
-import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
-import type { TableRegistry } from "./table-registry";
 import {
   getTranslatableFields,
   normalizeTranslatableValue,
   resolveTranslatableValue,
 } from "../schema/translatable";
+import type { SchemaDefinition } from "../types/schema";
+import type { TableRegistry } from "./table-registry";
 
 /** Extended query options that include locale for translatable field resolution */
 export interface I18nQueryOptions extends DataQueryOptions {

@@ -4,13 +4,13 @@
  * Re-exports schema registry, generators, and translatable helpers.
  */
 
+export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
 export {
   type DrizzleGeneratorOptions,
   generateDrizzleTable,
 } from "./schema-to-drizzle";
-export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
+export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
 export {
   getTranslatableFields,
   mergeTranslatableValue,

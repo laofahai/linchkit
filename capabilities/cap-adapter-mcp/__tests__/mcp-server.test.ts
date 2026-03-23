@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { ActionRegistry, createSchemaRegistry, defineAction, defineSchema } from "@linchkit/core";
+import { defineAction, defineSchema } from "@linchkit/core";
+import { ActionRegistry, createSchemaRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
 const testSchema = defineSchema({

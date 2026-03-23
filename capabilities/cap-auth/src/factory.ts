@@ -81,10 +81,7 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
           ),
         ),
         wireAction(registerAction, async (ctx) =>
-          provider.register(
-            ctx,
-            ctx.input as { name: string; email: string; password: string },
-          ),
+          provider.register(ctx, ctx.input as { name: string; email: string; password: string }),
         ),
       ]
     : [

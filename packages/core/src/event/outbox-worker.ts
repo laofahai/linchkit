@@ -10,12 +10,12 @@
 
 import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { consoleLogger } from "../observability/console-logger";
+import { withTraceId } from "../observability/trace-context";
+import { eventsTable } from "../persistence/system-tables";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
-import { consoleLogger } from "../observability/console-logger";
 import { type EventHandlerRegistry, matchesFilter } from "./event-bus";
-import { eventsTable } from "../persistence/system-tables";
-import { withTraceId } from "../observability/trace-context";
 
 const DEFAULT_PRIORITY = 100;
 

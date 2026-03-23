@@ -12,7 +12,7 @@ import type {
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
-import { consoleLogger } from "@linchkit/core";
+import { consoleLogger } from "@linchkit/core/server";
 import {
   GraphQLBoolean,
   GraphQLEnumType,

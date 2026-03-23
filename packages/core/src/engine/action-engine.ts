@@ -7,6 +7,7 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import { getCurrentTrace } from "../observability/trace-context";
 import type {
   ActionContext,
   ActionDefinition,
@@ -19,7 +20,6 @@ import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
-import { getCurrentTrace } from "../observability/trace-context";
 
 // ── DataProvider interface ──────────────────────────────────
 

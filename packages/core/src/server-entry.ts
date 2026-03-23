@@ -1,39 +1,154 @@
 /**
  * @linchkit/core/server — Server-only modules
  *
- * Database connection, Drizzle ORM, table registry, persistent event bus.
- * NOT safe for browser — requires Node/Bun runtime (postgres, Buffer).
+ * Runtime engines, database, Drizzle ORM, event bus, flow, observability, AI.
+ * NOT safe for browser — requires Node/Bun runtime.
  *
- * Usage: import { createDatabase, DrizzleDataProvider } from "@linchkit/core/server"
+ * Usage: import { createActionExecutor, SchemaRegistry } from "@linchkit/core/server"
  */
 
-// Database connection
-export { closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
-// Drizzle approval store (requires database)
-export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
-// Drizzle data provider
-export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
-// Drizzle execution logger (requires database)
-export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
-// Drizzle schema (system tables for drizzle-kit migrations)
-export * as drizzleSchema from "./persistence/drizzle-schema";
-// Drizzle transaction manager (Transactional Outbox pattern)
-export { DrizzleTransactionManager } from "./persistence/drizzle-transaction-manager";
-// Drizzle schema file generator (bridge: SchemaDefinition[] → .ts file for drizzle-kit)
+// === Engine: action, command, approval, state, rule, validation, permission, proposal ===
+
+export {
+  type ActionExecutor,
+  type ActionExecutorOptions,
+  ActionRegistry,
+  createActionExecutor,
+  type DataProvider,
+  type DataQueryOptions,
+  type ExecuteOptions,
+  type ExecutionChannel,
+  type PendingEvent,
+  type TransactionManager,
+} from "./engine/action-engine";
+
+export {
+  type ApprovalEngine,
+  type ApprovalEngineOptions,
+  type CreateApprovalOptions,
+  createApprovalEngine,
+  createApprovalVerifier,
+  InMemoryApprovalStore,
+} from "./engine/approval-engine";
+
+export {
+  type CommandContext,
+  type CommandExecuteOptions,
+  type CommandLayer,
+  type CommandLayerOptions,
+  createCommandLayer,
+  ExposureError,
+  type MiddlewareHandler,
+  type MiddlewareRegistration,
+  PipelineError,
+  type SlotName,
+} from "./engine/command-layer";
+
+export {
+  checkActionPermission,
+  PermissionRegistry,
+  resolveConditionVariables,
+  resolveDataAccess,
+} from "./engine/permission-engine";
+
+export {
+  bumpVersion,
+  type CreateProposalOptions,
+  createProposalEngine,
+  ProposalEngine,
+} from "./engine/proposal-engine";
+
+export {
+  createProposalGenerator,
+  type ProposalGeneratorDeps,
+} from "./engine/proposal-generator";
+
+export {
+  evaluateRules,
+  type RuleEvalInput,
+  type RuleEvalOptions,
+  type RuleEvalOutput,
+} from "./engine/rule-engine";
+
+export type { StateMachine } from "./engine/state-machine";
+export {
+  canTransition,
+  createStateMachine,
+  getAvailableActions,
+  transition,
+} from "./engine/state-machine";
+
+export {
+  type ValidationContext,
+  validatePhase1,
+  validateProposal,
+} from "./engine/validation-engine";
+
+// === Schema registry ===
+
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
-// Programmatic migration runner
-export { type MigrateOptions, runMigrations } from "./persistence/migrate";
-// Outbox worker — reliable event retry with exponential backoff
+export { createSchemaRegistry, SchemaRegistry } from "./schema/schema-registry";
+export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema/schema-to-drizzle";
+
+// === Event bus ===
+
+export { createEventBus, EventBus, EventHandlerRegistry } from "./event/event-bus";
 export {
   createOutboxWorker,
   type OutboxWorker,
   type OutboxWorkerOptions,
 } from "./event/outbox-worker";
-// Persistent event bus (requires database)
 export { createPersistentEventBus, PersistentEventBus } from "./event/persistent-event-bus";
-// Schema-to-Drizzle generator
-export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema/schema-to-drizzle";
-// System tables (Drizzle schema definitions)
+
+// === Observability ===
+
+export { consoleLogger } from "./observability/console-logger";
+export { InMemoryExecutionLogger } from "./observability/execution-logger";
+export {
+  getCurrentTrace,
+  getTraceDepth,
+  type TraceState,
+  withTrace,
+} from "./observability/trace-context";
+
+// === AI service ===
+
+export {
+  createAIService,
+  createNoopAIService,
+  defaultAIConfig,
+  resolveModel,
+} from "./ai/ai-service";
+
+// === Flow engine ===
+
+export {
+  type CompiledFlow,
+  compileFlow,
+  createFlowRegistry,
+  createFlowStepContext,
+  createSyncFlowEngine,
+  createTriggerBinding,
+  type FlowCompiler,
+  type FlowEngine,
+  type FlowEngineConfig,
+  type FlowRegistry,
+  FlowRegistryImpl,
+  type FlowStepContext,
+  type FlowStepContextDeps,
+  type RestateConfig,
+  type TriggerBinding,
+} from "./flow";
+
+// === Persistence: database, Drizzle ORM, migrations, system tables ===
+
+export { closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
+export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
+export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
+export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
+export * as drizzleSchema from "./persistence/drizzle-schema";
+export { DrizzleTransactionManager } from "./persistence/drizzle-transaction-manager";
+export { type MigrateOptions, runMigrations } from "./persistence/migrate";
 export {
   approvalStatusEnum,
   approvalsTable,
@@ -42,5 +157,4 @@ export {
   executionStatusEnum,
   executionsTable,
 } from "./persistence/system-tables";
-// Table registry
 export { TableRegistry } from "./persistence/table-registry";

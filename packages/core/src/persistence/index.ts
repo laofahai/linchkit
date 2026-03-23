@@ -5,7 +5,7 @@
  * Drizzle providers, system tables, table registry, and migrations.
  */
 
-export { createDatabase, closeDatabase, type DatabaseConfig } from "./database";
+export { closeDatabase, createDatabase, type DatabaseConfig } from "./database";
 export { DrizzleApprovalStore } from "./drizzle-approval-store";
 export { DrizzleDataProvider, type I18nQueryOptions } from "./drizzle-data-provider";
 export { DrizzleExecutionLogger } from "./drizzle-execution-logger";
@@ -18,5 +18,5 @@ export {
   executionsTable,
 } from "./drizzle-schema";
 export { DrizzleTransactionManager } from "./drizzle-transaction-manager";
-export { runMigrations, type MigrateOptions } from "./migrate";
+export { type MigrateOptions, runMigrations } from "./migrate";
 export { TableRegistry } from "./table-registry";

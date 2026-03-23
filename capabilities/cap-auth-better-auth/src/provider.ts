@@ -30,6 +30,7 @@ import { admin } from "better-auth/plugins/admin";
 import { bearer } from "better-auth/plugins/bearer";
 import { phoneNumber } from "better-auth/plugins/phone-number";
 import { username } from "better-auth/plugins/username";
+import { sql } from "drizzle-orm";
 
 // ── Configuration ──────────────────────────────────────
 
@@ -65,6 +66,12 @@ export interface BetterAuthProviderOptions {
    * If not provided, OTP codes are logged to console (dev mode).
    */
   sendOTP?: (data: { phoneNumber: string; code: string }) => Promise<void>;
+
+  /**
+   * Default country code prepended to phone numbers without a '+' prefix.
+   * E.g., "+86" for China. If not set, bare numbers are used as-is.
+   */
+  defaultCountryCode?: string;
 }
 
 // ── Crypto helpers for API keys ────────────────────────
@@ -118,13 +125,29 @@ function extractGroups(user: any): string[] {
   return ["user"];
 }
 
-// ── Phone number detection ──────────────────────────────
+// ── Phone number helpers ─────────────────────────────────
+
+/**
+ * Normalize a phone number by stripping non-digit characters (preserving leading +).
+ * Optionally prepends a default country code when no '+' prefix is present.
+ */
+function normalizePhone(input: string, defaultCountryCode?: string): string {
+  const digits = input.replace(/[^\d+]/g, "");
+  if (input.startsWith("+")) return digits;
+  // Prepend default country code for bare local numbers
+  if (defaultCountryCode) {
+    const code = defaultCountryCode.startsWith("+") ? defaultCountryCode : `+${defaultCountryCode}`;
+    return `${code}${digits.replace(/^\+/, "")}`;
+  }
+  return digits.replace(/^\+/, "");
+}
 
 /**
  * Check if a string looks like a phone number (7-15 digits, optional + prefix).
+ * Normalizes the input before testing.
  */
 function isPhoneNumber(value: string): boolean {
-  return /^\+?\d{7,15}$/.test(value);
+  return /^\+?\d{7,15}$/.test(normalizePhone(value));
 }
 
 /**
@@ -132,8 +155,15 @@ function isPhoneNumber(value: string): boolean {
  * Uses a `.phone.local` domain so it is clearly synthetic.
  */
 function phonePlaceholderEmail(phone: string): string {
-  const sanitized = phone.replace(/[^0-9]/g, "");
+  const sanitized = normalizePhone(phone).replace(/[^0-9]/g, "");
   return `${sanitized}@phone.local`;
+}
+
+/**
+ * Check if an email is a phone placeholder (synthetic @phone.local address).
+ */
+function isPhonePlaceholderEmail(email: string): boolean {
+  return email.endsWith("@phone.local");
 }
 
 // ── Create auth instance helper ─────────────────────────
@@ -145,9 +175,7 @@ function createAuthInstance(options: BetterAuthProviderOptions) {
   const sendOTPHandler =
     options.sendOTP ??
     (async ({ phoneNumber: phone, code }: { phoneNumber: string; code: string }) => {
-      console.log(
-        `[better-auth] OTP for ${phone}: ${code} (configure SMS gateway for production)`,
-      );
+      console.log(`[better-auth] OTP for ${phone}: ${code} (configure SMS gateway for production)`);
     });
 
   return betterAuth({
@@ -207,10 +235,11 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       let token: string | undefined;
 
       if (isPhoneNumber(input.email)) {
-        // Phone number detected — sign in via username plugin
+        // Phone number detected — normalize and sign in via username plugin
+        const phone = normalizePhone(input.email, options.defaultCountryCode);
         const result = await auth.api.signInUsername({
           body: {
-            username: input.email,
+            username: phone,
             password: input.password,
           },
         });
@@ -242,7 +271,8 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       input: { name: string; email: string; password: string },
     ): Promise<LoginResult> {
       const isPhone = isPhoneNumber(input.email);
-      const email = isPhone ? phonePlaceholderEmail(input.email) : input.email;
+      const phone = isPhone ? normalizePhone(input.email, options.defaultCountryCode) : undefined;
+      const email = phone ? phonePlaceholderEmail(phone) : input.email;
 
       const result = await auth.api.signUpEmail({
         body: {
@@ -251,7 +281,7 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
           name: input.name,
           // When registering with a phone number, store it as the username
           // so they can log in via signInUsername later.
-          ...(isPhone ? { username: input.email } : {}),
+          ...(phone ? { username: phone } : {}),
         },
       });
 
@@ -334,6 +364,13 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
 
       if (input.email && !input.token) {
+        // Phone-based accounts use @phone.local placeholder — email reset won't work
+        if (isPhonePlaceholderEmail(input.email)) {
+          throw new Error(
+            "Password reset via email is not available for phone-based accounts. Use OTP-based reset instead.",
+          );
+        }
+
         try {
           await auth.api.requestPasswordReset({
             body: { email: input.email, redirectTo: `${baseURL}/reset-password` },
@@ -459,12 +496,11 @@ export async function seedSystemAdmin(options: SeedAdminOptions): Promise<void> 
     });
 
     if (result?.user) {
-      // Assign admin role via admin plugin
+      // Direct DB update since admin API requires an existing admin session
       try {
-        await auth.api.setRole({
-          headers: headersWithBearerToken(result.token ?? ""),
-          body: { userId: result.user.id, role: "admin" },
-        });
+        await options.database.execute(
+          sql`UPDATE "user" SET "role" = 'admin' WHERE "id" = ${result.user.id}`,
+        );
         console.log(`[better-auth] System admin created with admin role: ${email}`);
       } catch {
         console.warn(`[better-auth] Admin created but failed to set role: ${email}`);

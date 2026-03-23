@@ -12,13 +12,12 @@
  */
 
 import type { CommandContext, MiddlewareHandler, MiddlewareRegistration } from "@linchkit/core";
+import { AuthorizationError, type PermissionRegistry } from "@linchkit/core";
 import {
-  AuthorizationError,
   checkActionPermission,
-  type PermissionRegistry,
   resolveConditionVariables,
   resolveDataAccess,
-} from "@linchkit/core";
+} from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 

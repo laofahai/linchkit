@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { CommandContext } from "@linchkit/core";
-import { AuthorizationError, definePermissionGroup, PermissionRegistry } from "@linchkit/core";
+import { AuthorizationError, definePermissionGroup } from "@linchkit/core";
+import { PermissionRegistry } from "@linchkit/core/server";
 import { createPermissionMiddleware } from "../src/middleware/permission-middleware";
 
 /** Helper to create a minimal CommandContext for testing */

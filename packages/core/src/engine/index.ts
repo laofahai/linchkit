@@ -1,9 +1,8 @@
 /**
  * Engine module — runtime engines for core abstractions.
  *
- * After the directory restructure, this barrel re-exports from
- * engine/ (business engines) and sibling directories so that
- * existing `import { … } from "./engine"` in index.ts keeps working.
+ * Local business engines only. Sibling directories (ai, event, flow,
+ * observability, schema) are exported separately via server-entry.ts.
  */
 
 // === Business engines (local) ===
@@ -85,50 +84,3 @@ export {
   validatePhase1,
   validateProposal,
 } from "./validation-engine";
-
-// === Re-exports from sibling directories ===
-
-// AI service
-export {
-  createAIService,
-  createNoopAIService,
-  defaultAIConfig,
-  resolveModel,
-} from "../ai";
-// Observability
-export { consoleLogger } from "../observability";
-export { InMemoryExecutionLogger } from "../observability";
-export { getCurrentTrace, getTraceDepth, type TraceState, withTrace } from "../observability";
-// Event bus
-export { createEventBus, EventBus, EventHandlerRegistry } from "../event";
-// Schema
-export { createSchemaRegistry, SchemaRegistry } from "../schema";
-export { generateZodSchema, type ZodGeneratorOptions } from "../schema";
-export {
-  getTranslatableFields,
-  mergeTranslatableValue,
-  normalizeTranslatableRow,
-  normalizeTranslatableValue,
-  resolveTranslatableRow,
-  resolveTranslatableValue,
-  type TranslatableValue,
-  wrapTranslatableValue,
-} from "../schema";
-// Flow engine
-export {
-  type CompiledFlow,
-  compileFlow,
-  createFlowRegistry,
-  createFlowStepContext,
-  createSyncFlowEngine,
-  createTriggerBinding,
-  type FlowCompiler,
-  type FlowEngine,
-  type FlowEngineConfig,
-  type FlowRegistry,
-  FlowRegistryImpl,
-  type FlowStepContext,
-  type FlowStepContextDeps,
-  type RestateConfig,
-  type TriggerBinding,
-} from "../flow";

@@ -6,10 +6,10 @@
  * priority ordering, filtering, and sync/async execution modes.
  */
 
-import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
-import type { Logger } from "../types/logger";
 import { consoleLogger } from "../observability/console-logger";
 import { withTrace } from "../observability/trace-context";
+import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
+import type { Logger } from "../types/logger";
 
 // ── Default priority ────────────────────────────────────────
 

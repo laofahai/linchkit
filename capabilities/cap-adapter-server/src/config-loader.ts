@@ -8,7 +8,7 @@
 
 import { resolve } from "node:path";
 import type { LinchKitConfig, Logger } from "@linchkit/core";
-import { consoleLogger } from "@linchkit/core";
+import { consoleLogger } from "@linchkit/core/server";
 import { resolveEnvVars } from "@linchkit/core/utils/env";
 
 /** Default configuration values */
@@ -71,7 +71,11 @@ export async function loadConfig(options?: LoadConfigOptions): Promise<LinchKitC
   const root = options?.root ?? process.cwd();
   const configFile = options?.configFile ?? "linchkit.config.ts";
   const logger = options?.logger ?? consoleLogger;
-  const configPath = resolve(root, configFile);
+
+  // Search config/ directory first, then project root
+  const { existsSync } = await import("node:fs");
+  const candidates = [resolve(root, "config", configFile), resolve(root, configFile)];
+  const configPath = candidates.find((p) => existsSync(p)) ?? (candidates[1] as string);
 
   let rawConfig: LinchKitConfig;
 

@@ -9,6 +9,7 @@
  * See spec 35_approval_mechanism.md for full details.
  */
 
+import type { EventBus } from "../event/event-bus";
 import type { ActionResult, Actor } from "../types/action";
 import type {
   ApprovalAssignee,
@@ -25,7 +26,6 @@ import type { EventRecord } from "../types/event";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor } from "./action-engine";
 import type { CommandLayer } from "./command-layer";
-import type { EventBus } from "../event/event-bus";
 
 // ── InMemoryApprovalStore ──────────────────────────────────
 

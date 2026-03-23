@@ -8,27 +8,29 @@
  * Falls back to InMemoryStore only when no external provider is given.
  */
 
+import type {
+  ActionDefinition,
+  ActionExecutor,
+  AIService,
+  AIServiceConfig,
+  CommandLayer,
+  DataProvider,
+  EventBus,
+  ExecutionLogger,
+  MiddlewareRegistration,
+  SchemaDefinition,
+  StateDefinition,
+  ViewDefinition,
+} from "@linchkit/core";
 import {
-  type ActionDefinition,
-  type ActionExecutor,
-  type AIService,
-  type AIServiceConfig,
-  type CommandLayer,
   createActionExecutor,
   createAIService,
   createCommandLayer,
   createNoopAIService,
   createStateMachine,
-  type DataProvider,
-  type EventBus,
-  type ExecutionLogger,
   InMemoryExecutionLogger,
-  type MiddlewareRegistration,
-  type SchemaDefinition,
   SchemaRegistry,
-  type StateDefinition,
-  type ViewDefinition,
-} from "@linchkit/core";
+} from "@linchkit/core/server";
 import { InMemoryStore } from "./data/in-memory-store";
 
 export interface RuntimeContext {

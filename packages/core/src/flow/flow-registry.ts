@@ -5,12 +5,7 @@
  * Follows the same pattern as SchemaRegistry.
  */
 
-import type {
-  ConditionFlowStep,
-  FlowDefinition,
-  FlowStep,
-  ParallelFlowStep,
-} from "../types/flow";
+import type { ConditionFlowStep, FlowDefinition, FlowStep, ParallelFlowStep } from "../types/flow";
 import type { FlowRegistry as IFlowRegistry } from "./types";
 
 // ── FlowRegistryImpl ───────────────────────────────────────

@@ -12,13 +12,20 @@ export interface LoadConfigResult {
 
 /**
  * Load linchkit.config.ts from the given directory.
+ * Searches: config/linchkit.config.ts first, then root linchkit.config.ts.
  * Returns the config object and the resolved path.
  *
  * @throws Error if the config file is not found
  */
 export async function loadConfig(cwd?: string): Promise<LoadConfigResult> {
   const dir = cwd ?? process.cwd();
-  const configPath = resolve(dir, "linchkit.config.ts");
+  const candidates = [
+    resolve(dir, "config/linchkit.config.ts"),
+    resolve(dir, "linchkit.config.ts"),
+  ];
+  // Pick the first candidate that exists on disk, fall back to root
+  const { existsSync } = await import("node:fs");
+  const configPath = candidates.find((p) => existsSync(p)) ?? (candidates[1] as string);
 
   try {
     const mod = await import(configPath);

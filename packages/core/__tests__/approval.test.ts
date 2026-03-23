@@ -11,9 +11,9 @@ import {
   InMemoryApprovalStore,
 } from "../src/engine/approval-engine";
 import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
+import { evaluateRules } from "../src/engine/rule-engine";
 import { createEventBus, type EventBus } from "../src/event/event-bus";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
-import { evaluateRules } from "../src/engine/rule-engine";
 import type { ActionDefinition, Actor } from "../src/types/action";
 import type { ApprovalRequest } from "../src/types/approval";
 import type { RuleDefinition } from "../src/types/rule";

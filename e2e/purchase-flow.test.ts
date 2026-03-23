@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { approveAction, purchaseRequestSchema, submitAction } from "@linchkit/cap-purchase-demo";
-import { createActionExecutor, InMemoryExecutionLogger, SchemaRegistry } from "@linchkit/core";
+import {
+  createActionExecutor,
+  InMemoryExecutionLogger,
+  SchemaRegistry,
+} from "@linchkit/core/server";
 import { InMemoryStore } from "../capabilities/cap-adapter-server/src/data/in-memory-store";
 import {
   buildGraphQLSchema,

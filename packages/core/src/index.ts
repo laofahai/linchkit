@@ -1,14 +1,17 @@
 /**
  * @linchkit/core — Core runtime
  *
- * Meta-model definitions (defineXxx) and type system.
- * Future: Action/Rule/State/Event/Schema engines.
+ * Browser-safe entry point: types, define functions, errors, config,
+ * and pure-logic utilities (condition evaluator, Zod generator, translatable).
+ *
+ * For runtime engines, database, event bus, flow — use:
+ *   import { ... } from "@linchkit/core/server"
  */
 
 export const VERSION = "0.0.1";
 
-export type { ConfigSchemaRef } from "./config";
 // Config center
+export type { ConfigSchemaRef } from "./config";
 export {
   ConfigRegistry,
   databaseConfig,
@@ -17,6 +20,7 @@ export {
   securityConfig,
   serverConfig,
 } from "./config";
+
 // Define function exports
 export {
   defineAction,
@@ -39,88 +43,49 @@ export {
   overrideRule,
   overrideSchema,
 } from "./define";
+// Type re-exports from engine interfaces (browser-safe — type-only, no runtime code pulled in)
+// Class types (exported as type-only so consumers can use for annotations without pulling runtime)
 export type {
   ActionExecutor,
   ActionExecutorOptions,
-  ApprovalEngine,
-  ApprovalEngineOptions,
-  CommandContext,
-  CommandExecuteOptions,
-  CommandLayer,
-  CommandLayerOptions,
-  ConditionContext,
-  CreateApprovalOptions,
-  CreateProposalOptions,
+  ActionRegistry,
   DataProvider,
   DataQueryOptions,
   ExecuteOptions,
   ExecutionChannel,
-  FlowStepContextDeps,
+  PendingEvent,
+  TransactionManager,
+} from "./engine/action-engine";
+export type {
+  ApprovalEngine,
+  ApprovalEngineOptions,
+  CreateApprovalOptions,
+} from "./engine/approval-engine";
+export type {
+  CommandContext,
+  CommandExecuteOptions,
+  CommandLayer,
+  CommandLayerOptions,
   MiddlewareHandler,
   MiddlewareRegistration,
-  PendingEvent,
-  ProposalGeneratorDeps,
+  SlotName,
+} from "./engine/command-layer";
+// Pure-logic utilities (no server deps)
+export {
+  type ConditionContext,
+  evaluateCondition,
+  resolveField,
+} from "./engine/condition-evaluator";
+export type { PermissionRegistry } from "./engine/permission-engine";
+export type { CreateProposalOptions } from "./engine/proposal-engine";
+export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
+export type {
   RuleEvalInput,
   RuleEvalOptions,
   RuleEvalOutput,
-  SlotName,
-  StateMachine,
-  TraceState,
-  TransactionManager,
-  ValidationContext,
-  ZodGeneratorOptions,
-} from "./engine";
-// Engine exports (server-only modules → @linchkit/core/server)
-export {
-  ActionRegistry,
-  bumpVersion,
-  canTransition,
-  checkActionPermission,
-  consoleLogger,
-  createActionExecutor,
-  createAIService,
-  createApprovalEngine,
-  createApprovalVerifier,
-  createCommandLayer,
-  createEventBus,
-  createFlowStepContext,
-  createNoopAIService,
-  createProposalEngine,
-  createProposalGenerator,
-  createSchemaRegistry,
-  createStateMachine,
-  defaultAIConfig,
-  EventBus,
-  EventHandlerRegistry,
-  ExposureError,
-  evaluateCondition,
-  evaluateRules,
-  generateZodSchema,
-  getAvailableActions,
-  getCurrentTrace,
-  getTraceDepth,
-  getTranslatableFields,
-  InMemoryApprovalStore,
-  InMemoryExecutionLogger,
-  mergeTranslatableValue,
-  normalizeTranslatableRow,
-  normalizeTranslatableValue,
-  PermissionRegistry,
-  PipelineError,
-  ProposalEngine,
-  resolveConditionVariables,
-  resolveDataAccess,
-  resolveField,
-  resolveModel,
-  resolveTranslatableRow,
-  resolveTranslatableValue,
-  SchemaRegistry,
-  transition,
-  validatePhase1,
-  validateProposal,
-  withTrace,
-  wrapTranslatableValue,
-} from "./engine";
+} from "./engine/rule-engine";
+export type { StateMachine } from "./engine/state-machine";
+export type { ValidationContext } from "./engine/validation-engine";
 // Error classes
 export {
   AuthenticationError,
@@ -132,9 +97,25 @@ export {
   SystemError,
   ValidationError,
 } from "./errors";
+export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
+export type { FlowStepContext, FlowStepContextDeps } from "./flow";
+export type { TraceState } from "./observability/trace-context";
+export type { SchemaRegistry } from "./schema/schema-registry";
+export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
+export {
+  getTranslatableFields,
+  mergeTranslatableValue,
+  normalizeTranslatableRow,
+  normalizeTranslatableValue,
+  resolveTranslatableRow,
+  resolveTranslatableValue,
+  type TranslatableValue,
+  wrapTranslatableValue,
+} from "./schema/translatable";
+
 // Type exports
 export type * from "./types";
-// Non-type exports
+// Non-type exports from types
 export {
   capabilityCategoryEnum,
   capabilityMetadataSchema,

@@ -32,9 +32,9 @@ export const registerAction = defineAction({
     },
   },
   output: {
-    id: { type: "string", label: "User ID" },
-    email: { type: "string", label: "Email" },
-    name: { type: "string", label: "Name" },
+    access_token: { type: "string", label: "Access Token" },
+    refresh_token: { type: "string", label: "Refresh Token" },
+    expires_in: { type: "number", label: "Expires In (seconds)" },
   },
   policy: {
     mode: "sync",

@@ -9,22 +9,18 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  ActionRegistry,
   Actor,
   AICompletionOptions,
   AICompletionResult,
   AIService,
   CapabilityDefinition,
   DataProvider,
+  EventBus,
   SchemaDefinition,
+  SchemaRegistry,
 } from "@linchkit/core";
-import {
-  type ActionRegistry,
-  createActionExecutor,
-  createEventBus,
-  createSchemaRegistry,
-  type EventBus,
-  type SchemaRegistry,
-} from "@linchkit/core";
+import { createActionExecutor, createEventBus, createSchemaRegistry } from "@linchkit/core/server";
 
 // ── InMemoryDataProvider ────────────────────────────────────
 

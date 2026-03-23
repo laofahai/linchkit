@@ -15,10 +15,10 @@
  */
 
 import { LinchKitError } from "../errors";
+import { consoleLogger } from "../observability/console-logger";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
-import { consoleLogger } from "../observability/console-logger";
 
 // ── Slot names (execution order) ────────────────────────────
 
