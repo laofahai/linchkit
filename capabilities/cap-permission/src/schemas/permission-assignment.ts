@@ -13,10 +13,10 @@ export const permissionAssignmentSchema = defineSchema({
   description: "User-to-permission-group assignment",
   fields: {
     user_id: {
-      type: "ref",
+      type: "string",
       label: "User",
-      target: "user",
       required: true,
+      description: "Foreign key to user (relationship managed via defineLink)",
     },
     group_name: {
       type: "string",
@@ -25,9 +25,9 @@ export const permissionAssignmentSchema = defineSchema({
       description: "Name of the permission group",
     },
     assigned_by: {
-      type: "ref",
+      type: "string",
       label: "Assigned By",
-      target: "user",
+      description: "Foreign key to user (relationship managed via defineLink)",
     },
     assigned_at: {
       type: "datetime",

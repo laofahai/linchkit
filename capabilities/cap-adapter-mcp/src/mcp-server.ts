@@ -169,12 +169,7 @@ function buildZodShape(
 
   for (const [name, field] of Object.entries(input)) {
     // Skip non-input types and secret fields
-    if (
-      field.type === "computed" ||
-      field.type === "has_many" ||
-      field.type === "many_to_many" ||
-      field.secret
-    ) {
+    if (field.type === "computed" || field.secret) {
       continue;
     }
 
@@ -186,7 +181,6 @@ function buildZodShape(
       case "date":
       case "datetime":
       case "enum":
-      case "ref":
       case "state":
         zodType = z.string();
         break;

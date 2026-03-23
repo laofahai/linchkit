@@ -101,21 +101,7 @@ describe("generateZodSchema", () => {
     expect(zodSchema.safeParse({ priority: "invalid" }).success).toBe(false);
   });
 
-  test("ref field generates z.string() (ID reference)", () => {
-    const schema: SchemaDefinition = {
-      name: "test",
-      fields: {
-        department: { type: "ref", target: "department", required: true },
-      },
-    };
-
-    const zodSchema = generateZodSchema(schema);
-
-    expect(zodSchema.safeParse({ department: "dept_123" }).success).toBe(true);
-    expect(zodSchema.safeParse({ department: 123 }).success).toBe(false);
-  });
-
-  test("computed and has_many fields are skipped", () => {
+  test("computed fields are skipped", () => {
     const schema: SchemaDefinition = {
       name: "test",
       fields: {
@@ -124,8 +110,6 @@ describe("generateZodSchema", () => {
           type: "computed",
           compute: (r: Record<string, unknown>) => r.amount,
         },
-        items: { type: "has_many", target: "item" },
-        tags: { type: "many_to_many", target: "tag" },
       },
     };
 
@@ -134,8 +118,6 @@ describe("generateZodSchema", () => {
 
     expect(shape.title).toBeDefined();
     expect(shape.total).toBeUndefined();
-    expect(shape.items).toBeUndefined();
-    expect(shape.tags).toBeUndefined();
   });
 
   test("format 'email' adds .email() validation", () => {
@@ -209,7 +191,7 @@ describe("generateZodSchema", () => {
         title: { type: "string", required: true, min: 1 },
         amount: { type: "number", required: true, min: 0 },
         description: { type: "text" },
-        department: { type: "ref", target: "department", required: true },
+        department_id: { type: "string", required: true },
         status: { type: "state", machine: "request_lifecycle" },
       },
     };
@@ -219,7 +201,7 @@ describe("generateZodSchema", () => {
     const result = zodSchema.safeParse({
       title: "Office Supplies",
       amount: 500,
-      department: "dept_001",
+      department_id: "dept_001",
     });
     expect(result.success).toBe(true);
   });
@@ -230,7 +212,7 @@ describe("generateZodSchema", () => {
       fields: {
         title: { type: "string", required: true, min: 1 },
         amount: { type: "number", required: true, min: 0, max: 1000000 },
-        department: { type: "ref", target: "department", required: true },
+        department_id: { type: "string", required: true },
       },
     };
 
@@ -244,7 +226,7 @@ describe("generateZodSchema", () => {
       zodSchema.safeParse({
         title: "Test",
         amount: -1,
-        department: "dept_001",
+        department_id: "dept_001",
       }).success,
     ).toBe(false);
 
@@ -253,7 +235,7 @@ describe("generateZodSchema", () => {
       zodSchema.safeParse({
         title: 123,
         amount: 500,
-        department: "dept_001",
+        department_id: "dept_001",
       }).success,
     ).toBe(false);
   });

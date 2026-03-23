@@ -49,6 +49,7 @@ export const capAdapterServer = defineCapability({
             executor: ctx.executor,
             dataProvider: ctx.dataProvider,
             executionLogger: ctx.executionLogger,
+            links: ctx.links,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
@@ -64,6 +65,7 @@ export const capAdapterServer = defineCapability({
             executionLogger: ctx.executionLogger,
             schemaRegistry: ctx.schemaRegistry,
             views: viewsMap,
+            capabilities: ctx.capabilities,
             // Extract tenant ID from X-Tenant-ID header.
             // TODO: support JWT-based tenant extraction via auth capability
             resolveRequestTenantId: (request: Request) => {

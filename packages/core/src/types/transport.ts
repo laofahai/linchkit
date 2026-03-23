@@ -13,7 +13,9 @@ import type { CommandLayer, MiddlewareRegistration } from "../engine/command-lay
 import type { EventBus } from "../event/event-bus";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
+import type { CapabilityDefinition } from "./capability";
 import type { ExecutionLogger } from "./execution-log";
+import type { LinkDefinition } from "./link";
 import type { SchemaDefinition } from "./schema";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
@@ -38,6 +40,10 @@ export interface TransportContext {
   executionLogger?: ExecutionLogger;
   /** Approval engine — wired with DrizzleApprovalStore when DB is available */
   approvalEngine?: ApprovalEngine;
+  /** Link definitions for generating bidirectional relation resolver fields */
+  links?: LinkDefinition[];
+  /** Loaded capability definitions — used by transports to inspect loaded capabilities */
+  capabilities?: CapabilityDefinition[];
 }
 
 /** Lifecycle handle returned by transport factory */

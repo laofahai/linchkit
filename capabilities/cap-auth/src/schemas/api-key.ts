@@ -33,10 +33,10 @@ export const apiKeySchema = defineSchema({
       description: "First 8 chars of the key for identification (e.g. lk_abc123)",
     },
     user_id: {
-      type: "ref",
+      type: "string",
       label: "Owner",
-      target: "user",
       required: true,
+      description: "Foreign key to user (relationship managed via defineLink)",
     },
     tenant_id: {
       type: "string",

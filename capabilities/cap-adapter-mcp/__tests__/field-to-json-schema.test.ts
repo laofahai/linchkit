@@ -76,15 +76,6 @@ describe("fieldToJsonSchema", () => {
     expect(result).toEqual({ type: "object" });
   });
 
-  test("converts ref field with target", () => {
-    const field: FieldDefinition = { type: "ref", target: "customer" };
-    const result = fieldToJsonSchema(field);
-    expect(result).toEqual({
-      type: "string",
-      description: "Reference ID to customer",
-    });
-  });
-
   test("converts state field", () => {
     const field: FieldDefinition = { type: "state", machine: "order_flow" };
     const result = fieldToJsonSchema(field);
@@ -99,16 +90,6 @@ describe("fieldToJsonSchema", () => {
       type: "computed",
       compute: () => "test",
     };
-    expect(fieldToJsonSchema(field)).toBeNull();
-  });
-
-  test("returns null for has_many field", () => {
-    const field: FieldDefinition = { type: "has_many", target: "items" };
-    expect(fieldToJsonSchema(field)).toBeNull();
-  });
-
-  test("returns null for many_to_many field", () => {
-    const field: FieldDefinition = { type: "many_to_many", target: "tags" };
     expect(fieldToJsonSchema(field)).toBeNull();
   });
 

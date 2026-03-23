@@ -20,9 +20,7 @@ const productSchema: SchemaDefinition = {
     name: { type: "string", required: true, label: "Name" },
     price: { type: "number", required: true, min: 0, label: "Price" },
     description: { type: "text", label: "Description" },
-    category: { type: "ref", target: "category", label: "Category" },
-    tags: { type: "many_to_many", target: "tag", label: "Tags" },
-    items: { type: "has_many", target: "product_item", label: "Items" },
+    category_id: { type: "string", label: "Category" },
     total_value: {
       type: "computed",
       compute: (r) => (r.price as number) * (r.quantity as number),
@@ -158,24 +156,6 @@ describe("SchemaRegistry", () => {
       expect(resolved.fields.total_value.storable).toBe(false);
     });
 
-    it("marks has_many fields as non-storable", () => {
-      const registry = createSchemaRegistry();
-      registry.register(productSchema);
-
-      const resolved = registry.resolve("product");
-
-      expect(resolved.fields.items.storable).toBe(false);
-    });
-
-    it("marks many_to_many fields as non-storable", () => {
-      const registry = createSchemaRegistry();
-      registry.register(productSchema);
-
-      const resolved = registry.resolve("product");
-
-      expect(resolved.fields.tags.storable).toBe(false);
-    });
-
     it("marks regular fields as storable", () => {
       const registry = createSchemaRegistry();
       registry.register(productSchema);
@@ -185,7 +165,7 @@ describe("SchemaRegistry", () => {
       expect(resolved.fields.name.storable).toBe(true);
       expect(resolved.fields.price.storable).toBe(true);
       expect(resolved.fields.description.storable).toBe(true);
-      expect(resolved.fields.category.storable).toBe(true);
+      expect(resolved.fields.category_id.storable).toBe(true);
       expect(resolved.fields.status.storable).toBe(true);
       expect(resolved.fields.active.storable).toBe(true);
     });
@@ -331,56 +311,6 @@ describe("SchemaRegistry", () => {
       expect(() => registry.resolve("product")).toThrow(
         'Override cannot change the type of field "price" on schema "product"',
       );
-    });
-  });
-
-  describe("getRelations", () => {
-    it("returns ref, has_many and many_to_many relations", () => {
-      const registry = createSchemaRegistry();
-      registry.register(productSchema);
-
-      const relations = registry.getRelations("product");
-
-      expect(relations).toHaveLength(3);
-
-      const ref = relations.find((r) => r.fieldName === "category");
-      expect(ref).toBeDefined();
-      expect(ref?.type).toBe("ref");
-      expect(ref?.target).toBe("category");
-
-      const hasMany = relations.find((r) => r.fieldName === "items");
-      expect(hasMany).toBeDefined();
-      expect(hasMany?.type).toBe("has_many");
-      expect(hasMany?.target).toBe("product_item");
-
-      const m2m = relations.find((r) => r.fieldName === "tags");
-      expect(m2m).toBeDefined();
-      expect(m2m?.type).toBe("many_to_many");
-      expect(m2m?.target).toBe("tag");
-    });
-
-    it("includes relations from extensions", () => {
-      const registry = createSchemaRegistry();
-      registry.register(productSchema);
-
-      registry.applyExtension("product", {
-        fields: {
-          supplier: { type: "ref", target: "supplier", label: "Supplier" },
-        },
-      });
-
-      const relations = registry.getRelations("product");
-      const supplier = relations.find((r) => r.fieldName === "supplier");
-      expect(supplier).toBeDefined();
-      expect(supplier?.target).toBe("supplier");
-    });
-
-    it("returns empty array for schema with no relations", () => {
-      const registry = createSchemaRegistry();
-      registry.register(categorySchema);
-
-      const relations = registry.getRelations("category");
-      expect(relations).toEqual([]);
     });
   });
 });

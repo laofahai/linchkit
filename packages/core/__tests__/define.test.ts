@@ -17,18 +17,16 @@ describe("defineSchema", () => {
       fields: {
         title: { type: "string", required: true, label: "标题" },
         amount: { type: "number", required: true, min: 0, label: "金额" },
-        department: { type: "ref", target: "department", required: true, label: "部门" },
+        department_id: { type: "string", required: true, label: "部门" },
         status: { type: "state", machine: "request_lifecycle", label: "状态" },
-        items: { type: "has_many", target: "purchase_item", label: "明细" },
       },
     });
 
     expect(schema.name).toBe("purchase_request");
     expect(schema.fields.title.type).toBe("string");
     expect(schema.fields.amount.type).toBe("number");
-    expect(schema.fields.department.type).toBe("ref");
+    expect(schema.fields.department_id.type).toBe("string");
     expect(schema.fields.status.type).toBe("state");
-    expect(schema.fields.items.type).toBe("has_many");
   });
 
   it("should support exposure config", () => {
@@ -56,7 +54,7 @@ describe("defineAction", () => {
       schema: "purchase_request",
       label: "提交采购申请",
       input: {
-        id: { type: "ref", target: "purchase_request", required: true },
+        id: { type: "string", required: true },
       },
       stateTransition: { from: "draft", to: "submitted" },
       policy: { mode: "sync", transaction: true },
@@ -74,7 +72,7 @@ describe("defineAction", () => {
       schema: "purchase_request",
       label: "计算总额",
       input: {
-        id: { type: "ref", target: "purchase_request", required: true },
+        id: { type: "string", required: true },
       },
       handler: async (ctx) => {
         const items = await ctx.query("purchase_item", { request_id: ctx.input.id });

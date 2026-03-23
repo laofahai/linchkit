@@ -287,7 +287,6 @@ function validateFieldType(type: string): string {
     "datetime",
     "enum",
     "json",
-    "ref",
     "state",
   ];
   return validTypes.includes(type) ? type : "string";

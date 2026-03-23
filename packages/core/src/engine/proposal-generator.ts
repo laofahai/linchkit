@@ -35,9 +35,6 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "datetime",
   "enum",
   "json",
-  "ref",
-  "has_many",
-  "many_to_many",
   "state",
   "computed",
 ]);
@@ -114,7 +111,7 @@ ${schemaList}
 Current registered actions:
 ${actionList}
 
-Valid field types: string, text, number, boolean, date, datetime, enum, json, ref, has_many, many_to_many, state, computed
+Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed
 
 Rules for generating proposals:
 1. For "create" changes, always include a complete "definition" object
@@ -122,8 +119,8 @@ Rules for generating proposals:
 3. For "delete" changes, only include the name
 4. Schema definitions must have: name, fields (with type for each field)
 5. Action definitions must have: name, schema, label, policy (with mode and transaction)
-6. Reference fields (type: "ref") must include a "target" schema name
-7. Enum fields must include an "options" array with {value, label} items
+6. Enum fields must include an "options" array with {value, label} items
+7. Relationships between schemas are defined via defineLink(), not field types
 8. Always identify affected schemas, actions, rules, and dependents in impact
 
 Respond with a JSON object matching the required structure exactly.`;
@@ -353,11 +350,6 @@ function validateSchemaChange(
   for (const [fieldName, fieldDef] of Object.entries(def.fields)) {
     if (!VALID_FIELD_TYPES.has(fieldDef.type)) {
       errors.push(`Schema "${change.name}" field "${fieldName}": invalid type "${fieldDef.type}"`);
-    }
-
-    // Ref fields must have a target
-    if (fieldDef.type === "ref" && !("target" in fieldDef && fieldDef.target)) {
-      errors.push(`Schema "${change.name}" field "${fieldName}": ref field must have a target`);
     }
 
     // Enum fields must have options

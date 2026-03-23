@@ -39,7 +39,7 @@ const declarativeAction: ActionDefinition = {
   schema: "order",
   label: "Submit Order",
   input: {
-    id: { type: "ref", target: "order", required: true },
+    id: { type: "string", required: true },
   },
   stateTransition: { from: "draft", to: "submitted" },
   setFields: { submitted_at: "now" },

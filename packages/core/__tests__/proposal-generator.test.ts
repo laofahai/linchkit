@@ -11,7 +11,7 @@ const taskSchema: SchemaDefinition = {
   fields: {
     title: { type: "string", required: true, label: "Title" },
     description: { type: "text", label: "Description" },
-    assignee: { type: "ref", target: "user", label: "Assignee" },
+    assignee_id: { type: "string", label: "Assignee" },
   },
 };
 
@@ -31,7 +31,7 @@ const addPriorityResponse = {
         fields: {
           title: { type: "string", required: true, label: "Title" },
           description: { type: "text", label: "Description" },
-          assignee: { type: "ref", target: "user", label: "Assignee" },
+          assignee_id: { type: "string", label: "Assignee" },
           priority: {
             type: "enum",
             label: "Priority",
@@ -444,54 +444,6 @@ describe("ProposalGenerator", () => {
       const result = await generator.validate(proposal);
       expect(result.passed).toBe(false);
       expect(result.phases[0].errors.some((e) => e.message.includes("ghost_schema"))).toBe(true);
-    });
-
-    it("catches ref field without target", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
-
-      const generator = createProposalGenerator({
-        aiService: ai,
-        schemaRegistry,
-        actionRegistry,
-      });
-
-      const proposal: ProposalDefinition = {
-        id: "test-4",
-        title: "Ref without target",
-        description: "Schema with ref field missing target",
-        author: { type: "ai", id: "ai", name: "AI" },
-        capability: "test",
-        changeType: "minor",
-        changes: [
-          {
-            target: "schema",
-            operation: "create",
-            name: "orphan_ref",
-            definition: {
-              name: "orphan_ref",
-              fields: {
-                parent: { type: "ref", label: "Parent" },
-              },
-            } as never,
-          },
-        ],
-        impact: {
-          schemasAffected: ["orphan_ref"],
-          actionsAffected: [],
-          rulesAffected: [],
-          dependentsAffected: [],
-          migrationRequired: false,
-        },
-        status: "draft",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const result = await generator.validate(proposal);
-      expect(result.passed).toBe(false);
-      expect(
-        result.phases[0].errors.some((e) => e.message.includes("ref field must have a target")),
-      ).toBe(true);
     });
 
     it("catches enum field without options", async () => {

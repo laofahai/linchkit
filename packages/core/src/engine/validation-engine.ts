@@ -36,9 +36,6 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "datetime",
   "enum",
   "json",
-  "ref",
-  "has_many",
-  "many_to_many",
   "state",
   "computed",
 ]);
@@ -237,8 +234,8 @@ function validateSchema(
   def: SchemaDefinition,
   name: string,
   errors: ValidationError[],
-  warnings: ValidationWarning[],
-  helpers: { schemaExists: (name: string) => boolean },
+  _warnings: ValidationWarning[],
+  _helpers: { schemaExists: (name: string) => boolean },
 ): void {
   if (!def.fields || Object.keys(def.fields).length === 0) {
     errors.push({
@@ -258,26 +255,6 @@ function validateSchema(
         target: name,
         field: fieldName,
       });
-    }
-
-    // Check ref targets exist
-    if (field.type === "ref" || field.type === "has_many" || field.type === "many_to_many") {
-      const target = (field as { target?: string }).target;
-      if (!target) {
-        errors.push({
-          code: "MISSING_REF_TARGET",
-          message: `Field "${fieldName}" on schema "${name}" is missing a target`,
-          target: name,
-          field: fieldName,
-        });
-      } else if (!helpers.schemaExists(target)) {
-        warnings.push({
-          code: "UNKNOWN_REF_TARGET",
-          message: `Field "${fieldName}" on schema "${name}" references unknown schema "${target}"`,
-          target: name,
-          field: fieldName,
-        });
-      }
     }
 
     // Check enum fields have options

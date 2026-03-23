@@ -16,9 +16,6 @@ export type FieldType =
   | "datetime"
   | "enum"
   | "json"
-  | "ref"
-  | "has_many"
-  | "many_to_many"
   | "state"
   | "computed";
 
@@ -46,6 +43,17 @@ export interface BaseFieldDefinition extends FieldConstraints {
   translatable?: boolean;
   /** Declarative UI hints for auto-layout and rendering */
   ui?: FieldUIHints;
+  /** Derived field configuration (spec 48). When set, field value is computed, not user-input. */
+  derived?: {
+    /** Derivation type */
+    type: "aggregate" | "expression" | "concat" | "function";
+    /** Computation strategy. 'store' persists to DB (default), 'compute' calculates on read. */
+    strategy?: "store" | "compute";
+    /** Fields this derivation depends on (for triggering recalculation) */
+    deps?: string[];
+    // Type-specific config — will be fully defined in spec 48 implementation
+    [key: string]: unknown;
+  };
 }
 
 export interface StringField extends BaseFieldDefinition {
@@ -81,22 +89,6 @@ export interface JsonField extends BaseFieldDefinition {
   type: "json";
 }
 
-export interface RefField extends BaseFieldDefinition {
-  type: "ref";
-  target: string;
-  readonly?: boolean;
-}
-
-export interface HasManyField extends BaseFieldDefinition {
-  type: "has_many";
-  target: string;
-}
-
-export interface ManyToManyField extends BaseFieldDefinition {
-  type: "many_to_many";
-  target: string;
-}
-
 export interface StateField extends BaseFieldDefinition {
   type: "state";
   machine: string;
@@ -116,9 +108,6 @@ export type FieldDefinition =
   | DateTimeField
   | EnumField
   | JsonField
-  | RefField
-  | HasManyField
-  | ManyToManyField
   | StateField
   | ComputedField;
 
@@ -221,7 +210,7 @@ export interface SystemFields {
 export interface ResolvedField {
   /** Original field definition */
   definition: FieldDefinition;
-  /** Whether this field is stored in DB (false for computed, has_many, many_to_many) */
+  /** Whether this field is stored in DB (false for computed) */
   storable: boolean;
   /** Resolved label (from definition or generated from name) */
   label: string;
@@ -239,16 +228,4 @@ export interface ResolvedSchema {
   fields: Record<string, ResolvedField>;
   /** Original schema definition reference */
   source: SchemaDefinition;
-}
-
-// ── Relation info ────────────────────────────────────────────────
-
-/** Describes a relation extracted from schema fields */
-export interface SchemaRelation {
-  /** Field name on the source schema */
-  fieldName: string;
-  /** Relation type */
-  type: "ref" | "has_many" | "many_to_many";
-  /** Target schema name */
-  target: string;
 }

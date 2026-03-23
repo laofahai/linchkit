@@ -8,6 +8,7 @@
 import type {
   ActionDefinition,
   CapabilityDefinition,
+  LinkDefinition,
   MiddlewareRegistration,
   SchemaDefinition,
   ViewDefinition,
@@ -27,12 +28,14 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   schemas: SchemaDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
+  links: LinkDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
 } {
   const schemas: SchemaDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
+  const links: LinkDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
 
@@ -40,6 +43,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     if (cap.schemas) schemas.push(...cap.schemas);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.views) views.push(...cap.views);
+    if (cap.links) links.push(...cap.links);
 
     // Collect seed data from capabilities
     if (cap.seed) {
@@ -62,7 +66,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     }
   }
 
-  return { schemas, actions, views, middlewares, seed };
+  return { schemas, actions, views, links, middlewares, seed };
 }
 
 const capContributions = extractCapabilities(config.capabilities);
@@ -106,6 +110,7 @@ const graphqlSchema = buildGraphQLSchema(allSchemas, {
   dataProvider: runtime.dataProvider,
   actions: customActions,
   executionLogger: runtime.executionLogger,
+  links: capContributions.links,
 });
 
 const port = config.server?.port ?? 3001;
@@ -119,6 +124,7 @@ const server = createServer(graphqlSchema, {
   executionLogger: runtime.executionLogger,
   schemaRegistry: runtime.schemaRegistry,
   views: runtime.views,
+  capabilities: config.capabilities,
 });
 
 server.listen(port);

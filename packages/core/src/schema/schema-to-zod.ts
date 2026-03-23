@@ -16,7 +16,7 @@ export interface ZodGeneratorOptions {
 }
 
 // Field types that are virtual / computed and should be skipped in input schemas
-const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
+const SKIPPED_FIELD_TYPES = new Set(["computed"]);
 
 /**
  * Generate a Zod schema from a LinchKit SchemaDefinition.
@@ -84,9 +84,6 @@ function buildFieldZod(field: FieldDefinition, options?: ZodGeneratorOptions): z
 
     case "json":
       return z.unknown();
-
-    case "ref":
-      return z.string();
 
     case "state":
       return buildStateZod(field.machine, options);

@@ -1,12 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { CreateProposalOptions, ProposalEngine } from "../src";
-import {
-  bumpVersion,
-  createProposalEngine,
-  createSchemaRegistry,
-  validatePhase1,
-  validateProposal,
-} from "../src";
+import { bumpVersion, createProposalEngine, validatePhase1, validateProposal } from "../src";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -461,87 +455,6 @@ describe("validatePhase1", () => {
 
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "ENUM_NO_OPTIONS")).toBe(true);
-  });
-
-  it("warns for ref to unknown schema", () => {
-    const result = validatePhase1({
-      changes: [
-        {
-          target: "schema",
-          operation: "create",
-          name: "order_item",
-          definition: {
-            name: "order_item",
-            fields: {
-              order: { type: "ref", target: "nonexistent", label: "Order" },
-            },
-          },
-        },
-      ],
-    });
-
-    expect(result.status).toBe("passed"); // warnings don't fail
-    expect(result.warnings.some((w) => w.code === "UNKNOWN_REF_TARGET")).toBe(true);
-  });
-
-  it("passes when ref target is in the same proposal", () => {
-    const result = validatePhase1({
-      changes: [
-        {
-          target: "schema",
-          operation: "create",
-          name: "order",
-          definition: {
-            name: "order",
-            fields: {
-              title: { type: "string", label: "Title" },
-            },
-          },
-        },
-        {
-          target: "schema",
-          operation: "create",
-          name: "order_item",
-          definition: {
-            name: "order_item",
-            fields: {
-              order: { type: "ref", target: "order", label: "Order" },
-            },
-          },
-        },
-      ],
-    });
-
-    expect(result.status).toBe("passed");
-    expect(result.warnings.filter((w) => w.code === "UNKNOWN_REF_TARGET")).toHaveLength(0);
-  });
-
-  it("passes when ref target exists in schema registry", () => {
-    const registry = createSchemaRegistry();
-    registry.register({
-      name: "customer",
-      fields: { name: { type: "string", label: "Name" } },
-    });
-
-    const result = validatePhase1({
-      changes: [
-        {
-          target: "schema",
-          operation: "create",
-          name: "order",
-          definition: {
-            name: "order",
-            fields: {
-              customer: { type: "ref", target: "customer", label: "Customer" },
-            },
-          },
-        },
-      ],
-      context: { schemaRegistry: registry },
-    });
-
-    expect(result.status).toBe("passed");
-    expect(result.warnings.filter((w) => w.code === "UNKNOWN_REF_TARGET")).toHaveLength(0);
   });
 
   it("fails for invalid name format", () => {

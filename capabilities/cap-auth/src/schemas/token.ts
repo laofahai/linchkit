@@ -13,10 +13,10 @@ export const tokenSchema = defineSchema({
   description: "JWT access and refresh token record",
   fields: {
     user_id: {
-      type: "ref",
+      type: "string",
       label: "User",
-      target: "user",
       required: true,
+      description: "Foreign key to user (relationship managed via defineLink)",
     },
     token_hash: {
       type: "string",

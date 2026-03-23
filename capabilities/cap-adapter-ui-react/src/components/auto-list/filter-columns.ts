@@ -75,7 +75,7 @@ function fieldIcon(fieldType: string): LucideIcon {
 /**
  * Build bazza ColumnConfig[] from a SchemaDefinition.
  *
- * Skips non-filterable field types (computed, has_many, many_to_many, json, ref).
+ * Skips non-filterable field types (computed, json).
  * For enum / state fields, extracts options from field definition or data.
  * For boolean fields, provides true / false options.
  * For number fields, computes min / max from data.

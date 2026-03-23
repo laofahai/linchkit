@@ -23,7 +23,7 @@ describe("generateActionTools", () => {
         label: "Create Order",
         description: "Creates a new order",
         input: {
-          customer_id: { type: "ref", target: "customer", required: true },
+          customer_id: { type: "string", required: true },
           amount: { type: "number", min: 0 },
         },
       }),
@@ -41,7 +41,6 @@ describe("generateActionTools", () => {
       properties: {
         customer_id: {
           type: "string",
-          description: "Reference ID to customer",
         },
         amount: { type: "number", minimum: 0 },
       },

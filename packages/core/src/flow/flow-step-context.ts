@@ -48,8 +48,6 @@ function fieldTypeToJsonSchema(fieldType: string): Record<string, unknown> {
       return { type: "string" };
     case "json":
       return { type: "object" };
-    case "ref":
-      return { type: "string", description: "Reference ID" };
     default:
       return { type: "string" };
   }

@@ -13,16 +13,11 @@ import type {
   SchemaDefinition,
   SchemaExtension,
   SchemaOverride,
-  SchemaRelation,
 } from "../types/schema";
 
 // ── Non-storable field types ────────────────────────────────────
 
-const NON_STORABLE_TYPES = new Set(["computed", "has_many", "many_to_many"]);
-
-// ── Relation field types ────────────────────────────────────────
-
-const RELATION_TYPES = new Set(["ref", "has_many", "many_to_many"]);
+const NON_STORABLE_TYPES = new Set(["computed"]);
 
 // ── System field definitions ────────────────────────────────────
 
@@ -176,28 +171,6 @@ export class SchemaRegistry {
   /** Check if a schema is registered */
   has(name: string): boolean {
     return this.schemas.has(name);
-  }
-
-  /**
-   * Get all relations (ref, has_many, many_to_many) for a schema.
-   * Returns relations from the resolved schema (includes extensions).
-   */
-  getRelations(name: string): SchemaRelation[] {
-    const resolved = this.resolve(name);
-    const relations: SchemaRelation[] = [];
-
-    for (const [fieldName, resolvedField] of Object.entries(resolved.fields)) {
-      const def = resolvedField.definition;
-      if (RELATION_TYPES.has(def.type)) {
-        relations.push({
-          fieldName,
-          type: def.type as SchemaRelation["type"],
-          target: (def as { target: string }).target,
-        });
-      }
-    }
-
-    return relations;
   }
 }
 

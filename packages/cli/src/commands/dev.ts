@@ -14,6 +14,7 @@ import type {
   CapabilityDefinition,
   DataProvider,
   LinchKitConfig,
+  LinkDefinition,
   MiddlewareRegistration,
   SchemaDefinition,
   StateDefinition,
@@ -41,6 +42,7 @@ import {
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   InMemoryApprovalStore,
+  pushDrizzleSchema,
   InMemoryExecutionLogger,
   type OutboxWorker,
   SchemaRegistry,
@@ -167,6 +169,7 @@ export const devCommand = defineCommand({
     const actions: ActionDefinition[] = [];
     const views: ViewDefinition[] = [];
     const states: StateDefinition[] = [];
+    const links: LinkDefinition[] = [];
     const middlewares: MiddlewareRegistration[] = [];
     const transports: TransportAdapterDefinition[] = [];
 
@@ -175,6 +178,7 @@ export const devCommand = defineCommand({
       if (cap.actions) actions.push(...cap.actions);
       if (cap.views) views.push(...cap.views);
       if (cap.states) states.push(...cap.states);
+      if (cap.links) links.push(...cap.links);
       if (cap.extensions?.middlewares) {
         for (const [i, mw] of cap.extensions.middlewares.entries()) {
           middlewares.push({
@@ -225,25 +229,17 @@ export const devCommand = defineCommand({
           debug: dbConf.debug,
         });
 
-        // Generate schema barrel file and push to database via drizzle-kit
-        const schemaFile = generateDrizzleSchemaFile(schemas);
+        // Generate schema barrel file (still needed for drizzle-kit generate/migrate)
+        const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
         console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
 
-        console.log("[linch] Pushing schema to database via drizzle-kit...");
-        const pushResult = Bun.spawnSync(
-          ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"],
-          {
-            cwd: process.cwd(),
-            env: { ...process.env, DATABASE_URL: dbConf.url },
-            stdout: "inherit",
-            stderr: "inherit",
-          },
-        );
-        if (pushResult.exitCode !== 0) {
-          console.warn("[linch] drizzle-kit push failed — falling back to in-memory store");
-          await closeDatabase();
-          dbInstance = undefined;
-          throw new Error("drizzle-kit push failed");
+        // Push schema to database via pushSchema() API (in-process, no TTY needed)
+        console.log("[linch] Pushing schema to database...");
+        const schemaExports = await import(schemaFile);
+        const pushResult = await pushDrizzleSchema(dbInstance, schemaExports);
+        console.log(`[linch] Schema synced (${pushResult.statementsCount} statements)`);
+        if (pushResult.hasDataLoss) {
+          console.warn("[linch] Warning: schema push involved data loss operations");
         }
 
         // Build runtime TableRegistry for DrizzleDataProvider query routing
@@ -406,12 +402,14 @@ export const devCommand = defineCommand({
       actions,
       views,
       states,
+      links,
       middlewares,
       config: registry,
       dataProvider: devDataProvider,
       eventBus,
       executionLogger,
       approvalEngine,
+      capabilities,
     };
 
     // Start all transports

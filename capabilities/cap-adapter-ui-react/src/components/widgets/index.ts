@@ -13,7 +13,6 @@ import { DateTimeDisplay, DateTimeInput } from "./datetime-widget";
 import { EnumDisplay, EnumInput } from "./enum-widget";
 import { JsonDisplay, JsonInput } from "./json-widget";
 import { NumberDisplay, NumberInput } from "./number-widget";
-import { RefDisplay, RefInput } from "./ref-widget";
 import { StateDisplay, StateInput } from "./state-widget";
 import { StringDisplay, StringInput } from "./string-widget";
 import { TextDisplay, TextInput } from "./text-widget";
@@ -85,12 +84,6 @@ export function registerDefaultWidgets() {
     definition: { id: "state", fieldTypes: "state", modes: ["display", "input"], isDefault: true },
     display: StateDisplay,
     input: StateInput,
-  });
-
-  widgetRegistry.register({
-    definition: { id: "ref", fieldTypes: "ref", modes: ["display", "input"], isDefault: true },
-    display: RefDisplay,
-    input: RefInput,
   });
 
   widgetRegistry.register({
