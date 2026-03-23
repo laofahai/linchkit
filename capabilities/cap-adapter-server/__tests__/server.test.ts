@@ -77,7 +77,9 @@ describe("buildGraphQLSchema", () => {
     expect(sdl).toContain("type Task");
     expect(sdl).toContain("type Query");
     expect(sdl).toContain("type Mutation");
-    expect(sdl).toContain("task(id: ID!): Task");
+    // task query now includes locale parameter for translatable fields
+    expect(sdl).toContain("task(");
+    expect(sdl).toContain("id: ID!");
     expect(sdl).toContain("): TaskListResult!");
     expect(sdl).toContain("createTask(input: TaskInput!): Task");
     // updateTask is multiline in SDL due to arg descriptions; verify key parts
