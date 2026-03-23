@@ -84,8 +84,11 @@ export class PersistentEventBus extends EventBus {
 
     this.emitDepth++;
     try {
-      // Record the event in the in-memory log
+      // Record the event in the in-memory log, trimming old entries to prevent unbounded growth
       this.eventLog.push(event);
+      if (this.eventLog.length > this.maxEventLogSize) {
+        this.eventLog = this.eventLog.slice(-this.maxEventLogSize);
+      }
 
       // Find matching handlers
       const handlers = this.registry.getByEvent(event.type);

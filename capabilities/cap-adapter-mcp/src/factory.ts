@@ -114,6 +114,8 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         name: serverName,
         version: serverVersion,
         bearerToken,
+        tenantId,
+        graphqlEndpoint,
       };
 
       const {

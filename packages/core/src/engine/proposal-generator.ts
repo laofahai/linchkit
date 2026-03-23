@@ -246,8 +246,22 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
       const errors: string[] = [];
       const warnings: string[] = [];
 
+      // Precompute schemas being created in this proposal
+      const proposedSchemaNames = new Set(
+        proposal.changes
+          .filter((c) => c.target === "schema" && c.operation === "create")
+          .map((c) => c.name),
+      );
+
       for (const change of proposal.changes) {
-        validateChange(change, schemaRegistry, actionRegistry, errors, warnings);
+        validateChange(
+          change,
+          schemaRegistry,
+          actionRegistry,
+          errors,
+          warnings,
+          proposedSchemaNames,
+        );
       }
 
       return {
@@ -275,13 +289,21 @@ function validateChange(
   actionRegistry: ActionRegistry,
   errors: string[],
   warnings: string[],
+  proposedSchemaNames: Set<string>,
 ): void {
   switch (change.target) {
     case "schema":
       validateSchemaChange(change, schemaRegistry, errors, warnings);
       break;
     case "action":
-      validateActionChange(change, schemaRegistry, actionRegistry, errors, warnings);
+      validateActionChange(
+        change,
+        schemaRegistry,
+        actionRegistry,
+        errors,
+        warnings,
+        proposedSchemaNames,
+      );
       break;
     default:
       // Other targets (rule, view, state, event) get basic validation
@@ -363,6 +385,7 @@ function validateActionChange(
   _actionRegistry: ActionRegistry,
   errors: string[],
   _warnings: string[],
+  proposedSchemaNames: Set<string> = new Set(),
 ): void {
   if (change.operation === "delete") return;
 
@@ -373,9 +396,8 @@ function validateActionChange(
 
   const def = change.definition as ActionDefinition;
 
-  // Action must reference a valid schema
-  if (def.schema && !schemaRegistry.has(def.schema)) {
-    // Check if the schema is being created in the same proposal (caller handles)
+  // Action must reference a valid schema (also accept schemas being created in the same proposal)
+  if (def.schema && !schemaRegistry.has(def.schema) && !proposedSchemaNames.has(def.schema)) {
     errors.push(`Action "${change.name}": references unknown schema "${def.schema}"`);
   }
 

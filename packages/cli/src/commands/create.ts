@@ -121,6 +121,15 @@ export const createCapabilityCommand = defineCommand({
     const type = args.type as string;
     const category = args.category as string;
 
+    // Validate capability name — must be a safe identifier (lowercase, hyphens, underscores, digits)
+    const SAFE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
+    if (!SAFE_NAME_RE.test(name)) {
+      console.error(
+        `[linch] Invalid capability name "${name}". Must match: lowercase letters, digits, hyphens, underscores. Must start with a letter.`,
+      );
+      process.exit(1);
+    }
+
     // Validate type
     if (!VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
       console.error(`Error: Invalid type "${type}". Must be one of: ${VALID_TYPES.join(", ")}`);

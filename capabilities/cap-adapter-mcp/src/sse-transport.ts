@@ -97,56 +97,64 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
       }
     }
 
-    // GET /sse — Establish SSE connection
-    if (req.method === "GET" && url.pathname === "/sse") {
-      const sseTransport = new SSEServerTransport("/messages", res);
-      const sessionId = sseTransport.sessionId;
+    try {
+      // GET /sse — Establish SSE connection
+      if (req.method === "GET" && url.pathname === "/sse") {
+        const sseTransport = new SSEServerTransport("/messages", res);
+        const sessionId = sseTransport.sessionId;
 
-      // Create a fresh McpServer for this session
-      const mcpServer = await createMcpServer();
+        // Create a fresh McpServer for this session
+        const mcpServer = await createMcpServer();
 
-      transports.set(sessionId, sseTransport);
-      sessionServers.set(sessionId, mcpServer);
+        transports.set(sessionId, sseTransport);
+        sessionServers.set(sessionId, mcpServer);
 
-      // Clean up on disconnect
-      res.on("close", async () => {
-        transports.delete(sessionId);
-        const server = sessionServers.get(sessionId);
-        sessionServers.delete(sessionId);
-        if (server) {
-          try {
-            await server.close();
-          } catch {
-            // ignore cleanup errors
+        // Clean up on disconnect
+        res.on("close", async () => {
+          transports.delete(sessionId);
+          const server = sessionServers.get(sessionId);
+          sessionServers.delete(sessionId);
+          if (server) {
+            try {
+              await server.close();
+            } catch {
+              // ignore cleanup errors
+            }
           }
+        });
+
+        // Connect to MCP server and start SSE stream
+        await mcpServer.connect(sseTransport);
+        return;
+      }
+
+      // POST /messages — Client sends messages to an active session
+      if (req.method === "POST" && url.pathname === "/messages") {
+        const sessionId = url.searchParams.get("sessionId");
+        if (!sessionId) {
+          sendError(res, 400, "Missing sessionId query parameter");
+          return;
         }
-      });
 
-      // Connect to MCP server and start SSE stream
-      await mcpServer.connect(sseTransport);
-      return;
-    }
+        const sseTransport = transports.get(sessionId);
+        if (!sseTransport) {
+          sendError(res, 404, "Session not found or expired");
+          return;
+        }
 
-    // POST /messages — Client sends messages to an active session
-    if (req.method === "POST" && url.pathname === "/messages") {
-      const sessionId = url.searchParams.get("sessionId");
-      if (!sessionId) {
-        sendError(res, 400, "Missing sessionId query parameter");
+        await sseTransport.handlePostMessage(req, res);
         return;
       }
 
-      const sseTransport = transports.get(sessionId);
-      if (!sseTransport) {
-        sendError(res, 404, "Session not found or expired");
-        return;
+      // Unknown route
+      sendError(res, 404, "Not found");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[cap-adapter-mcp] SSE handler error: ${message}`);
+      if (!res.headersSent) {
+        sendError(res, 500, "Internal server error");
       }
-
-      await sseTransport.handlePostMessage(req, res);
-      return;
     }
-
-    // Unknown route
-    sendError(res, 404, "Not found");
   });
 
   return {

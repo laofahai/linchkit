@@ -42,7 +42,10 @@ export class DrizzleTransactionManager implements TransactionManager {
           await txDb.insert(eventsTable).values({
             eventType: event.type,
             tenantId: event.tenantId ?? null,
-            payload: event.payload as Record<string, unknown>,
+            payload: {
+              ...event.payload,
+              ...(event.traceId ? { _traceId: event.traceId } : {}),
+            } as Record<string, unknown>,
             sourceAction: event.sourceAction ?? null,
             sourceExecutionId: event.sourceExecutionId ?? null,
             status: "pending",

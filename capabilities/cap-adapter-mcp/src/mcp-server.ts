@@ -123,6 +123,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
           input: args as Record<string, unknown>,
           channel: "mcp",
           actor: MCP_ACTOR,
+          tenantId,
         });
 
         return {

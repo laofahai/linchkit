@@ -148,6 +148,28 @@ export class DrizzleDataProvider implements DataProvider {
           code: "data.record.not_null_violation",
           message: `NOT NULL violation on ${schema}: ${pgDetail || pgMessage}`,
         });
+      case "23514": // check_violation
+        throw new ValidationError({
+          code: "data.record.check_violation",
+          message: `Check constraint violation on ${schema}: ${pgDetail || pgMessage}`,
+        });
+      case "42P01": // undefined_table
+        throw new NotFoundError({
+          code: "data.schema.table_not_found",
+          message: `Table not found for schema "${schema}": ${pgMessage}`,
+          resource: "schema",
+          resourceId: schema,
+        });
+      case "42703": // undefined_column
+        throw new ValidationError({
+          code: "data.record.column_not_found",
+          message: `Column not found on ${schema}: ${pgDetail || pgMessage}`,
+        });
+      case "40P01": // deadlock_detected
+        throw new ConflictError({
+          code: "data.record.deadlock",
+          message: `Deadlock detected on ${schema}: ${pgMessage}`,
+        });
       default:
         throw new SystemError({
           code: "data.record.db_error",
@@ -159,11 +181,13 @@ export class DrizzleDataProvider implements DataProvider {
 
   /**
    * Normalize translatable fields in input data before writing to DB.
-   * Wraps plain string values as `{ [defaultLocale]: value }` for translatable fields.
+   * Wraps plain string values as `{ [locale]: value }` for translatable fields.
+   * Uses the provided locale, falling back to the schema's defaultLocale.
    */
   private normalizeTranslatableInput(
     schemaName: string,
     data: Record<string, unknown>,
+    locale?: string,
   ): Record<string, unknown> {
     const schemaDef = this.schemaDefinitions.get(schemaName);
     if (!schemaDef?.i18n?.defaultLocale) return data;
@@ -171,12 +195,12 @@ export class DrizzleDataProvider implements DataProvider {
     const translatableFields = getTranslatableFields(schemaDef);
     if (translatableFields.size === 0) return data;
 
-    const defaultLocale = schemaDef.i18n.defaultLocale;
+    const effectiveLocale = locale ?? schemaDef.i18n.defaultLocale;
     const result = { ...data };
 
     for (const fieldName of translatableFields) {
       if (fieldName in result) {
-        result[fieldName] = normalizeTranslatableValue(result[fieldName], defaultLocale);
+        result[fieldName] = normalizeTranslatableValue(result[fieldName], effectiveLocale);
       }
     }
 
@@ -353,7 +377,14 @@ export class DrizzleDataProvider implements DataProvider {
 
     try {
       const rows = await this.db.insert(table).values(insertData).returning();
-      return rows[0] as Record<string, unknown>;
+      const result = rows[0] as Record<string, unknown> | undefined;
+      if (!result) {
+        throw new SystemError({
+          code: "data.record.insert_no_return",
+          message: `Insert into ${schema} returned no rows`,
+        });
+      }
+      return result;
     } catch (err) {
       this.normalizeDbError(err, schema);
     }
@@ -380,11 +411,61 @@ export class DrizzleDataProvider implements DataProvider {
     }
 
     const now = new Date();
-    const normalizedData = this.normalizeTranslatableInput(schema, data);
+    const locale = (options as I18nQueryOptions | undefined)?.locale;
+    const normalizedData = this.normalizeTranslatableInput(schema, data, locale);
+
+    // For translatable fields, merge with existing values to avoid
+    // overwriting other locale entries. Fetch existing row once if needed.
+    const schemaDef = this.schemaDefinitions.get(schema);
+    const translatableFields = schemaDef ? getTranslatableFields(schemaDef) : new Set<string>();
+    const translatableFieldsInUpdate = new Set<string>();
+    for (const fieldName of translatableFields) {
+      if (fieldName in normalizedData) {
+        translatableFieldsInUpdate.add(fieldName);
+      }
+    }
+
+    let mergedData = normalizedData;
+    if (translatableFieldsInUpdate.size > 0) {
+      // Fetch existing record to merge locale maps
+      try {
+        // Read without locale resolution — we need the raw JSONB maps
+        const existingConditions = [eq(idCol, id), ...this.buildBaseConditions(table, options)];
+        const existingRows = await this.db
+          .select()
+          .from(table)
+          .where(and(...existingConditions))
+          .limit(1);
+
+        if (existingRows.length > 0) {
+          const existingRow = existingRows[0] as Record<string, unknown>;
+          mergedData = { ...normalizedData };
+          for (const fieldName of translatableFieldsInUpdate) {
+            const newVal = mergedData[fieldName];
+            const existingVal = existingRow[fieldName];
+            // Merge: spread existing locale map, then overlay new locale entries
+            if (
+              existingVal &&
+              typeof existingVal === "object" &&
+              newVal &&
+              typeof newVal === "object"
+            ) {
+              mergedData[fieldName] = {
+                ...(existingVal as Record<string, unknown>),
+                ...(newVal as Record<string, unknown>),
+              };
+            }
+          }
+        }
+      } catch {
+        // If we can't fetch existing record (e.g., not found), proceed with
+        // normalized data as-is — the update WHERE clause will handle not-found.
+      }
+    }
 
     // Build update payload, filtering to existing columns only
     const updateData: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(normalizedData)) {
+    for (const [key, value] of Object.entries(mergedData)) {
       if (key === "id" || key === "_version") continue; // Don't allow overwriting id or _version directly
       if (key in columns) {
         updateData[key] = value;

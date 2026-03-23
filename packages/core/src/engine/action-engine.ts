@@ -18,6 +18,7 @@ import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
+import { getCurrentTrace } from "./trace-context";
 
 // ── DataProvider interface ──────────────────────────────────
 
@@ -260,6 +261,8 @@ export interface PendingEvent {
   tenantId?: string;
   sourceAction?: string;
   sourceExecutionId?: string;
+  /** Trace ID for restoring the trace chain in OutboxWorker */
+  traceId?: string;
 }
 
 /**
@@ -358,7 +361,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 0b: Idempotency check
-    const idempotencyKey = execOptions?.idempotencyKey;
+    // Scope key by action name + tenant to prevent cross-action/cross-tenant collisions.
+    // Only apply at top level — child executions (depth > 0) do not inherit idempotency.
+    const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
+    const idempotencyKey = rawIdempotencyKey
+      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
+      : undefined;
     if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
       const existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
       if (existing && existing.status === "succeeded") {
@@ -501,12 +509,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         return childResult.data;
       },
       emit: (eventType, payload) => {
+        const trace = getCurrentTrace();
         pendingEvents.push({
           type: eventType,
           payload,
           tenantId: execOptions?.tenantId,
           sourceAction: actionName,
           sourceExecutionId: executionId,
+          traceId: trace?.traceId,
         });
       },
     };

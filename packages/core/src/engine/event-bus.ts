@@ -15,6 +15,7 @@ import { withTrace } from "./trace-context";
 
 const DEFAULT_PRIORITY = 100;
 const DEFAULT_MAX_EMIT_DEPTH = 10;
+const DEFAULT_MAX_EVENT_LOG_SIZE = 1000;
 
 // ── EventHandlerRegistry ────────────────────────────────────
 
@@ -76,15 +77,18 @@ export class EventBus {
   protected eventLog: EventRecord[] = [];
   protected emitDepth = 0;
   protected maxEmitDepth: number;
+  protected maxEventLogSize: number;
   protected logger: Logger;
 
   constructor(
     registry: EventHandlerRegistry,
     maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH,
     logger: Logger = consoleLogger,
+    maxEventLogSize = DEFAULT_MAX_EVENT_LOG_SIZE,
   ) {
     this.registry = registry;
     this.maxEmitDepth = maxEmitDepth;
+    this.maxEventLogSize = maxEventLogSize;
     this.logger = logger;
   }
 
@@ -108,8 +112,11 @@ export class EventBus {
 
     this.emitDepth++;
     try {
-      // Record the event
+      // Record the event, trimming old entries to prevent unbounded growth
       this.eventLog.push(event);
+      if (this.eventLog.length > this.maxEventLogSize) {
+        this.eventLog = this.eventLog.slice(-this.maxEventLogSize);
+      }
 
       // Find matching handlers
       const handlers = this.registry.getByEvent(event.type);
