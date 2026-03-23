@@ -16,4 +16,16 @@
   html {
     @apply font-sans;
   }
+
+  button,
+  a,
+  [role="button"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  summary,
+  select,
+  label[for] {
+    cursor: pointer;
+  }
 }
