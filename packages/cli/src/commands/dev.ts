@@ -24,14 +24,15 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
+  ConfigRegistry,
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
   createEventBus,
+  databaseConfig,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
-  resolveEnvVars,
   SchemaRegistry,
 } from "@linchkit/core";
 import {
@@ -147,6 +148,18 @@ export const devCommand = defineCommand({
     // Extract from capabilities
     const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
+    // ── Create ConfigRegistry (env resolution + Zod validation + freeze) ──
+    let registry: ConfigRegistry;
+    try {
+      registry = ConfigRegistry.create(config, capabilities);
+      console.log(`[linch] ConfigRegistry created (namespaces: ${registry.keys().join(", ")})`);
+    } catch (err) {
+      // ConfigRegistry.create collects all validation errors and throws once
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[linch] Configuration validation failed:\n\n${msg}`);
+      process.exit(1);
+    }
+
     // Generate capability stylesheet if UI adapter is present
     const generatedStylesheet = generateCapabilityStylesheet(capabilities);
     if (generatedStylesheet?.updated) {
@@ -198,20 +211,21 @@ export const devCommand = defineCommand({
       }
     }
 
-    // Resolve database configuration and create data provider
+    // ── Database setup — read config from registry ──
     let dataProvider: DataProvider | undefined;
     let usingDatabase = false;
     let dbInstance: ReturnType<typeof createDatabase> | undefined;
 
-    const dbConfig = config.database ? resolveEnvVars(config.database) : undefined;
+    // Read database config from ConfigRegistry (env vars already resolved, validated)
+    const dbConf = databaseConfig.from({ config: registry });
 
-    if (dbConfig?.url) {
+    if (dbConf.url) {
       try {
         console.log("[linch] Connecting to PostgreSQL...");
         dbInstance = createDatabase({
-          url: dbConfig.url,
-          poolSize: dbConfig.poolSize,
-          debug: dbConfig.debug,
+          url: dbConf.url,
+          poolSize: dbConf.poolSize,
+          debug: dbConf.debug,
         });
 
         // Generate schema barrel file and push to database via drizzle-kit
@@ -223,7 +237,7 @@ export const devCommand = defineCommand({
           ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"],
           {
             cwd: process.cwd(),
-            env: { ...process.env, DATABASE_URL: dbConfig.url },
+            env: { ...process.env, DATABASE_URL: dbConf.url },
             stdout: "inherit",
             stderr: "inherit",
           },
@@ -260,6 +274,70 @@ export const devCommand = defineCommand({
     // Build minimal runtime context for transports.
     const devDataProvider: DataProvider = dataProvider ?? createDevFallbackProvider();
 
+    // Generic auth provider discovery from registered capabilities.
+    // Auth provider capabilities register via extensions.authProvider.
+    // This replaces hardcoded provider imports — the framework stays generic.
+    const authProviderExt = capabilities
+      .flatMap((cap) => (cap.extensions?.authProvider ? [cap.extensions.authProvider] : []))
+      .at(0); // only one active provider
+
+    if (authProviderExt && usingDatabase && dbInstance) {
+      try {
+        const { createCapAuth, capAuthConfig } = await import("@linchkit/cap-auth");
+        const provider = authProviderExt.create({ database: dbInstance });
+        // Forward config from ConfigRegistry so middleware gets sessionCookieName etc.
+        const authCfg = registry.has("cap-auth")
+          ? capAuthConfig.from({ config: registry })
+          : undefined;
+        const rewiredCap = createCapAuth({ provider, config: authCfg });
+
+        // Replace auth actions and middlewares in registries
+        if (rewiredCap.actions) {
+          for (const action of rewiredCap.actions) {
+            const isNew = !actionRegistry.has(action.name);
+            actionRegistry.register(action, { overwrite: true });
+            if (isNew) {
+              actions.push(action);
+            }
+          }
+        }
+        if (rewiredCap.extensions?.middlewares) {
+          for (const [i, mw] of rewiredCap.extensions.middlewares.entries()) {
+            const name = `cap-auth_${mw.slot}_${String(i)}`;
+            const existingIdx = middlewares.findIndex((m) => m.name?.startsWith("cap-auth"));
+            if (existingIdx >= 0) {
+              middlewares[existingIdx] = {
+                name,
+                slot: mw.slot,
+                handler: mw.handler,
+                order: mw.priority ?? 50,
+              };
+            } else {
+              middlewares.push({
+                name,
+                slot: mw.slot,
+                handler: mw.handler,
+                order: mw.priority ?? 50,
+              });
+            }
+          }
+        }
+        console.log(`[linch] Auth provider "${authProviderExt.name}" wired into cap-auth`);
+
+        // Seed admin user if the provider supports it
+        if (authProviderExt.seedAdmin) {
+          await authProviderExt.seedAdmin({ database: dbInstance });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[linch] Failed to wire auth provider "${authProviderExt.name}": ${msg}`);
+      }
+    } else if (authProviderExt && !dbInstance) {
+      console.log(
+        `[linch] Auth provider "${authProviderExt.name}" registered but no database — skipping wiring`,
+      );
+    }
+
     // Create execution logger — Drizzle-backed when DB is available
     const executionLogger = dbInstance
       ? new DrizzleExecutionLogger(dbInstance)
@@ -287,6 +365,7 @@ export const devCommand = defineCommand({
       dataProvider: devDataProvider,
       transactionManager,
       executionLogger,
+      configRegistry: registry,
     });
     for (const action of actionRegistry.getAll()) {
       executor.registry.register(action);
@@ -331,7 +410,7 @@ export const devCommand = defineCommand({
       views,
       states,
       middlewares,
-      config: config as Record<string, unknown>,
+      config: registry,
       dataProvider: devDataProvider,
       eventBus,
       executionLogger,

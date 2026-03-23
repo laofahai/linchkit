@@ -10,6 +10,7 @@ import { assignUserAction } from "./actions/assign-user";
 import { createGroupAction } from "./actions/create-group";
 import { revokeUserAction } from "./actions/revoke-user";
 import { updatePermissionsAction } from "./actions/update-permissions";
+import { capPermissionConfig } from "./config";
 import { permissionAssignmentSchema } from "./schemas/permission-assignment";
 import { permissionGroupSchema } from "./schemas/permission-group";
 
@@ -20,6 +21,8 @@ export const capPermission = defineCapability({
   type: "standard",
   category: "system",
   version: "0.0.1",
+
+  configSchema: capPermissionConfig.schema,
 
   dependencies: ["cap-auth"],
 

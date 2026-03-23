@@ -6,7 +6,7 @@
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.63",
         "@ai-sdk/openai": "^3.0.47",
-        "@restatedev/restate-sdk": "^1.11.1",
+        "@restatedev/restate-sdk": "1.11.1",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
       },
@@ -93,6 +93,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@linchkit/core": "workspace:*",
+        "jose": "^6.2.2",
       },
       "devDependencies": {
         "typescript": "^5.9.3",

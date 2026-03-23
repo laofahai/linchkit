@@ -23,9 +23,12 @@ export { createApiKeyAction } from "./actions/create-api-key";
 export { loginAction } from "./actions/login";
 export { logoutAction } from "./actions/logout";
 export { refreshTokenAction } from "./actions/refresh-token";
+export { registerAction } from "./actions/register";
 export { resetPasswordAction } from "./actions/reset-password";
 // Static capability definition (pure contract, no handlers)
 export { capAuth } from "./capability";
+// Config schema
+export { capAuthConfig } from "./config";
 // Factory
 export { createCapAuth } from "./factory";
 // Middleware
@@ -35,7 +38,11 @@ export {
   createAuthMiddlewareRegistration,
 } from "./middleware/auth-middleware";
 // Providers
-export { createDevAuthProvider } from "./providers/dev-provider";
+export {
+  createDrizzleAuthProvider,
+  type DrizzleAuthProviderOptions,
+  initSystemAdmin,
+} from "./providers/drizzle-provider";
 // Schemas
 export { apiKeySchema } from "./schemas/api-key";
 export { sessionSchema } from "./schemas/session";

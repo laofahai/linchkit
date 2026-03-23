@@ -5,6 +5,7 @@
  * Actions are not CRUD — they are controlled execution units with business semantics.
  */
 
+import type { ConfigRegistry } from "../config/config-registry";
 import type { AIService } from "./ai";
 import type { FieldDefinition } from "./schema";
 
@@ -104,6 +105,9 @@ export interface ActionContext {
 
   // Emit custom events
   emit(eventType: string, payload: Record<string, unknown>): void;
+
+  /** Config registry — type-safe access to all validated config */
+  config: ConfigRegistry;
 
   // Current execution info
   executionId: string;

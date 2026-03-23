@@ -5,7 +5,7 @@
  */
 
 import type { CliCommandContext, TransportContext } from "@linchkit/core";
-import { defineCapability } from "@linchkit/core";
+import { defineCapability, serverConfig } from "@linchkit/core";
 
 export const capAdapterServer = defineCapability({
   name: "cap-adapter-server",
@@ -51,13 +51,10 @@ export const capAdapterServer = defineCapability({
             executionLogger: ctx.executionLogger,
           });
 
-          // Read port/host from config
-          const serverCfg = (ctx.config.server ?? {}) as {
-            port?: number;
-            host?: string;
-          };
-          const port = serverCfg.port ?? 3001;
-          const host = serverCfg.host ?? "0.0.0.0";
+          // Read port/host from system:server config (falls back to defaults via Zod)
+          const serverCfg = serverConfig.from(ctx);
+          const port = serverCfg.port;
+          const host = serverCfg.host;
 
           // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {
@@ -87,18 +84,7 @@ export const capAdapterServer = defineCapability({
             },
           };
         },
-        config: {
-          port: {
-            type: "number",
-            default: 3001,
-            description: "HTTP server port",
-          },
-          host: {
-            type: "string",
-            default: "0.0.0.0",
-            description: "HTTP server host",
-          },
-        },
+        // port/host come from system:server config — no transport-level config needed
       },
     ],
     commands: [

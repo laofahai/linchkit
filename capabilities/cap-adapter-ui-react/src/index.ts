@@ -25,6 +25,8 @@ export { AutoList } from "./components/auto-list";
 export { FieldDisplay, FieldInput } from "./components/field-renderer";
 export { LanguageSwitcher } from "./components/language-switcher";
 export { ThemeToggle } from "./components/theme-toggle";
+// Config schema
+export { capAdapterUiReactConfig } from "./config";
 // Hooks
 export { useBreadcrumb } from "./hooks/use-breadcrumb";
 export type { SupportedLanguage } from "./i18n";

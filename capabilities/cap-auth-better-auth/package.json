@@ -15,7 +15,8 @@
   },
   "peerDependencies": {
     "@linchkit/core": "^0.0.1",
-    "@linchkit/cap-auth": "^0.0.1"
+    "@linchkit/cap-auth": "^0.0.1",
+    "drizzle-orm": ">=0.41.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

@@ -20,6 +20,7 @@ import { loginAction } from "./actions/login";
 import { logoutAction } from "./actions/logout";
 import { refreshTokenAction } from "./actions/refresh-token";
 import { resetPasswordAction } from "./actions/reset-password";
+import { capAuthConfig } from "./config";
 import { apiKeySchema } from "./schemas/api-key";
 import { sessionSchema } from "./schemas/session";
 import { tokenSchema } from "./schemas/token";
@@ -33,6 +34,8 @@ export const capAuth = defineCapability({
   type: "standard",
   category: "system",
   version: "0.0.1",
+
+  configSchema: capAuthConfig.schema,
 
   dependencies: [],
 

@@ -1,6 +1,7 @@
 import { capAdapterServer } from "@linchkit/cap-adapter-server";
 import { capAdapterUiReact } from "@linchkit/cap-adapter-ui-react";
-import { createCapAuth, createDevAuthProvider } from "@linchkit/cap-auth";
+import { createCapAuth } from "@linchkit/cap-auth";
+import { capAuthBetterAuth } from "@linchkit/cap-auth-better-auth";
 import { createCapPermission } from "@linchkit/cap-permission";
 import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
 import { defineConfig, PermissionRegistry } from "@linchkit/core";
@@ -77,10 +78,19 @@ export default defineConfig({
   capabilities: [
     capAdapterServer,
     capAdapterUiReact,
-    createCapAuth({ provider: createDevAuthProvider() }),
+    createCapAuth({
+      config: {
+        jwtSecret: "$env.JWT_SECRET",
+        sessionCookieName: "lk_session",
+        allowAnonymous: true,
+      },
+    }),
+    capAuthBetterAuth(),
     createCapPermission({
       registry: permissionRegistry,
-      publicActions: ["login", "logout", "health"],
+      config: {
+        publicActions: ["login", "logout", "register", "reset_password", "health"],
+      },
     }),
     capPurchaseDemo,
   ],

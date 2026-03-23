@@ -12,6 +12,8 @@ export { revokeUserAction } from "./actions/revoke-user";
 export { updatePermissionsAction } from "./actions/update-permissions";
 // Capability definition
 export { capPermission } from "./capability";
+// Config schema
+export { capPermissionConfig } from "./config";
 export type { CapPermissionOptions } from "./factory";
 export { createCapPermission } from "./factory";
 export type { PermissionMiddlewareOptions } from "./middleware/permission-middleware";

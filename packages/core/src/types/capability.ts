@@ -16,6 +16,32 @@ import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
 
+// ── Auth provider extension ─────────────────────────────
+
+/**
+ * Registration record for an auth provider capability.
+ *
+ * Auth provider capabilities (e.g. cap-auth-better-auth) register via
+ * `extensions.authProvider` so that cap-auth can discover the concrete
+ * provider at runtime without hardcoded imports in the framework.
+ */
+export interface AuthProviderRegistration {
+  /** Unique provider name (e.g. "better-auth", "firebase", "ldap") */
+  name: string;
+  /**
+   * Factory function that creates the auth provider instance.
+   * Receives a context with the database instance (if available).
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
+  create: (ctx: { database?: any }) => any;
+  /**
+   * Optional function to seed an initial admin user.
+   * Called after the provider is created during dev startup.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
+  seedAdmin?: (ctx: { database?: any }) => Promise<void>;
+}
+
 // ── Capability types ────────────────────────────────
 
 export type CapabilityType = "standard" | "bridge" | "adapter";
@@ -52,6 +78,19 @@ export interface CapabilityDefinition {
   pages?: PageRegistration[];
   ui?: CapabilityUiDefinition;
 
+  /**
+   * Zod schema declaring this capability's config structure.
+   * ConfigRegistry validates against it at startup.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: ZodObject generic variance
+  configSchema?: import("zod").ZodObject<any>;
+
+  /**
+   * Config values populated by the factory function.
+   * Core resolves env vars and validates against configSchema at startup.
+   */
+  config?: Record<string, unknown>;
+
   /** Dev-only seed data keyed by schema name */
   seed?: Record<string, Array<Record<string, unknown>>>;
 
@@ -76,6 +115,8 @@ export interface CapabilityExtensions {
   commands?: CliCommand[];
   /** Transport adapters (protocol entry points for CommandLayer) */
   transports?: TransportAdapterDefinition[];
+  /** Auth provider registration (only one provider can be active at a time) */
+  authProvider?: AuthProviderRegistration;
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

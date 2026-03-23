@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { ForgotPasswordPage, LoginPage, RegisterPage } from "@linchkit/cap-auth/ui";
 import type { PageRegistration } from "@linchkit/core/types";
 import type { ComponentType } from "react";
+import { useState } from "react";
 import {
   loginWithPassword,
   registerWithPassword,

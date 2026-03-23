@@ -37,9 +37,14 @@ export async function registerWithPassword(data: {
   password: string;
   acceptedTerms: boolean;
 }): Promise<void> {
-  // No register action exists yet in cap-auth. Keep the boundary centralized here
-  // so the page wiring does not need to change once the backend contract lands.
-  void data;
+  const result = await executeAction("register", {
+    name: data.name,
+    email: data.email,
+    password: data.password,
+  });
+  if (!result.success) {
+    throw new Error(result.error?.message ?? "Registration failed");
+  }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {

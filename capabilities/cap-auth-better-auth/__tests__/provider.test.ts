@@ -1,9 +1,39 @@
 import { describe, expect, it } from "bun:test";
+import type { BetterAuthProviderOptions } from "../src/provider";
 import { createBetterAuthProvider } from "../src/provider";
 
-describe("BetterAuthProvider (skeleton)", () => {
-  it("should create a provider instance", () => {
-    const provider = createBetterAuthProvider();
+/**
+ * Unit tests for BetterAuthProvider.
+ *
+ * These tests verify the provider can be instantiated and exports
+ * the correct interface. Full integration tests require a running
+ * PostgreSQL database and are out of scope for unit tests.
+ */
+
+// Mock Drizzle DB instance — just enough structure for betterAuth() initialization
+const mockDb = {
+  _: { fullSchema: {} },
+  query: {},
+  select: () => mockDb,
+  from: () => mockDb,
+  where: () => mockDb,
+  insert: () => mockDb,
+  values: () => mockDb,
+  update: () => mockDb,
+  set: () => mockDb,
+  delete: () => mockDb,
+  execute: () => Promise.resolve([]),
+};
+
+const testOptions: BetterAuthProviderOptions = {
+  database: mockDb,
+  secret: "test-secret-key-for-unit-tests",
+  baseURL: "http://localhost:3001",
+};
+
+describe("BetterAuthProvider", () => {
+  it("should create a provider instance with required options", () => {
+    const provider = createBetterAuthProvider(testOptions);
     expect(provider).toBeDefined();
     expect(typeof provider.login).toBe("function");
     expect(typeof provider.logout).toBe("function");
@@ -15,33 +45,21 @@ describe("BetterAuthProvider (skeleton)", () => {
     expect(typeof provider.resolveSession).toBe("function");
   });
 
-  it("should return null from resolver stubs (no auth engine configured)", async () => {
-    const provider = createBetterAuthProvider();
-    expect(await provider.resolveToken("any_token")).toBeNull();
-    expect(await provider.resolveApiKey("lk_any_key")).toBeNull();
-    expect(await provider.resolveSession("any_session")).toBeNull();
+  it("resolveApiKey should return null (API keys not managed by better-auth)", async () => {
+    const provider = createBetterAuthProvider(testOptions);
+    const result = await provider.resolveApiKey("lk_some_test_key");
+    expect(result).toBeNull();
   });
 
-  it("should throw from action stubs (not yet implemented)", async () => {
-    const provider = createBetterAuthProvider();
-    const mockCtx = {
-      input: {},
-      actor: { type: "system" as const, id: "anonymous", groups: [] },
-      executionId: "exec_001",
-      timestamp: new Date(),
-      get: async () => ({}),
-      query: async () => [],
-      create: async () => ({}),
-      update: async () => ({}),
-      delete: async () => {},
-      execute: async () => {},
-      emit: () => {},
-    };
+  it("resolveToken should return null for invalid token", async () => {
+    const provider = createBetterAuthProvider(testOptions);
+    const result = await provider.resolveToken("invalid-token");
+    expect(result).toBeNull();
+  });
 
-    await expect(
-      provider.login(mockCtx, { email: "test@test.com", password: "pass" }),
-    ).rejects.toThrow("Not yet implemented");
-
-    await expect(provider.logout(mockCtx, {})).rejects.toThrow("Not yet implemented");
+  it("resolveSession should return null for invalid session", async () => {
+    const provider = createBetterAuthProvider(testOptions);
+    const result = await provider.resolveSession("invalid-session-id");
+    expect(result).toBeNull();
   });
 });

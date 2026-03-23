@@ -9,6 +9,7 @@
     "./types": "./src/types-entry.ts",
     "./define": "./src/define-entry.ts",
     "./server": "./src/server-entry.ts",
+    "./config": "./src/config/index.ts",
     "./utils/env": "./src/utils/env.ts"
   },
   "scripts": {

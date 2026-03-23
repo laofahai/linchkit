@@ -6,6 +6,7 @@
  * Core only defines the contract; concrete implementations live in capabilities.
  */
 
+import type { ConfigRegistry } from "../config/config-registry";
 import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
@@ -27,8 +28,8 @@ export interface TransportContext {
   views: ViewDefinition[];
   states: StateDefinition[];
   middlewares: MiddlewareRegistration[];
-  /** Runtime config (from linchkit.config.ts) */
-  config: Record<string, unknown>;
+  /** Unified config registry (replaces raw config object) */
+  config: ConfigRegistry;
   /** Pre-built data provider (e.g. DrizzleDataProvider when DATABASE_URL is configured) */
   dataProvider?: DataProvider;
   /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */

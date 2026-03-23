@@ -7,6 +7,16 @@
 
 export const VERSION = "0.0.1";
 
+export type { ConfigSchemaRef } from "./config";
+// Config center
+export {
+  ConfigRegistry,
+  databaseConfig,
+  defineConfigSchema,
+  queueConfig,
+  securityConfig,
+  serverConfig,
+} from "./config";
 // Define function exports
 export {
   defineAction,

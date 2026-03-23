@@ -50,9 +50,9 @@ describe("createCapAuth factory", () => {
     expect(cap.schemas).toHaveLength(4);
   });
 
-  it("should produce 5 actions WITH handlers when provider is supplied", () => {
+  it("should produce 6 actions WITH handlers when provider is supplied", () => {
     const cap = createCapAuth({ provider: createMockProvider() });
-    expect(cap.actions).toHaveLength(5);
+    expect(cap.actions).toHaveLength(6);
 
     for (const action of cap.actions ?? []) {
       expect(action.handler).toBeDefined();
@@ -60,9 +60,9 @@ describe("createCapAuth factory", () => {
     }
   });
 
-  it("should produce 5 actions WITHOUT handlers when no provider is supplied", () => {
+  it("should produce 6 actions WITHOUT handlers when no provider is supplied", () => {
     const cap = createCapAuth();
-    expect(cap.actions).toHaveLength(5);
+    expect(cap.actions).toHaveLength(6);
 
     for (const action of cap.actions ?? []) {
       expect(action.handler).toBeUndefined();

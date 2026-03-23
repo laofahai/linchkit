@@ -13,7 +13,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*"
+    "@linchkit/core": "workspace:*",
+    "jose": "^6.2.2"
   },
   "peerDependencies": {
     "@linchkit/core": "^0.0.1",

@@ -22,21 +22,17 @@ import type {
   TransportContext,
 } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
+import type { z } from "zod";
+import { capAdapterMcpConfig } from "./config";
 
 export interface CapAdapterMcpOptions {
-  /** Transport mode: stdio (default) or sse */
-  transport?: "stdio" | "sse";
-  /** Authentication options */
-  auth?: {
-    /** Bearer token for simple Phase 1 auth */
-    token?: string;
-  };
-  /** Server name reported in MCP handshake */
+  /** Server name reported in MCP handshake (programmatic dependency) */
   name?: string;
-  /** Server version reported in MCP handshake */
+  /** Server version reported in MCP handshake (programmatic dependency) */
   version?: string;
-  /** Port for SSE HTTP server (default: 3002). Only used when transport is "sse". */
-  ssePort?: number;
+
+  /** Declarative configuration — validated by capAdapterMcpConfig schema */
+  config?: Partial<z.infer<typeof capAdapterMcpConfig.schema>>;
 }
 
 /**
@@ -46,11 +42,9 @@ export interface CapAdapterMcpOptions {
  * factory pattern. Defaults to stdio transport when no transport is specified.
  */
 export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityDefinition {
-  const transportMode = options?.transport ?? "stdio";
-  const bearerToken = options?.auth?.token;
   const serverName = options?.name ?? "linchkit";
   const serverVersion = options?.version ?? "1.0.0";
-  const ssePort = options?.ssePort ?? 3002;
+  const cfg = options?.config;
 
   const transport: TransportAdapterDefinition = {
     name: "mcp",
@@ -59,8 +53,11 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
       // Lazy import to avoid loading heavy deps at registration time
       const { createMcpAdapter } = await import("./mcp-server");
 
-      const tenantId = ctx.config?.tenantId as string | undefined;
-      const graphqlEndpoint = ctx.config?.graphqlEndpoint as string | undefined;
+      // Read config from typed accessor (env resolved, validated, frozen)
+      const mcpCfg = capAdapterMcpConfig.from(ctx);
+      const { bearerToken, tenantId, graphqlEndpoint } = mcpCfg;
+      const transportMode = mcpCfg.transport;
+      const ssePort = mcpCfg.ssePort;
 
       const {
         server: mcpServer,
@@ -168,6 +165,9 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
     type: "adapter",
     category: "integration",
     version: "0.0.1",
+
+    configSchema: capAdapterMcpConfig.schema,
+    config: cfg,
 
     dependencies: [],
 

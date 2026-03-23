@@ -5,6 +5,8 @@
  */
 
 export { capAdapterMcp } from "./capability";
+// Config schema
+export { capAdapterMcpConfig } from "./config";
 export type { CapAdapterMcpOptions } from "./factory";
 export { createCapAdapterMcp } from "./factory";
 export { fieldsToJsonSchema, fieldToJsonSchema } from "./field-to-json-schema";

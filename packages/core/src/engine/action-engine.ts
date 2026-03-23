@@ -6,6 +6,7 @@
  * Execution follows the unified execution contract (see spec 39).
  */
 
+import { ConfigRegistry } from "../config/config-registry";
 import type {
   ActionContext,
   ActionDefinition,
@@ -93,12 +94,12 @@ export interface ExecuteOptions {
 export class ActionRegistry {
   private actions = new Map<string, ActionDefinition>();
 
-  /** Register an action definition. Throws on duplicate name. */
-  register(action: ActionDefinition): void {
+  /** Register an action definition. Throws on duplicate name unless overwrite is set. */
+  register(action: ActionDefinition, opts?: { overwrite?: boolean }): void {
     if (!action.name) {
       throw new Error("Action must have a name");
     }
-    if (this.actions.has(action.name)) {
+    if (this.actions.has(action.name) && !opts?.overwrite) {
       throw new Error(`Action "${action.name}" is already registered`);
     }
     this.actions.set(action.name, action);
@@ -298,6 +299,9 @@ export interface ActionExecutorOptions {
   executionLogger?: ExecutionLogger;
   /** AI service instance — optional, noop if not provided */
   aiService?: AIService;
+  /** Config registry — injected into ActionContext for type-safe config access.
+   *  Falls back to an empty registry when omitted (e.g. in tests). */
+  configRegistry?: ConfigRegistry;
 }
 
 /**
@@ -315,7 +319,14 @@ export interface ActionExecutorOptions {
  */
 export function createActionExecutor(options: ActionExecutorOptions): ActionExecutor {
   const registry = new ActionRegistry();
-  const { dataProvider, transactionManager, stateMachine, executionLogger, aiService } = options;
+  const {
+    dataProvider,
+    transactionManager,
+    stateMachine,
+    executionLogger,
+    aiService,
+    configRegistry,
+  } = options;
 
   /** Helper: build and log an execution entry */
   async function logExecution(
@@ -491,6 +502,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       input,
       actor,
       ai: aiService ?? noopAi,
+      config: configRegistry ?? ConfigRegistry.empty(),
       executionId,
       timestamp: startedAt,
       get: (schema, id) => activeProvider.get(schema, id, queryOptions),

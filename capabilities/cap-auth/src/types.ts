@@ -12,6 +12,8 @@
  */
 
 import type { ActionContext, Actor } from "@linchkit/core";
+import type { z } from "zod";
+import type { capAuthConfig } from "./config";
 
 // ── Auth result types ──────────────────────────────────
 
@@ -89,10 +91,17 @@ export interface AuthProvider {
 // ── Configuration for createCapAuth factory ─────────────
 
 export interface CapAuthOptions {
-  /** The concrete auth provider implementation */
-  provider: AuthProvider;
-  /** Cookie name for session-based auth (default: "lk_session") */
-  sessionCookieName?: string;
-  /** If true, anonymous requests are allowed through (default: true) */
-  allowAnonymous?: boolean;
+  /**
+   * The concrete auth provider implementation (programmatic dependency).
+   * When omitted, cap-auth is returned as a pure contract (no handlers).
+   * At runtime, the provider can be discovered from a registered
+   * `extensions.authProvider` capability (e.g. cap-auth-better-auth).
+   */
+  provider?: AuthProvider;
+
+  /**
+   * Declarative configuration — validated by capAuthConfig schema at startup.
+   * Keys: jwtSecret, tokenExpiry, sessionCookieName, allowAnonymous.
+   */
+  config?: Partial<z.infer<typeof capAuthConfig.schema>>;
 }

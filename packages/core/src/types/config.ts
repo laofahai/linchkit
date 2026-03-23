@@ -32,6 +32,18 @@ export interface LinchKitConfig {
     batchSize?: number;
   };
 
+  /** Security configuration (encryption key management etc.) */
+  security?: {
+    encryption?: {
+      /** Key provider type */
+      keyProvider?: "env" | "kms";
+      /** Environment variable name holding the encryption key */
+      keyEnvVar?: string;
+      /** Key version for rotation */
+      keyVersion?: number;
+    };
+  };
+
   /** GitHub integration */
   github?: {
     repo?: string;

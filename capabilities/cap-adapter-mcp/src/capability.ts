@@ -8,6 +8,7 @@
 
 import type { CliCommandContext, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
+import { capAdapterMcpConfig } from "./config";
 
 export const capAdapterMcp = defineCapability({
   name: "cap-adapter-mcp",
@@ -15,6 +16,8 @@ export const capAdapterMcp = defineCapability({
   type: "adapter",
   category: "integration",
   version: "0.0.1",
+
+  configSchema: capAdapterMcpConfig.schema,
 
   extensions: {
     transports: [
@@ -28,12 +31,9 @@ export const capAdapterMcp = defineCapability({
             "@modelcontextprotocol/sdk/server/stdio.js"
           );
 
-          // Create MCP server wired to LinchKit registries.
-          // Bearer token from transport config — used for GraphQL proxy auth forwarding.
-          // stdio transport itself relies on process-level security (no HTTP enforcement).
-          const bearerToken = ctx.config?.bearerToken as string | undefined;
-          const tenantId = ctx.config?.tenantId as string | undefined;
-          const graphqlEndpoint = ctx.config?.graphqlEndpoint as string | undefined;
+          // Read config from typed accessor (env resolved, validated, frozen)
+          const mcpCfg = capAdapterMcpConfig.from(ctx);
+          const { bearerToken, tenantId, graphqlEndpoint } = mcpCfg;
           const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
             schemaRegistry: ctx.schemaRegistry,

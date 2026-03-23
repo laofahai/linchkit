@@ -6,6 +6,7 @@
 
 import { defineCapability } from "@linchkit/core/define";
 import type { CliCommandContext, TransportContext } from "@linchkit/core/types";
+import { capAdapterUiReactConfig } from "./config";
 
 export const capAdapterUiReact = defineCapability({
   name: "cap-adapter-ui-react",
@@ -13,6 +14,8 @@ export const capAdapterUiReact = defineCapability({
   type: "adapter",
   category: "integration",
   version: "0.0.1",
+
+  configSchema: capAdapterUiReactConfig.schema,
 
   extensions: {
     transports: [
@@ -29,9 +32,8 @@ export const capAdapterUiReact = defineCapability({
 
           return {
             start: () => {
-              // Read port from config or default to 3000
-              const uiConfig = (ctx.config?.ui ?? {}) as { port?: number };
-              const port = uiConfig.port ?? 3000;
+              // Read port from typed config (falls back to default via Zod)
+              const { port } = capAdapterUiReactConfig.from(ctx);
 
               proc = Bun.spawn(
                 ["bunx", "vite", "--configLoader", "runner", "--port", String(port)],

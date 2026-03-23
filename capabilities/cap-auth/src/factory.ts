@@ -25,7 +25,9 @@ import { createApiKeyAction } from "./actions/create-api-key";
 import { loginAction } from "./actions/login";
 import { logoutAction } from "./actions/logout";
 import { refreshTokenAction } from "./actions/refresh-token";
+import { registerAction } from "./actions/register";
 import { resetPasswordAction } from "./actions/reset-password";
+import { capAuthConfig } from "./config";
 import { createAuthMiddleware } from "./middleware/auth-middleware";
 import { apiKeySchema } from "./schemas/api-key";
 import { sessionSchema } from "./schemas/session";
@@ -78,11 +80,47 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
             ctx.input as { email?: string; token?: string; new_password?: string },
           ),
         ),
+        wireAction(registerAction, async (ctx) => {
+          const input = ctx.input as { name: string; email: string; password: string };
+
+          // Check if email already exists
+          const existing = await ctx.query("user", { email: input.email, limit: 1 });
+          if (existing.length > 0) {
+            throw new Error("A user with this email already exists");
+          }
+
+          // Hash password
+          const passwordHash = await Bun.password.hash(input.password);
+
+          // Create user
+          const user = await ctx.create("user", {
+            name: input.name,
+            email: input.email,
+            password_hash: passwordHash,
+            status: "active",
+            groups: ["user"],
+          });
+
+          // Return user without password_hash
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        }),
       ]
-    : [loginAction, logoutAction, refreshTokenAction, createApiKeyAction, resetPasswordAction];
+    : [
+        loginAction,
+        logoutAction,
+        refreshTokenAction,
+        createApiKeyAction,
+        resetPasswordAction,
+        registerAction,
+      ];
 
   // Build middleware registrations from provider resolvers
   // Uses the CapabilityDefinition.MiddlewareRegistration type (slot + handler + priority)
+  const cfg = options?.config;
   const middlewares: CapabilityMiddlewareRegistration[] | undefined = provider
     ? [
         {
@@ -91,8 +129,8 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
             resolveToken: (token) => provider.resolveToken(token),
             resolveApiKey: (key) => provider.resolveApiKey(key),
             resolveSession: (sid) => provider.resolveSession(sid),
-            sessionCookieName: options?.sessionCookieName,
-            allowAnonymous: options?.allowAnonymous,
+            sessionCookieName: cfg?.sessionCookieName as string | undefined,
+            allowAnonymous: cfg?.allowAnonymous as boolean | undefined,
           }),
           priority: 50,
         },
@@ -106,6 +144,9 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
     type: "standard",
     category: "system",
     version: "0.0.1",
+
+    configSchema: capAuthConfig.schema,
+    config: cfg,
 
     dependencies: [],
 
