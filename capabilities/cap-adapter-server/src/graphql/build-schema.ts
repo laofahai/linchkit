@@ -561,8 +561,8 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
-        const entry = executionLogger.getById(args.id);
+      resolve: async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+        const entry = await executionLogger.getById(args.id);
         if (!entry) return null;
         // Tenant isolation: reject if entry belongs to a different tenant
         if (ctx.tenantId && entry.tenantId !== ctx.tenantId) return null;

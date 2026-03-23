@@ -19,6 +19,7 @@ import { executionsTable } from "./system-tables";
 
 /** Metadata stored in JSONB for fields without dedicated columns */
 interface ExecutionMetadata {
+	actor?: ExecutionLogEntry["actor"];
 	rulesEvaluated?: ExecutionLogEntry["rulesEvaluated"];
 	stateTransition?: ExecutionLogEntry["stateTransition"];
 	childExecutionIds?: string[];
@@ -29,6 +30,7 @@ export class DrizzleExecutionLogger {
 
 	async log(entry: ExecutionLogEntry): Promise<void> {
 		const metadata: ExecutionMetadata = {};
+		metadata.actor = entry.actor;
 		if (entry.rulesEvaluated) metadata.rulesEvaluated = entry.rulesEvaluated;
 		if (entry.stateTransition) metadata.stateTransition = entry.stateTransition;
 		if (entry.childExecutionIds?.length) metadata.childExecutionIds = entry.childExecutionIds;
@@ -152,7 +154,7 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
 		capability: row.capability ?? undefined,
 		input: (row.input as Record<string, unknown>) ?? {},
 		output: row.output ?? undefined,
-		actor: { type: (row.actorType ?? "system") as ActorType, id: row.actorId ?? "unknown", groups: [] },
+		actor: meta.actor ?? { type: (row.actorType ?? "system") as ActorType, id: row.actorId ?? "unknown", groups: [] },
 		status: row.status as ExecutionStatus,
 		error: row.errorMessage
 			? { code: row.errorCode ?? undefined, message: row.errorMessage }

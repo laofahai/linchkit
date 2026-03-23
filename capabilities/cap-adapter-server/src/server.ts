@@ -280,7 +280,7 @@ export function createServer(
       };
     })
     // ── Execution Log REST endpoints ────────────────────────
-    .get("/api/executions", ({ query, set }) => {
+    .get("/api/executions", async ({ query, set }) => {
       if (!executionLogger) {
         set.status = 500;
         return { success: false, error: { message: "Execution logger not configured." } };
@@ -317,7 +317,7 @@ export function createServer(
       }
 
       try {
-        const result = executionLogger.findMany({
+        const result = await executionLogger.findMany({
           action: query.action as string | undefined,
           schema: query.schema as string | undefined,
           status: query.status as ExecutionStatus | undefined,
@@ -341,12 +341,12 @@ export function createServer(
         return { success: false, error: { message } };
       }
     })
-    .get("/api/executions/:id", ({ params, set }) => {
+    .get("/api/executions/:id", async ({ params, set }) => {
       if (!executionLogger) {
         set.status = 500;
         return { success: false, error: { message: "Execution logger not configured." } };
       }
-      const entry = executionLogger.getById(params.id);
+      const entry = await executionLogger.getById(params.id);
       if (!entry) {
         set.status = 404;
         return { success: false, error: { message: `Execution ${params.id} not found.` } };

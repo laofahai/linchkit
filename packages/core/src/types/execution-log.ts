@@ -105,20 +105,20 @@ export interface ExecutionLogger {
   log(entry: ExecutionLogEntry): void | Promise<void>;
 
   /** Query all entries */
-  getAll(): ExecutionLogEntry[];
+  getAll(): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Query entries by action name */
-  getByAction(action: string): ExecutionLogEntry[];
+  getByAction(action: string): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Query entries by schema name */
-  getBySchema(schema: string): ExecutionLogEntry[];
+  getBySchema(schema: string): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Query entries by status */
-  getByStatus(status: ExecutionStatus): ExecutionLogEntry[];
+  getByStatus(status: ExecutionStatus): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Get a single entry by id */
-  getById(id: string): ExecutionLogEntry | undefined;
+  getById(id: string): ExecutionLogEntry | undefined | Promise<ExecutionLogEntry | undefined>;
 
   /** Paginated query with filters */
-  findMany(options?: ExecutionLogFindOptions): ExecutionLogListResult;
+  findMany(options?: ExecutionLogFindOptions): ExecutionLogListResult | Promise<ExecutionLogListResult>;
 }

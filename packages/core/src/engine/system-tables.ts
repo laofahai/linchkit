@@ -45,7 +45,7 @@ export const approvalStatusEnum = pgEnum("_linchkit_approval_status", [
 // ── Execution log table ─────────────────────────────────────
 
 export const executionsTable = pgTable("_linchkit_executions", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: varchar("id", { length: 255 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 255 }),
   actionName: varchar("action_name", { length: 255 }).notNull(),
   schemaName: varchar("schema_name", { length: 255 }),
@@ -60,7 +60,7 @@ export const executionsTable = pgTable("_linchkit_executions", {
   errorMessage: text("error_message"),
   durationMs: integer("duration_ms"),
   channel: varchar("channel", { length: 50 }),
-  parentExecutionId: uuid("parent_execution_id"),
+  parentExecutionId: varchar("parent_execution_id", { length: 255 }),
   metadata: jsonb("metadata"),
   startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { mode: "date" }),
@@ -88,7 +88,7 @@ export const eventsTable = pgTable("_linchkit_events", {
 // ── Approval records table ──────────────────────────────────
 
 export const approvalsTable = pgTable("_linchkit_approvals", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: varchar("id", { length: 255 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 255 }),
   actionName: varchar("action_name", { length: 255 }).notNull(),
   schemaName: varchar("schema_name", { length: 255 }),
@@ -108,9 +108,10 @@ export const approvalsTable = pgTable("_linchkit_approvals", {
   decisionNote: text("decision_note"),
   expiresAt: timestamp("expires_at", { mode: "date" }),
   timeoutPolicy: varchar("timeout_policy", { length: 50 }).notNull().default("reject"),
-  originalExecutionId: uuid("original_execution_id"),
-  executionId: uuid("execution_id"),
+  originalExecutionId: varchar("original_execution_id", { length: 255 }),
+  executionId: varchar("execution_id", { length: 255 }),
   executionError: text("execution_error"),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

@@ -146,7 +146,7 @@ export default defineConfig({
 
 	// ── 1. Event emission — persisted with status 'pending' ──
 
-	test("emit — event is persisted to DB with status 'pending' initially", async () => {
+	test("emit — event is persisted to DB and completed when no handlers registered", async () => {
 		const { registry, bus } = createPersistentEventBus(db!);
 
 		// Register a slow async handler so we can check persistence happened

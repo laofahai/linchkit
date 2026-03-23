@@ -102,13 +102,13 @@ export interface ApprovalStore {
   /** Create a new approval request */
   create(request: ApprovalRequest): void | Promise<void>;
   /** Get a request by ID */
-  getById(id: string): ApprovalRequest | undefined;
+  getById(id: string): ApprovalRequest | undefined | Promise<ApprovalRequest | undefined>;
   /** Update a request */
-  update(id: string, data: Partial<ApprovalRequest>): ApprovalRequest | undefined;
+  update(id: string, data: Partial<ApprovalRequest>): ApprovalRequest | undefined | Promise<ApprovalRequest | undefined>;
   /** Query requests by filters */
-  query(options?: ApprovalQuery): ApprovalRequest[];
+  query(options?: ApprovalQuery): ApprovalRequest[] | Promise<ApprovalRequest[]>;
   /** Get all pending requests that have expired */
-  getExpired(): ApprovalRequest[];
+  getExpired(): ApprovalRequest[] | Promise<ApprovalRequest[]>;
 }
 
 // ── Approval action result ─────────────────────────────

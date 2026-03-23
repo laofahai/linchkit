@@ -11,13 +11,23 @@ import type {
 	ApprovalRequest,
 	ApprovalStatus,
 } from "../types/approval";
-import type { ActorType } from "../types/action";
+import type { Actor, ActorType } from "../types/action";
 import { approvalsTable } from "./system-tables";
+
+/** Full actor objects stored in JSONB to avoid lossy column mapping */
+interface ApprovalMetadata {
+	requestedBy?: Actor;
+	decidedBy?: Actor;
+}
 
 export class DrizzleApprovalStore {
 	constructor(private db: PostgresJsDatabase) {}
 
 	async create(request: ApprovalRequest): Promise<void> {
+		const metadata: ApprovalMetadata = {
+			requestedBy: request.requestedBy,
+			decidedBy: request.decidedBy,
+		};
 		await this.db.insert(approvalsTable).values({
 			id: request.id,
 			tenantId: request.tenantId ?? null,
@@ -42,6 +52,7 @@ export class DrizzleApprovalStore {
 			originalExecutionId: request.originalExecutionId,
 			executionId: request.executionId ?? null,
 			executionError: request.executionError ?? null,
+			metadata,
 			createdAt: request.createdAt,
 			updatedAt: request.updatedAt,
 		});
@@ -106,6 +117,8 @@ export class DrizzleApprovalStore {
 type ApprovalRow = typeof approvalsTable.$inferSelect;
 
 function rowToRequest(row: ApprovalRow): ApprovalRequest {
+	const meta = (row.metadata ?? {}) as ApprovalMetadata;
+	const fallbackActor: Actor = { type: (row.actorType ?? "system") as ActorType, id: row.actorId ?? "unknown", groups: [] };
 	return {
 		id: row.id,
 		action: row.actionName,
@@ -116,10 +129,10 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
 		level: row.level,
 		reason: row.reason,
 		triggerRules: (row.triggerRules as string[]) ?? [],
-		requestedBy: { type: (row.actorType ?? "system") as ActorType, id: row.actorId ?? "unknown", groups: [] },
+		requestedBy: meta.requestedBy ?? fallbackActor,
 		assignee: { type: row.assigneeType as "role" | "user" | "group", value: row.assigneeValue },
 		status: row.status as ApprovalStatus,
-		decidedBy: row.decidedBy ? { type: "human" as ActorType, id: row.decidedBy, groups: [] } : undefined,
+		decidedBy: meta.decidedBy ?? (row.decidedBy ? { type: "human" as ActorType, id: row.decidedBy, groups: [] } : undefined),
 		decidedAt: row.decidedAt ?? undefined,
 		decisionNote: row.decisionNote ?? undefined,
 		expiresAt: row.expiresAt ?? undefined,

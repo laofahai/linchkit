@@ -301,7 +301,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
 
   async function approve(input: ApproveInput, approver: Actor): Promise<ActionResult> {
     // Fix #4: Throw for not-found and non-pending (consistent with reject/cancel)
-    const request = store.getById(input.approvalId);
+    const request = await store.getById(input.approvalId);
     if (!request) {
       throw new Error(`Approval request "${input.approvalId}" not found`);
     }
@@ -324,7 +324,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     }
 
     // Update status to approved with decision metadata
-    store.update(input.approvalId, {
+    await store.update(input.approvalId, {
       status: "approved",
       decidedBy: approver,
       decidedAt: new Date(),
@@ -374,11 +374,11 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // If re-execution fails, we record the error but the approval decision stands —
     // the failure is an execution issue, not an approval issue.
     if (result.success) {
-      store.update(input.approvalId, {
+      await store.update(input.approvalId, {
         executionId: result.executionId,
       });
     } else {
-      store.update(input.approvalId, {
+      await store.update(input.approvalId, {
         executionId: result.executionId,
         executionError:
           typeof result.data === "object" && result.data !== null
@@ -396,7 +396,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       throw new Error("Rejection note is required");
     }
 
-    const request = store.getById(input.approvalId);
+    const request = await store.getById(input.approvalId);
     if (!request) {
       throw new Error(`Approval request "${input.approvalId}" not found`);
     }
@@ -413,7 +413,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // P1: Check assignee authorization (optional, controlled by enforceAssignee option)
     checkAssigneeAuthorization(approver, request.assignee);
 
-    const updated = store.update(input.approvalId, {
+    const updated = await store.update(input.approvalId, {
       status: "rejected",
       decidedBy: approver,
       decidedAt: new Date(),
@@ -435,7 +435,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
   }
 
   async function cancel(input: CancelInput, actor: Actor): Promise<ApprovalRequest> {
-    const request = store.getById(input.approvalId);
+    const request = await store.getById(input.approvalId);
     if (!request) {
       throw new Error(`Approval request "${input.approvalId}" not found`);
     }
@@ -454,7 +454,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       throw new Error("Only the original initiator can cancel an approval request");
     }
 
-    const updated = store.update(input.approvalId, {
+    const updated = await store.update(input.approvalId, {
       status: "cancelled",
     });
 
@@ -472,7 +472,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
   }
 
   async function expireOverdue(): Promise<ApprovalRequest[]> {
-    const expired = store.getExpired();
+    const expired = await store.getExpired();
     const results: ApprovalRequest[] = [];
 
     for (const request of expired) {
@@ -481,7 +481,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         continue;
       }
 
-      const updated = store.update(request.id, {
+      const updated = await store.update(request.id, {
         status: "expired",
       });
 
@@ -524,7 +524,7 @@ export function createApprovalVerifier(
   store: ApprovalStore,
 ): (approvalId: string) => Promise<boolean> {
   return async (approvalId: string): Promise<boolean> => {
-    const request = store.getById(approvalId);
+    const request = await store.getById(approvalId);
     return !!request && request.status === "approved";
   };
 }
