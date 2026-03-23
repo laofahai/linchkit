@@ -24,37 +24,33 @@ export const capAdapterServer = defineCapability({
           const { buildGraphQLSchema, generateCrudActions } = await import(
             "./graphql/build-schema"
           );
-          const { createRuntimeContext } = await import("./runtime-context");
           const { createServer } = await import("./server");
 
-          // Generate CRUD actions for each schema, skip duplicates
-          const allActions = [...ctx.actions];
+          // Generate CRUD actions for each schema, register into executor (skip duplicates)
           for (const schema of ctx.schemas) {
             const cruds = generateCrudActions(schema);
             for (const crud of cruds) {
-              if (!allActions.some((a) => a.name === crud.name)) {
-                allActions.push(crud);
+              if (!ctx.executor.registry.has(crud.name)) {
+                ctx.executor.registry.register(crud);
               }
             }
           }
 
-          // Create a fully-wired runtime — uses provided dataProvider (e.g. Drizzle) or falls back to InMemoryStore
-          const runtime = createRuntimeContext({
-            schemas: ctx.schemas,
-            actions: allActions,
-            views: ctx.views,
-            states: ctx.states,
-            middlewares: ctx.middlewares,
-            dataProvider: ctx.dataProvider,
-            eventBus: ctx.eventBus,
-          });
+          // Build views map from flat array
+          const viewsMap = new Map<string, import("@linchkit/core/types").ViewDefinition[]>();
+          for (const view of ctx.views) {
+            const list = viewsMap.get(view.schema) ?? [];
+            list.push(view);
+            viewsMap.set(view.schema, list);
+          }
 
+          // Build GraphQL schema using the shared executor + data provider from CLI
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
-            executor: runtime.executor,
-            dataProvider: runtime.dataProvider,
+            executor: ctx.executor,
+            dataProvider: ctx.dataProvider,
           });
 
-          // Read port/host from transport config or runtime config
+          // Read port/host from config
           const serverCfg = (ctx.config.server ?? {}) as {
             port?: number;
             host?: string;
@@ -62,12 +58,13 @@ export const capAdapterServer = defineCapability({
           const port = serverCfg.port ?? 3001;
           const host = serverCfg.host ?? "0.0.0.0";
 
+          // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {
             port,
-            executor: runtime.executor,
-            commandLayer: runtime.commandLayer,
-            schemaRegistry: runtime.schemaRegistry,
-            views: runtime.views,
+            executor: ctx.executor,
+            commandLayer: ctx.commandLayer,
+            schemaRegistry: ctx.schemaRegistry,
+            views: viewsMap,
             // Extract tenant ID from X-Tenant-ID header.
             // TODO: support JWT-based tenant extraction via auth capability
             resolveRequestTenantId: (request: Request) => {

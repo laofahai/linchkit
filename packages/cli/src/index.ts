@@ -6,6 +6,7 @@
  */
 
 import { defineCommand, runMain } from "citty";
+import { dbCommand } from "./commands/db";
 import { devCommand } from "./commands/dev";
 import { initCommand } from "./commands/init";
 
@@ -20,6 +21,7 @@ const main = defineCommand({
   subCommands: {
     init: initCommand,
     dev: devCommand,
+    db: dbCommand,
   },
 });
 

@@ -2,7 +2,7 @@
  * Programmatic migration runner
  *
  * Runs drizzle-kit generated migrations against a PostgreSQL database.
- * Used in production mode instead of syncTables().
+ * Used in production mode (linch db:migrate).
  *
  * Usage:
  *   import { runMigrations, createDatabase } from "@linchkit/core/server";

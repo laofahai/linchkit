@@ -4,6 +4,11 @@
  * Creates an MCP server that exposes LinchKit actions as MCP tools
  * and schemas as MCP resources. All action invocations go through
  * the CommandLayer pipeline with channel="mcp".
+ *
+ * Note: We use `as any` casts when passing Zod schemas to the MCP SDK because
+ * the SDK bundles its own zod v3 (3.25.x) while the project uses zod v4.
+ * TypeScript sees them as incompatible types despite being structurally identical.
+ * The MCP SDK's zod-compat layer handles both v3 and v4 at runtime.
  */
 
 import type { ActionRegistry, Actor, CommandLayer, SchemaRegistry } from "@linchkit/core";
@@ -51,7 +56,8 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpS
     // Build zod schema for tool parameters
     const zodShape = buildZodShape(action.input);
 
-    server.tool(tool.name, tool.description, zodShape, async (args) => {
+    // Cast needed: project zod v4 types differ from SDK's bundled zod types
+    server.tool(tool.name, tool.description, zodShape as any, async (args: any) => {
       const result = await commandLayer.execute({
         command: tool.name,
         input: args as Record<string, unknown>,
@@ -117,7 +123,7 @@ function buildZodShape(
         zodType = z.boolean();
         break;
       case "json":
-        zodType = z.record(z.unknown());
+        zodType = z.record(z.string(), z.unknown());
         break;
       default:
         zodType = z.string();
@@ -143,11 +149,10 @@ function registerBuiltinTools(
   schemaRegistry: SchemaRegistry,
   actionRegistry: ActionRegistry,
 ): void {
-  // list_schemas
+  // list_schemas — no parameters
   server.tool(
     "list_schemas",
     "List all available schemas with their names, labels, and descriptions",
-    {},
     async () => {
       const schemas = schemaRegistry.getAll().map((s) => ({
         name: s.name,
@@ -162,11 +167,12 @@ function registerBuiltinTools(
   );
 
   // get_schema
+  const getSchemaShape = { name: z.string().describe("Schema name") };
   server.tool(
     "get_schema",
     "Get the full definition of a schema by name, including all fields",
-    { name: z.string().describe("Schema name") },
-    async (args) => {
+    getSchemaShape as any,
+    async (args: any) => {
       const schema = schemaRegistry.get(args.name);
       if (!schema) {
         return {
@@ -195,11 +201,10 @@ function registerBuiltinTools(
     },
   );
 
-  // list_actions
+  // list_actions — no parameters
   server.tool(
     "list_actions",
     "List all available actions with their names, labels, descriptions, and associated schemas",
-    {},
     async () => {
       const actions = actionRegistry.getAll().map((a) => ({
         name: a.name,

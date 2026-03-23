@@ -281,14 +281,63 @@ defineSchema({
 | Permission | 谁能操作 | definePermissionGroup |
 | systemPermissions | Capability 能用哪些系统资源 | defineCapability |
 
-## 9. 变更方式
+## 9. 变更方式与数据库 Schema 管理
 
-- **开发时：** TS 文件中用 `defineSchema` 声明，修改后重启开发服务器
-- **生产变更：** 修改 TS 文件 → 构建时自动生成 DB migration（Drizzle Kit）→ 蓝绿部署
-- **Source of truth：** 始终是 TS 文件 / Git，不在数据库中存储 Schema 定义
+### 9.1 Source of Truth
+
+- **始终是 TS 文件 / Git**，不在数据库中存储 Schema 定义
 - DB 只存业务数据，不存元定义
+- 每个 Capability 通过 `defineSchema()` 声明 Schema（静态 TS 代码）
 
-## 9. 待定问题
+### 9.2 Schema → Database 映射流程
+
+```
+linchkit.config.ts (声明 capabilities)
+       ↓ linch CLI 读取
+所有 SchemaDefinition + Core 系统表
+       ↓ generateDrizzleTable() 自动转换
+.linchkit/drizzle-schema.generated.ts (自动生成的 barrel file)
+       ↓ drizzle-kit 读取
+数据库同步
+```
+
+**关键设计：** `linch` CLI 从 config 加载所有 capability，收集 SchemaDefinition，通过 `generateDrizzleTable()` 转换为 Drizzle pgTable 定义，写入一个自动生成的 schema barrel file。drizzle-kit 读取这个文件来管理数据库。
+
+这确保了：
+- npm 安装的三方 capability 包可以正常工作（config import 即可）
+- capability 放在任意目录都行（跟着 config 走）
+- 不重复造轮子，完全依赖 drizzle-kit 管理表结构
+
+### 9.3 Capability 的 Drizzle Table 导出约定
+
+每个定义了 Schema 的 capability **应当** 在包中导出对应的 Drizzle table 定义：
+
+```typescript
+// capabilities/cap-purchase-demo/src/drizzle-tables.ts
+import { generateDrizzleTable } from "@linchkit/core/server";
+import { purchaseRequestSchema } from "./schemas/purchase-request";
+
+export const purchaseRequestTable = generateDrizzleTable(purchaseRequestSchema);
+```
+
+`linch` CLI 在生成 `.linchkit/drizzle-schema.generated.ts` 时，优先使用 capability 显式导出的 table；若无导出，则自动从 SchemaDefinition 生成。
+
+### 9.4 CLI 命令
+
+| 命令 | 作用 | 环境 |
+|------|------|------|
+| `linch dev` | 自动生成 schema barrel → `drizzle-kit push` → 启动服务 | 开发 |
+| `linch db:generate` | 生成 schema barrel → `drizzle-kit generate`（生成 migration SQL） | 生产部署前 |
+| `linch db:migrate` | `drizzle-kit migrate`（执行 migration） | 生产部署时 |
+| `linch db:studio` | `drizzle-kit studio`（数据库可视化） | 调试 |
+
+### 9.5 开发 vs 生产
+
+- **开发时：** `linch dev` 自动 push，修改 Schema 重启即生效，无需手动建表或写 migration
+- **生产变更：** `linch db:generate` 生成 migration SQL → 人工审核 → `linch db:migrate` 执行 → 蓝绿部署
+- **回滚：** 通过 drizzle-kit migration journal 管理，每次 migration 有完整 snapshot
+
+## 10. 待定问题
 
 - number 类型是否需要细分 integer / decimal / float？
 - 文件/附件类型是否作为基础类型？

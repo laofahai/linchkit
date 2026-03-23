@@ -7,6 +7,7 @@
  */
 
 import {
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -39,18 +40,6 @@ export const approvalStatusEnum = pgEnum("_linchkit_approval_status", [
   "expired",
 ]);
 
-// ── Schema definitions table ────────────────────────────────
-// Persists registered SchemaDefinition objects so they survive restarts.
-// Dynamic user-defined tables are still generated at runtime from these definitions.
-
-export const schemaDefinitionsTable = pgTable("_linchkit_schema_definitions", {
-  name: varchar("name", { length: 255 }).primaryKey(),
-  label: varchar("label", { length: 255 }),
-  definition: jsonb("definition").notNull(),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
-});
-
 // ── Execution log table ─────────────────────────────────────
 
 export const executionsTable = pgTable("_linchkit_executions", {
@@ -66,7 +55,9 @@ export const executionsTable = pgTable("_linchkit_executions", {
   durationMs: integer("duration_ms"),
   channel: varchar("channel", { length: 50 }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_executions_action_created").on(table.actionName, table.createdAt),
+]);
 
 // ── Event store table ───────────────────────────────────────
 
@@ -79,7 +70,10 @@ export const eventsTable = pgTable("_linchkit_events", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   processedAt: timestamp("processed_at", { mode: "date" }),
   status: eventStatusEnum("status").notNull().default("pending"),
-});
+  errorMessage: text("error_message"),
+}, (table) => [
+  index("idx_events_type_status").on(table.eventType, table.status),
+]);
 
 // ── Approval records table ──────────────────────────────────
 

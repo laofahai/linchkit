@@ -8,6 +8,7 @@
         "@ai-sdk/openai": "^3.0.47",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
+        "drizzle-orm": "^0.45.1",
       },
       "devDependencies": {
         "bun-types": "latest",

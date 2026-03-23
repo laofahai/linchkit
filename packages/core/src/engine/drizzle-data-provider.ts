@@ -304,23 +304,16 @@ export class DrizzleDataProvider implements DataProvider {
     }
 
     if (rows.length === 0) {
-      // Distinguish between not found and version conflict
-      if (expectedVersion !== undefined) {
-        // Check if record exists within the same tenant scope to avoid cross-tenant info leakage
+      // Distinguish between not found and version conflict (single query)
+      if (expectedVersion !== undefined && versionCol) {
         const tenantScopedConditions = [eq(idCol, id), ...this.buildBaseConditions(table, options)];
-        const existCheck = await this.db
-          .select({ total: count() })
+        const currentRow = await this.db
+          .select({ _version: versionCol })
           .from(table)
-          .where(and(...tenantScopedConditions));
+          .where(and(...tenantScopedConditions))
+          .limit(1);
 
-        const exists = (existCheck[0]?.total ?? 0) > 0;
-        if (exists) {
-          // Fetch the actual current version from the row (tenant-scoped)
-          const currentRow = await this.db
-            .select({ _version: versionCol! })
-            .from(table)
-            .where(and(...tenantScopedConditions))
-            .limit(1);
+        if (currentRow.length > 0) {
           const actualVersion = (currentRow[0]?._version as number) ?? undefined;
           throw new ConflictError({
             code: "data.record.version_conflict",

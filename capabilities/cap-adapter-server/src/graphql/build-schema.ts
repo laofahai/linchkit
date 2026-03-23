@@ -61,6 +61,7 @@ function toCamelCase(name: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
+// TODO: Resolve actor from auth context (JWT/session) instead of using anonymous
 /** Anonymous actor for GraphQL requests (no elevated privileges) */
 const ANONYMOUS_ACTOR = {
   type: "system" as const,

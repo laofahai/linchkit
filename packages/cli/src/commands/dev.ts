@@ -35,13 +35,14 @@ import {
   createDatabase,
   createPersistentEventBus,
   DrizzleDataProvider,
+  generateDrizzleSchemaFile,
   generateDrizzleTable,
-  syncTables,
   TableRegistry,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
+
 
 /** Simple in-memory DataProvider for dev fallback when no database is configured. */
 function createDevFallbackProvider(): DataProvider {
@@ -204,15 +205,33 @@ export const devCommand = defineCommand({
           debug: dbConfig.debug,
         });
 
-        // Build Drizzle tables from schemas
+        // Generate schema barrel file and push to database via drizzle-kit
+        const schemaFile = generateDrizzleSchemaFile(schemas);
+        console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
+
+        console.log("[linch] Pushing schema to database via drizzle-kit...");
+        const pushResult = Bun.spawnSync(
+          ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"],
+          {
+            cwd: process.cwd(),
+            env: { ...process.env, DATABASE_URL: dbConfig.url },
+            stdout: "inherit",
+            stderr: "inherit",
+          },
+        );
+        if (pushResult.exitCode !== 0) {
+          console.warn("[linch] drizzle-kit push failed — falling back to in-memory store");
+          await closeDatabase();
+          dbInstance = undefined;
+          throw new Error("drizzle-kit push failed");
+        }
+
+        // Build runtime TableRegistry for DrizzleDataProvider query routing
         const tableRegistry = new TableRegistry();
         for (const schema of schemas) {
           const table = generateDrizzleTable(schema);
           tableRegistry.register(schema.name, table);
         }
-
-        // Sync tables to database (CREATE TABLE IF NOT EXISTS)
-        await syncTables(dbInstance, tableRegistry, { verbose: true });
 
         dataProvider = new DrizzleDataProvider(dbInstance, tableRegistry);
         usingDatabase = true;
@@ -261,7 +280,7 @@ export const devCommand = defineCommand({
       states,
       middlewares,
       config: config as Record<string, unknown>,
-      dataProvider,
+      dataProvider: devDataProvider,
       eventBus,
     };
 

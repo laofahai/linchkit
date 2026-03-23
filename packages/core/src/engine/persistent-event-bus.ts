@@ -177,7 +177,7 @@ export class PersistentEventBus extends EventBus {
   private async updateStatus(
     id: string,
     status: "completed" | "failed",
-    _errorMessage?: string,
+    errorMessage?: string,
   ): Promise<void> {
     try {
       await this.db
@@ -185,6 +185,7 @@ export class PersistentEventBus extends EventBus {
         .set({
           status,
           processedAt: new Date(),
+          ...(errorMessage ? { errorMessage } : {}),
         })
         .where(eq(eventsTable.id, id));
     } catch (err) {

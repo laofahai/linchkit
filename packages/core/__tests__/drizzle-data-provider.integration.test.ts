@@ -2,7 +2,7 @@
  * Integration tests for DrizzleDataProvider against a real PostgreSQL database.
  *
  * Requires a running PostgreSQL instance. Set DATABASE_TEST_URL env var to connect.
- * Default: postgres://linchkit:linchkit@localhost:5433/linchkit_test
+ * Default: postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test
  *
  * Skips gracefully when no database is available (CI without PG won't fail).
  */
@@ -13,8 +13,8 @@ import {
   closeDatabase,
   createDatabase,
   DrizzleDataProvider,
+  generateDrizzleSchemaFile,
   generateDrizzleTable,
-  syncTables,
   TableRegistry,
 } from "@linchkit/core/server";
 import { sql } from "drizzle-orm";
@@ -23,7 +23,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 // ── Test configuration ───────────────────────────────────────
 
 const DATABASE_URL =
-  process.env.DATABASE_TEST_URL ?? "postgres://linchkit_test:linchkit_test@localhost:5433/linchkit_test";
+  process.env.DATABASE_TEST_URL ?? "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
 const testSchema = defineSchema({
   name: "integration_test_item",
@@ -73,18 +73,60 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     // Drop test table if it exists from a previous run
     await db.execute(sql.raw(`DROP TABLE IF EXISTS "${SCHEMA_NAME}" CASCADE`));
 
-    // Set up table registry and sync tables
+    // Set up table registry
     tableRegistry = new TableRegistry();
     const table = generateDrizzleTable(testSchema);
     tableRegistry.register(SCHEMA_NAME, table);
 
-    await syncTables(db, tableRegistry);
+    // Create test table via drizzle-kit push (same path as linch dev/db:push).
+    // Schema file must be under project root so esbuild can resolve @linchkit/core/server.
+    const { writeFileSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+
+    const schemaFile = generateDrizzleSchemaFile([testSchema], process.cwd(), {
+      outputFile: "test-schema.generated.ts",
+    });
+    const tmpDir = join(tmpdir(), `linchkit-test-${Date.now()}`);
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(tmpDir, { recursive: true });
+    const configPath = join(tmpDir, "drizzle.config.ts");
+    writeFileSync(configPath, `
+import { defineConfig } from "drizzle-kit";
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "${schemaFile}",
+  dbCredentials: { url: "${DATABASE_URL}" },
+});
+`);
+
+    const result = Bun.spawnSync(
+      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force",
+       "--config", configPath],
+      { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" },
+    );
+
+    const pushStdout = result.stdout.toString();
+    const pushStderr = result.stderr.toString();
+    rmSync(tmpDir, { recursive: true, force: true });
+
+    if (result.exitCode !== 0) {
+      throw new Error(`drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`);
+    }
   });
 
   afterAll(async () => {
     if (db) {
       await db.execute(sql.raw(`DROP TABLE IF EXISTS "${SCHEMA_NAME}" CASCADE`));
       await closeDatabase();
+    }
+    // Clean up generated test schema file
+    try {
+      const { unlinkSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      unlinkSync(join(process.cwd(), ".linchkit", "test-schema.generated.ts"));
+    } catch {
+      // Ignore if already cleaned up
     }
   });
 
