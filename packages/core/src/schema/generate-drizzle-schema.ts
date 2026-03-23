@@ -11,8 +11,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import type { LinkDefinition } from "../types/link";
 import type { SchemaDefinition } from "../types/schema";
-import { generateDrizzleTable } from "./schema-to-drizzle";
+import { generateDrizzleTable, generateLinkColumns } from "./schema-to-drizzle";
 
 const DEFAULT_OUTPUT_DIR = ".linchkit";
 const DEFAULT_OUTPUT_FILE = "drizzle-schema.generated.ts";
@@ -46,6 +47,7 @@ export function generateDrizzleSchemaFile(
   schemas: SchemaDefinition[],
   projectRoot: string = process.cwd(),
   options?: GenerateSchemaFileOptions,
+  links: LinkDefinition[] = [],
 ): string {
   const outDir = join(projectRoot, options?.outputDir ?? DEFAULT_OUTPUT_DIR);
   const outPath = join(outDir, options?.outputFile ?? DEFAULT_OUTPUT_FILE);
@@ -54,10 +56,13 @@ export function generateDrizzleSchemaFile(
     mkdirSync(outDir, { recursive: true });
   }
 
+  // Phase 1: Generate base tables from schemas
+  const tableMap: Record<string, ReturnType<typeof import("drizzle-orm/pg-core").pgTable>> = {};
   const tableExports: string[] = [];
 
   for (const schema of schemas) {
     const table = generateDrizzleTable(schema);
+    tableMap[schema.name] = table;
     const config = getTableConfig(table);
     const varName = `${toCamelCase(schema.name)}Table`;
 
@@ -71,11 +76,142 @@ export function generateDrizzleSchemaFile(
     );
   }
 
+  // Phase 2: Generate link FK columns and junction tables
+  const linkExports: string[] = [];
+  let needsPrimaryKey = false;
+
+  if (links.length > 0) {
+    const { fkColumns, junctionTables } = generateLinkColumns(links, tableMap);
+
+    // Append FK columns to existing table exports
+    for (const [tableName, cols] of Object.entries(fkColumns)) {
+      const colDefs = Object.entries(cols).map(([colName, _col]) => {
+        // Find the link that produced this column to get metadata
+        const link = links.find((l) => {
+          if (
+            (l.cardinality === "many_to_one" || l.cardinality === "one_to_one") &&
+            tableName.endsWith(l.from)
+          ) {
+            return `${l.to}_id` === colName;
+          }
+          if (l.cardinality === "one_to_many" && tableName.endsWith(l.to)) {
+            return `${l.from}_id` === colName;
+          }
+          return false;
+        });
+
+        const targetSchema = link?.cardinality === "one_to_many" ? link.from : link?.to;
+        const targetVar = targetSchema ? `${toCamelCase(targetSchema)}Table` : "";
+        let code = `varchar("${colName}", { length: 128 })`;
+        if (targetVar) {
+          // Serialize onDelete cascade behavior
+          const onDelete =
+            link?.cascade === "delete"
+              ? "cascade"
+              : link?.cascade === "nullify"
+                ? "set null"
+                : undefined;
+          if (onDelete) {
+            code += `.references(() => ${targetVar}.id, { onDelete: "${onDelete}" })`;
+          } else {
+            code += `.references(() => ${targetVar}.id)`;
+          }
+        }
+        if (link?.required) {
+          code += ".notNull()";
+        }
+        // one_to_one: enforce uniqueness on the FK column
+        if (link?.cardinality === "one_to_one") {
+          code += ".unique()";
+        }
+        return `  ${colName}: ${code}`;
+      });
+
+      // Find and update the matching table export to include FK columns
+      const idx = tableExports.findIndex((exp) => exp.includes(`pgTable("${tableName}"`));
+      if (idx !== -1) {
+        // Insert FK columns before the closing `});`
+        const existing = tableExports[idx];
+        if (existing) {
+          tableExports[idx] = existing.replace(/\n}\);$/, `,\n${colDefs.join(",\n")}\n});`);
+        }
+      }
+    }
+
+    // Generate junction table exports
+    for (const jt of junctionTables) {
+      needsPrimaryKey = true;
+      const config = getTableConfig(jt);
+      const varName = `${toCamelCase(config.name)}Table`;
+
+      const columnDefs = config.columns.map((col) => {
+        const code = serializeColumn(col as never);
+        return `  ${col.name}: ${code}`;
+      });
+
+      // Find FK reference targets for .references() serialization
+      const refCols: string[] = [];
+      for (const col of config.columns) {
+        // Check if this column has a FK reference
+        const link = links.find(
+          (l) => l.cardinality === "many_to_many" && config.name.endsWith(`_link_${l.name}`),
+        );
+        if (link) {
+          // Serialize onDelete cascade behavior for junction FK columns
+          const onDelete =
+            link.cascade === "delete"
+              ? "cascade"
+              : link.cascade === "nullify"
+                ? "set null"
+                : undefined;
+          const onDeleteOpt = onDelete ? `, { onDelete: "${onDelete}" }` : "";
+          if (col.name === `${link.from}_id`) {
+            const ref = `.references(() => ${toCamelCase(link.from)}Table.id${onDeleteOpt})`;
+            columnDefs[config.columns.indexOf(col)] =
+              `  ${col.name}: ${serializeColumn(col as never)}${ref}`;
+            refCols.push(col.name);
+          } else if (col.name === `${link.to}_id`) {
+            const ref = `.references(() => ${toCamelCase(link.to)}Table.id${onDeleteOpt})`;
+            columnDefs[config.columns.indexOf(col)] =
+              `  ${col.name}: ${serializeColumn(col as never)}${ref}`;
+            refCols.push(col.name);
+          }
+        }
+      }
+
+      // Composite primary key on both FK columns
+      const pkCols = refCols.map((c) => `t.${c}`).join(", ");
+      const tableBody = pkCols
+        ? `{\n${columnDefs.join(",\n")}\n}, (t) => ({\n  pk: primaryKey({ columns: [${pkCols}] }),\n}))`
+        : `{\n${columnDefs.join(",\n")}\n})`;
+
+      linkExports.push(`export const ${varName} = pgTable("${config.name}", ${tableBody};`);
+    }
+  }
+
+  const imports = [
+    "boolean",
+    "date",
+    "integer",
+    "jsonb",
+    "numeric",
+    "pgTable",
+    "text",
+    "timestamp",
+    "varchar",
+  ];
+  if (needsPrimaryKey) {
+    imports.push("primaryKey");
+    imports.sort();
+  }
+
+  const allExports = [...tableExports, ...linkExports].filter(Boolean);
+
   const content = `// Auto-generated by linch CLI — do not edit manually
 // Regenerated on every \`linch dev\` / \`linch db:generate\`
-import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { ${imports.join(", ")} } from "drizzle-orm/pg-core";
 
-// System tables
+// System tables (in _linchkit PostgreSQL schema)
 export {
   approvalsTable,
   approvalStatusEnum,
@@ -83,10 +219,11 @@ export {
   eventStatusEnum,
   executionsTable,
   executionStatusEnum,
+  linchkitSchema,
 } from "@linchkit/core/server";
 
 // Capability tables
-${tableExports.join("\n\n")}
+${allExports.join("\n\n")}
 `;
 
   writeFileSync(outPath, content, "utf-8");

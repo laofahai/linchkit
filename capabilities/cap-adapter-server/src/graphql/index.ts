@@ -4,6 +4,7 @@
 
 export type { BuildGraphQLSchemaOptions, GraphQLContext } from "./build-schema";
 export { buildGraphQLSchema, generateCrudActions } from "./build-schema";
+export type { LinkResolverContext } from "./schema-to-graphql";
 export {
   clearEnumTypeCache,
   generateActionInputType,

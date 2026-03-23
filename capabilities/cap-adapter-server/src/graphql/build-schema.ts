@@ -13,6 +13,7 @@ import type {
   DataQueryOptions,
   ExecutionLogger,
   ExecutionStatus,
+  LinkDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
 import { resolveTranslatableRow } from "@linchkit/core";
@@ -70,12 +71,14 @@ const ANONYMOUS_ACTOR = {
   groups: [] as string[],
 };
 
-/** GraphQL resolver context — carries tenant isolation and locale info from the request */
+/** GraphQL resolver context — carries tenant isolation, locale, and data access */
 export interface GraphQLContext {
   /** Tenant ID resolved from the authenticated user; undefined means no tenant filtering */
   tenantId?: string;
   /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
   locale?: string;
+  /** Data provider for link relation resolvers */
+  dataProvider?: DataProvider;
 }
 
 /** Maximum page size for list queries */
@@ -276,6 +279,8 @@ export interface BuildGraphQLSchemaOptions {
   actions?: ActionDefinition[];
   /** Execution logger for log query endpoints */
   executionLogger?: ExecutionLogger;
+  /** Link definitions for generating bidirectional relation resolver fields */
+  links?: LinkDefinition[];
 }
 
 /**
@@ -295,6 +300,7 @@ export function buildGraphQLSchema(
   const executor = options?.executor;
   const dataProvider = options?.dataProvider;
   const executionLogger = options?.executionLogger;
+  const links = options?.links ?? [];
 
   if (schemas.length === 0) {
     // Return a minimal valid schema with a placeholder query
@@ -314,10 +320,19 @@ export function buildGraphQLSchema(
   const queryFields: Record<string, unknown> = {};
   const mutationFields: Record<string, unknown> = {};
 
-  // Pre-generate object types to reuse for both CRUD and custom action return types
+  // Pre-generate object types to reuse for both CRUD and custom action return types.
+  // Pass the typeMap and links so that relation fields can reference other types lazily.
   const schemaObjectTypes = new Map<string, GraphQLObjectType>();
   for (const schema of schemas) {
-    schemaObjectTypes.set(schema.name, generateGraphQLObjectType(schema));
+    schemaObjectTypes.set(
+      schema.name,
+      generateGraphQLObjectType(
+        schema,
+        undefined,
+        links.length > 0 ? links : undefined,
+        links.length > 0 ? schemaObjectTypes : undefined,
+      ),
+    );
   }
 
   for (const schema of schemas) {
@@ -351,7 +366,8 @@ export function buildGraphQLSchema(
                 args.id,
                 Object.keys(opts).length > 0 ? opts : undefined,
               );
-            } catch {
+            } catch (err) {
+              console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
               return null;
             }
           }
@@ -770,7 +786,6 @@ function buildMockRecord(schema: SchemaDefinition): Record<string, unknown> {
       switch (field.type) {
         case "string":
         case "text":
-        case "ref":
         case "state":
         case "enum":
           record[fieldName] = "";

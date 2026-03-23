@@ -9,7 +9,9 @@ import { cors } from "@elysiajs/cors";
 import type {
   ActionExecutor,
   ActionResult,
+  CapabilityDefinition,
   CommandLayer,
+  DataProvider,
   ExecutionLogger,
   ExecutionStatus,
   SchemaRegistry,
@@ -42,6 +44,10 @@ export interface ServerOptions {
    * Return undefined for no tenant filtering (e.g., admin/system users).
    */
   resolveRequestTenantId?: (request: Request) => Promise<string | undefined> | string | undefined;
+  /** Loaded capabilities — used for /api/app-config endpoint */
+  capabilities?: CapabilityDefinition[];
+  /** Data provider for link relation resolvers in GraphQL */
+  dataProvider?: DataProvider;
 }
 
 /** Default anonymous actor for unauthenticated REST requests. */
@@ -169,7 +175,9 @@ export function createServer(
   const executionLogger = options?.executionLogger;
   const schemaRegistry = options?.schemaRegistry;
   const views = options?.views;
+  const capabilities = options?.capabilities ?? [];
   const resolveRequestTenantId = options?.resolveRequestTenantId;
+  const dataProvider = options?.dataProvider;
 
   // Create graphql-yoga instance with tenant context factory
   const yoga = createYoga({
@@ -177,11 +185,11 @@ export function createServer(
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
-    // Build GraphQL context with tenant isolation and locale info from the request
+    // Build GraphQL context with tenant isolation, locale, and data provider for link resolvers
     context: async ({ request }) => {
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
       const locale = resolveRequestLocale(request);
-      return { tenantId, locale };
+      return { tenantId, locale, dataProvider };
     },
   });
 
@@ -198,6 +206,19 @@ export function createServer(
       timestamp: new Date().toISOString(),
       version: "0.0.1",
     }))
+    // App config — tells the UI which capabilities are loaded and their pages
+    .get("/api/app-config", () => {
+      const authEnabled = capabilities.some((c) => c.name === "cap-auth");
+      const pages = capabilities.flatMap((c) => c.pages ?? []);
+      return {
+        success: true,
+        data: {
+          authEnabled,
+          capabilities: capabilities.map((c) => c.name),
+          pages,
+        },
+      };
+    })
     // Schema metadata endpoints
     .get("/api/schemas", () => {
       if (!schemaRegistry) {

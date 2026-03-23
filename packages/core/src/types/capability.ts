@@ -9,6 +9,7 @@ import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
+import type { LinkDefinition } from "./link";
 import type { PageRegistration } from "./page";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
@@ -72,6 +73,7 @@ export interface CapabilityDefinition {
   actions?: ActionDefinition[];
   rules?: RuleDefinition[];
   states?: StateDefinition[];
+  links?: LinkDefinition[];
   events?: EventDefinition[];
   eventHandlers?: EventHandlerDefinition[];
   views?: ViewDefinition[];

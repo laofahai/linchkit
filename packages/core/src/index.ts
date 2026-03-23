@@ -29,6 +29,7 @@ export {
   defineDataAccess,
   defineEvent,
   defineEventHandler,
+  defineLink,
   definePermissionGroup,
   defineRule,
   defineSchema,
@@ -110,6 +111,8 @@ export type {
   TriggerBinding,
 } from "./flow";
 export type { TraceState } from "./observability/trace-context";
+export type { LinkRegistry } from "./schema/link-registry";
+export { createLinkRegistry } from "./schema/link-registry";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {

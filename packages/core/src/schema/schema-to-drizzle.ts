@@ -12,10 +12,12 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { LinkDefinition } from "../types/link";
 import type { FieldDefinition, SchemaDefinition } from "../types/schema";
 
 export interface DrizzleGeneratorOptions {
@@ -24,7 +26,7 @@ export interface DrizzleGeneratorOptions {
 }
 
 // Field types that are virtual and should not produce columns
-const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
+const SKIPPED_FIELD_TYPES = new Set(["computed"]);
 
 // Field types that support translatable content (stored as JSONB { locale: value })
 const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
@@ -86,9 +88,6 @@ function buildColumn(name: string, field: FieldDefinition): unknown {
     case "json":
       col = jsonb(name);
       break;
-    case "ref":
-      col = varchar(name, { length: 128 });
-      break;
     case "state":
       col = varchar(name, { length: 50 });
       break;
@@ -143,4 +142,175 @@ export function generateDrizzleTable(
   }
 
   return pgTable(tableName, columns);
+}
+
+// ── Link-based FK and junction table generation ──────────────────────────
+
+/** Result of generating link columns: FK columns to add to existing tables + junction tables */
+export interface LinkColumnsResult {
+  /** FK columns keyed by table name → column name → column definition */
+  fkColumns: Record<string, Record<string, unknown>>;
+  /** Junction tables for many_to_many links */
+  junctionTables: ReturnType<typeof pgTable>[];
+}
+
+/**
+ * Generate FK columns and junction tables from LinkDefinitions.
+ *
+ * - many_to_one / one_to_one: adds `{to}_id` FK column on the `from` table
+ * - one_to_many: adds `{from}_id` FK column on the `to` table
+ * - many_to_many: creates a `_link_{name}` junction table with composite PK
+ *
+ * @param links - All registered link definitions
+ * @param tableMap - Map of schema name → generated pgTable (needed for `.references()`)
+ * @param options - Generator options (table prefix, etc.)
+ */
+export function generateLinkColumns(
+  links: LinkDefinition[],
+  tableMap: Record<string, ReturnType<typeof pgTable>>,
+  options?: DrizzleGeneratorOptions,
+): LinkColumnsResult {
+  const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
+
+  const fkColumns: Record<string, Record<string, unknown>> = {};
+  const junctionTables: ReturnType<typeof pgTable>[] = [];
+
+  for (const link of links) {
+    switch (link.cardinality) {
+      case "many_to_one":
+      case "one_to_one": {
+        // FK column on the `from` table pointing to `to` table
+        const fromTable = `${prefix}${link.from}`;
+        const colName = `${link.to}_id`;
+        const toTable = tableMap[link.to];
+        if (!toTable) break;
+
+        // Build references() with optional onDelete cascade behavior
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        let col = onDeleteAction
+          ? varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (toTable as any).id,
+              { onDelete: onDeleteAction },
+            )
+          : varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (toTable as any).id,
+            );
+        if (link.required) {
+          col = col.notNull();
+        }
+        // one_to_one: enforce uniqueness on the FK column
+        if (link.cardinality === "one_to_one") {
+          col = col.unique();
+        }
+
+        if (!fkColumns[fromTable]) fkColumns[fromTable] = {};
+        fkColumns[fromTable][colName] = col;
+        break;
+      }
+
+      case "one_to_many": {
+        // FK column on the `to` table pointing to `from` table
+        const toTableName = `${prefix}${link.to}`;
+        const colName = `${link.from}_id`;
+        const fromTable = tableMap[link.from];
+        if (!fromTable) break;
+
+        // Build references() with optional onDelete cascade behavior
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        let col = onDeleteAction
+          ? varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (fromTable as any).id,
+              { onDelete: onDeleteAction },
+            )
+          : varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (fromTable as any).id,
+            );
+        if (link.required) {
+          col = col.notNull();
+        }
+
+        if (!fkColumns[toTableName]) fkColumns[toTableName] = {};
+        fkColumns[toTableName][colName] = col;
+        break;
+      }
+
+      case "many_to_many": {
+        // Junction table: {prefix}_link_{name} (avoid double underscore when prefix is empty)
+        const junctionName = prefix ? `${prefix}_link_${link.name}` : `_link_${link.name}`;
+        const fromTable = tableMap[link.from];
+        const toTable = tableMap[link.to];
+        if (!fromTable || !toTable) break;
+
+        const fromCol = `${link.from}_id`;
+        const toCol = `${link.to}_id`;
+
+        // Build onDelete option for junction FK columns
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+        const cols: Record<string, any> = {
+          [fromCol]: onDeleteAction
+            ? varchar(fromCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (fromTable as any).id, { onDelete: onDeleteAction })
+                .notNull()
+            : varchar(fromCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (fromTable as any).id)
+                .notNull(),
+          [toCol]: onDeleteAction
+            ? varchar(toCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (toTable as any).id, { onDelete: onDeleteAction })
+                .notNull()
+            : varchar(toCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (toTable as any).id)
+                .notNull(),
+        };
+
+        // Extra properties on the junction table
+        if (link.properties) {
+          for (const [fieldName, field] of Object.entries(link.properties)) {
+            cols[fieldName] = buildColumn(fieldName, field);
+          }
+        }
+
+        const jt = pgTable(
+          junctionName,
+          cols,
+          // biome-ignore lint/suspicious/noExplicitAny: Drizzle extra config callback types are dynamic
+          (t: any) => ({
+            pk: primaryKey({ columns: [t[fromCol], t[toCol]] }),
+          }),
+        );
+
+        junctionTables.push(jt);
+        break;
+      }
+    }
+  }
+
+  return { fkColumns, junctionTables };
 }

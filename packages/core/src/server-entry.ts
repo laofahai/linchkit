@@ -87,6 +87,7 @@ export {
 // === Schema registry ===
 
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
+export { createLinkRegistry, LinkRegistry } from "./schema/link-registry";
 export { createSchemaRegistry, SchemaRegistry } from "./schema/schema-registry";
 export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema/schema-to-drizzle";
 
@@ -156,5 +157,7 @@ export {
   eventsTable,
   executionStatusEnum,
   executionsTable,
+  linchkitSchema,
 } from "./persistence/system-tables";
+export { pushDrizzleSchema, type PushSchemaOptions, type PushSchemaResult } from "./persistence/push-schema";
 export { TableRegistry } from "./persistence/table-registry";

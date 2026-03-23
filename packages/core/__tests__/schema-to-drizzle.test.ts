@@ -147,19 +147,6 @@ describe("generateDrizzleTable", () => {
     expect(col?.columnType).toBe("PgJsonb");
   });
 
-  test("ref field maps to varchar (ID storage)", () => {
-    const schema: SchemaDefinition = {
-      name: "test",
-      fields: {
-        department: { type: "ref", target: "department", required: true },
-      },
-    };
-    const table = generateDrizzleTable(schema);
-    const col = getColumn(table, "department");
-    expect(col).toBeDefined();
-    expect(col?.columnType).toBe("PgVarchar");
-  });
-
   test("state field maps to varchar", () => {
     const schema: SchemaDefinition = {
       name: "test",
@@ -211,7 +198,7 @@ describe("generateDrizzleTable", () => {
     expect(deletedAt?.columnType).toBe("PgTimestamp");
   });
 
-  test("computed and has_many fields are skipped", () => {
+  test("computed fields are skipped", () => {
     const schema: SchemaDefinition = {
       name: "test",
       fields: {
@@ -220,8 +207,6 @@ describe("generateDrizzleTable", () => {
           type: "computed",
           compute: (r: Record<string, unknown>) => r.amount,
         },
-        items: { type: "has_many", target: "item" },
-        tags: { type: "many_to_many", target: "tag" },
       },
     };
     const table = generateDrizzleTable(schema);
@@ -229,10 +214,8 @@ describe("generateDrizzleTable", () => {
     // title should exist
     expect(getColumn(table, "title")).toBeDefined();
 
-    // skipped fields should not exist
+    // computed fields should not exist
     expect(getColumn(table, "total")).toBeUndefined();
-    expect(getColumn(table, "items")).toBeUndefined();
-    expect(getColumn(table, "tags")).toBeUndefined();
   });
 
   test("required fields have notNull", () => {

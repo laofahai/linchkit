@@ -2,12 +2,14 @@
  * Schema-to-GraphQL generator
  *
  * Converts a LinchKit SchemaDefinition into GraphQL object and input types
- * for use in a GraphQL API layer.
+ * for use in a GraphQL API layer. Supports link-based relation resolvers.
  */
 
 import type {
   ActionDefinition,
+  DataProvider,
   FieldDefinition,
+  LinkDefinition,
   Logger,
   SchemaDefinition,
   StateDefinition,
@@ -22,14 +24,12 @@ import {
   GraphQLInputObjectType,
   type GraphQLInputType,
   GraphQLInt,
+  GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
-
-// Field types that are virtual and should not produce GraphQL fields
-const SKIPPED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
 
 // Cache for reusing GraphQLEnumType instances across output and input types
 const enumTypeCache = new Map<string, GraphQLEnumType>();
@@ -136,9 +136,6 @@ function mapFieldToGraphQLType(
     case "json":
       // JSON fields are represented as String (serialized JSON)
       return GraphQLString;
-    case "ref":
-      // References are stored as ID strings
-      return GraphQLString;
     default:
       return null;
   }
@@ -182,8 +179,6 @@ export function mapFieldToGraphQLInputType(
       return GraphQLBoolean;
     case "json":
       return GraphQLString;
-    case "ref":
-      return GraphQLString;
     default:
       return null;
   }
@@ -226,14 +221,314 @@ function toPascalCase(name: string): string {
   return result;
 }
 
+// ── Link-based relation field generation ──────────────────────────────────
+
+/** Context for resolving link relation fields */
+export interface LinkResolverContext {
+  /** Data provider for fetching related records (optional — resolvers degrade gracefully) */
+  dataProvider?: DataProvider;
+  /** Tenant ID for data isolation */
+  tenantId?: string;
+}
+
+/**
+ * Compute link-based relation fields for a given schema.
+ *
+ * Returns a thunk (for lazy evaluation) that produces the relation fields.
+ * This avoids circular reference issues since GraphQL types reference each other.
+ *
+ * FK naming convention (matches schema-to-drizzle.ts):
+ * - many_to_one / one_to_one: `{to}_id` column on `from` table
+ * - one_to_many: `{from}_id` column on `to` table
+ * - many_to_many: junction table `_link_{name}` with `{from}_id` and `{to}_id`
+ */
+function buildLinkFields(
+  schemaName: string,
+  links: LinkDefinition[],
+  typeMap: Map<string, GraphQLObjectType>,
+): Record<
+  string,
+  {
+    type: GraphQLOutputType;
+    description?: string;
+    resolve: (
+      obj: Record<string, unknown>,
+      args: Record<string, unknown>,
+      ctx: LinkResolverContext,
+    ) => Promise<unknown>;
+  }
+> {
+  const fields: Record<
+    string,
+    {
+      type: GraphQLOutputType;
+      description?: string;
+      resolve: (
+        obj: Record<string, unknown>,
+        args: Record<string, unknown>,
+        ctx: LinkResolverContext,
+      ) => Promise<unknown>;
+    }
+  > = {};
+
+  for (const link of links) {
+    const isFrom = link.from === schemaName;
+    const isTo = link.to === schemaName;
+    if (!isFrom && !isTo) continue;
+
+    switch (link.cardinality) {
+      case "many_to_one": {
+        if (isFrom) {
+          // From side: singular field pointing to the "to" schema
+          // FK column: `{to}_id` on from table
+          const relatedType = typeMap.get(link.to);
+          if (!relatedType) break;
+          const fkColumn = `${link.to}_id`;
+          const fieldName = link.to;
+          const label = link.label?.from;
+          fields[fieldName] = {
+            type: relatedType,
+            description: label ?? `Related ${link.to}`,
+            resolve: async (obj, _args, ctx) => {
+              const fkValue = obj[fkColumn] as string | undefined;
+              if (!fkValue || !ctx.dataProvider) return null;
+              try {
+                return await ctx.dataProvider.get(link.to, fkValue, {
+                  tenantId: ctx.tenantId,
+                });
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (many_to_one from): ${err}`,
+                );
+                return null;
+              }
+            },
+          };
+        }
+        if (isTo) {
+          // To side (reverse): plural field listing records from "from" schema
+          // FK column: `{to}_id` on from table → filter from table where {to}_id = this.id
+          const relatedType = typeMap.get(link.from);
+          if (!relatedType) break;
+          const fkColumn = `${link.to}_id`;
+          const fieldName = `${link.from}s`;
+          const label = link.label?.to;
+          fields[fieldName] = {
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
+            description: label ?? `Related ${link.from} records`,
+            resolve: async (obj, _args, ctx) => {
+              const id = obj.id as string;
+              if (!id || !ctx.dataProvider) return [];
+              try {
+                return await ctx.dataProvider.query(
+                  link.from,
+                  { [fkColumn]: id },
+                  { tenantId: ctx.tenantId },
+                );
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (many_to_one to): ${err}`,
+                );
+                return [];
+              }
+            },
+          };
+        }
+        break;
+      }
+
+      case "one_to_many": {
+        if (isFrom) {
+          // From side: plural field listing records from "to" schema
+          // FK column: `{from}_id` on to table
+          const relatedType = typeMap.get(link.to);
+          if (!relatedType) break;
+          const fkColumn = `${link.from}_id`;
+          const fieldName = `${link.to}s`;
+          const label = link.label?.from;
+          fields[fieldName] = {
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
+            description: label ?? `Related ${link.to} records`,
+            resolve: async (obj, _args, ctx) => {
+              const id = obj.id as string;
+              if (!id || !ctx.dataProvider) return [];
+              try {
+                return await ctx.dataProvider.query(
+                  link.to,
+                  { [fkColumn]: id },
+                  { tenantId: ctx.tenantId },
+                );
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (one_to_many from): ${err}`,
+                );
+                return [];
+              }
+            },
+          };
+        }
+        if (isTo) {
+          // To side (reverse): singular field pointing to "from" schema
+          // FK column: `{from}_id` on to table
+          const relatedType = typeMap.get(link.from);
+          if (!relatedType) break;
+          const fkColumn = `${link.from}_id`;
+          const fieldName = link.from;
+          const label = link.label?.to;
+          fields[fieldName] = {
+            type: relatedType,
+            description: label ?? `Related ${link.from}`,
+            resolve: async (obj, _args, ctx) => {
+              const fkValue = obj[fkColumn] as string | undefined;
+              if (!fkValue || !ctx.dataProvider) return null;
+              try {
+                return await ctx.dataProvider.get(link.from, fkValue, {
+                  tenantId: ctx.tenantId,
+                });
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (one_to_many to): ${err}`,
+                );
+                return null;
+              }
+            },
+          };
+        }
+        break;
+      }
+
+      case "one_to_one": {
+        if (isFrom) {
+          // FK column: `{to}_id` on from table (same as many_to_one from side)
+          const relatedType = typeMap.get(link.to);
+          if (!relatedType) break;
+          const fkColumn = `${link.to}_id`;
+          const fieldName = link.to;
+          const label = link.label?.from;
+          fields[fieldName] = {
+            type: relatedType,
+            description: label ?? `Related ${link.to}`,
+            resolve: async (obj, _args, ctx) => {
+              const fkValue = obj[fkColumn] as string | undefined;
+              if (!fkValue || !ctx.dataProvider) return null;
+              try {
+                return await ctx.dataProvider.get(link.to, fkValue, {
+                  tenantId: ctx.tenantId,
+                });
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (one_to_one from): ${err}`,
+                );
+                return null;
+              }
+            },
+          };
+        }
+        if (isTo) {
+          // Reverse: query from table for record where {to}_id = this.id
+          const relatedType = typeMap.get(link.from);
+          if (!relatedType) break;
+          const fkColumn = `${link.to}_id`;
+          const fieldName = link.from;
+          const label = link.label?.to;
+          fields[fieldName] = {
+            type: relatedType,
+            description: label ?? `Related ${link.from}`,
+            resolve: async (obj, _args, ctx) => {
+              const id = obj.id as string;
+              if (!id || !ctx.dataProvider) return null;
+              try {
+                const results = await ctx.dataProvider.query(
+                  link.from,
+                  { [fkColumn]: id },
+                  { tenantId: ctx.tenantId },
+                );
+                return results[0] ?? null;
+              } catch (err) {
+                moduleLogger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (one_to_one to): ${err}`,
+                );
+                return null;
+              }
+            },
+          };
+        }
+        break;
+      }
+
+      case "many_to_many": {
+        // Both sides get a plural field. Resolve via junction table `_link_{name}`.
+        const otherSchema = isFrom ? link.to : link.from;
+        const relatedType = typeMap.get(otherSchema);
+        if (!relatedType) break;
+
+        const fieldName = `${otherSchema}s`;
+        const label = isFrom ? link.label?.from : link.label?.to;
+        const junctionTable = `_link_${link.name}`;
+        const thisFkCol = isFrom ? `${link.from}_id` : `${link.to}_id`;
+        const otherFkCol = isFrom ? `${link.to}_id` : `${link.from}_id`;
+
+        fields[fieldName] = {
+          type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
+          description: label ?? `Related ${otherSchema} records`,
+          resolve: async (obj, _args, ctx) => {
+            const id = obj.id as string;
+            const dp = ctx.dataProvider;
+            if (!id || !dp) return [];
+            try {
+              // Query junction table for matching rows
+              const junctionRows = await dp.query(
+                junctionTable,
+                { [thisFkCol]: id },
+                { tenantId: ctx.tenantId },
+              );
+              // Fetch each related record by ID
+              const relatedIds = junctionRows
+                .map((row) => row[otherFkCol] as string)
+                .filter(Boolean);
+              if (relatedIds.length === 0) return [];
+              const results = await Promise.all(
+                relatedIds.map(async (relatedId) => {
+                  try {
+                    return await dp.get(otherSchema, relatedId, {
+                      tenantId: ctx.tenantId,
+                    });
+                  } catch (err) {
+                    moduleLogger.error(
+                      `[link-resolver] Failed to fetch ${otherSchema}#${relatedId} in ${link.name}: ${err}`,
+                    );
+                    return null;
+                  }
+                }),
+              );
+              return results.filter(Boolean);
+            } catch (err) {
+              moduleLogger.error(
+                `[link-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
+              );
+              return [];
+            }
+          },
+        };
+        break;
+      }
+    }
+  }
+
+  return fields;
+}
+
 /**
  * Generate a GraphQL object type from a LinchKit SchemaDefinition.
  * Includes system fields (id, tenant_id, created_at, etc.) and user-defined fields.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
+ * When links and typeMap are provided, adds link-based relation resolver fields.
  */
 export function generateGraphQLObjectType(
   schema: SchemaDefinition,
   stateMachines?: Map<string, StateDefinition>,
+  links?: LinkDefinition[],
+  typeMap?: Map<string, GraphQLObjectType>,
 ): GraphQLObjectType {
   const typeName = toPascalCase(schema.name);
 
@@ -246,7 +541,11 @@ export function generateGraphQLObjectType(
         {
           type: GraphQLOutputType;
           description?: string;
-          resolve?: (obj: Record<string, unknown>) => unknown;
+          resolve?: (
+            obj: Record<string, unknown>,
+            args: Record<string, unknown>,
+            ctx: LinkResolverContext,
+          ) => unknown;
         }
       > = {};
 
@@ -285,10 +584,6 @@ export function generateGraphQLObjectType(
       // User-defined fields — always nullable in output with safe resolvers
       // to prevent crashes when records are missing fields
       for (const [fieldName, field] of Object.entries(schema.fields)) {
-        if (SKIPPED_FIELD_TYPES.has(field.type)) {
-          continue;
-        }
-
         const graphqlType = mapFieldToGraphQLType(field, fieldName, schema, stateMachines);
         if (!graphqlType) {
           continue;
@@ -300,6 +595,17 @@ export function generateGraphQLObjectType(
           description: field.description ?? field.label,
           resolve: (obj: Record<string, unknown>) => obj[name] ?? null,
         };
+      }
+
+      // Link-based relation fields
+      if (links && typeMap) {
+        const linkFields = buildLinkFields(schema.name, links, typeMap);
+        for (const [name, fieldConfig] of Object.entries(linkFields)) {
+          // Avoid overwriting existing fields (e.g., if a schema has a field named same as relation)
+          if (!fields[name]) {
+            fields[name] = fieldConfig;
+          }
+        }
       }
 
       return fields;
@@ -325,10 +631,6 @@ export function generateGraphQLInputType(
       const fields: Record<string, GraphQLInputFieldConfig> = {};
 
       for (const [fieldName, field] of Object.entries(schema.fields)) {
-        if (SKIPPED_FIELD_TYPES.has(field.type)) {
-          continue;
-        }
-
         const graphqlType = mapFieldToGraphQLInputType(field, fieldName, schema, stateMachines);
         if (!graphqlType) {
           continue;
@@ -371,10 +673,6 @@ export function generateActionInputType(action: ActionDefinition): GraphQLInputO
 
       const inputFields = action.input ?? {};
       for (const [fieldName, field] of Object.entries(inputFields)) {
-        if (SKIPPED_FIELD_TYPES.has(field.type)) {
-          continue;
-        }
-
         const graphqlType = mapFieldToGraphQLInputType(field);
         if (!graphqlType) {
           continue;

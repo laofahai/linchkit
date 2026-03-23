@@ -42,11 +42,8 @@ const taskSchema: SchemaDefinition = {
     scheduled_at: { type: "datetime" },
     story_points: { type: "number" },
     metadata: { type: "json" },
-    assignee_id: { type: "ref", target: "user" },
     status: { type: "state", machine: "task_lifecycle" },
     full_name: { type: "computed", compute: (r) => `${r.title}` },
-    subtasks: { type: "has_many", target: "subtask" },
-    tags: { type: "many_to_many", target: "tag" },
   },
 };
 
@@ -146,17 +143,12 @@ describe("generateGraphQLObjectType", () => {
     // json → String
     expect(fields.metadata.type).toBe(GraphQLString);
 
-    // ref → String
-    expect(fields.assignee_id.type).toBe(GraphQLString);
-
     // state without machine map → String fallback
     expect(fields.status.type).toBe(GraphQLString);
   });
 
-  test("skips computed, has_many, and many_to_many fields", () => {
+  test("skips computed fields", () => {
     expect(fields.full_name).toBeUndefined();
-    expect(fields.subtasks).toBeUndefined();
-    expect(fields.tags).toBeUndefined();
   });
 
   test("output fields are always nullable to prevent resolver crashes", () => {
@@ -333,10 +325,8 @@ describe("generateGraphQLInputType", () => {
     expect((inputFields.status.type as GraphQLEnumType).name).toBe("TaskStatusState");
   });
 
-  test("skips computed, has_many, and many_to_many fields", () => {
+  test("skips computed fields", () => {
     expect(fields.full_name).toBeUndefined();
-    expect(fields.subtasks).toBeUndefined();
-    expect(fields.tags).toBeUndefined();
   });
 });
 
@@ -372,11 +362,8 @@ describe("all field types", () => {
       f_datetime: { type: "datetime" },
       f_enum: { type: "enum", options: [{ value: "a" }, { value: "b" }] },
       f_json: { type: "json" },
-      f_ref: { type: "ref", target: "other" },
       f_state: { type: "state", machine: "lifecycle" },
       f_computed: { type: "computed", compute: () => null },
-      f_has_many: { type: "has_many", target: "child" },
-      f_m2m: { type: "many_to_many", target: "related" },
     },
   };
 
@@ -397,7 +384,6 @@ describe("all field types", () => {
       "f_datetime",
       "f_enum",
       "f_json",
-      "f_ref",
       "f_state",
     ];
     for (const name of expectedFields) {
@@ -411,8 +397,6 @@ describe("all field types", () => {
 
   test("virtual field types are excluded", () => {
     expect(fields.f_computed).toBeUndefined();
-    expect(fields.f_has_many).toBeUndefined();
-    expect(fields.f_m2m).toBeUndefined();
   });
 });
 

@@ -22,6 +22,7 @@ import type {
   SchemaOverride,
 } from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
+import type { LinkDefinition } from "./types/link";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 
 // ── Schema ──────────────────────────────────────────
@@ -131,6 +132,12 @@ export function extendPermissionGroup(
   extension: PermissionGroupExtension,
 ): { target: string; extension: PermissionGroupExtension } {
   return { target, extension };
+}
+
+// ── Link ───────────────────────────────────────────
+
+export function defineLink(definition: LinkDefinition): LinkDefinition {
+  return definition;
 }
 
 // ── Config ──────────────────────────────────────────
