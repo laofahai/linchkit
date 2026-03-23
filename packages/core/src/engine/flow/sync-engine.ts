@@ -233,21 +233,22 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
     step: FlowStep,
     flowContext: Record<string, unknown>,
     stepMap: Map<string, FlowStep>,
+    runCtx: FlowStepContext,
   ): Promise<{ output: Record<string, unknown>; nextStepId?: string }> {
     switch (step.type) {
       case "action": {
-        const output = await executeActionStep(step, stepContext, flowContext);
+        const output = await executeActionStep(step, runCtx, flowContext);
         return { output };
       }
 
       case "ai": {
-        const output = await executeAIStep(step, stepContext, flowContext);
+        const output = await executeAIStep(step, runCtx, flowContext);
         return { output };
       }
 
       case "condition": {
         const condStep = step as ConditionFlowStep;
-        const result = evaluateSimpleExpression(condStep.expression, flowContext, stepContext);
+        const result = evaluateSimpleExpression(condStep.expression, flowContext, runCtx);
         const nextStepId = result ? condStep.then : condStep.else;
         return { output: { result }, nextStepId };
       }
@@ -264,7 +265,7 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
           if (!subStep) {
             throw new Error(`Parallel sub-step "${subStepId}" not found in flow definition`);
           }
-          const { output } = await executeStep(subStep, flowContext, stepMap);
+          const { output } = await executeStep(subStep, flowContext, stepMap, runCtx);
           outputs[subStepId] = output;
           // Update context for subsequent sub-steps
           const stepsCtx = flowContext.__steps as Record<string, unknown>;
@@ -321,10 +322,14 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
     };
     instances.set(instanceId, instance);
 
-    // Provide tenant/actor to stepContext
-    stepContext.tenantId = options?.tenantId;
-    stepContext.actor = options?.actor;
-    stepContext.flowContext = flowContext;
+    // Create per-run context to avoid cross-flow contamination when
+    // multiple flows run concurrently (each gets its own tenant/actor/flowContext).
+    const runCtx: FlowStepContext = {
+      ...stepContext,
+      tenantId: options?.tenantId,
+      actor: options?.actor,
+      flowContext,
+    };
 
     try {
       // Walk through steps sequentially
@@ -335,7 +340,7 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
         if (!step) break;
         instance.currentStepId = step.id;
 
-        const { output, nextStepId } = await executeStep(step, flowContext, stepMap);
+        const { output, nextStepId } = await executeStep(step, flowContext, stepMap, runCtx);
 
         // Store step output in context (wrapped in { output } to match compiler format)
         const stepsCtx = flowContext.__steps as Record<string, unknown>;
