@@ -56,6 +56,8 @@ export interface CommandContext {
   actor: Actor;
   /** Tenant ID — tenant middleware fills this */
   tenantId?: string;
+  /** Locale for translatable field resolution */
+  locale?: string;
   /** HTTP headers (when channel is http) */
   headers?: Record<string, string>;
   /** Arbitrary extension data for middleware communication */
@@ -129,6 +131,8 @@ export interface CommandExecuteOptions {
   actor?: Actor;
   headers?: Record<string, string>;
   tenantId?: string;
+  /** Locale for translatable field resolution */
+  locale?: string;
   meta?: Record<string, unknown>;
   /**
    * When set, this is an approval re-execution. The pipeline will:
@@ -212,6 +216,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         ? { ...execOptions.actor, groups: [...execOptions.actor.groups] }
         : { ...ANONYMOUS_ACTOR, groups: [...ANONYMOUS_ACTOR.groups] },
       tenantId: execOptions.tenantId,
+      locale: execOptions.locale,
       headers: execOptions.headers ? { ...execOptions.headers } : undefined,
       meta: { ...(execOptions.meta ?? {}) },
     };
@@ -291,6 +296,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       skipExposureCheck: true, // Always handled by pipeline built-in slot
       skipPermissionCheck: isApprovalReExecution || hasPermissionMiddleware,
       tenantId: ctx.tenantId,
+      locale: ctx.locale,
     };
     if (execOptions.approvalId) {
       executorOptions.approvalId = execOptions.approvalId;
@@ -308,6 +314,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         const result = await executor.execute(action.name, c.input, c.actor, {
           ...executorOptions,
           tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
+          locale: c.locale, // Use latest locale (middleware may have set it)
         });
         c.result = result;
       } catch (_err) {

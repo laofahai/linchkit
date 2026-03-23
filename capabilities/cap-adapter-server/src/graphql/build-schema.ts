@@ -69,10 +69,12 @@ const ANONYMOUS_ACTOR = {
   groups: [] as string[],
 };
 
-/** GraphQL resolver context — carries tenant isolation info from the authenticated request */
+/** GraphQL resolver context — carries tenant isolation and locale info from the request */
 export interface GraphQLContext {
   /** Tenant ID resolved from the authenticated user; undefined means no tenant filtering */
   tenantId?: string;
+  /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
+  locale?: string;
 }
 
 /** Maximum page size for list queries */
@@ -333,14 +335,21 @@ export function buildGraphQLSchema(
       type: objectType,
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
+        locale: { type: GraphQLString, description: "Locale for translatable fields" },
       },
       resolve: dataProvider
-        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
-            const opts: DataQueryOptions | undefined = ctx.tenantId
-              ? { tenantId: ctx.tenantId }
-              : undefined;
+        ? async (_root: unknown, args: { id: string; locale?: string }, ctx: GraphQLContext) => {
+            const locale = args.locale ?? ctx.locale;
+            const opts: DataQueryOptions = {
+              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+              ...(locale ? { locale } : {}),
+            };
             try {
-              return await dataProvider.get(schemaName, args.id, opts);
+              return await dataProvider.get(
+                schemaName,
+                args.id,
+                Object.keys(opts).length > 0 ? opts : undefined,
+              );
             } catch {
               return null;
             }
@@ -377,6 +386,7 @@ export function buildGraphQLSchema(
         },
         page: { type: GraphQLInt, description: "Page number (1-based)" },
         pageSize: { type: GraphQLInt, description: "Number of items per page" },
+        locale: { type: GraphQLString, description: "Locale for translatable fields" },
       },
       resolve: dataProvider
         ? async (
@@ -387,12 +397,16 @@ export function buildGraphQLSchema(
               sortOrder?: string;
               page?: number;
               pageSize?: number;
+              locale?: string;
             },
             ctx: GraphQLContext,
           ) => {
-            const opts: DataQueryOptions | undefined = ctx.tenantId
-              ? { tenantId: ctx.tenantId }
-              : undefined;
+            const locale = args.locale ?? ctx.locale;
+            const opts: DataQueryOptions = {
+              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+              ...(locale ? { locale } : {}),
+            };
+            const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
             const filter = args.filter
               ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
               : {};
@@ -412,8 +426,8 @@ export function buildGraphQLSchema(
               queryFilter.sortOrder = args.sortOrder ?? "asc";
             }
 
-            const items = await dataProvider.query(schemaName, queryFilter, opts);
-            const total = await dataProvider.count(schemaName, filter, opts);
+            const items = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
+            const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
             return { items, total };
           }
         : () => ({ items: [], total: 0 }),
@@ -431,7 +445,7 @@ export function buildGraphQLSchema(
               `create_${schemaName}`,
               args.input,
               ANONYMOUS_ACTOR,
-              { channel: "http", tenantId: ctx.tenantId },
+              { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
             );
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
@@ -471,6 +485,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(`update_${schemaName}`, input, ANONYMOUS_ACTOR, {
               channel: "http",
               tenantId: ctx.tenantId,
+              locale: ctx.locale,
             });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
@@ -502,7 +517,7 @@ export function buildGraphQLSchema(
               `delete_${schemaName}`,
               { id: args.id },
               ANONYMOUS_ACTOR,
-              { channel: "http", tenantId: ctx.tenantId },
+              { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
             );
             return result.success;
           }
@@ -612,6 +627,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(actionName, input, ANONYMOUS_ACTOR, {
               channel: "http",
               tenantId: ctx.tenantId,
+              locale: ctx.locale,
             });
             if (returnsSchemaType) {
               if (!result.success) {
@@ -673,6 +689,7 @@ export function buildGraphQLSchema(
           const result = await executor.execute(args.name, input, ANONYMOUS_ACTOR, {
             channel: "http",
             tenantId: ctx.tenantId,
+            locale: ctx.locale,
           });
           const errors = !result.success
             ? [

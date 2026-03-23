@@ -91,6 +91,32 @@ export function normalizeTranslatableValue(
 }
 
 /**
+ * Wrap a plain string into the JSONB locale-map format.
+ *
+ * Example: wrapTranslatableValue("Hello", "en") → { "en": "Hello" }
+ */
+export function wrapTranslatableValue(value: string, locale: string): TranslatableValue {
+  return { [locale]: value };
+}
+
+/**
+ * Merge a new translation into an existing locale map.
+ *
+ * If `existing` is null/undefined, creates a new map with just the given locale.
+ * If the locale already exists, it is overwritten.
+ *
+ * Example: mergeTranslatableValue({ "en": "Hello" }, "你好", "zh-CN")
+ *        → { "en": "Hello", "zh-CN": "你好" }
+ */
+export function mergeTranslatableValue(
+  existing: TranslatableValue | null | undefined,
+  value: string,
+  locale: string,
+): TranslatableValue {
+  return { ...(existing ?? {}), [locale]: value };
+}
+
+/**
  * Get the set of translatable field names from a SchemaDefinition.
  */
 export function getTranslatableFields(schema: SchemaDefinition): Set<string> {
@@ -101,4 +127,65 @@ export function getTranslatableFields(schema: SchemaDefinition): Set<string> {
     }
   }
   return result;
+}
+
+/**
+ * Resolve all translatable fields in a data row from JSONB to plain strings.
+ *
+ * This is the read-path helper: given a raw DB row, replace every translatable
+ * field's JSONB value with the resolved string for the requested locale.
+ *
+ * Non-translatable fields and fields not present in the row are left untouched.
+ * Returns a shallow copy of the row with resolved values.
+ */
+export function resolveTranslatableRow(
+  row: Record<string, unknown>,
+  schema: SchemaDefinition,
+  locale?: string,
+): Record<string, unknown> {
+  const translatableFields = getTranslatableFields(schema);
+  if (translatableFields.size === 0) return row;
+
+  const defaultLocale = schema.i18n?.defaultLocale;
+  const resolved = { ...row };
+
+  for (const fieldName of translatableFields) {
+    if (fieldName in resolved) {
+      resolved[fieldName] = resolveTranslatableValue(resolved[fieldName], locale, defaultLocale);
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Normalize all translatable fields in a data row for storage.
+ *
+ * This is the write-path helper: given user-supplied data, ensure every
+ * translatable field's value is in JSONB locale-map format.
+ *
+ * - Plain strings are wrapped as `{ [locale]: value }`.
+ * - Objects are passed through (assumed to be locale maps already).
+ * - Non-translatable fields are left untouched.
+ *
+ * Returns a shallow copy of the row with normalized values.
+ */
+export function normalizeTranslatableRow(
+  row: Record<string, unknown>,
+  schema: SchemaDefinition,
+  locale?: string,
+): Record<string, unknown> {
+  const translatableFields = getTranslatableFields(schema);
+  if (translatableFields.size === 0) return row;
+
+  const effectiveLocale = locale ?? schema.i18n?.defaultLocale ?? "en";
+  const normalized = { ...row };
+
+  for (const fieldName of translatableFields) {
+    if (fieldName in normalized) {
+      normalized[fieldName] = normalizeTranslatableValue(normalized[fieldName], effectiveLocale);
+    }
+  }
+
+  return normalized;
 }

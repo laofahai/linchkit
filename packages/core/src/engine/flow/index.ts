@@ -1,5 +1,6 @@
 export { compileFlow } from "./flow-compiler";
 export { createFlowRegistry, FlowRegistryImpl } from "./flow-registry";
+export { createFlowStepContext, type FlowStepContextDeps } from "./flow-step-context";
 export {
   checkRestateHealth,
   createRestateEndpoint,

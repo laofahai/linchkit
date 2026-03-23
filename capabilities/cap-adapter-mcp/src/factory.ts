@@ -35,6 +35,8 @@ export interface CapAdapterMcpOptions {
   name?: string;
   /** Server version reported in MCP handshake */
   version?: string;
+  /** Port for SSE HTTP server (default: 3002). Only used when transport is "sse". */
+  ssePort?: number;
 }
 
 /**
@@ -48,6 +50,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
   const bearerToken = options?.auth?.token;
   const serverName = options?.name ?? "linchkit";
   const serverVersion = options?.version ?? "1.0.0";
+  const ssePort = options?.ssePort ?? 3002;
 
   const transport: TransportAdapterDefinition = {
     name: "mcp",
@@ -56,7 +59,11 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
       // Lazy import to avoid loading heavy deps at registration time
       const { createMcpAdapter } = await import("./mcp-server");
 
-      const { server: mcpServer, authEnabled } = await createMcpAdapter({
+      const {
+        server: mcpServer,
+        validateAuth,
+        authEnabled,
+      } = await createMcpAdapter({
         commandLayer: ctx.commandLayer,
         schemaRegistry: ctx.schemaRegistry,
         actionRegistry: ctx.executor.registry,
@@ -76,7 +83,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
             if (authEnabled) {
               console.log(
                 "[cap-adapter-mcp] Bearer token configured but stdio transport relies on process-level security. " +
-                  "Token will be enforced when SSE transport is used (M1b 1.4).",
+                  "Token will be enforced when SSE transport is used.",
               );
             }
             await mcpServer.connect(stdioTransport);
@@ -89,22 +96,22 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         };
       }
 
-      // SSE transport — placeholder for future implementation (M1b 1.4)
-      // When SSE is implemented, validateAuth will be called on incoming HTTP
-      // requests to enforce bearer token authentication at the transport level.
-      return {
-        start: () => {
-          if (authEnabled) {
-            console.log(
-              "[cap-adapter-mcp] Bearer token configured. SSE auth enforcement is planned for M1b 1.4.",
-            );
-          }
-          console.log("[cap-adapter-mcp] MCP SSE transport not yet implemented");
-        },
-        stop: () => {
-          /* cleanup */
-        },
-      };
+      // SSE transport — standalone HTTP server using MCP SDK's SSEServerTransport.
+      // Uses node:http for compatibility with the SDK's Node.js-based SSE transport.
+      const { createMcpSseServer } = await import("./sse-transport");
+
+      const {
+        httpServer: _httpServer,
+        start,
+        stop,
+      } = createMcpSseServer({
+        mcpServer,
+        validateAuth,
+        authEnabled,
+        port: ssePort,
+      });
+
+      return { start, stop };
     },
     config: {
       bearerToken: {
@@ -116,6 +123,11 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         type: "string",
         default: "stdio",
         description: "Transport mode: stdio or sse",
+      },
+      ssePort: {
+        type: "number",
+        default: 3002,
+        description: "Port for SSE HTTP server (only used with SSE transport)",
       },
     },
   };

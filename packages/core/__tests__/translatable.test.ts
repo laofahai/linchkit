@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   getTranslatableFields,
+  mergeTranslatableValue,
+  normalizeTranslatableRow,
   normalizeTranslatableValue,
+  resolveTranslatableRow,
   resolveTranslatableValue,
+  wrapTranslatableValue,
 } from "../src/engine/translatable";
 import type { SchemaDefinition } from "../src/types/schema";
 
@@ -56,6 +60,51 @@ describe("resolveTranslatableValue", () => {
   });
 });
 
+describe("wrapTranslatableValue", () => {
+  test("wraps a plain string with the given locale", () => {
+    expect(wrapTranslatableValue("Hello", "en")).toEqual({ en: "Hello" });
+  });
+
+  test("wraps with a region locale", () => {
+    expect(wrapTranslatableValue("你好", "zh-CN")).toEqual({ "zh-CN": "你好" });
+  });
+
+  test("wraps empty string", () => {
+    expect(wrapTranslatableValue("", "en")).toEqual({ en: "" });
+  });
+});
+
+describe("mergeTranslatableValue", () => {
+  test("merges a new locale into an existing map", () => {
+    const existing = { en: "Hello" };
+    const result = mergeTranslatableValue(existing, "你好", "zh-CN");
+    expect(result).toEqual({ en: "Hello", "zh-CN": "你好" });
+  });
+
+  test("overwrites an existing locale", () => {
+    const existing = { en: "Hello", "zh-CN": "旧值" };
+    const result = mergeTranslatableValue(existing, "新值", "zh-CN");
+    expect(result).toEqual({ en: "Hello", "zh-CN": "新值" });
+  });
+
+  test("creates new map from null existing", () => {
+    const result = mergeTranslatableValue(null, "Hello", "en");
+    expect(result).toEqual({ en: "Hello" });
+  });
+
+  test("creates new map from undefined existing", () => {
+    const result = mergeTranslatableValue(undefined, "Hello", "en");
+    expect(result).toEqual({ en: "Hello" });
+  });
+
+  test("does not mutate the original object", () => {
+    const existing = { en: "Hello" };
+    const result = mergeTranslatableValue(existing, "你好", "zh-CN");
+    expect(existing).toEqual({ en: "Hello" }); // unchanged
+    expect(result).toEqual({ en: "Hello", "zh-CN": "你好" });
+  });
+});
+
 describe("normalizeTranslatableValue", () => {
   test("wraps plain string with default locale", () => {
     expect(normalizeTranslatableValue("Hello", "en")).toEqual({ en: "Hello" });
@@ -103,5 +152,116 @@ describe("getTranslatableFields", () => {
     expect(fields.has("name")).toBe(true);
     expect(fields.has("description")).toBe(true);
     expect(fields.has("sku")).toBe(false);
+  });
+});
+
+// -- Row-level helpers --
+
+const productSchema: SchemaDefinition = {
+  name: "product",
+  i18n: { defaultLocale: "en", supportedLocales: ["en", "zh-CN"] },
+  fields: {
+    name: { type: "string", translatable: true },
+    description: { type: "text", translatable: true },
+    sku: { type: "string" },
+    price: { type: "number" },
+  },
+};
+
+const plainSchema: SchemaDefinition = {
+  name: "counter",
+  fields: {
+    label: { type: "string" },
+    count: { type: "number" },
+  },
+};
+
+describe("resolveTranslatableRow", () => {
+  test("resolves translatable fields to locale string", () => {
+    const row = {
+      name: { en: "Widget", "zh-CN": "小部件" },
+      description: { en: "A useful widget", "zh-CN": "一个有用的小部件" },
+      sku: "W-001",
+      price: 9.99,
+    };
+    const result = resolveTranslatableRow(row, productSchema, "zh-CN");
+    expect(result.name).toBe("小部件");
+    expect(result.description).toBe("一个有用的小部件");
+    expect(result.sku).toBe("W-001");
+    expect(result.price).toBe(9.99);
+  });
+
+  test("uses default locale as fallback", () => {
+    const row = {
+      name: { en: "Widget" },
+      description: { en: "A useful widget" },
+      sku: "W-001",
+      price: 9.99,
+    };
+    const result = resolveTranslatableRow(row, productSchema, "ja");
+    expect(result.name).toBe("Widget"); // falls back to defaultLocale "en"
+    expect(result.description).toBe("A useful widget");
+  });
+
+  test("returns row unchanged when schema has no translatable fields", () => {
+    const row = { label: "test", count: 42 };
+    const result = resolveTranslatableRow(row, plainSchema, "en");
+    expect(result).toBe(row); // same reference
+  });
+
+  test("handles missing translatable fields in row", () => {
+    const row = { sku: "W-001", price: 9.99 };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+    expect(result.sku).toBe("W-001");
+    expect(result.name).toBeUndefined();
+  });
+});
+
+describe("normalizeTranslatableRow", () => {
+  test("wraps plain strings into JSONB format", () => {
+    const row = {
+      name: "Widget",
+      description: "A useful widget",
+      sku: "W-001",
+      price: 9.99,
+    };
+    const result = normalizeTranslatableRow(row, productSchema, "en");
+    expect(result.name).toEqual({ en: "Widget" });
+    expect(result.description).toEqual({ en: "A useful widget" });
+    expect(result.sku).toBe("W-001");
+    expect(result.price).toBe(9.99);
+  });
+
+  test("passes through existing locale maps", () => {
+    const row = {
+      name: { en: "Widget", "zh-CN": "小部件" },
+      sku: "W-001",
+    };
+    const result = normalizeTranslatableRow(row, productSchema, "en");
+    expect(result.name).toEqual({ en: "Widget", "zh-CN": "小部件" });
+  });
+
+  test("uses schema default locale when no locale provided", () => {
+    const row = { name: "Widget", sku: "W-001" };
+    const result = normalizeTranslatableRow(row, productSchema);
+    expect(result.name).toEqual({ en: "Widget" }); // schema defaultLocale is "en"
+  });
+
+  test("falls back to 'en' when no locale and no schema default", () => {
+    const noI18nSchema: SchemaDefinition = {
+      name: "test",
+      fields: {
+        title: { type: "string", translatable: true },
+      },
+    };
+    const row = { title: "Hello" };
+    const result = normalizeTranslatableRow(row, noI18nSchema);
+    expect(result.title).toEqual({ en: "Hello" });
+  });
+
+  test("returns row unchanged when schema has no translatable fields", () => {
+    const row = { label: "test", count: 42 };
+    const result = normalizeTranslatableRow(row, plainSchema, "en");
+    expect(result).toBe(row); // same reference
   });
 });

@@ -21,10 +21,12 @@ import { canTransition } from "./state-machine";
 
 // ── DataProvider interface ──────────────────────────────────
 
-/** Options for data queries — tenant isolation and soft-delete control */
+/** Options for data queries — tenant isolation, soft-delete control, and locale */
 export interface DataQueryOptions {
   tenantId?: string;
   includeDeleted?: boolean;
+  /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
+  locale?: string;
 }
 
 /** Abstraction for data access — injected into the executor for testability */
@@ -64,6 +66,8 @@ export interface ExecuteOptions {
   skipPermissionCheck?: boolean;
   /** Tenant ID resolved by CommandLayer */
   tenantId?: string;
+  /** Locale for resolving translatable fields on read */
+  locale?: string;
   /**
    * Rule names to skip during re-execution after approval.
    * The CommandLayer / caller is responsible for checking this list
@@ -409,10 +413,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         );
       },
     };
-    // Build DataQueryOptions from ExecuteOptions for tenant isolation
-    const queryOptions: DataQueryOptions | undefined = execOptions?.tenantId
-      ? { tenantId: execOptions.tenantId }
-      : undefined;
+    // Build DataQueryOptions from ExecuteOptions for tenant isolation and locale
+    const queryOptions: DataQueryOptions | undefined =
+      execOptions?.tenantId || execOptions?.locale
+        ? { tenantId: execOptions?.tenantId, locale: execOptions?.locale }
+        : undefined;
 
     const ctx: ActionContext = {
       input,

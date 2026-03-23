@@ -375,3 +375,215 @@ describe("createMcpAdapter — bearer token auth", () => {
     expect(validateAuth("my-secret-token")).toBe(true);
   });
 });
+
+describe("createMcpAdapter — query proxy security", () => {
+  test("query tool blocks GraphQL mutations", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      { query: "mutation { createOrder(input: {}) { id } }" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
+  test("query tool blocks GraphQL subscriptions", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      { query: "subscription { orderCreated { id } }" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
+  test("query tool returns error when graphqlEndpoint is not configured", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      // no graphqlEndpoint
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      { query: "{ orders { id } }" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("GraphQL endpoint not configured");
+  });
+
+  test("query tool allows regular queries when graphqlEndpoint is configured", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    // Mock global fetch to simulate a successful GraphQL response
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(async () =>
+      new Response(JSON.stringify({ data: { orders: [{ id: "1" }] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    try {
+      const { server } = await createMcpAdapter({
+        commandLayer,
+        schemaRegistry,
+        actionRegistry,
+        graphqlEndpoint: "http://localhost:3001/graphql",
+      });
+
+      const tools = getTools(server);
+      const result = await tools.query?.handler(
+        { query: "{ orders { id } }" },
+        {},
+      );
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0]?.text);
+      expect(parsed.data.orders).toHaveLength(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("query tool forwards x-tenant-id header when tenantId is configured", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const originalFetch = globalThis.fetch;
+    const mockFetchFn = mock(async () =>
+      new Response(JSON.stringify({ data: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    globalThis.fetch = mockFetchFn;
+
+    try {
+      const { server } = await createMcpAdapter({
+        commandLayer,
+        schemaRegistry,
+        actionRegistry,
+        graphqlEndpoint: "http://localhost:3001/graphql",
+        tenantId: "tenant-42",
+      });
+
+      const tools = getTools(server);
+      await tools.query?.handler({ query: "{ orders { id } }" }, {});
+
+      // Verify fetch was called with x-tenant-id header
+      expect(mockFetchFn).toHaveBeenCalledTimes(1);
+      const callArgs = mockFetchFn.mock.calls[0] as [string, RequestInit];
+      const headers = callArgs[1]?.headers as Record<string, string>;
+      expect(headers["x-tenant-id"]).toBe("tenant-42");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("createMcpAdapter — list_actions exposure filter", () => {
+  test("list_actions excludes actions with exposure.mcp set to false", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+    actionRegistry.register(hiddenAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    // Only create_order should be listed; internal_cleanup has mcp: false
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("create_order");
+    expect(parsed.find((a: { name: string }) => a.name === "internal_cleanup")).toBeUndefined();
+  });
+
+  test("list_actions includes actions with exposure 'all'", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction); // exposure: "all"
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("create_order");
+  });
+});
+
+describe("createMcpAdapter — tenantId option", () => {
+  test("tenantId option is accepted in McpAdapterOptions", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    // Should not throw — tenantId is a valid option
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      tenantId: "tenant-99",
+    });
+
+    expect(server).toBeDefined();
+  });
+});

@@ -29,12 +29,14 @@ export const capAdapterMcp = defineCapability({
           );
 
           // Create MCP server wired to LinchKit registries.
-          // Note: This static capability definition does not support bearerToken.
-          // Use createCapAdapterMcp() factory for auth-enabled MCP transport.
+          // Bearer token from transport config — used for GraphQL proxy auth forwarding.
+          // stdio transport itself relies on process-level security (no HTTP enforcement).
+          const bearerToken = ctx.config?.bearerToken as string | undefined;
           const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
             schemaRegistry: ctx.schemaRegistry,
             actionRegistry: ctx.executor.registry,
+            bearerToken,
           });
 
           // Create stdio transport instance

@@ -6,9 +6,11 @@
  */
 
 import { defineCommand, runMain } from "citty";
+import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
 import { devCommand } from "./commands/dev";
 import { initCommand } from "./commands/init";
+import { installCommand } from "./commands/install";
 
 export const VERSION = "0.0.1";
 
@@ -22,6 +24,8 @@ const main = defineCommand({
     init: initCommand,
     dev: devCommand,
     db: dbCommand,
+    create: createCommand,
+    install: installCommand,
   },
 });
 

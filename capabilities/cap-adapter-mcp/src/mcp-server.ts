@@ -25,6 +25,7 @@ import type {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
+import { registerScaffoldTools } from "./scaffold-tools";
 import { generateActionTools } from "./tool-registry";
 
 export interface McpAdapterOptions {
@@ -37,6 +38,8 @@ export interface McpAdapterOptions {
   states?: StateDefinition[];
   /** GraphQL endpoint URL for query proxy (e.g. "http://localhost:3001/graphql") */
   graphqlEndpoint?: string;
+  /** Tenant ID for multi-tenant scoping (forwarded as x-tenant-id to GraphQL) */
+  tenantId?: string;
   name?: string;
   version?: string;
   /**
@@ -82,6 +85,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     rules = [],
     states = [],
     graphqlEndpoint,
+    tenantId,
     name = "linchkit",
     version = "1.0.0",
     bearerToken,
@@ -134,7 +138,19 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
   }
 
   // Register built-in introspection tools
-  registerBuiltinTools(server, schemaRegistry, actionRegistry, rules, states, graphqlEndpoint);
+  registerBuiltinTools(
+    server,
+    schemaRegistry,
+    actionRegistry,
+    rules,
+    states,
+    graphqlEndpoint,
+    bearerToken,
+    tenantId,
+  );
+
+  // Register scaffold tools for AI code generation
+  registerScaffoldTools(server);
 
   // Register resources
   registerResources(server, schemaRegistry);
@@ -229,6 +245,8 @@ function registerBuiltinTools(
   rules: RuleDefinition[],
   states: StateDefinition[],
   graphqlEndpoint?: string,
+  bearerToken?: string,
+  tenantId?: string,
 ): void {
   // list_schemas — returns schema summaries with field names
   server.tool(
@@ -284,18 +302,25 @@ function registerBuiltinTools(
     },
   );
 
-  // list_actions — returns action summaries with input field names
+  // list_actions — returns MCP-exposed action summaries with input field names
   server.tool(
     "list_actions",
-    "List all available actions with their names, labels, descriptions, schemas, and input field summaries",
+    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries",
     async () => {
-      const actions = actionRegistry.getAll().map((a) => ({
-        name: a.name,
-        label: a.label,
-        description: a.description,
-        schema: a.schema,
-        inputFields: a.input ? Object.keys(a.input) : [],
-      }));
+      const actions = actionRegistry
+        .getAll()
+        .filter((a) => {
+          // Only show actions exposed to MCP (consistent with tool registration)
+          if (a.exposure === undefined || a.exposure === "all") return true;
+          return a.exposure.mcp !== false;
+        })
+        .map((a) => ({
+          name: a.name,
+          label: a.label,
+          description: a.description,
+          schema: a.schema,
+          inputFields: a.input ? Object.keys(a.input) : [],
+        }));
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify(actions, null, 2) }],
@@ -389,14 +414,14 @@ function registerBuiltinTools(
     },
   );
 
-  // query — GraphQL proxy tool
+  // query — GraphQL proxy tool (read-only: mutations are blocked)
   const queryShape = {
-    query: z.string().describe("GraphQL query string"),
+    query: z.string().describe("GraphQL query string (mutations are not allowed)"),
     variables: z.record(z.string(), z.unknown()).describe("GraphQL variables").optional(),
   };
   server.tool(
     "query",
-    "Execute a GraphQL query against the LinchKit server",
+    "Execute a read-only GraphQL query against the LinchKit server. Mutations are blocked — use action tools instead.",
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     queryShape as any,
     async (args: { query: string; variables?: Record<string, unknown> }) => {
@@ -415,6 +440,25 @@ function registerBuiltinTools(
         };
       }
 
+      // Block mutation/subscription operations — MCP writes must go through action tools
+      // which pass through the CommandLayer middleware pipeline.
+      const trimmed = args.query.replace(/^\s+/, "");
+      if (/^mutation\b/i.test(trimmed) || /^subscription\b/i.test(trimmed)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error:
+                  "Mutations and subscriptions are not allowed via the query proxy. " +
+                  "Use the corresponding action tools instead, which enforce the full middleware pipeline.",
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
       try {
         // Forward auth and tenant headers to the GraphQL endpoint
         // to prevent cross-tenant/auth-bypass via the query proxy.
@@ -422,7 +466,9 @@ function registerBuiltinTools(
         if (bearerToken) {
           headers.Authorization = `Bearer ${bearerToken}`;
         }
-
+        if (tenantId) {
+          headers["x-tenant-id"] = tenantId;
+        }
         const response = await fetch(graphqlEndpoint, {
           method: "POST",
           headers,

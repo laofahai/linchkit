@@ -107,6 +107,26 @@ export interface ProposalValidationResult {
   impactSummary: string;
 }
 
+// ── AI Proposal Generation ──────────────────────────────
+
+/** Request for AI-powered proposal generation from natural language */
+export interface ProposalRequest {
+  /** Natural language description, e.g. "Add a priority field to Task schema" */
+  description: string;
+  /** Target capability name (optional — AI may infer from context) */
+  targetCapability?: string;
+  /** Additional hints for the AI (e.g. field type preferences, constraints) */
+  context?: Record<string, unknown>;
+}
+
+/** AI Proposal Generator — takes natural language and produces structured Proposals */
+export interface ProposalGenerator {
+  /** Generate a Proposal from a natural language request */
+  generate(request: ProposalRequest): Promise<ProposalDefinition>;
+  /** Validate a proposal's changes for correctness */
+  validate(proposal: ProposalDefinition): Promise<ProposalValidationResult>;
+}
+
 // ── Proposal definition ──────────────────────────────────
 
 export interface ProposalDefinition {

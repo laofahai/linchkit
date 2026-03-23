@@ -131,6 +131,28 @@ function resolveStatusCode(result: { success: boolean; data?: unknown }): number
 }
 
 /**
+ * Parse the primary locale from an Accept-Language header value.
+ * Takes the first locale before ',' or ';', normalizing whitespace.
+ * Returns undefined if the header is missing or empty.
+ */
+export function parseAcceptLanguage(header: string | null | undefined): string | undefined {
+  if (!header) return undefined;
+  // Take the first language tag before ',' or ';'
+  const first = header.split(/[,;]/)[0]?.trim();
+  return first || undefined;
+}
+
+/**
+ * Resolve locale from a request: ?locale= query param takes priority over Accept-Language header.
+ */
+function resolveRequestLocale(request: Request): string | undefined {
+  const url = new URL(request.url);
+  const queryLocale = url.searchParams.get("locale");
+  if (queryLocale) return queryLocale;
+  return parseAcceptLanguage(request.headers.get("accept-language"));
+}
+
+/**
  * Create an Elysia server with GraphQL, health check, and REST action endpoints.
  *
  * @param graphqlSchema - A GraphQL schema built via buildGraphQLSchema()
@@ -155,10 +177,11 @@ export function createServer(
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
-    // Build GraphQL context with tenant isolation info from the request
+    // Build GraphQL context with tenant isolation and locale info from the request
     context: async ({ request }) => {
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
-      return { tenantId };
+      const locale = resolveRequestLocale(request);
+      return { tenantId, locale };
     },
   });
 
@@ -223,6 +246,9 @@ export function createServer(
 
       const input = (body as Record<string, unknown>) ?? {};
 
+      // Resolve locale from request
+      const locale = resolveRequestLocale(request);
+
       // Use CommandLayer pipeline when available, otherwise direct executor
       let result: ActionResult;
       if (commandLayer) {
@@ -236,6 +262,7 @@ export function createServer(
           input,
           actor: ANONYMOUS_ACTOR,
           channel: "http",
+          locale,
           headers,
         });
       } else {
@@ -250,7 +277,10 @@ export function createServer(
             },
           };
         }
-        result = await executor.execute(params.name, input, ANONYMOUS_ACTOR, { channel: "http" });
+        result = await executor.execute(params.name, input, ANONYMOUS_ACTOR, {
+          channel: "http",
+          locale,
+        });
       }
 
       if (result.success) {

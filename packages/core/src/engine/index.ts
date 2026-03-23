@@ -56,6 +56,7 @@ export {
   type CompiledFlow,
   compileFlow,
   createFlowRegistry,
+  createFlowStepContext,
   createSyncFlowEngine,
   createTriggerBinding,
   type FlowCompiler,
@@ -64,6 +65,7 @@ export {
   type FlowRegistry,
   FlowRegistryImpl,
   type FlowStepContext,
+  type FlowStepContextDeps,
   type RestateConfig,
   type TriggerBinding,
 } from "./flow";
@@ -81,6 +83,11 @@ export {
   createProposalEngine,
   ProposalEngine,
 } from "./proposal-engine";
+// Proposal generator (AI-powered)
+export {
+  createProposalGenerator,
+  type ProposalGeneratorDeps,
+} from "./proposal-generator";
 export {
   evaluateRules,
   type RuleEvalInput,
@@ -101,9 +108,13 @@ export {
 // Translatable field helpers
 export {
   getTranslatableFields,
+  mergeTranslatableValue,
+  normalizeTranslatableRow,
   normalizeTranslatableValue,
+  resolveTranslatableRow,
   resolveTranslatableValue,
   type TranslatableValue,
+  wrapTranslatableValue,
 } from "./translatable";
 // Validation engine
 export {
