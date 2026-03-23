@@ -28,7 +28,9 @@ export const capAdapterMcp = defineCapability({
             "@modelcontextprotocol/sdk/server/stdio.js"
           );
 
-          // Create MCP server wired to LinchKit registries
+          // Create MCP server wired to LinchKit registries.
+          // Note: This static capability definition does not support bearerToken.
+          // Use createCapAdapterMcp() factory for auth-enabled MCP transport.
           const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
             schemaRegistry: ctx.schemaRegistry,

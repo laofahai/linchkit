@@ -416,9 +416,16 @@ function registerBuiltinTools(
       }
 
       try {
+        // Forward auth and tenant headers to the GraphQL endpoint
+        // to prevent cross-tenant/auth-bypass via the query proxy.
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (bearerToken) {
+          headers.Authorization = `Bearer ${bearerToken}`;
+        }
+
         const response = await fetch(graphqlEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             query: args.query,
             variables: args.variables,
