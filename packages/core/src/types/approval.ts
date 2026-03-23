@@ -104,7 +104,10 @@ export interface ApprovalStore {
   /** Get a request by ID */
   getById(id: string): ApprovalRequest | undefined | Promise<ApprovalRequest | undefined>;
   /** Update a request */
-  update(id: string, data: Partial<ApprovalRequest>): ApprovalRequest | undefined | Promise<ApprovalRequest | undefined>;
+  update(
+    id: string,
+    data: Partial<ApprovalRequest>,
+  ): ApprovalRequest | undefined | Promise<ApprovalRequest | undefined>;
   /** Query requests by filters */
   query(options?: ApprovalQuery): ApprovalRequest[] | Promise<ApprovalRequest[]>;
   /** Get all pending requests that have expired */

@@ -8,12 +8,12 @@
  * Lifecycle: create → start() → stop()
  */
 
-import { and, eq, lte, or, isNull } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
 import { consoleLogger } from "./console-logger";
-import { EventHandlerRegistry, matchesFilter } from "./event-bus";
+import { type EventHandlerRegistry, matchesFilter } from "./event-bus";
 import { eventsTable } from "./system-tables";
 
 const DEFAULT_PRIORITY = 100;
@@ -142,10 +142,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
           and(
             eq(eventsTable.status, "failed"),
             lte(eventsTable.retryCount, maxRetries - 1),
-            or(
-              isNull(eventsTable.nextRetryAt),
-              lte(eventsTable.nextRetryAt, now),
-            ),
+            or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
           ),
         ),
       )

@@ -432,13 +432,13 @@ describe("buildGraphQLSchema update mutation _version arg", () => {
     const mutationType = schema.getMutationType();
     expect(mutationType).toBeDefined();
 
-    const updateField = mutationType!.getFields().updateItem;
+    const updateField = mutationType?.getFields().updateItem;
     expect(updateField).toBeDefined();
 
     const versionArg = updateField.args.find((a) => a.name === "_version");
     expect(versionArg).toBeDefined();
     // Should be nullable Int (not NonNull)
-    expect(versionArg!.type).toBe(GraphQLInt);
+    expect(versionArg?.type).toBe(GraphQLInt);
   });
 
   test("create mutation does not have _version argument", () => {
@@ -446,7 +446,7 @@ describe("buildGraphQLSchema update mutation _version arg", () => {
     const mutationType = schema.getMutationType();
     expect(mutationType).toBeDefined();
 
-    const createField = mutationType!.getFields().createItem;
+    const createField = mutationType?.getFields().createItem;
     expect(createField).toBeDefined();
 
     const versionArg = createField.args.find((a) => a.name === "_version");

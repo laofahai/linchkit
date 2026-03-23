@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { EventHandlerRegistry } from "../src/engine/event-bus";
-import { PersistentEventBus, createPersistentEventBus } from "../src/engine/persistent-event-bus";
-import { EventBus } from "../src/engine/event-bus";
+import { EventBus, EventHandlerRegistry } from "../src/engine/event-bus";
+import { createPersistentEventBus, PersistentEventBus } from "../src/engine/persistent-event-bus";
 import type { EventHandlerDefinition, EventRecord } from "../src/types/event";
 
 // ── Test helpers ────────────────────────────────────────────

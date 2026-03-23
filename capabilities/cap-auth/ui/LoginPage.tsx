@@ -1,13 +1,21 @@
 /**
- * LoginPage — Email + password login with optional OAuth buttons.
+ * LoginPage — Based on shadcn/ui login-01 block.
  *
  * This is a self-contained page component. All action handlers are
  * injected via props — no API calls happen inside this component.
  */
 
-import { Button, Input, Label } from "@linchkit/ui-kit/components";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from "@linchkit/ui-kit/components";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { AuthCard } from "./components/auth-card";
 import { OAuthButtons, type OAuthProvider } from "./components/oauth-buttons";
 
 export interface LoginPageLabels {
@@ -60,16 +68,16 @@ export function LoginPage({
   const [password, setPassword] = useState("");
 
   const {
-    title = "Sign in",
-    description = "Enter your credentials to continue",
+    title = "Login",
+    description = "Enter your email below to login to your account",
     emailLabel = "Email",
-    emailPlaceholder = "you@example.com",
+    emailPlaceholder = "m@example.com",
     passwordLabel = "Password",
     passwordPlaceholder = "",
-    submitButton = "Sign in",
-    forgotPasswordLink = "Forgot password?",
-    registerPrompt = "Don't have an account?",
-    registerLink = "Register",
+    submitButton = "Login",
+    forgotPasswordLink = "Forgot your password?",
+    registerPrompt = "Don\u2019t have an account?",
+    registerLink = "Sign up",
     oauthDivider = "or",
   } = labels;
 
@@ -79,84 +87,86 @@ export function LoginPage({
   };
 
   return (
-    <AuthCard
-      title={title}
-      description={description}
-      logo={logo}
-      footer={
-        onRegister ? (
-          <p>
-            {registerPrompt}{" "}
-            <button
-              type="button"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-              onClick={onRegister}
-            >
-              {registerLink}
-            </button>
-          </p>
-        ) : undefined
-      }
-    >
-      {oauthProviders.length > 0 && onOAuthLogin && (
-        <OAuthButtons
-          providers={oauthProviders}
-          onProviderClick={onOAuthLogin}
-          loading={loading}
-          dividerLabel={oauthDivider}
-        />
-      )}
+    <div className="flex w-full max-w-md flex-col gap-6">
+      <Card>
+        <CardHeader>
+          {logo && <div className="mb-2 flex justify-center">{logo}</div>}
+          <CardTitle className="text-2xl">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-6">
+              {error && (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+              {oauthProviders.length > 0 && onOAuthLogin && (
+                <OAuthButtons
+                  providers={oauthProviders}
+                  onProviderClick={onOAuthLogin}
+                  loading={loading}
+                  dividerLabel={oauthDivider}
+                />
+              )}
 
-        <div className="space-y-2">
-          <Label htmlFor="login-email">{emailLabel}</Label>
-          <Input
-            id="login-email"
-            type="email"
-            placeholder={emailPlaceholder}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-            autoComplete="email"
-          />
-        </div>
+              <div className="grid gap-2">
+                <Label htmlFor="login-email">{emailLabel}</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  placeholder={emailPlaceholder}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="login-password">{passwordLabel}</Label>
-            {onForgotPassword && (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
-                onClick={onForgotPassword}
-              >
-                {forgotPasswordLink}
-              </button>
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="login-password">{passwordLabel}</Label>
+                  {onForgotPassword && (
+                    <button
+                      type="button"
+                      className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
+                      onClick={onForgotPassword}
+                    >
+                      {forgotPasswordLink}
+                    </button>
+                  )}
+                </div>
+                <Input
+                  id="login-password"
+                  type="password"
+                  placeholder={passwordPlaceholder}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "..." : submitButton}
+              </Button>
+            </div>
+
+            {onRegister && (
+              <div className="mt-4 text-center text-sm">
+                {registerPrompt}{" "}
+                <button type="button" className="underline underline-offset-4" onClick={onRegister}>
+                  {registerLink}
+                </button>
+              </div>
             )}
-          </div>
-          <Input
-            id="login-password"
-            type="password"
-            placeholder={passwordPlaceholder}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-            autoComplete="current-password"
-          />
-        </div>
-
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "..." : submitButton}
-        </Button>
-      </form>
-    </AuthCard>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -95,9 +95,7 @@ export class PersistentEventBus extends EventBus {
       });
 
       // Sort by priority (lower number = higher priority)
-      matched.sort(
-        (a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY),
-      );
+      matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
 
       // Build handler context
       const ctx = this.createHandlerContext();
@@ -137,8 +135,7 @@ export class PersistentEventBus extends EventBus {
       // If a sync handler failed, mark as failed and re-throw
       if (syncError) {
         if (rowId) {
-          const errorMessage =
-            syncError instanceof Error ? syncError.message : String(syncError);
+          const errorMessage = syncError instanceof Error ? syncError.message : String(syncError);
           await this.updateStatus(rowId, "failed", errorMessage);
         }
         throw syncError;

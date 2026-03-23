@@ -1,4 +1,13 @@
-import type { PageAuth, PageLayout, PageRegistration } from "@linchkit/core/types";
+// Import capability page declarations directly (avoid importing full config
+// which pulls in server-only deps like postgres via @linchkit/core)
+import { capAuth } from "@linchkit/cap-auth";
+import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
+import type {
+  CapabilityDefinition,
+  PageAuth,
+  PageLayout,
+  PageRegistration,
+} from "@linchkit/core/types";
 import {
   createRootRoute,
   createRoute,
@@ -6,11 +15,6 @@ import {
   RouterProvider,
   redirect,
 } from "@tanstack/react-router";
-// Import capability page declarations directly (avoid importing full config
-// which pulls in server-only deps like postgres via @linchkit/core)
-import { capAuth } from "@linchkit/cap-auth";
-import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
-import type { CapabilityDefinition } from "@linchkit/core/types";
 import "./i18n"; // Initialize i18n before rendering
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
 import { AuthProvider } from "./hooks/use-auth";
@@ -52,7 +56,7 @@ function isTokenValid(): boolean {
   if (!token) return false;
   try {
     const parts = token.split(".");
-    const raw = parts.length === 3 ? parts[1]! : token;
+    const raw = parts.length === 3 ? (parts[1] ?? token) : token;
     const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
     const payload = JSON.parse(atob(padded));

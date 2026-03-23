@@ -1,4 +1,9 @@
-import type { SchemaDefinition, StateMeta, ViewAction, ViewFieldConfig } from "@linchkit/core/types";
+import type {
+  SchemaDefinition,
+  StateMeta,
+  ViewAction,
+  ViewFieldConfig,
+} from "@linchkit/core/types";
 
 export interface ViewFilter {
   field: string;

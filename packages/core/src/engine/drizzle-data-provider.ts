@@ -13,7 +13,13 @@
 import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { ConflictError, LinchKitError, NotFoundError, SystemError, ValidationError } from "../errors";
+import {
+  ConflictError,
+  LinchKitError,
+  NotFoundError,
+  SystemError,
+  ValidationError,
+} from "../errors";
 import type { DataProvider, DataQueryOptions } from "./action-engine";
 import type { TableRegistry } from "./table-registry";
 
@@ -298,7 +304,10 @@ export class DrizzleDataProvider implements DataProvider {
 
     let rows: Record<string, unknown>[];
     try {
-      rows = await this.db.update(table).set(updateData).where(whereClause).returning() as Record<string, unknown>[];
+      rows = (await this.db.update(table).set(updateData).where(whereClause).returning()) as Record<
+        string,
+        unknown
+      >[];
     } catch (err) {
       this.normalizeDbError(err, schema);
     }

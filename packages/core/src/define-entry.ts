@@ -5,43 +5,40 @@
  * and all types. Safe for browser — no drizzle-orm or postgres dependencies.
  */
 
-// Re-export all types for convenience
-export * from "./types-entry";
-
 // Define functions
 export {
-  defineCapability,
-  defineSchema,
   defineAction,
-  defineRule,
-  defineState,
-  defineView,
+  defineCapability,
+  defineConfig,
+  defineDataAccess,
   defineEvent,
   defineEventHandler,
   definePermissionGroup,
-  defineDataAccess,
-  defineConfig,
+  defineRule,
+  defineSchema,
+  defineState,
+  defineView,
+  disableRule,
+  extendPermissionGroup,
   extendSchema,
   extendState,
   extendView,
-  extendPermissionGroup,
-  overrideSchema,
   overrideAction,
   overrideRule,
-  disableRule,
+  overrideSchema,
 } from "./define";
-
 // Zod schema generator (depends only on zod, browser-safe)
 export { generateZodSchema } from "./engine/schema-to-zod";
-
 // Error classes
 export {
-  LinchKitError,
-  ValidationError,
-  NotFoundError,
   AuthenticationError,
   AuthorizationError,
   BusinessRuleError,
   ConflictError,
+  LinchKitError,
+  NotFoundError,
   SystemError,
+  ValidationError,
 } from "./errors";
+// Re-export all types for convenience
+export * from "./types-entry";

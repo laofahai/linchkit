@@ -23,7 +23,8 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 // ── Test configuration ───────────────────────────────────────
 
 const DATABASE_URL =
-  process.env.DATABASE_TEST_URL ?? "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
+  process.env.DATABASE_TEST_URL ??
+  "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
 const testSchema = defineSchema({
   name: "integration_test_item",
@@ -91,18 +92,20 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     const { mkdirSync } = await import("node:fs");
     mkdirSync(tmpDir, { recursive: true });
     const configPath = join(tmpDir, "drizzle.config.ts");
-    writeFileSync(configPath, `
+    writeFileSync(
+      configPath,
+      `
 import { defineConfig } from "drizzle-kit";
 export default defineConfig({
   dialect: "postgresql",
   schema: "${schemaFile}",
   dbCredentials: { url: "${DATABASE_URL}" },
 });
-`);
+`,
+    );
 
     const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force",
-       "--config", configPath],
+      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force", "--config", configPath],
       { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" },
     );
 
@@ -111,7 +114,9 @@ export default defineConfig({
     rmSync(tmpDir, { recursive: true, force: true });
 
     if (result.exitCode !== 0) {
-      throw new Error(`drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`);
+      throw new Error(
+        `drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`,
+      );
     }
   });
 

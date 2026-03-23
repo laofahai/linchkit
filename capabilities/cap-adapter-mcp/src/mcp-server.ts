@@ -57,7 +57,8 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpS
     const zodShape = buildZodShape(action.input);
 
     // Cast needed: project zod v4 types differ from SDK's bundled zod types
-    server.tool(tool.name, tool.description, zodShape as any, async (args: any) => {
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+    server.tool(tool.name, tool.description, zodShape as any, async (args: Record<string, unknown>) => {
       const result = await commandLayer.execute({
         command: tool.name,
         input: args as Record<string, unknown>,
@@ -171,8 +172,9 @@ function registerBuiltinTools(
   server.tool(
     "get_schema",
     "Get the full definition of a schema by name, including all fields",
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getSchemaShape as any,
-    async (args: any) => {
+    async (args: { name: string }) => {
       const schema = schemaRegistry.get(args.name);
       if (!schema) {
         return {

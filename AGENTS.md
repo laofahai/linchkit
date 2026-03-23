@@ -141,7 +141,7 @@ bun run typecheck                        # TypeScript check
 
 ## Specs
 
-Design specs live in `~/Documents/obsidian-vault/01_Projects/AIRE/LinchKit/specs/` (40+ docs).
+Design specs live in `docs/specs/` (47 files, 00–50).
 
 Key refs: `03_schema`, `04_action`, `05_rule`, `06_state`, `07_event`, `10_actor_permission`, `13_view_and_ui`, `16_command_layer_and_api`, `33_error_handling`, `35_approval_mechanism`, `36_ai_service`, `39_execution_contract`.
 

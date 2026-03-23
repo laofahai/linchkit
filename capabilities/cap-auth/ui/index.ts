@@ -7,9 +7,7 @@
  * Peer dependencies: @linchkit/ui-kit, react
  */
 
-export type { AuthCardProps } from "./components/auth-card";
 // Shared components
-export { AuthCard } from "./components/auth-card";
 export type { OAuthButtonsProps, OAuthProvider } from "./components/oauth-buttons";
 export { OAuthButtons } from "./components/oauth-buttons";
 export type {

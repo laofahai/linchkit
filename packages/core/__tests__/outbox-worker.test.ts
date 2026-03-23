@@ -5,13 +5,13 @@
  * using a real PostgreSQL database (same as PersistentEventBus tests).
  */
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { createOutboxWorker } from "../src/engine/outbox-worker";
 import { EventHandlerRegistry } from "../src/engine/event-bus";
+import { createOutboxWorker } from "../src/engine/outbox-worker";
 import { eventsTable } from "../src/engine/system-tables";
-import { createDatabase, closeDatabase, generateDrizzleSchemaFile } from "../src/server-entry";
+import { closeDatabase, createDatabase, generateDrizzleSchemaFile } from "../src/server-entry";
 
 // Use test DB on port 5434 (docker-compose postgres-test)
 const TEST_DB_URL =
@@ -58,7 +58,7 @@ async function insertFailedEvent(
       nextRetryAt: options?.nextRetryAt ?? null,
     })
     .returning({ id: eventsTable.id });
-  return row!.id;
+  return row?.id;
 }
 
 /** Clear all events between tests */
@@ -78,15 +78,12 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
       outputFile: "test-outbox-schema.generated.ts",
     });
 
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"],
-      {
-        cwd: process.cwd(),
-        env: { ...process.env, DATABASE_URL: TEST_DB_URL },
-        stdout: "pipe",
-        stderr: "pipe",
-      },
-    );
+    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"], {
+      cwd: process.cwd(),
+      env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
     if (result.exitCode !== 0) {
       throw new Error("drizzle-kit push failed for outbox worker tests");
     }
@@ -120,12 +117,9 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     expect(handlerCalled).toBe(true);
 
     // Verify event is now completed
-    const rows = await db
-      .select()
-      .from(eventsTable)
-      .where(eq(eventsTable.id, id));
-    expect(rows[0]!.status).toBe("completed");
-    expect(rows[0]!.processedAt).toBeTruthy();
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, id));
+    expect(rows[0]?.status).toBe("completed");
+    expect(rows[0]?.processedAt).toBeTruthy();
   });
 
   test("processBatch schedules retry on handler failure", async () => {
@@ -149,14 +143,11 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     await worker.processBatch();
 
     // Event should remain failed with incremented retryCount and scheduled nextRetryAt
-    const rows = await db
-      .select()
-      .from(eventsTable)
-      .where(eq(eventsTable.id, id));
-    expect(rows[0]!.status).toBe("failed");
-    expect(rows[0]!.retryCount).toBe(1);
-    expect(rows[0]!.nextRetryAt).toBeTruthy();
-    expect(rows[0]!.errorMessage).toBe("handler still broken");
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, id));
+    expect(rows[0]?.status).toBe("failed");
+    expect(rows[0]?.retryCount).toBe(1);
+    expect(rows[0]?.nextRetryAt).toBeTruthy();
+    expect(rows[0]?.errorMessage).toBe("handler still broken");
   });
 
   test("processBatch gives up after max retries", async () => {
@@ -177,13 +168,10 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     await worker.processBatch();
 
     // retryCount should be 3 (maxRetries), nextRetryAt should be null (no more retries)
-    const rows = await db
-      .select()
-      .from(eventsTable)
-      .where(eq(eventsTable.id, id));
-    expect(rows[0]!.status).toBe("failed");
-    expect(rows[0]!.retryCount).toBe(3);
-    expect(rows[0]!.nextRetryAt).toBeNull();
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, id));
+    expect(rows[0]?.status).toBe("failed");
+    expect(rows[0]?.retryCount).toBe(3);
+    expect(rows[0]?.nextRetryAt).toBeNull();
   });
 
   test("processBatch skips events with future nextRetryAt", async () => {

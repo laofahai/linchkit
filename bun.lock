@@ -6,13 +6,14 @@
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.63",
         "@ai-sdk/openai": "^3.0.47",
+        "@restatedev/restate-sdk": "^1.11.1",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
-        "drizzle-orm": "^0.45.1",
       },
       "devDependencies": {
         "bun-types": "latest",
         "drizzle-kit": "^0.31.10",
+        "drizzle-orm": "^0.45.1",
       },
     },
     "capabilities/cap-adapter-mcp": {
@@ -572,6 +573,10 @@
     "@radix-ui/rect": ["@radix-ui/rect@1.1.1", "https://registry.npmmirror.com/@radix-ui/rect/-/rect-1.1.1.tgz", {}, "sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw=="],
 
     "@repeaterjs/repeater": ["@repeaterjs/repeater@3.0.6", "https://registry.npmmirror.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz", {}, "sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA=="],
+
+    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.11.1", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.11.1" } }, "sha512-qJNpA5POJOOTx4piMNp3zwMbyS6SPn9DWpFYmWXV9zCdX1nl/mflUrSOMIdAp97xSJUo3D4thRKRuRTyv4SSzg=="],
+
+    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.11.1", "", {}, "sha512-noGcYm6WePsCNLH2becGARKnfMXxDccvVn8UyOEv1Nzxix/8S25nbnYEpRylxCPlcHdgfyvDlIQF0sW5Clk2iQ=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.10", "https://registry.npmmirror.com/@rolldown/binding-android-arm64/-/binding-android-arm64-1.0.0-rc.10.tgz", { "os": "android", "cpu": "arm64" }, "sha512-jOHxwXhxmFKuXztiu1ORieJeTbx5vrTkcOkkkn2d35726+iwhrY1w/+nYY/AGgF12thg33qC3R1LMBF5tHTZHg=="],
 

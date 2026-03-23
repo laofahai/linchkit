@@ -56,7 +56,10 @@ export class EventHandlerRegistry {
  * Simple field matching: every key in the filter must match the
  * corresponding field in the event payload.
  */
-export function matchesFilter(payload: Record<string, unknown>, filter: Record<string, unknown>): boolean {
+export function matchesFilter(
+  payload: Record<string, unknown>,
+  filter: Record<string, unknown>,
+): boolean {
   for (const [key, value] of Object.entries(filter)) {
     if (payload[key] !== value) {
       return false;

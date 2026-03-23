@@ -4,8 +4,8 @@
  * Registers the Vite dev server transport so `linch dev` starts the UI automatically.
  */
 
-import type { CliCommandContext, TransportContext } from "@linchkit/core/types";
 import { defineCapability } from "@linchkit/core/define";
+import type { CliCommandContext, TransportContext } from "@linchkit/core/types";
 
 export const capAdapterUiReact = defineCapability({
   name: "cap-adapter-ui-react",

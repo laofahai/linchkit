@@ -48,10 +48,11 @@ export const dbGenerateCommand = defineCommand({
     await generateSchema();
 
     console.log("[linch] Running drizzle-kit generate...");
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "generate"],
-      { cwd: process.cwd(), stdout: "inherit", stderr: "inherit" },
-    );
+    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "generate"], {
+      cwd: process.cwd(),
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     process.exit(result.exitCode ?? 0);
   },
 });
@@ -65,10 +66,11 @@ export const dbMigrateCommand = defineCommand({
     // No generateSchema() needed — migrate reads SQL files from drizzle/migrations/,
     // not the schema barrel file. Run `linch db:generate` first to create migrations.
     console.log("[linch] Running drizzle-kit migrate...");
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "migrate"],
-      { cwd: process.cwd(), stdout: "inherit", stderr: "inherit" },
-    );
+    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "migrate"], {
+      cwd: process.cwd(),
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     process.exit(result.exitCode ?? 0);
   },
 });
@@ -82,10 +84,11 @@ export const dbPushCommand = defineCommand({
     await generateSchema();
 
     console.log("[linch] Running drizzle-kit push...");
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"],
-      { cwd: process.cwd(), stdout: "inherit", stderr: "inherit" },
-    );
+    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"], {
+      cwd: process.cwd(),
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     process.exit(result.exitCode ?? 0);
   },
 });
@@ -100,10 +103,11 @@ export const dbStudioCommand = defineCommand({
     await generateSchema();
 
     console.log("[linch] Opening Drizzle Studio...");
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "studio"],
-      { cwd: process.cwd(), stdout: "inherit", stderr: "inherit" },
-    );
+    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "studio"], {
+      cwd: process.cwd(),
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     process.exit(result.exitCode ?? 0);
   },
 });

@@ -7,10 +7,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  loginWithPassword,
-  logout as authLogout,
-} from "@/lib/auth-client";
+import { logout as authLogout, loginWithPassword } from "@/lib/auth-client";
 
 const TOKEN_STORAGE_KEY = "linchkit:token";
 const AUTH_STORAGE_KEY = "linchkit:authenticated";
@@ -46,7 +43,7 @@ const AuthContext = createContext<AuthContextValue>({
 function decodeTokenPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
-    const raw = parts.length === 3 ? parts[1]! : token;
+    const raw = parts.length === 3 ? (parts[1] ?? token) : token;
     // Normalize base64url to standard base64 (replace -/_ and pad)
     const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");

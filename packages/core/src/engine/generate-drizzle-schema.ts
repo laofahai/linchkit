@@ -59,7 +59,7 @@ export function generateDrizzleSchemaFile(
   for (const schema of schemas) {
     const table = generateDrizzleTable(schema);
     const config = getTableConfig(table);
-    const varName = toCamelCase(schema.name) + "Table";
+    const varName = `${toCamelCase(schema.name)}Table`;
 
     const columnDefs = config.columns.map((col) => {
       const code = serializeColumn(col as never);
@@ -129,7 +129,9 @@ function serializeColumn(col: {
   } else {
     const builder = SQL_TYPE_MAP[sqlType];
     if (!builder) {
-      console.warn(`[generate-drizzle-schema] Unknown SQL type "${sqlType}" for column "${col.name}", falling back to text`);
+      console.warn(
+        `[generate-drizzle-schema] Unknown SQL type "${sqlType}" for column "${col.name}", falling back to text`,
+      );
     }
     code = builder ? builder(col.name) : `text("${col.name}")`;
   }

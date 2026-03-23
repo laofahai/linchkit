@@ -396,31 +396,17 @@
     "public._linchkit_approval_status": {
       "name": "_linchkit_approval_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "approved",
-        "rejected",
-        "expired"
-      ]
+      "values": ["pending", "approved", "rejected", "expired"]
     },
     "public._linchkit_event_status": {
       "name": "_linchkit_event_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "processing",
-        "completed",
-        "failed"
-      ]
+      "values": ["pending", "processing", "completed", "failed"]
     },
     "public._linchkit_execution_status": {
       "name": "_linchkit_execution_status",
       "schema": "public",
-      "values": [
-        "succeeded",
-        "failed",
-        "rejected"
-      ]
+      "values": ["succeeded", "failed", "rejected"]
     }
   },
   "schemas": {},

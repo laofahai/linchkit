@@ -120,5 +120,7 @@ export interface ExecutionLogger {
   getById(id: string): ExecutionLogEntry | undefined | Promise<ExecutionLogEntry | undefined>;
 
   /** Paginated query with filters */
-  findMany(options?: ExecutionLogFindOptions): ExecutionLogListResult | Promise<ExecutionLogListResult>;
+  findMany(
+    options?: ExecutionLogFindOptions,
+  ): ExecutionLogListResult | Promise<ExecutionLogListResult>;
 }

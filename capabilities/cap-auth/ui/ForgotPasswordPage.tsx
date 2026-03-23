@@ -9,9 +9,17 @@
  * internally. All action handlers are injected via props.
  */
 
-import { Button, Input, Label } from "@linchkit/ui-kit/components";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from "@linchkit/ui-kit/components";
 import { type FormEvent, type ReactNode, useState } from "react";
-import { AuthCard } from "./components/auth-card";
 
 export type ForgotPasswordStep = "request" | "check-inbox" | "reset";
 
@@ -87,12 +95,12 @@ export function ForgotPasswordPage({
 
   const {
     requestTitle = "Forgot password",
-    requestDescription = "Enter your email and we'll send you a reset link",
+    requestDescription = "Enter your email and we\u2019ll send you a reset link",
     emailLabel = "Email",
-    emailPlaceholder = "you@example.com",
+    emailPlaceholder = "m@example.com",
     sendResetButton = "Send reset link",
     checkInboxTitle = "Check your inbox",
-    checkInboxDescription = "We've sent a password reset link to your email address",
+    checkInboxDescription = "We\u2019ve sent a password reset link to your email address",
     resendButton = "Resend email",
     resetTitle = "Set new password",
     resetDescription = "Enter your reset token and a new password",
@@ -140,162 +148,190 @@ export function ForgotPasswordPage({
   };
 
   const backToLoginFooter = onBackToLogin ? (
-    <p>
-      <button
-        type="button"
-        className="font-medium text-primary underline-offset-4 hover:underline"
-        onClick={onBackToLogin}
-      >
+    <div className="mt-4 text-center text-sm">
+      <button type="button" className="underline underline-offset-4" onClick={onBackToLogin}>
         {backToLoginLink}
       </button>
-    </p>
-  ) : undefined;
+    </div>
+  ) : null;
 
   // Step 1: Request reset
   if (step === "request") {
     return (
-      <AuthCard
-        title={requestTitle}
-        description={requestDescription}
-        logo={logo}
-        footer={backToLoginFooter}
-      >
-        <form onSubmit={handleRequestSubmit} className="space-y-4">
-          {displayError && (
-            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {displayError}
-            </div>
-          )}
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <Card>
+          <CardHeader>
+            {logo && <div className="mb-2 flex justify-center">{logo}</div>}
+            <CardTitle className="text-2xl">{requestTitle}</CardTitle>
+            <CardDescription>{requestDescription}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRequestSubmit}>
+              <div className="flex flex-col gap-6">
+                {displayError && (
+                  <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {displayError}
+                  </div>
+                )}
 
-          <div className="space-y-2">
-            <Label htmlFor="forgot-email">{emailLabel}</Label>
-            <Input
-              id="forgot-email"
-              type="email"
-              placeholder={emailPlaceholder}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-              autoComplete="email"
-            />
-          </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="forgot-email">{emailLabel}</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder={emailPlaceholder}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    autoComplete="email"
+                  />
+                </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "..." : sendResetButton}
-          </Button>
-        </form>
-      </AuthCard>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "..." : sendResetButton}
+                </Button>
+              </div>
+              {backToLoginFooter}
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   // Step 2: Check inbox
   if (step === "check-inbox") {
     return (
-      <AuthCard
-        title={checkInboxTitle}
-        description={checkInboxDescription}
-        logo={logo}
-        footer={backToLoginFooter}
-      >
-        <div className="space-y-4">
-          <p className="text-center text-sm text-muted-foreground">{email}</p>
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <Card>
+          <CardHeader>
+            {logo && <div className="mb-2 flex justify-center">{logo}</div>}
+            <CardTitle className="text-2xl">{checkInboxTitle}</CardTitle>
+            <CardDescription>{checkInboxDescription}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <p className="text-center text-sm text-muted-foreground">{email}</p>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={loading}
-            onClick={() => onRequestReset(email)}
-          >
-            {loading ? "..." : resendButton}
-          </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={() => onRequestReset(email)}
+              >
+                {loading ? "..." : resendButton}
+              </Button>
 
-          <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("reset")}>
-            {/* Allow user to proceed to enter token manually */}
-            {resetTitle}
-          </Button>
-        </div>
-      </AuthCard>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setStep("reset")}
+              >
+                {resetTitle}
+              </Button>
+            </div>
+            {backToLoginFooter}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  // Step 4: Success
+  // Success
   if (step === "success") {
     return (
-      <AuthCard title={successTitle} description={successDescription} logo={logo}>
-        {onBackToLogin && (
-          <Button type="button" className="w-full" onClick={onBackToLogin}>
-            {successBackToLoginButton}
-          </Button>
-        )}
-      </AuthCard>
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <Card>
+          <CardHeader>
+            {logo && <div className="mb-2 flex justify-center">{logo}</div>}
+            <CardTitle className="text-2xl">{successTitle}</CardTitle>
+            <CardDescription>{successDescription}</CardDescription>
+          </CardHeader>
+          {onBackToLogin && (
+            <CardContent>
+              <Button type="button" className="w-full" onClick={onBackToLogin}>
+                {successBackToLoginButton}
+              </Button>
+            </CardContent>
+          )}
+        </Card>
+      </div>
     );
   }
 
   // Step 3: Reset password
   return (
-    <AuthCard
-      title={resetTitle}
-      description={resetDescription}
-      logo={logo}
-      footer={backToLoginFooter}
-    >
-      <form onSubmit={handleResetSubmit} className="space-y-4">
-        {displayError && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {displayError}
-          </div>
-        )}
+    <div className="flex w-full max-w-md flex-col gap-6">
+      <Card>
+        <CardHeader>
+          {logo && <div className="mb-2 flex justify-center">{logo}</div>}
+          <CardTitle className="text-2xl">{resetTitle}</CardTitle>
+          <CardDescription>{resetDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleResetSubmit}>
+            <div className="flex flex-col gap-6">
+              {displayError && (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {displayError}
+                </div>
+              )}
 
-        {!initialToken && (
-          <div className="space-y-2">
-            <Label htmlFor="reset-token">{tokenLabel}</Label>
-            <Input
-              id="reset-token"
-              type="text"
-              placeholder={tokenPlaceholder}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-              disabled={loading}
-              autoComplete="off"
-            />
-          </div>
-        )}
+              {!initialToken && (
+                <div className="grid gap-2">
+                  <Label htmlFor="reset-token">{tokenLabel}</Label>
+                  <Input
+                    id="reset-token"
+                    type="text"
+                    placeholder={tokenPlaceholder}
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    required
+                    disabled={loading}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
 
-        <div className="space-y-2">
-          <Label htmlFor="reset-new-password">{newPasswordLabel}</Label>
-          <Input
-            id="reset-new-password"
-            type="password"
-            placeholder={newPasswordPlaceholder}
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            disabled={loading}
-            autoComplete="new-password"
-          />
-        </div>
+              <div className="grid gap-2">
+                <Label htmlFor="reset-new-password">{newPasswordLabel}</Label>
+                <Input
+                  id="reset-new-password"
+                  type="password"
+                  placeholder={newPasswordPlaceholder}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+              </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="reset-confirm-password">{confirmPasswordLabel}</Label>
-          <Input
-            id="reset-confirm-password"
-            type="password"
-            placeholder={confirmPasswordPlaceholder}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            disabled={loading}
-            autoComplete="new-password"
-          />
-        </div>
+              <div className="grid gap-2">
+                <Label htmlFor="reset-confirm-password">{confirmPasswordLabel}</Label>
+                <Input
+                  id="reset-confirm-password"
+                  type="password"
+                  placeholder={confirmPasswordPlaceholder}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+              </div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "..." : resetButton}
-        </Button>
-      </form>
-    </AuthCard>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "..." : resetButton}
+              </Button>
+            </div>
+            {backToLoginFooter}
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

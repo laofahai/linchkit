@@ -51,12 +51,12 @@ import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 
-
 /** Simple in-memory DataProvider for dev fallback when no database is configured. */
 function createDevFallbackProvider(): DataProvider {
   const tables = new Map<string, Map<string, Record<string, unknown>>>();
   const table = (schema: string) => {
     if (!tables.has(schema)) tables.set(schema, new Map());
+    // biome-ignore lint/style/noNonNullAssertion: guaranteed by has() check above
     return tables.get(schema)!;
   };
   return {
@@ -263,7 +263,9 @@ export const devCommand = defineCommand({
     const executionLogger = dbInstance
       ? new DrizzleExecutionLogger(dbInstance)
       : new InMemoryExecutionLogger();
-    console.log(`[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`);
+    console.log(
+      `[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`,
+    );
 
     // Create approval store — Drizzle-backed when DB is available
     const approvalStore = dbInstance
