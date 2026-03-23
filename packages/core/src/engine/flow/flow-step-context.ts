@@ -171,12 +171,21 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
     },
 
     async executeAction(actionName, input) {
-      // Pass a system actor so the action engine can identify the caller
-      const systemActor = { type: "system", id: "flow-engine", name: "Flow Engine" };
-      const result = await actionEngine.execute(actionName, input, { actor: systemActor });
+      // Use the flow's actor/tenant when available, fall back to system actor
+      const actor = this.actor
+        ? { type: this.actor.type, id: this.actor.id, name: undefined }
+        : { type: "system", id: "flow-engine", name: "Flow Engine" };
+      const result = await actionEngine.execute(actionName, input, {
+        actor,
+        tenantId: this.tenantId,
+      });
       // ActionExecutor returns ActionResult with { success, data, executionId }
-      // Return the data as the step output
-      if (typeof result === "object" && result !== null && "data" in result) {
+      if (typeof result === "object" && result !== null && "success" in result) {
+        if (!result.success) {
+          const errorMsg =
+            typeof result.error === "string" ? result.error : `Action '${actionName}' failed`;
+          throw new Error(errorMsg);
+        }
         return (result.data as Record<string, unknown>) ?? {};
       }
       return result as Record<string, unknown>;

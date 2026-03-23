@@ -237,6 +237,44 @@ function serializeRule(rule: RuleDefinition): Record<string, unknown> {
   return serialized;
 }
 
+/**
+ * Extract the operation type from a GraphQL query string.
+ *
+ * Handles bypass vectors like leading comments, fragment definitions before
+ * the operation, and named operations. Returns "query", "mutation",
+ * "subscription", or "query" as default for shorthand queries like `{ ... }`.
+ *
+ * Algorithm:
+ * 1. Strip all comments (`# ... \n`)
+ * 2. Strip all fragment definitions (`fragment Name on Type { ... }`) with balanced braces
+ * 3. Trim leading whitespace
+ * 4. Check if the remaining text starts with mutation/subscription/query keyword
+ */
+function extractGraphQLOperationType(query: string): "query" | "mutation" | "subscription" {
+  // Step 1: Strip single-line comments (# to end of line)
+  let cleaned = query.replace(/#[^\n]*/g, "");
+
+  // Step 2: Strip fragment definitions (fragment Name on Type { ... }) with balanced braces
+  // Repeat until no more fragment definitions are found (handles multiple fragments)
+  let prev: string;
+  do {
+    prev = cleaned;
+    cleaned = cleaned.replace(/fragment\s+\w+\s+on\s+\w+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "");
+  } while (cleaned !== prev);
+
+  // Step 3: Trim leading whitespace
+  cleaned = cleaned.trim();
+
+  // Step 4: Check the operation type
+  const match = cleaned.match(/^(mutation|subscription|query)\b/i);
+  if (match) {
+    return match[1]?.toLowerCase() as "query" | "mutation" | "subscription";
+  }
+
+  // Shorthand query: `{ ... }` with no keyword
+  return "query";
+}
+
 /** Register built-in introspection tools */
 function registerBuiltinTools(
   server: McpServer,
@@ -442,10 +480,10 @@ function registerBuiltinTools(
 
       // Block mutation/subscription operations — MCP writes must go through action tools
       // which pass through the CommandLayer middleware pipeline.
-      // Strip GraphQL comments and leading whitespace before checking the operation type,
-      // since queries may start with comments, whitespace, or fragment definitions.
-      const stripped = args.query.replace(/#[^\n]*\n/g, "").replace(/^\s+/, "");
-      if (/^(mutation|subscription)\b/i.test(stripped)) {
+      // We use extractGraphQLOperationType() to robustly detect the operation type even
+      // when queries contain leading comments, fragment definitions, or named operations.
+      const operationType = extractGraphQLOperationType(args.query);
+      if (operationType === "mutation" || operationType === "subscription") {
         return {
           content: [
             {

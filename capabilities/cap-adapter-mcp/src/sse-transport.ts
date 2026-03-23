@@ -13,8 +13,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 
 export interface McpSseServerOptions {
-  /** The MCP server instance to connect */
-  mcpServer: McpServer;
+  /**
+   * Factory that creates a fresh McpServer per SSE session.
+   *
+   * The MCP SDK only permits one active transport per McpServer instance,
+   * so we must create a new server for each concurrent SSE connection.
+   */
+  createMcpServer: () => Promise<McpServer>;
   /** Validate bearer token — returns true if auth passes */
   validateAuth: (token: string | undefined) => boolean;
   /** Whether bearer token auth is enabled */
@@ -61,10 +66,12 @@ function sendError(res: ServerResponse, statusCode: number, message: string): vo
  * Auth: Bearer token is validated on both endpoints when configured.
  */
 export function createMcpSseServer(options: McpSseServerOptions): McpSseServerResult {
-  const { mcpServer, validateAuth, authEnabled, port = 3002 } = options;
+  const { createMcpServer, validateAuth, authEnabled, port = 3002 } = options;
 
   // Map of active SSE transports keyed by session ID
   const transports = new Map<string, SSEServerTransport>();
+  // Map of per-session McpServer instances keyed by session ID
+  const sessionServers = new Map<string, McpServer>();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // CORS headers for cross-origin AI agent access
@@ -93,11 +100,26 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
     // GET /sse — Establish SSE connection
     if (req.method === "GET" && url.pathname === "/sse") {
       const sseTransport = new SSEServerTransport("/messages", res);
-      transports.set(sseTransport.sessionId, sseTransport);
+      const sessionId = sseTransport.sessionId;
+
+      // Create a fresh McpServer for this session
+      const mcpServer = await createMcpServer();
+
+      transports.set(sessionId, sseTransport);
+      sessionServers.set(sessionId, mcpServer);
 
       // Clean up on disconnect
-      res.on("close", () => {
-        transports.delete(sseTransport.sessionId);
+      res.on("close", async () => {
+        transports.delete(sessionId);
+        const server = sessionServers.get(sessionId);
+        sessionServers.delete(sessionId);
+        if (server) {
+          try {
+            await server.close();
+          } catch {
+            // ignore cleanup errors
+          }
+        }
       });
 
       // Connect to MCP server and start SSE stream
@@ -143,11 +165,20 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
       });
     },
     stop: async () => {
-      // Close all active SSE transports
+      // Close all active SSE transports and their per-session McpServer instances
       for (const [, transport] of transports) {
         await transport.close();
       }
       transports.clear();
+
+      for (const [, server] of sessionServers) {
+        try {
+          await server.close();
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      sessionServers.clear();
 
       // Close the HTTP server
       await new Promise<void>((resolve, reject) => {
@@ -156,7 +187,6 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
           else resolve();
         });
       });
-      await mcpServer.close();
       console.log("[cap-adapter-mcp] MCP SSE server stopped");
     },
   };

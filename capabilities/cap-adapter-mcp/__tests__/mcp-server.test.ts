@@ -423,6 +423,106 @@ describe("createMcpAdapter — query proxy security", () => {
     expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
   });
 
+  test("query tool blocks mutations preceded by fragment definitions", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      {
+        query: "fragment Foo on Order { id } mutation { createOrder(input: {}) { id } }",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
+  test("query tool blocks mutations preceded by comments", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      {
+        query: '# This is a comment\nmutation { deleteOrder(id: "1") { id } }',
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
+  test("query tool blocks named mutations", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      {
+        query: "mutation CreateOrder($input: OrderInput!) { createOrder(input: $input) { id } }",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
+  test("query tool blocks subscriptions preceded by fragments", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      {
+        query: "fragment F on X { id name } subscription { orderCreated { ...F } }",
+      },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
+  });
+
   test("query tool returns error when graphqlEndpoint is not configured", async () => {
     const schemaRegistry = createSchemaRegistry();
     const actionRegistry = new ActionRegistry();

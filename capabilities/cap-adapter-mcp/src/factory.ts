@@ -59,6 +59,9 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
       // Lazy import to avoid loading heavy deps at registration time
       const { createMcpAdapter } = await import("./mcp-server");
 
+      const tenantId = ctx.config?.tenantId as string | undefined;
+      const graphqlEndpoint = ctx.config?.graphqlEndpoint as string | undefined;
+
       const {
         server: mcpServer,
         validateAuth,
@@ -70,6 +73,8 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         name: serverName,
         version: serverVersion,
         bearerToken,
+        tenantId,
+        graphqlEndpoint,
       });
 
       if (transportMode === "stdio") {
@@ -98,14 +103,28 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
 
       // SSE transport — standalone HTTP server using MCP SDK's SSEServerTransport.
       // Uses node:http for compatibility with the SDK's Node.js-based SSE transport.
+      // Each SSE session gets its own McpServer instance because the MCP SDK
+      // only permits one active transport per McpServer.
       const { createMcpSseServer } = await import("./sse-transport");
+
+      const adapterOptions = {
+        commandLayer: ctx.commandLayer,
+        schemaRegistry: ctx.schemaRegistry,
+        actionRegistry: ctx.executor.registry,
+        name: serverName,
+        version: serverVersion,
+        bearerToken,
+      };
 
       const {
         httpServer: _httpServer,
         start,
         stop,
       } = createMcpSseServer({
-        mcpServer,
+        createMcpServer: async () => {
+          const adapter = await createMcpAdapter(adapterOptions);
+          return adapter.server;
+        },
         validateAuth,
         authEnabled,
         port: ssePort,
@@ -128,6 +147,14 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         type: "number",
         default: 3002,
         description: "Port for SSE HTTP server (only used with SSE transport)",
+      },
+      tenantId: {
+        type: "string",
+        description: "Tenant ID for multi-tenant scoping",
+      },
+      graphqlEndpoint: {
+        type: "string",
+        description: "GraphQL endpoint URL for query proxy (e.g. http://localhost:3001/graphql)",
       },
     },
   };

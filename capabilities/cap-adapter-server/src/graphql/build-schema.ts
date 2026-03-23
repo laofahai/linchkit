@@ -15,6 +15,7 @@ import type {
   ExecutionStatus,
   SchemaDefinition,
 } from "@linchkit/core";
+import { resolveTranslatableRow } from "@linchkit/core";
 import {
   GraphQLBoolean,
   GraphQLError,
@@ -441,17 +442,19 @@ export function buildGraphQLSchema(
       },
       resolve: executor
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
+            const locale = ctx.locale;
             const result = await executor.execute(
               `create_${schemaName}`,
               args.input,
               ANONYMOUS_ACTOR,
-              { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
+              { channel: "http", tenantId: ctx.tenantId, locale },
             );
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
             }
-            return result.data;
+            const data = result.data as Record<string, unknown>;
+            return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
         : (_root: unknown, args: { input: Record<string, unknown> }) => ({
             ...mockRecord,
@@ -477,6 +480,7 @@ export function buildGraphQLSchema(
             args: { id: string; input: Record<string, unknown>; _version?: number },
             ctx: GraphQLContext,
           ) => {
+            const locale = ctx.locale;
             const input: Record<string, unknown> = { id: args.id, ...args.input };
             // Pass _version through for optimistic locking when provided
             if (args._version !== undefined && args._version !== null) {
@@ -485,13 +489,14 @@ export function buildGraphQLSchema(
             const result = await executor.execute(`update_${schemaName}`, input, ANONYMOUS_ACTOR, {
               channel: "http",
               tenantId: ctx.tenantId,
-              locale: ctx.locale,
+              locale,
             });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Update action failed");
             }
-            return result.data;
+            const data = result.data as Record<string, unknown>;
+            return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
         : (
             _root: unknown,
@@ -609,6 +614,9 @@ export function buildGraphQLSchema(
       args.input = { type: new GraphQLNonNull(actionInputType) };
     }
 
+    // Capture the schema definition for translatable resolution in custom actions
+    const actionSchema = action.schema ? schemas.find((s) => s.name === action.schema) : undefined;
+
     mutationFields[mutationName] = {
       type: returnType,
       description: action.description ?? action.label,
@@ -619,6 +627,7 @@ export function buildGraphQLSchema(
             resolverArgs: { id: string; input?: Record<string, unknown> },
             ctx: GraphQLContext,
           ) => {
+            const locale = ctx.locale;
             // Spread input first so explicit id argument takes precedence
             const input: Record<string, unknown> = {
               ...resolverArgs.input,
@@ -627,14 +636,17 @@ export function buildGraphQLSchema(
             const result = await executor.execute(actionName, input, ANONYMOUS_ACTOR, {
               channel: "http",
               tenantId: ctx.tenantId,
-              locale: ctx.locale,
+              locale,
             });
             if (returnsSchemaType) {
               if (!result.success) {
                 const errData = result.data as Record<string, unknown> | undefined;
                 throw new Error((errData?.error as string) ?? `Action "${actionName}" failed`);
               }
-              return result.data;
+              const data = result.data as Record<string, unknown>;
+              return data && actionSchema
+                ? resolveTranslatableRow(data, actionSchema, locale)
+                : data;
             }
             // Return ActionResult shape
             const errors = !result.success

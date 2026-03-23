@@ -8,7 +8,7 @@
  * Lifecycle: create → start() → stop()
  */
 
-import { and, eq, isNull, lte, or } from "drizzle-orm";
+import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
@@ -73,17 +73,36 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
     return Math.round(delay + jitter);
   }
 
-  /** Build an EventRecord from a database row */
-  function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
+  /**
+   * Raw row shape returned by db.execute() — column names are snake_case
+   * as they come directly from PostgreSQL.
+   */
+  interface RawEventRow {
+    id: string;
+    tenant_id: string | null;
+    event_type: string;
+    payload: unknown;
+    source_action: string | null;
+    source_execution_id: string | null;
+    created_at: Date | string;
+    processed_at: Date | string | null;
+    status: string;
+    error_message: string | null;
+    retry_count: number;
+    next_retry_at: Date | string | null;
+  }
+
+  /** Build an EventRecord from a raw database row (snake_case columns) */
+  function rowToEventRecord(row: RawEventRow): EventRecord {
     const payload = (row.payload as Record<string, unknown>) ?? {};
     return {
       id: row.id,
-      type: row.eventType,
+      type: row.event_type,
       category: "runtime",
-      timestamp: row.createdAt,
+      timestamp: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
       actor: { type: "system", id: "outbox-worker" },
-      executionId: row.sourceExecutionId ?? "",
-      tenantId: row.tenantId ?? undefined,
+      executionId: row.source_execution_id ?? "",
+      tenantId: row.tenant_id ?? undefined,
       payload,
     };
   }
@@ -135,26 +154,37 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
     // 1. status = 'pending' — new events from Transactional Outbox
     // 2. status = 'failed' AND retryCount < maxRetries AND nextRetryAt ready — retries
     // 3. status = 'processing' AND stuck for > 5 minutes — crash recovery
+    //
+    // Uses atomic UPDATE with FOR UPDATE SKIP LOCKED subquery to prevent
+    // multiple worker instances from claiming the same events.
     const stuckThreshold = new Date(now.getTime() - 5 * 60 * 1000);
 
-    const rows = await db
-      .select()
-      .from(eventsTable)
-      .where(
-        or(
-          // New pending events (from Transactional Outbox)
-          eq(eventsTable.status, "pending"),
-          // Failed events ready for retry
-          and(
-            eq(eventsTable.status, "failed"),
-            lte(eventsTable.retryCount, maxRetries - 1),
-            or(isNull(eventsTable.nextRetryAt), lte(eventsTable.nextRetryAt, now)),
-          ),
-          // Stuck processing events (worker crashed — release after 5 min)
-          and(eq(eventsTable.status, "processing"), lte(eventsTable.createdAt, stuckThreshold)),
-        ),
+    // Atomic claim: UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)
+    // The inner CTE selects and locks eligible rows, then the outer UPDATE claims them.
+    // This prevents multiple worker instances from processing the same events.
+    const nowStr = now.toISOString();
+    const stuckStr = stuckThreshold.toISOString();
+    const rawRows = await db.execute(sql`
+      WITH claimable AS (
+        SELECT id FROM _linchkit_events
+        WHERE (
+          status = 'pending'
+          OR (status = 'failed' AND retry_count <= ${maxRetries - 1} AND (next_retry_at IS NULL OR next_retry_at <= ${nowStr}::timestamptz))
+          OR (status = 'processing' AND created_at <= ${stuckStr}::timestamptz)
+        )
+        ORDER BY created_at ASC
+        LIMIT ${batchSize}
+        FOR UPDATE SKIP LOCKED
       )
-      .limit(batchSize);
+      UPDATE _linchkit_events
+      SET status = 'processing'
+      FROM claimable
+      WHERE _linchkit_events.id = claimable.id
+      RETURNING _linchkit_events.*
+    `);
+
+    // db.execute() returns a RowList (array-like) of Record<string, unknown>
+    const rows = Array.from(rawRows) as unknown as RawEventRow[];
 
     if (rows.length === 0) return 0;
 
@@ -166,12 +196,6 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
       const event = rowToEventRecord(row);
 
       try {
-        // Mark as processing
-        await db
-          .update(eventsTable)
-          .set({ status: "processing" })
-          .where(eq(eventsTable.id, row.id));
-
         // Re-execute handlers
         await executeHandlers(event);
 
@@ -187,11 +211,11 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
 
         processed++;
         logger.info(
-          `[OutboxWorker] Event "${row.id}" (${row.eventType}) succeeded on retry ${row.retryCount + 1}`,
+          `[OutboxWorker] Event "${row.id}" (${row.event_type}) succeeded on retry ${row.retry_count + 1}`,
         );
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        const newRetryCount = row.retryCount + 1;
+        const newRetryCount = row.retry_count + 1;
 
         if (newRetryCount >= maxRetries) {
           // Exhausted retries — leave as failed with no nextRetryAt
@@ -206,7 +230,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
             .where(eq(eventsTable.id, row.id));
 
           logger.warn(
-            `[OutboxWorker] Event "${row.id}" (${row.eventType}) exhausted ${maxRetries} retries: ${errorMessage}`,
+            `[OutboxWorker] Event "${row.id}" (${row.event_type}) exhausted ${maxRetries} retries: ${errorMessage}`,
           );
         } else {
           // Schedule next retry with exponential backoff
@@ -224,7 +248,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
             .where(eq(eventsTable.id, row.id));
 
           logger.info(
-            `[OutboxWorker] Event "${row.id}" (${row.eventType}) retry ${newRetryCount}/${maxRetries} scheduled in ${delayMs}ms`,
+            `[OutboxWorker] Event "${row.id}" (${row.event_type}) retry ${newRetryCount}/${maxRetries} scheduled in ${delayMs}ms`,
           );
         }
       }

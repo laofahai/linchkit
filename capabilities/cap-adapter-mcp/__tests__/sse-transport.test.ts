@@ -75,7 +75,7 @@ describe("createMcpSseServer", () => {
   test("creates SSE server and starts on given port", async () => {
     const adapter = await createTestAdapter();
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: adapter.authEnabled,
       port: 13100,
@@ -96,7 +96,7 @@ describe("createMcpSseServer", () => {
   test("GET /sse returns SSE stream (text/event-stream)", async () => {
     const adapter = await createTestAdapter();
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: false,
       port: 13101,
@@ -136,7 +136,7 @@ describe("createMcpSseServer", () => {
   test("POST /messages without sessionId returns 400", async () => {
     const adapter = await createTestAdapter();
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: false,
       port: 13102,
@@ -157,7 +157,7 @@ describe("createMcpSseServer", () => {
   test("POST /messages with invalid sessionId returns 404", async () => {
     const adapter = await createTestAdapter();
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: false,
       port: 13103,
@@ -176,7 +176,7 @@ describe("createMcpSseServer", () => {
   test("OPTIONS returns CORS headers", async () => {
     const adapter = await createTestAdapter();
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: false,
       port: 13104,
@@ -195,7 +195,7 @@ describe("SSE transport bearer token auth", () => {
   test("returns 401 when auth enabled and no token provided", async () => {
     const adapter = await createTestAdapter("secret-token-123");
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter("secret-token-123")).server,
       validateAuth: adapter.validateAuth,
       authEnabled: adapter.authEnabled,
       port: 13110,
@@ -219,7 +219,7 @@ describe("SSE transport bearer token auth", () => {
   test("returns 401 when auth enabled and wrong token provided", async () => {
     const adapter = await createTestAdapter("secret-token-123");
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter("secret-token-123")).server,
       validateAuth: adapter.validateAuth,
       authEnabled: adapter.authEnabled,
       port: 13111,
@@ -238,7 +238,7 @@ describe("SSE transport bearer token auth", () => {
   test("allows access with valid token", async () => {
     const adapter = await createTestAdapter("secret-token-123");
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter("secret-token-123")).server,
       validateAuth: adapter.validateAuth,
       authEnabled: adapter.authEnabled,
       port: 13112,
@@ -275,7 +275,7 @@ describe("SSE transport bearer token auth", () => {
   test("no auth enforcement when auth is disabled (no token configured)", async () => {
     const adapter = await createTestAdapter(); // no token
     const sseServer = createMcpSseServer({
-      mcpServer: adapter.server,
+      createMcpServer: async () => (await createTestAdapter()).server,
       validateAuth: adapter.validateAuth,
       authEnabled: adapter.authEnabled,
       port: 13113,

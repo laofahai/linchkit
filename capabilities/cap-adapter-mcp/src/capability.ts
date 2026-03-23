@@ -32,11 +32,15 @@ export const capAdapterMcp = defineCapability({
           // Bearer token from transport config — used for GraphQL proxy auth forwarding.
           // stdio transport itself relies on process-level security (no HTTP enforcement).
           const bearerToken = ctx.config?.bearerToken as string | undefined;
+          const tenantId = ctx.config?.tenantId as string | undefined;
+          const graphqlEndpoint = ctx.config?.graphqlEndpoint as string | undefined;
           const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
             schemaRegistry: ctx.schemaRegistry,
             actionRegistry: ctx.executor.registry,
             bearerToken,
+            tenantId,
+            graphqlEndpoint,
           });
 
           // Create stdio transport instance
@@ -64,6 +68,15 @@ export const capAdapterMcp = defineCapability({
             type: "boolean",
             default: true,
             description: "Enable stdio transport",
+          },
+          tenantId: {
+            type: "string",
+            description: "Tenant ID for multi-tenant scoping",
+          },
+          graphqlEndpoint: {
+            type: "string",
+            description:
+              "GraphQL endpoint URL for query proxy (e.g. http://localhost:3001/graphql)",
           },
         },
       },

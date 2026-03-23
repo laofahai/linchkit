@@ -81,6 +81,10 @@ export interface ExecuteOptions {
   idempotencyKey?: string;
   /** Internal: current recursion depth for child action execution */
   _depth?: number;
+  /** Internal: transactional data provider from parent action (shared transaction) */
+  _txDataProvider?: DataProvider;
+  /** Internal: parent's pending events array for shared transaction */
+  _parentPendingEvents?: PendingEvent[];
 }
 
 // ── ActionRegistry ──────────────────────────────────────────
@@ -490,6 +494,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
           _depth: currentDepth + 1,
+          _txDataProvider: activeProvider,
+          _parentPendingEvents: pendingEvents,
         });
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
@@ -646,8 +652,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
       // Use transaction when available and not explicitly disabled
       const useTransaction = transactionManager && action.policy?.transaction !== false;
+      const parentTxProvider = execOptions?._txDataProvider;
+      const parentEvents = execOptions?._parentPendingEvents;
 
-      if (useTransaction) {
+      if (parentTxProvider) {
+        // Shared transaction path: parent already opened a transaction.
+        // Use the parent's transactional provider directly so all data
+        // operations participate in the same DB transaction.
+        await runHandler(parentTxProvider);
+        // Propagate child events to parent's pending list so they are
+        // persisted atomically when the parent's transaction commits.
+        if (parentEvents) {
+          parentEvents.push(...pendingEvents);
+        }
+      } else if (useTransaction) {
         await transactionManager.runInTransaction(
           (txProvider) => runHandler(txProvider),
           pendingEvents,
