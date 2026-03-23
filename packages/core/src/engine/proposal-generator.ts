@@ -22,7 +22,7 @@ import type {
 } from "../types/proposal";
 import type { FieldType, SchemaDefinition } from "../types/schema";
 import type { ActionRegistry } from "./action-engine";
-import type { SchemaRegistry } from "./schema-registry";
+import type { SchemaRegistry } from "../schema/schema-registry";
 
 // ── Valid field types (for validation) ──────────────────────
 

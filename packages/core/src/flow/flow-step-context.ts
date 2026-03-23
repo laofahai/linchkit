@@ -5,8 +5,8 @@
  * AIService, ActionEngine, and ActionRegistry.
  */
 
-import type { ActionDefinition } from "../../types/action";
-import type { AIService, AITool } from "../../types/ai";
+import type { ActionDefinition } from "../types/action";
+import type { AIService, AITool } from "../types/ai";
 import type { FlowStepContext } from "./types";
 
 // ── Dependencies ─────────────────────────────────────────

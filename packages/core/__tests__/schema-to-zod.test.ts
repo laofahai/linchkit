@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateZodSchema } from "../src/engine/schema-to-zod";
+import { generateZodSchema } from "../src/schema/schema-to-zod";
 import type { SchemaDefinition } from "../src/types/schema";
 
 describe("generateZodSchema", () => {

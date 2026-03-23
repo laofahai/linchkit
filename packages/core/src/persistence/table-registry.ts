@@ -8,7 +8,7 @@
 
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { SchemaDefinition } from "../types/schema";
-import { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema-to-drizzle";
+import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../schema/schema-to-drizzle";
 
 export class TableRegistry {
   private tables = new Map<string, PgTable>();

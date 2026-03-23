@@ -5,7 +5,7 @@
  * Public types (FlowDefinition, FlowStep, etc.) are in types/flow.ts.
  */
 
-import type { FlowDefinition, FlowInstance } from "../../types/flow";
+import type { FlowDefinition, FlowInstance } from "../types/flow";
 
 // ── Flow Engine interface ───────────────────────────────
 

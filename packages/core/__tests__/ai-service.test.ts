@@ -4,7 +4,7 @@ import {
   createNoopAIService,
   defaultAIConfig,
   resolveModel,
-} from "../src/engine/ai-service";
+} from "../src/ai/ai-service";
 import type { AIServiceConfig } from "../src/types/ai";
 
 // ── Test config ─────────────────────────────────────────────

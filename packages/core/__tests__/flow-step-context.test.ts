@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { mockAIService } from "@linchkit/devtools";
-import { createFlowStepContext } from "../src/engine/flow/flow-step-context";
+import { createFlowStepContext } from "../src/flow/flow-step-context";
 import type { ActionDefinition } from "../src/types/action";
 
 // ── Helpers ──────────────────────────────────────────────

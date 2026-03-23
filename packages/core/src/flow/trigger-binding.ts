@@ -9,8 +9,8 @@
  * - ManualFlowTrigger: no binding needed (started via API)
  */
 
-import type { EventRecord } from "../../types/event";
-import type { EventFlowTrigger, FlowDefinition, ScheduleFlowTrigger } from "../../types/flow";
+import type { EventRecord } from "../types/event";
+import type { EventFlowTrigger, FlowDefinition, ScheduleFlowTrigger } from "../types/flow";
 import type { FlowEngine } from "./types";
 
 // ── EventBusLike interface (avoids circular deps) ───────────

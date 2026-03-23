@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createSchemaRegistry } from "../src/engine/schema-registry";
+import { createSchemaRegistry } from "../src/schema/schema-registry";
 import type {
   FieldDefinition,
   SchemaDefinition,

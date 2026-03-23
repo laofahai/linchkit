@@ -8,31 +8,31 @@
  */
 
 // Database connection
-export { closeDatabase, createDatabase, type DatabaseConfig } from "./engine/database";
+export { closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
 // Drizzle approval store (requires database)
-export { DrizzleApprovalStore } from "./engine/drizzle-approval-store";
+export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
 // Drizzle data provider
-export { DrizzleDataProvider, type I18nQueryOptions } from "./engine/drizzle-data-provider";
+export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
 // Drizzle execution logger (requires database)
-export { DrizzleExecutionLogger } from "./engine/drizzle-execution-logger";
+export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
 // Drizzle schema (system tables for drizzle-kit migrations)
-export * as drizzleSchema from "./engine/drizzle-schema";
+export * as drizzleSchema from "./persistence/drizzle-schema";
 // Drizzle transaction manager (Transactional Outbox pattern)
-export { DrizzleTransactionManager } from "./engine/drizzle-transaction-manager";
+export { DrizzleTransactionManager } from "./persistence/drizzle-transaction-manager";
 // Drizzle schema file generator (bridge: SchemaDefinition[] → .ts file for drizzle-kit)
-export { generateDrizzleSchemaFile } from "./engine/generate-drizzle-schema";
+export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
 // Programmatic migration runner
-export { type MigrateOptions, runMigrations } from "./engine/migrate";
+export { type MigrateOptions, runMigrations } from "./persistence/migrate";
 // Outbox worker — reliable event retry with exponential backoff
 export {
   createOutboxWorker,
   type OutboxWorker,
   type OutboxWorkerOptions,
-} from "./engine/outbox-worker";
+} from "./event/outbox-worker";
 // Persistent event bus (requires database)
-export { createPersistentEventBus, PersistentEventBus } from "./engine/persistent-event-bus";
+export { createPersistentEventBus, PersistentEventBus } from "./event/persistent-event-bus";
 // Schema-to-Drizzle generator
-export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./engine/schema-to-drizzle";
+export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema/schema-to-drizzle";
 // System tables (Drizzle schema definitions)
 export {
   approvalStatusEnum,
@@ -41,6 +41,6 @@ export {
   eventsTable,
   executionStatusEnum,
   executionsTable,
-} from "./engine/system-tables";
+} from "./persistence/system-tables";
 // Table registry
-export { TableRegistry } from "./engine/table-registry";
+export { TableRegistry } from "./persistence/table-registry";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
-import { InMemoryExecutionLogger } from "../src/engine/execution-logger";
+import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ActionDefinition, Actor } from "../src/types/action";
 
 // ── Test fixtures ───────────────────────────────────────

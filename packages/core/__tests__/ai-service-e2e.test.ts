@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { createAIService } from "../src/engine/ai-service";
+import { createAIService } from "../src/ai/ai-service";
 import type { AIServiceConfig } from "../src/types/ai";
 
 const apiKey = process.env.VOLCENGINE_API_KEY;

@@ -16,7 +16,7 @@ import type {
   FlowStep,
   ParallelFlowStep,
   WaitFlowStep,
-} from "../../types/flow";
+} from "../types/flow";
 import type { CompiledFlow, FlowStepContext } from "./types";
 
 // ── Expression resolution ────────────────────────────────

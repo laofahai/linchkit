@@ -28,7 +28,7 @@ export {
   overrideSchema,
 } from "./define";
 // Zod schema generator (depends only on zod, browser-safe)
-export { generateZodSchema } from "./engine/schema-to-zod";
+export { generateZodSchema } from "./schema/schema-to-zod";
 // Error classes
 export {
   AuthenticationError,

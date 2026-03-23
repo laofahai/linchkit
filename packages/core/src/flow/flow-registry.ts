@@ -10,7 +10,7 @@ import type {
   FlowDefinition,
   FlowStep,
   ParallelFlowStep,
-} from "../../types/flow";
+} from "../types/flow";
 import type { FlowRegistry as IFlowRegistry } from "./types";
 
 // ── FlowRegistryImpl ───────────────────────────────────────

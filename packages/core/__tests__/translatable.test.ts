@@ -7,7 +7,7 @@ import {
   resolveTranslatableRow,
   resolveTranslatableValue,
   wrapTranslatableValue,
-} from "../src/engine/translatable";
+} from "../src/schema/translatable";
 import type { SchemaDefinition } from "../src/types/schema";
 
 describe("resolveTranslatableValue", () => {

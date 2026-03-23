@@ -14,7 +14,7 @@
  */
 
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type { DataProvider, PendingEvent, TransactionManager } from "./action-engine";
+import type { DataProvider, PendingEvent, TransactionManager } from "../engine/action-engine";
 import type { DrizzleDataProvider } from "./drizzle-data-provider";
 import { eventsTable } from "./system-tables";
 

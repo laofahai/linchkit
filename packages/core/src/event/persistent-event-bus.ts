@@ -16,10 +16,10 @@ import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
-import { consoleLogger } from "./console-logger";
+import { consoleLogger } from "../observability/console-logger";
 import { EventBus, EventHandlerRegistry, matchesFilter } from "./event-bus";
-import { eventsTable } from "./system-tables";
-import { withTrace } from "./trace-context";
+import { eventsTable } from "../persistence/system-tables";
+import { withTrace } from "../observability/trace-context";
 
 const DEFAULT_PRIORITY = 100;
 

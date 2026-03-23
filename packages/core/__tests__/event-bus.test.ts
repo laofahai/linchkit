@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createEventBus } from "../src/engine/event-bus";
+import { createEventBus } from "../src/event/event-bus";
 import type { EventHandlerDefinition, EventRecord } from "../src/types/event";
 
 // ── Test helpers ────────────────────────────────────────────

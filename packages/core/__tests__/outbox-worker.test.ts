@@ -8,9 +8,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { EventHandlerRegistry } from "../src/engine/event-bus";
-import { createOutboxWorker } from "../src/engine/outbox-worker";
-import { eventsTable } from "../src/engine/system-tables";
+import { EventHandlerRegistry } from "../src/event/event-bus";
+import { createOutboxWorker } from "../src/event/outbox-worker";
+import { eventsTable } from "../src/persistence/system-tables";
 import { closeDatabase, createDatabase, generateDrizzleSchemaFile } from "../src/server-entry";
 
 // Use test DB on port 5434 (docker-compose postgres-test)

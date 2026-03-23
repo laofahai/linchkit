@@ -25,7 +25,7 @@ import type { EventRecord } from "../types/event";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor } from "./action-engine";
 import type { CommandLayer } from "./command-layer";
-import type { EventBus } from "./event-bus";
+import type { EventBus } from "../event/event-bus";
 
 // ── InMemoryApprovalStore ──────────────────────────────────
 

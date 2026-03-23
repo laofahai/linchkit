@@ -1,6 +1,12 @@
 /**
  * Engine module — runtime engines for core abstractions.
+ *
+ * After the directory restructure, this barrel re-exports from
+ * engine/ (business engines) and sibling directories so that
+ * existing `import { … } from "./engine"` in index.ts keeps working.
  */
+
+// === Business engines (local) ===
 
 // Action engine
 export {
@@ -15,13 +21,6 @@ export {
   type PendingEvent,
   type TransactionManager,
 } from "./action-engine";
-// AI service
-export {
-  createAIService,
-  createNoopAIService,
-  defaultAIConfig,
-  resolveModel,
-} from "./ai-service";
 // Approval engine
 export {
   type ApprovalEngine,
@@ -44,33 +43,8 @@ export {
   PipelineError,
   type SlotName,
 } from "./command-layer";
-// Server-only modules → @linchkit/core/server
-// Rule engine
+// Condition evaluator
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
-// Console logger
-export { consoleLogger } from "./console-logger";
-// Event bus
-export { createEventBus, EventBus, EventHandlerRegistry } from "./event-bus";
-// Execution logger
-export { InMemoryExecutionLogger } from "./execution-logger";
-// Flow engine
-export {
-  type CompiledFlow,
-  compileFlow,
-  createFlowRegistry,
-  createFlowStepContext,
-  createSyncFlowEngine,
-  createTriggerBinding,
-  type FlowCompiler,
-  type FlowEngine,
-  type FlowEngineConfig,
-  type FlowRegistry,
-  FlowRegistryImpl,
-  type FlowStepContext,
-  type FlowStepContextDeps,
-  type RestateConfig,
-  type TriggerBinding,
-} from "./flow";
 // Permission engine
 export {
   checkActionPermission,
@@ -90,16 +64,14 @@ export {
   createProposalGenerator,
   type ProposalGeneratorDeps,
 } from "./proposal-generator";
+// Rule engine
 export {
   evaluateRules,
   type RuleEvalInput,
   type RuleEvalOptions,
   type RuleEvalOutput,
 } from "./rule-engine";
-// Schema registry
-export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
-// Schema-to-Zod generator
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
+// State machine
 export type { StateMachine } from "./state-machine";
 export {
   canTransition,
@@ -107,9 +79,31 @@ export {
   getAvailableActions,
   transition,
 } from "./state-machine";
-// Trace context
-export { getCurrentTrace, getTraceDepth, type TraceState, withTrace } from "./trace-context";
-// Translatable field helpers
+// Validation engine
+export {
+  type ValidationContext,
+  validatePhase1,
+  validateProposal,
+} from "./validation-engine";
+
+// === Re-exports from sibling directories ===
+
+// AI service
+export {
+  createAIService,
+  createNoopAIService,
+  defaultAIConfig,
+  resolveModel,
+} from "../ai";
+// Observability
+export { consoleLogger } from "../observability";
+export { InMemoryExecutionLogger } from "../observability";
+export { getCurrentTrace, getTraceDepth, type TraceState, withTrace } from "../observability";
+// Event bus
+export { createEventBus, EventBus, EventHandlerRegistry } from "../event";
+// Schema
+export { createSchemaRegistry, SchemaRegistry } from "../schema";
+export { generateZodSchema, type ZodGeneratorOptions } from "../schema";
 export {
   getTranslatableFields,
   mergeTranslatableValue,
@@ -119,10 +113,22 @@ export {
   resolveTranslatableValue,
   type TranslatableValue,
   wrapTranslatableValue,
-} from "./translatable";
-// Validation engine
+} from "../schema";
+// Flow engine
 export {
-  type ValidationContext,
-  validatePhase1,
-  validateProposal,
-} from "./validation-engine";
+  type CompiledFlow,
+  compileFlow,
+  createFlowRegistry,
+  createFlowStepContext,
+  createSyncFlowEngine,
+  createTriggerBinding,
+  type FlowCompiler,
+  type FlowEngine,
+  type FlowEngineConfig,
+  type FlowRegistry,
+  FlowRegistryImpl,
+  type FlowStepContext,
+  type FlowStepContextDeps,
+  type RestateConfig,
+  type TriggerBinding,
+} from "../flow";

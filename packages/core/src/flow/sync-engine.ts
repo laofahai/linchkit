@@ -19,7 +19,7 @@ import type {
   FlowInstance,
   FlowStep,
   ParallelFlowStep,
-} from "../../types/flow";
+} from "../types/flow";
 import type { FlowEngine, FlowStepContext } from "./types";
 
 // ── Expression resolver ─────────────────────────────────

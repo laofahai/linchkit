@@ -21,13 +21,13 @@ import {
   ValidationError,
 } from "../errors";
 import type { SchemaDefinition } from "../types/schema";
-import type { DataProvider, DataQueryOptions } from "./action-engine";
+import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import type { TableRegistry } from "./table-registry";
 import {
   getTranslatableFields,
   normalizeTranslatableValue,
   resolveTranslatableValue,
-} from "./translatable";
+} from "../schema/translatable";
 
 /** Extended query options that include locale for translatable field resolution */
 export interface I18nQueryOptions extends DataQueryOptions {

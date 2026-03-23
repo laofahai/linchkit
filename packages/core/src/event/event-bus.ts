@@ -8,8 +8,8 @@
 
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
-import { consoleLogger } from "./console-logger";
-import { withTrace } from "./trace-context";
+import { consoleLogger } from "../observability/console-logger";
+import { withTrace } from "../observability/trace-context";
 
 // ── Default priority ────────────────────────────────────────
 

@@ -23,7 +23,7 @@ import type {
 import type { RuleDefinition } from "../types/rule";
 import type { FieldType, SchemaDefinition } from "../types/schema";
 import type { StateDefinition } from "../types/state";
-import type { SchemaRegistry } from "./schema-registry";
+import type { SchemaRegistry } from "../schema/schema-registry";
 
 // ── Valid field types ────────────────────────────────────
 
