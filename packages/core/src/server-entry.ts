@@ -11,6 +11,10 @@
 export { closeDatabase, createDatabase, type DatabaseConfig } from "./engine/database";
 // Drizzle data provider
 export { DrizzleDataProvider } from "./engine/drizzle-data-provider";
+// Drizzle execution logger (requires database)
+export { DrizzleExecutionLogger } from "./engine/drizzle-execution-logger";
+// Drizzle approval store (requires database)
+export { DrizzleApprovalStore } from "./engine/drizzle-approval-store";
 // Drizzle schema (system tables for drizzle-kit migrations)
 export * as drizzleSchema from "./engine/drizzle-schema";
 // Drizzle schema file generator (bridge: SchemaDefinition[] → .ts file for drizzle-kit)

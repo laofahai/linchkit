@@ -2,7 +2,7 @@
 
 ## Overview
 
-AI-Native Software Capability Runtime. **Milestone:** M0b — Core Runtime complete, Server + UI integrated.
+AI-Native Software Capability Runtime. **Milestone:** M1a — Drizzle persistence + Flow scaffolding.
 
 Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow**
 
@@ -23,7 +23,7 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 | Language | TypeScript strict mode |
 | Backend | Elysia |
 | GraphQL | graphql-yoga + graphql-js (code-first, NOT Pothos) |
-| ORM | Drizzle (M0b uses InMemoryStore) |
+| ORM | Drizzle (PostgreSQL via drizzle-kit, InMemoryStore fallback) |
 | Frontend | React 19 + Vite |
 | Routing | TanStack Router |
 | UI | Shadcn + Radix + Lucide + Tailwind |
@@ -42,6 +42,8 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 - Function signatures: Use `{}` options object when > 3 parameters
 - Pre-commit (lefthook): `biome check --staged` + `tsc --noEmit`
 - Commit message: **Conventional Commits**
+- drizzle-kit: Use `bun ./node_modules/.bin/drizzle-kit` (NOT `bunx drizzle-kit` — EPIPE bug on macOS)
+- Database DDL: **Never hand-write CREATE TABLE / ALTER TABLE** — always delegate to drizzle-kit
 
 ## Packages
 
@@ -67,6 +69,17 @@ bun run dev:ui                           # UI on :3000, proxies API to :3001
 bun test                                 # Run all tests
 bun run check                            # Biome lint + format
 bun run typecheck                        # TypeScript check
+
+# Database management (requires DATABASE_URL env var)
+bun run db:generate                      # Generate migration SQL from schema changes
+bun run db:migrate                       # Apply pending migrations
+bun run db:studio                        # Open Drizzle Studio GUI
+
+# Or via CLI directly:
+bun ./packages/cli/src/index.ts db generate
+bun ./packages/cli/src/index.ts db migrate
+bun ./packages/cli/src/index.ts db push   # Dev mode: push schema directly
+bun ./packages/cli/src/index.ts db studio
 ```
 
 ## Key Architecture
@@ -82,6 +95,10 @@ bun run typecheck                        # TypeScript check
   - `filter-columns.ts` — Bridge that converts `SchemaDefinition` fields into bazza `ColumnConfig[]` (maps field types to text/number/date/option).
   - `columns.ts` — Builds TanStack Table column defs from `ViewFieldConfig[]`, wiring widget registry for cell rendering.
 - **bazza/ui fork**: `components/data-table-filter/` — Forked from [bazza/ui](https://ui.bazza.dev) data-table-filter. Modified to use LinchKit `DeclarativeCondition` format (`ComparisonOperator`: eq, neq, gt, gte, lt, lte, contains, in, not_in, between). Provides `useDataTableFilters` hook, `FilterSelector`, and `ActiveFilters` components.
+- **Database Schema Management**: Single bridge function `generateDrizzleSchemaFile()` serializes `SchemaDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts` for drizzle-kit consumption. Dev: auto-push on startup. Prod: `db:generate` → `db:migrate`. Core never does hand-rolled DDL.
+- **Data Provider**: `DrizzleDataProvider` (PostgreSQL) or `InMemoryStore` fallback (no DB configured). Switch happens in `linch dev` based on `config.database.url`.
+- **System Tables**: `_linchkit_executions`, `_linchkit_events`, `_linchkit_approvals` (prefix `_linchkit_` to avoid collision with business tables). Defined in `packages/core/src/engine/system-tables.ts`.
+- **PersistentEventBus**: Events persisted to `_linchkit_events` table when DB is available, in-memory fallback otherwise.
 - **Errors**: 7 types → HTTP status (`validation→400`, `not_found→404`, `auth→401`, `authz→403`, `business→422`, `conflict→409`, `system→500`)
 - **System fields**: `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
 - **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
