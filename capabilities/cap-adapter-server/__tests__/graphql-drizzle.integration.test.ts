@@ -17,7 +17,6 @@ import {
   createActionExecutor,
   createDatabase,
   DrizzleDataProvider,
-  generateDrizzleSchemaFile,
   generateDrizzleTable,
   TableRegistry,
 } from "@linchkit/core/server";
@@ -116,43 +115,22 @@ describe.skipIf(!dbAvailable)("GraphQL + DrizzleDataProvider (integration)", () 
     const table = generateDrizzleTable(testSchema);
     tableRegistry.register(SCHEMA_NAME, table);
 
-    // Create test table via drizzle-kit push
-    const { writeFileSync, rmSync, mkdirSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const { tmpdir } = await import("node:os");
-
-    const schemaFile = generateDrizzleSchemaFile([testSchema], process.cwd(), {
-      outputFile: "test-gql-schema.generated.ts",
-    });
-    const tmpDir = join(tmpdir(), `linchkit-gql-test-${Date.now()}`);
-    mkdirSync(tmpDir, { recursive: true });
-    const configPath = join(tmpDir, "drizzle.config.ts");
-    writeFileSync(
-      configPath,
-      `
-import { defineConfig } from "drizzle-kit";
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "${schemaFile}",
-  dbCredentials: { url: "${DATABASE_URL}" },
-});
-`,
-    );
-
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force", "--config", configPath],
-      { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" },
-    );
-
-    const pushStdout = result.stdout.toString();
-    const pushStderr = result.stderr.toString();
-    rmSync(tmpDir, { recursive: true, force: true });
-
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`,
-      );
-    }
+    // Create test table via raw SQL (test fixture)
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS "${SCHEMA_NAME}" (
+        "id" text PRIMARY KEY NOT NULL,
+        "tenant_id" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "created_by" text,
+        "updated_by" text,
+        "_version" integer DEFAULT 1 NOT NULL,
+        "deleted_at" timestamp with time zone,
+        "title" text NOT NULL,
+        "amount" numeric,
+        "status" text
+      )
+    `));
 
     // Set up DrizzleDataProvider
     provider = new DrizzleDataProvider(db, tableRegistry);
