@@ -14,6 +14,7 @@ import type { PageRegistration } from "./page";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
+import type { PermissionGroupDefinition } from "./permission";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
 
@@ -34,7 +35,7 @@ export interface AuthProviderRegistration {
    * Receives a context with the database instance (if available).
    */
   // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
-  create: (ctx: { database?: any }) => any;
+  create: (ctx: { database?: any; dataProvider?: import("../engine/action-engine").DataProvider }) => any;
   /**
    * Optional function to seed an initial admin user.
    * Called after the provider is created during dev startup.
@@ -119,6 +120,8 @@ export interface CapabilityExtensions {
   transports?: TransportAdapterDefinition[];
   /** Auth provider registration (only one provider can be active at a time) */
   authProvider?: AuthProviderRegistration;
+  /** Permission groups declared by this capability (auto-registered at startup) */
+  permissionGroups?: PermissionGroupDefinition[];
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

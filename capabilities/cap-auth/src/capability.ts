@@ -43,6 +43,17 @@ export const capAuth = defineCapability({
   actions: [loginAction, logoutAction, createApiKeyAction, refreshTokenAction, resetPasswordAction],
   states: [userLifecycleState],
 
+  extensions: {
+    permissionGroups: [
+      {
+        name: "system_admin",
+        label: "Administrator",
+        description: "Full access (bypasses permission checks)",
+        permissions: {},
+      },
+    ],
+  },
+
   pages: [
     {
       name: "auth:login",

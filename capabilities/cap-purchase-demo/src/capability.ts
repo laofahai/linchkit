@@ -35,6 +35,42 @@ export const capPurchaseDemo = defineCapability({
   views: [purchaseRequestListView, purchaseRequestFormView],
   links: [requestToDepartment, requestToItems],
 
+  extensions: {
+    permissionGroups: [
+      {
+        name: "purchase_user",
+        label: "Purchase User",
+        description: "Can create and view purchase requests",
+        permissions: {
+          "cap-purchase-demo": {
+            purchase_request: {
+              actions: {
+                submit_purchase_request: true,
+              },
+              data: { read: "all", write: "all" },
+            },
+          },
+        },
+      },
+      {
+        name: "purchase_manager",
+        label: "Purchase Manager",
+        description: "Can approve purchase requests",
+        permissions: {
+          "cap-purchase-demo": {
+            purchase_request: {
+              actions: {
+                submit_purchase_request: true,
+                approve_purchase_request: true,
+              },
+              data: { read: "all", write: "all" },
+            },
+          },
+        },
+      },
+    ],
+  },
+
   seed: {
     purchase_request: purchaseRequestSeedData,
     department: departmentSeedData,

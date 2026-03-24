@@ -10,6 +10,7 @@ import type { ConfigRegistry } from "../config/config-registry";
 import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
+import type { PermissionRegistry } from "../engine/permission-engine";
 import type { EventBus } from "../event/event-bus";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
@@ -42,6 +43,8 @@ export interface TransportContext {
   approvalEngine?: ApprovalEngine;
   /** Link definitions for generating bidirectional relation resolver fields */
   links?: LinkDefinition[];
+  /** Permission registry — auto-built from capabilities' extensions.permissionGroups */
+  permissionRegistry?: PermissionRegistry;
   /** Loaded capability definitions — used by transports to inspect loaded capabilities */
   capabilities?: CapabilityDefinition[];
 }

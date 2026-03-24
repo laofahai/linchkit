@@ -54,6 +54,7 @@ export function capAuthBetterAuth(options?: CapAuthBetterAuthOptions): Capabilit
             secret: options?.secret,
             baseURL: options?.baseURL,
             sendOTP: options?.sendOTP,
+            dataProvider: ctx.dataProvider,
           }),
         seedAdmin: (ctx) => seedSystemAdmin({ database: ctx.database }),
       },

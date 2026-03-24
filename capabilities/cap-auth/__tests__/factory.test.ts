@@ -85,7 +85,8 @@ describe("createCapAuth factory", () => {
 
   it("should NOT include middleware when no provider is supplied", () => {
     const cap = createCapAuth();
-    expect(cap.extensions).toBeUndefined();
+    // extensions may have permissionGroups but should NOT have middlewares
+    expect(cap.extensions?.middlewares).toBeUndefined();
   });
 
   it("should wire login action handler to provider.login", async () => {

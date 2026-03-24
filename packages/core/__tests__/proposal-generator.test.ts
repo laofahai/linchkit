@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { mockAIService } from "@linchkit/devtools";
 import type { ProposalDefinition, SchemaDefinition } from "../src";
-import { ActionRegistry, createProposalGenerator, createSchemaRegistry } from "../src";
+import { ActionRegistry, createProposalGenerator, createSchemaRegistry } from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 

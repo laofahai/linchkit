@@ -23,7 +23,7 @@ import type {
   RefreshResult,
   ResetPasswordResult,
 } from "@linchkit/cap-auth";
-import type { ActionContext, Actor } from "@linchkit/core";
+import type { ActionContext, Actor, DataProvider } from "@linchkit/core";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins/admin";
@@ -72,6 +72,13 @@ export interface BetterAuthProviderOptions {
    * E.g., "+86" for China. If not set, bare numbers are used as-is.
    */
   defaultCountryCode?: string;
+
+  /**
+   * Optional DataProvider for API key resolution.
+   * When provided, resolveApiKey() can query the "api_key" schema
+   * to verify keys by prefix + hash lookup.
+   */
+  dataProvider?: DataProvider;
 }
 
 // ── Crypto helpers for API keys ────────────────────────
@@ -416,12 +423,30 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       }
     },
 
-    async resolveApiKey(_key: string): Promise<Actor | null> {
-      // TODO: Implement API key resolution via DataProvider
-      // Need prefix extraction → DB lookup → hash verification → Actor mapping
-      // This requires access to DataProvider which is not available in the provider.
-      // API key resolution should be handled at the middleware level.
-      return null;
+    async resolveApiKey(key: string): Promise<Actor | null> {
+      if (!key.startsWith("lk_")) return null;
+      if (!options.dataProvider) return null;
+
+      const keyHash = await sha256(key);
+      const keyPrefix = key.slice(0, 11);
+
+      const results = await options.dataProvider.query("api_key", {
+        key_prefix: keyPrefix,
+        is_active: true,
+      });
+
+      const apiKey = results.find((k) => k.key_hash === keyHash);
+      if (!apiKey) return null;
+
+      // Check expiry
+      if (apiKey.expires_at && new Date(apiKey.expires_at as string) < new Date()) return null;
+
+      return {
+        type: "external",
+        id: apiKey.user_id as string,
+        name: `API Key: ${apiKey.name as string}`,
+        groups: [],
+      };
     },
 
     async resolveSession(sessionId: string): Promise<Actor | null> {

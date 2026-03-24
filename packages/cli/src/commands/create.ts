@@ -7,6 +7,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { validateIdentifier } from "@linchkit/core";
 import { defineCommand } from "citty";
 
 const VALID_TYPES = ["standard", "adapter", "bridge"] as const;
@@ -121,12 +122,19 @@ export const createCapabilityCommand = defineCommand({
     const type = args.type as string;
     const category = args.category as string;
 
-    // Validate capability name — must be a safe identifier (lowercase, hyphens, underscores, digits)
+    // Validate capability name — allow hyphens in the package name, but the
+    // derived TypeScript identifier (hyphens → underscores) must be valid.
     const SAFE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
     if (!SAFE_NAME_RE.test(name)) {
       console.error(
         `[linch] Invalid capability name "${name}". Must match: lowercase letters, digits, hyphens, underscores. Must start with a letter.`,
       );
+      process.exit(1);
+    }
+    // Additionally validate the derived identifier used in generated TypeScript code
+    const identifierCheck = validateIdentifier(toSafeIdentifier(name));
+    if (!identifierCheck.valid) {
+      console.error(`[linch] Invalid capability name "${name}": ${identifierCheck.error}`);
       process.exit(1);
     }
 

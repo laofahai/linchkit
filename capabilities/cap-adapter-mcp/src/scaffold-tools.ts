@@ -6,6 +6,7 @@
  * and decides what to do with it (write to file, modify, etc.).
  */
 
+import { validateIdentifier } from "@linchkit/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
@@ -205,6 +206,13 @@ export function registerScaffoldTools(server: McpServer): void {
       type?: "standard" | "adapter" | "bridge";
       description?: string;
     }) => {
+      const check = validateIdentifier(args.name);
+      if (!check.valid) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `Invalid capability name: ${check.error}` }],
+        };
+      }
       const code = generateCapabilityTemplate(args);
       return {
         content: [{ type: "text" as const, text: code }],
@@ -233,6 +241,20 @@ export function registerScaffoldTools(server: McpServer): void {
       description?: string;
       inputFields?: Record<string, string>;
     }) => {
+      const nameCheck = validateIdentifier(args.name);
+      if (!nameCheck.valid) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `Invalid action name: ${nameCheck.error}` }],
+        };
+      }
+      const schemaCheck = validateIdentifier(args.schema);
+      if (!schemaCheck.valid) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `Invalid schema name: ${schemaCheck.error}` }],
+        };
+      }
       const code = generateActionTemplate(args);
       return {
         content: [{ type: "text" as const, text: code }],
@@ -258,6 +280,13 @@ export function registerScaffoldTools(server: McpServer): void {
       triggerType: "action" | "stateChange" | "schedule";
       description?: string;
     }) => {
+      const check = validateIdentifier(args.name);
+      if (!check.valid) {
+        return {
+          isError: true as const,
+          content: [{ type: "text" as const, text: `Invalid rule name: ${check.error}` }],
+        };
+      }
       const code = generateRuleTemplate(args);
       return {
         content: [{ type: "text" as const, text: code }],

@@ -45,6 +45,7 @@ import {
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
   type OutboxWorker,
+  PermissionRegistry,
   runMigrations,
   SchemaRegistry,
   TableRegistry,
@@ -214,6 +215,57 @@ export const devCommand = defineCommand({
       }
     }
 
+    // ── Permission group discovery — scan capabilities for extensions.permissionGroups ──
+    const permissionRegistry = new PermissionRegistry();
+    for (const cap of capabilities) {
+      if (cap.extensions?.permissionGroups) {
+        for (const group of cap.extensions.permissionGroups) {
+          if (!permissionRegistry.get(group.name)) {
+            permissionRegistry.register(group);
+          }
+        }
+      }
+    }
+    const registeredGroups = permissionRegistry.getAll();
+    if (registeredGroups.length > 0) {
+      console.log(
+        `[linch] Registered ${registeredGroups.length} permission group(s): ${registeredGroups.map((g) => g.name).join(", ")}`,
+      );
+    }
+
+    // Wire permission middleware into cap-permission if it was loaded without
+    // an explicit registry (i.e. no middlewares in its extensions yet).
+    // This enables auto-discovery: capabilities declare permissionGroups,
+    // dev.ts collects them, and wires the middleware here.
+    const capPermissionDef = capabilities.find((c) => c.name === "cap-permission");
+    if (capPermissionDef && registeredGroups.length > 0) {
+      const hasPermissionMiddleware = capPermissionDef.extensions?.middlewares?.some(
+        (mw) => mw.slot === "permission",
+      );
+      if (!hasPermissionMiddleware) {
+        try {
+          const { createPermissionMiddleware } = await import("@linchkit/cap-permission");
+          const capPermCfg = registry.has("cap-permission")
+            ? (registry.get("cap-permission") as Record<string, unknown>)
+            : undefined;
+          const permMw = {
+            name: "cap-permission_permission_0",
+            slot: "permission" as const,
+            handler: createPermissionMiddleware({
+              registry: permissionRegistry,
+              publicActions: capPermCfg?.publicActions as string[] | undefined,
+            }),
+            order: 50,
+          };
+          middlewares.push(permMw);
+          console.log("[linch] Auto-wired permission middleware from discovered permission groups");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[linch] Failed to auto-wire permission middleware: ${msg}`);
+        }
+      }
+    }
+
     // ── Database setup — read config from registry ──
     let dataProvider: DataProvider | undefined;
     let usingDatabase = false;
@@ -317,7 +369,7 @@ export const devCommand = defineCommand({
     if (authProviderExt && usingDatabase && dbInstance) {
       try {
         const { createCapAuth, capAuthConfig } = await import("@linchkit/cap-auth");
-        const provider = authProviderExt.create({ database: dbInstance });
+        const provider = authProviderExt.create({ database: dbInstance, dataProvider: devDataProvider });
         // Forward config from ConfigRegistry so middleware gets sessionCookieName etc.
         const authCfg = registry.has("cap-auth")
           ? capAuthConfig.from({ config: registry })
@@ -449,6 +501,7 @@ export const devCommand = defineCommand({
       eventBus,
       executionLogger,
       approvalEngine,
+      permissionRegistry,
       capabilities,
     };
 

@@ -21,8 +21,14 @@ import { permissionAssignmentSchema } from "./schemas/permission-assignment";
 import { permissionGroupSchema } from "./schemas/permission-group";
 
 export interface CapPermissionOptions {
-  /** Programmatic dependency — the permission registry instance */
-  registry: PermissionRegistry;
+  /**
+   * Programmatic dependency — the permission registry instance.
+   * When omitted, the permission middleware is not wired at definition time.
+   * In that case, dev.ts auto-discovers permission groups from capabilities'
+   * `extensions.permissionGroups` and wires the middleware with the
+   * auto-built PermissionRegistry.
+   */
+  registry?: PermissionRegistry;
   /** Programmatic dependency — custom capability resolver */
   resolveCapability?: (actionName: string, ctx: CommandContext) => string;
 
@@ -32,7 +38,11 @@ export interface CapPermissionOptions {
 
 export function createCapPermission(options?: CapPermissionOptions): CapabilityDefinition {
   const cfg = options?.config;
-  const middlewares: CapabilityMiddlewareRegistration[] | undefined = options
+
+  // When an explicit registry is provided, wire middleware immediately.
+  // Otherwise, dev.ts will wire the middleware using the auto-discovered
+  // permissionRegistry from capabilities' extensions.permissionGroups.
+  const middlewares: CapabilityMiddlewareRegistration[] | undefined = options?.registry
     ? [
         {
           slot: "permission" as const,

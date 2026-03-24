@@ -129,7 +129,17 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
     actions,
     states: [userLifecycleState],
 
-    extensions: middlewares ? { middlewares } : undefined,
+    extensions: {
+      ...(middlewares ? { middlewares } : {}),
+      permissionGroups: [
+        {
+          name: "system_admin",
+          label: "Administrator",
+          description: "Full access (bypasses permission checks)",
+          permissions: {},
+        },
+      ],
+    },
 
     systemPermissions: ["database.read", "database.write", "event.emit"],
   });

@@ -140,3 +140,5 @@ export type { Logger } from "./types/logger";
 
 // Utilities
 export { resolveEnvVars } from "./utils/env";
+export { validateIdentifier } from "./utils/identifier";
+export type { IdentifierValidationResult } from "./utils/identifier";
