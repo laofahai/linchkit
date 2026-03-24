@@ -8,8 +8,15 @@
 import { defineCapability } from "@linchkit/core";
 import { approveAction } from "./actions/approve";
 import { submitAction } from "./actions/submit";
+import { requestToDepartment, requestToItems } from "./links";
+import { departmentSchema } from "./schemas/department";
+import { purchaseItemSchema } from "./schemas/purchase-item";
 import { purchaseRequestSchema } from "./schemas/purchase-request";
-import { purchaseRequestSeedData } from "./seed";
+import {
+  departmentSeedData,
+  purchaseItemSeedData,
+  purchaseRequestSeedData,
+} from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
@@ -22,12 +29,15 @@ export const capPurchaseDemo = defineCapability({
   category: "business",
   version: "0.0.1",
 
-  schemas: [purchaseRequestSchema],
+  schemas: [purchaseRequestSchema, departmentSchema, purchaseItemSchema],
   actions: [submitAction, approveAction],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView],
+  links: [requestToDepartment, requestToItems],
 
   seed: {
     purchase_request: purchaseRequestSeedData,
+    department: departmentSeedData,
+    purchase_item: purchaseItemSeedData,
   },
 });

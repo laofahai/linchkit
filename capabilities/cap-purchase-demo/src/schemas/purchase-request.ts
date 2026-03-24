@@ -12,7 +12,6 @@ export const purchaseRequestSchema: SchemaDefinition = {
     title: { type: "string", required: true, label: "Title" },
     description: { type: "text", label: "Description" },
     amount: { type: "number", required: true, label: "Amount" },
-    department: { type: "string", label: "Department" },
     requester: { type: "string", label: "Requester" },
     status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
     priority: {
