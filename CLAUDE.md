@@ -78,8 +78,10 @@ bun run db:generate                      # Generate migration SQL from schema ch
 bun run db:migrate                       # Apply pending migrations
 bun run db:studio                        # Open Drizzle Studio GUI
 
-# Squash migrations (dev only — reset migration history to a single clean file)
-rm -rf drizzle/migrations && bun run db:generate
+# Reset migrations (dev only — requires DB rebuild, NEVER in production)
+# Drop DB → delete migration files → regenerate from current schema
+# dropdb linchkit && createdb linchkit
+rm -rf drizzle/migrations && bun run db:generate && bun run db:migrate
 
 # Or via CLI directly:
 bun ./packages/cli/src/index.ts db generate
@@ -100,7 +102,7 @@ bun ./packages/cli/src/index.ts db studio
   - `filter-columns.ts` — Bridge that converts `SchemaDefinition` fields into bazza `ColumnConfig[]` (maps field types to text/number/date/option).
   - `columns.ts` — Builds TanStack Table column defs from `ViewFieldConfig[]`, wiring widget registry for cell rendering.
 - **bazza/ui fork**: `components/data-table-filter/` — Forked from [bazza/ui](https://ui.bazza.dev) data-table-filter. Modified to use LinchKit `DeclarativeCondition` format (`ComparisonOperator`: eq, neq, gt, gte, lt, lte, contains, in, not_in, between). Provides `useDataTableFilters` hook, `FilterSelector`, and `ActiveFilters` components.
-- **Database Schema Management**: Single bridge function `generateDrizzleSchemaFile()` serializes `SchemaDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts` for drizzle-kit consumption. Dev: auto-push on startup. Prod: `db:generate` → `db:migrate`. Core never does hand-rolled DDL.
+- **Database Schema Management**: `generateDrizzleSchemaFile()` serializes `SchemaDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts`. Schema changes: `db:generate` creates SQL migration file → `db:migrate` applies via `migrate()` API. Migration files are **append-only in production** — never delete applied migrations. Dev can reset (drop DB + regenerate). System tables live in `_linchkit` PostgreSQL schema, capability tables in `public`.
 - **Data Provider**: `DrizzleDataProvider` (PostgreSQL) or `InMemoryStore` fallback (no DB configured). Switch happens in `linch dev` based on `config.database.url`.
 - **System Tables**: `_linchkit_executions`, `_linchkit_events`, `_linchkit_approvals` (prefix `_linchkit_` to avoid collision with business tables). Defined in `packages/core/src/persistence/system-tables.ts`.
 - **PersistentEventBus**: Events persisted to `_linchkit_events` table when DB is available, in-memory fallback otherwise.
