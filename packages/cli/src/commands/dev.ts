@@ -41,6 +41,7 @@ import {
   DrizzleTransactionManager,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
+  generateLinkColumns,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
   type OutboxWorker,
@@ -49,6 +50,7 @@ import {
   TableRegistry,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
+import { getTableConfig, pgTable } from "drizzle-orm/pg-core";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 
@@ -247,11 +249,44 @@ export const devCommand = defineCommand({
           }
         }
 
-        // Build runtime TableRegistry for DrizzleDataProvider query routing
+        // Build runtime TableRegistry for DrizzleDataProvider query routing.
+        // Phase 1: Generate base tables from schema fields
+        // Phase 2: Merge Link FK columns into affected tables
+        // Phase 3: Register junction tables (many_to_many)
         const tableRegistry = new TableRegistry();
+
+        // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+        const baseTableMap: Record<string, ReturnType<typeof pgTable>> = {};
         for (const schema of schemas) {
-          const table = generateDrizzleTable(schema);
-          tableRegistry.register(schema.name, table);
+          baseTableMap[schema.name] = generateDrizzleTable(schema);
+        }
+
+        // Merge Link FK columns into base tables so DrizzleDataProvider can read/write them
+        if (links.length > 0) {
+          const { fkColumns, junctionTables } = generateLinkColumns(links, baseTableMap);
+
+          for (const [tableName, extraCols] of Object.entries(fkColumns)) {
+            const existing = baseTableMap[tableName];
+            if (!existing) continue;
+
+            // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+            const existingCols: Record<string, any> = {};
+            for (const col of getTableConfig(existing).columns) {
+              existingCols[col.name] = col;
+            }
+
+            baseTableMap[tableName] = pgTable(tableName, { ...existingCols, ...extraCols });
+          }
+
+          // Register junction tables (many_to_many links)
+          for (const jt of junctionTables) {
+            const jtName = getTableConfig(jt).name;
+            tableRegistry.register(jtName, jt);
+          }
+        }
+
+        for (const [name, table] of Object.entries(baseTableMap)) {
+          tableRegistry.register(name, table);
         }
 
         dataProvider = new DrizzleDataProvider(dbInstance, tableRegistry);

@@ -89,7 +89,12 @@ export {
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
 export { createLinkRegistry, LinkRegistry } from "./schema/link-registry";
 export { createSchemaRegistry, SchemaRegistry } from "./schema/schema-registry";
-export { type DrizzleGeneratorOptions, generateDrizzleTable } from "./schema/schema-to-drizzle";
+export {
+  type DrizzleGeneratorOptions,
+  type LinkColumnsResult,
+  generateDrizzleTable,
+  generateLinkColumns,
+} from "./schema/schema-to-drizzle";
 
 // === Event bus ===
 
