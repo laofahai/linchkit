@@ -101,10 +101,24 @@ const PAGE_COMPONENTS: Record<string, PageComponent> = {
   "auth:forgot-password": ForgotPasswordPageWrapper,
 };
 
+/** Register a page component at runtime (for capabilities that provide UI). */
+export function registerPageComponent(componentId: string, component: PageComponent): void {
+  PAGE_COMPONENTS[componentId] = component;
+}
+
 export function resolveCapabilityPageComponent(page: PageRegistration): PageComponent {
   const component = PAGE_COMPONENTS[page.component];
   if (!component) {
-    throw new Error(`Capability page component not registered: ${page.component}`);
+    // Return a fallback component instead of throwing — the capability may
+    // define pages that the current UI bundle doesn't have components for.
+    return () => (
+      <div style={{ padding: 32 }}>
+        <h2>Page component not found</h2>
+        <p>
+          No UI component registered for <code>{page.component}</code>.
+        </p>
+      </div>
+    );
   }
   return component;
 }

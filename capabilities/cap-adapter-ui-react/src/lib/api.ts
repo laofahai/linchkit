@@ -19,7 +19,10 @@ function handleUnauthorized(res: Response): void {
   if (res.status === 401) {
     localStorage.removeItem("linchkit:token");
     localStorage.removeItem("linchkit:authenticated");
-    window.location.href = "/login";
+    // Only redirect to login if auth capability is loaded
+    if (isAuthEnabled()) {
+      window.location.href = "/login";
+    }
   }
 }
 
@@ -216,6 +219,53 @@ export async function deleteRecord(schema: string, id: string): Promise<boolean>
   const result = res.data?.[mutationName];
   if (result === undefined) throw new Error("No data returned");
   return result;
+}
+
+// ── App config ──────────────────────────────────────────
+
+/** Application config returned by GET /api/app-config */
+export interface AppConfig {
+  authEnabled: boolean;
+  capabilities: string[];
+  pages: Array<{
+    name: string;
+    path: string;
+    label?: string;
+    layout: string;
+    auth: string;
+    redirectOnFail?: string;
+    component: string;
+    props?: Record<string, unknown>;
+    order?: number;
+    showInNav?: boolean;
+  }>;
+}
+
+let cachedAppConfig: AppConfig | null = null;
+
+/**
+ * Fetch app config from the server.
+ * Returns cached result after first successful fetch.
+ */
+export async function fetchAppConfig(): Promise<AppConfig> {
+  if (cachedAppConfig) return cachedAppConfig;
+  try {
+    const res = await fetch("/api/app-config");
+    const json = await res.json();
+    cachedAppConfig = json.data ?? { authEnabled: false, capabilities: [], pages: [] };
+  } catch {
+    // If server is unreachable, assume no auth (graceful degradation)
+    cachedAppConfig = { authEnabled: false, capabilities: [], pages: [] };
+  }
+  return cachedAppConfig as AppConfig;
+}
+
+/**
+ * Check whether auth is enabled. Uses cached config when available,
+ * otherwise returns false (safe default for initial page load).
+ */
+export function isAuthEnabled(): boolean {
+  return cachedAppConfig?.authEnabled ?? false;
 }
 
 // ── Schema metadata ─────────────────────────────────────

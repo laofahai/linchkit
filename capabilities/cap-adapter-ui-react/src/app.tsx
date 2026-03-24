@@ -1,13 +1,4 @@
-// Import capability page declarations directly (avoid importing full config
-// which pulls in server-only deps like postgres via @linchkit/core)
-import { capAuth } from "@linchkit/cap-auth";
-import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
-import type {
-  CapabilityDefinition,
-  PageAuth,
-  PageLayout,
-  PageRegistration,
-} from "@linchkit/core/types";
+import type { PageAuth, PageLayout, PageRegistration } from "@linchkit/core/types";
 import {
   createRootRoute,
   createRoute,
@@ -15,12 +6,14 @@ import {
   RouterProvider,
   redirect,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import "./i18n"; // Initialize i18n before rendering
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
 import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
+import { type AppConfig, fetchAppConfig } from "./lib/api";
 import { ExecutionLogsPage } from "./pages/execution-logs";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
@@ -74,8 +67,13 @@ function isTokenValid(): boolean {
   }
 }
 
-function buildPageBeforeLoad(auth: PageAuth, redirectOnFail?: string) {
+/**
+ * Build a beforeLoad guard for route authentication.
+ * When authEnabled is false, all guards are skipped — the app runs without auth.
+ */
+function buildPageBeforeLoad(auth: PageAuth, redirectOnFail?: string, authEnabled = true) {
   return () => {
+    if (!authEnabled) return; // No auth capability loaded — skip all guards
     if (auth === "required" && !isTokenValid()) {
       throw redirect({ to: redirectOnFail ?? "/login" });
     }
@@ -97,11 +95,7 @@ function getLayoutRoute(layout: PageLayout) {
   }
 }
 
-// Collect pages from capabilities that provide UI pages
-const uiCapabilities: CapabilityDefinition[] = [capAuth, capPurchaseDemo].filter(Boolean);
-const capabilityPages = uiCapabilities.flatMap((capability) => capability.pages ?? []);
-
-function createCapabilityPageRoute(page: PageRegistration) {
+function createCapabilityPageRoute(page: PageRegistration, authEnabled: boolean) {
   const parentRoute = getLayoutRoute(page.layout);
   const ResolvedComponent = resolveCapabilityPageComponent(page);
   const component = () => <ResolvedComponent {...(page.props ?? {})} />;
@@ -110,77 +104,95 @@ function createCapabilityPageRoute(page: PageRegistration) {
     getParentRoute: () => parentRoute,
     path: page.path,
     component,
-    beforeLoad: buildPageBeforeLoad(page.auth, page.redirectOnFail),
+    beforeLoad: buildPageBeforeLoad(page.auth, page.redirectOnFail, authEnabled),
   });
 }
 
-// ── Shell children (authenticated) ────────────────────────────────
+/** Build the router with the given app config. */
+function buildRouter(appConfig: AppConfig) {
+  const { authEnabled, pages: capabilityPages } = appConfig;
 
-const workspaceRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/",
-  component: WorkspacePage,
-  beforeLoad: buildPageBeforeLoad("required", "/login"),
-});
+  // ── Shell children ────────────────────────────────
+  const workspaceRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/",
+    component: WorkspacePage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
 
-const schemaListRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/schemas/$name",
-  component: SchemaListPage,
-  beforeLoad: buildPageBeforeLoad("required", "/login"),
-});
+  const schemaListRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/schemas/$name",
+    component: SchemaListPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
 
-const schemaFormNewRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/schemas/$name/new",
-  component: SchemaFormPage,
-  beforeLoad: buildPageBeforeLoad("required", "/login"),
-});
+  const schemaFormNewRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/schemas/$name/new",
+    component: SchemaFormPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
 
-const schemaFormEditRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/schemas/$name/$id",
-  component: SchemaFormPage,
-  beforeLoad: buildPageBeforeLoad("required", "/login"),
-});
+  const schemaFormEditRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/schemas/$name/$id",
+    component: SchemaFormPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
 
-const executionLogsRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/admin/executions",
-  component: ExecutionLogsPage,
-  beforeLoad: buildPageBeforeLoad("required", "/login"),
-});
+  const executionLogsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/executions",
+    component: ExecutionLogsPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
 
-// ── Route tree ────────────────────────────────────────────────────
+  // Build capability page routes from server response
+  const pageRegistrations = capabilityPages as PageRegistration[];
 
-const routeTree = rootRoute.addChildren([
-  shellRoute.addChildren([
-    workspaceRoute,
-    schemaListRoute,
-    schemaFormNewRoute,
-    schemaFormEditRoute,
-    executionLogsRoute,
-    ...capabilityPages.filter((page) => page.layout === "shell").map(createCapabilityPageRoute),
-  ]),
-  centeredRoute.addChildren(
-    capabilityPages.filter((page) => page.layout === "centered").map(createCapabilityPageRoute),
-  ),
-  fullscreenRoute.addChildren(
-    capabilityPages.filter((page) => page.layout === "fullscreen").map(createCapabilityPageRoute),
-  ),
-]);
+  const routeTree = rootRoute.addChildren([
+    shellRoute.addChildren([
+      workspaceRoute,
+      schemaListRoute,
+      schemaFormNewRoute,
+      schemaFormEditRoute,
+      executionLogsRoute,
+      ...pageRegistrations
+        .filter((page) => page.layout === "shell")
+        .map((p) => createCapabilityPageRoute(p, authEnabled)),
+    ]),
+    centeredRoute.addChildren(
+      pageRegistrations
+        .filter((page) => page.layout === "centered")
+        .map((p) => createCapabilityPageRoute(p, authEnabled)),
+    ),
+    fullscreenRoute.addChildren(
+      pageRegistrations
+        .filter((page) => page.layout === "fullscreen")
+        .map((p) => createCapabilityPageRoute(p, authEnabled)),
+    ),
+  ]);
 
-const router = createRouter({ routeTree });
-
-// Register the router for type safety
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
+  return createRouter({ routeTree });
 }
 
-/** Root App component */
+/** Root App component — fetches app config before building routes. */
 export function App() {
+  // biome-ignore lint/suspicious/noExplicitAny: TanStack Router generic types are complex
+  const [router, setRouter] = useState<any>(null);
+
+  useEffect(() => {
+    fetchAppConfig().then((config) => {
+      setRouter(buildRouter(config));
+    });
+  }, []);
+
+  if (!router) {
+    // Loading state while fetching app config
+    return null;
+  }
+
   return (
     <AuthProvider>
       <RouterProvider router={router} />

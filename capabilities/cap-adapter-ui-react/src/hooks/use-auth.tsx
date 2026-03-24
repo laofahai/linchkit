@@ -7,6 +7,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { isAuthEnabled } from "@/lib/api";
 import { logout as authLogout, loginWithPassword } from "@/lib/auth-client";
 
 const TOKEN_STORAGE_KEY = "linchkit:token";
@@ -109,7 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await authLogout();
     setUser(null);
-    window.location.href = "/login";
+    if (isAuthEnabled()) {
+      window.location.href = "/login";
+    } else {
+      window.location.href = "/";
+    }
   }, []);
 
   const value = useMemo<AuthContextValue>(
