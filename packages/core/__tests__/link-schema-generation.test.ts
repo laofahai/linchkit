@@ -411,10 +411,7 @@ describe("generateLinkColumns", () => {
     const col = result.fkColumns.employee.department_id as any;
 
     expect(col).toBeDefined();
-    // Debug required col
-    console.log("required col keys:", Object.keys(col));
-    console.log("required col.config:", col.config ? JSON.stringify(col.config, (k: string, v: unknown) => typeof v === 'function' ? '[Fn]' : v) : "no config");
-    expect(true).toBe(true);
+    expect(col.config.notNull).toBe(true);
   });
 
   // ── Missing table in tableMap ──────────────────────────────
