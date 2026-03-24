@@ -1,0 +1,21 @@
+{
+  "name": "@linchkit/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "linch": "src/index.ts"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@linchkit/core": "workspace:*",
+    "citty": "^0.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

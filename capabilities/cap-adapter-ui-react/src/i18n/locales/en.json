@@ -1,0 +1,177 @@
+{
+  "common": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "noData": "No data",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "close": "Close",
+    "reset": "Reset",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "export": "Export"
+  },
+  "nav": {
+    "home": "Home",
+    "workspace": "Workspace",
+    "administration": "Administration",
+    "capabilities": "Capabilities",
+    "schemas": "Schemas",
+    "events": "Events",
+    "settings": "Settings",
+    "teams": "Teams",
+    "addTeam": "Add team"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "subtitle": "Your task-driven home. Everything that needs your attention, in one place.",
+    "myTasks": "My Tasks",
+    "myTasksDesc": "Pending approvals, proposals awaiting confirmation, and items requiring your action.",
+    "aiWatchlist": "AI Watchlist",
+    "aiWatchlistDesc": "Anomalies triggered by rules, alerts from event handlers, and AI-identified risks.",
+    "myObjects": "My Objects",
+    "myObjectsDesc": "Bookmarked records, objects you own, and recently accessed items.",
+    "quickActions": "Quick Actions",
+    "quickActionsDesc": "Launch common actions or use natural language via Command Palette."
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "email": "Email",
+    "password": "Password",
+    "upgradeToPro": "Upgrade to Pro",
+    "account": "Account",
+    "billing": "Billing",
+    "notifications": "Notifications"
+  },
+  "form": {
+    "required": "This field is required",
+    "invalid": "Invalid value",
+    "saved": "Saved successfully",
+    "fieldModified": "Modified",
+    "sectionCore": "Core Information",
+    "sectionAdditional": "Additional Details",
+    "sectionRelated": "Related",
+    "sectionDetails": "Details",
+    "sectionSystem": "System"
+  },
+  "list": {
+    "noResults": "No results found",
+    "noRecords": "No records found",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending",
+    "recordCount": "{{count}} record",
+    "recordCount_other": "{{count}} records",
+    "filterHint": "Try adjusting your filters to find what you're looking for.",
+    "page": "Page {{current}} of {{total}}",
+    "selected": "selected",
+    "stateRibbon": "Filter by state",
+    "allStates": "All",
+    "filteredBy": "Filtered by ({{count}})",
+    "clearAll": "Clear all",
+    "showLess": "Show less",
+    "quickFilters": "Filters"
+  },
+  "commandPalette": {
+    "title": "Command Palette",
+    "description": "Search for pages, actions, or type a command...",
+    "placeholder": "Search...",
+    "noResults": "No results found.",
+    "navigation": "Navigation",
+    "actions": "Actions",
+    "actionsComingSoon": "Action launching coming soon...",
+    "shortcutSettings": "⌘,"
+  },
+  "executionLog": {
+    "title": "Execution Log",
+    "subtitle": "Action execution history — audit, debug, and observe system behavior.",
+    "refresh": "Refresh",
+    "allStatuses": "All Statuses",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "blocked": "Blocked",
+    "pendingApproval": "Pending Approval",
+    "entries": "entries",
+    "noEntries": "No execution logs yet.",
+    "time": "Time",
+    "action": "Action",
+    "actor": "Actor",
+    "status": "Status",
+    "duration": "Duration",
+    "input": "Input",
+    "output": "Output",
+    "error": "Error",
+    "stateTransition": "State Transition",
+    "rulesEvaluated": "Rules Evaluated"
+  },
+  "viewTabs": {
+    "newView": "New View",
+    "saveView": "Save current filters as view",
+    "noFilters": "Apply filters first to save a view",
+    "saveViewTitle": "Save View",
+    "saveViewDesc": "Save the current filters as a named view for quick access.",
+    "viewName": "View Name",
+    "viewNamePlaceholder": "e.g. My Pending Items"
+  },
+  "lens": {
+    "title": "Filter",
+    "description": "Search and filter by schema fields",
+    "trigger": "Filter",
+    "selectField": "Select a field",
+    "selectOperator": "Select operator",
+    "searchFields": "Search fields...",
+    "searchOperators": "Search operators...",
+    "searchValues": "Search values...",
+    "noFields": "No matching fields.",
+    "noOperators": "No matching operators.",
+    "noValues": "No matching values.",
+    "enterValue": "Enter a value and press Enter"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "zhCN": "中文"
+  },
+  "schemas": {
+    "purchase_request": {
+      "_label": "Purchase Request",
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "amount": "Amount",
+        "department": "Department",
+        "requester": "Requester",
+        "status": "Status",
+        "priority": "Priority",
+        "requested_at": "Requested At",
+        "approved": "Approved",
+        "notes": "Notes"
+      },
+      "enums": {
+        "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }
+      },
+      "states": {
+        "draft": "Draft",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "actions": {
+        "create_request": "New Request",
+        "submit_for_approval": "Submit for Approval",
+        "approve": "Approve",
+        "reject": "Reject",
+        "cancel": "Cancel Request"
+      }
+    }
+  }
+}

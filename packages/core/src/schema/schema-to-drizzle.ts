@@ -1,0 +1,316 @@
+/**
+ * Schema-to-Drizzle generator
+ *
+ * Converts a LinchKit SchemaDefinition into a Drizzle pgTable definition
+ * for database schema generation and query building.
+ */
+
+import {
+  boolean,
+  date,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
+import type { LinkDefinition } from "../types/link";
+import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+
+export interface DrizzleGeneratorOptions {
+  /** Table name prefix (e.g., for multi-tenancy) */
+  tablePrefix?: string;
+}
+
+// Field types that are virtual and should not produce columns
+const SKIPPED_FIELD_TYPES = new Set(["computed"]);
+
+// Field types that support translatable content (stored as JSONB { locale: value })
+const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
+/**
+ * Build a Drizzle column definition for a single field.
+ *
+ * When a field has `translatable: true`, generates a jsonb column instead of the
+ * normal column type. The JSONB stores `{ [locale]: value }`.
+ */
+function buildColumn(name: string, field: FieldDefinition): unknown {
+  let col: ReturnType<
+    | typeof varchar
+    | typeof text
+    | typeof numeric
+    | typeof boolean
+    | typeof date
+    | typeof timestamp
+    | typeof jsonb
+    | typeof integer
+  >;
+
+  // Translatable fields are stored as JSONB regardless of their declared type
+  if (field.translatable && TRANSLATABLE_FIELD_TYPES.has(field.type)) {
+    col = jsonb(name);
+
+    // Apply constraints (notNull, unique) then return early
+    if (field.required) {
+      col = col.notNull();
+    }
+    if (field.unique) {
+      col = col.unique();
+    }
+    return col;
+  }
+
+  switch (field.type) {
+    case "string":
+      col = varchar(name, { length: field.max ?? 255 });
+      break;
+    case "text":
+      col = text(name);
+      break;
+    case "number":
+      col = numeric(name);
+      break;
+    case "boolean":
+      col = boolean(name);
+      break;
+    case "date":
+      col = date(name);
+      break;
+    case "datetime":
+      col = timestamp(name);
+      break;
+    case "enum":
+      col = varchar(name, { length: 50 });
+      break;
+    case "json":
+      col = jsonb(name);
+      break;
+    case "state":
+      col = varchar(name, { length: 50 });
+      break;
+    default:
+      col = text(name);
+      break;
+  }
+
+  // Apply constraints
+  if (field.required) {
+    col = col.notNull();
+  }
+  if (field.unique) {
+    col = col.unique();
+  }
+  if (field.default !== undefined && field.default !== null) {
+    col = col.default(field.default as string & number & boolean);
+  }
+
+  return col;
+}
+
+/**
+ * Generate a Drizzle pgTable definition from a LinchKit SchemaDefinition.
+ */
+export function generateDrizzleTable(
+  schema: SchemaDefinition,
+  options?: DrizzleGeneratorOptions,
+): ReturnType<typeof pgTable> {
+  const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
+  const tableName = `${prefix}${schema.name}`;
+
+  // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+  const columns: Record<string, any> = {};
+
+  // System columns — always included
+  columns.id = varchar("id", { length: 128 }).primaryKey();
+  columns.tenant_id = varchar("tenant_id", { length: 128 });
+  columns.created_at = timestamp("created_at").defaultNow().notNull();
+  columns.updated_at = timestamp("updated_at").defaultNow().notNull();
+  columns.created_by = varchar("created_by", { length: 128 });
+  columns.updated_by = varchar("updated_by", { length: 128 });
+  columns._version = integer("_version").default(1).notNull();
+  columns.deleted_at = timestamp("deleted_at", { mode: "date" });
+
+  // User-defined columns
+  for (const [fieldName, field] of Object.entries(schema.fields)) {
+    if (SKIPPED_FIELD_TYPES.has(field.type)) {
+      continue;
+    }
+    columns[fieldName] = buildColumn(fieldName, field);
+  }
+
+  return pgTable(tableName, columns);
+}
+
+// ── Link-based FK and junction table generation ──────────────────────────
+
+/** Result of generating link columns: FK columns to add to existing tables + junction tables */
+export interface LinkColumnsResult {
+  /** FK columns keyed by table name → column name → column definition */
+  fkColumns: Record<string, Record<string, unknown>>;
+  /** Junction tables for many_to_many links */
+  junctionTables: ReturnType<typeof pgTable>[];
+}
+
+/**
+ * Generate FK columns and junction tables from LinkDefinitions.
+ *
+ * - many_to_one / one_to_one: adds `{to}_id` FK column on the `from` table
+ * - one_to_many: adds `{from}_id` FK column on the `to` table
+ * - many_to_many: creates a `_link_{name}` junction table with composite PK
+ *
+ * @param links - All registered link definitions
+ * @param tableMap - Map of schema name → generated pgTable (needed for `.references()`)
+ * @param options - Generator options (table prefix, etc.)
+ */
+export function generateLinkColumns(
+  links: LinkDefinition[],
+  tableMap: Record<string, ReturnType<typeof pgTable>>,
+  options?: DrizzleGeneratorOptions,
+): LinkColumnsResult {
+  const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
+
+  const fkColumns: Record<string, Record<string, unknown>> = {};
+  const junctionTables: ReturnType<typeof pgTable>[] = [];
+
+  for (const link of links) {
+    switch (link.cardinality) {
+      case "many_to_one":
+      case "one_to_one": {
+        // FK column on the `from` table pointing to `to` table
+        const fromTable = `${prefix}${link.from}`;
+        const colName = `${link.to}_id`;
+        const toTable = tableMap[link.to];
+        if (!toTable) break;
+
+        // Build references() with optional onDelete cascade behavior
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        let col = onDeleteAction
+          ? varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (toTable as any).id,
+              { onDelete: onDeleteAction },
+            )
+          : varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (toTable as any).id,
+            );
+        if (link.required) {
+          col = col.notNull();
+        }
+        // one_to_one: enforce uniqueness on the FK column
+        if (link.cardinality === "one_to_one") {
+          col = col.unique();
+        }
+
+        if (!fkColumns[fromTable]) fkColumns[fromTable] = {};
+        fkColumns[fromTable][colName] = col;
+        break;
+      }
+
+      case "one_to_many": {
+        // FK column on the `to` table pointing to `from` table
+        const toTableName = `${prefix}${link.to}`;
+        const colName = `${link.from}_id`;
+        const fromTable = tableMap[link.from];
+        if (!fromTable) break;
+
+        // Build references() with optional onDelete cascade behavior
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        let col = onDeleteAction
+          ? varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (fromTable as any).id,
+              { onDelete: onDeleteAction },
+            )
+          : varchar(colName, { length: 128 }).references(
+              // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+              () => (fromTable as any).id,
+            );
+        if (link.required) {
+          col = col.notNull();
+        }
+
+        if (!fkColumns[toTableName]) fkColumns[toTableName] = {};
+        fkColumns[toTableName][colName] = col;
+        break;
+      }
+
+      case "many_to_many": {
+        // Junction table: {prefix}_link_{name} (avoid double underscore when prefix is empty)
+        const junctionName = prefix ? `${prefix}_link_${link.name}` : `_link_${link.name}`;
+        const fromTable = tableMap[link.from];
+        const toTable = tableMap[link.to];
+        if (!fromTable || !toTable) break;
+
+        const fromCol = `${link.from}_id`;
+        const toCol = `${link.to}_id`;
+
+        // Build onDelete option for junction FK columns
+        const onDeleteAction =
+          link.cascade === "delete"
+            ? ("cascade" as const)
+            : link.cascade === "nullify"
+              ? ("set null" as const)
+              : undefined;
+
+        // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+        const cols: Record<string, any> = {
+          [fromCol]: onDeleteAction
+            ? varchar(fromCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (fromTable as any).id, { onDelete: onDeleteAction })
+                .notNull()
+            : varchar(fromCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (fromTable as any).id)
+                .notNull(),
+          [toCol]: onDeleteAction
+            ? varchar(toCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (toTable as any).id, { onDelete: onDeleteAction })
+                .notNull()
+            : varchar(toCol, { length: 128 })
+                // biome-ignore lint/suspicious/noExplicitAny: Drizzle table column access is dynamic
+                .references(() => (toTable as any).id)
+                .notNull(),
+        };
+
+        // Extra properties on the junction table
+        if (link.properties) {
+          for (const [fieldName, field] of Object.entries(link.properties)) {
+            cols[fieldName] = buildColumn(fieldName, field);
+          }
+        }
+
+        const jt = pgTable(
+          junctionName,
+          cols,
+          // biome-ignore lint/suspicious/noExplicitAny: Drizzle extra config callback types are dynamic
+          (t: any) => ({
+            pk: primaryKey({ columns: [t[fromCol], t[toCol]] }),
+          }),
+        );
+
+        junctionTables.push(jt);
+        break;
+      }
+    }
+  }
+
+  return { fkColumns, junctionTables };
+}

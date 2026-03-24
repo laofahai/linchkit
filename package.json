@@ -1,0 +1,35 @@
+{
+  "name": "linchkit",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "capabilities/*",
+    "capabilities/cap-adapter-ui-react/ui-kit"
+  ],
+  "scripts": {
+    "check": "bunx @biomejs/biome check .",
+    "format": "bunx @biomejs/biome format --write .",
+    "lint": "bunx @biomejs/biome lint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test",
+    "build": "bun run --filter '*' build",
+    "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui-react' dev",
+    "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
+    "dev:ui": "bun run --filter @linchkit/cap-adapter-ui-react dev",
+    "db:generate": "bun ./packages/cli/src/index.ts db generate",
+    "db:migrate": "bun ./node_modules/.bin/drizzle-kit migrate",
+    "db:studio": "bun ./node_modules/.bin/drizzle-kit studio"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.1"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.63",
+    "@ai-sdk/openai": "^3.0.47",
+    "@restatedev/restate-sdk": "1.11.1",
+    "@tanstack/react-table": "^8.21.3",
+    "ai": "^6.0.134"
+  }
+}

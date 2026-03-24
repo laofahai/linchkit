@@ -1,0 +1,26 @@
+{
+  "name": "@linchkit/cap-permission",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@linchkit/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.0.1",
+    "type": "standard",
+    "category": "system",
+    "trustLevel": "official"
+  }
+}

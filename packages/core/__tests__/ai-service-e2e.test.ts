@@ -1,0 +1,76 @@
+/**
+ * E2E tests for AI Service — real API calls.
+ *
+ * Requires VOLCENGINE_API_KEY env var.
+ * Run: VOLCENGINE_API_KEY=sk-xxx bun test packages/core/__tests__/ai-service-e2e.test.ts
+ */
+import { describe, expect, it } from "bun:test";
+import { z } from "zod";
+import { createAIService } from "../src/ai/ai-service";
+import type { AIServiceConfig } from "../src/types/ai";
+
+const apiKey = process.env.VOLCENGINE_API_KEY;
+
+const config: AIServiceConfig = {
+  defaultProvider: "volcengine",
+  providers: {
+    volcengine: {
+      type: "openai",
+      apiKey,
+      endpoint: "https://ark.cn-beijing.volces.com/api/coding/v3",
+      defaultModel: "ark-code-latest",
+    },
+  },
+};
+
+describe.skipIf(!apiKey)("AI Service E2E — Volcengine", () => {
+  const ai = createAIService(config);
+
+  it("text completion returns a response", async () => {
+    const result = await ai.complete({
+      messages: [{ role: "user", content: "Reply with exactly: hello" }],
+      maxTokens: 50,
+    });
+
+    expect(result.content).toBeTruthy();
+    expect(result.content.toLowerCase()).toContain("hello");
+    expect(result.provider).toBe("volcengine");
+    expect(result.model).toBe("ark-code-latest");
+    expect(result.duration).toBeGreaterThan(0);
+    expect(result.usage.totalTokens).toBeGreaterThan(0);
+  }, 30_000);
+
+  // Volcengine Auto mode does not support response_format: json_schema
+  it.skip("structured output with Zod schema", async () => {
+    const schema = z.object({
+      color: z.string(),
+      hex: z.string(),
+    });
+
+    const result = await ai.complete({
+      messages: [
+        {
+          role: "user",
+          content: "What is the hex code for the color red? Return JSON with color and hex fields.",
+        },
+      ],
+      responseFormat: { type: "json", schema },
+      maxTokens: 100,
+    });
+
+    expect(result.data).toBeDefined();
+    const data = result.data as z.infer<typeof schema>;
+    expect(data.color).toBeTruthy();
+    expect(data.hex).toBeTruthy();
+  }, 30_000);
+
+  it("respects maxTokens limit", async () => {
+    const result = await ai.complete({
+      messages: [{ role: "user", content: "Count from 1 to 1000" }],
+      maxTokens: 20,
+    });
+
+    // Should be truncated — output tokens near the limit
+    expect(result.usage.outputTokens).toBeLessThanOrEqual(30);
+  }, 30_000);
+});
