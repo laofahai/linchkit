@@ -103,6 +103,9 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_retry" ON "_linchkit"."events" USING btree ("status", "next_retry_at")
     `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_tenant" ON "_linchkit"."events" USING btree ("tenant_id", "event_type")
+    `));
   });
 
   afterAll(async () => {

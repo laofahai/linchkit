@@ -1,19 +1,24 @@
 {
-  "id": "0801745b-e885-4e2f-8ead-99184c7427c9",
+  "id": "82d46c8f-4889-4a9e-918f-c93d9481e5b6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public._linchkit_approvals": {
-      "name": "_linchkit_approvals",
-      "schema": "",
+    "_linchkit.approvals": {
+      "name": "approvals",
+      "schema": "_linchkit",
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "varchar(255)",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
         },
         "action_name": {
           "name": "action_name",
@@ -21,8 +26,44 @@
           "primaryKey": false,
           "notNull": true
         },
+        "schema_name": {
+          "name": "schema_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capability": {
+          "name": "capability",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "input": {
           "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level": {
+          "name": "level",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger_rules": {
+          "name": "trigger_rules",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -33,10 +74,28 @@
           "primaryKey": false,
           "notNull": false
         },
+        "actor_type": {
+          "name": "actor_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assignee_type": {
+          "name": "assignee_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignee_value": {
+          "name": "assignee_value",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
-          "type": "_linchkit_approval_status",
-          "typeSchema": "public",
+          "type": "approval_status",
+          "typeSchema": "_linchkit",
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
@@ -53,14 +112,58 @@
           "primaryKey": false,
           "notNull": false
         },
+        "decision_note": {
+          "name": "decision_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
+        "timeout_policy": {
+          "name": "timeout_policy",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'reject'"
+        },
+        "original_execution_id": {
+          "name": "original_execution_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_error": {
+          "name": "execution_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
@@ -75,9 +178,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public._linchkit_events": {
-      "name": "_linchkit_events",
-      "schema": "",
+    "_linchkit.events": {
+      "name": "events",
+      "schema": "_linchkit",
       "columns": {
         "id": {
           "name": "id",
@@ -85,6 +188,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
         },
         "event_type": {
           "name": "event_type",
@@ -125,8 +234,8 @@
         },
         "status": {
           "name": "status",
-          "type": "_linchkit_event_status",
-          "typeSchema": "public",
+          "type": "event_status",
+          "typeSchema": "_linchkit",
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
@@ -134,6 +243,19 @@
         "error_message": {
           "name": "error_message",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retry_count": {
+          "name": "retry_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_retry_at": {
+          "name": "next_retry_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         }
@@ -159,6 +281,48 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_events_retry": {
+          "name": "idx_events_retry",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_retry_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_events_tenant": {
+          "name": "idx_events_tenant",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -168,22 +332,45 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public._linchkit_executions": {
-      "name": "_linchkit_executions",
-      "schema": "",
+    "_linchkit.executions": {
+      "name": "executions",
+      "schema": "_linchkit",
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "varchar(255)",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
         },
         "action_name": {
           "name": "action_name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "schema_name": {
+          "name": "schema_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capability": {
+          "name": "capability",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
         },
         "input": {
           "name": "input",
@@ -211,8 +398,8 @@
         },
         "status": {
           "name": "status",
-          "type": "_linchkit_execution_status",
-          "typeSchema": "public",
+          "type": "execution_status",
+          "typeSchema": "_linchkit",
           "primaryKey": false,
           "notNull": true
         },
@@ -237,6 +424,31 @@
         "channel": {
           "name": "channel",
           "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_execution_id": {
+          "name": "parent_execution_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -269,121 +481,29 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_executions_tenant": {
+          "name": "idx_executions_tenant",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.purchase_request": {
-      "name": "purchase_request",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(128)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "_version": {
-          "name": "_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount": {
-          "name": "amount",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "department": {
-          "name": "department",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requester": {
-          "name": "requester",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'draft'"
-        },
-        "priority": {
-          "name": "priority",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -393,23 +513,41 @@
     }
   },
   "enums": {
-    "public._linchkit_approval_status": {
-      "name": "_linchkit_approval_status",
-      "schema": "public",
-      "values": ["pending", "approved", "rejected", "expired"]
+    "_linchkit.approval_status": {
+      "name": "approval_status",
+      "schema": "_linchkit",
+      "values": [
+        "pending",
+        "approved",
+        "rejected",
+        "expired",
+        "cancelled"
+      ]
     },
-    "public._linchkit_event_status": {
-      "name": "_linchkit_event_status",
-      "schema": "public",
-      "values": ["pending", "processing", "completed", "failed"]
+    "_linchkit.event_status": {
+      "name": "event_status",
+      "schema": "_linchkit",
+      "values": [
+        "pending",
+        "processing",
+        "completed",
+        "failed"
+      ]
     },
-    "public._linchkit_execution_status": {
-      "name": "_linchkit_execution_status",
-      "schema": "public",
-      "values": ["succeeded", "failed", "rejected"]
+    "_linchkit.execution_status": {
+      "name": "execution_status",
+      "schema": "_linchkit",
+      "values": [
+        "succeeded",
+        "failed",
+        "blocked",
+        "pending_approval"
+      ]
     }
   },
-  "schemas": {},
+  "schemas": {
+    "_linchkit": "_linchkit"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},

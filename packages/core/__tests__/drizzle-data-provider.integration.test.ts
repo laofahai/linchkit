@@ -90,7 +90,7 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp,
         "title" varchar(255) NOT NULL,
-        "amount" double precision,
+        "amount" numeric,
         "status" varchar(50)
       )
     `));
