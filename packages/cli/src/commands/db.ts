@@ -7,7 +7,7 @@
  */
 
 import type { CapabilityDefinition, LinchKitConfig, SchemaDefinition } from "@linchkit/core";
-import { generateDrizzleSchemaFile } from "@linchkit/core/server";
+import { closeDatabase, createDatabase, generateDrizzleSchemaFile, runMigrations } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
@@ -63,15 +63,26 @@ export const dbMigrateCommand = defineCommand({
     description: "Apply pending migrations to database",
   },
   async run() {
-    // No generateSchema() needed — migrate reads SQL files from drizzle/migrations/,
-    // not the schema barrel file. Run `linch db:generate` first to create migrations.
-    console.log("[linch] Running drizzle-kit migrate...");
-    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "migrate"], {
-      cwd: process.cwd(),
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    process.exit(result.exitCode ?? 0);
+    // Use drizzle-orm migrate() API directly — no drizzle-kit CLI needed.
+    // Reads SQL files from drizzle/migrations/, applies any not yet applied.
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      console.error("[linch] DATABASE_URL is required for migrations");
+      process.exit(1);
+    }
+
+    console.log("[linch] Applying pending migrations...");
+    const db = createDatabase({ url: dbUrl });
+    try {
+      await runMigrations(db);
+      console.log("[linch] Migrations applied successfully");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[linch] Migration failed: ${msg}`);
+      process.exit(1);
+    } finally {
+      await closeDatabase();
+    }
   },
 });
 

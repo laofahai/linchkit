@@ -14,7 +14,6 @@ import {
   createDatabase,
   DrizzleDataProvider,
   generateDrizzleTable,
-  pushDrizzleSchema,
   TableRegistry,
 } from "@linchkit/core/server";
 import { sql } from "drizzle-orm";
@@ -79,11 +78,22 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     const table = generateDrizzleTable(testSchema);
     tableRegistry.register(SCHEMA_NAME, table);
 
-    // Push test table schema via in-process drizzle-kit API
-    await pushDrizzleSchema(db, { testTable: table }, {
-      tablesFilter: [SCHEMA_NAME],
-      schemaFilter: ["public"],
-    });
+    // Create test table via raw SQL (test fixture — not production DDL)
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS "${SCHEMA_NAME}" (
+        "id" varchar(128) PRIMARY KEY NOT NULL,
+        "tenant_id" varchar(128),
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL,
+        "created_by" varchar(128),
+        "updated_by" varchar(128),
+        "_version" integer DEFAULT 1 NOT NULL,
+        "deleted_at" timestamp,
+        "title" varchar(255) NOT NULL,
+        "amount" double precision,
+        "status" varchar(50)
+      )
+    `));
   });
 
   afterAll(async () => {

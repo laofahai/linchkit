@@ -13,10 +13,7 @@ import {
   closeDatabase,
   createDatabase,
   createPersistentEventBus,
-  eventStatusEnum,
   eventsTable,
-  linchkitSchema,
-  pushDrizzleSchema,
 } from "@linchkit/core/server";
 import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -85,13 +82,38 @@ describe.skipIf(!dbAvailable)("PersistentEventBus (integration)", () => {
 
     // Drop system tables if they exist from a previous run
     await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit"."events" CASCADE'));
-    // Also drop the enum type so drizzle-kit can recreate it cleanly
     await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit"."event_status" CASCADE'));
 
-    // Push system tables via in-process drizzle-kit API
-    await pushDrizzleSchema(db, { eventsTable, eventStatusEnum, linchkitSchema }, {
-      schemaFilter: ["_linchkit"],
-    });
+    // Create system tables via raw SQL (test fixture)
+    await db.execute(sql.raw('CREATE SCHEMA IF NOT EXISTS "_linchkit"'));
+    await db.execute(sql.raw(`
+      CREATE TYPE "_linchkit"."event_status" AS ENUM('pending', 'processing', 'completed', 'failed')
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS "_linchkit"."events" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "tenant_id" varchar(255),
+        "event_type" varchar(255) NOT NULL,
+        "payload" jsonb,
+        "source_action" varchar(255),
+        "source_execution_id" text,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "processed_at" timestamp,
+        "status" "_linchkit"."event_status" DEFAULT 'pending' NOT NULL,
+        "error_message" text,
+        "retry_count" integer DEFAULT 0 NOT NULL,
+        "next_retry_at" timestamp
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_type_status" ON "_linchkit"."events" USING btree ("event_type", "status")
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_retry" ON "_linchkit"."events" USING btree ("status", "next_retry_at")
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_tenant" ON "_linchkit"."events" USING btree ("tenant_id", "event_type")
+    `));
   });
 
   afterAll(async () => {

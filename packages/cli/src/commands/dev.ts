@@ -42,9 +42,9 @@ import {
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   InMemoryApprovalStore,
-  pushDrizzleSchema,
   InMemoryExecutionLogger,
   type OutboxWorker,
+  runMigrations,
   SchemaRegistry,
   TableRegistry,
 } from "@linchkit/core/server";
@@ -229,17 +229,22 @@ export const devCommand = defineCommand({
           debug: dbConf.debug,
         });
 
-        // Generate schema barrel file (still needed for drizzle-kit generate/migrate)
+        // Generate schema barrel file (still needed for drizzle-kit generate/studio)
         const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
         console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
 
-        // Push schema to database via pushSchema() API (in-process, no TTY needed)
-        console.log("[linch] Pushing schema to database...");
-        const schemaExports = await import(schemaFile);
-        const pushResult = await pushDrizzleSchema(dbInstance, schemaExports);
-        console.log(`[linch] Schema synced (${pushResult.statementsCount} statements)`);
-        if (pushResult.hasDataLoss) {
-          console.warn("[linch] Warning: schema push involved data loss operations");
+        // Apply any pending migrations
+        console.log("[linch] Applying database migrations...");
+        try {
+          await runMigrations(dbInstance);
+          console.log("[linch] Migrations applied successfully");
+        } catch (migrationErr) {
+          const migrationMsg = migrationErr instanceof Error ? migrationErr.message : String(migrationErr);
+          if (migrationMsg.includes("No migrations found") || migrationMsg.includes("no such file")) {
+            console.log("[linch] No migrations found — run 'bun run db:generate' to create initial migration");
+          } else {
+            throw migrationErr;
+          }
         }
 
         // Build runtime TableRegistry for DrizzleDataProvider query routing

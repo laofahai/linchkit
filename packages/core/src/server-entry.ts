@@ -159,5 +159,4 @@ export {
   executionsTable,
   linchkitSchema,
 } from "./persistence/system-tables";
-export { pushDrizzleSchema, type PushSchemaOptions, type PushSchemaResult } from "./persistence/push-schema";
 export { TableRegistry } from "./persistence/table-registry";

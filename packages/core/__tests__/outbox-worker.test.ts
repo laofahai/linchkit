@@ -11,11 +11,9 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { EventHandlerRegistry } from "../src/event/event-bus";
 import { createOutboxWorker } from "../src/event/outbox-worker";
 import {
-  eventStatusEnum,
   eventsTable,
-  linchkitSchema,
 } from "../src/persistence/system-tables";
-import { closeDatabase, createDatabase, pushDrizzleSchema } from "../src/server-entry";
+import { closeDatabase, createDatabase } from "../src/server-entry";
 
 // Use test DB on port 5434 (docker-compose postgres-test)
 const TEST_DB_URL =
@@ -78,10 +76,33 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit"."events" CASCADE'));
     await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit"."event_status" CASCADE'));
 
-    // Push system tables via in-process drizzle-kit API
-    await pushDrizzleSchema(db, { eventsTable, eventStatusEnum, linchkitSchema }, {
-      schemaFilter: ["_linchkit"],
-    });
+    // Create system tables via raw SQL (test fixture)
+    await db.execute(sql.raw('CREATE SCHEMA IF NOT EXISTS "_linchkit"'));
+    await db.execute(sql.raw(`
+      CREATE TYPE "_linchkit"."event_status" AS ENUM('pending', 'processing', 'completed', 'failed')
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS "_linchkit"."events" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "tenant_id" varchar(255),
+        "event_type" varchar(255) NOT NULL,
+        "payload" jsonb,
+        "source_action" varchar(255),
+        "source_execution_id" text,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "processed_at" timestamp,
+        "status" "_linchkit"."event_status" DEFAULT 'pending' NOT NULL,
+        "error_message" text,
+        "retry_count" integer DEFAULT 0 NOT NULL,
+        "next_retry_at" timestamp
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_type_status" ON "_linchkit"."events" USING btree ("event_type", "status")
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS "idx_events_retry" ON "_linchkit"."events" USING btree ("status", "next_retry_at")
+    `));
   });
 
   afterAll(async () => {
