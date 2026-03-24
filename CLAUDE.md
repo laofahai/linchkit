@@ -78,10 +78,12 @@ bun run db:generate                      # Generate migration SQL from schema ch
 bun run db:migrate                       # Apply pending migrations
 bun run db:studio                        # Open Drizzle Studio GUI
 
+# Squash migrations (dev only — reset migration history to a single clean file)
+rm -rf drizzle/migrations && bun run db:generate
+
 # Or via CLI directly:
 bun ./packages/cli/src/index.ts db generate
 bun ./packages/cli/src/index.ts db migrate
-bun ./packages/cli/src/index.ts db push   # Dev mode: push schema directly
 bun ./packages/cli/src/index.ts db studio
 ```
 
