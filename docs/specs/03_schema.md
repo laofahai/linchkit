@@ -326,16 +326,17 @@ export const purchaseRequestTable = generateDrizzleTable(purchaseRequestSchema);
 
 | 命令 | 作用 | 环境 |
 |------|------|------|
-| `linch dev` | 自动生成 schema barrel → `drizzle-kit push` → 启动服务 | 开发 |
-| `linch db:generate` | 生成 schema barrel → `drizzle-kit generate`（生成 migration SQL） | 生产部署前 |
-| `linch db:migrate` | `drizzle-kit migrate`（执行 migration） | 生产部署时 |
+| `linch dev` | 自动生成 schema barrel → `db:generate` → `migrate()` → 启动服务 | 开发 |
+| `linch db:generate` | 生成 schema barrel → `drizzle-kit generate`（生成 migration SQL） | 开发 + 生产部署前 |
+| `linch db:migrate` | `migrate()` from `drizzle-orm/postgres-js/migrator`（执行 migration） | 开发 + 生产部署时 |
 | `linch db:studio` | `drizzle-kit studio`（数据库可视化） | 调试 |
 
 ### 9.5 开发 vs 生产
 
-- **开发时：** `linch dev` 自动 push，修改 Schema 重启即生效，无需手动建表或写 migration
-- **生产变更：** `linch db:generate` 生成 migration SQL → 人工审核 → `linch db:migrate` 执行 → 蓝绿部署
+- **开发时：** `linch dev` 自动 `db:generate` → `migrate()`，修改 Schema 重启即生效。Dev 可 reset（drop DB + delete migrations + regenerate）
+- **生产变更：** `linch db:generate` 生成 migration SQL → 人工审核 → `linch db:migrate` 执行 → 蓝绿部署。Migration 文件 append-only，不可删除已应用的 migration
 - **回滚：** 通过 drizzle-kit migration journal 管理，每次 migration 有完整 snapshot
+- **注意：** `drizzle-kit push`（`pushSchema()` API）在 Bun 上有已知 bug（introspection 阶段挂起），因此统一使用 `migrate()` API
 
 ## 10. 待定问题
 

@@ -212,11 +212,11 @@ Watcher 不能对同一条件反复触发：
 | `once_per_record` | 每条匹配的记录触发一次。追踪已触发的记录 ID。 |
 | `cooldown` | 每个 `cooldownPeriod`（如 `'1h'`）最多触发一次。 |
 
-状态追踪存储在系统表：`_linchkit_watcher_state`。
+状态追踪存储在系统表：`_linchkit.watcher_state`。
 
 ```typescript
 // 系统表
-_linchkit_watcher_state: {
+_linchkit.watcher_state: {
   watcher_name: string        // Watcher 标识
   group_key: string           // groupBy 值或记录 ID
   last_fired_at: timestamp
@@ -309,7 +309,7 @@ defineWatcher({
 - `defineWatcher()` 类型定义 + `WatcherRegistry`
 - 阈值 Watcher（Action 后评估）
 - 过期 Watcher（定时评估）
-- `_linchkit_watcher_state` 系统表
+- `_linchkit.watcher_state` 系统表
 - 去重: `once_until_reset`、`once_per_record`
 
 ### M4

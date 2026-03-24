@@ -83,7 +83,7 @@ M1b: Ecosystem + AI (~6 weeks)
 |------|-------------|------------|------|-----|
 | 1.1 | Database connection manager: `createDatabase(config)` using `postgres` (postgres.js) driver | `core/src/engine/database.ts` (new) | S | — |
 | 1.2 | `DrizzleDataProvider` implementing `DataProvider` interface (5 methods + optimistic locking) | `core/src/engine/drizzle-data-provider.ts` (new) | M | 1.1 |
-| 1.3 | System tables definition (executions, events, approvals, outbox) with `_linchkit_` prefix | `core/src/engine/system-tables.ts` (new) | S | 1.1 |
+| 1.3 | System tables definition (executions, events, approvals, outbox) in `_linchkit` PostgreSQL schema (`pgSchema("_linchkit")`) | `core/src/engine/system-tables.ts` (new) | S | 1.1 |
 | 1.4 | `DrizzleExecutionLogger` implementing `ExecutionLogger` interface | `core/src/engine/drizzle-execution-logger.ts` (new) | M | 1.1, 1.3 |
 | 1.5 | `DrizzleApprovalStore` implementing `ApprovalStore` interface | `core/src/engine/drizzle-approval-store.ts` (new) | M | 1.1, 1.3 |
 | 1.6 | `TableRegistry`: schema name → Drizzle table mapping, auto-build from SchemaRegistry | `core/src/engine/table-registry.ts` (new) | M | 1.2 |
@@ -91,17 +91,18 @@ M1b: Ecosystem + AI (~6 weeks)
 **Architecture decisions:**
 - **Database**: PostgreSQL only (JSONB, partitioning, Outbox all depend on PG)
 - **Driver**: `postgres` (postgres.js) — best Bun compatibility, Drizzle recommended
-- **System table prefix**: `_linchkit_` to avoid business table conflicts
+- **System table namespace**: `_linchkit` PostgreSQL schema (via `pgSchema("_linchkit")`) to avoid business table conflicts
 
 ### Stage 2 — Migration System
 
 | Task | Description | New/Modify | Size | Dep |
 |------|-------------|------------|------|-----|
-| 2.1 | Dev mode auto-sync: collect SchemaDefinitions → `drizzle-kit push` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
+| 2.1 | Dev mode auto-sync: collect SchemaDefinitions → `drizzle-kit generate` + `migrate()` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
 | 2.2 | Dynamic drizzle config: generate `.generated/schema.ts` from SchemaDefinitions for drizzle-kit | Script or utility | S | 2.1 |
 
-**Dev mode**: `drizzle-kit push` (direct sync, no migration files)
-**Production mode (M1b+)**: `drizzle-kit generate` → migration SQL → `drizzle-kit migrate`
+**Dev mode**: `drizzle-kit generate` → `migrate()` from `drizzle-orm/postgres-js/migrator` (dev can reset: drop DB + delete migrations + regenerate)
+**Production mode**: `drizzle-kit generate` → migration SQL → `migrate()` (append-only, never delete applied migrations)
+**Note**: `drizzle-kit push` (`pushSchema()` API) has a known bug in Bun (hangs during introspection), so `migrate()` is used for both environments.
 
 ### Stage 3 — RuntimeContext Switch
 
@@ -265,8 +266,8 @@ Stage 4 (Events)                   │
 |---|----------|-----------|
 | 1 | PostgreSQL only | Spec 00 mandate; JSONB, partitioning, Outbox all require PG |
 | 2 | `postgres` (postgres.js) driver | Best Bun compatibility, Drizzle recommended |
-| 3 | System table prefix `_linchkit_` | Avoid business table name collisions |
-| 4 | Dev mode uses `drizzle-kit push` | Simple sync, no migration files needed for dev |
+| 3 | System table namespace `_linchkit` PostgreSQL schema | Avoid business table name collisions (via `pgSchema("_linchkit")`) |
+| 4 | Dev and prod both use `migrate()` API | `pushSchema()` has a known Bun bug; dev can reset DB + migrations, prod is append-only |
 | 5 | Restate for Flow Engine | Single Rust binary, Bun officially supported, no external deps |
 | 6 | M1a: no cross-operation transactions | Each DB operation has own transaction; full txn integration in M1b |
 | 7 | TransportContext expands to full registry access | MCP tools need direct schema/action/rule introspection |
