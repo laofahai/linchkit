@@ -20,10 +20,7 @@ import {
   generateDrizzleTable,
   generateLinkColumns,
 } from "../src/schema/schema-to-drizzle";
-import {
-  clearEnumTypeCache,
-  generateGraphQLObjectType,
-} from "../../../capabilities/cap-adapter-server/src/graphql/schema-to-graphql";
+import { generateGraphQLObjectType } from "../../../capabilities/cap-adapter-server/src/graphql/schema-to-graphql";
 
 // ── Test fixtures ──────────────────────────────────────────
 
