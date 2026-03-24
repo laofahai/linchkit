@@ -13,8 +13,10 @@ import {
   closeDatabase,
   createDatabase,
   createPersistentEventBus,
+  eventStatusEnum,
   eventsTable,
-  generateDrizzleSchemaFile,
+  linchkitSchema,
+  pushDrizzleSchema,
 } from "@linchkit/core/server";
 import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -78,76 +80,31 @@ if (!dbAvailable) {
 // ── Test suite ───────────────────────────────────────────────
 
 describe.skipIf(!dbAvailable)("PersistentEventBus (integration)", () => {
-  let schemaFilePath: string;
-
   beforeAll(async () => {
     db = createDatabase({ url: DATABASE_URL });
 
     // Drop system tables if they exist from a previous run
-    await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit_events" CASCADE'));
+    await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit"."events" CASCADE'));
     // Also drop the enum type so drizzle-kit can recreate it cleanly
-    await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit_event_status" CASCADE'));
+    await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit"."event_status" CASCADE'));
 
-    // Generate drizzle schema file with system tables (no capability schemas needed)
-    schemaFilePath = generateDrizzleSchemaFile([], process.cwd(), {
-      outputFile: "test-eventbus-schema.generated.ts",
+    // Push system tables via in-process drizzle-kit API
+    await pushDrizzleSchema(db, { eventsTable, eventStatusEnum, linchkitSchema }, {
+      schemaFilter: ["_linchkit"],
     });
-
-    // Create tables via drizzle-kit push
-    const { mkdirSync, writeFileSync, rmSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const { tmpdir } = await import("node:os");
-
-    const tmpDir = join(tmpdir(), `linchkit-eventbus-test-${Date.now()}`);
-    mkdirSync(tmpDir, { recursive: true });
-    const configPath = join(tmpDir, "drizzle.config.ts");
-    writeFileSync(
-      configPath,
-      `
-import { defineConfig } from "drizzle-kit";
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "${schemaFilePath}",
-  dbCredentials: { url: "${DATABASE_URL}" },
-});
-`,
-    );
-
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force", "--config", configPath],
-      { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" },
-    );
-
-    const pushStdout = result.stdout.toString();
-    const pushStderr = result.stderr.toString();
-    rmSync(tmpDir, { recursive: true, force: true });
-
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`,
-      );
-    }
   });
 
   afterAll(async () => {
     if (db) {
-      await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit_events" CASCADE'));
-      await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit_event_status" CASCADE'));
+      await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit"."events" CASCADE'));
+      await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit"."event_status" CASCADE'));
       await closeDatabase();
-    }
-    // Clean up generated schema file
-    try {
-      const { unlinkSync } = await import("node:fs");
-      const { join } = await import("node:path");
-      unlinkSync(join(process.cwd(), ".linchkit", "test-eventbus-schema.generated.ts"));
-    } catch {
-      // Ignore if already cleaned up
     }
   });
 
   afterEach(async () => {
     if (db) {
-      await db.execute(sql.raw('TRUNCATE TABLE "_linchkit_events"'));
+      await db.execute(sql.raw('TRUNCATE TABLE "_linchkit"."events"'));
     }
   });
 

@@ -10,8 +10,12 @@ import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { EventHandlerRegistry } from "../src/event/event-bus";
 import { createOutboxWorker } from "../src/event/outbox-worker";
-import { eventsTable } from "../src/persistence/system-tables";
-import { closeDatabase, createDatabase, generateDrizzleSchemaFile } from "../src/server-entry";
+import {
+  eventStatusEnum,
+  eventsTable,
+  linchkitSchema,
+} from "../src/persistence/system-tables";
+import { closeDatabase, createDatabase, pushDrizzleSchema } from "../src/server-entry";
 
 // Use test DB on port 5434 (docker-compose postgres-test)
 const TEST_DB_URL =
@@ -71,22 +75,13 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     db = createDatabase({ url: TEST_DB_URL });
 
     // Drop and recreate system tables for clean state
-    await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit_events" CASCADE'));
-    await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit_event_status" CASCADE'));
+    await db.execute(sql.raw('DROP TABLE IF EXISTS "_linchkit"."events" CASCADE'));
+    await db.execute(sql.raw('DROP TYPE IF EXISTS "_linchkit"."event_status" CASCADE'));
 
-    generateDrizzleSchemaFile([], process.cwd(), {
-      outputFile: "test-outbox-schema.generated.ts",
+    // Push system tables via in-process drizzle-kit API
+    await pushDrizzleSchema(db, { eventsTable, eventStatusEnum, linchkitSchema }, {
+      schemaFilter: ["_linchkit"],
     });
-
-    const result = Bun.spawnSync(["bun", "./node_modules/.bin/drizzle-kit", "push", "--force"], {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: TEST_DB_URL },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    if (result.exitCode !== 0) {
-      throw new Error("drizzle-kit push failed for outbox worker tests");
-    }
   });
 
   afterAll(async () => {

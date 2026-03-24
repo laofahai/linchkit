@@ -13,8 +13,8 @@ import {
   closeDatabase,
   createDatabase,
   DrizzleDataProvider,
-  generateDrizzleSchemaFile,
   generateDrizzleTable,
+  pushDrizzleSchema,
   TableRegistry,
 } from "@linchkit/core/server";
 import { sql } from "drizzle-orm";
@@ -79,45 +79,11 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     const table = generateDrizzleTable(testSchema);
     tableRegistry.register(SCHEMA_NAME, table);
 
-    // Create test table via drizzle-kit push (same path as linch dev/db:push).
-    // Schema file must be under project root so esbuild can resolve @linchkit/core/server.
-    const { writeFileSync, rmSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const { tmpdir } = await import("node:os");
-
-    const schemaFile = generateDrizzleSchemaFile([testSchema], process.cwd(), {
-      outputFile: "test-schema.generated.ts",
+    // Push test table schema via in-process drizzle-kit API
+    await pushDrizzleSchema(db, { testTable: table }, {
+      tablesFilter: [SCHEMA_NAME],
+      schemaFilter: ["public"],
     });
-    const tmpDir = join(tmpdir(), `linchkit-test-${Date.now()}`);
-    const { mkdirSync } = await import("node:fs");
-    mkdirSync(tmpDir, { recursive: true });
-    const configPath = join(tmpDir, "drizzle.config.ts");
-    writeFileSync(
-      configPath,
-      `
-import { defineConfig } from "drizzle-kit";
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "${schemaFile}",
-  dbCredentials: { url: "${DATABASE_URL}" },
-});
-`,
-    );
-
-    const result = Bun.spawnSync(
-      ["bun", "./node_modules/.bin/drizzle-kit", "push", "--force", "--config", configPath],
-      { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" },
-    );
-
-    const pushStdout = result.stdout.toString();
-    const pushStderr = result.stderr.toString();
-    rmSync(tmpDir, { recursive: true, force: true });
-
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `drizzle-kit push failed (exit ${result.exitCode}):\n${pushStdout}\n${pushStderr}`,
-      );
-    }
   });
 
   afterAll(async () => {

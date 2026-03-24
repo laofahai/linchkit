@@ -2,39 +2,42 @@
  * System tables definition
  *
  * Drizzle schema for LinchKit system tables.
- * All system tables use the `_linchkit_` prefix to avoid collisions
- * with capability/user-defined tables.
+ * All system tables live in the `_linchkit` PostgreSQL schema to avoid
+ * collisions with capability/user-defined tables in `public`.
  */
 
 import {
   index,
   integer,
   jsonb,
-  pgEnum,
-  pgTable,
+  pgSchema,
   text,
   timestamp,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 
-// ── Enums ───────────────────────────────────────────────────
+// ── Dedicated PostgreSQL schema for system tables ─────────
 
-export const executionStatusEnum = pgEnum("_linchkit_execution_status", [
+export const linchkitSchema = pgSchema("_linchkit");
+
+// ── Enums (in _linchkit schema) ───────────────────────────
+
+export const executionStatusEnum = linchkitSchema.enum("execution_status", [
   "succeeded",
   "failed",
   "blocked",
   "pending_approval",
 ]);
 
-export const eventStatusEnum = pgEnum("_linchkit_event_status", [
+export const eventStatusEnum = linchkitSchema.enum("event_status", [
   "pending",
   "processing",
   "completed",
   "failed",
 ]);
 
-export const approvalStatusEnum = pgEnum("_linchkit_approval_status", [
+export const approvalStatusEnum = linchkitSchema.enum("approval_status", [
   "pending",
   "approved",
   "rejected",
@@ -44,8 +47,8 @@ export const approvalStatusEnum = pgEnum("_linchkit_approval_status", [
 
 // ── Execution log table ─────────────────────────────────────
 
-export const executionsTable = pgTable(
-  "_linchkit_executions",
+export const executionsTable = linchkitSchema.table(
+  "executions",
   {
     id: varchar("id", { length: 255 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 255 }),
@@ -76,8 +79,8 @@ export const executionsTable = pgTable(
 
 // ── Event store table ───────────────────────────────────────
 
-export const eventsTable = pgTable(
-  "_linchkit_events",
+export const eventsTable = linchkitSchema.table(
+  "events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: varchar("tenant_id", { length: 255 }),
@@ -103,7 +106,7 @@ export const eventsTable = pgTable(
 
 // ── Approval records table ──────────────────────────────────
 
-export const approvalsTable = pgTable("_linchkit_approvals", {
+export const approvalsTable = linchkitSchema.table("approvals", {
   id: varchar("id", { length: 255 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 255 }),
   actionName: varchar("action_name", { length: 255 }).notNull(),
