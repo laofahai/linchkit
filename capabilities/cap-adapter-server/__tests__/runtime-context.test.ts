@@ -7,8 +7,7 @@
 
 import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
-import { InMemoryExecutionLogger } from "@linchkit/core/server";
-import { InMemoryStore } from "../src/data/in-memory-store";
+import { InMemoryExecutionLogger, InMemoryStore } from "@linchkit/core/server";
 import { createRuntimeContext } from "../src/runtime-context";
 
 // ── Fixtures ──────────────────────────────────────────────

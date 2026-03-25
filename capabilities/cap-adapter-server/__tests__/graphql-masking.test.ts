@@ -407,3 +407,151 @@ describe("GraphQL link traversal masking", () => {
     expect(carol.salary).toBe(95000);
   });
 });
+
+// ── Translatable + masking interaction tests ────────────────
+
+const translatableSchema: SchemaDefinition = {
+  name: "product",
+  label: "Product",
+  i18n: { defaultLocale: "en", supportedLocales: ["en", "zh-CN"] },
+  fields: {
+    code: { type: "string", required: true, label: "Code" },
+    description: {
+      type: "string",
+      label: "Description",
+      translatable: true,
+      sensitive: true,
+    },
+    internal_note: {
+      type: "text",
+      label: "Internal Note",
+      translatable: true,
+      secret: true,
+    },
+    price: { type: "number", label: "Price" },
+  },
+};
+
+const transStore = new InMemoryStore();
+const transExecutor = createActionExecutor({ dataProvider: transStore });
+
+for (const action of generateCrudActions(translatableSchema)) {
+  transExecutor.registry.register(action);
+}
+
+const transGqlSchema = buildGraphQLSchema([translatableSchema], {
+  executor: transExecutor,
+  dataProvider: transStore,
+  permissionGroups,
+});
+
+async function executeTransGql(query: string, actor: Actor, locale?: string) {
+  const ctx: GraphQLContext = {
+    actor,
+    permissionGroups,
+    locale,
+  };
+  return graphql({
+    schema: transGqlSchema,
+    source: query,
+    contextValue: ctx,
+  });
+}
+
+describe("GraphQL translatable + masking interaction", () => {
+  const productId = "prod-trans-1";
+
+  test("setup: create record with JSONB translatable values", async () => {
+    // Simulate raw DB storage: translatable fields stored as JSONB locale maps
+    await transStore.create("product", {
+      id: productId,
+      code: "WIDGET-001",
+      description: { en: "Secret Widget", "zh-CN": "秘密部件" },
+      internal_note: { en: "Top secret note", "zh-CN": "绝密备注" },
+      price: 42,
+    });
+    const record = await transStore.get("product", productId);
+    expect(record.code).toBe("WIDGET-001");
+  });
+
+  test("anonymous: translatable sensitive field is properly masked as string, not garbled object", async () => {
+    const result = await executeTransGql(
+      `{ product(id: "${productId}") { code description internal_note price } }`,
+      anonymousActor,
+      "en",
+    );
+
+    expect(result.errors).toBeUndefined();
+    const prod = result.data?.product as Record<string, unknown>;
+    expect(prod).not.toBeNull();
+
+    // Non-sensitive field untouched
+    expect(prod.code).toBe("WIDGET-001");
+    expect(prod.price).toBe(42);
+
+    // Translatable + sensitive → should be masked as a resolved string, NOT "[object Object]"
+    // "Secret Widget" (13 chars) → partial mask with last 4 visible = "*********dget"
+    const desc = prod.description as string;
+    expect(desc).not.toContain("[object Object]");
+    expect(desc).not.toContain("object");
+    expect(typeof desc).toBe("string");
+    expect(desc.endsWith("dget")).toBe(true);
+
+    // Translatable + secret → full mask returns null
+    expect(prod.internal_note).toBeNull();
+  });
+
+  test("anonymous: translatable sensitive field masked correctly with zh-CN locale", async () => {
+    const result = await executeTransGql(
+      `{ product(id: "${productId}") { code description } }`,
+      anonymousActor,
+      "zh-CN",
+    );
+
+    expect(result.errors).toBeUndefined();
+    const prod = result.data?.product as Record<string, unknown>;
+
+    // "秘密部件" (4 chars) — with default visibleChars=4, too short → fully masked with stars
+    const desc = prod.description as string;
+    expect(desc).not.toContain("[object Object]");
+    expect(desc).not.toContain("object");
+    expect(typeof desc).toBe("string");
+  });
+
+  test("anonymous: translatable sensitive field masked in list query", async () => {
+    const result = await executeTransGql(
+      `{ productList { items { code description internal_note } total } }`,
+      anonymousActor,
+      "en",
+    );
+
+    expect(result.errors).toBeUndefined();
+    const list = result.data?.productList as {
+      items: Record<string, unknown>[];
+      total: number;
+    };
+    expect(list.total).toBeGreaterThanOrEqual(1);
+
+    const prod = list.items[0];
+    const desc = prod.description as string;
+    expect(desc).not.toContain("[object Object]");
+    expect(typeof desc).toBe("string");
+    expect(desc.endsWith("dget")).toBe(true);
+
+    expect(prod.internal_note).toBeNull();
+  });
+
+  test("system_admin: sees resolved translatable values unmasked", async () => {
+    const result = await executeTransGql(
+      `{ product(id: "${productId}") { code description internal_note } }`,
+      adminActor,
+      "en",
+    );
+
+    expect(result.errors).toBeUndefined();
+    const prod = result.data?.product as Record<string, unknown>;
+
+    expect(prod.description).toBe("Secret Widget");
+    expect(prod.internal_note).toBe("Top secret note");
+  });
+});

@@ -513,8 +513,10 @@ export function buildGraphQLSchema(
               if (derivedEngine) {
                 derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
               }
-              const masked = applyMasking(record as Record<string, unknown>, schemaName, ctx);
-              return resolveTranslatableRow(masked, schema, locale);
+              // Resolve translatable JSONB → plain strings BEFORE masking,
+              // so masking always operates on strings, not locale-map objects.
+              const resolved = resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
+              return applyMasking(resolved, schemaName, ctx);
             } catch (err) {
               console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
               return null;
@@ -594,13 +596,15 @@ export function buildGraphQLSchema(
 
             const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
             const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
-            // Resolve compute-strategy derived fields on read, then apply data masking
+            // Resolve compute-strategy derived fields on read, then resolve
+            // translatable JSONB → plain strings BEFORE masking so masking
+            // always operates on strings, not locale-map objects.
             const items = (rawItems as Record<string, unknown>[]).map((r) => {
               if (derivedEngine) {
                 derivedEngine.resolveComputeFields(schemaName, r);
               }
-              const masked = applyMasking(r, schemaName, ctx);
-              return resolveTranslatableRow(masked, schema, locale);
+              const resolved = resolveTranslatableRow(r, schema, locale);
+              return applyMasking(resolved, schemaName, ctx);
             });
             return { items, total };
           }
@@ -674,6 +678,12 @@ export function buildGraphQLSchema(
                   extensions: { code: "CONFLICT", http: { status: 409 } },
                 });
               }
+              // Surface state transition errors as a GraphQLError with CONFLICT code
+              if (errorMessage.includes("State transition not allowed")) {
+                throw new GraphQLError(errorMessage, {
+                  extensions: { code: "STATE_TRANSITION_DENIED", http: { status: 409 } },
+                });
+              }
               throw new Error(errorMessage);
             }
             const data = result.data as Record<string, unknown>;
@@ -744,7 +754,7 @@ export function buildGraphQLSchema(
               try {
                 const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
                 if (!record) return [];
-                const currentState = (record[stateFieldName] as string) ?? "";
+                const currentState = (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
                 return getAvailableTransitions(machine, currentState);
               } catch {
                 return [];
@@ -773,11 +783,16 @@ export function buildGraphQLSchema(
               const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
 
               // Fetch current record to get current state
-              const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+              let record: Record<string, unknown>;
+              try {
+                record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+              } catch {
+                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+              }
               if (!record) {
                 throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
               }
-              const currentState = (record[stateFieldName] as string) ?? "";
+              const currentState = (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
 
               // Validate the transition is allowed
               const available = getAvailableTransitions(machine, currentState);

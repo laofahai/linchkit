@@ -30,8 +30,8 @@ import {
   createStateMachine,
   InMemoryExecutionLogger,
   SchemaRegistry,
+  InMemoryStore,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "./data/in-memory-store";
 
 export interface RuntimeContext {
   schemaRegistry: SchemaRegistry;

@@ -99,7 +99,7 @@ describe("GraphQL state transition validation", () => {
     // Try to transition directly from draft to approved (not allowed)
     const result = await gql(`
       mutation {
-        updateOrder(id: "order_1", input: { status: "approved" }) {
+        updateOrder(id: "order_1", input: { title: "Test Order", status: "approved" }) {
           id
           status
         }
@@ -125,7 +125,7 @@ describe("GraphQL state transition validation", () => {
     // draft -> submitted is allowed
     const result = await gql(`
       mutation {
-        updateOrder(id: "order_2", input: { status: "submitted" }) {
+        updateOrder(id: "order_2", input: { title: "Valid Transition", status: "submitted" }) {
           id
           status
         }

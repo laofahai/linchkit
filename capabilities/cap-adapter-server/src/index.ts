@@ -8,8 +8,8 @@ export const VERSION = "0.0.1";
 
 export { capAdapterServer } from "./capability";
 
-export type { FindManyOptions } from "./data/in-memory-store";
-export { InMemoryStore } from "./data/in-memory-store";
+export type { FindManyOptions } from "@linchkit/core/server";
+export { InMemoryStore } from "@linchkit/core/server";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";
 export type {
   BuildGraphQLSchemaOptions,

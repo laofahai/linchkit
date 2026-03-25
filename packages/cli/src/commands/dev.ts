@@ -62,6 +62,7 @@ import {
   DrizzleDataProvider,
   DrizzleExecutionLogger,
   DrizzleTransactionManager,
+  InMemoryStore,
   detectEnvironment,
   type FlowEngine,
   GracefulShutdownManager,
@@ -83,62 +84,6 @@ import { defineCommand } from "citty";
 import { getTableConfig, pgTable } from "drizzle-orm/pg-core";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
-
-/** Simple in-memory DataProvider for dev fallback when no database is configured. */
-function createDevFallbackProvider(): DataProvider {
-  const tables = new Map<string, Map<string, Record<string, unknown>>>();
-  const table = (schema: string) => {
-    if (!tables.has(schema)) tables.set(schema, new Map());
-    // biome-ignore lint/style/noNonNullAssertion: guaranteed by has() check above
-    return tables.get(schema)!;
-  };
-  return {
-    async get(schema, id) {
-      const r = table(schema).get(id);
-      if (!r) throw new Error(`Record not found: ${schema}/${id}`);
-      return { ...r };
-    },
-    async query(schema, filter) {
-      let records = Array.from(table(schema).values()).map((r) => ({ ...r }));
-      // Simple equality filtering (skip meta keys)
-      const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
-      for (const [k, v] of Object.entries(filter)) {
-        if (metaKeys.has(k) || v === undefined || v === null) continue;
-        records = records.filter((r) => r[k] === v);
-      }
-      const offset = (filter.offset as number | undefined) ?? 0;
-      const limit = (filter.limit as number | undefined) ?? records.length;
-      return records.slice(offset, offset + limit);
-    },
-    async create(schema, data) {
-      const now = new Date().toISOString();
-      const id = (data.id as string) || crypto.randomUUID();
-      const record = { ...data, id, created_at: now, updated_at: now, _version: 1 };
-      table(schema).set(id, record);
-      return { ...record };
-    },
-    async update(schema, id, data) {
-      const existing = table(schema).get(id);
-      if (!existing) throw new Error(`Record not found: ${schema}/${id}`);
-      const updated = { ...existing, ...data, id, updated_at: new Date().toISOString() };
-      table(schema).set(id, updated);
-      return { ...updated };
-    },
-    async delete(schema, id) {
-      if (!table(schema).has(id)) throw new Error(`Record not found: ${schema}/${id}`);
-      table(schema).delete(id);
-    },
-    async count(schema, filter) {
-      if (!filter) return table(schema).size;
-      let records = Array.from(table(schema).values());
-      for (const [k, v] of Object.entries(filter)) {
-        if (v === undefined || v === null) continue;
-        records = records.filter((r) => r[k] === v);
-      }
-      return records.length;
-    },
-  };
-}
 
 export const devCommand = defineCommand({
   meta: {
@@ -475,7 +420,7 @@ export const devCommand = defineCommand({
     }
 
     // Build minimal runtime context for transports.
-    const devDataProvider: DataProvider = dataProvider ?? createDevFallbackProvider();
+    const devDataProvider: DataProvider = dataProvider ?? new InMemoryStore();
 
     // Generic auth provider discovery from registered capabilities.
     // Auth provider capabilities register via extensions.authProvider.

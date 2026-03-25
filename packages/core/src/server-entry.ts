@@ -263,6 +263,7 @@ export {
   executionsTable,
   linchkitSchema,
 } from "./persistence/system-tables";
+export { type FindManyOptions, InMemoryStore } from "./persistence/in-memory-store";
 export { TableRegistry } from "./persistence/table-registry";
 
 // === Security: tenant isolation ===
