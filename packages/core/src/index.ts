@@ -24,6 +24,16 @@ export type {
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
 export type { AutomationEngine, AutomationRegistry } from "./automation";
+// Cache — type exports (browser-safe)
+export type {
+  CacheEntry,
+  CacheManagerOptions,
+  CacheProvider,
+  CacheSetOptions,
+  CacheStats,
+  InMemoryCacheOptions,
+  NamespacedCache,
+} from "./cache";
 // Capability Hub — discovery and dependency management
 export type {
   CapabilityDependency,
@@ -40,16 +50,6 @@ export {
   createCapabilityHub,
   satisfiesVersionRange,
 } from "./capability";
-// Cache — type exports (browser-safe)
-export type {
-  CacheEntry,
-  CacheManagerOptions,
-  CacheProvider,
-  CacheSetOptions,
-  CacheStats,
-  InMemoryCacheOptions,
-  NamespacedCache,
-} from "./cache";
 // Config center
 export type { ConfigSchemaRef } from "./config";
 export {

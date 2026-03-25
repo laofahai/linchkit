@@ -19,15 +19,6 @@ export {
   JSONImportSource,
   type JSONImportSourceOptions,
 } from "./data-importer";
-
-export {
-  type BuiltInTransform,
-  type FieldMapping,
-  type MappedRecord,
-  type MappingValidationResult,
-  SchemaMapper,
-} from "./schema-mapper";
-
 export {
   type MigrationPlan,
   type MigrationResult,
@@ -35,3 +26,10 @@ export {
   MigrationRunner,
   type MigrationRunnerOptions,
 } from "./migration-runner";
+export {
+  type BuiltInTransform,
+  type FieldMapping,
+  type MappedRecord,
+  type MappingValidationResult,
+  SchemaMapper,
+} from "./schema-mapper";

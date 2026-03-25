@@ -6,7 +6,12 @@
  */
 
 import type { SchemaDefinition } from "../types/schema";
-import { type DataImporterOptions, DataImporter, type ImportResult, type ImportSource } from "./data-importer";
+import {
+  DataImporter,
+  type DataImporterOptions,
+  type ImportResult,
+  type ImportSource,
+} from "./data-importer";
 import { type FieldMapping, SchemaMapper } from "./schema-mapper";
 
 // ── Migration Plan ──────────────────────────────────────────
@@ -144,7 +149,8 @@ export class MigrationRunner {
     const writer = dryRun ? async (_record: Record<string, unknown>) => {} : plan.writer;
 
     // 3. Wrap source with resume offset
-    const source = resumeOffset > 0 ? new OffsetImportSource(plan.source, resumeOffset) : plan.source;
+    const source =
+      resumeOffset > 0 ? new OffsetImportSource(plan.source, resumeOffset) : plan.source;
 
     // 4. Build and run importer
     const importerOptions: DataImporterOptions = {
@@ -155,7 +161,7 @@ export class MigrationRunner {
       errorMode: plan.errorMode ?? "skip",
       onProgress: options?.onProgress
         ? (progress) => {
-            options.onProgress!({
+            options.onProgress?.({
               planName: plan.name,
               total: progress.total,
               processed: progress.processed,

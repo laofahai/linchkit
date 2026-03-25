@@ -6,8 +6,8 @@
  * Used in blue-green deployments to ensure in-flight requests complete before switching.
  */
 
-import type { Logger } from "../types/logger";
 import { consoleLogger } from "../observability/console-logger";
+import type { Logger } from "../types/logger";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -76,7 +76,11 @@ export class GracefulShutdownManager {
 
   /** Get current shutdown status */
   getStatus(): ShutdownStatus {
-    return { ...this.status, completedHooks: [...this.status.completedHooks], failedHooks: [...this.status.failedHooks] };
+    return {
+      ...this.status,
+      completedHooks: [...this.status.completedHooks],
+      failedHooks: [...this.status.failedHooks],
+    };
   }
 
   /** Bind SIGTERM and SIGINT handlers. Safe to call multiple times — only binds once. */
@@ -130,10 +134,7 @@ export class GracefulShutdownManager {
       const remaining = deadline - Date.now();
 
       try {
-        await Promise.race([
-          Promise.resolve(hook.fn()),
-          timeoutReject(remaining),
-        ]);
+        await Promise.race([Promise.resolve(hook.fn()), timeoutReject(remaining)]);
         this.status.completedHooks.push(hook.name);
         this.logger.info(`Shutdown hook completed: ${hook.name}`);
       } catch (err) {

@@ -58,9 +58,10 @@ export function satisfiesVersionRange(version: string, range: string): boolean {
     if (rMajor === 0 && rMinor === 0) {
       return vNum === rNum; // ^0.0.x => exact match
     }
-    const ceilNum = rMajor === 0
-      ? rMajor * 1_000_000 + (rMinor + 1) * 1_000  // ^0.y.z => <0.(y+1).0
-      : (rMajor + 1) * 1_000_000;                    // ^x.y.z => <(x+1).0.0
+    const ceilNum =
+      rMajor === 0
+        ? rMajor * 1_000_000 + (rMinor + 1) * 1_000 // ^0.y.z => <0.(y+1).0
+        : (rMajor + 1) * 1_000_000; // ^x.y.z => <(x+1).0.0
     return vNum >= rNum && vNum < ceilNum;
   }
 
@@ -255,9 +256,7 @@ export class CapabilityHub {
 
     if (sorted.length !== this.manifests.size) {
       // Find the cycle participants
-      const inCycle = Array.from(this.manifests.keys()).filter(
-        (n) => !sorted.includes(n),
-      );
+      const inCycle = Array.from(this.manifests.keys()).filter((n) => !sorted.includes(n));
       throw new CapabilityHubError(
         `Circular dependency detected among: ${inCycle.join(", ")}`,
         "CIRCULAR_DEPENDENCY",

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import type { SchemaDefinition } from "../src/types/schema";
 import {
   CSVImportSource,
   DataImporter,
@@ -8,6 +7,7 @@ import {
   MigrationRunner,
   SchemaMapper,
 } from "../src/migration";
+import type { SchemaDefinition } from "../src/types/schema";
 
 // ── Test schema ─────────────────────────────────────────────
 
@@ -148,7 +148,11 @@ describe("SchemaMapper", () => {
     const mapper = new SchemaMapper({
       targetSchema: employeeSchema,
       mappings: [
-        { source: "dept", target: "department", transform: { type: "default", value: "engineering" } },
+        {
+          source: "dept",
+          target: "department",
+          transform: { type: "default", value: "engineering" },
+        },
       ],
     });
 

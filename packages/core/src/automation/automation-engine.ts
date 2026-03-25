@@ -10,13 +10,12 @@
  */
 
 import { type ConditionContext, evaluateCondition } from "../engine/condition-evaluator";
-import type { EventBusLike } from "../types/event";
 import type {
   AutomationAction,
   AutomationDefinition,
   AutomationExecutionResult,
 } from "../types/automation";
-import type { EventRecord } from "../types/event";
+import type { EventBusLike, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
 import type { AutomationRegistry } from "./automation-registry";
 

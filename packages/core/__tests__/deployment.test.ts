@@ -1,11 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  type EnvironmentName,
-  GracefulShutdownManager,
-  HealthCheckRegistry,
   createDatabaseCheck,
   createSchemaCheck,
   detectEnvironment,
+  GracefulShutdownManager,
+  HealthCheckRegistry,
   livenessCheck,
   validateRequiredEnvVars,
 } from "../src/deployment";
@@ -50,7 +49,7 @@ describe("HealthCheckRegistry", () => {
     const result = await registry.runAll();
     expect(result.status).toBe("healthy");
     expect(result.checks).toHaveLength(1);
-    expect(result.checks[0]!.name).toBe("test");
+    expect(result.checks[0]?.name).toBe("test");
   });
 
   it("aggregates to degraded when one check is degraded", async () => {
@@ -95,7 +94,7 @@ describe("HealthCheckRegistry", () => {
 
     const result = await registry.runAll();
     expect(result.status).toBe("healthy");
-    expect(result.checks[0]!.name).toBe("async");
+    expect(result.checks[0]?.name).toBe("async");
   });
 
   it("handles check timeout", async () => {
@@ -106,7 +105,7 @@ describe("HealthCheckRegistry", () => {
 
     const result = await registry.runAll();
     expect(result.status).toBe("unhealthy");
-    expect(result.checks[0]!.message).toContain("timed out");
+    expect(result.checks[0]?.message).toContain("timed out");
   });
 
   it("handles check that throws", async () => {
@@ -116,7 +115,7 @@ describe("HealthCheckRegistry", () => {
 
     const result = await registry.runAll();
     expect(result.status).toBe("unhealthy");
-    expect(result.checks[0]!.message).toContain("Unexpected failure");
+    expect(result.checks[0]?.message).toContain("Unexpected failure");
   });
 
   it("runs a single named check", async () => {
@@ -205,9 +204,27 @@ describe("GracefulShutdownManager", () => {
       logger: silentLogger,
     });
 
-    manager.register("close-db", async () => { order.push("close-db"); }, 90);
-    manager.register("drain", async () => { order.push("drain"); }, 10);
-    manager.register("flush-events", async () => { order.push("flush-events"); }, 50);
+    manager.register(
+      "close-db",
+      async () => {
+        order.push("close-db");
+      },
+      90,
+    );
+    manager.register(
+      "drain",
+      async () => {
+        order.push("drain");
+      },
+      10,
+    );
+    manager.register(
+      "flush-events",
+      async () => {
+        order.push("flush-events");
+      },
+      50,
+    );
 
     await manager.shutdown();
 
@@ -223,7 +240,13 @@ describe("GracefulShutdownManager", () => {
     });
 
     manager.register("ok", async () => {}, 10);
-    manager.register("fail", async () => { throw new Error("boom"); }, 20);
+    manager.register(
+      "fail",
+      async () => {
+        throw new Error("boom");
+      },
+      20,
+    );
     manager.register("also-ok", async () => {}, 30);
 
     await manager.shutdown();
@@ -258,7 +281,13 @@ describe("GracefulShutdownManager", () => {
       logger: silentLogger,
     });
 
-    manager.register("slow", async () => { await sleep(200); }, 10);
+    manager.register(
+      "slow",
+      async () => {
+        await sleep(200);
+      },
+      10,
+    );
     manager.register("skipped", async () => {}, 20);
 
     await manager.shutdown();
@@ -275,8 +304,12 @@ describe("GracefulShutdownManager", () => {
       logger: silentLogger,
     });
 
-    manager.register("a", async () => { order.push("a"); });
-    manager.register("b", async () => { order.push("b"); });
+    manager.register("a", async () => {
+      order.push("a");
+    });
+    manager.register("b", async () => {
+      order.push("b");
+    });
     manager.unregister("a");
 
     await manager.shutdown();

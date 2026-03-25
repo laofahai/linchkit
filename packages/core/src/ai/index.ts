@@ -1,3 +1,12 @@
+// AI Audit
+export type {
+  AIAuditEntry,
+  AIAuditEventType,
+  AIAuditLoggerOptions,
+  AIAuditQueryOptions,
+  AIAuditRiskLevel,
+} from "./ai-audit";
+export { AIAuditLogger } from "./ai-audit";
 export type { AIBoundaryOptions } from "./ai-boundary";
 export { AIBoundary, AIBoundaryError } from "./ai-boundary";
 export type {
@@ -12,16 +21,6 @@ export type {
   AIUsageRecord,
 } from "./ai-policy";
 export { createAIService, createNoopAIService, defaultAIConfig, resolveModel } from "./ai-service";
-
-// AI Audit
-export type {
-  AIAuditEntry,
-  AIAuditEventType,
-  AIAuditLoggerOptions,
-  AIAuditQueryOptions,
-  AIAuditRiskLevel,
-} from "./ai-audit";
-export { AIAuditLogger } from "./ai-audit";
 
 // Prompt Sanitizer
 export type {

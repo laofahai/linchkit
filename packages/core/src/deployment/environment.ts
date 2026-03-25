@@ -71,8 +71,6 @@ function normalizeEnvName(raw: string): EnvironmentName {
     case "test":
     case "testing":
       return "test";
-    case "development":
-    case "dev":
     default:
       return "development";
   }
@@ -107,9 +105,7 @@ function buildConfig(name: EnvironmentName): EnvironmentConfig {
  * @param required - List of env var names that must be present.
  * @returns An object with `valid` boolean and list of `missing` var names.
  */
-export function validateRequiredEnvVars(
-  required: string[],
-): { valid: boolean; missing: string[] } {
+export function validateRequiredEnvVars(required: string[]): { valid: boolean; missing: string[] } {
   const missing = required.filter((name) => {
     const value = process.env[name];
     return value === undefined || value === "";

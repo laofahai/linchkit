@@ -21,11 +21,12 @@ import type {
   SchemaDefinition,
 } from "@linchkit/core";
 import { AuthorizationError } from "@linchkit/core";
-import { AIBoundary, canUnmask, maskRecord, maskRecords } from "@linchkit/core/server";
 import {
   type ActionExecutor,
+  AIBoundary,
   CacheManager,
   type CommandLayer,
+  canUnmask,
   createActionExecutor,
   createCommandLayer,
   createInterfaceRegistry,
@@ -34,6 +35,8 @@ import {
   createTenantAwareDataProvider,
   type DataProvider,
   InMemoryExecutionLogger,
+  maskRecord,
+  maskRecords,
 } from "@linchkit/core/server";
 import type { Logger } from "../src/types/logger";
 import type { PermissionGroupDefinition } from "../src/types/permission";

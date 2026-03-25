@@ -5,12 +5,6 @@
  */
 
 export type {
-  CapabilityDependency,
-  CapabilityManifest,
-  CapabilityProvides,
-  CapabilityRequires,
-} from "./capability-manifest";
-export type {
   CapabilitySearchOptions,
   CompatibilityIssue,
   ValidationResult,
@@ -21,3 +15,9 @@ export {
   createCapabilityHub,
   satisfiesVersionRange,
 } from "./capability-hub";
+export type {
+  CapabilityDependency,
+  CapabilityManifest,
+  CapabilityProvides,
+  CapabilityRequires,
+} from "./capability-manifest";

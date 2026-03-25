@@ -1,14 +1,14 @@
 import { describe, expect, it, mock } from "bun:test";
-import { AIAuditLogger } from "../src/ai/ai-audit";
 import type { AIAuditEntry } from "../src/ai/ai-audit";
+import { AIAuditLogger } from "../src/ai/ai-audit";
 import {
   detectInjection,
   sanitizePII,
   sanitizePrompt,
   sanitizeRecordForAI,
 } from "../src/ai/prompt-sanitizer";
-import type { SchemaDefinition } from "../src/types/schema";
 import type { Logger } from "../src/types/logger";
+import type { SchemaDefinition } from "../src/types/schema";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -87,7 +87,9 @@ describe("detectInjection", () => {
   });
 
   it("should return allow for normal business content", () => {
-    const result = detectInjection("The total amount is $5,000 for Q2 office supplies including paper and pens");
+    const result = detectInjection(
+      "The total amount is $5,000 for Q2 office supplies including paper and pens",
+    );
     expect(result.detected).toBe(false);
     expect(result.action).toBe("allow");
   });
@@ -272,10 +274,7 @@ describe("sanitizeRecordForAI", () => {
       salary: { type: "number", sensitive: true },
     });
 
-    const result = sanitizeRecordForAI(
-      { id: "1", salary: 85000 },
-      schema,
-    );
+    const result = sanitizeRecordForAI({ id: "1", salary: 85000 }, schema);
 
     expect(result.sanitized.salary).toBe("[REDACTED]");
     expect(result.redactedFields).toContain("salary");
@@ -486,7 +485,7 @@ describe("AIAuditLogger", () => {
     const longText = "x".repeat(200);
     const entry = audit.logCall({ input: longText, output: "short" });
 
-    expect(entry.input!.length).toBeLessThan(200);
+    expect(entry.input?.length).toBeLessThan(200);
     expect(entry.input).toContain("[truncated");
   });
 
@@ -507,7 +506,7 @@ describe("AIAuditLogger", () => {
   });
 
   it("should invoke onAuditEntry callback", () => {
-    const callback = mock((entry: AIAuditEntry) => {});
+    const callback = mock((_entry: AIAuditEntry) => {});
     const audit = new AIAuditLogger({ onAuditEntry: callback });
     audit.logCall({ input: "a", output: "b" });
 

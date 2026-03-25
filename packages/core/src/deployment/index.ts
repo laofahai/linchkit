@@ -5,16 +5,12 @@
  */
 
 export {
-  type AggregatedHealthStatus,
-  createDatabaseCheck,
-  createSchemaCheck,
-  type HealthCheckFn,
-  type HealthCheckRegistryOptions,
-  type HealthCheckResult,
-  HealthCheckRegistry,
-  type HealthStatus,
-  livenessCheck,
-} from "./health-check";
+  detectEnvironment,
+  type EnvironmentConfig,
+  type EnvironmentFeatureFlags,
+  type EnvironmentName,
+  validateRequiredEnvVars,
+} from "./environment";
 
 export {
   GracefulShutdownManager,
@@ -23,11 +19,14 @@ export {
   type ShutdownPhase,
   type ShutdownStatus,
 } from "./graceful-shutdown";
-
 export {
-  detectEnvironment,
-  type EnvironmentConfig,
-  type EnvironmentFeatureFlags,
-  type EnvironmentName,
-  validateRequiredEnvVars,
-} from "./environment";
+  type AggregatedHealthStatus,
+  createDatabaseCheck,
+  createSchemaCheck,
+  type HealthCheckFn,
+  HealthCheckRegistry,
+  type HealthCheckRegistryOptions,
+  type HealthCheckResult,
+  type HealthStatus,
+  livenessCheck,
+} from "./health-check";

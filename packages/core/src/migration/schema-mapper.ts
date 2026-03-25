@@ -113,7 +113,9 @@ export class SchemaMapper {
 
     for (const mapping of this.mappings) {
       if (!targetFields.includes(mapping.target)) {
-        errors.push(`Target field "${mapping.target}" does not exist in schema "${this.targetSchema.name}"`);
+        errors.push(
+          `Target field "${mapping.target}" does not exist in schema "${this.targetSchema.name}"`,
+        );
       }
     }
 

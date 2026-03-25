@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import type { CapabilityManifest } from "@linchkit/core";
 import {
-  CapabilityHub,
+  type CapabilityHub,
   CapabilityHubError,
   createCapabilityHub,
   satisfiesVersionRange,
 } from "@linchkit/core";
-import type { CapabilityManifest } from "@linchkit/core";
 
 // ── Test fixtures ──────────────────────────────────────────
 
-function makeManifest(overrides: Partial<CapabilityManifest> & { name: string }): CapabilityManifest {
+function makeManifest(
+  overrides: Partial<CapabilityManifest> & { name: string },
+): CapabilityManifest {
   return {
     version: "1.0.0",
     type: "standard",
