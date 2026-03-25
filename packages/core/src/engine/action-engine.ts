@@ -20,6 +20,7 @@ import type {
 } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
 
@@ -490,15 +491,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         );
       },
     };
-    // Build DataQueryOptions from ExecuteOptions for tenant isolation and locale
-    const queryOptions: DataQueryOptions | undefined =
-      execOptions?.tenantId || execOptions?.locale
-        ? { tenantId: execOptions?.tenantId, locale: execOptions?.locale }
-        : undefined;
+    // Build DataQueryOptions for locale (tenant isolation is now handled by the provider wrapper)
+    const queryOptions: DataQueryOptions | undefined = execOptions?.locale
+      ? { locale: execOptions.locale }
+      : undefined;
+
+    // Wrap the base DataProvider with tenant isolation when tenantId is present.
+    // This enforces row-level tenant scoping on ALL data operations (get/query/create/update/delete/count).
+    const baseProvider: DataProvider = execOptions?.tenantId
+      ? createTenantAwareDataProvider(dataProvider, execOptions.tenantId)
+      : dataProvider;
 
     // Mutable provider reference — reassigned inside transaction callback
     // so that ctx closures automatically use the transactional connection.
-    let activeProvider: DataProvider = dataProvider;
+    let activeProvider: DataProvider = baseProvider;
 
     const ctx: ActionContext = {
       input,
@@ -569,7 +575,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
       if (recordId) {
         try {
-          const record = await dataProvider.get(action.schema, recordId, queryOptions);
+          const record = await baseProvider.get(action.schema, recordId, queryOptions);
           currentState = record.status as string | undefined;
         } catch {
           // Record fetch failed — fail closed when state transition is required
@@ -683,6 +689,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Shared transaction path: parent already opened a transaction.
         // Use the parent's transactional provider directly so all data
         // operations participate in the same DB transaction.
+        // Note: parent already wraps with tenant isolation, so no double-wrap needed.
         await runHandler(parentTxProvider);
         // Propagate child events to parent's pending list so they are
         // persisted atomically when the parent's transaction commits.
@@ -691,11 +698,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       } else if (useTransaction) {
         await transactionManager.runInTransaction(
-          (txProvider) => runHandler(txProvider),
+          (txProvider) => {
+            // Wrap the transactional provider with tenant isolation
+            const scopedTxProvider = execOptions?.tenantId
+              ? createTenantAwareDataProvider(txProvider, execOptions.tenantId)
+              : txProvider;
+            return runHandler(scopedTxProvider);
+          },
           pendingEvents,
         );
       } else {
-        await runHandler(dataProvider);
+        await runHandler(baseProvider);
       }
 
       const durationMs = Date.now() - startedAt.getTime();

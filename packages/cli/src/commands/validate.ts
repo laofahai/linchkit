@@ -18,7 +18,11 @@ import type {
 import { createInterfaceRegistry, validateTranslatableSchema } from "@linchkit/core";
 import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/core/methodology";
 import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/core/methodology";
-import { createLinkRegistry, SchemaRegistry } from "@linchkit/core/server";
+import {
+  convertSchemaRelationshipFieldsToImplicitLinks,
+  createLinkRegistry,
+  SchemaRegistry,
+} from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import consola from "consola";
 import { loadConfig } from "../utils/load-config";
@@ -177,7 +181,37 @@ export const validateCommand = defineCommand({
       categories.push({ name: "Translatable Fields", issues });
     }
 
-    // ── 4. Link target existence validation ──
+    // ── 4. Implicit link validation (ref/has_many/many_to_many fields) ──
+    {
+      const issues: QualityIssue[] = [];
+      const { implicitLinks, conflicts, missingTargets } =
+        convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+
+      // Report missing targets as errors
+      for (const mt of missingTargets) {
+        issues.push({
+          severity: "error",
+          rule: "field-ref-target",
+          message: `Schema "${mt.schemaName}" field "${mt.fieldName}": target schema "${mt.target}" does not exist`,
+        });
+      }
+
+      // Report conflicts as warnings (explicit link wins)
+      for (const conflict of conflicts) {
+        issues.push({
+          severity: "warning",
+          rule: "link-implicit-conflict",
+          message: `Implicit link "${conflict.name}" from schema field conflicts with explicit defineLink — explicit link wins`,
+        });
+      }
+
+      // Merge implicit links into the links array for subsequent validation
+      links.push(...implicitLinks);
+
+      categories.push({ name: "Implicit Links", issues });
+    }
+
+    // ── 5. Link target existence validation ──
     {
       const issues: QualityIssue[] = [];
       const schemaNames = new Set(schemas.map((s) => s.name));
@@ -225,7 +259,7 @@ export const validateCommand = defineCommand({
       categories.push({ name: "Link Targets", issues });
     }
 
-    // ── 5. Schema naming conventions ──
+    // ── 6. Schema naming conventions ──
     {
       const schemaInfos: SchemaInfo[] = schemas.map((s) => ({
         name: s.name,
@@ -238,7 +272,7 @@ export const validateCommand = defineCommand({
       categories.push({ name: "Schema Naming Conventions", issues: report.issues });
     }
 
-    // ── 6. Action naming conventions ──
+    // ── 7. Action naming conventions ──
     {
       const actionInfos: ActionInfo[] = actions.map((a) => ({
         name: a.name,
@@ -248,7 +282,7 @@ export const validateCommand = defineCommand({
       categories.push({ name: "Action Naming Conventions", issues: report.issues });
     }
 
-    // ── 7. Automation validation ──
+    // ── 8. Automation validation ──
     {
       const issues: QualityIssue[] = [];
       const schemaNames = new Set(schemas.map((s) => s.name));
