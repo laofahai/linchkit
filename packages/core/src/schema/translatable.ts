@@ -117,6 +117,74 @@ export function mergeTranslatableValue(
 }
 
 /**
+ * Create a TranslatableValue from a translations object.
+ *
+ * Convenience factory — validates that the input has at least one entry.
+ *
+ * Example: createTranslatableValue({ en: "Hello", "zh-CN": "你好" })
+ */
+export function createTranslatableValue(translations: Record<string, string>): TranslatableValue {
+  return { ...translations };
+}
+
+/**
+ * Resolve a translation for the given locale from a TranslatableValue.
+ *
+ * This is an alias for `resolveTranslatableValue` with a friendlier name.
+ *
+ * Fallback chain:
+ * 1. Exact locale match
+ * 2. Language prefix match
+ * 3. Default locale (fallback parameter)
+ * 4. First available value
+ * 5. Empty string if nothing found
+ */
+export function resolveTranslation(
+  value: TranslatableValue,
+  locale: string,
+  fallback?: string,
+): string {
+  return resolveTranslatableValue(value, locale, fallback) ?? "";
+}
+
+// Field types that support the `translatable` flag
+const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
+/**
+ * Validate that a schema's translatable fields are correctly configured.
+ *
+ * Rules:
+ * - Only string, text, and enum fields can have `translatable: true`
+ * - If any field is translatable, the schema should have `i18n.defaultLocale`
+ *
+ * Returns an array of validation error messages (empty = valid).
+ */
+export function validateTranslatableSchema(schema: SchemaDefinition): string[] {
+  const errors: string[] = [];
+
+  const hasTranslatable = Object.entries(schema.fields).some(
+    ([_, field]) => (field as FieldDefinition).translatable,
+  );
+
+  for (const [name, field] of Object.entries(schema.fields)) {
+    const f = field as FieldDefinition;
+    if (f.translatable && !TRANSLATABLE_FIELD_TYPES.has(f.type)) {
+      errors.push(
+        `Field "${name}" (type: ${f.type}) cannot be translatable. Only string, text, and enum fields support translatable.`,
+      );
+    }
+  }
+
+  if (hasTranslatable && !schema.i18n?.defaultLocale) {
+    errors.push(
+      "Schema has translatable fields but no i18n.defaultLocale configured. Add i18n: { defaultLocale: '...' } to the schema definition.",
+    );
+  }
+
+  return errors;
+}
+
+/**
  * Get the set of translatable field names from a SchemaDefinition.
  */
 export function getTranslatableFields(schema: SchemaDefinition): Set<string> {

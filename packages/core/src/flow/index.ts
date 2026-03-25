@@ -7,6 +7,7 @@ export {
   registerDeployment,
   setupRestateEndpoint,
 } from "./restate-client";
+export { createRestateFlowEngine } from "./restate-flow-engine";
 export { createSyncFlowEngine } from "./sync-engine";
 export type { EventBusLike, TriggerBinding } from "./trigger-binding";
 export { createTriggerBinding } from "./trigger-binding";

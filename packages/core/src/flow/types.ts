@@ -5,39 +5,10 @@
  * Public types (FlowDefinition, FlowStep, etc.) are in types/flow.ts.
  */
 
+import type { Actor } from "../types/action";
 import type { FlowDefinition, FlowInstance } from "../types/flow";
 
 // ── Flow Engine interface ───────────────────────────────
-
-/** Main Flow Engine — manages flow lifecycle */
-export interface FlowEngine {
-  /** Register a flow definition with the engine */
-  registerFlow(definition: FlowDefinition): void;
-
-  /** Start a new flow instance */
-  startFlow(
-    flowName: string,
-    input: Record<string, unknown>,
-    options?: {
-      instanceId?: string;
-      tenantId?: string;
-      actor?: { type: string; id: string };
-    },
-  ): Promise<FlowInstance>;
-
-  /** Get status of a flow instance */
-  getFlowStatus(instanceId: string): Promise<FlowInstance | null>;
-
-  /** Send a signal to a running flow instance (e.g., approval) */
-  sendSignal(instanceId: string, signalName: string, data: unknown): Promise<void>;
-
-  /** Cancel a running flow instance */
-  cancelFlow(instanceId: string): Promise<void>;
-}
-
-// ── Flow Runtime Context ────────────────────────────────
-
-import type { Actor } from "../types/action";
 
 /** Main Flow Engine — manages flow lifecycle */
 export interface FlowEngine {
@@ -64,6 +35,8 @@ export interface FlowEngine {
   /** Cancel a running flow instance */
   cancelFlow(instanceId: string): Promise<void>;
 }
+
+// ── Flow Runtime Context ────────────────────────────────
 
 /** Context available to flow steps during execution */
 export interface FlowStepContext {

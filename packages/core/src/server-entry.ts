@@ -133,10 +133,13 @@ export {
 // === Flow engine ===
 
 export {
+  checkRestateHealth,
   type CompiledFlow,
   compileFlow,
   createFlowRegistry,
   createFlowStepContext,
+  createRestateEndpoint,
+  createRestateFlowEngine,
   createSyncFlowEngine,
   createTriggerBinding,
   type FlowCompiler,
@@ -146,7 +149,9 @@ export {
   FlowRegistryImpl,
   type FlowStepContext,
   type FlowStepContextDeps,
+  registerDeployment,
   type RestateConfig,
+  setupRestateEndpoint,
   type TriggerBinding,
 } from "./flow";
 

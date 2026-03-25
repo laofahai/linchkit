@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
+  createTranslatableValue,
   getTranslatableFields,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
+  resolveTranslation,
+  validateTranslatableSchema,
   wrapTranslatableValue,
 } from "../src/schema/translatable";
 import type { SchemaDefinition } from "../src/types/schema";
@@ -263,5 +266,147 @@ describe("normalizeTranslatableRow", () => {
     const row = { label: "test", count: 42 };
     const result = normalizeTranslatableRow(row, plainSchema, "en");
     expect(result).toBe(row); // same reference
+  });
+});
+
+// -- createTranslatableValue --
+
+describe("createTranslatableValue", () => {
+  test("creates a translatable value from a translations object", () => {
+    const result = createTranslatableValue({ en: "Hello", "zh-CN": "你好" });
+    expect(result).toEqual({ en: "Hello", "zh-CN": "你好" });
+  });
+
+  test("creates a copy (does not mutate input)", () => {
+    const input = { en: "Hello" };
+    const result = createTranslatableValue(input);
+    result["zh-CN"] = "你好";
+    expect(input).toEqual({ en: "Hello" }); // unchanged
+  });
+
+  test("handles single locale", () => {
+    const result = createTranslatableValue({ en: "Hello" });
+    expect(result).toEqual({ en: "Hello" });
+  });
+});
+
+// -- resolveTranslation --
+
+describe("resolveTranslation", () => {
+  test("resolves exact locale match", () => {
+    const value = { en: "Hello", "zh-CN": "你好" };
+    expect(resolveTranslation(value, "en")).toBe("Hello");
+    expect(resolveTranslation(value, "zh-CN")).toBe("你好");
+  });
+
+  test("resolves with language prefix fallback", () => {
+    const value = { "zh-CN": "你好", en: "Hello" };
+    expect(resolveTranslation(value, "zh")).toBe("你好");
+  });
+
+  test("returns empty string when no match found", () => {
+    const value = {};
+    expect(resolveTranslation(value, "ja")).toBe("");
+  });
+
+  test("uses fallback locale", () => {
+    const value = { "zh-CN": "你好", en: "Hello" };
+    expect(resolveTranslation(value, "ja", "en")).toBe("Hello");
+  });
+});
+
+// -- validateTranslatableSchema --
+
+describe("validateTranslatableSchema", () => {
+  test("returns no errors for valid schema", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", translatable: true },
+        description: { type: "text", translatable: true },
+        sku: { type: "string" },
+      },
+    };
+    expect(validateTranslatableSchema(schema)).toEqual([]);
+  });
+
+  test("returns no errors for schema without translatable fields", () => {
+    const schema: SchemaDefinition = {
+      name: "counter",
+      fields: {
+        count: { type: "number" },
+      },
+    };
+    expect(validateTranslatableSchema(schema)).toEqual([]);
+  });
+
+  test("returns error for non-translatable field type with translatable flag", () => {
+    const schema: SchemaDefinition = {
+      name: "test",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        count: { type: "number", translatable: true },
+      },
+    };
+    const errors = validateTranslatableSchema(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("count");
+    expect(errors[0]).toContain("number");
+  });
+
+  test("returns error for boolean field with translatable flag", () => {
+    const schema: SchemaDefinition = {
+      name: "test",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        active: { type: "boolean", translatable: true },
+      },
+    };
+    const errors = validateTranslatableSchema(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("active");
+    expect(errors[0]).toContain("boolean");
+  });
+
+  test("returns error when translatable fields exist but no defaultLocale", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", translatable: true },
+      },
+    };
+    const errors = validateTranslatableSchema(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("defaultLocale");
+  });
+
+  test("returns multiple errors", () => {
+    const schema: SchemaDefinition = {
+      name: "test",
+      fields: {
+        name: { type: "string", translatable: true },
+        count: { type: "number", translatable: true },
+        active: { type: "boolean", translatable: true },
+      },
+    };
+    const errors = validateTranslatableSchema(schema);
+    // 2 invalid field types + 1 missing defaultLocale = 3 errors
+    expect(errors.length).toBe(3);
+  });
+
+  test("allows enum field to be translatable", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        status: {
+          type: "enum",
+          translatable: true,
+          options: [{ value: "active" }, { value: "inactive" }],
+        },
+      },
+    };
+    expect(validateTranslatableSchema(schema)).toEqual([]);
   });
 });

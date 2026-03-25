@@ -279,6 +279,98 @@ describe("generateZodSchema", () => {
     expect(withJson.success).toBe(true);
   });
 
+  test("translatable string field accepts plain string", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+        sku: { type: "string", required: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    // Plain string accepted for translatable field
+    const result = zodSchema.safeParse({ name: "Widget", sku: "W-001" });
+    expect(result.success).toBe(true);
+  });
+
+  test("translatable string field accepts locale map object", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+        sku: { type: "string", required: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    // Locale map accepted for translatable field
+    const result = zodSchema.safeParse({
+      name: { en: "Widget", "zh-CN": "小部件" },
+      sku: "W-001",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("translatable field rejects non-string/non-object values", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    expect(zodSchema.safeParse({ name: 123 }).success).toBe(false);
+    expect(zodSchema.safeParse({ name: true }).success).toBe(false);
+    expect(zodSchema.safeParse({ name: [1, 2] }).success).toBe(false);
+  });
+
+  test("translatable text field behaves same as translatable string", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        description: { type: "text", translatable: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    // String accepted
+    expect(zodSchema.safeParse({ description: "A widget" }).success).toBe(true);
+    // Locale map accepted
+    expect(
+      zodSchema.safeParse({
+        description: { en: "A widget", "zh-CN": "一个小部件" },
+      }).success,
+    ).toBe(true);
+    // Null accepted (optional)
+    expect(zodSchema.safeParse({}).success).toBe(true);
+  });
+
+  test("non-translatable string field rejects locale map object", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      fields: {
+        sku: { type: "string", required: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    // Object not accepted for non-translatable string
+    expect(
+      zodSchema.safeParse({ sku: { en: "W-001" } }).success,
+    ).toBe(false);
+  });
+
   test("includeSystemFields adds optional system fields", () => {
     const schema: SchemaDefinition = {
       name: "test",

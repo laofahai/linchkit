@@ -38,6 +38,24 @@ export class FlowRegistryImpl implements IFlowRegistry {
   has(name: string): boolean {
     return this.flows.has(name);
   }
+
+  /** Get all flows triggered by a specific event type */
+  flowsForEvent(eventType: string): FlowDefinition[] {
+    return this.getAll().filter(
+      (f) => f.trigger.type === "event" && f.trigger.eventType === eventType,
+    );
+  }
+
+  /** Get all flows related to a schema (by matching action step actionNames containing the schema name) */
+  flowsForSchema(schemaName: string): FlowDefinition[] {
+    return this.getAll().filter((f) =>
+      f.steps.some(
+        (step) =>
+          step.type === "action" &&
+          (step as import("../types/flow").ActionFlowStep).actionName.includes(schemaName),
+      ),
+    );
+  }
 }
 
 // ── Validation ──────────────────────────────────────────────

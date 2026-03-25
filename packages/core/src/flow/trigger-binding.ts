@@ -9,6 +9,7 @@
  * - ManualFlowTrigger: no binding needed (started via API)
  */
 
+import type { ActorType } from "../types/action";
 import type { EventRecord } from "../types/event";
 import type { EventFlowTrigger, FlowDefinition, ScheduleFlowTrigger } from "../types/flow";
 import type { FlowEngine } from "./types";
@@ -97,10 +98,19 @@ class TriggerBindingImpl implements TriggerBinding {
       // Generate a deterministic instance ID from flow name + event ID
       const instanceId = `${flowName}-${event.id}`;
 
+      // Normalize event actor to full Actor shape (EventRecord.actor lacks groups)
+      const actor = event.actor
+        ? {
+            type: event.actor.type as ActorType,
+            id: event.actor.id,
+            groups: [] as string[],
+          }
+        : undefined;
+
       await engine.startFlow(flowName, event.payload, {
         instanceId,
         tenantId: event.tenantId,
-        actor: event.actor,
+        actor,
       });
     });
 

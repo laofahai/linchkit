@@ -14,12 +14,15 @@ export {
 } from "./schema-to-drizzle";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
 export {
+  createTranslatableValue,
   getTranslatableFields,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
+  resolveTranslation,
   type TranslatableValue,
+  validateTranslatableSchema,
   wrapTranslatableValue,
 } from "./translatable";

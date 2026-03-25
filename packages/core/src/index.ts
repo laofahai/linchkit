@@ -116,13 +116,16 @@ export { createLinkRegistry } from "./schema/link-registry";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {
+  createTranslatableValue,
   getTranslatableFields,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
+  resolveTranslation,
   type TranslatableValue,
+  validateTranslatableSchema,
   wrapTranslatableValue,
 } from "./schema/translatable";
 

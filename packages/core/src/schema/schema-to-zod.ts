@@ -20,6 +20,9 @@ export interface ZodGeneratorOptions {
 // and don't store input data in the record itself (FK columns are added by generateLinkColumns)
 const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
 
+// Field types that support the `translatable` flag
+const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+
 /**
  * Generate a Zod schema from a LinchKit SchemaDefinition.
  * Used for runtime input validation in Action Engine.
@@ -59,9 +62,26 @@ export function generateZodSchema(
 }
 
 /**
+ * Build a Zod type for translatable fields.
+ *
+ * Accepts either:
+ * - A plain string (shortcut — will be wrapped as `{ [defaultLocale]: value }` at write time)
+ * - A Record<string, string> (locale map, e.g. `{ "en": "Hello", "zh-CN": "你好" }`)
+ */
+function buildTranslatableZod(): z.ZodTypeAny {
+  const localeMap = z.record(z.string(), z.string());
+  return z.union([z.string(), localeMap]);
+}
+
+/**
  * Build a Zod type for a single field definition (before optional wrapping).
  */
 function buildFieldZod(field: FieldDefinition, options?: ZodGeneratorOptions): z.ZodTypeAny {
+  // Translatable fields accept either string or Record<string, string>
+  if (field.translatable && TRANSLATABLE_FIELD_TYPES.has(field.type)) {
+    return buildTranslatableZod();
+  }
+
   switch (field.type) {
     case "string":
       return applyStringConstraints(z.string(), field);

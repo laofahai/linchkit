@@ -29,7 +29,9 @@ import { ConfigRegistry, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
   buildTableColumns,
+  checkRestateHealth,
   closeDatabase,
+  compileFlow,
   convertSchemaRelationshipFieldsToImplicitLinks,
   createActionExecutor,
   createApprovalEngine,
@@ -43,12 +45,14 @@ import {
   createOntologyRegistry,
   createOutboxWorker,
   createPersistentEventBus,
+  createRestateFlowEngine,
   createSyncFlowEngine,
   createTriggerBinding,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
   DrizzleTransactionManager,
+  type FlowEngine,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
@@ -58,6 +62,7 @@ import {
   PermissionRegistry,
   runMigrations,
   SchemaRegistry,
+  setupRestateEndpoint,
   TableRegistry,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
@@ -580,14 +585,11 @@ export const devCommand = defineCommand({
       console.log(`[linch] Registered ${flowCount} flow(s)`);
     }
 
-    // TODO: When Restate is configured, set up Restate endpoint with compiled flows
-    // For M1a, we just use the sync fallback engine when Restate isn't configured
-    // Full Restate integration will be added in M1b
+    // Wire flow engine — dual-mode: Restate (durable) or Sync (fallback)
+    let restateEndpoint: Awaited<ReturnType<typeof setupRestateEndpoint>> | undefined;
 
-    // Bind flow triggers to the event bus
-    // This automatically starts flows when their trigger events occur
     if (flowCount > 0) {
-      // Create step context for flow execution (currently no AI service in dev bootstrap)
+      // Create step context for flow execution
       // TODO: Wire real AIService when AI integration is added in M1b
       const flowStepContext = createFlowStepContext({
         aiService: {
@@ -611,12 +613,71 @@ export const devCommand = defineCommand({
         },
         actionRegistry: actionRegistry,
       });
-      const syncFlowEngine = createSyncFlowEngine(flowStepContext);
-      for (const flow of flowRegistry.getAll()) {
-        syncFlowEngine.registerFlow(flow);
+
+      // Determine which flow engine to use
+      let flowEngine: FlowEngine;
+      const restateConfig = config.flow?.restate;
+
+      if (restateConfig) {
+        // Attempt Restate durable execution mode
+        const healthy = await checkRestateHealth(restateConfig.adminUrl);
+
+        if (healthy) {
+          console.log("[linch] Restate server detected — using durable flow execution");
+
+          // Compile all flows into Restate workflow services
+          const compiledServices: unknown[] = [];
+          for (const flow of flowRegistry.getAll()) {
+            const compiled = compileFlow(flow, flowStepContext);
+            compiledServices.push(compiled.restateService);
+          }
+
+          // Start the Restate HTTP endpoint and register deployments
+          try {
+            restateEndpoint = await setupRestateEndpoint(restateConfig, compiledServices);
+            const port = restateConfig.servicePort ?? 9080;
+            console.log(`[linch] Restate service endpoint listening on :${port}`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`[linch] Failed to start Restate endpoint: ${msg}`);
+            console.warn("[linch] Falling back to sync flow engine");
+          }
+
+          // Create RestateFlowEngine for starting/signaling flows via ingress
+          if (restateEndpoint) {
+            flowEngine = createRestateFlowEngine(restateConfig);
+            for (const flow of flowRegistry.getAll()) {
+              flowEngine.registerFlow(flow);
+            }
+          } else {
+            // Restate endpoint failed — fall back to sync engine
+            flowEngine = createSyncFlowEngine(flowStepContext);
+            for (const flow of flowRegistry.getAll()) {
+              flowEngine.registerFlow(flow);
+            }
+          }
+        } else {
+          console.log(
+            "[linch] Restate server not reachable — using sync flow engine (no durability)",
+          );
+          flowEngine = createSyncFlowEngine(flowStepContext);
+          for (const flow of flowRegistry.getAll()) {
+            flowEngine.registerFlow(flow);
+          }
+        }
+      } else {
+        // No Restate config — use sync fallback
+        console.log("[linch] No Restate config — using sync flow engine");
+        flowEngine = createSyncFlowEngine(flowStepContext);
+        for (const flow of flowRegistry.getAll()) {
+          flowEngine.registerFlow(flow);
+        }
       }
+
+      // Bind flow triggers to the event bus
+      // This automatically starts flows when their trigger events occur
       const triggerBinding = createTriggerBinding(eventBus);
-      triggerBinding.bindAll(flowRegistry.getAll(), syncFlowEngine);
+      triggerBinding.bindAll(flowRegistry.getAll(), flowEngine);
     }
 
     // Build OntologyRegistry — unified semantic facade over all registries
@@ -685,6 +746,14 @@ export const devCommand = defineCommand({
       for (const lc of lifecycles) {
         try {
           await lc.stop();
+        } catch {
+          // Ignore shutdown errors
+        }
+      }
+      if (restateEndpoint) {
+        try {
+          await restateEndpoint.stop();
+          console.log("[linch] Restate endpoint stopped.");
         } catch {
           // Ignore shutdown errors
         }
