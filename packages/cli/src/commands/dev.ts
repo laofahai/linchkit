@@ -54,6 +54,8 @@ import {
   createRestateFlowEngine,
   createSchemaCheck,
   createSyncFlowEngine,
+  createTenantAwareDataProvider,
+  createTenantIsolationMiddleware,
   createTriggerBinding,
   DrizzleApprovalStore,
   DrizzleDataProvider,
@@ -346,6 +348,17 @@ export const devCommand = defineCommand({
         }
       }
     }
+
+    // ── Tenant isolation middleware — always registered ──
+    // In dev mode, tenant is optional (requireTenant: false).
+    // In production, tenant is required for non-system actors.
+    const tenantMiddleware = createTenantIsolationMiddleware({
+      requireTenant: !environment.isDevelopment,
+    });
+    middlewares.push(tenantMiddleware);
+    console.log(
+      `[linch] Tenant isolation middleware registered (requireTenant=${!environment.isDevelopment})`,
+    );
 
     // ── Database setup — read config from registry ──
     let dataProvider: DataProvider | undefined;
