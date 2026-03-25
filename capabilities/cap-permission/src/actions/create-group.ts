@@ -52,10 +52,10 @@ export const createGroupAction = defineAction({
     const permissions = ctx.input.permissions as Record<string, unknown>;
     const constraints = (ctx.input.constraints as Record<string, unknown>) ?? undefined;
 
-    if (!name || !name.trim()) {
+    if (!name?.trim()) {
       throw new Error("Group name is required");
     }
-    if (!label || !label.trim()) {
+    if (!label?.trim()) {
       throw new Error("Group label is required");
     }
     if (!permissions || typeof permissions !== "object") {

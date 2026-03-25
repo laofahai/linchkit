@@ -7,7 +7,11 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { createActionExecutor, type DataProvider, type DataQueryOptions } from "../src/engine/action-engine";
+import {
+  createActionExecutor,
+  type DataProvider,
+  type DataQueryOptions,
+} from "../src/engine/action-engine";
 import type { ActionDefinition, Actor } from "../src/types/action";
 
 // ── Spy DataProvider — records all calls with their arguments ──
@@ -84,31 +88,31 @@ describe("Tenant-scoped ActionExecutor", () => {
     // create() should have tenant_id auto-set
     const createCall = spy.calls.find((c) => c.method === "create");
     expect(createCall).toBeDefined();
-    const createData = createCall!.args[1] as Record<string, unknown>;
+    const createData = createCall?.args[1] as Record<string, unknown>;
     expect(createData.tenant_id).toBe(TENANT_A);
 
     // get() should pass tenantId in options
     const getCall = spy.calls.find((c) => c.method === "get");
     expect(getCall).toBeDefined();
-    const getOptions = getCall!.args[2] as DataQueryOptions;
+    const getOptions = getCall?.args[2] as DataQueryOptions;
     expect(getOptions.tenantId).toBe(TENANT_A);
 
     // query() should pass tenantId in options
     const queryCall = spy.calls.find((c) => c.method === "query");
     expect(queryCall).toBeDefined();
-    const queryOptions = queryCall!.args[2] as DataQueryOptions;
+    const queryOptions = queryCall?.args[2] as DataQueryOptions;
     expect(queryOptions.tenantId).toBe(TENANT_A);
 
     // update() should pass tenantId in options
     const updateCall = spy.calls.find((c) => c.method === "update");
     expect(updateCall).toBeDefined();
-    const updateOptions = updateCall!.args[3] as DataQueryOptions;
+    const updateOptions = updateCall?.args[3] as DataQueryOptions;
     expect(updateOptions.tenantId).toBe(TENANT_A);
 
     // delete() should pass tenantId in options
     const deleteCall = spy.calls.find((c) => c.method === "delete");
     expect(deleteCall).toBeDefined();
-    const deleteOptions = deleteCall!.args[2] as DataQueryOptions;
+    const deleteOptions = deleteCall?.args[2] as DataQueryOptions;
     expect(deleteOptions.tenantId).toBe(TENANT_A);
   });
 
@@ -121,12 +125,12 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     // create() should NOT have tenant_id
     const createCall = spy.calls.find((c) => c.method === "create");
-    const createData = createCall!.args[1] as Record<string, unknown>;
+    const createData = createCall?.args[1] as Record<string, unknown>;
     expect(createData.tenant_id).toBeUndefined();
 
     // get() should not have tenantId in options (may be undefined or no options)
     const getCall = spy.calls.find((c) => c.method === "get");
-    const getOptions = getCall!.args[2] as DataQueryOptions | undefined;
+    const getOptions = getCall?.args[2] as DataQueryOptions | undefined;
     expect(getOptions?.tenantId).toBeUndefined();
   });
 
@@ -154,7 +158,9 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     // Should fail because createTenantAwareDataProvider rejects cross-tenant writes
     expect(result.success).toBe(false);
-    expect(String((result.data as Record<string, unknown>).error)).toContain("cross_tenant_write");
+    expect(String((result.data as Record<string, unknown>).error)).toContain(
+      "Cannot create record",
+    );
   });
 
   it("blocks cross-tenant update via ctx.update()", async () => {
@@ -179,7 +185,9 @@ describe("Tenant-scoped ActionExecutor", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(String((result.data as Record<string, unknown>).error)).toContain("cross_tenant_write");
+    expect(String((result.data as Record<string, unknown>).error)).toContain(
+      "Cannot change tenant_id",
+    );
   });
 
   it("allows same-tenant create (explicit tenant_id matches)", async () => {
@@ -205,7 +213,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     expect(result.success).toBe(true);
     const createCall = spy.calls.find((c) => c.method === "create");
-    const createData = createCall!.args[1] as Record<string, unknown>;
+    const createData = createCall?.args[1] as Record<string, unknown>;
     expect(createData.tenant_id).toBe(TENANT_A);
   });
 

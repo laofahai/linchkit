@@ -36,10 +36,10 @@ export const assignUserAction = defineAction({
     const userId = ctx.input.user_id as string;
     const groupName = ctx.input.group_name as string;
 
-    if (!userId || !userId.trim()) {
+    if (!userId?.trim()) {
       throw new Error("User ID is required");
     }
-    if (!groupName || !groupName.trim()) {
+    if (!groupName?.trim()) {
       throw new Error("Group name is required");
     }
 

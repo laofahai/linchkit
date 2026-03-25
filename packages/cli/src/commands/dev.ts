@@ -54,7 +54,6 @@ import {
   createRestateFlowEngine,
   createSchemaCheck,
   createSyncFlowEngine,
-  createTenantAwareDataProvider,
   createTenantIsolationMiddleware,
   createTriggerBinding,
   DrizzleApprovalStore,

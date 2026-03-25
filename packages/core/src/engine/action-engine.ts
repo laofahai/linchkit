@@ -10,6 +10,7 @@ import { ConfigRegistry } from "../config/config-registry";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace } from "../observability/trace-context";
+import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type {
   ActionContext,
   ActionDefinition,
@@ -20,7 +21,6 @@ import type {
 } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
-import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
 
@@ -697,16 +697,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           parentEvents.push(...pendingEvents);
         }
       } else if (useTransaction) {
-        await transactionManager.runInTransaction(
-          (txProvider) => {
-            // Wrap the transactional provider with tenant isolation
-            const scopedTxProvider = execOptions?.tenantId
-              ? createTenantAwareDataProvider(txProvider, execOptions.tenantId)
-              : txProvider;
-            return runHandler(scopedTxProvider);
-          },
-          pendingEvents,
-        );
+        await transactionManager.runInTransaction((txProvider) => {
+          // Wrap the transactional provider with tenant isolation
+          const scopedTxProvider = execOptions?.tenantId
+            ? createTenantAwareDataProvider(txProvider, execOptions.tenantId)
+            : txProvider;
+          return runHandler(scopedTxProvider);
+        }, pendingEvents);
       } else {
         await runHandler(baseProvider);
       }

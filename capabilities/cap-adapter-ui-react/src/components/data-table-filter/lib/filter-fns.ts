@@ -120,7 +120,7 @@ export function textFilterFn<_TData>(inputData: string, filterValue: FilterModel
 }
 
 export function numberFilterFn<_TData>(inputData: number, filterValue: FilterModel<"number">) {
-  if (!filterValue || !filterValue.values || filterValue.values.length === 0) {
+  if (!filterValue?.values || filterValue.values.length === 0) {
     return true;
   }
 

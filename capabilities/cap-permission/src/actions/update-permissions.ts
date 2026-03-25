@@ -43,7 +43,7 @@ export const updatePermissionsAction = defineAction({
     const permissions = ctx.input.permissions as Record<string, unknown>;
     const constraints = ctx.input.constraints as Record<string, unknown> | undefined;
 
-    if (!groupName || !groupName.trim()) {
+    if (!groupName?.trim()) {
       throw new Error("Group name is required");
     }
     if (!permissions || typeof permissions !== "object") {
