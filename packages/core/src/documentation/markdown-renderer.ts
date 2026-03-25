@@ -7,6 +7,11 @@
 
 import type { ActionDoc, FieldDoc, SchemaDoc, SystemDoc } from "./api-doc-generator";
 
+/** Convert snake_case to PascalCase for Mermaid entity names */
+function snakeToPascal(s: string): string {
+  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+}
+
 // ── Render options ──────────────────────────────────
 
 export interface MarkdownRenderOptions {
@@ -255,7 +260,10 @@ function renderMermaidRelationships(schemas: SchemaDoc[]): string | null {
       };
 
       const card = cardMap[rel.cardinality] ?? "--";
-      edgeLines.push(`  ${schema.name} ${card} ${rel.targetSchema} : "${rel.linkName}"`);
+      // Mermaid erDiagram requires alphanumeric entity names (no underscores)
+      const fromEntity = snakeToPascal(schema.name);
+      const toEntity = snakeToPascal(rel.targetSchema);
+      edgeLines.push(`  ${fromEntity} ${card} ${toEntity} : "${rel.linkName}"`);
     }
   }
 

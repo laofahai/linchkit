@@ -5,7 +5,7 @@
  * have the expected layout, and files use kebab-case naming.
  */
 
-import type { QualityIssue, QualityReport } from "./code-quality";
+import { buildReport, type QualityIssue, type QualityReport } from "./code-quality";
 
 // ── Types ───────────────────────────────────────────────
 
@@ -183,16 +183,3 @@ export function checkFileNaming(pattern: "kebab-case", files: string[]): Quality
   return buildReport(issues);
 }
 
-// ── Helpers ─────────────────────────────────────────────
-
-function buildReport(issues: QualityIssue[]): QualityReport {
-  const errors = issues.filter((i) => i.severity === "error").length;
-  const warnings = issues.filter((i) => i.severity === "warning").length;
-  const infos = issues.filter((i) => i.severity === "info").length;
-
-  return {
-    issues,
-    passed: errors === 0,
-    summary: { errors, warnings, infos },
-  };
-}

@@ -360,7 +360,7 @@ function lineNumber(content: string, charIndex: number): number {
   return content.substring(0, charIndex).split("\n").length;
 }
 
-function buildReport(issues: QualityIssue[]): QualityReport {
+export function buildReport(issues: QualityIssue[]): QualityReport {
   const errors = issues.filter((i) => i.severity === "error").length;
   const warnings = issues.filter((i) => i.severity === "warning").length;
   const infos = issues.filter((i) => i.severity === "info").length;
