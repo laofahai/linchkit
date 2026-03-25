@@ -171,8 +171,12 @@ export function generateCrudActions(
       }
       // Compute store-strategy derived fields before persisting
       if (derivedEngine) {
-        const derivedValues = derivedEngine.computeStoreFields(name, inputWithDefaults);
-        Object.assign(inputWithDefaults, derivedValues);
+        try {
+          const derivedValues = derivedEngine.computeStoreFields(name, inputWithDefaults);
+          Object.assign(inputWithDefaults, derivedValues);
+        } catch (err) {
+          throw new Error(`Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
       return ctx.create(name, inputWithDefaults);
     },
@@ -195,12 +199,20 @@ export function generateCrudActions(
         try {
           const existing = await ctx.get(name, id);
           fullRecord = { ...existing, ...data };
-        } catch {
-          // Record not found — use input data only
-          fullRecord = { ...data };
+        } catch (err) {
+          // Only fall back for NotFoundError; re-throw unexpected errors
+          if (err instanceof Error && err.message.includes("not found")) {
+            fullRecord = { ...data };
+          } else {
+            throw err;
+          }
         }
-        const derivedValues = derivedEngine.computeStoreFields(name, fullRecord);
-        Object.assign(data, derivedValues);
+        try {
+          const derivedValues = derivedEngine.computeStoreFields(name, fullRecord);
+          Object.assign(data, derivedValues);
+        } catch (err) {
+          throw new Error(`Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
       return ctx.update(name, id, data);
     },
