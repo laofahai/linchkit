@@ -89,9 +89,7 @@ export const changelogCommand = defineCommand({
     }
 
     if (skipped > 0) {
-      consola.warn(
-        `${skipped} commit(s) skipped (not in Conventional Commits format).`,
-      );
+      consola.warn(`${skipped} commit(s) skipped (not in Conventional Commits format).`);
     }
 
     if (parsed.length === 0) {
@@ -166,10 +164,10 @@ async function readGitLog(range: string): Promise<RawCommit[]> {
     const lines = block.trim().split("\n");
     if (lines.length < 4) continue;
 
-    const hash = lines[0]!.trim();
-    const date = lines[1]!.trim();
-    const author = lines[2]!.trim();
-    const message = lines[3]!.trim();
+    const hash = lines[0]?.trim();
+    const date = lines[1]?.trim();
+    const author = lines[2]?.trim();
+    const message = lines[3]?.trim();
     const body = lines.slice(4).join("\n").trim() || undefined;
 
     if (hash && date && author && message) {
@@ -185,14 +183,11 @@ async function readGitLog(range: string): Promise<RawCommit[]> {
  */
 async function getLatestTag(): Promise<string | undefined> {
   try {
-    const proc = Bun.spawn(
-      ["git", "describe", "--tags", "--abbrev=0"],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-        cwd: process.cwd(),
-      },
-    );
+    const proc = Bun.spawn(["git", "describe", "--tags", "--abbrev=0"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      cwd: process.cwd(),
+    });
 
     const stdout = await new Response(proc.stdout).text();
     await proc.exited;

@@ -12,6 +12,7 @@ import type {
   Actor,
   DataProvider,
   DataQueryOptions,
+  DerivedPropertyEngine,
   EventBus,
   ExecutionLogger,
   ExecutionStatus,
@@ -20,9 +21,8 @@ import type {
   PermissionGroupDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
-import type { DerivedPropertyEngine } from "@linchkit/core";
 import { resolveTranslatableRow } from "@linchkit/core";
-import { maskRecord, maskRecords } from "@linchkit/core/server";
+import { maskRecord } from "@linchkit/core/server";
 import {
   GraphQLBoolean,
   GraphQLError,
@@ -175,7 +175,9 @@ export function generateCrudActions(
           const derivedValues = derivedEngine.computeStoreFields(name, inputWithDefaults);
           Object.assign(inputWithDefaults, derivedValues);
         } catch (err) {
-          throw new Error(`Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+          throw new Error(
+            `Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
       return ctx.create(name, inputWithDefaults);
@@ -211,7 +213,9 @@ export function generateCrudActions(
           const derivedValues = derivedEngine.computeStoreFields(name, fullRecord);
           Object.assign(data, derivedValues);
         } catch (err) {
-          throw new Error(`Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+          throw new Error(
+            `Derived field computation failed for ${name}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
       return ctx.update(name, id, data);

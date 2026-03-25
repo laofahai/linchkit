@@ -85,11 +85,7 @@ const gqlSchema = buildGraphQLSchema([employeeSchema], {
 
 // ── Helpers ────────────────────────────────────────────────
 
-async function executeGql(
-  query: string,
-  actor: Actor,
-  variables?: Record<string, unknown>,
-) {
+async function executeGql(query: string, actor: Actor, variables?: Record<string, unknown>) {
   const ctx: GraphQLContext = {
     actor,
     permissionGroups,
@@ -298,11 +294,7 @@ const linkGqlSchema = buildGraphQLSchema([departmentSchema, linkedEmployeeSchema
   links: [deptEmployeeLink],
 });
 
-async function executeLinkGql(
-  query: string,
-  actor: Actor,
-  variables?: Record<string, unknown>,
-) {
+async function executeLinkGql(query: string, actor: Actor, variables?: Record<string, unknown>) {
   const ctx: GraphQLContext = {
     actor,
     permissionGroups,

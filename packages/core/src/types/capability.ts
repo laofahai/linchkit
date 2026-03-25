@@ -15,7 +15,12 @@ import type { LinkDefinition } from "./link";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RuleDefinition, RuleOverride } from "./rule";
-import type { InterfaceDefinition, SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
+import type {
+  InterfaceDefinition,
+  SchemaDefinition,
+  SchemaExtension,
+  SchemaOverride,
+} from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";

@@ -8,7 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { AIBoundary, AIBoundaryError } from "../src/ai/ai-boundary";
+import { AIBoundary } from "../src/ai/ai-boundary";
 import type { AIPolicy } from "../src/ai/ai-policy";
 import { createFlowStepContext } from "../src/flow/flow-step-context";
 import { createSyncFlowEngine } from "../src/flow/sync-engine";
@@ -113,10 +113,14 @@ describe("AIBoundary + Flow Engine integration", () => {
       const engine = createSyncFlowEngine(stepContext);
       engine.registerFlow(AI_FLOW);
 
-      await engine.startFlow("ai-test-flow", {}, {
-        tenantId: "tenant-1",
-        actor: { type: "user", id: "user-42", name: "Test User", groups: [] },
-      });
+      await engine.startFlow(
+        "ai-test-flow",
+        {},
+        {
+          tenantId: "tenant-1",
+          actor: { type: "user", id: "user-42", name: "Test User", groups: [] },
+        },
+      );
 
       const records = boundary.getUsageRecords({ source: "flow" });
       expect(records.length).toBe(1);

@@ -8,7 +8,7 @@
 import type { AIBoundary } from "../ai/ai-boundary";
 import type { AICallRequest } from "../ai/ai-policy";
 import type { ActionDefinition, Actor } from "../types/action";
-import type { AIService, AITool } from "../types/ai";
+import type { AICompletionResult, AIService, AITool } from "../types/ai";
 import type { FlowStepContext } from "./types";
 
 // ── Dependencies ─────────────────────────────────────────
@@ -169,7 +169,7 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
       };
 
       // If AIBoundary is configured, route through it for policy enforcement
-      let result;
+      let result: AICompletionResult;
       if (aiBoundary) {
         const callRequest: AICallRequest = {
           source: "flow",

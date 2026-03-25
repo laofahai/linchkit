@@ -182,4 +182,3 @@ export function checkFileNaming(pattern: "kebab-case", files: string[]): Quality
 
   return buildReport(issues);
 }
-

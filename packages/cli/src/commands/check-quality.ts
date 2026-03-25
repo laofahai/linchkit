@@ -52,9 +52,7 @@ export const checkQualityCommand = defineCommand({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("Config file not found")) {
-        consola.error(
-          "No linchkit.config.ts found. Are you in a LinchKit project directory?",
-        );
+        consola.error("No linchkit.config.ts found. Are you in a LinchKit project directory?");
         consola.info("Run 'linch init' to create a new project.");
       } else {
         consola.error(`Failed to load config: ${msg}`);
@@ -69,10 +67,7 @@ export const checkQualityCommand = defineCommand({
     // 1. Project structure check
     consola.start("Checking project structure...");
     const projectEntries = await scanDirectory(process.cwd());
-    const structureReport = validateProjectStructure(
-      process.cwd(),
-      projectEntries,
-    );
+    const structureReport = validateProjectStructure(process.cwd(), projectEntries);
     reportSummaries.push({ name: "Project Structure", report: structureReport });
     allIssues.push(...structureReport.issues);
 
@@ -112,9 +107,7 @@ export const checkQualityCommand = defineCommand({
 
     // Aggregate summary
     const totalErrors = allIssues.filter((i) => i.severity === "error").length;
-    const totalWarnings = allIssues.filter(
-      (i) => i.severity === "warning",
-    ).length;
+    const totalWarnings = allIssues.filter((i) => i.severity === "warning").length;
     const totalInfos = allIssues.filter((i) => i.severity === "info").length;
 
     if (outputJson) {
@@ -157,9 +150,7 @@ export const checkQualityCommand = defineCommand({
       // Final summary
       console.log("");
       if (totalErrors === 0) {
-        consola.success(
-          `All checks passed. ${totalWarnings} warning(s), ${totalInfos} info(s).`,
-        );
+        consola.success(`All checks passed. ${totalWarnings} warning(s), ${totalInfos} info(s).`);
       } else {
         consola.error(
           `${totalErrors} error(s), ${totalWarnings} warning(s), ${totalInfos} info(s).`,
@@ -229,10 +220,7 @@ function printIssuesTable(issues: QualityIssue[]): void {
 
   // Column widths
   const sevWidth = 8;
-  const ruleWidth = Math.min(
-    Math.max(...issues.map((i) => i.rule.length), 4),
-    30,
-  );
+  const ruleWidth = Math.min(Math.max(...issues.map((i) => i.rule.length), 4), 30);
 
   const header = `  ${"Severity".padEnd(sevWidth)}  ${"Rule".padEnd(ruleWidth)}  Message`;
   const separator = `  ${"─".repeat(sevWidth)}  ${"─".repeat(ruleWidth)}  ${"─".repeat(50)}`;
@@ -244,9 +232,7 @@ function printIssuesTable(issues: QualityIssue[]): void {
     const color = SEVERITY_COLORS[issue.severity] ?? "";
     const sev = `${color}${issue.severity.padEnd(sevWidth)}${RESET}`;
     const rule = issue.rule.padEnd(ruleWidth);
-    const loc = issue.file
-      ? ` [${issue.file}${issue.line ? `:${issue.line}` : ""}]`
-      : "";
+    const loc = issue.file ? ` [${issue.file}${issue.line ? `:${issue.line}` : ""}]` : "";
     console.log(`  ${sev}  ${rule}  ${issue.message}${loc}`);
   }
 }

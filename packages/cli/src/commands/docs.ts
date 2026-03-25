@@ -217,7 +217,8 @@ const validateCommand = defineCommand({
     // Overall coverage
     const totalItems = allResults.reduce((sum, r) => sum + r.totalItems, 0);
     const documentedItems = allResults.reduce((sum, r) => sum + r.documentedItems, 0);
-    const overallCoverage = totalItems === 0 ? 100 : Math.round((documentedItems / totalItems) * 100);
+    const overallCoverage =
+      totalItems === 0 ? 100 : Math.round((documentedItems / totalItems) * 100);
 
     if (args.json) {
       console.log(
@@ -248,7 +249,9 @@ const validateCommand = defineCommand({
       console.log("  Schemas:");
       for (const r of schemaResults) {
         const icon = r.coverage === 100 ? "OK" : "!!";
-        console.log(`    [${icon}] ${r.name}: ${r.coverage}% (${r.documentedItems}/${r.totalItems})`);
+        console.log(
+          `    [${icon}] ${r.name}: ${r.coverage}% (${r.documentedItems}/${r.totalItems})`,
+        );
         for (const issue of r.issues) {
           console.log(`         ${issue.severity.toUpperCase()}: ${issue.message}`);
         }
@@ -261,7 +264,9 @@ const validateCommand = defineCommand({
       console.log("  Actions:");
       for (const r of actionResults) {
         const icon = r.coverage === 100 ? "OK" : "!!";
-        console.log(`    [${icon}] ${r.name}: ${r.coverage}% (${r.documentedItems}/${r.totalItems})`);
+        console.log(
+          `    [${icon}] ${r.name}: ${r.coverage}% (${r.documentedItems}/${r.totalItems})`,
+        );
         for (const issue of r.issues) {
           console.log(`         ${issue.severity.toUpperCase()}: ${issue.message}`);
         }

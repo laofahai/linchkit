@@ -92,7 +92,9 @@ derivedEngine.register([employeeSchema, orderSchema]);
 const executor = createActionExecutor({ dataProvider: store });
 
 // Register CRUD actions with derived engine wired in
-for (const action of generateCrudActions(employeeSchema, { derivedPropertyEngine: derivedEngine })) {
+for (const action of generateCrudActions(employeeSchema, {
+  derivedPropertyEngine: derivedEngine,
+})) {
   executor.registry.register(action);
 }
 for (const action of generateCrudActions(orderSchema, { derivedPropertyEngine: derivedEngine })) {

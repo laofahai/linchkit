@@ -12,34 +12,32 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import {
-  CapabilityHub,
-  type CapabilityManifest,
-  createCapabilityHub,
-  MigrationRegistry,
-  applyMigration,
-  validateUpgrade,
-  VersionRegistry,
-  createVersionRegistry,
-} from "@linchkit/core";
 import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
 import {
+  applyMigration,
+  type CapabilityManifest,
+  createCapabilityHub,
+  createVersionRegistry,
+  MigrationRegistry,
+  validateUpgrade,
+} from "@linchkit/core";
+import {
+  checkActionDefinitions,
+  checkCommitMessages,
+  checkSchemaDefinitions,
   createLinkRegistry,
   createOntologyRegistry,
   createSchemaRegistry,
   generateApiDoc,
-  generateOpenAPISpec,
-  renderSystemDoc,
-  validateSchemaDoc,
-  validateActionDoc,
-  parseConventionalCommit,
   generateChangelog,
-  generateVersionedChangelog,
-  SpecTracker,
+  generateOpenAPISpec,
   generateSpecReport,
-  checkCommitMessages,
-  checkSchemaDefinitions,
-  checkActionDefinitions,
+  generateVersionedChangelog,
+  parseConventionalCommit,
+  renderSystemDoc,
+  SpecTracker,
+  validateActionDoc,
+  validateSchemaDoc,
 } from "@linchkit/core/server";
 import type { LinkDefinition } from "../src/types/link";
 
@@ -208,24 +206,24 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     expect(empDoc).toBeDefined();
 
     // Fields
-    const fieldNames = empDoc!.fields.map((f) => f.name);
+    const fieldNames = empDoc?.fields.map((f) => f.name);
     expect(fieldNames).toContain("name");
     expect(fieldNames).toContain("email");
     expect(fieldNames).toContain("department_id");
     expect(fieldNames).toContain("role");
 
     // Ref field target
-    const deptField = empDoc!.fields.find((f) => f.name === "department_id");
+    const deptField = empDoc?.fields.find((f) => f.name === "department_id");
     expect(deptField?.target).toBe("department");
 
     // Enum field options
-    const roleField = empDoc!.fields.find((f) => f.name === "role");
+    const roleField = empDoc?.fields.find((f) => f.name === "role");
     expect(roleField?.options).toHaveLength(3);
     expect(roleField?.options?.map((o) => o.value)).toContain("engineer");
 
     // Actions
-    expect(empDoc!.actions).toHaveLength(2);
-    const actionNames = empDoc!.actions.map((a) => a.name);
+    expect(empDoc?.actions).toHaveLength(2);
+    const actionNames = empDoc?.actions.map((a) => a.name);
     expect(actionNames).toContain("submit_timesheet");
     expect(actionNames).toContain("approve_timesheet");
   });
@@ -306,9 +304,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     // submit_timesheet has exposure "all" which includes http
     expect(spec.paths["/api/actions/submit_timesheet"]).toBeDefined();
     expect(spec.paths["/api/actions/submit_timesheet"]?.post).toBeDefined();
-    expect(spec.paths["/api/actions/submit_timesheet"]?.post?.operationId).toBe(
-      "submit_timesheet",
-    );
+    expect(spec.paths["/api/actions/submit_timesheet"]?.post?.operationId).toBe("submit_timesheet");
 
     // approve_timesheet has http:true
     expect(spec.paths["/api/actions/approve_timesheet"]).toBeDefined();
@@ -364,9 +360,7 @@ describe("E2E: Governance + Documentation", () => {
     expect(result.coverage).toBeLessThan(100);
 
     // Missing schema description
-    const descIssue = result.issues.find(
-      (i) => i.path === "description" && i.severity === "error",
-    );
+    const descIssue = result.issues.find((i) => i.path === "description" && i.severity === "error");
     expect(descIssue).toBeDefined();
 
     // Missing field descriptions

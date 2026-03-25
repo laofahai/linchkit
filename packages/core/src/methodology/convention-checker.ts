@@ -276,4 +276,3 @@ export function checkActionDefinitions(actions: ActionInfo[]): QualityReport {
 
   return buildReport(issues);
 }
-

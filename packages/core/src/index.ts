@@ -121,7 +121,6 @@ export {
   resolveField,
 } from "./engine/condition-evaluator";
 export type { PermissionRegistry } from "./engine/permission-engine";
-export type { PermissionGroupDefinition } from "./types/permission";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
 export type {
@@ -195,7 +194,6 @@ export {
   validateTranslatableSchema,
   wrapTranslatableValue,
 } from "./schema/translatable";
-
 // Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
 export type { MaskRecordOptions } from "./security";
 // Type exports
@@ -209,6 +207,7 @@ export {
   validateCapabilityMetadata,
 } from "./types";
 export type { Logger } from "./types/logger";
+export type { PermissionGroupDefinition } from "./types/permission";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";

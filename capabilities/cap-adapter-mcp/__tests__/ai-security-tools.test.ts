@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
 import { defineAction, defineSchema } from "@linchkit/core";
 import {
+  ActionRegistry,
   AIAuditLogger,
   AIBoundary,
-  ActionRegistry,
   createSchemaRegistry,
 } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
@@ -158,10 +158,7 @@ describe("AI Security MCP Tools", () => {
     });
     const tools = getTools(server);
 
-    const result = await tools.check_ai_boundary.handler(
-      { isDataModification: true },
-      {},
-    );
+    const result = await tools.check_ai_boundary.handler({ isDataModification: true }, {});
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.allowed).toBe(false);

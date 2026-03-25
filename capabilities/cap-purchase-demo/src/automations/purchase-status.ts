@@ -83,8 +83,7 @@ export const notifyHighPrioritySubmission = defineAutomation({
     {
       type: "send_notification",
       channel: "webhook",
-      message:
-        "High-priority purchase request submitted: {{record.title}} ({{record.amount}})",
+      message: "High-priority purchase request submitted: {{record.title}} ({{record.amount}})",
     },
   ],
 });

@@ -9,7 +9,10 @@ import type { ActionDoc, FieldDoc, SchemaDoc, SystemDoc } from "./api-doc-genera
 
 /** Convert snake_case to PascalCase for Mermaid entity names */
 function snakeToPascal(s: string): string {
-  return s.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+  return s
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("");
 }
 
 // ── Render options ──────────────────────────────────

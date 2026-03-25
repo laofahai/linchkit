@@ -26,8 +26,7 @@ import type {
   TransportLifecycle,
   ViewDefinition,
 } from "@linchkit/core";
-import { ConfigRegistry, databaseConfig } from "@linchkit/core";
-import { createDerivedPropertyEngine } from "@linchkit/core";
+import { ConfigRegistry, createDerivedPropertyEngine, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
   buildTableColumns,
@@ -56,16 +55,16 @@ import {
   createSchemaCheck,
   createSyncFlowEngine,
   createTriggerBinding,
-  detectEnvironment,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
   DrizzleTransactionManager,
+  detectEnvironment,
   type FlowEngine,
+  GracefulShutdownManager,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
-  GracefulShutdownManager,
   HealthCheckRegistry,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
@@ -564,6 +563,16 @@ export const devCommand = defineCommand({
       verifyApproval: createApprovalVerifier(approvalStore),
     });
 
+    // Register all collected middlewares on the command layer
+    for (const mw of middlewares) {
+      commandLayer.use(mw);
+    }
+    if (middlewares.length > 0) {
+      console.log(
+        `[linch] Registered ${middlewares.length} middleware(s) on CommandLayer: ${middlewares.map((m) => `${m.name}[${m.slot}]`).join(", ")}`,
+      );
+    }
+
     // Create event bus — use PersistentEventBus when database is available
     const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
       ? createPersistentEventBus(dbInstance)
@@ -735,9 +744,7 @@ export const devCommand = defineCommand({
 
     if (automations.length > 0) {
       automationEngine.start();
-      console.log(
-        `[linch] AutomationEngine started with ${automations.length} automation(s)`,
-      );
+      console.log(`[linch] AutomationEngine started with ${automations.length} automation(s)`);
     }
 
     // Build OntologyRegistry — unified semantic facade over all registries

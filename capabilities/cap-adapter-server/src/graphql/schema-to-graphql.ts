@@ -392,11 +392,7 @@ function buildLinkFields(
                   { [fkColumn]: id },
                   { tenantId: ctx.tenantId },
                 );
-                return applyLinkMaskingArray(
-                  records as Record<string, unknown>[],
-                  link.from,
-                  ctx,
-                );
+                return applyLinkMaskingArray(records as Record<string, unknown>[], link.from, ctx);
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (many_to_one to): ${err}`,
@@ -430,11 +426,7 @@ function buildLinkFields(
                   { [fkColumn]: id },
                   { tenantId: ctx.tenantId },
                 );
-                return applyLinkMaskingArray(
-                  records as Record<string, unknown>[],
-                  link.to,
-                  ctx,
-                );
+                return applyLinkMaskingArray(records as Record<string, unknown>[], link.to, ctx);
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_many from): ${err}`,
