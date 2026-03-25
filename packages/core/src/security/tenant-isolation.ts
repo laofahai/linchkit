@@ -68,7 +68,7 @@ export function createTenantIsolationMiddleware(
     order: 10,
     handler: async (ctx, next) => {
       const tenantId = resolver.resolve({
-        actor: ctx.actor as { type: string; id: string; groups: string[]; tenantId?: string },
+        actor: ctx.actor,
         headers: ctx.headers,
         meta: ctx.meta,
       });

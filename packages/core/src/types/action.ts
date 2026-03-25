@@ -18,6 +18,7 @@ export interface Actor {
   id: string;
   name?: string;
   groups: string[];
+  tenantId?: string;
   metadata?: Record<string, unknown>;
 }
 

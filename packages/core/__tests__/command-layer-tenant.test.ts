@@ -35,7 +35,7 @@ describe("Command Layer: Tenant Isolation", () => {
     const result = await layer.execute({
       command: "create_item",
       input: { name: "test" },
-      actor: { type: "user", id: "u1", groups: [], tenantId: "tenant_42" } as never,
+      actor: { type: "user", id: "u1", groups: [], tenantId: "tenant_42" },
     });
 
     expect(result.success).toBe(true);
@@ -134,7 +134,7 @@ describe("Command Layer: Tenant Isolation", () => {
     const result = await layer.execute({
       command: "create_item",
       input: { name: "test" },
-      actor: { type: "user", id: "u1", groups: [], tenantId: "t1" } as never,
+      actor: { type: "user", id: "u1", groups: [], tenantId: "t1" },
     });
 
     expect(result.success).toBe(true);
