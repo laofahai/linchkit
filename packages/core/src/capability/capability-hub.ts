@@ -54,16 +54,13 @@ export function satisfiesVersionRange(version: string, range: string): boolean {
     const [rMajor, rMinor, rPatch] = parseVer(trimmed);
     const vNum = vMajor * 1_000_000 + vMinor * 1_000 + vPatch;
     const rNum = rMajor * 1_000_000 + rMinor * 1_000 + rPatch;
-    // npm semver: ^0.x.y locks to minor, ^0.0.x locks to patch
-    let ceilNum: number;
+    // npm semver: ^0.0.x locks to exact, ^0.y.z locks to minor, ^x.y.z locks to major
     if (rMajor === 0 && rMinor === 0) {
-      ceilNum = rPatch * 1 + 1; // ^0.0.x => exact patch
-      return vNum === rNum;
-    } else if (rMajor === 0) {
-      ceilNum = rMajor * 1_000_000 + (rMinor + 1) * 1_000; // ^0.y.z => <0.(y+1).0
-    } else {
-      ceilNum = (rMajor + 1) * 1_000_000; // ^x.y.z => <(x+1).0.0
+      return vNum === rNum; // ^0.0.x => exact match
     }
+    const ceilNum = rMajor === 0
+      ? rMajor * 1_000_000 + (rMinor + 1) * 1_000  // ^0.y.z => <0.(y+1).0
+      : (rMajor + 1) * 1_000_000;                    // ^x.y.z => <(x+1).0.0
     return vNum >= rNum && vNum < ceilNum;
   }
 
