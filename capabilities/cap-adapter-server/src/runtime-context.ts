@@ -17,6 +17,7 @@ import type {
   DataProvider,
   EventBus,
   ExecutionLogger,
+  InterfaceDefinition,
   MiddlewareRegistration,
   SchemaDefinition,
   StateDefinition,
@@ -26,6 +27,7 @@ import {
   createActionExecutor,
   createAIService,
   createCommandLayer,
+  createInterfaceRegistry,
   createNoopAIService,
   createStateMachine,
   InMemoryExecutionLogger,
@@ -54,6 +56,8 @@ export interface RuntimeContextOptions {
   states?: StateDefinition[];
   views?: ViewDefinition[];
   middlewares?: MiddlewareRegistration[];
+  /** Interface definitions — registered before schemas so field injection/validation works */
+  interfaces?: InterfaceDefinition[];
   /** AI service configuration (optional — system works without it) */
   ai?: AIServiceConfig;
   /** External data provider (e.g. DrizzleDataProvider). Falls back to InMemoryStore if not set. */
@@ -79,6 +83,15 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   const dataProvider: DataProvider = options?.dataProvider ?? new InMemoryStore();
   const executionLogger = new InMemoryExecutionLogger();
   const schemaRegistry = new SchemaRegistry();
+
+  // Register interfaces BEFORE schemas so field injection and validation happen during registration
+  if (options?.interfaces?.length) {
+    const interfaceRegistry = createInterfaceRegistry();
+    for (const iface of options.interfaces) {
+      interfaceRegistry.register(iface);
+    }
+    schemaRegistry.setInterfaceRegistry(interfaceRegistry);
+  }
 
   // Register schemas
   if (options?.schemas) {
