@@ -20,6 +20,7 @@ import type {
   SchemaRegistry,
   ViewDefinition,
 } from "@linchkit/core";
+import { createTenantAwareDataProvider } from "@linchkit/core/server";
 import type { HealthCheckRegistry } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
@@ -222,7 +223,12 @@ export function createServer(
         : ANONYMOUS_ACTOR;
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
       const locale = resolveRequestLocale(request);
-      return { actor, tenantId, locale, dataProvider, permissionGroups, schemaMap };
+      // Wrap DataProvider with tenant isolation for this request so all GraphQL
+      // resolvers (get, list, link traversal) enforce row-level tenant scoping.
+      const scopedProvider = tenantId && dataProvider
+        ? createTenantAwareDataProvider(dataProvider, tenantId)
+        : dataProvider;
+      return { actor, tenantId, locale, dataProvider: scopedProvider, permissionGroups, schemaMap };
     },
   });
 
