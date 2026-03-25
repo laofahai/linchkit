@@ -335,6 +335,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       const run = compose(pipeline);
       await run(ctx);
     } catch (err) {
+      metrics.increment("command.processed", { command: ctx.command, status: "failed" });
       if (err instanceof ExposureError) {
         return {
           success: false,
@@ -366,6 +367,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
 
     // If action didn't execute (middleware blocked by not calling next())
     if (!ctx.result) {
+      metrics.increment("command.processed", { command: ctx.command, status: "blocked" });
       return {
         success: false,
         data: { error: "Request blocked by pipeline" },
@@ -403,7 +405,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       }
     }
 
-    metrics.increment("command.processed", { command: ctx.command });
+    metrics.increment("command.processed", { command: ctx.command, status: "succeeded" });
 
     return ctx.result;
   }

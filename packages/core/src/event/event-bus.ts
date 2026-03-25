@@ -74,6 +74,14 @@ export function matchesFilter(
 
 // ── EventBus ────────────────────────────────────────────────
 
+export interface EventBusOptions {
+  registry: EventHandlerRegistry;
+  maxEmitDepth?: number;
+  logger?: Logger;
+  maxEventLogSize?: number;
+  metrics?: MetricsCollector;
+}
+
 export class EventBus {
   protected registry: EventHandlerRegistry;
   protected eventLog: EventRecord[] = [];
@@ -83,18 +91,36 @@ export class EventBus {
   protected logger: Logger;
   protected metrics: MetricsCollector;
 
+  constructor(opts: EventBusOptions);
+  /** @deprecated Use options object instead */
   constructor(
     registry: EventHandlerRegistry,
+    maxEmitDepth?: number,
+    logger?: Logger,
+    maxEventLogSize?: number,
+    metrics?: MetricsCollector,
+  );
+  constructor(
+    registryOrOpts: EventHandlerRegistry | EventBusOptions,
     maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH,
     logger: Logger = consoleLogger,
     maxEventLogSize = DEFAULT_MAX_EVENT_LOG_SIZE,
     metrics: MetricsCollector = noopMetricsCollector,
   ) {
-    this.registry = registry;
-    this.maxEmitDepth = maxEmitDepth;
-    this.maxEventLogSize = maxEventLogSize;
-    this.logger = logger;
-    this.metrics = metrics;
+    if ("registry" in registryOrOpts && !(registryOrOpts instanceof EventHandlerRegistry)) {
+      const opts = registryOrOpts;
+      this.registry = opts.registry;
+      this.maxEmitDepth = opts.maxEmitDepth ?? DEFAULT_MAX_EMIT_DEPTH;
+      this.maxEventLogSize = opts.maxEventLogSize ?? DEFAULT_MAX_EVENT_LOG_SIZE;
+      this.logger = opts.logger ?? consoleLogger;
+      this.metrics = opts.metrics ?? noopMetricsCollector;
+    } else {
+      this.registry = registryOrOpts as EventHandlerRegistry;
+      this.maxEmitDepth = maxEmitDepth;
+      this.maxEventLogSize = maxEventLogSize;
+      this.logger = logger;
+      this.metrics = metrics;
+    }
   }
 
   /**

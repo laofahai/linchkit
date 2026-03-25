@@ -114,6 +114,10 @@ export function resolveFieldMasking(
  * Check if an actor has unmask permission for a specific field.
  *
  * system_admin group always has unmask permission.
+ *
+ * Note: All parameters (actor, groups, capabilityName) must be provided
+ * for bypass to work. If `groups` is empty or missing, masking is applied
+ * even for system_admin actors (fail-closed by design).
  */
 export function canUnmask(
   actor: Actor,

@@ -156,7 +156,7 @@ describe("CommandLayer metrics", () => {
 
     await layer.execute({ command: "create_item", input: { name: "test" } });
 
-    expect(metrics.getCounter("command.processed", { command: "create_item" })).toBe(1);
+    expect(metrics.getCounter("command.processed", { command: "create_item", status: "succeeded" })).toBe(1);
   });
 });
 
