@@ -6,9 +6,12 @@
  */
 
 import { defineCommand, runMain } from "citty";
+import { changelogCommand } from "./commands/changelog";
+import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
 import { devCommand } from "./commands/dev";
+import { docsCommand } from "./commands/docs";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
@@ -28,6 +31,9 @@ const main = defineCommand({
     create: createCommand,
     install: installCommand,
     info: infoCommand,
+    docs: docsCommand,
+    check: checkQualityCommand,
+    changelog: changelogCommand,
   },
 });
 

@@ -29,6 +29,8 @@ import { ConfigRegistry, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
   buildTableColumns,
+  CacheManager,
+  checkConnection,
   checkRestateHealth,
   closeDatabase,
   compileFlow,
@@ -38,6 +40,7 @@ import {
   createApprovalVerifier,
   createCommandLayer,
   createDatabase,
+  createDatabaseCheck,
   createEventBus,
   createFlowRegistry,
   createFlowStepContext,
@@ -46,8 +49,10 @@ import {
   createOutboxWorker,
   createPersistentEventBus,
   createRestateFlowEngine,
+  createSchemaCheck,
   createSyncFlowEngine,
   createTriggerBinding,
+  detectEnvironment,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
@@ -56,8 +61,11 @@ import {
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
+  GracefulShutdownManager,
+  HealthCheckRegistry,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
+  livenessCheck,
   type OutboxWorker,
   PermissionRegistry,
   runMigrations,
@@ -144,6 +152,12 @@ export const devCommand = defineCommand({
     },
   },
   async run({ args: _args }) {
+    // ── Environment detection ──
+    const environment = detectEnvironment();
+    console.log(
+      `[linch] Environment: ${environment.name} (verbose=${environment.features.verboseLogging}, strictValidation=${environment.features.strictValidation})`,
+    );
+
     console.log("[linch] Loading configuration...");
 
     // Load project config
@@ -695,6 +709,34 @@ export const devCommand = defineCommand({
       `[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`,
     );
 
+    // ── Health check registry ──
+    const healthCheckRegistry = new HealthCheckRegistry();
+    healthCheckRegistry.register("liveness", livenessCheck);
+    if (dbInstance) {
+      healthCheckRegistry.register(
+        "database",
+        createDatabaseCheck(async () => {
+          // biome-ignore lint/style/noNonNullAssertion: guarded by if(dbInstance)
+          await checkConnection(dbInstance!);
+          return true;
+        }),
+      );
+    }
+    healthCheckRegistry.register(
+      "schemas",
+      createSchemaCheck(() => schemaRegistry.getAll().length),
+    );
+    console.log(
+      `[linch] HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
+    );
+
+    // ── Cache manager with event-driven invalidation ──
+    const cacheManager = new CacheManager({
+      eventBus,
+      defaultTtl: environment.isDevelopment ? 30_000 : 300_000, // 30s dev, 5min prod
+    });
+    console.log("[linch] CacheManager created (event-driven invalidation enabled)");
+
     const transportCtx: TransportContext = {
       commandLayer,
       executor,
@@ -715,6 +757,9 @@ export const devCommand = defineCommand({
       flowRegistry,
       capabilities,
       ontologyRegistry,
+      cacheManager,
+      healthCheckRegistry,
+      environment,
     };
 
     // Start all transports
@@ -739,35 +784,42 @@ export const devCommand = defineCommand({
       );
     }
 
+    // ── Graceful shutdown manager ──
+    const shutdownManager = new GracefulShutdownManager({ timeoutMs: 15_000 });
+
+    // Priority 10: drain transports (HTTP connections, etc.)
+    for (const lc of lifecycles) {
+      shutdownManager.register("transport", () => lc.stop(), 10);
+    }
+
+    // Priority 20: stop event bus + outbox worker
+    if (eventBus) {
+      shutdownManager.register(
+        "event-bus",
+        () => {
+          // EventBus doesn't have an explicit stop — no-op placeholder for future use
+        },
+        20,
+      );
+    }
+    if (outboxWorker) {
+      shutdownManager.register("outbox-worker", () => outboxWorker.stop(), 20);
+    }
+
+    // Priority 30: stop Restate endpoint
+    if (restateEndpoint) {
+      const endpoint = restateEndpoint;
+      shutdownManager.register("restate-endpoint", () => endpoint.stop(), 30);
+    }
+
+    // Priority 90: close database connection (must be last)
+    if (usingDatabase) {
+      shutdownManager.register("database", () => closeDatabase(), 90);
+    }
+
+    shutdownManager.bindSignals();
+
     console.log("");
     console.log("[linch] Dev server ready. Press Ctrl+C to stop.");
-
-    // Graceful shutdown
-    process.on("SIGINT", async () => {
-      console.log("\n[linch] Shutting down...");
-      for (const lc of lifecycles) {
-        try {
-          await lc.stop();
-        } catch {
-          // Ignore shutdown errors
-        }
-      }
-      if (restateEndpoint) {
-        try {
-          await restateEndpoint.stop();
-          console.log("[linch] Restate endpoint stopped.");
-        } catch {
-          // Ignore shutdown errors
-        }
-      }
-      if (outboxWorker) {
-        await outboxWorker.stop();
-      }
-      if (usingDatabase) {
-        await closeDatabase();
-        console.log("[linch] Database connection closed.");
-      }
-      process.exit(0);
-    });
   },
 });

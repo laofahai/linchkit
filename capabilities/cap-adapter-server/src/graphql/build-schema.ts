@@ -16,9 +16,12 @@ import type {
   ExecutionLogger,
   ExecutionStatus,
   LinkDefinition,
+  MaskRecordOptions,
+  PermissionGroupDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
 import { resolveTranslatableRow } from "@linchkit/core";
+import { maskRecord, maskRecords } from "@linchkit/core/server";
 import {
   GraphQLBoolean,
   GraphQLError,
@@ -76,6 +79,8 @@ export interface GraphQLContext {
   locale?: string;
   /** Data provider for link relation resolvers */
   dataProvider?: DataProvider;
+  /** Permission groups for data masking unmask checks */
+  permissionGroups?: PermissionGroupDefinition[];
 }
 
 /** Maximum page size for list queries */
@@ -280,6 +285,8 @@ export interface BuildGraphQLSchemaOptions {
   links?: LinkDefinition[];
   /** Event bus for wiring GraphQL subscriptions (real-time CRUD events via SSE) */
   eventBus?: EventBus;
+  /** Permission groups for data masking (unmask permission checks) */
+  permissionGroups?: PermissionGroupDefinition[];
 }
 
 /**
@@ -301,6 +308,46 @@ export function buildGraphQLSchema(
   const executionLogger = options?.executionLogger;
   const links = options?.links ?? [];
   const eventBus = options?.eventBus;
+  const permissionGroups = options?.permissionGroups ?? [];
+
+  // Build schema lookup map for data masking
+  const schemaMap = new Map<string, SchemaDefinition>();
+  for (const s of schemas) {
+    schemaMap.set(s.name, s);
+  }
+
+  /** Field types whose masked values cannot be represented as strings in GraphQL (must become null) */
+  const NON_STRING_FIELD_TYPES = new Set(["number", "boolean", "date", "datetime", "json"]);
+
+  /** Apply data masking to a record based on actor permissions */
+  const applyMasking = (
+    record: Record<string, unknown>,
+    schemaName: string,
+    ctx: GraphQLContext,
+  ): Record<string, unknown> => {
+    const schemaDef = schemaMap.get(schemaName);
+    if (!schemaDef) return record;
+    const maskOpts: MaskRecordOptions = {
+      actor: ctx.actor,
+      groups: ctx.permissionGroups ?? permissionGroups,
+      capabilityName: schemaDef.name,
+    };
+    const masked = maskRecord(record, schemaDef, maskOpts);
+
+    // Coerce masked non-string fields to null — GraphQL cannot serialize
+    // a mask placeholder string (e.g. "***") as Float, Boolean, or Date.
+    for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+      if (
+        NON_STRING_FIELD_TYPES.has(fieldDef.type) &&
+        typeof masked[fieldName] === "string" &&
+        masked[fieldName] !== record[fieldName]
+      ) {
+        masked[fieldName] = null;
+      }
+    }
+
+    return masked;
+  };
 
   if (schemas.length === 0) {
     // Return a minimal valid schema with a placeholder query
@@ -361,11 +408,12 @@ export function buildGraphQLSchema(
               ...(locale ? { locale } : {}),
             };
             try {
-              return await dataProvider.get(
+              const record = await dataProvider.get(
                 schemaName,
                 args.id,
                 Object.keys(opts).length > 0 ? opts : undefined,
               );
+              return record ? applyMasking(record as Record<string, unknown>, schemaName, ctx) : null;
             } catch (err) {
               console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
               return null;
@@ -443,8 +491,12 @@ export function buildGraphQLSchema(
               queryFilter.sortOrder = args.sortOrder ?? "asc";
             }
 
-            const items = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
+            const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
             const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
+            // Apply data masking to each record in the result set
+            const items = (rawItems as Record<string, unknown>[]).map((r) =>
+              applyMasking(r, schemaName, ctx),
+            );
             return { items, total };
           }
         : () => ({ items: [], total: 0 }),

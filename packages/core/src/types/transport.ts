@@ -6,7 +6,10 @@
  * Core only defines the contract; concrete implementations live in capabilities.
  */
 
+import type { CacheManager } from "../cache/cache-manager";
 import type { ConfigRegistry } from "../config/config-registry";
+import type { EnvironmentConfig } from "../deployment/environment";
+import type { HealthCheckRegistry } from "../deployment/health-check";
 import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
@@ -56,6 +59,12 @@ export interface TransportContext {
   flowRegistry?: FlowRegistry;
   /** Ontology registry — unified semantic facade over all registries */
   ontologyRegistry?: OntologyRegistry;
+  /** Cache manager — multi-layer cache with event-driven invalidation */
+  cacheManager?: CacheManager;
+  /** Health check registry — liveness and readiness probes */
+  healthCheckRegistry?: HealthCheckRegistry;
+  /** Detected environment config with feature flags */
+  environment?: EnvironmentConfig;
 }
 
 /** Lifecycle handle returned by transport factory */

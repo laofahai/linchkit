@@ -95,7 +95,7 @@ describe("Purchase Request E2E Flow", () => {
     const res = await fetch(`${BASE}/health`);
     expect(res.ok).toBe(true);
     const body = (await res.json()) as { status: string };
-    expect(body.status).toBe("ok");
+    expect(body.status).toBe("healthy");
   });
 
   test("schemas API returns purchase_request", async () => {

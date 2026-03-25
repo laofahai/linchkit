@@ -121,6 +121,7 @@ export {
   resolveField,
 } from "./engine/condition-evaluator";
 export type { PermissionRegistry } from "./engine/permission-engine";
+export type { PermissionGroupDefinition } from "./types/permission";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
 export type {

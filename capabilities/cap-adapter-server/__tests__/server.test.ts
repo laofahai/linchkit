@@ -119,9 +119,9 @@ describe("createServer", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.status).toBe("ok");
+    expect(body.status).toBe("healthy");
     expect(body.timestamp).toBeDefined();
-    expect(body.version).toBe("0.0.1");
+    expect(body.checks).toBeDefined();
   });
 
   test("GraphQL endpoint responds to introspection query", async () => {

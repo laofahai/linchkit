@@ -18,6 +18,7 @@ import type {
   SchemaRegistry,
   ViewDefinition,
 } from "@linchkit/core";
+import type { HealthCheckRegistry } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
@@ -64,6 +65,8 @@ export interface ServerOptions {
    * - `undefined`: defaults to localhost dev origins (ports 3000, 3001)
    */
   cors?: string[] | boolean;
+  /** Health check registry for /health endpoint. When provided, runs all registered checks. */
+  healthCheckRegistry?: HealthCheckRegistry;
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -196,6 +199,7 @@ export function createServer(
   const resolveRequestActor = options?.resolveRequestActor;
   const dataProvider = options?.dataProvider;
   const corsOption = options?.cors;
+  const healthCheckRegistry = options?.healthCheckRegistry;
 
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
@@ -231,12 +235,27 @@ export function createServer(
         credentials: false,
       }),
     )
-    // Health check
-    .get("/health", () => ({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      version: "0.0.1",
-    }))
+    // Health check — runs all registered probes when HealthCheckRegistry is provided
+    .get("/health", async ({ set }) => {
+      if (healthCheckRegistry) {
+        const result = await healthCheckRegistry.runAll();
+        // Return 503 when any check is unhealthy so load balancers can route away
+        if (result.status === "unhealthy") {
+          set.status = 503;
+        }
+        return {
+          status: result.status,
+          checks: result.checks,
+          timestamp: result.timestamp,
+        };
+      }
+      // Fallback: basic liveness response when no registry is configured
+      return {
+        status: "healthy",
+        checks: [],
+        timestamp: new Date().toISOString(),
+      };
+    })
     // App config — tells the UI which capabilities are loaded and their pages
     .get("/api/app-config", () => {
       const authEnabled = capabilities.some((c) => c.name === "cap-auth");

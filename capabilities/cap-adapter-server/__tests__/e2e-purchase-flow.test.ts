@@ -144,7 +144,7 @@ describe("E2E: Purchase management flow", () => {
     const res = await fetch(`${BASE}/health`);
     const body = (await res.json()) as Record<string, unknown>;
     expect(res.status).toBe(200);
-    expect(body.status).toBe("ok");
+    expect(body.status).toBe("healthy");
   });
 
   test("2. Create a purchase request via REST", async () => {

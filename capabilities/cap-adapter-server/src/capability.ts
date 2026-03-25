@@ -44,6 +44,9 @@ export const capAdapterServer = defineCapability({
             viewsMap.set(view.schema, list);
           }
 
+          // Collect permission groups for data masking in GraphQL resolvers
+          const permGroups = ctx.permissionRegistry?.getAll() ?? [];
+
           // Build GraphQL schema using the shared executor + data provider from CLI
           const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
             executor: ctx.executor,
@@ -51,6 +54,7 @@ export const capAdapterServer = defineCapability({
             executionLogger: ctx.executionLogger,
             links: ctx.links,
             eventBus: ctx.eventBus,
+            permissionGroups: permGroups,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
@@ -67,6 +71,8 @@ export const capAdapterServer = defineCapability({
             schemaRegistry: ctx.schemaRegistry,
             views: viewsMap,
             capabilities: ctx.capabilities,
+            dataProvider: ctx.dataProvider,
+            healthCheckRegistry: ctx.healthCheckRegistry,
             // Extract tenant ID from X-Tenant-ID header.
             // TODO: support JWT-based tenant extraction via auth capability
             resolveRequestTenantId: (request: Request) => {
