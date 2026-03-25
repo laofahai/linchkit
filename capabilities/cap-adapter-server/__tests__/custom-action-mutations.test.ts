@@ -90,7 +90,7 @@ const graphqlSchema = buildGraphQLSchema([orderSchema], {
 });
 
 const app = createServer(graphqlSchema);
-const port = 3997;
+const port = 4025;
 
 beforeAll(() => {
   app.listen(port);

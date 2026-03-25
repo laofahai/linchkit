@@ -107,7 +107,7 @@ const graphqlSchema = buildGraphQLSchema([employeeSchema, orderSchema], {
   derivedPropertyEngine: derivedEngine,
 });
 const app = createServer(graphqlSchema);
-const port = 3996;
+const port = 4021;
 
 beforeAll(() => {
   app.listen(port);

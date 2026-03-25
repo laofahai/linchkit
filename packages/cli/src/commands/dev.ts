@@ -23,69 +23,36 @@ import type {
   SchemaDefinition,
   StateDefinition,
   TransportAdapterDefinition,
-  TransportContext,
   TransportLifecycle,
   ViewDefinition,
 } from "@linchkit/core";
-import { ConfigRegistry, createDerivedPropertyEngine, databaseConfig } from "@linchkit/core";
+import { ConfigRegistry, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
-  AIAuditLogger,
-  AIBoundary,
   buildTableColumns,
-  CacheManager,
-  checkConnection,
-  checkRestateHealth,
   closeDatabase,
-  compileFlow,
   convertSchemaRelationshipFieldsToImplicitLinks,
-  createActionExecutor,
-  createApprovalEngine,
-  createApprovalVerifier,
-  createAutomationEngine,
-  createAutomationRegistry,
-  createCommandLayer,
   createDatabase,
-  createDatabaseCheck,
-  createEventBus,
-  createFlowRegistry,
-  createFlowStepContext,
   createInterfaceRegistry,
   createLinkRegistry,
-  createOntologyRegistry,
-  createOutboxWorker,
-  createPersistentEventBus,
-  createRestateFlowEngine,
-  createSchemaCheck,
-  createSyncFlowEngine,
   createTenantIsolationMiddleware,
-  createTriggerBinding,
-  DrizzleApprovalStore,
   DrizzleDataProvider,
-  DrizzleExecutionLogger,
-  DrizzleTransactionManager,
   InMemoryStore,
   detectEnvironment,
-  type FlowEngine,
   GracefulShutdownManager,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
-  HealthCheckRegistry,
-  InMemoryApprovalStore,
-  InMemoryExecutionLogger,
-  livenessCheck,
-  type OutboxWorker,
   PermissionRegistry,
   runMigrations,
   SchemaRegistry,
-  setupRestateEndpoint,
   TableRegistry,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { getTableConfig, pgTable } from "drizzle-orm/pg-core";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
+import { wireDevEngines } from "./dev-wiring";
 
 export const devCommand = defineCommand({
   meta: {
@@ -504,346 +471,35 @@ export const devCommand = defineCommand({
       );
     }
 
-    // Create execution logger — Drizzle-backed when DB is available
-    const executionLogger = dbInstance
-      ? new DrizzleExecutionLogger(dbInstance)
-      : new InMemoryExecutionLogger();
-    console.log(
-      `[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`,
-    );
-
-    // Create approval store — Drizzle-backed when DB is available
-    const approvalStore = dbInstance
-      ? new DrizzleApprovalStore(dbInstance)
-      : new InMemoryApprovalStore();
-    console.log(`[linch] Using ${dbInstance ? "DrizzleApprovalStore" : "InMemoryApprovalStore"}`);
-
-    // Create transaction manager when DB is available (Transactional Outbox pattern)
-    const transactionManager =
-      dbInstance && dataProvider instanceof DrizzleDataProvider
-        ? new DrizzleTransactionManager(dbInstance, dataProvider)
-        : undefined;
-    if (transactionManager) {
-      console.log("[linch] Using DrizzleTransactionManager (Transactional Outbox)");
-    }
-
-    const executor = createActionExecutor({
-      dataProvider: devDataProvider,
-      transactionManager,
-      executionLogger,
-      configRegistry: registry,
-    });
-    for (const action of actionRegistry.getAll()) {
-      executor.registry.register(action);
-    }
-    const commandLayer = createCommandLayer({
-      executor,
-      verifyApproval: createApprovalVerifier(approvalStore),
-    });
-
-    // Register all collected middlewares on the command layer
-    for (const mw of middlewares) {
-      commandLayer.use(mw);
-    }
-    if (middlewares.length > 0) {
-      console.log(
-        `[linch] Registered ${middlewares.length} middleware(s) on CommandLayer: ${middlewares.map((m) => `${m.name}[${m.slot}]`).join(", ")}`,
-      );
-    }
-
-    // Create event bus — use PersistentEventBus when database is available
-    const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
-      ? createPersistentEventBus(dbInstance)
-      : createEventBus();
-
-    // Start OutboxWorker for reliable event retry when DB is available
-    let outboxWorker: OutboxWorker | undefined;
-    if (dbInstance && eventHandlerRegistry) {
-      outboxWorker = createOutboxWorker({
-        db: dbInstance,
-        registry: eventHandlerRegistry,
-      });
-      outboxWorker.start();
-      console.log("[linch] Using PersistentEventBus + OutboxWorker (events persisted to database)");
-    } else {
-      console.log("[linch] Using in-memory EventBus");
-    }
-
-    // Create approval engine — wired with event bus and command layer for re-execution
-    const approvalEngine = createApprovalEngine({
-      store: approvalStore,
-      eventBus,
-      commandLayer,
-      enforceAssignee: false, // M0b: not enforced yet
-    });
-
-    // ── AI Audit Logger — always created (lightweight, no external deps) ──
-    const aiAuditLogger = new AIAuditLogger({
-      onAuditEntry: (entry) => {
-        console.log(
-          `[linch] AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
-        );
-      },
-    });
-    console.log("[linch] AIAuditLogger created");
-
-    // ── AI Boundary — wraps AI service with default safety policy ──
-    // Stub AI service until a real provider is configured via capability
-    const stubAiService = {
-      complete: async () => {
-        throw new Error("AI service not configured. Register an AI provider capability.");
-      },
-    };
-    const aiBoundary = new AIBoundary({
-      aiService: stubAiService,
-      onUsageRecord: (record) => {
-        // Forward usage records to audit logger as AI call events
-        aiAuditLogger.logCall({
-          actorId: record.actorId,
-          tenantId: record.tenantId,
-          agentModel: record.model,
-          input: `[${record.source}] ${record.actionName ?? "unknown"}`,
-          output: record.status,
-          actionName: record.actionName,
-          tokenUsage: {
-            inputTokens: record.inputTokens,
-            outputTokens: record.outputTokens,
-            totalTokens: record.totalTokens,
-          },
-          metadata: {
-            cost: record.cost,
-            duration: record.duration,
-            policyName: record.policyName,
-            blockReason: record.blockReason,
-          },
-        });
-      },
-      onBudgetAlert: (tenantId, budget, threshold) => {
-        console.warn(
-          `[linch] AI budget alert: tenant=${tenantId ?? "global"} threshold=${threshold} costToday=$${budget.costToday.toFixed(2)}`,
-        );
-      },
-    });
-    console.log("[linch] AIBoundary created with default policy");
-
-    // Create FlowRegistry and collect flows from capabilities
-    const flowRegistry = createFlowRegistry();
-    let flowCount = 0;
-    for (const cap of capabilities) {
-      if (cap.flows) {
-        for (const flow of cap.flows) {
-          flowRegistry.register(flow);
-          flowCount++;
-        }
-      }
-    }
-    if (flowCount > 0) {
-      console.log(`[linch] Registered ${flowCount} flow(s)`);
-    }
-
-    // Wire flow engine — dual-mode: Restate (durable) or Sync (fallback)
-    let restateEndpoint: Awaited<ReturnType<typeof setupRestateEndpoint>> | undefined;
-
-    if (flowCount > 0) {
-      // Create step context for flow execution
-      // AIBoundary wraps the stub AI service with policy enforcement.
-      // When a real AI provider capability is registered, replace stubAiService.
-      const flowStepContext = createFlowStepContext({
-        aiService: stubAiService,
-        aiBoundary,
-        actionEngine: {
-          execute: (actionName, input, options) => {
-            // Default to system actor when no actor provided in flow context
-            const actor = options?.actor ?? {
-              type: "system" as const,
-              id: "flow-engine",
-              groups: [],
-            };
-            return executor.execute(actionName, input, actor, {
-              tenantId: options?.tenantId,
-              channel: "internal",
-            });
-          },
-        },
-        actionRegistry: actionRegistry,
-      });
-
-      // Determine which flow engine to use
-      let flowEngine: FlowEngine;
-      const restateConfig = config.flow?.restate;
-
-      if (restateConfig) {
-        // Attempt Restate durable execution mode
-        const healthy = await checkRestateHealth(restateConfig.adminUrl);
-
-        if (healthy) {
-          console.log("[linch] Restate server detected — using durable flow execution");
-
-          // Compile all flows into Restate workflow services
-          const compiledServices: unknown[] = [];
-          for (const flow of flowRegistry.getAll()) {
-            const compiled = compileFlow(flow, flowStepContext);
-            compiledServices.push(compiled.restateService);
-          }
-
-          // Start the Restate HTTP endpoint and register deployments
-          try {
-            restateEndpoint = await setupRestateEndpoint(restateConfig, compiledServices);
-            const port = restateConfig.servicePort ?? 9080;
-            console.log(`[linch] Restate service endpoint listening on :${port}`);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            console.warn(`[linch] Failed to start Restate endpoint: ${msg}`);
-            console.warn("[linch] Falling back to sync flow engine");
-          }
-
-          // Create RestateFlowEngine for starting/signaling flows via ingress
-          if (restateEndpoint) {
-            flowEngine = createRestateFlowEngine(restateConfig);
-            for (const flow of flowRegistry.getAll()) {
-              flowEngine.registerFlow(flow);
-            }
-          } else {
-            // Restate endpoint failed — fall back to sync engine
-            flowEngine = createSyncFlowEngine(flowStepContext);
-            for (const flow of flowRegistry.getAll()) {
-              flowEngine.registerFlow(flow);
-            }
-          }
-        } else {
-          console.log(
-            "[linch] Restate server not reachable — using sync flow engine (no durability)",
-          );
-          flowEngine = createSyncFlowEngine(flowStepContext);
-          for (const flow of flowRegistry.getAll()) {
-            flowEngine.registerFlow(flow);
-          }
-        }
-      } else {
-        // No Restate config — use sync fallback
-        console.log("[linch] No Restate config — using sync flow engine");
-        flowEngine = createSyncFlowEngine(flowStepContext);
-        for (const flow of flowRegistry.getAll()) {
-          flowEngine.registerFlow(flow);
-        }
-      }
-
-      // Bind flow triggers to the event bus
-      // This automatically starts flows when their trigger events occur
-      const triggerBinding = createTriggerBinding(eventBus);
-      triggerBinding.bindAll(flowRegistry.getAll(), flowEngine);
-    }
-
-    // Build DerivedPropertyEngine — auto-computes derived fields on write and read
-    const derivedPropertyEngine = createDerivedPropertyEngine();
-    derivedPropertyEngine.register(schemas);
-    const derivedFieldCount = schemas.reduce(
-      (acc, s) => acc + derivedPropertyEngine.getDerivedFields(s.name).length,
-      0,
-    );
-    if (derivedFieldCount > 0) {
-      console.log(`[linch] DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
-    }
-
-    // ── Automation engine — reactive event-driven automations ──
-    const automationRegistry = createAutomationRegistry();
-    for (const automation of automations) {
-      automationRegistry.register(automation);
-    }
-
-    const automationEngine = createAutomationEngine({
-      registry: automationRegistry,
-      eventBus,
-      actionExecutor: {
-        executeAction: async (actionName, input) => {
-          const result = await executor.execute(
-            actionName,
-            input,
-            { type: "system", id: "automation-engine", groups: [] },
-            { channel: "internal" },
-          );
-          return result;
-        },
-      },
-    });
-
-    if (automations.length > 0) {
-      automationEngine.start();
-      console.log(`[linch] AutomationEngine started with ${automations.length} automation(s)`);
-    }
-
-    // Build OntologyRegistry — unified semantic facade over all registries
-    const ontologyRegistry = createOntologyRegistry({
-      schemas: schemaRegistry,
-      actions: actionRegistry,
-      rules,
-      states,
-      views,
-      links: linkRegistry,
-      flows: flowRegistry,
-      handlers: eventHandlerRegistry,
-      interfaces: interfaceRegistry,
-    });
-    console.log(
-      `[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`,
-    );
-
-    // ── Health check registry ──
-    const healthCheckRegistry = new HealthCheckRegistry();
-    healthCheckRegistry.register("liveness", livenessCheck);
-    if (dbInstance) {
-      healthCheckRegistry.register(
-        "database",
-        createDatabaseCheck(async () => {
-          // biome-ignore lint/style/noNonNullAssertion: guarded by if(dbInstance)
-          await checkConnection(dbInstance!);
-          return true;
-        }),
-      );
-    }
-    healthCheckRegistry.register(
-      "schemas",
-      createSchemaCheck(() => schemaRegistry.getAll().length),
-    );
-    console.log(
-      `[linch] HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
-    );
-
-    // ── Cache manager with event-driven invalidation ──
-    const cacheManager = new CacheManager({
-      eventBus,
-      defaultTtl: environment.isDevelopment ? 30_000 : 300_000, // 30s dev, 5min prod
-    });
-    console.log("[linch] CacheManager created (event-driven invalidation enabled)");
-
-    const transportCtx: TransportContext = {
-      commandLayer,
-      executor,
+    // ── Wire all runtime engines (executor, event bus, flows, automation, etc.) ──
+    const {
+      transportCtx,
+      restateEndpoint,
+      outboxWorker,
+      automationEngine,
+      automationsStarted,
+    } = await wireDevEngines({
+      config,
+      registry,
+      environment,
       schemaRegistry,
+      actionRegistry,
+      linkRegistry,
+      interfaceRegistry,
+      permissionRegistry,
       schemas,
       actions,
       views,
       states,
       links,
-      linkRegistry,
+      rules,
+      automations,
       middlewares,
-      config: registry,
-      dataProvider: devDataProvider,
-      eventBus,
-      executionLogger,
-      approvalEngine,
-      permissionRegistry,
-      flowRegistry,
       capabilities,
-      ontologyRegistry,
-      cacheManager,
-      healthCheckRegistry,
-      environment,
-      derivedPropertyEngine,
-      automationEngine,
-      aiBoundary,
-      aiAuditLogger,
-    };
+      dbInstance,
+      dataProvider: devDataProvider,
+      usingDatabase,
+    });
 
     // Start all transports
     const lifecycles: TransportLifecycle[] = [];
@@ -876,20 +532,18 @@ export const devCommand = defineCommand({
     }
 
     // Priority 15: stop automation engine
-    if (automations.length > 0) {
+    if (automationsStarted) {
       shutdownManager.register("automation-engine", () => automationEngine.stop(), 15);
     }
 
     // Priority 20: stop event bus + outbox worker
-    if (eventBus) {
-      shutdownManager.register(
-        "event-bus",
-        () => {
-          // EventBus doesn't have an explicit stop — no-op placeholder for future use
-        },
-        20,
-      );
-    }
+    shutdownManager.register(
+      "event-bus",
+      () => {
+        // EventBus doesn't have an explicit stop — no-op placeholder for future use
+      },
+      20,
+    );
     if (outboxWorker) {
       shutdownManager.register("outbox-worker", () => outboxWorker.stop(), 20);
     }
