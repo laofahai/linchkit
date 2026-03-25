@@ -1,5 +1,11 @@
 /**
  * Purchase request form view definition
+ *
+ * Demonstrates:
+ * - Layout with groups, notebooks, and pages
+ * - Derived fields displayed as readonly
+ * - State-dependent action visibility
+ * - Audit trail fields in a dedicated tab
  */
 
 import type { ViewDefinition } from "@linchkit/core";
@@ -12,12 +18,19 @@ export const purchaseRequestFormView: ViewDefinition = {
   fields: [
     { field: "title" },
     { field: "amount" },
+    { field: "total_amount", readonly: true },
+    { field: "display_title", readonly: true },
     { field: "department" },
     { field: "priority" },
     { field: "status", readonly: true },
     { field: "description" },
     { field: "notes" },
     { field: "requester" },
+    { field: "requester_email" },
+    { field: "submitted_at", readonly: true },
+    { field: "approved_at", readonly: true },
+    { field: "approved_by", readonly: true },
+    { field: "audit_notes" },
   ],
   layout: {
     nodes: [
@@ -30,6 +43,7 @@ export const purchaseRequestFormView: ViewDefinition = {
               { type: "field", field: "title" },
               { type: "field", field: "department" },
               { type: "field", field: "amount" },
+              { type: "field", field: "total_amount" },
             ],
           },
           {
@@ -37,6 +51,8 @@ export const purchaseRequestFormView: ViewDefinition = {
             children: [
               { type: "field", field: "priority" },
               { type: "field", field: "requester" },
+              { type: "field", field: "requester_email" },
+              { type: "field", field: "display_title" },
             ],
           },
         ],
@@ -63,6 +79,21 @@ export const purchaseRequestFormView: ViewDefinition = {
                 type: "group",
                 columns: 1,
                 children: [{ type: "field", field: "notes", nolabel: true }],
+              },
+            ],
+          },
+          {
+            type: "page",
+            title: "Audit Trail",
+            children: [
+              {
+                type: "group",
+                children: [
+                  { type: "field", field: "submitted_at" },
+                  { type: "field", field: "approved_at" },
+                  { type: "field", field: "approved_by" },
+                  { type: "field", field: "audit_notes" },
+                ],
               },
             ],
           },

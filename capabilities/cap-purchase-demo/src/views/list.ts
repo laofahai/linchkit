@@ -1,5 +1,9 @@
 /**
  * Purchase request list view definition
+ *
+ * Demonstrates:
+ * - Derived field in list columns (total_amount)
+ * - Sorted by priority by default
  */
 
 import type { ViewDefinition } from "@linchkit/core";
@@ -11,7 +15,9 @@ export const purchaseRequestListView: ViewDefinition = {
   label: "Purchase Requests",
   fields: [
     { field: "title", sortable: true },
+    { field: "requester", sortable: true, width: 140 },
     { field: "amount", sortable: true, width: 120 },
+    { field: "total_amount", sortable: true, width: 130 },
     { field: "department", sortable: true },
     { field: "priority", sortable: true, width: 100 },
     { field: "status", sortable: true, width: 120 },

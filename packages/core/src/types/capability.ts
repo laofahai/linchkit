@@ -7,6 +7,7 @@
 
 import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
+import type { AutomationDefinition } from "./automation";
 import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { FlowDefinition } from "./flow";
@@ -14,7 +15,7 @@ import type { LinkDefinition } from "./link";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RuleDefinition, RuleOverride } from "./rule";
-import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
+import type { InterfaceDefinition, SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
@@ -75,6 +76,7 @@ export interface CapabilityDefinition {
 
   dependencies?: string[];
 
+  interfaces?: InterfaceDefinition[];
   schemas?: SchemaDefinition[];
   actions?: ActionDefinition[];
   rules?: RuleDefinition[];
@@ -85,6 +87,7 @@ export interface CapabilityDefinition {
   views?: ViewDefinition[];
   pages?: PageRegistration[];
   flows?: FlowDefinition[];
+  automations?: AutomationDefinition[];
   ui?: CapabilityUiDefinition;
 
   /**

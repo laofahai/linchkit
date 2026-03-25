@@ -11,6 +11,7 @@
 
 import type {
   ActionDefinition,
+  AutomationDefinition,
   CapabilityDefinition,
   DataProvider,
   EventHandlerDefinition,
@@ -39,6 +40,8 @@ import {
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
+  createAutomationEngine,
+  createAutomationRegistry,
   createCommandLayer,
   createDatabase,
   createDatabaseCheck,
@@ -205,6 +208,7 @@ export const devCommand = defineCommand({
     const links: LinkDefinition[] = [];
     const rules: RuleDefinition[] = [];
     const eventHandlers: EventHandlerDefinition[] = [];
+    const automations: AutomationDefinition[] = [];
     const middlewares: MiddlewareRegistration[] = [];
     const transports: TransportAdapterDefinition[] = [];
 
@@ -216,6 +220,7 @@ export const devCommand = defineCommand({
       if (cap.links) links.push(...cap.links);
       if (cap.rules) rules.push(...cap.rules);
       if (cap.eventHandlers) eventHandlers.push(...cap.eventHandlers);
+      if (cap.automations) automations.push(...cap.automations);
       if (cap.extensions?.middlewares) {
         for (const [i, mw] of cap.extensions.middlewares.entries()) {
           middlewares.push({
@@ -706,6 +711,35 @@ export const devCommand = defineCommand({
       console.log(`[linch] DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
     }
 
+    // ── Automation engine — reactive event-driven automations ──
+    const automationRegistry = createAutomationRegistry();
+    for (const automation of automations) {
+      automationRegistry.register(automation);
+    }
+
+    const automationEngine = createAutomationEngine({
+      registry: automationRegistry,
+      eventBus,
+      actionExecutor: {
+        executeAction: async (actionName, input) => {
+          const result = await executor.execute(
+            actionName,
+            input,
+            { type: "system", id: "automation-engine", groups: [] },
+            { channel: "internal" },
+          );
+          return result;
+        },
+      },
+    });
+
+    if (automations.length > 0) {
+      automationEngine.start();
+      console.log(
+        `[linch] AutomationEngine started with ${automations.length} automation(s)`,
+      );
+    }
+
     // Build OntologyRegistry — unified semantic facade over all registries
     const ontologyRegistry = createOntologyRegistry({
       schemas: schemaRegistry,
@@ -773,6 +807,7 @@ export const devCommand = defineCommand({
       healthCheckRegistry,
       environment,
       derivedPropertyEngine,
+      automationEngine,
     };
 
     // Start all transports
@@ -803,6 +838,11 @@ export const devCommand = defineCommand({
     // Priority 10: drain transports (HTTP connections, etc.)
     for (const lc of lifecycles) {
       shutdownManager.register("transport", () => lc.stop(), 10);
+    }
+
+    // Priority 15: stop automation engine
+    if (automations.length > 0) {
+      shutdownManager.register("automation-engine", () => automationEngine.stop(), 15);
     }
 
     // Priority 20: stop event bus + outbox worker

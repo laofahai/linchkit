@@ -1,13 +1,24 @@
 /**
  * cap-purchase-demo capability definition
  *
- * Demo purchase request capability showcasing schema, actions,
- * state machine, views, and seed data.
+ * Demo purchase request capability showcasing:
+ * - Schema interfaces (auditable)
+ * - Derived/computed properties
+ * - Reactive automations (state change triggers)
+ * - Data masking (sensitive fields)
+ * - Rich schema presentation metadata
+ * - Links, state machine, permission groups
  */
 
 import { defineCapability } from "@linchkit/core";
 import { approveAction } from "./actions/approve";
 import { submitAction } from "./actions/submit";
+import {
+  autoSetApprovedFields,
+  autoSetSubmittedAt,
+  notifyHighPrioritySubmission,
+} from "./automations/purchase-status";
+import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./links";
 import { departmentSchema } from "./schemas/department";
 import { purchaseItemSchema } from "./schemas/purchase-item";
@@ -20,16 +31,20 @@ import { purchaseRequestListView } from "./views/list";
 export const capPurchaseDemo = defineCapability({
   name: "cap-purchase-demo",
   label: "Purchase Request Demo",
-  description: "Demo purchase request capability with approval workflow",
+  description:
+    "Demo purchase request capability with approval workflow, " +
+    "showcasing interfaces, derived fields, automations, and data masking",
   type: "standard",
   category: "business",
-  version: "0.0.1",
+  version: "0.1.0",
 
+  interfaces: [auditableInterface],
   schemas: [purchaseRequestSchema, departmentSchema, purchaseItemSchema],
   actions: [submitAction, approveAction],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView],
   links: [requestToDepartment, requestToItems],
+  automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
   extensions: {
     permissionGroups: [
@@ -51,7 +66,7 @@ export const capPurchaseDemo = defineCapability({
       {
         name: "purchase_manager",
         label: "Purchase Manager",
-        description: "Can approve purchase requests",
+        description: "Can approve purchase requests and view sensitive fields",
         permissions: {
           "cap-purchase-demo": {
             purchase_request: {

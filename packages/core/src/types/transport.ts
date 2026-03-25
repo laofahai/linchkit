@@ -73,6 +73,10 @@ export interface TransportContext {
   automationEngine?: AutomationEngine;
   /** Detected environment config with feature flags */
   environment?: EnvironmentConfig;
+  /** AI boundary engine — enforces safety constraints on AI operations */
+  aiBoundary?: AIBoundary;
+  /** AI audit logger — tracks all AI decisions for compliance */
+  aiAuditLogger?: AIAuditLogger;
 }
 
 /** Lifecycle handle returned by transport factory */

@@ -78,7 +78,7 @@ const allSchemas = capContributions.schemas;
 // Generate CRUD actions, skip if capability already defined one with same name
 const capActionNames = new Set(capContributions.actions.map((a) => a.name));
 const crudActions = allSchemas
-  .flatMap(generateCrudActions)
+  .flatMap((s) => generateCrudActions(s))
   .filter((crud) => !capActionNames.has(crud.name));
 
 const allActions: ActionDefinition[] = [...crudActions, ...capContributions.actions];

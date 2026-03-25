@@ -2,12 +2,19 @@
  * @linchkit/cap-purchase-demo — Purchase request demo capability
  *
  * Provides a complete purchase request workflow with schema,
- * custom actions (submit/approve), state machine, links, and views.
+ * custom actions (submit/approve), state machine, links, views,
+ * interfaces, derived fields, automations, and data masking.
  */
 
 export { approveAction } from "./actions/approve";
 export { submitAction } from "./actions/submit";
+export {
+  autoSetApprovedFields,
+  autoSetSubmittedAt,
+  notifyHighPrioritySubmission,
+} from "./automations/purchase-status";
 export { capPurchaseDemo } from "./capability";
+export { auditableInterface } from "./interfaces/auditable";
 export { requestToDepartment, requestToItems } from "./links";
 export { departmentSchema } from "./schemas/department";
 export { purchaseItemSchema } from "./schemas/purchase-item";

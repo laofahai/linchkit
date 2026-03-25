@@ -11,7 +11,7 @@ export { capAdapterServer } from "./capability";
 export type { FindManyOptions } from "./data/in-memory-store";
 export { InMemoryStore } from "./data/in-memory-store";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";
-export type { BuildGraphQLSchemaOptions, GraphQLContext } from "./graphql/build-schema";
+export type { BuildGraphQLSchemaOptions, GenerateCrudActionsOptions, GraphQLContext } from "./graphql/build-schema";
 export { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 export {
   buildSubscriptionFields,
