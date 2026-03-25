@@ -68,12 +68,14 @@ export const autoSetApprovedFields = defineAutomation({
 });
 
 /**
- * Notify when a high-priority request is submitted.
- * Trigger: stateChange on purchase_request, to="pending" + filter on priority
+ * Notify when a purchase request is submitted.
+ * Trigger: stateChange on purchase_request, to="pending"
+ * Note: Simplified demo — no conditional filter on priority. In production,
+ * add a `condition` to the trigger to filter by priority field.
  */
 export const notifyHighPrioritySubmission = defineAutomation({
-  name: "purchase_notify_high_priority",
-  description: "Send notification when a high-priority purchase request is submitted",
+  name: "purchase_notify_submission",
+  description: "Send notification when a purchase request is submitted",
   trigger: {
     type: "stateChange",
     schema: "purchase_request",
