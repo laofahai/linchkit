@@ -81,11 +81,17 @@ export class AIBoundary {
   /** In-memory budget trackers keyed by tenantId (undefined key = global) */
   private readonly budgets: Map<string, AIBudget> = new Map();
 
-  /** Usage log (in-memory, flushed via onUsageRecord callback) */
+  /** Usage log (in-memory, capped to prevent unbounded growth) */
   private readonly usageLog: AIUsageRecord[] = [];
 
   /** Active concurrent call count per tenant */
   private readonly activeCalls: Map<string, number> = new Map();
+
+  /** Regex cache for content filter patterns */
+  private readonly regexCache: Map<string, RegExp> = new Map();
+
+  /** Maximum number of usage log entries before trimming */
+  private static readonly MAX_USAGE_LOG = 10_000;
 
   /** Counter for generating unique record IDs */
   private recordCounter = 0;
@@ -115,6 +121,7 @@ export class AIBoundary {
   /** Get the effective policy for a tenant */
   getEffectivePolicy(tenantId?: string): AIPolicy {
     if (tenantId && this.tenantPolicies.has(tenantId)) {
+      // biome-ignore lint/style/noNonNullAssertion: existence checked by has() above
       return this.tenantPolicies.get(tenantId)!;
     }
     return this.defaultPolicy;
@@ -235,6 +242,14 @@ export class AIBoundary {
       }
     }
 
+    // Optimistic increment: count the request NOW to prevent TOCTOU races
+    // where concurrent check() calls both pass before either increments.
+    const budget = this.getBudget(request.tenantId);
+    this.refreshBudgetWindows(budget);
+    budget.requestsThisMinute++;
+    budget.requestsThisHour++;
+    budget.requestsToday++;
+
     // Track concurrent calls
     const tenantKey = request.tenantId ?? "__global__";
     this.activeCalls.set(tenantKey, (this.activeCalls.get(tenantKey) ?? 0) + 1);
@@ -342,6 +357,7 @@ export class AIBoundary {
   // ── Private: Action Access ────────────────────────────
 
   private checkActionAccess(actionName: string, policy: AIPolicy): AIBoundaryCheckResult {
+    // biome-ignore lint/style/noNonNullAssertion: caller guarantees actionAccess is set
     const access = policy.actionAccess!;
 
     if (access.mode === "allowlist") {
@@ -371,6 +387,7 @@ export class AIBoundary {
   // ── Private: Rate Limits ──────────────────────────────
 
   private checkRateLimits(request: AICallRequest, policy: AIPolicy): AIBoundaryCheckResult {
+    // biome-ignore lint/style/noNonNullAssertion: caller guarantees rateLimits is set
     const limits = policy.rateLimits!;
     const budget = this.getBudget(request.tenantId);
 
@@ -417,6 +434,7 @@ export class AIBoundary {
     policy: AIPolicy,
     warnings: string[],
   ): AIBoundaryCheckResult {
+    // biome-ignore lint/style/noNonNullAssertion: caller guarantees budget is set
     const budgetConfig = policy.budget!;
     const budget = this.getBudget(request.tenantId);
 
@@ -490,7 +508,11 @@ export class AIBoundary {
 
       if (filter.type === "regex") {
         try {
-          const regex = new RegExp(filter.pattern, "i");
+          let regex = this.regexCache.get(filter.pattern);
+          if (!regex) {
+            regex = new RegExp(filter.pattern, "i");
+            this.regexCache.set(filter.pattern, regex);
+          }
           matches = regex.test(content);
         } catch {
           this.logger?.warn("AI boundary: invalid regex in content filter", {
@@ -548,6 +570,7 @@ export class AIBoundary {
         minuteResetAt: startOfMinute(now),
       });
     }
+    // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after set above
     return this.budgets.get(key)!;
   }
 
@@ -590,9 +613,8 @@ export class AIBoundary {
     budget.costToday += usage.cost;
     budget.costThisHour += usage.cost;
     budget.tokensToday += usage.tokens;
-    budget.requestsToday += 1;
-    budget.requestsThisHour += 1;
-    budget.requestsThisMinute += 1;
+    // Note: request counts are incremented optimistically in execute()
+    // to prevent TOCTOU race conditions. Only cost/token tracking here.
   }
 
   // ── Private: Usage Recording ──────────────────────────
@@ -632,6 +654,9 @@ export class AIBoundary {
   }
 
   private recordUsage(record: AIUsageRecord): void {
+    if (this.usageLog.length >= AIBoundary.MAX_USAGE_LOG) {
+      this.usageLog.splice(0, this.usageLog.length >> 1);
+    }
     this.usageLog.push(record);
     this.onUsageRecord?.(record);
 

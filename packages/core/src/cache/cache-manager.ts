@@ -190,15 +190,16 @@ export class CacheManager {
   }
 
   private subscribeToEvents(eventBus: EventBus): void {
-    // We register an internal event handler by monkey-patching emit.
-    // This is intentional: the CacheManager needs to observe ALL events,
-    // not just those registered in the EventHandlerRegistry.
-    const originalEmit = eventBus.emit.bind(eventBus);
-    eventBus.emit = async (event: EventRecord) => {
-      // Invalidation happens BEFORE dispatching to handlers so handlers
-      // see fresh data on re-query.
-      this.handleEvent(event);
-      return originalEmit(event);
-    };
+    // Subscribe as sync handlers so cache invalidation runs inline
+    // before subsequent reads see stale cached data.
+    for (const eventType of WRITE_EVENT_TYPES) {
+      eventBus.subscribe(
+        eventType,
+        (event: EventRecord) => {
+          this.handleEvent(event);
+        },
+        { sync: true },
+      );
+    }
   }
 }

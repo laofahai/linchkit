@@ -202,13 +202,19 @@ export class EventBus {
    * Subscribe to a specific event type with a callback.
    * Returns an unsubscribe function. Used by TriggerBinding.
    */
-  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void {
+  subscribe(
+    eventType: string,
+    handler: (event: EventRecord) => void | Promise<void>,
+    options?: { sync?: boolean },
+  ): () => void {
     const name = `__sub_${eventType}_${crypto.randomUUID().slice(0, 8)}`;
     const handlerDef: EventHandlerDefinition = {
       name,
       listen: eventType,
-      async: true,
-      handler: (event) => handler(event),
+      async: !options?.sync,
+      handler: async (event) => {
+        await handler(event);
+      },
     };
     this.registry.register(handlerDef);
     return () => {
@@ -254,9 +260,7 @@ export class EventBus {
 // ── Factory ─────────────────────────────────────────────────
 
 /** Create a new EventBus with its own EventHandlerRegistry */
-export function createEventBus(options?: {
-  metrics?: MetricsCollector;
-}): {
+export function createEventBus(options?: { metrics?: MetricsCollector }): {
   registry: EventHandlerRegistry;
   bus: EventBus;
 } {

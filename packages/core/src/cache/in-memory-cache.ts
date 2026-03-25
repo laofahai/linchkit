@@ -13,8 +13,6 @@ import type { CacheEntry, CacheProvider, CacheSetOptions, CacheStats } from "./c
 export interface InMemoryCacheOptions {
   /** Maximum number of entries before LRU eviction kicks in. Default: 1000 */
   maxSize?: number;
-  /** If true, run a passive cleanup sweep on every `get` for expired entries. Default: false */
-  sweepOnGet?: boolean;
 }
 
 export class InMemoryCacheProvider implements CacheProvider {
@@ -22,7 +20,6 @@ export class InMemoryCacheProvider implements CacheProvider {
   /** tag → set of keys that carry the tag */
   private tagIndex = new Map<string, Set<string>>();
   private maxSize: number;
-  private sweepOnGet: boolean;
 
   // Stats counters
   private _hits = 0;
@@ -31,7 +28,6 @@ export class InMemoryCacheProvider implements CacheProvider {
 
   constructor(options?: InMemoryCacheOptions) {
     this.maxSize = options?.maxSize ?? 1000;
-    this.sweepOnGet = options?.sweepOnGet ?? false;
   }
 
   // ── get ─────────────────────────────────────────────────
