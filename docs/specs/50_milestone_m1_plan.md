@@ -15,12 +15,39 @@
 > - ✅ M1b Phase 3: AI Proposal — basics complete (OntologyRegistry integration, ProposalGenerationError, prompt optimization)
 > - ✅ M1b Phase 4: CLI Ecosystem — basics complete (create-capability enhanced, install --dry-run, info command)
 > - ✅ M1b Phase 5: i18n — data layer complete
-> - **M2 (added after planning):** Link Type 100% complete (including M:N support ahead of schedule)
+> - ✅ M2: Link Type 100% complete (including M:N support ahead of schedule)
 > - ✅ M2: OntologyRegistry 100% complete (describe, listSchemas, searchSchemas, actionsFor, rulesFor, stateFor, viewsFor, flowsFor, handlersFor, relatedSchemas, toJSON)
 > - ✅ M2: GraphQL Subscriptions — basics complete (SSE-based pub/sub)
+> - ✅ M2: MCP Adapter + Ontology integration — complete
+> - ✅ M2: Cache Strategy (spec 34) — complete
+> - ✅ M2: AI Rule Boundary (spec 22) — complete
+> - ✅ M2: Schema Interface (spec 47) — complete
+> - ✅ M2: Data Masking (spec 41b) — complete
+> - ✅ M2: Tenant Isolation (spec 30) — complete
+> - ✅ M2: Metrics Wiring into core engines — complete
+> - ✅ M2: Derived Properties (spec 48) — complete
+> - ✅ M2: Reactive Automation (spec 45) — complete
+> - ✅ M2: Schema Inheritance (spec 49) — complete
+> - ✅ M2: Runtime Config Center (spec 42) — complete
+> - ✅ M2: Observability Metrics (spec 28) — complete
+> - ✅ M2: OutboxWorker production reliability — complete
+> - ✅ M2: Flow AIStep tool calling — complete
+>
+> ### Test Coverage
+> - ~1500 tests, 0 failures
 >
 > ### Tech Debt Fixed (2026-03-25)
 > - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
+>
+> ### Remaining Specs (TODO)
+> - spec 12: Deployment
+> - spec 17: Legacy Migration
+> - spec 21b: Capability Hub
+> - spec 25: Documentation
+> - spec 27: AI Security (partially done via AI Rule Boundary, spec 22)
+> - spec 29: Methodology
+> - spec 37: Documentation Governance
+> - spec 38: Release Compatibility
 
 ## Overview
 
