@@ -6,6 +6,7 @@
  * No persistence.
  */
 
+import { ConflictError } from "@linchkit/core";
 import type { DataProvider, DataQueryOptions } from "@linchkit/core";
 
 export interface FindManyOptions {
@@ -132,10 +133,24 @@ export class InMemoryStore implements DataProvider {
     if (options?.tenantId && existing.tenant_id !== options.tenantId) {
       throw new Error(`Record not found: ${schema}/${id}`);
     }
+    // Optimistic locking: check _version when provided
+    const expectedVersion = data._version as number | undefined;
+    if (expectedVersion !== undefined) {
+      const actualVersion = (existing._version as number) ?? 0;
+      if (actualVersion !== expectedVersion) {
+        throw new ConflictError({
+          code: "data.record.version_conflict",
+          message: `Version conflict: record ${schema}/${id} has been modified (expected version ${expectedVersion}, actual ${actualVersion})`,
+          currentVersion: actualVersion,
+        });
+      }
+    }
+
     const now = new Date().toISOString();
+    const { _version: _inputVersion, ...restData } = data;
     const updated: Record<string, unknown> = {
       ...existing,
-      ...data,
+      ...restData,
       id, // Prevent id overwrite
       updated_at: now,
       _version: ((existing._version as number) || 0) + 1,

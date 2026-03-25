@@ -143,6 +143,20 @@ export function getAvailableActions(machine: StateMachine, currentState: string)
   return actions;
 }
 
+/**
+ * Returns all valid transitions from the given state, including target state and action.
+ */
+export function getAvailableTransitions(
+  machine: StateMachine,
+  currentState: string,
+): Array<{ from: string; to: string; action: string }> {
+  const transitions = machine.transitionsBySource.get(currentState);
+  if (!transitions) {
+    return [];
+  }
+  return transitions.map((t) => ({ from: currentState, to: t.to, action: t.action }));
+}
+
 // ── Internal helpers ────────────────────────────────────
 
 /**

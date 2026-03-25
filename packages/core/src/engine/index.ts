@@ -77,6 +77,7 @@ export {
   canTransition,
   createStateMachine,
   getAvailableActions,
+  getAvailableTransitions,
   transition,
 } from "./state-machine";
 // Validation engine

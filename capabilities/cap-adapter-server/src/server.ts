@@ -155,8 +155,9 @@ function resolveStatusCode(result: { success: boolean; data?: unknown }): number
   if (errorMsg.includes("not exposed")) return 403;
   // Validation failures
   if (errorMsg.includes("validation failed") || errorMsg.includes("Validation failed")) return 400;
-  // State transition conflicts
+  // State transition conflicts and version conflicts
   if (errorMsg.includes("State transition") || errorMsg.includes("State machine")) return 409;
+  if (errorMsg.includes("Version conflict")) return 409;
 
   // Default: 422 for business logic failures
   return 422;

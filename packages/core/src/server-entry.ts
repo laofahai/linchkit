@@ -90,6 +90,7 @@ export {
   canTransition,
   createStateMachine,
   getAvailableActions,
+  getAvailableTransitions,
   transition,
 } from "./engine/state-machine";
 

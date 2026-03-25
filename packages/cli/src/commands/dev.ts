@@ -29,6 +29,8 @@ import type {
 import { ConfigRegistry, createDerivedPropertyEngine, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
+  AIAuditLogger,
+  AIBoundary,
   buildTableColumns,
   CacheManager,
   checkConnection,
@@ -615,6 +617,55 @@ export const devCommand = defineCommand({
       enforceAssignee: false, // M0b: not enforced yet
     });
 
+    // ── AI Audit Logger — always created (lightweight, no external deps) ──
+    const aiAuditLogger = new AIAuditLogger({
+      onAuditEntry: (entry) => {
+        console.log(
+          `[linch] AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
+        );
+      },
+    });
+    console.log("[linch] AIAuditLogger created");
+
+    // ── AI Boundary — wraps AI service with default safety policy ──
+    // Stub AI service until a real provider is configured via capability
+    const stubAiService = {
+      complete: async () => {
+        throw new Error("AI service not configured. Register an AI provider capability.");
+      },
+    };
+    const aiBoundary = new AIBoundary({
+      aiService: stubAiService,
+      onUsageRecord: (record) => {
+        // Forward usage records to audit logger as AI call events
+        aiAuditLogger.logCall({
+          actorId: record.actorId,
+          tenantId: record.tenantId,
+          agentModel: record.model,
+          input: `[${record.source}] ${record.actionName ?? "unknown"}`,
+          output: record.status,
+          actionName: record.actionName,
+          tokenUsage: {
+            inputTokens: record.inputTokens,
+            outputTokens: record.outputTokens,
+            totalTokens: record.totalTokens,
+          },
+          metadata: {
+            cost: record.cost,
+            duration: record.duration,
+            policyName: record.policyName,
+            blockReason: record.blockReason,
+          },
+        });
+      },
+      onBudgetAlert: (tenantId, budget, threshold) => {
+        console.warn(
+          `[linch] AI budget alert: tenant=${tenantId ?? "global"} threshold=${threshold} costToday=$${budget.costToday.toFixed(2)}`,
+        );
+      },
+    });
+    console.log("[linch] AIBoundary created with default policy");
+
     // Create FlowRegistry and collect flows from capabilities
     const flowRegistry = createFlowRegistry();
     let flowCount = 0;
@@ -635,13 +686,11 @@ export const devCommand = defineCommand({
 
     if (flowCount > 0) {
       // Create step context for flow execution
-      // TODO: Wire real AIService when AI integration is added in M1b
+      // AIBoundary wraps the stub AI service with policy enforcement.
+      // When a real AI provider capability is registered, replace stubAiService.
       const flowStepContext = createFlowStepContext({
-        aiService: {
-          complete: async () => {
-            throw new Error("AI service not configured for flow execution");
-          },
-        },
+        aiService: stubAiService,
+        aiBoundary,
         actionEngine: {
           execute: (actionName, input, options) => {
             // Default to system actor when no actor provided in flow context
@@ -831,6 +880,8 @@ export const devCommand = defineCommand({
       environment,
       derivedPropertyEngine,
       automationEngine,
+      aiBoundary,
+      aiAuditLogger,
     };
 
     // Start all transports

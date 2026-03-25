@@ -20,9 +20,10 @@ import type {
   MaskRecordOptions,
   PermissionGroupDefinition,
   SchemaDefinition,
+  StateDefinition,
 } from "@linchkit/core";
-import { resolveTranslatableRow } from "@linchkit/core";
-import { maskRecord } from "@linchkit/core/server";
+import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
+import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
 import {
   GraphQLBoolean,
   GraphQLError,
@@ -140,6 +141,8 @@ const ActionResultType = new GraphQLObjectType({
 export interface GenerateCrudActionsOptions {
   /** Derived property engine for auto-computing store-strategy derived fields */
   derivedPropertyEngine?: DerivedPropertyEngine;
+  /** State definitions for validating state field changes via transitions */
+  stateDefinitions?: StateDefinition[];
 }
 
 /**
@@ -151,6 +154,18 @@ export function generateCrudActions(
 ): ActionDefinition[] {
   const name = schema.name;
   const derivedEngine = options?.derivedPropertyEngine;
+  const stateDefinitions = options?.stateDefinitions ?? [];
+
+  // Build a map of state field name → StateMachine for this schema
+  const stateFieldMachines = new Map<string, ReturnType<typeof createStateMachine>>();
+  for (const [fieldName, field] of Object.entries(schema.fields)) {
+    if (field.type === "state") {
+      const stateDef = stateDefinitions.find((s) => s.name === field.machine);
+      if (stateDef) {
+        stateFieldMachines.set(fieldName, createStateMachine(stateDef));
+      }
+    }
+  }
 
   const createAction: ActionDefinition = {
     name: `create_${name}`,
@@ -194,6 +209,26 @@ export function generateCrudActions(
     handler: async (ctx) => {
       const id = ctx.input.id as string;
       const { id: _id, ...data } = ctx.input;
+
+      // Validate state field transitions: reject direct state changes that bypass the state machine
+      if (stateFieldMachines.size > 0) {
+        const existing = await ctx.get(name, id);
+        for (const [fieldName, machine] of stateFieldMachines) {
+          const newValue = data[fieldName] as string | undefined;
+          if (newValue === undefined || newValue === null) continue;
+          const currentValue = existing[fieldName] as string | undefined;
+          if (currentValue === newValue) continue;
+          // Check if the target state is reachable from the current state via any transition
+          const available = getAvailableTransitions(machine, currentValue ?? "");
+          const isReachable = available.some((t) => t.to === newValue);
+          if (!isReachable) {
+            throw new Error(
+              `State transition not allowed: cannot change "${fieldName}" from "${currentValue}" to "${newValue}". Use a dedicated transition action.`,
+            );
+          }
+        }
+      }
+
       // Compute store-strategy derived fields before persisting.
       // Merge existing record with new data so derived expressions can access all fields.
       if (derivedEngine) {
@@ -337,6 +372,8 @@ export interface BuildGraphQLSchemaOptions {
   permissionGroups?: PermissionGroupDefinition[];
   /** Derived property engine for auto-computing derived fields on read and write */
   derivedPropertyEngine?: DerivedPropertyEngine;
+  /** State definitions for generating transition queries/mutations and validating state changes */
+  stateDefinitions?: StateDefinition[];
 }
 
 /**
@@ -360,6 +397,13 @@ export function buildGraphQLSchema(
   const eventBus = options?.eventBus;
   const permissionGroups = options?.permissionGroups ?? [];
   const derivedEngine = options?.derivedPropertyEngine;
+  const stateDefinitions = options?.stateDefinitions ?? [];
+
+  // Build state machine lookup: machine name → StateMachine instance
+  const stateMachineMap = new Map<string, ReturnType<typeof createStateMachine>>();
+  for (const sd of stateDefinitions) {
+    stateMachineMap.set(sd.name, createStateMachine(sd));
+  }
 
   // Build schema lookup map for data masking
   const schemaMap = new Map<string, SchemaDefinition>();
@@ -469,7 +513,8 @@ export function buildGraphQLSchema(
               if (derivedEngine) {
                 derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
               }
-              return applyMasking(record as Record<string, unknown>, schemaName, ctx);
+              const masked = applyMasking(record as Record<string, unknown>, schemaName, ctx);
+              return resolveTranslatableRow(masked, schema, locale);
             } catch (err) {
               console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
               return null;
@@ -554,7 +599,8 @@ export function buildGraphQLSchema(
               if (derivedEngine) {
                 derivedEngine.resolveComputeFields(schemaName, r);
               }
-              return applyMasking(r, schemaName, ctx);
+              const masked = applyMasking(r, schemaName, ctx);
+              return resolveTranslatableRow(masked, schema, locale);
             });
             return { items, total };
           }
@@ -570,7 +616,8 @@ export function buildGraphQLSchema(
       resolve: executor
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            const result = await executor.execute(`create_${schemaName}`, args.input, ctx.actor, {
+            const normalizedInput = normalizeTranslatableRow(args.input, schema, locale);
+            const result = await executor.execute(`create_${schemaName}`, normalizedInput, ctx.actor, {
               channel: "http",
               tenantId: ctx.tenantId,
               locale,
@@ -607,7 +654,8 @@ export function buildGraphQLSchema(
             ctx: GraphQLContext,
           ) => {
             const locale = ctx.locale;
-            const input: Record<string, unknown> = { id: args.id, ...args.input };
+            const normalizedArgs = normalizeTranslatableRow(args.input, schema, locale);
+            const input: Record<string, unknown> = { id: args.id, ...normalizedArgs };
             // Pass _version through for optimistic locking when provided
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
@@ -619,7 +667,14 @@ export function buildGraphQLSchema(
             });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
-              throw new Error((errData?.error as string) ?? "Update action failed");
+              const errorMessage = (errData?.error as string) ?? "Update action failed";
+              // Surface version conflict as a GraphQLError with CONFLICT code
+              if (errorMessage.includes("Version conflict")) {
+                throw new GraphQLError(errorMessage, {
+                  extensions: { code: "CONFLICT", http: { status: 409 } },
+                });
+              }
+              throw new Error(errorMessage);
             }
             const data = result.data as Record<string, unknown>;
             return data ? resolveTranslatableRow(data, schema, locale) : data;
@@ -654,6 +709,110 @@ export function buildGraphQLSchema(
           }
         : () => true,
     };
+
+    // ── State transition query + mutation ──────────────────
+    // For each state field, find the associated state machine and generate
+    // availableTransitions query and transition mutation.
+    const stateFields = Object.entries(schema.fields).filter(([, f]) => f.type === "state");
+    for (const [stateFieldName, stateField] of stateFields) {
+      if (stateField.type !== "state") continue;
+      const machineName = stateField.machine;
+      const machine = stateMachineMap.get(machineName);
+      if (!machine) continue;
+
+      // ── Query: availableTransitions{PascalName}(id: ID!) ──
+      const transitionType = new GraphQLObjectType({
+        name: `${pascalName}AvailableTransition`,
+        fields: {
+          from: { type: new GraphQLNonNull(GraphQLString) },
+          to: { type: new GraphQLNonNull(GraphQLString) },
+          action: { type: new GraphQLNonNull(GraphQLString) },
+        },
+      });
+
+      queryFields[`${camelName}AvailableTransitions`] = {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(transitionType))),
+        args: {
+          id: { type: new GraphQLNonNull(GraphQLID) },
+        },
+        resolve: dataProvider
+          ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+              const opts: DataQueryOptions = {
+                ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+              };
+              const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
+              try {
+                const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+                if (!record) return [];
+                const currentState = (record[stateFieldName] as string) ?? "";
+                return getAvailableTransitions(machine, currentState);
+              } catch {
+                return [];
+              }
+            }
+          : () => [],
+      };
+
+      // ── Mutation: transition{PascalName}(id: ID!, to: String!) ──
+      mutationFields[`transition${pascalName}`] = {
+        type: objectType,
+        description: `Transition ${schema.label ?? schemaName} to a new state`,
+        args: {
+          id: { type: new GraphQLNonNull(GraphQLID) },
+          to: { type: new GraphQLNonNull(GraphQLString) },
+        },
+        resolve: executor && dataProvider
+          ? async (
+              _root: unknown,
+              args: { id: string; to: string },
+              ctx: GraphQLContext,
+            ) => {
+              const opts: DataQueryOptions = {
+                ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+              };
+              const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
+
+              // Fetch current record to get current state
+              const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+              if (!record) {
+                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+              }
+              const currentState = (record[stateFieldName] as string) ?? "";
+
+              // Validate the transition is allowed
+              const available = getAvailableTransitions(machine, currentState);
+              const match = available.find((t) => t.to === args.to);
+              if (!match) {
+                throw new GraphQLError(
+                  `State transition not allowed: cannot transition from "${currentState}" to "${args.to}"`,
+                );
+              }
+
+              // Execute the update via the action engine so all middleware/logging applies
+              const input: Record<string, unknown> = {
+                id: args.id,
+                [stateFieldName]: args.to,
+              };
+              const result = await executor.execute(
+                `update_${schemaName}`,
+                input,
+                ctx.actor,
+                { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
+              );
+              if (!result.success) {
+                const errData = result.data as Record<string, unknown> | undefined;
+                throw new GraphQLError(
+                  (errData?.error as string) ?? `State transition failed`,
+                );
+              }
+              const data = result.data as Record<string, unknown>;
+              return data ? resolveTranslatableRow(data, schema, ctx.locale) : data;
+            }
+          : () => {
+              throw new GraphQLError("Executor or data provider not configured");
+            },
+      };
+    }
   }
 
   // ── Execution Log queries ────────────────────────────────
