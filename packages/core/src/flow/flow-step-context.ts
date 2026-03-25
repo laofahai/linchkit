@@ -5,6 +5,8 @@
  * AIService, ActionEngine, and ActionRegistry.
  */
 
+import type { AIBoundary } from "../ai/ai-boundary";
+import type { AICallRequest } from "../ai/ai-policy";
 import type { ActionDefinition, Actor } from "../types/action";
 import type { AIService, AITool } from "../types/ai";
 import type { FlowStepContext } from "./types";
@@ -27,6 +29,10 @@ export interface FlowStepContextDeps {
   actionRegistry?: {
     get: (name: string) => ActionDefinition | undefined;
   };
+  /** Optional AI boundary engine for enforcing rate limits, budgets, and policies */
+  aiBoundary?: AIBoundary;
+  /** Flow name for boundary audit trail (source tracking) */
+  flowName?: string;
 }
 
 // ── Field type → JSON Schema type mapping ────────────────
@@ -114,7 +120,7 @@ function resolveToolsFromActions(
  * - evaluateCondition: simple fallback (returns false)
  */
 export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContext {
-  const { aiService, actionEngine, actionRegistry } = deps;
+  const { aiService, actionEngine, actionRegistry, aiBoundary, flowName } = deps;
 
   return {
     flowContext: {},
@@ -155,12 +161,27 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
         }
       }
 
-      const result = await aiService.complete({
-        messages: [{ role: "user", content: prompt }],
+      const completionOptions = {
+        messages: [{ role: "user" as const, content: prompt }],
         model,
         tools: aiTools,
         responseFormat: aiResponseFormat,
-      });
+      };
+
+      // If AIBoundary is configured, route through it for policy enforcement
+      let result;
+      if (aiBoundary) {
+        const callRequest: AICallRequest = {
+          source: "flow",
+          tenantId: this.tenantId,
+          actorId: this.actor?.id,
+          promptContent: prompt,
+          actionName: flowName,
+        };
+        result = await aiBoundary.execute(completionOptions, callRequest);
+      } else {
+        result = await aiService.complete(completionOptions);
+      }
 
       return {
         response: result.content,
