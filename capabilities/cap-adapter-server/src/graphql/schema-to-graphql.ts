@@ -677,6 +677,11 @@ export function generateGraphQLInputType(
       const fields: Record<string, GraphQLInputFieldConfig> = {};
 
       for (const [fieldName, field] of Object.entries(schema.fields)) {
+        // Derived fields are read-only — exclude from input types (spec 48)
+        if (field.derived) {
+          continue;
+        }
+
         const graphqlType = mapFieldToGraphQLInputType(field, fieldName, schema, stateMachines);
         if (!graphqlType) {
           continue;

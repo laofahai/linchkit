@@ -6,6 +6,7 @@
  */
 
 import type { ActionDefinition, ActionOverride } from "./types/action";
+import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
@@ -150,4 +151,12 @@ export function defineConfig(config: LinchKitConfig): LinchKitConfig {
 
 export function defineCapability(definition: CapabilityDefinition): CapabilityDefinition {
   return definition;
+}
+
+// ── Automation ───────────────────────────────────────
+
+export function defineAutomation(
+  definition: Omit<AutomationDefinition, "enabled"> & { enabled?: boolean },
+): AutomationDefinition {
+  return { enabled: true, ...definition };
 }

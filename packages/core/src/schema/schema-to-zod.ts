@@ -46,6 +46,11 @@ export function generateZodSchema(
       continue;
     }
 
+    // Derived fields are not user input — skip from input validation (spec 48)
+    if (field.derived) {
+      continue;
+    }
+
     let zodType = buildFieldZod(field, options);
 
     // Apply optional/required — nullable for types that use null as empty value

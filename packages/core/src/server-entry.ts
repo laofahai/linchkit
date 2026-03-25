@@ -7,6 +7,20 @@
  * Usage: import { createActionExecutor, SchemaRegistry } from "@linchkit/core/server"
  */
 
+// === Automation engine ===
+
+export {
+  createAutomationEngine,
+  createAutomationRegistry,
+  parseCronToInterval,
+  type AutomationActionExecutor,
+  type AutomationEngine,
+  type AutomationEngineOptions,
+  type AutomationFlowStarter,
+  type AutomationNotifier,
+  type AutomationRegistry,
+} from "./automation";
+
 // === Engine: action, command, approval, state, rule, validation, permission, proposal ===
 
 export {
@@ -115,6 +129,12 @@ export { createPersistentEventBus, PersistentEventBus } from "./event/persistent
 
 export { consoleLogger } from "./observability/console-logger";
 export { InMemoryExecutionLogger } from "./observability/execution-logger";
+export {
+  InMemoryMetricsCollector,
+  type MetricSnapshot,
+  type MetricsCollector,
+  noopMetricsCollector,
+} from "./observability/metrics";
 export {
   getCurrentTrace,
   getTraceDepth,

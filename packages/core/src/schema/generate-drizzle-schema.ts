@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { LinkDefinition } from "../types/link";
-import type { SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, SchemaDefinition } from "../types/schema";
 import { generateDrizzleTable, generateLinkColumns } from "./schema-to-drizzle";
 
 const DEFAULT_OUTPUT_DIR = ".linchkit";
@@ -56,12 +56,24 @@ export function generateDrizzleSchemaFile(
     mkdirSync(outDir, { recursive: true });
   }
 
+  // Build a lookup map for resolving parent schemas (spec 49 inheritance)
+  const schemaMap = new Map<string, SchemaDefinition>();
+  for (const s of schemas) {
+    schemaMap.set(s.name, s);
+  }
+
   // Phase 1: Generate base tables from schemas
   const tableMap: Record<string, ReturnType<typeof import("drizzle-orm/pg-core").pgTable>> = {};
   const tableExports: string[] = [];
 
   for (const schema of schemas) {
-    const table = generateDrizzleTable(schema);
+    // Skip abstract schemas — they have no DB table (spec 49)
+    if (schema.abstract) continue;
+
+    // Flatten inherited fields into concrete child schemas (spec 49)
+    const flatSchema = flattenInheritedFields(schema, schemaMap);
+
+    const table = generateDrizzleTable(flatSchema);
     tableMap[schema.name] = table;
     const config = getTableConfig(table);
     const varName = `${toCamelCase(schema.name)}Table`;
@@ -326,4 +338,43 @@ function extractSqlString(def: unknown): string | null {
     // Not a recognizable SQL structure
   }
   return null;
+}
+
+/**
+ * Flatten inherited fields into a concrete schema definition (spec 49).
+ *
+ * Walks up the inheritance chain and merges parent fields into the child.
+ * Child fields override parent fields of the same name.
+ * Returns a new SchemaDefinition with all inherited fields merged in.
+ */
+function flattenInheritedFields(
+  schema: SchemaDefinition,
+  schemaMap: Map<string, SchemaDefinition>,
+): SchemaDefinition {
+  if (!schema.extends) return schema;
+
+  // Collect the inheritance chain from root ancestor to direct parent
+  const chain: SchemaDefinition[] = [];
+  let current: SchemaDefinition | undefined = schemaMap.get(schema.extends);
+  while (current) {
+    chain.unshift(current);
+    current = current.extends ? schemaMap.get(current.extends) : undefined;
+  }
+
+  // Merge fields: ancestors first, then child (child overrides)
+  const mergedFields: Record<string, FieldDefinition> = {};
+  for (const ancestor of chain) {
+    for (const [fname, fdef] of Object.entries(ancestor.fields)) {
+      mergedFields[fname] = fdef;
+    }
+  }
+  // Child's own fields override inherited ones
+  for (const [fname, fdef] of Object.entries(schema.fields)) {
+    mergedFields[fname] = fdef;
+  }
+
+  return {
+    ...schema,
+    fields: mergedFields,
+  };
 }

@@ -5,6 +5,7 @@
 export type * from "./action";
 export type * from "./ai";
 export type * from "./approval";
+export type * from "./automation";
 export type * from "./capability";
 export type {
   CapabilityMetadata,
@@ -20,6 +21,7 @@ export {
 export type * from "./cli";
 export type * from "./command";
 export type * from "./config";
+export type * from "./runtime-config";
 export type * from "./database";
 export type * from "./error";
 // Non-type exports

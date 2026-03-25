@@ -14,9 +14,11 @@ export const VERSION = "0.0.1";
 export type { ConfigSchemaRef } from "./config";
 export {
   ConfigRegistry,
+  ConfigValidationError,
   databaseConfig,
   defineConfigSchema,
   queueConfig,
+  RuntimeConfigRegistry,
   securityConfig,
   serverConfig,
 } from "./config";
@@ -24,6 +26,7 @@ export {
 // Define function exports
 export {
   defineAction,
+  defineAutomation,
   defineCapability,
   defineConfig,
   defineDataAccess,
@@ -98,6 +101,7 @@ export {
   SystemError,
   ValidationError,
 } from "./errors";
+export type { AutomationEngine, AutomationRegistry } from "./automation";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
 export type {
   CompiledFlow,
@@ -110,6 +114,7 @@ export type {
   RestateConfig,
   TriggerBinding,
 } from "./flow";
+export type { MetricSnapshot, MetricsCollector } from "./observability/metrics";
 export type { TraceState } from "./observability/trace-context";
 export type { LinkRegistry } from "./schema/link-registry";
 export { createLinkRegistry } from "./schema/link-registry";
@@ -119,6 +124,20 @@ export type {
   RelationDescriptor,
   SchemaDescriptor,
 } from "./ontology";
+export {
+  createDerivedPropertyEngine,
+  DerivedPropertyEngine,
+  evaluateExpression,
+  getDerivedStrategy,
+  isDerivedField,
+  resolveDerivedValue,
+  type AggregateDerived,
+  type ConcatDerived,
+  type DerivedConfig,
+  type DerivedFieldInfo,
+  type ExpressionDerived,
+  type FunctionDerived,
+} from "./schema/derived-property";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {

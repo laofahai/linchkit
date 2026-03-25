@@ -4,6 +4,20 @@
  * Re-exports schema registry, generators, and translatable helpers.
  */
 
+export {
+  createDerivedPropertyEngine,
+  DerivedPropertyEngine,
+  evaluateExpression,
+  getDerivedStrategy,
+  isDerivedField,
+  resolveDerivedValue,
+  type AggregateDerived,
+  type ConcatDerived,
+  type DerivedConfig,
+  type DerivedFieldInfo,
+  type ExpressionDerived,
+  type FunctionDerived,
+} from "./derived-property";
 export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
 export {

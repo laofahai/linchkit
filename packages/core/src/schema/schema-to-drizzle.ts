@@ -254,6 +254,11 @@ export function buildTableColumns(schema: SchemaDefinition): Record<string, any>
     if (SKIPPED_FIELD_TYPES.has(field.type)) {
       continue;
     }
+    // Derived fields with "compute" strategy are not stored in DB (spec 48)
+    // "store" strategy (default) fields DO get DB columns
+    if (field.derived && field.derived.strategy === "compute") {
+      continue;
+    }
     columns[fieldName] = buildColumn(fieldName, field);
   }
 

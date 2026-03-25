@@ -190,6 +190,12 @@ export interface SchemaDefinition<
   label?: string;
   description?: string;
 
+  /** Parent schema name (single inheritance). Child inherits all parent fields. */
+  extends?: string;
+
+  /** When true, schema cannot be instantiated directly (no DB table, no create action). */
+  abstract?: boolean;
+
   fields: TFields;
 
   /** Presentation metadata for View layer auto-layout */
@@ -243,6 +249,12 @@ export interface ResolvedSchema {
   name: string;
   /** Schema label */
   label?: string;
+  /** Whether this schema is abstract (cannot be instantiated) */
+  abstract?: boolean;
+  /** Parent schema name, if this schema extends another */
+  parent?: string;
+  /** Child schema names that extend this schema */
+  children: string[];
   /** Presentation metadata */
   presentation?: SchemaPresentation;
   /** All fields including system fields, keyed by field name */
