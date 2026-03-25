@@ -5,6 +5,7 @@ bun.lockb
 # Build
 dist/
 *.tsbuildinfo
+.vite/
 
 # Environment
 .env
