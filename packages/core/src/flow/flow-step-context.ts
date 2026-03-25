@@ -165,6 +165,10 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
       return {
         response: result.content,
         tokensUsed: result.usage.totalTokens,
+        toolCalls: result.toolCalls?.map((tc) => ({
+          toolName: tc.toolName,
+          args: tc.args,
+        })),
       };
     },
 

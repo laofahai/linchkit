@@ -52,7 +52,11 @@ export interface FlowStepContext {
     model?: string;
     tools?: string[];
     responseFormat?: { type: "json"; schema: string };
-  }): Promise<{ response: string; tokensUsed: number }>;
+  }): Promise<{
+    response: string;
+    tokensUsed: number;
+    toolCalls?: Array<{ toolName: string; args: Record<string, unknown> }>;
+  }>;
 
   /** Evaluate a condition expression */
   evaluateCondition(expression: string, context: Record<string, unknown>): boolean;

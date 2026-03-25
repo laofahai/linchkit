@@ -162,28 +162,39 @@ async function executeActionStep(
   return stepContext.executeAction(step.actionName, input);
 }
 
+/** Maximum number of tool call rounds to prevent infinite loops */
+const MAX_TOOL_CALL_ROUNDS = 10;
+
+/**
+ * Resolve a prompt string or template against the flow context.
+ */
+function resolvePrompt(
+  prompt: string | { template: string; variables: Record<string, string> },
+  flowContext: Record<string, unknown>,
+): string {
+  if (typeof prompt === "string") {
+    // Replace $-expressions in the prompt string
+    return prompt.replace(/\$[\w.]+/g, (match) => {
+      const value = resolveExpression(match, flowContext);
+      return value !== undefined ? String(value) : match;
+    });
+  }
+
+  // Template with variables
+  let result = prompt.template;
+  for (const [key, expr] of Object.entries(prompt.variables)) {
+    const value = resolveExpression(expr, flowContext);
+    result = result.replace(new RegExp(`\\{${key}\\}`, "g"), String(value ?? ""));
+  }
+  return result;
+}
+
 async function executeAIStep(
   step: AIFlowStep,
   stepContext: FlowStepContext,
   flowContext: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  // Resolve prompt template variables
-  let prompt: string;
-  if (typeof step.prompt === "string") {
-    prompt = step.prompt;
-    // Replace $-expressions in the prompt string
-    prompt = prompt.replace(/\$[\w.]+/g, (match) => {
-      const value = resolveExpression(match, flowContext);
-      return value !== undefined ? String(value) : match;
-    });
-  } else {
-    // Template with variables
-    prompt = step.prompt.template;
-    for (const [key, expr] of Object.entries(step.prompt.variables)) {
-      const value = resolveExpression(expr, flowContext);
-      prompt = prompt.replace(new RegExp(`\\{${key}\\}`, "g"), String(value ?? ""));
-    }
-  }
+  const prompt = resolvePrompt(step.prompt, flowContext);
 
   const result = await stepContext.callAI({
     prompt,
@@ -192,7 +203,71 @@ async function executeAIStep(
     responseFormat: step.responseFormat,
   });
 
-  return { response: result.response, tokensUsed: result.tokensUsed };
+  // If no tool calls, return immediately
+  if (!result.toolCalls || result.toolCalls.length === 0) {
+    return { response: result.response, tokensUsed: result.tokensUsed };
+  }
+
+  // Tool call loop: execute tool calls and feed results back to AI
+  let totalTokens = result.tokensUsed;
+  const toolResults: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> =
+    [];
+  let currentToolCalls: Array<{ toolName: string; args: Record<string, unknown> }> | undefined =
+    result.toolCalls;
+  let finalResponse = result.response;
+  let round = 0;
+
+  while (currentToolCalls && currentToolCalls.length > 0 && round < MAX_TOOL_CALL_ROUNDS) {
+    round++;
+
+    // Execute each tool call via executeAction
+    const roundResults: Array<{ toolName: string; result: unknown }> = [];
+    for (const toolCall of currentToolCalls) {
+      try {
+        const actionResult = await stepContext.executeAction(toolCall.toolName, toolCall.args);
+        roundResults.push({ toolName: toolCall.toolName, result: actionResult });
+        toolResults.push({
+          toolName: toolCall.toolName,
+          args: toolCall.args,
+          result: actionResult,
+        });
+      } catch (err) {
+        const errorResult = {
+          error: err instanceof Error ? err.message : String(err),
+        };
+        roundResults.push({ toolName: toolCall.toolName, result: errorResult });
+        toolResults.push({
+          toolName: toolCall.toolName,
+          args: toolCall.args,
+          result: errorResult,
+        });
+      }
+    }
+
+    // Build a follow-up prompt with tool results for the AI
+    const toolResultSummary = roundResults
+      .map((r) => `Tool "${r.toolName}" returned: ${JSON.stringify(r.result)}`)
+      .join("\n");
+
+    const followUpPrompt = `${prompt}\n\nPrevious tool call results:\n${toolResultSummary}\n\nPlease provide your final response based on these results.`;
+
+    const followUp = await stepContext.callAI({
+      prompt: followUpPrompt,
+      model: step.model,
+      tools: step.tools,
+      responseFormat: step.responseFormat,
+    });
+
+    totalTokens += followUp.tokensUsed;
+    finalResponse = followUp.response;
+    currentToolCalls = followUp.toolCalls;
+  }
+
+  return {
+    response: finalResponse,
+    tokensUsed: totalTokens,
+    toolCalls: toolResults,
+  };
 }
 
 // ── SyncFlowEngine ──────────────────────────────────────

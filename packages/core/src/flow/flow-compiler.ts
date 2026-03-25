@@ -444,6 +444,9 @@ async function executeApprovalStep(
   return { approved: true, approver: approval.approver };
 }
 
+/** Maximum number of tool call rounds to prevent infinite loops */
+const MAX_TOOL_CALL_ROUNDS = 10;
+
 async function executeAIStep(
   ctx: restate.WorkflowContext,
   step: AIFlowStep,
@@ -452,7 +455,8 @@ async function executeAIStep(
 ): Promise<unknown> {
   const prompt = resolvePrompt(step.prompt, flowCtx);
 
-  return ctx.run(step.id, () =>
+  // Initial AI call (durable)
+  const result = await ctx.run(`${step.id}_ai`, () =>
     stepContext.callAI({
       prompt,
       model: step.model,
@@ -460,6 +464,65 @@ async function executeAIStep(
       responseFormat: step.responseFormat,
     }),
   );
+
+  // If no tool calls, return immediately
+  if (!result.toolCalls || result.toolCalls.length === 0) {
+    return { response: result.response, tokensUsed: result.tokensUsed };
+  }
+
+  // Tool call loop: execute tool calls and feed results back to AI
+  let totalTokens = result.tokensUsed;
+  const toolResults: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> =
+    [];
+  let currentToolCalls: Array<{ toolName: string; args: Record<string, unknown> }> | undefined =
+    result.toolCalls;
+  let finalResponse = result.response;
+  let round = 0;
+
+  while (currentToolCalls && currentToolCalls.length > 0 && round < MAX_TOOL_CALL_ROUNDS) {
+    round++;
+
+    // Execute each tool call via executeAction (each durable)
+    const roundResults: Array<{ toolName: string; result: unknown }> = [];
+    for (const toolCall of currentToolCalls) {
+      const actionResult = await ctx.run(`${step.id}_tool_${round}_${toolCall.toolName}`, async () => {
+        try {
+          return await stepContext.executeAction(toolCall.toolName, toolCall.args);
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : String(err) };
+        }
+      });
+      roundResults.push({ toolName: toolCall.toolName, result: actionResult });
+      toolResults.push({ toolName: toolCall.toolName, args: toolCall.args, result: actionResult });
+    }
+
+    // Build follow-up prompt with tool results
+    const toolResultSummary = roundResults
+      .map((r) => `Tool "${r.toolName}" returned: ${JSON.stringify(r.result)}`)
+      .join("\n");
+
+    const followUpPrompt = `${prompt}\n\nPrevious tool call results:\n${toolResultSummary}\n\nPlease provide your final response based on these results.`;
+
+    // Follow-up AI call (durable)
+    const followUp = await ctx.run(`${step.id}_ai_${round}`, () =>
+      stepContext.callAI({
+        prompt: followUpPrompt,
+        model: step.model,
+        tools: step.tools,
+        responseFormat: step.responseFormat,
+      }),
+    );
+
+    totalTokens += followUp.tokensUsed;
+    finalResponse = followUp.response;
+    currentToolCalls = followUp.toolCalls;
+  }
+
+  return {
+    response: finalResponse,
+    tokensUsed: totalTokens,
+    toolCalls: toolResults,
+  };
 }
 
 async function executeWaitStep(ctx: restate.WorkflowContext, step: WaitFlowStep): Promise<unknown> {

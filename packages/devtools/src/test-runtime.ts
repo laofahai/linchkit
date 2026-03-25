@@ -168,14 +168,27 @@ export interface MockAIService extends AIService {
   callCount: number;
 }
 
+/** Response config for mockAIService — string for simple text, object for structured/tool responses */
+export interface MockAIResponse {
+  content?: string;
+  data?: unknown;
+  toolCalls?: Array<{ toolName: string; args: Record<string, unknown> }>;
+}
+
 /**
  * Create a mock AI service for testing flows with AI steps.
  *
  * @param responses - Map of prompt substring → response content.
  *   When a message contains the substring, that response is returned.
+ *   Values can be:
+ *   - `string` — returned as content
+ *   - `MockAIResponse` — full control over content, data, and toolCalls
+ *   - other object — JSON-stringified as content + set as data
  *   If no match, returns a default "mock response".
  */
-export function mockAIService(responses?: Record<string, unknown>): MockAIService {
+export function mockAIService(
+  responses?: Record<string, string | MockAIResponse | unknown>,
+): MockAIService {
   const calls: AICompletionOptions[] = [];
 
   return {
@@ -189,6 +202,7 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       // Try to match a response based on message content
       let content = "mock response";
       let data: unknown;
+      let toolCalls: Array<{ toolName: string; args: Record<string, unknown> }> | undefined;
 
       if (responses) {
         const lastUserMessage = [...options.messages].reverse().find((m) => m.role === "user");
@@ -198,6 +212,10 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
           if (messageText.includes(key)) {
             if (typeof value === "string") {
               content = value;
+            } else if (isMockAIResponse(value)) {
+              content = value.content ?? "mock response";
+              data = value.data;
+              toolCalls = value.toolCalls;
             } else {
               content = JSON.stringify(value);
               data = value;
@@ -210,6 +228,10 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       return {
         content,
         data,
+        toolCalls: toolCalls?.map((tc) => ({
+          toolName: tc.toolName,
+          args: tc.args,
+        })),
         usage: {
           inputTokens: 10,
           outputTokens: 20,
@@ -221,4 +243,11 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       };
     },
   };
+}
+
+/** Type guard: check if a value is a MockAIResponse (has content, data, or toolCalls keys) */
+function isMockAIResponse(value: unknown): value is MockAIResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return "content" in v || "toolCalls" in v || ("data" in v && !("type" in v));
 }
