@@ -55,8 +55,9 @@ export class InMemoryMetricsCollector implements MetricsCollector {
   private counters = new Map<string, MetricSnapshot>();
   /** Latest gauge values keyed by name+tags */
   private gauges = new Map<string, MetricSnapshot>();
-  /** All histogram observations (append-only) */
+  /** Histogram observations (ring buffer, max 10000) */
   private histograms: MetricSnapshot[] = [];
+  private static readonly MAX_HISTOGRAM_SIZE = 10_000;
 
   increment(name: string, tags: Record<string, string> = {}): void {
     const key = metricKey(name, tags);
@@ -87,6 +88,10 @@ export class InMemoryMetricsCollector implements MetricsCollector {
   }
 
   histogram(name: string, value: number, tags: Record<string, string> = {}): void {
+    if (this.histograms.length >= InMemoryMetricsCollector.MAX_HISTOGRAM_SIZE) {
+      // Evict oldest half when full
+      this.histograms = this.histograms.slice(this.histograms.length >> 1);
+    }
     this.histograms.push({
       name,
       type: "histogram",

@@ -169,27 +169,31 @@ class AutomationEngineImpl implements AutomationEngine {
     if (trigger.type !== "event") return;
 
     const unsub = this.eventBus.subscribe(trigger.eventType, async (event: EventRecord) => {
-      // Re-check enabled status at trigger time
-      const current = this.registry.get(automation.name);
-      if (!current?.enabled) return;
+      try {
+        // Re-check enabled status at trigger time
+        const current = this.registry.get(automation.name);
+        if (!current?.enabled) return;
 
-      // Evaluate declarative filter if present
-      if (trigger.filter) {
-        const ctx: ConditionContext = {
-          target: event.payload,
-          context: {},
-          actor: { type: event.actor.type, id: event.actor.id, groups: [] },
-        };
-        if (!evaluateCondition(trigger.filter, ctx)) {
-          return;
+        // Evaluate declarative filter if present
+        if (trigger.filter) {
+          const ctx: ConditionContext = {
+            target: event.payload,
+            context: {},
+            actor: { type: event.actor.type, id: event.actor.id, groups: [] },
+          };
+          if (!evaluateCondition(trigger.filter, ctx)) {
+            return;
+          }
         }
-      }
 
-      const result = await this.executeAutomation(automation, event.payload);
-      if (!result.success) {
-        this.logger.warn?.(
-          `[AutomationEngine] Automation "${automation.name}" failed: ${JSON.stringify(result.actionResults.filter((r) => !r.success))}`,
-        );
+        const result = await this.executeAutomation(current, event.payload);
+        if (!result.success) {
+          this.logger.warn?.(
+            `[AutomationEngine] Automation "${automation.name}" failed: ${JSON.stringify(result.actionResults.filter((r) => !r.success))}`,
+          );
+        }
+      } catch (err) {
+        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
       }
     });
 
@@ -202,32 +206,36 @@ class AutomationEngineImpl implements AutomationEngine {
 
     // Listen to record.updated events and check if the specified field changed
     const unsub = this.eventBus.subscribe("record.updated", async (event: EventRecord) => {
-      const current = this.registry.get(automation.name);
-      if (!current?.enabled) return;
+      try {
+        const current = this.registry.get(automation.name);
+        if (!current?.enabled) return;
 
-      // Check schema match
-      if (event.schema !== trigger.schema) return;
+        // Check schema match
+        if (event.schema !== trigger.schema) return;
 
-      const oldValues = event.payload._old as Record<string, unknown> | undefined;
-      const newValues = event.payload._new as Record<string, unknown> | undefined;
+        const oldValues = event.payload._old as Record<string, unknown> | undefined;
+        const newValues = event.payload._new as Record<string, unknown> | undefined;
 
-      if (!oldValues || !newValues) return;
+        if (!oldValues || !newValues) return;
 
-      const oldFieldValue = oldValues[trigger.field];
-      const newFieldValue = newValues[trigger.field];
+        const oldFieldValue = oldValues[trigger.field];
+        const newFieldValue = newValues[trigger.field];
 
-      // Field must have actually changed
-      if (oldFieldValue === newFieldValue) return;
+        // Field must have actually changed
+        if (oldFieldValue === newFieldValue) return;
 
-      // Check from/to constraints
-      if (trigger.from !== undefined && oldFieldValue !== trigger.from) return;
-      if (trigger.to !== undefined && newFieldValue !== trigger.to) return;
+        // Check from/to constraints
+        if (trigger.from !== undefined && oldFieldValue !== trigger.from) return;
+        if (trigger.to !== undefined && newFieldValue !== trigger.to) return;
 
-      const result = await this.executeAutomation(automation, event.payload);
-      if (!result.success) {
-        this.logger.warn?.(
-          `[AutomationEngine] Field change automation "${automation.name}" failed`,
-        );
+        const result = await this.executeAutomation(current, event.payload);
+        if (!result.success) {
+          this.logger.warn?.(
+            `[AutomationEngine] Field change automation "${automation.name}" failed`,
+          );
+        }
+      } catch (err) {
+        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
       }
     });
 
@@ -240,32 +248,36 @@ class AutomationEngineImpl implements AutomationEngine {
 
     // Listen to record.updated events and check state field
     const unsub = this.eventBus.subscribe("record.updated", async (event: EventRecord) => {
-      const current = this.registry.get(automation.name);
-      if (!current?.enabled) return;
+      try {
+        const current = this.registry.get(automation.name);
+        if (!current?.enabled) return;
 
-      // Check schema match
-      if (event.schema !== trigger.schema) return;
+        // Check schema match
+        if (event.schema !== trigger.schema) return;
 
-      const oldValues = event.payload._old as Record<string, unknown> | undefined;
-      const newValues = event.payload._new as Record<string, unknown> | undefined;
+        const oldValues = event.payload._old as Record<string, unknown> | undefined;
+        const newValues = event.payload._new as Record<string, unknown> | undefined;
 
-      if (!oldValues || !newValues) return;
+        if (!oldValues || !newValues) return;
 
-      const oldState = oldValues._state as string | undefined;
-      const newState = newValues._state as string | undefined;
+        const oldState = oldValues._state as string | undefined;
+        const newState = newValues._state as string | undefined;
 
-      // State must have actually changed
-      if (oldState === newState) return;
+        // State must have actually changed
+        if (oldState === newState) return;
 
-      // Check from/to constraints
-      if (trigger.from !== undefined && oldState !== trigger.from) return;
-      if (trigger.to !== undefined && newState !== trigger.to) return;
+        // Check from/to constraints
+        if (trigger.from !== undefined && oldState !== trigger.from) return;
+        if (trigger.to !== undefined && newState !== trigger.to) return;
 
-      const result = await this.executeAutomation(automation, event.payload);
-      if (!result.success) {
-        this.logger.warn?.(
-          `[AutomationEngine] State change automation "${automation.name}" failed`,
-        );
+        const result = await this.executeAutomation(current, event.payload);
+        if (!result.success) {
+          this.logger.warn?.(
+            `[AutomationEngine] State change automation "${automation.name}" failed`,
+          );
+        }
+      } catch (err) {
+        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
       }
     });
 

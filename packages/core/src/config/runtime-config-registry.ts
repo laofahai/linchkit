@@ -70,9 +70,13 @@ function validateField(
         return `field "${fieldName}" length must be <= ${v.max}`;
       }
       if (v.pattern) {
-        const regex = new RegExp(v.pattern);
-        if (!regex.test(value)) {
-          return `field "${fieldName}" must match pattern "${v.pattern}"`;
+        try {
+          const regex = new RegExp(v.pattern);
+          if (!regex.test(value)) {
+            return `field "${fieldName}" must match pattern "${v.pattern}"`;
+          }
+        } catch {
+          return `field "${fieldName}" has invalid validation pattern "${v.pattern}"`;
         }
       }
     }

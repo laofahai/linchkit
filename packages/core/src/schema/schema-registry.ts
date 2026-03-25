@@ -16,6 +16,7 @@ import type {
   SchemaExtension,
   SchemaOverride,
 } from "../types/schema";
+import type { InterfaceRegistry } from "./schema-interface";
 
 // ── Non-storable field types ────────────────────────────────────
 
@@ -63,11 +64,23 @@ export class SchemaRegistry {
   private schemas = new Map<string, SchemaDefinition>();
   private extensions = new Map<string, SchemaExtension[]>();
   private overrides = new Map<string, SchemaOverride[]>();
+  private _interfaceRegistry: InterfaceRegistry | null = null;
+
+  /** Set the InterfaceRegistry for interface validation and field injection */
+  setInterfaceRegistry(registry: InterfaceRegistry): void {
+    this._interfaceRegistry = registry;
+  }
+
+  /** Get the associated InterfaceRegistry (if any) */
+  getInterfaceRegistry(): InterfaceRegistry | null {
+    return this._interfaceRegistry;
+  }
 
   /**
    * Register a schema definition.
    * Throws if a schema with the same name is already registered.
    * Validates inheritance constraints (parent exists, no circular refs, depth limit).
+   * Validates interface implementation if InterfaceRegistry is set.
    */
   register(schema: SchemaDefinition): void {
     if (!schema.name) {
@@ -109,6 +122,16 @@ export class SchemaRegistry {
           `Inheritance depth exceeds maximum of ${MAX_INHERITANCE_DEPTH} levels for schema "${schema.name}"`,
         );
       }
+    }
+
+    // Validate interface implementation
+    if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
+      const errors = this._interfaceRegistry.validateImplementation(schema);
+      if (errors.length > 0) {
+        throw new Error(errors[0]);
+      }
+      // Register the schema as an implementor
+      this._interfaceRegistry.registerImplementor(schema.name, schema.implements);
     }
 
     this.schemas.set(schema.name, schema);
@@ -300,11 +323,12 @@ export class SchemaRegistry {
         current = this.schemas.get(current.extends);
       }
 
-      // Check depth
+      // Check depth (chain includes self, so ancestor count = chain.length - 1)
       const chain = this.getInheritanceChain(schema.name);
-      if (chain.length > MAX_INHERITANCE_DEPTH) {
+      const ancestorDepth = chain.length - 1;
+      if (ancestorDepth >= MAX_INHERITANCE_DEPTH) {
         errors.push(
-          `Inheritance depth ${chain.length} exceeds maximum of ${MAX_INHERITANCE_DEPTH} for schema "${schema.name}"`,
+          `Inheritance depth ${ancestorDepth} exceeds maximum of ${MAX_INHERITANCE_DEPTH} for schema "${schema.name}"`,
         );
       }
     }

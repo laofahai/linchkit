@@ -325,7 +325,10 @@ class ExpressionParser {
       else if (op === "/") {
         if (right === 0) throw new Error("[derived-property] Division by zero");
         left /= right;
-      } else left %= right;
+      } else {
+        if (right === 0) throw new Error("[derived-property] Modulo by zero");
+        left %= right;
+      }
       current = this.peek();
     }
     return left;
@@ -686,6 +689,7 @@ export class DerivedPropertyEngine {
     record: Record<string, unknown>,
   ): Record<string, unknown> {
     const order = this.topoOrder.get(schemaName) ?? [];
+    const resolvedFields = new Set<string>();
 
     // Resolve compute-strategy fields in topological order
     for (const key of order) {
@@ -696,13 +700,14 @@ export class DerivedPropertyEngine {
       if (value !== undefined) {
         record[info.fieldName] = value;
       }
+      resolvedFields.add(info.fieldName);
     }
 
     // Also resolve any compute fields not in the topo order
     // (e.g., they have no inter-derived dependencies)
     for (const info of this.fields.values()) {
       if (info.schemaName !== schemaName || info.strategy !== "compute") continue;
-      if (record[info.fieldName] !== undefined) continue; // Already resolved
+      if (resolvedFields.has(info.fieldName)) continue; // Already resolved in topo order
 
       const value = resolveDerivedValue(info.derived, record);
       if (value !== undefined) {
