@@ -265,6 +265,11 @@ AI 通过 Ontology 一次查询即可获得完整的关联图。
 - CLI dev 自动收集 links 并生成 schema ✅
 - Schema 字段 `ref`/`has_many`/`many_to_many` 自动提升为隐式 Link ✅
 
+### UI Components (2026-03-25)
+- `ref-widget.tsx` — Reference field widget with combobox search (HasMany/ManyToOne display + input) ✅
+- HasMany widget: inline sub-table display for one-to-many linked records ✅
+- ManyToMany widget: tag-style display with link/unlink support ✅
+
 ### M3
-- 自引用关联（树形结构）
-- MCP 工具：`traverse_links`（从一条记录导航关联图）
+- Self-referencing links (tree structures with parent_id)
+- MCP tool: `traverse_links` (navigate link graph from a single record)

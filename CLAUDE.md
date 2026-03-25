@@ -2,7 +2,7 @@
 
 ## Overview
 
-AI-Native Software Capability Runtime. **Milestone:** M1a — Drizzle persistence + Flow scaffolding.
+AI-Native Software Capability Runtime. **Milestone:** M2 — Link Type + OntologyRegistry + GraphQL Subscriptions.
 
 Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow**
 
@@ -110,7 +110,11 @@ bun ./packages/cli/src/index.ts db studio
 - **System fields**: `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
 - **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
 - **Protocol Adapters**: Transport adapters (MCP, A2A, AG-UI) are Capabilities (`type: adapter`, `category: integration`) that register via `extensions.transports`. They wrap CommandLayer with protocol-specific transport. Core stays minimal.
-- **Flow Engine**: Uses Restate for durable workflow execution. `FlowDefinition` interface defines flows with step types (action, ai, condition, wait, approval, parallel). `FlowCompiler` compiles definitions to executable form. Dual-mode: with Restate server = full durable execution (persistence, retries, timeouts, Saga compensation); without Restate server = `SyncFlowEngine` (steps run sequentially, no durability). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
+- **Flow Engine**: Uses Restate for durable workflow execution. `FlowDefinition` interface defines flows with step types (action, ai, condition, wait, approval, parallel). `FlowCompiler` compiles definitions to executable form. Dual-mode: with Restate server = full durable execution via `RestateFlowEngine` (persistence, retries, timeouts, Saga compensation); without Restate server = `SyncFlowEngine` (steps run sequentially in-process, no durability). `FlowStepContext` provides step-level API (get/set variables, emit events, log). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
+- **OntologyRegistry**: Unified semantic layer aggregating all registries (Schema, Action, Rule, State, Event, EventHandler, View, Flow, Link). Read-only facade built once at startup. Key methods: `describe(schemaName)` returns full `SchemaDescriptor`, `listSchemas()`, `searchSchemas(query)`, `actionsFor()`, `rulesFor()`, `stateFor()`, `viewsFor()`, `flowsFor()`, `handlersFor()`, `relatedSchemas()`, `toJSON()`. See spec 43.
+- **GraphQL Subscriptions**: SSE-based pub/sub via graphql-yoga. Supports real-time event streaming for schema record changes. Integrated with PersistentEventBus.
+- **MCP Tools**: `list_schemas`, `describe_schema` (full SchemaDescriptor via Ontology), `ontology_overview` (high-level system summary), `search_ontology` (keyword search across schemas/actions/rules), `list_actions` (with filter support), `execute_action`, `create_proposal`, `query` (GraphQL proxy). Registered via `extensions.transports` in cap-adapter-mcp.
+- **Link Type**: `defineLink()` declares relationships as first-class citizens (spec 46). `LinkRegistry` provides bidirectional navigation (`linksFor`, `outgoingLinks`, `incomingLinks`). Drizzle schema generation handles FK columns (many_to_one, one_to_many) and junction tables (many_to_many with properties). GraphQL resolvers auto-generated for all cardinalities. Schema field `ref`/`has_many`/`many_to_many` auto-promoted to implicit Links.
 
 ## UI Routes
 

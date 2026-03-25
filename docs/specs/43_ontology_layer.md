@@ -1,8 +1,9 @@
 # Ontology Layer — 统一语义模型
 
-> Status: Draft | Date: 2026-03-23
+> Status: Implemented (core) | Date: 2026-03-23
 > 灵感来源: Palantir Foundry Ontology
-> 里程碑: M2 (not started)
+> 里程碑: M2
+> **Implementation status (2026-03-25):** Core OntologyRegistry implemented with describe(), listSchemas(), searchSchemas(), actionsFor(), rulesFor(), stateFor(), viewsFor(), flowsFor(), handlersFor(), relatedSchemas(), toJSON(). MCP tools (describe_schema, ontology_overview, search_ontology) integrated.
 
 ## 1. 问题
 
@@ -46,52 +47,52 @@ interface OntologyRegistry {
   // === 发现 ===
 
   /** 获取关于某个 Schema 的一切：字段、Action、Rule、状态机、View、Flow、关联 */
-  describe(schemaName: string): SchemaDescriptor
+  describe(schemaName: string): SchemaDescriptor              // ✅ Implemented
 
   /** 列出 Ontology 中所有 Schema 名称 */
-  listSchemas(): string[]
+  listSchemas(): string[]                                      // ✅ Implemented
 
   /** 按关键词搜索 Schema（名称、label、字段名） */
-  searchSchemas(query: string): SchemaDescriptor[]
+  searchSchemas(query: string): SchemaDescriptor[]             // ✅ Implemented
 
   // === 横切查询 ===
 
   /** 获取操作某个 Schema 的所有 Action */
-  actionsFor(schemaName: string): ActionDefinition[]
+  actionsFor(schemaName: string): ActionDefinition[]           // ✅ Implemented
 
   /** 获取影响某个 Schema 的所有 Rule */
-  rulesFor(schemaName: string): RuleDefinition[]
+  rulesFor(schemaName: string): RuleDefinition[]               // ✅ Implemented
 
   /** 获取某个 Schema 的状态机（如果有） */
-  stateFor(schemaName: string): StateDefinition | null
+  stateFor(schemaName: string): StateDefinition | null         // ✅ Implemented
 
   /** 获取为某个 Schema 定义的所有 View */
-  viewsFor(schemaName: string): ViewDefinition[]
+  viewsFor(schemaName: string): ViewDefinition[]               // ✅ Implemented
 
   /** 获取由某个 Schema 的 Action/Event 触发的所有 Flow */
-  flowsFor(schemaName: string): FlowDefinition[]
+  flowsFor(schemaName: string): FlowDefinition[]               // ✅ Implemented
 
   /** 获取监听某个 Schema 事件的所有 EventHandler */
-  handlersFor(schemaName: string): EventHandlerDefinition[]
+  handlersFor(schemaName: string): EventHandlerDefinition[]    // ✅ Implemented
 
   /** 获取与某个 Schema 关联的 Schema（结构关联 + 语义关联） */
-  relatedSchemas(schemaName: string): RelationDescriptor[]
+  relatedSchemas(schemaName: string): RelationDescriptor[]     // ✅ Implemented
 
   // === 影响分析 ===
 
   /** 如果修改了这个 Schema/字段，会影响什么？ */
-  impactOf(target: { schema: string; field?: string }): ImpactReport
+  impactOf(target: { schema: string; field?: string }): ImpactReport  // ⚪ Planned for M3
 
   // === 序列化（用于 AI / MCP / 文档生成） ===
 
   /** 导出完整 Ontology 为 JSON（用于 AI 上下文注入） */
-  toJSON(): OntologySnapshot
+  toJSON(): OntologySnapshot                                   // ✅ Implemented
 
   /** 导出为 Mermaid 图 */
-  toMermaid(): string
+  toMermaid(): string                                          // ⚪ Planned for M3
 
   /** 导出为 Markdown（用于 CLAUDE.md 生成） */
-  toMarkdown(): string
+  toMarkdown(): string                                         // ⚪ Planned for M3
 }
 ```
 
@@ -233,13 +234,14 @@ const impact = ontology.impactOf({ schema: 'purchase_request', field: 'amount' }
 ## 11. 里程碑
 
 ### M2
-- `OntologyRegistry` 接口 + `createOntologyRegistry()` 工厂
-- `describe()`、`listSchemas()`、`actionsFor()`、`rulesFor()`、`stateFor()`
-- `toJSON()` 导出供 MCP 上下文使用
-- 基于 Ontology 的增强版 MCP 工具
+- `OntologyRegistry` 接口 + `createOntologyRegistry()` 工厂 ✅
+- `describe()`、`listSchemas()`、`actionsFor()`、`rulesFor()`、`stateFor()` ✅
+- `viewsFor()`、`flowsFor()`、`handlersFor()`、`relatedSchemas()` ✅
+- `searchSchemas()` keyword search ✅ (moved from M3, implemented 2026-03-25)
+- `toJSON()` export for MCP context ✅
+- Enhanced MCP tools based on Ontology (`describe_schema`, `ontology_overview`, `search_ontology`) ✅
 
 ### M3
-- `impactOf()` 影响分析
-- `toMarkdown()` + `toMermaid()` 自动生成
-- `searchSchemas()` 模糊搜索
-- CLI: `linch ontology describe <schema>`、`linch ontology diagram`
+- `impactOf()` impact analysis
+- `toMarkdown()` + `toMermaid()` auto-generation
+- CLI: `linch ontology describe <schema>`, `linch ontology diagram`

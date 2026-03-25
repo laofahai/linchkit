@@ -1,7 +1,7 @@
 # Milestone M1 Plan — Persistence, Flow, Ecosystem
 
 > Status: Active | Date: 2026-03-22
-> **Last Updated**: 2026-03-24
+> **Last Updated**: 2026-03-25
 > Prerequisite: **✅ M0b complete** (auth/permission integration finalized)
 >
 > ### Current Progress
@@ -10,8 +10,17 @@
 > - ✅ M1a Stage 2: Migration System 100% complete (uses `migrate()` API instead of buggy `push`)
 > - ✅ M1a Stage 3: RuntimeContext Switch 100% complete (PostgreSQL + InMemory fallback)
 > - ✅ M1a Stage 4: Event Persistence + Outbox 100% complete
-> - ⚪ M1a Stage 5: Flow Engine (Restate) — not started
-> - **M2 (added after planning):** Link Type 100% complete (including提前完成了多对多支持)
+> - ✅ M1a Stage 5: Flow Engine (Restate) 100% complete (FlowDefinition types, SyncFlowEngine, FlowStepContext, dual-mode)
+> - ✅ M1b Phase 1: MCP Adapter Enhanced — complete (describe_schema, ontology_overview, search_ontology, list_actions filter)
+> - ✅ M1b Phase 3: AI Proposal — basics complete (OntologyRegistry integration, ProposalGenerationError, prompt optimization)
+> - ✅ M1b Phase 4: CLI Ecosystem — basics complete (create-capability enhanced, install --dry-run, info command)
+> - ✅ M1b Phase 5: i18n — data layer complete
+> - **M2 (added after planning):** Link Type 100% complete (including M:N support ahead of schedule)
+> - ✅ M2: OntologyRegistry 100% complete (describe, listSchemas, searchSchemas, actionsFor, rulesFor, stateFor, viewsFor, flowsFor, handlersFor, relatedSchemas, toJSON)
+> - ✅ M2: GraphQL Subscriptions — basics complete (SSE-based pub/sub)
+>
+> ### Tech Debt Fixed (2026-03-25)
+> - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
 
 ## Overview
 
