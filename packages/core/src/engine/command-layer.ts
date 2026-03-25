@@ -14,7 +14,7 @@
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
 
-import { LinchKitError } from "../errors";
+import { AuthorizationError, LinchKitError, SystemError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
@@ -351,7 +351,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       if (err instanceof PipelineError) {
         return {
           success: false,
-          data: { error: err.message, code: err.code },
+          data: { error: err.message, code: err.pipelineCode },
           executionId: generatePipelineId(),
         };
       }
@@ -421,20 +421,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
 // ── Pipeline errors ─────────────────────────────────────────
 
 /** Error thrown by built-in exposure check */
-export class ExposureError extends Error {
+export class ExposureError extends AuthorizationError {
   constructor(message: string) {
-    super(message);
+    super({ message, code: "command.exposure.denied" });
     this.name = "ExposureError";
   }
 }
 
 /** Error thrown by middleware to short-circuit the pipeline with a code */
-export class PipelineError extends Error {
-  readonly code: string;
+export class PipelineError extends SystemError {
+  /** Pipeline-specific error code (e.g. "AUTH.REQUIRED", "PERMISSION.DENIED") */
+  readonly pipelineCode: string;
 
   constructor(message: string, code: string) {
-    super(message);
+    super({ message, code: "command.pipeline.error" });
+    this.pipelineCode = code;
     this.name = "PipelineError";
-    this.code = code;
   }
 }

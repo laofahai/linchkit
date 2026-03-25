@@ -7,6 +7,7 @@
  * Storage: in-memory Map. DB persistence will be added in a later milestone.
  */
 
+import { ValidationError } from "../errors";
 import type {
   ConfigDefinition,
   ConfigFieldDefinition,
@@ -14,13 +15,17 @@ import type {
 } from "../types/runtime-config";
 
 /** Error thrown when config validation fails */
-export class ConfigValidationError extends Error {
+export class ConfigValidationError extends ValidationError {
   constructor(
     public readonly configName: string,
     public readonly fieldName: string,
     public readonly reason: string,
   ) {
-    super(`Config "${configName}.${fieldName}": ${reason}`);
+    super({
+      message: `Config "${configName}.${fieldName}": ${reason}`,
+      code: "config.validation.failed",
+      fields: [{ field: `${configName}.${fieldName}`, message: reason }],
+    });
     this.name = "ConfigValidationError";
   }
 }

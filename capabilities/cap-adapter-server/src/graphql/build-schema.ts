@@ -66,13 +66,6 @@ function toCamelCase(name: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-/** Default anonymous actor used when no auth middleware resolves a real actor */
-const _ANONYMOUS_ACTOR: Actor = {
-  type: "system",
-  id: "anonymous",
-  groups: [],
-};
-
 /** GraphQL resolver context — carries actor, tenant isolation, locale, and data access */
 export interface GraphQLContext {
   /** Authenticated actor resolved from the request; falls back to ANONYMOUS_ACTOR */
