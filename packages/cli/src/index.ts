@@ -15,6 +15,7 @@ import { docsCommand } from "./commands/docs";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
+import { validateCommand } from "./commands/validate";
 
 export const VERSION = "0.0.1";
 
@@ -34,6 +35,7 @@ const main = defineCommand({
     docs: docsCommand,
     check: checkQualityCommand,
     changelog: changelogCommand,
+    validate: validateCommand,
   },
 });
 
