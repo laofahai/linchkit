@@ -321,9 +321,7 @@ export const validateCommand = defineCommand({
         const warnings = cat.issues.filter((i) => i.severity === "warning").length;
         const infos = cat.issues.filter((i) => i.severity === "info").length;
         const icon = errors === 0 ? "\u2713" : "\u2717";
-        console.log(
-          `  ${icon} ${cat.name}: ${errors} errors, ${warnings} warnings, ${infos} info`,
-        );
+        console.log(`  ${icon} ${cat.name}: ${errors} errors, ${warnings} warnings, ${infos} info`);
       }
 
       // Print issues table

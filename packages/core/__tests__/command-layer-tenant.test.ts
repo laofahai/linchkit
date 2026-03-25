@@ -126,9 +126,9 @@ describe("Command Layer: Tenant Isolation", () => {
     expect(tenantMw).toBeDefined();
 
     // Verify slot positions
-    expect(tenantMw!.slot).toBe("tenant");
+    expect(tenantMw?.slot).toBe("tenant");
     const authMw = originalMws.find((m) => m.name === "auth_mw");
-    expect(authMw!.slot).toBe("auth");
+    expect(authMw?.slot).toBe("auth");
 
     // Execute and verify overall pipeline succeeds
     const result = await layer.execute({
