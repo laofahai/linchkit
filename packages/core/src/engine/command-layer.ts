@@ -36,11 +36,8 @@ export type SlotName = (typeof SLOT_ORDER)[number];
 
 // ── Pipeline ID generator ───────────────────────────────────
 
-let pipelineCounter = 0;
-
 function generatePipelineId(): string {
-  pipelineCounter++;
-  return `pipeline_${Date.now()}_${pipelineCounter}`;
+  return `pipeline_${crypto.randomUUID()}`;
 }
 
 // ── CommandContext ───────────────────────────────────────────

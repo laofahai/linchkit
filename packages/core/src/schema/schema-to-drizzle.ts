@@ -26,7 +26,116 @@ export interface DrizzleGeneratorOptions {
 }
 
 // Field types that are virtual and should not produce columns
-const SKIPPED_FIELD_TYPES = new Set(["computed"]);
+// Relationship fields (ref/has_many/many_to_many) are handled by generateLinkColumns
+const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
+
+/**
+ * Type guard for relationship field types that have a `target` property.
+ */
+function isRelationshipField(field: FieldDefinition): field is FieldDefinition & { target: string } {
+  return field.type === "ref" || field.type === "has_many" || field.type === "many_to_many";
+}
+
+/**
+ * Convert relationship fields (ref, has_many, many_to_many) from Schema fields
+ * to implicit LinkDefinition objects.
+ *
+ * This implements the "implicit link auto-promotion" feature: existing schema
+ * field relationships are automatically promoted to first-class Link objects
+ * and merged with explicit defineLink declarations.
+ *
+ * If there's a name conflict, explicit links win and a warning is logged.
+ *
+ * @param schemas - All schema definitions (used to validate targets exist)
+ * @param explicitLinks - Explicitly defined links (for conflict detection)
+ */
+export function convertSchemaRelationshipFieldsToImplicitLinks(
+  schemas: SchemaDefinition[],
+  explicitLinks: LinkDefinition[],
+): {
+  implicitLinks: LinkDefinition[];
+  conflicts: Array<{ name: string; explicit: LinkDefinition; implicit: LinkDefinition }>;
+  missingTargets: Array<{ schemaName: string; fieldName: string; target: string }>;
+} {
+  const implicitLinks: LinkDefinition[] = [];
+  const conflicts: Array<{ name: string; explicit: LinkDefinition; implicit: LinkDefinition }> = [];
+  const missingTargets: Array<{ schemaName: string; fieldName: string; target: string }> = [];
+
+  // Build a set of existing explicit link names for conflict detection
+  const explicitLinkNames = new Set(explicitLinks.map((l) => l.name));
+  // Build a set of all schema names for target validation
+  const schemaNames = new Set(schemas.map((s) => s.name));
+
+  for (const schema of schemas) {
+    const schemaName = schema.name;
+
+    for (const [fieldName, field] of Object.entries(schema.fields)) {
+      if (!isRelationshipField(field)) continue;
+
+      const cardinality: LinkDefinition["cardinality"] =
+        field.type === "ref" ? "many_to_one" :
+        field.type === "has_many" ? "one_to_many" : "many_to_many";
+      const target = field.target;
+
+      // Validate target schema exists
+      if (!schemaNames.has(target)) {
+        missingTargets.push({ schemaName, fieldName, target });
+        continue;
+      }
+
+      // For implicit links from schema fields:
+      // - The original field name becomes the label on the from side (matches what the user wrote)
+      // - Reverse direction gets the schema name
+      const labelFrom = fieldName;
+      const labelTo = schemaName;
+      const finalLabelFrom: string | undefined = field.label ?? labelFrom;
+      const finalLabelTo: string | undefined = labelTo;
+
+      // Generate a predictable unique name: schemaName_fieldName
+      const linkName = `${schemaName}_${fieldName}`;
+
+      // Check for conflict with explicit links
+      if (explicitLinkNames.has(linkName)) {
+        const explicit = explicitLinks.find((l) => l.name === linkName)!;
+        conflicts.push({
+          name: linkName,
+          explicit,
+          implicit: {
+            name: linkName,
+            from: schemaName,
+            to: target,
+            cardinality,
+            label: {
+              from: finalLabelFrom,
+              to: finalLabelTo,
+            },
+            required: field.required,
+          },
+        });
+        continue;
+      }
+
+      // Also check for duplicates among the implicit links we just generated
+      // This can happen if same name is generated twice (unlikely but safe-guard)
+      if (implicitLinks.some((l) => l.name === linkName)) continue;
+
+      // Create the implicit link
+      implicitLinks.push({
+        name: linkName,
+        from: schemaName,
+        to: target,
+        cardinality,
+        label: {
+          from: finalLabelFrom,
+          to: finalLabelTo,
+        },
+        required: field.required,
+      });
+    }
+  }
+
+  return { implicitLinks, conflicts, missingTargets };
+}
 
 // Field types that support translatable content (stored as JSONB { locale: value })
 const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
@@ -37,7 +146,7 @@ const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
  * When a field has `translatable: true`, generates a jsonb column instead of the
  * normal column type. The JSONB stores `{ [locale]: value }`.
  */
-function buildColumn(name: string, field: FieldDefinition): unknown {
+export function buildColumn(name: string, field: FieldDefinition): unknown {
   let col: ReturnType<
     | typeof varchar
     | typeof text
@@ -111,6 +220,47 @@ function buildColumn(name: string, field: FieldDefinition): unknown {
 }
 
 /**
+ * Build a fresh set of system columns (id, tenant_id, timestamps, etc.).
+ *
+ * Each call creates NEW Drizzle column builder instances so they can be
+ * passed to `pgTable()` (built columns can't have `.setName()` called again).
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+export function buildSystemColumns(): Record<string, any> {
+  return {
+    id: varchar("id", { length: 128 }).primaryKey(),
+    tenant_id: varchar("tenant_id", { length: 128 }),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+    created_by: varchar("created_by", { length: 128 }),
+    updated_by: varchar("updated_by", { length: 128 }),
+    _version: integer("_version").default(1).notNull(),
+    deleted_at: timestamp("deleted_at", { mode: "date" }),
+  };
+}
+
+/**
+ * Build the full columns record for a schema (system columns + user-defined fields).
+ *
+ * Creates fresh Drizzle column builder instances each time, so the result can
+ * be merged with additional columns (e.g. FK columns from links) and then
+ * passed to `pgTable()`.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
+export function buildTableColumns(schema: SchemaDefinition): Record<string, any> {
+  const columns = buildSystemColumns();
+
+  for (const [fieldName, field] of Object.entries(schema.fields)) {
+    if (SKIPPED_FIELD_TYPES.has(field.type)) {
+      continue;
+    }
+    columns[fieldName] = buildColumn(fieldName, field);
+  }
+
+  return columns;
+}
+
+/**
  * Generate a Drizzle pgTable definition from a LinchKit SchemaDefinition.
  */
 export function generateDrizzleTable(
@@ -120,26 +270,7 @@ export function generateDrizzleTable(
   const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
   const tableName = `${prefix}${schema.name}`;
 
-  // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
-  const columns: Record<string, any> = {};
-
-  // System columns — always included
-  columns.id = varchar("id", { length: 128 }).primaryKey();
-  columns.tenant_id = varchar("tenant_id", { length: 128 });
-  columns.created_at = timestamp("created_at").defaultNow().notNull();
-  columns.updated_at = timestamp("updated_at").defaultNow().notNull();
-  columns.created_by = varchar("created_by", { length: 128 });
-  columns.updated_by = varchar("updated_by", { length: 128 });
-  columns._version = integer("_version").default(1).notNull();
-  columns.deleted_at = timestamp("deleted_at", { mode: "date" });
-
-  // User-defined columns
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
-    if (SKIPPED_FIELD_TYPES.has(field.type)) {
-      continue;
-    }
-    columns[fieldName] = buildColumn(fieldName, field);
-  }
+  const columns = buildTableColumns(schema);
 
   return pgTable(tableName, columns);
 }

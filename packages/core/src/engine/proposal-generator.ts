@@ -25,6 +25,8 @@ import type { FieldType, SchemaDefinition } from "../types/schema";
 import type { ActionRegistry } from "./action-engine";
 
 // ── Valid field types (for validation) ──────────────────────
+// Relationship fields (ref/has_many/many_to_many) are valid virtual fields
+// They declare relationships that are auto-promoted to Link definitions
 
 const VALID_FIELD_TYPES = new Set<FieldType>([
   "string",
@@ -37,6 +39,9 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "json",
   "state",
   "computed",
+  "ref",
+  "has_many",
+  "many_to_many",
 ]);
 
 // ── ID generation helper ─────────────────────────────────
@@ -111,7 +116,7 @@ ${schemaList}
 Current registered actions:
 ${actionList}
 
-Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed
+Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed, ref, has_many, many_to_many
 
 Rules for generating proposals:
 1. For "create" changes, always include a complete "definition" object

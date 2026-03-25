@@ -32,14 +32,47 @@ export const assignUserAction = defineAction({
   permissions: {
     groups: ["system_admin"],
   },
-  async handler(_ctx) {
-    // TODO: Implement user assignment
-    // 1. Validate user exists
-    // 2. Validate group exists in PermissionRegistry
-    // 3. Check if assignment already exists (idempotent)
-    // 4. Create permission_assignment record
-    // 5. Update user.groups array
-    // 6. Emit 'permission_assignment.created' event
-    throw new Error("Not implemented: assign_user action");
+  async handler(ctx) {
+    const userId = ctx.input.user_id as string;
+    const groupName = ctx.input.group_name as string;
+
+    if (!userId || !userId.trim()) {
+      throw new Error("User ID is required");
+    }
+    if (!groupName || !groupName.trim()) {
+      throw new Error("Group name is required");
+    }
+
+    // Validate group exists
+    const groups = await ctx.query("permission_group", { name: groupName });
+    if (groups.length === 0) {
+      throw new Error(`Permission group "${groupName}" does not exist`);
+    }
+
+    // Check if assignment already exists (idempotent — return existing)
+    const existing = await ctx.query("permission_assignment", {
+      user_id: userId,
+      group_name: groupName,
+    });
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    // Create the assignment record
+    const record = await ctx.create("permission_assignment", {
+      user_id: userId,
+      group_name: groupName,
+      assigned_by: ctx.actor.id,
+      assigned_at: new Date().toISOString(),
+    });
+
+    // Emit assignment event
+    ctx.emit("permission_assignment.created", {
+      user_id: userId,
+      group_name: groupName,
+      assigned_by: ctx.actor.id,
+    });
+
+    return record;
   },
 });

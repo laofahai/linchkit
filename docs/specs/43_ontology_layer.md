@@ -2,7 +2,7 @@
 
 > Status: Draft | Date: 2026-03-23
 > 灵感来源: Palantir Foundry Ontology
-> 里程碑: M2
+> 里程碑: M2 (not started)
 
 ## 1. 问题
 

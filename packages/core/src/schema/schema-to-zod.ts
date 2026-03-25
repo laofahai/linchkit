@@ -16,7 +16,9 @@ export interface ZodGeneratorOptions {
 }
 
 // Field types that are virtual / computed and should be skipped in input schemas
-const SKIPPED_FIELD_TYPES = new Set(["computed"]);
+// Relationship fields (ref/has_many/many_to_many) are virtual — they only declare relationships
+// and don't store input data in the record itself (FK columns are added by generateLinkColumns)
+const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
 
 /**
  * Generate a Zod schema from a LinchKit SchemaDefinition.

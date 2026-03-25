@@ -14,6 +14,12 @@ export function fieldToJsonSchema(field: FieldDefinition): Record<string, unknow
     return null;
   }
 
+  // has_many and many_to_many are virtual relationship fields — they have no physical FK column
+  // on this table. The relationship is resolved via the target table's FK or a junction table.
+  if (field.type === "has_many" || field.type === "many_to_many") {
+    return null;
+  }
+
   // Skip secret fields
   if (field.secret) {
     return null;
@@ -58,6 +64,14 @@ export function fieldToJsonSchema(field: FieldDefinition): Record<string, unknow
       schema.enum = field.options.map((o) => o.value);
       break;
 
+    case "ref":
+      // ref fields have a physical FK column storing the referenced record's ID
+      schema.type = "string";
+      if (!field.description) {
+        schema.description = `Reference to ${field.target}`;
+      }
+      break;
+
     case "json":
       schema.type = "object";
       break;
@@ -71,6 +85,11 @@ export function fieldToJsonSchema(field: FieldDefinition): Record<string, unknow
   // Add description from field definition
   if (field.description && !schema.description) {
     schema.description = field.description;
+  }
+
+  // For ref fields, append target info to user-provided descriptions
+  if (field.type === "ref" && field.description && schema.description) {
+    schema.description = `${schema.description} (references ${field.target})`;
   }
 
   // Mark sensitive fields

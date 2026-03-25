@@ -12,6 +12,8 @@ import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { PermissionRegistry } from "../engine/permission-engine";
 import type { EventBus } from "../event/event-bus";
+import type { FlowRegistry } from "../flow/types";
+import type { LinkRegistry } from "../schema/link-registry";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
 import type { CapabilityDefinition } from "./capability";
@@ -43,10 +45,14 @@ export interface TransportContext {
   approvalEngine?: ApprovalEngine;
   /** Link definitions for generating bidirectional relation resolver fields */
   links?: LinkDefinition[];
+  /** Link registry with all links (explicit + implicit) registered */
+  linkRegistry?: LinkRegistry;
   /** Permission registry — auto-built from capabilities' extensions.permissionGroups */
   permissionRegistry?: PermissionRegistry;
   /** Loaded capability definitions — used by transports to inspect loaded capabilities */
   capabilities?: CapabilityDefinition[];
+  /** Flow registry with all registered flows */
+  flowRegistry?: FlowRegistry;
 }
 
 /** Lifecycle handle returned by transport factory */

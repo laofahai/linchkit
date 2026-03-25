@@ -32,12 +32,38 @@ export const revokeUserAction = defineAction({
   permissions: {
     groups: ["system_admin"],
   },
-  async handler(_ctx) {
-    // TODO: Implement user revocation
-    // 1. Find the permission_assignment record
-    // 2. Delete the assignment
-    // 3. Update user.groups array
-    // 4. Emit 'permission_assignment.revoked' event
-    throw new Error("Not implemented: revoke_user action");
+  async handler(ctx) {
+    const userId = ctx.input.user_id as string;
+    const groupName = ctx.input.group_name as string;
+
+    if (!userId || !userId.trim()) {
+      throw new Error("User ID is required");
+    }
+    if (!groupName || !groupName.trim()) {
+      throw new Error("Group name is required");
+    }
+
+    // Find the assignment
+    const assignments = await ctx.query("permission_assignment", {
+      user_id: userId,
+      group_name: groupName,
+    });
+
+    if (assignments.length === 0) {
+      // Idempotent — if no assignment exists, return silently
+      return { removed: false, message: "Assignment does not exist" };
+    }
+
+    const assignment = assignments[0]!;
+    await ctx.delete("permission_assignment", assignment.id as string);
+
+    // Emit revocation event
+    ctx.emit("permission_assignment.revoked", {
+      user_id: userId,
+      group_name: groupName,
+      revoked_by: ctx.actor.id,
+    });
+
+    return { removed: true, user_id: userId, group_name: groupName };
   },
 });

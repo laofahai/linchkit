@@ -26,15 +26,22 @@ import type {
 import { ConfigRegistry, databaseConfig } from "@linchkit/core";
 import {
   ActionRegistry,
+  buildTableColumns,
   closeDatabase,
+  convertSchemaRelationshipFieldsToImplicitLinks,
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
   createDatabase,
   createEventBus,
+  createFlowRegistry,
+  createFlowStepContext,
+  createLinkRegistry,
   createOutboxWorker,
   createPersistentEventBus,
+  createSyncFlowEngine,
+  createTriggerBinding,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
@@ -202,10 +209,53 @@ export const devCommand = defineCommand({
       `[linch] Found ${transports.length} transport(s): ${transports.map((t) => t.name).join(", ") || "none"}`,
     );
 
+    // Auto-promote schema relationship fields to implicit links
+    // This converts ref/has_many/many_to_many fields into LinkDefinitions
+    // and merges them with explicit defineLink declarations
+    const { implicitLinks, conflicts, missingTargets } =
+      convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+    if (conflicts.length > 0) {
+      console.warn(
+        `[linch] Found ${conflicts.length} conflict(s) between implicit and explicit links:`,
+      );
+      for (const c of conflicts) {
+        console.warn(
+          `[linch]   - "${c.name}": explicit declaration overrides implicit from schema field`,
+        );
+      }
+    }
+    if (missingTargets.length > 0) {
+      console.warn(
+        `[linch] Found ${missingTargets.length} relationship field(s) with missing target schemas:`,
+      );
+      for (const mt of missingTargets) {
+        console.warn(
+          `[linch]   - ${mt.schemaName}.${mt.fieldName}: target schema "${mt.target}" not found - skipped`,
+        );
+      }
+    }
+    if (implicitLinks.length > 0) {
+      links.push(...implicitLinks);
+      console.log(
+        `[linch] Auto-promoted ${implicitLinks.length} relationship field(s) to implicit links`,
+      );
+    }
+
     // Build registries
     const schemaRegistry = new SchemaRegistry();
     for (const schema of schemas) {
       schemaRegistry.register(schema);
+    }
+
+    // Register all links (explicit + implicit) in LinkRegistry
+    const linkRegistry = createLinkRegistry();
+    for (const link of links) {
+      linkRegistry.register(link);
+    }
+    if (links.length > 0) {
+      console.log(
+        `[linch] Registered ${links.length} total link(s) (${links.length - implicitLinks.length} explicit, ${implicitLinks.length} implicit)`,
+      );
     }
 
     const actionRegistry = new ActionRegistry();
@@ -293,41 +343,44 @@ export const devCommand = defineCommand({
           await runMigrations(dbInstance);
           console.log("[linch] Migrations applied successfully");
         } catch (migrationErr) {
-          const migrationMsg = migrationErr instanceof Error ? migrationErr.message : String(migrationErr);
-          if (migrationMsg.includes("No migrations found") || migrationMsg.includes("no such file")) {
-            console.log("[linch] No migrations found — run 'bun run db:generate' to create initial migration");
+          const migrationMsg =
+            migrationErr instanceof Error ? migrationErr.message : String(migrationErr);
+          if (
+            migrationMsg.includes("No migrations found") ||
+            migrationMsg.includes("no such file")
+          ) {
+            console.log(
+              "[linch] No migrations found — run 'bun run db:generate' to create initial migration",
+            );
           } else {
             throw migrationErr;
           }
         }
 
         // Build runtime TableRegistry for DrizzleDataProvider query routing.
-        // Phase 1: Generate base tables from schema fields
-        // Phase 2: Merge Link FK columns into affected tables
-        // Phase 3: Register junction tables (many_to_many)
+        // Phase 1: Generate base tables from schema fields to get table references for .references()
+        // Phase 2: Collect all extra FK columns needed for each table
+        // Phase 3: Re-generate complete tables with all FK columns included
+        // Phase 4: Register junction tables (many_to_many)
         const tableRegistry = new TableRegistry();
 
-        // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
         const baseTableMap: Record<string, ReturnType<typeof pgTable>> = {};
+        const extraFkColumns: Record<string, Record<string, unknown>> = {};
+
         for (const schema of schemas) {
           baseTableMap[schema.name] = generateDrizzleTable(schema);
         }
 
-        // Merge Link FK columns into base tables so DrizzleDataProvider can read/write them
+        // Collect FK columns that need to be added to existing tables from links
         if (links.length > 0) {
           const { fkColumns, junctionTables } = generateLinkColumns(links, baseTableMap);
 
-          for (const [tableName, extraCols] of Object.entries(fkColumns)) {
-            const existing = baseTableMap[tableName];
-            if (!existing) continue;
-
-            // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
-            const existingCols: Record<string, any> = {};
-            for (const col of getTableConfig(existing).columns) {
-              existingCols[col.name] = col;
+          // Merge collected FK columns into extraFkColumns map
+          for (const [tableName, cols] of Object.entries(fkColumns)) {
+            if (!extraFkColumns[tableName]) {
+              extraFkColumns[tableName] = {};
             }
-
-            baseTableMap[tableName] = pgTable(tableName, { ...existingCols, ...extraCols });
+            Object.assign(extraFkColumns[tableName], cols);
           }
 
           // Register junction tables (many_to_many links)
@@ -337,7 +390,23 @@ export const devCommand = defineCommand({
           }
         }
 
-        for (const [name, table] of Object.entries(baseTableMap)) {
+        // Re-generate complete tables with all extra FK columns included.
+        // buildTableColumns() creates fresh Drizzle column builder instances
+        // (built columns can't have .setName() called again by pgTable).
+        const finalTableMap: Record<string, ReturnType<typeof pgTable>> = {};
+
+        for (const schema of schemas) {
+          const tableName = schema.name;
+          const columns = buildTableColumns(schema);
+
+          // Merge extra FK columns from links
+          const extraCols = extraFkColumns[tableName];
+          if (extraCols) Object.assign(columns, extraCols);
+
+          finalTableMap[tableName] = pgTable(tableName, columns);
+        }
+
+        for (const [name, table] of Object.entries(finalTableMap)) {
           tableRegistry.register(name, table);
         }
 
@@ -369,7 +438,10 @@ export const devCommand = defineCommand({
     if (authProviderExt && usingDatabase && dbInstance) {
       try {
         const { createCapAuth, capAuthConfig } = await import("@linchkit/cap-auth");
-        const provider = authProviderExt.create({ database: dbInstance, dataProvider: devDataProvider });
+        const provider = authProviderExt.create({
+          database: dbInstance,
+          dataProvider: devDataProvider,
+        });
         // Forward config from ConfigRegistry so middleware gets sessionCookieName etc.
         const authCfg = registry.has("cap-auth")
           ? capAuthConfig.from({ config: registry })
@@ -486,6 +558,60 @@ export const devCommand = defineCommand({
       enforceAssignee: false, // M0b: not enforced yet
     });
 
+    // Create FlowRegistry and collect flows from capabilities
+    const flowRegistry = createFlowRegistry();
+    let flowCount = 0;
+    for (const cap of capabilities) {
+      if (cap.flows) {
+        for (const flow of cap.flows) {
+          flowRegistry.register(flow);
+          flowCount++;
+        }
+      }
+    }
+    if (flowCount > 0) {
+      console.log(`[linch] Registered ${flowCount} flow(s)`);
+    }
+
+    // TODO: When Restate is configured, set up Restate endpoint with compiled flows
+    // For M1a, we just use the sync fallback engine when Restate isn't configured
+    // Full Restate integration will be added in M1b
+
+    // Bind flow triggers to the event bus
+    // This automatically starts flows when their trigger events occur
+    if (flowCount > 0) {
+      // Create step context for flow execution (currently no AI service in dev bootstrap)
+      // TODO: Wire real AIService when AI integration is added in M1b
+      const flowStepContext = createFlowStepContext({
+        aiService: {
+          complete: async () => {
+            throw new Error("AI service not configured for flow execution");
+          },
+        },
+        actionEngine: {
+          execute: (actionName, input, options) => {
+            // Default to system actor when no actor provided in flow context
+            const actor = options?.actor ?? {
+              type: "system" as const,
+              id: "flow-engine",
+              groups: [],
+            };
+            return executor.execute(actionName, input, actor, {
+              tenantId: options?.tenantId,
+              channel: "internal",
+            });
+          },
+        },
+        actionRegistry: actionRegistry,
+      });
+      const syncFlowEngine = createSyncFlowEngine(flowStepContext);
+      for (const flow of flowRegistry.getAll()) {
+        syncFlowEngine.registerFlow(flow);
+      }
+      const triggerBinding = createTriggerBinding(eventBus);
+      triggerBinding.bindAll(flowRegistry.getAll(), syncFlowEngine);
+    }
+
     const transportCtx: TransportContext = {
       commandLayer,
       executor,
@@ -495,6 +621,7 @@ export const devCommand = defineCommand({
       views,
       states,
       links,
+      linkRegistry,
       middlewares,
       config: registry,
       dataProvider: devDataProvider,
@@ -502,6 +629,7 @@ export const devCommand = defineCommand({
       executionLogger,
       approvalEngine,
       permissionRegistry,
+      flowRegistry,
       capabilities,
     };
 

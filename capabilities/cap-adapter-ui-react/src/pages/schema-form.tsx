@@ -21,13 +21,35 @@ import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
 
+import type { StateDefinition, StateMeta } from "@linchkit/core/types";
+
 /** Derive StatusBar steps from state machine meta in schema presentation */
-function deriveStatusSteps(schema: SchemaDefinition): StatusBarStep[] | null {
-  // Look for a state field and its meta info in presentation
-  const stateField = Object.entries(schema.fields).find(([, f]) => f.type === "state");
-  if (!stateField) return null;
-  // TODO: load state machine from server when available
-  return null;
+function deriveStatusSteps(
+  schema: SchemaDefinition,
+  states?: StateDefinition[],
+): StatusBarStep[] | null {
+  // Look for a state field
+  const stateFieldEntry = Object.entries(schema.fields).find(([, f]) => f.type === "state");
+  if (!stateFieldEntry) return null;
+
+  const [, stateField] = stateFieldEntry;
+  if (!("machine" in stateField)) return null;
+
+  // Find the corresponding state machine definition
+  const machine = (states ?? []).find(s => s.name === stateField.machine && s.schema === schema.name);
+  if (!machine) return null;
+
+  // Convert states to StatusBarStep array
+  const steps: StatusBarStep[] = machine.states.map(stateValue => {
+    const meta: StateMeta | undefined = machine.meta?.[stateValue];
+    return {
+      value: stateValue,
+      label: meta?.label ?? stateValue,
+      color: meta?.color,
+    };
+  });
+
+  return steps.length > 0 ? steps : null;
 }
 
 /** Extract GraphQL field names from view fields */
@@ -69,8 +91,8 @@ export function SchemaFormPage() {
   // Status bar steps derived from schema
   const statusSteps = useMemo((): StatusBarStep[] | null => {
     if (!schema) return null;
-    return deriveStatusSteps(schema);
-  }, [schema]);
+    return deriveStatusSteps(schema, bundle?.states);
+  }, [schema, bundle]);
 
   const isCreate = !params.id || params.id === "new";
   const [formMode, setFormMode] = useState<"create" | "edit" | "view">(

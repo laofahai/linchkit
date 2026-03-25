@@ -44,13 +44,14 @@ export interface BetterAuthProviderOptions {
 
   /**
    * Secret key for session token signing.
-   * Defaults to JWT_SECRET env var, then falls back to "dev-secret".
+   * Defaults to JWT_SECRET env var. In production (NODE_ENV/BUN_ENV=production),
+   * JWT_SECRET is required or an error is thrown. In dev, falls back to "dev-secret".
    */
   secret?: string;
 
   /**
    * Base URL for better-auth (used for callbacks, redirects).
-   * Defaults to "http://localhost:3001".
+   * Defaults to AUTH_BASE_URL or BETTER_AUTH_URL env var, then "http://localhost:3001".
    */
   baseURL?: string;
 
@@ -175,9 +176,27 @@ function isPhonePlaceholderEmail(email: string): boolean {
 
 // ── Create auth instance helper ─────────────────────────
 
+function resolveSecret(explicit?: string): string {
+  if (explicit) return explicit;
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret) return envSecret;
+
+  const isProduction =
+    process.env.NODE_ENV === "production" || process.env.BUN_ENV === "production";
+  if (isProduction) {
+    throw new Error("JWT_SECRET environment variable is required in production");
+  }
+
+  console.warn(
+    "[linch] WARNING: Using default dev secret. Set JWT_SECRET in production.",
+  );
+  return "dev-secret";
+}
+
 function createAuthInstance(options: BetterAuthProviderOptions) {
-  const secret = options.secret ?? process.env.JWT_SECRET ?? "dev-secret";
-  const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+  const secret = resolveSecret(options.secret);
+  const baseURL =
+    options.baseURL ?? process.env.AUTH_BASE_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
 
   const sendOTPHandler =
     options.sendOTP ??
@@ -368,7 +387,8 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       _ctx: ActionContext,
       input: { email?: string; token?: string; new_password?: string },
     ): Promise<ResetPasswordResult> {
-      const baseURL = options.baseURL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+      const baseURL =
+        options.baseURL ?? process.env.AUTH_BASE_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
 
       if (input.email && !input.token) {
         // Phone-based accounts use @phone.local placeholder — email reset won't work

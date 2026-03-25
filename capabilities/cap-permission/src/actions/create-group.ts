@@ -45,13 +45,45 @@ export const createGroupAction = defineAction({
   permissions: {
     groups: ["system_admin"],
   },
-  async handler(_ctx) {
-    // TODO: Implement group creation
-    // 1. Validate group name uniqueness
-    // 2. Validate permissions structure
-    // 3. Create permission_group record
-    // 4. Register group in PermissionRegistry
-    // 5. Emit 'permission_group.created' event
-    throw new Error("Not implemented: create_group action");
+  async handler(ctx) {
+    const name = ctx.input.name as string;
+    const label = ctx.input.label as string;
+    const description = (ctx.input.description as string) ?? "";
+    const permissions = ctx.input.permissions as Record<string, unknown>;
+    const constraints = (ctx.input.constraints as Record<string, unknown>) ?? undefined;
+
+    if (!name || !name.trim()) {
+      throw new Error("Group name is required");
+    }
+    if (!label || !label.trim()) {
+      throw new Error("Group label is required");
+    }
+    if (!permissions || typeof permissions !== "object") {
+      throw new Error("Permissions must be a valid object");
+    }
+
+    // Check for duplicate group name
+    const existing = await ctx.query("permission_group", { name });
+    if (existing.length > 0) {
+      throw new Error(`Permission group "${name}" already exists`);
+    }
+
+    // Create the permission_group record
+    const record = await ctx.create("permission_group", {
+      name,
+      label,
+      description,
+      permissions,
+      constraints,
+      is_system: false,
+    });
+
+    // Emit creation event
+    ctx.emit("permission_group.created", {
+      group_name: name,
+      created_by: ctx.actor.id,
+    });
+
+    return record;
   },
 });

@@ -48,6 +48,7 @@
         "@fontsource-variable/geist": "^5.2.8",
         "@linchkit/core": "workspace:*",
         "@linchkit/ui-kit": "workspace:*",
+        "@tanstack/react-query": "^5.95.2",
         "@tanstack/react-router": "^1.168.2",
         "cmdk": "^1.1.1",
         "date-fns": "^4.1.0",
@@ -122,6 +123,7 @@
       "peerDependencies": {
         "@linchkit/cap-auth": "^0.0.1",
         "@linchkit/core": "^0.0.1",
+        "drizzle-orm": ">=0.41.0",
       },
     },
     "capabilities/cap-permission": {
@@ -652,6 +654,10 @@
     "@tailwindcss/vite": ["@tailwindcss/vite@4.2.2", "https://registry.npmmirror.com/@tailwindcss/vite/-/vite-4.2.2.tgz", { "dependencies": { "@tailwindcss/node": "4.2.2", "@tailwindcss/oxide": "4.2.2", "tailwindcss": "4.2.2" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-mEiF5HO1QqCLXoNEfXVA1Tzo+cYsrqV7w9Juj2wdUFyW07JRenqMG225MvPwr3ZD9N1bFQj46X7r33iHxLUW0w=="],
 
     "@tanstack/history": ["@tanstack/history@1.161.6", "https://registry.npmmirror.com/@tanstack/history/-/history-1.161.6.tgz", {}, "sha512-NaOGLRrddszbQj9upGat6HG/4TKvXLvu+osAIgfxPYA+eIvYKv8GKDJOrY2D3/U9MRnKfMWD7bU4jeD4xmqyIg=="],
+
+    "@tanstack/query-core": ["@tanstack/query-core@5.95.2", "", {}, "sha512-o4T8vZHZET4Bib3jZ/tCW9/7080urD4c+0/AUaYVpIqOsr7y0reBc1oX3ttNaSW5mYyvZHctiQ/UOP2PfdmFEQ=="],
+
+    "@tanstack/react-query": ["@tanstack/react-query@5.95.2", "", { "dependencies": { "@tanstack/query-core": "5.95.2" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-/wGkvLj/st5Ud1Q76KF1uFxScV7WeqN1slQx5280ycwAyYkIPGaRZAEgHxe3bjirSd5Zpwkj6zNcR4cqYni/ZA=="],
 
     "@tanstack/react-router": ["@tanstack/react-router@1.168.2", "https://registry.npmmirror.com/@tanstack/react-router/-/react-router-1.168.2.tgz", { "dependencies": { "@tanstack/history": "1.161.6", "@tanstack/react-store": "^0.9.2", "@tanstack/router-core": "1.168.2", "isbot": "^5.1.22" }, "peerDependencies": { "react": ">=18.0.0 || >=19.0.0", "react-dom": ">=18.0.0 || >=19.0.0" } }, "sha512-zUDRM01m81xDCeTLHuqsvKR9zpf+bdfEhyadcUNSbO1930lIeOKLmMscUUNHWhc7Gqpi/V8Xl85QcJFAIAGmvQ=="],
 

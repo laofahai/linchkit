@@ -9,6 +9,7 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  Actor,
   DataProvider,
   DataQueryOptions,
   ExecutionLogger,
@@ -63,16 +64,17 @@ function toCamelCase(name: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-// TODO: Resolve actor from auth context (JWT/session) instead of using anonymous
-/** Anonymous actor for GraphQL requests (no elevated privileges) */
-const ANONYMOUS_ACTOR = {
-  type: "system" as const,
+/** Default anonymous actor used when no auth middleware resolves a real actor */
+const ANONYMOUS_ACTOR: Actor = {
+  type: "system",
   id: "anonymous",
-  groups: [] as string[],
+  groups: [],
 };
 
-/** GraphQL resolver context — carries tenant isolation, locale, and data access */
+/** GraphQL resolver context — carries actor, tenant isolation, locale, and data access */
 export interface GraphQLContext {
+  /** Authenticated actor resolved from the request; falls back to ANONYMOUS_ACTOR */
+  actor: Actor;
   /** Tenant ID resolved from the authenticated user; undefined means no tenant filtering */
   tenantId?: string;
   /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
@@ -142,7 +144,7 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
     schema: name,
     label: `Create ${schema.label ?? name}`,
     description: `Create a new ${schema.label ?? name} record`,
-    policy: { mode: "sync", transaction: false },
+    policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
       // Inject default state values for state fields not provided in input
@@ -163,7 +165,7 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
     schema: name,
     label: `Update ${schema.label ?? name}`,
     description: `Update an existing ${schema.label ?? name} record`,
-    policy: { mode: "sync", transaction: false },
+    policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
       const id = ctx.input.id as string;
@@ -177,7 +179,7 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
     schema: name,
     label: `Delete ${schema.label ?? name}`,
     description: `Delete a ${schema.label ?? name} record`,
-    policy: { mode: "sync", transaction: false },
+    policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
       const id = ctx.input.id as string;
@@ -462,7 +464,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(
               `create_${schemaName}`,
               args.input,
-              ANONYMOUS_ACTOR,
+              ctx.actor,
               { channel: "http", tenantId: ctx.tenantId, locale },
             );
             if (!result.success) {
@@ -502,7 +504,7 @@ export function buildGraphQLSchema(
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
             }
-            const result = await executor.execute(`update_${schemaName}`, input, ANONYMOUS_ACTOR, {
+            const result = await executor.execute(`update_${schemaName}`, input, ctx.actor, {
               channel: "http",
               tenantId: ctx.tenantId,
               locale,
@@ -537,7 +539,7 @@ export function buildGraphQLSchema(
             const result = await executor.execute(
               `delete_${schemaName}`,
               { id: args.id },
-              ANONYMOUS_ACTOR,
+              ctx.actor,
               { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
             );
             return result.success;
@@ -649,7 +651,7 @@ export function buildGraphQLSchema(
               ...resolverArgs.input,
               id: resolverArgs.id,
             };
-            const result = await executor.execute(actionName, input, ANONYMOUS_ACTOR, {
+            const result = await executor.execute(actionName, input, ctx.actor, {
               channel: "http",
               tenantId: ctx.tenantId,
               locale,
@@ -714,7 +716,7 @@ export function buildGraphQLSchema(
     resolve: executor
       ? async (_root: unknown, args: { name: string; input: string }, ctx: GraphQLContext) => {
           const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
-          const result = await executor.execute(args.name, input, ANONYMOUS_ACTOR, {
+          const result = await executor.execute(args.name, input, ctx.actor, {
             channel: "http",
             tenantId: ctx.tenantId,
             locale: ctx.locale,

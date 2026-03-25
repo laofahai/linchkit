@@ -277,6 +277,8 @@ export interface SchemaInfo {
   description?: string;
 }
 
+import type { StateDefinition } from "@linchkit/core/types";
+
 /** Full schema bundle with views (from GET /api/schemas/:name) */
 export interface SchemaBundle {
   name: string;
@@ -285,6 +287,7 @@ export interface SchemaBundle {
   fields: Record<string, unknown>;
   presentation?: Record<string, unknown>;
   views: Record<string, unknown>;
+  states?: StateDefinition[];
 }
 
 /**

@@ -5,7 +5,7 @@
  * AIService, ActionEngine, and ActionRegistry.
  */
 
-import type { ActionDefinition } from "../types/action";
+import type { ActionDefinition, Actor } from "../types/action";
 import type { AIService, AITool } from "../types/ai";
 import type { FlowStepContext } from "./types";
 
@@ -18,7 +18,7 @@ export interface FlowStepContextDeps {
       actionName: string,
       input: Record<string, unknown>,
       options?: {
-        actor?: { type: string; id: string; name?: string };
+        actor?: Actor;
         tenantId?: string;
       },
       // biome-ignore lint/suspicious/noExplicitAny: ActionExecutor returns ActionResult<T> with varying T
@@ -170,9 +170,12 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
 
     async executeAction(actionName, input) {
       // Use the flow's actor/tenant when available, fall back to system actor
-      const actor = this.actor
-        ? { type: this.actor.type, id: this.actor.id, name: undefined }
-        : { type: "system", id: "flow-engine", name: "Flow Engine" };
+      const actor = this.actor ?? {
+        type: "system",
+        id: "flow-engine",
+        name: "Flow Engine",
+        groups: [],
+      };
       const result = await actionEngine.execute(actionName, input, {
         actor,
         tenantId: this.tenantId,

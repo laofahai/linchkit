@@ -26,6 +26,8 @@ import type { FieldType, SchemaDefinition } from "../types/schema";
 import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────
+// Relationship fields (ref/has_many/many_to_many) are valid but virtual
+// They don't produce data columns — FK columns are added by generateLinkColumns
 
 const VALID_FIELD_TYPES = new Set<FieldType>([
   "string",
@@ -38,6 +40,9 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "json",
   "state",
   "computed",
+  "ref",
+  "has_many",
+  "many_to_many",
 ]);
 
 // ── Name format regex ────────────────────────────────────
@@ -284,7 +289,9 @@ function validateSchema(
     }
 
     // Required field without a default will fail at record creation time — this is an error
-    if (field.required && field.default === undefined && field.type !== "computed") {
+    // Relationship fields (ref/has_many/many_to_many) are virtual and don't need this check
+    const isVirtual = field.type === "computed" || field.type === "ref" || field.type === "has_many" || field.type === "many_to_many";
+    if (field.required && field.default === undefined && !isVirtual) {
       errors.push({
         code: "REQUIRED_NO_DEFAULT",
         message: `Field "${fieldName}" on schema "${name}" is required but has no default value`,

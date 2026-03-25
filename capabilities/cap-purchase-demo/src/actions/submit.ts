@@ -12,6 +12,7 @@ export const submitAction: ActionDefinition = {
   input: {
     notes: { type: "text", label: "Submission Notes" },
   },
+  permissions: { groups: ["admin", "manager", "user"] },
   policy: { mode: "sync", transaction: true },
   exposure: "all",
   handler: async (ctx) => {

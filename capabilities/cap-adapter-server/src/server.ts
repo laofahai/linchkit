@@ -9,6 +9,7 @@ import { cors } from "@elysiajs/cors";
 import type {
   ActionExecutor,
   ActionResult,
+  Actor,
   CapabilityDefinition,
   CommandLayer,
   DataProvider,
@@ -44,17 +45,32 @@ export interface ServerOptions {
    * Return undefined for no tenant filtering (e.g., admin/system users).
    */
   resolveRequestTenantId?: (request: Request) => Promise<string | undefined> | string | undefined;
+  /**
+   * Resolve the authenticated actor from a request.
+   * Called on each GraphQL and REST request to extract the actor context.
+   * Return undefined to fall back to the default anonymous actor.
+   * Typically implemented by the auth capability (e.g., JWT/session/API-key resolution).
+   */
+  resolveRequestActor?: (request: Request) => Promise<Actor | undefined> | Actor | undefined;
   /** Loaded capabilities — used for /api/app-config endpoint */
   capabilities?: CapabilityDefinition[];
   /** Data provider for link relation resolvers in GraphQL */
   dataProvider?: DataProvider;
+  /**
+   * CORS origin configuration.
+   * - `string[]`: list of allowed origins
+   * - `true`: allow all origins (wildcard)
+   * - `false`: disable CORS entirely
+   * - `undefined`: defaults to localhost dev origins (ports 3000, 3001)
+   */
+  cors?: string[] | boolean;
 }
 
-/** Default anonymous actor for unauthenticated REST requests. */
-const ANONYMOUS_ACTOR = {
-  type: "human" as const,
+/** Default anonymous actor for unauthenticated requests. */
+const ANONYMOUS_ACTOR: Actor = {
+  type: "system",
   id: "anonymous",
-  groups: [] as string[],
+  groups: [],
 };
 
 /**
@@ -177,26 +193,41 @@ export function createServer(
   const views = options?.views;
   const capabilities = options?.capabilities ?? [];
   const resolveRequestTenantId = options?.resolveRequestTenantId;
+  const resolveRequestActor = options?.resolveRequestActor;
   const dataProvider = options?.dataProvider;
+  const corsOption = options?.cors;
 
-  // Create graphql-yoga instance with tenant context factory
+  // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
     schema: graphqlSchema,
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
-    // Build GraphQL context with tenant isolation, locale, and data provider for link resolvers
+    // Build GraphQL context with actor, tenant isolation, locale, and data provider for link resolvers
     context: async ({ request }) => {
+      const actor = resolveRequestActor
+        ? (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR
+        : ANONYMOUS_ACTOR;
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
       const locale = resolveRequestLocale(request);
-      return { tenantId, locale, dataProvider };
+      return { actor, tenantId, locale, dataProvider };
     },
   });
+
+  // Resolve CORS origin: true → wildcard, false → disabled, string[] → explicit list, default → dev localhost
+  const corsOrigin =
+    corsOption === true
+      ? true
+      : corsOption === false
+        ? false
+        : Array.isArray(corsOption)
+          ? corsOption
+          : ["http://localhost:3000", "http://localhost:3001"];
 
   const app = new Elysia()
     .use(
       cors({
-        origin: ["http://localhost:3000", "http://localhost:3001"],
+        origin: corsOrigin === false ? [] : corsOrigin,
         credentials: false,
       }),
     )
@@ -242,13 +273,17 @@ export function createServer(
         set.status = 404;
         return { success: false, error: { message: `Schema "${params.name}" not found.` } };
       }
-      // Bundle schema + views in one response
+      // Bundle schema + views + state machines in one response
       const schemaViews = views?.get(params.name) ?? [];
       const viewsMap: Record<string, unknown> = {};
       for (const v of schemaViews) {
         viewsMap[v.name] = v;
       }
-      return { success: true, data: { ...schema, views: viewsMap } };
+      // Collect all state machines that belong to this schema from all capabilities
+      const schemaStates = capabilities.flatMap(cap =>
+        (cap.states ?? []).filter(s => s.schema === params.name)
+      );
+      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates } };
     })
     // REST action endpoint — executes via ActionExecutor
     // Body is unwrapped action input (Stripe-style, see spec 16 §2.4)
@@ -267,8 +302,11 @@ export function createServer(
 
       const input = (body as Record<string, unknown>) ?? {};
 
-      // Resolve locale from request
+      // Resolve locale and actor from request
       const locale = resolveRequestLocale(request);
+      const actor = resolveRequestActor
+        ? (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR
+        : ANONYMOUS_ACTOR;
 
       // Use CommandLayer pipeline when available, otherwise direct executor
       let result: ActionResult;
@@ -281,7 +319,7 @@ export function createServer(
         result = await commandLayer.execute({
           command: params.name,
           input,
-          actor: ANONYMOUS_ACTOR,
+          actor,
           channel: "http",
           locale,
           headers,
@@ -298,7 +336,7 @@ export function createServer(
             },
           };
         }
-        result = await executor.execute(params.name, input, ANONYMOUS_ACTOR, {
+        result = await executor.execute(params.name, input, actor, {
           channel: "http",
           locale,
         });

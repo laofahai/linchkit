@@ -11,6 +11,7 @@
  * - Parallel steps run sequentially (with a warning)
  */
 
+import type { Actor, ActorType } from "../types/action";
 import type {
   ActionFlowStep,
   AIFlowStep,
@@ -299,7 +300,7 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
     definition: FlowDefinition,
     input: Record<string, unknown>,
     instanceId: string,
-    options?: { tenantId?: string; actor?: { type: string; id: string } },
+    options?: { tenantId?: string; actor?: Actor },
   ): Promise<FlowInstance> {
     const stepMap = buildStepMap(definition.steps);
 
@@ -388,7 +389,25 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
       }
 
       const instanceId = options?.instanceId ?? crypto.randomUUID();
-      return runFlow(definition, input, instanceId, options);
+      const tenantId = options?.tenantId;
+      let actor: Actor | undefined;
+      if (options?.actor) {
+        const optActor = options.actor;
+        if ("groups" in optActor && optActor.groups) {
+          actor = optActor as Actor;
+        } else {
+          actor = {
+            type: optActor.type as ActorType,
+            id: optActor.id,
+            name: "name" in optActor ? optActor.name : undefined,
+            groups: [],
+          };
+        }
+      }
+      return runFlow(definition, input, instanceId, {
+        tenantId,
+        actor,
+      });
     },
 
     async getFlowStatus(instanceId) {

@@ -1,7 +1,17 @@
 # Milestone M1 Plan — Persistence, Flow, Ecosystem
 
-> Status: Draft | Date: 2026-03-22
-> Prerequisite: M0b complete (auth/permission integration finalized)
+> Status: Active | Date: 2026-03-22
+> **Last Updated**: 2026-03-24
+> Prerequisite: **✅ M0b complete** (auth/permission integration finalized)
+>
+> ### Current Progress
+> - ✅ M0b: 100% complete (all tasks done, all tests passing)
+> - ✅ M1a Stage 1: Drizzle ORM Infrastructure 100% complete
+> - ✅ M1a Stage 2: Migration System 100% complete (uses `migrate()` API instead of buggy `push`)
+> - ✅ M1a Stage 3: RuntimeContext Switch 100% complete (PostgreSQL + InMemory fallback)
+> - ✅ M1a Stage 4: Event Persistence + Outbox 100% complete
+> - ⚪ M1a Stage 5: Flow Engine (Restate) — not started
+> - **M2 (added after planning):** Link Type 100% complete (including提前完成了多对多支持)
 
 ## Overview
 

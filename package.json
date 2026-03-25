@@ -22,14 +22,14 @@
   },
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.31.10",
-    "drizzle-orm": "^0.45.1"
+    "drizzle-kit": "^0.31.10"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.63",
     "@ai-sdk/openai": "^3.0.47",
     "@restatedev/restate-sdk": "1.11.1",
     "@tanstack/react-table": "^8.21.3",
-    "ai": "^6.0.134"
+    "ai": "^6.0.134",
+    "drizzle-orm": "^0.45.1"
   }
 }

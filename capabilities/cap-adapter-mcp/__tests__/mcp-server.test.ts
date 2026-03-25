@@ -524,6 +524,29 @@ describe("createMcpAdapter — query proxy security", () => {
     expect(parsed.error).toContain("Mutations and subscriptions are not allowed");
   });
 
+  test("query tool blocks malformed GraphQL queries", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      graphqlEndpoint: "http://localhost:3001/graphql",
+    });
+
+    const tools = getTools(server);
+    const result = await tools.query?.handler(
+      { query: "this is not valid graphql at all {{{" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("Invalid GraphQL query");
+  });
+
   test("query tool returns error when graphqlEndpoint is not configured", async () => {
     const schemaRegistry = createSchemaRegistry();
     const actionRegistry = new ActionRegistry();

@@ -9,12 +9,13 @@ import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
+import type { FlowDefinition } from "./flow";
 import type { LinkDefinition } from "./link";
 import type { PageRegistration } from "./page";
+import type { PermissionGroupDefinition } from "./permission";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { SchemaDefinition, SchemaExtension, SchemaOverride } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
-import type { PermissionGroupDefinition } from "./permission";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
 
@@ -35,7 +36,10 @@ export interface AuthProviderRegistration {
    * Receives a context with the database instance (if available).
    */
   // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
-  create: (ctx: { database?: any; dataProvider?: import("../engine/action-engine").DataProvider }) => any;
+  create: (ctx: {
+    database?: any;
+    dataProvider?: import("../engine/action-engine").DataProvider;
+  }) => any;
   /**
    * Optional function to seed an initial admin user.
    * Called after the provider is created during dev startup.
@@ -79,6 +83,7 @@ export interface CapabilityDefinition {
   eventHandlers?: EventHandlerDefinition[];
   views?: ViewDefinition[];
   pages?: PageRegistration[];
+  flows?: FlowDefinition[];
   ui?: CapabilityUiDefinition;
 
   /**

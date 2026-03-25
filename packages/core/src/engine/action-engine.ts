@@ -141,11 +141,8 @@ export interface ActionExecutor {
 
 // ── Helpers ─────────────────────────────────────────────────
 
-let executionCounter = 0;
-
 function generateExecutionId(): string {
-  executionCounter++;
-  return `exec_${Date.now()}_${executionCounter}`;
+  return `exec_${crypto.randomUUID()}`;
 }
 
 /** Check if the action is exposed for the given channel */

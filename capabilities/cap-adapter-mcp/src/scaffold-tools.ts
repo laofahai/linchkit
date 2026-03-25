@@ -9,6 +9,7 @@
 import { validateIdentifier } from "@linchkit/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { toMcpShape } from "./zod-compat";
 
 /**
  * Generate a CapabilityDefinition TypeScript template.
@@ -199,8 +200,7 @@ export function registerScaffoldTools(server: McpServer): void {
   server.tool(
     "scaffold_capability",
     "Generate a TypeScript CapabilityDefinition template with schema, action, and factory boilerplate",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    scaffoldCapabilityShape as any,
+    toMcpShape(scaffoldCapabilityShape),
     async (args: {
       name: string;
       type?: "standard" | "adapter" | "bridge";
@@ -233,8 +233,7 @@ export function registerScaffoldTools(server: McpServer): void {
   server.tool(
     "scaffold_action",
     "Generate a TypeScript ActionDefinition template with handler skeleton",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    scaffoldActionShape as any,
+    toMcpShape(scaffoldActionShape),
     async (args: {
       name: string;
       schema: string;
@@ -273,8 +272,7 @@ export function registerScaffoldTools(server: McpServer): void {
   server.tool(
     "scaffold_rule",
     "Generate a TypeScript RuleDefinition template with the chosen trigger type",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    scaffoldRuleShape as any,
+    toMcpShape(scaffoldRuleShape),
     async (args: {
       name: string;
       triggerType: "action" | "stateChange" | "schedule";

@@ -1,6 +1,6 @@
 # Link Type — 独立关联定义
 
-> Status: Draft | Date: 2026-03-23
+> Status: Completed | Date: 2026-03-24
 > 灵感来源: Palantir Foundry Link Type（与 Object Type 平级的一等公民）
 > 里程碑: M2
 
@@ -256,14 +256,15 @@ AI 通过 Ontology 一次查询即可获得完整的关联图。
 ## 11. 里程碑
 
 ### M2
-- `defineLink()` 类型定义 + `LinkRegistry`
-- Schema 字段关联自动提升为隐式 Link
-- Drizzle schema 生成：多对一、一对多外键
-- GraphQL 双向 resolver 自动生成
-- 接入 OntologyRegistry
+- `defineLink()` 类型定义 + `LinkRegistry` ✅
+- Drizzle schema 生成：多对一、一对多、一对一外键 ✅
+- Drizzle schema 生成：多对多中间表 + 关联属性 ✅ **(提前完成)**
+- GraphQL 双向 resolver 自动生成（所有 cardinality） ✅
+- M:N 关联属性查询 GraphQL ✅ **(提前完成)**
+- CapabilityDefinition 支持 `links` 导出 ✅
+- CLI dev 自动收集 links 并生成 schema ✅
+- Schema 字段 `ref`/`has_many`/`many_to_many` 自动提升为隐式 Link ✅
 
 ### M3
-- 多对多中间表生成 + 关联属性
-- 中间表的 GraphQL edge 类型
 - 自引用关联（树形结构）
 - MCP 工具：`traverse_links`（从一条记录导航关联图）

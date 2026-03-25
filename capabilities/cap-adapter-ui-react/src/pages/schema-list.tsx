@@ -17,10 +17,25 @@ import { useSchemaLabel } from "../i18n/use-schema-label";
 import { deleteRecord, queryList } from "../lib/api";
 
 /** Extract GraphQL field names from the view definition. */
-function getQueryFields(view: AutoListViewDefinition): string[] {
+function getQueryFields(
+  view: AutoListViewDefinition,
+  schemaFields?: Record<string, { type?: string; target?: string }>,
+): string[] {
   const fields = new Set<string>(["id"]);
   for (const f of view.fields) {
-    if (!f.field.includes(".")) {
+    if (f.field.includes(".")) continue;
+
+    // Use view field name directly - GraphQL generates resolver using Link target name
+    const fieldDef = schemaFields?.[f.field];
+    // If field is a ref type in schema OR view field matches a ref target, expand
+    const isRef =
+      fieldDef?.type === "ref" ||
+      Object.values(schemaFields ?? {}).some((def) => def.type === "ref" && def.target === f.field);
+
+    if (isRef) {
+      // Only query id for refs - display logic will handle label
+      fields.add(`${f.field} { id }`);
+    } else {
       fields.add(f.field);
     }
   }
@@ -61,7 +76,7 @@ export function SchemaListPage() {
     setLoading(true);
     setDataError(null);
     try {
-      const fields = getQueryFields(listView);
+      const fields = getQueryFields(listView, schema?.fields);
       const result = await queryList({
         schema: schemaName,
         fields,

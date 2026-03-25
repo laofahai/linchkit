@@ -8,9 +8,13 @@ export const purchaseRequestSchema: SchemaDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   description: "A purchase request submitted for approval",
+  presentation: {
+    titleField: "title",
+  },
   fields: {
     title: { type: "string", required: true, label: "Title" },
     description: { type: "text", label: "Description" },
+    department: { type: "ref", target: "department", label: "Department" },
     amount: { type: "number", required: true, label: "Amount" },
     requester: { type: "string", label: "Requester" },
     status: { type: "state", machine: "purchase_lifecycle", default: "draft" },
@@ -25,5 +29,8 @@ export const purchaseRequestSchema: SchemaDefinition = {
       label: "Priority",
     },
     notes: { type: "text", label: "Notes" },
+    submitted_at: { type: "datetime", label: "Submitted At" },
+    approved_at: { type: "datetime", label: "Approved At" },
+    approved_by: { type: "string", label: "Approved By" },
   },
 };

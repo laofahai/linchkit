@@ -7,11 +7,6 @@
  *
  * Introspection tools allow AI agents to discover the full system
  * capabilities: schemas, actions, rules, state machines, and GraphQL queries.
- *
- * Note: We use `as any` casts when passing Zod schemas to the MCP SDK because
- * the SDK bundles its own zod v3 (3.25.x) while the project uses zod v4.
- * TypeScript sees them as incompatible types despite being structurally identical.
- * The MCP SDK's zod-compat layer handles both v3 and v4 at runtime.
  */
 
 import type {
@@ -22,11 +17,13 @@ import type {
   SchemaRegistry,
   StateDefinition,
 } from "@linchkit/core";
+import { OperationTypeNode, parse } from "graphql";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
 import { registerScaffoldTools } from "./scaffold-tools";
 import { generateActionTools } from "./tool-registry";
+import { toMcpShape } from "./zod-compat";
 
 export interface McpAdapterOptions {
   commandLayer: CommandLayer;
@@ -111,12 +108,10 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     // Build zod schema for tool parameters
     const zodShape = buildZodShape(action.input);
 
-    // Cast needed: project zod v4 types differ from SDK's bundled zod types
     server.tool(
       tool.name,
       tool.description,
-      // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-      zodShape as any,
+      toMcpShape(zodShape),
       async (args: Record<string, unknown>) => {
         const result = await commandLayer.execute({
           command: tool.name,
@@ -233,41 +228,23 @@ function serializeRule(rule: RuleDefinition): Record<string, unknown> {
 }
 
 /**
- * Extract the operation type from a GraphQL query string.
+ * Validate a GraphQL query string using AST parsing and return the operation types.
  *
- * Handles bypass vectors like leading comments, fragment definitions before
- * the operation, and named operations. Returns "query", "mutation",
- * "subscription", or "query" as default for shorthand queries like `{ ... }`.
- *
- * Algorithm:
- * 1. Strip all comments (`# ... \n`)
- * 2. Strip all fragment definitions (`fragment Name on Type { ... }`) with balanced braces
- * 3. Trim leading whitespace
- * 4. Check if the remaining text starts with mutation/subscription/query keyword
+ * Uses the `graphql` package's `parse()` for robust, spec-compliant parsing.
+ * Returns the set of operation types found in the document, or throws if
+ * the query is malformed.
  */
-function extractGraphQLOperationType(query: string): "query" | "mutation" | "subscription" {
-  // Step 1: Strip single-line comments (# to end of line)
-  let cleaned = query.replace(/#[^\n]*/g, "");
+function extractGraphQLOperationTypes(query: string): Set<OperationTypeNode> {
+  const document = parse(query);
+  const types = new Set<OperationTypeNode>();
 
-  // Step 2: Strip fragment definitions (fragment Name on Type { ... }) with balanced braces
-  // Repeat until no more fragment definitions are found (handles multiple fragments)
-  let prev: string;
-  do {
-    prev = cleaned;
-    cleaned = cleaned.replace(/fragment\s+\w+\s+on\s+\w+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "");
-  } while (cleaned !== prev);
-
-  // Step 3: Trim leading whitespace
-  cleaned = cleaned.trim();
-
-  // Step 4: Check the operation type
-  const match = cleaned.match(/^(mutation|subscription|query)\b/i);
-  if (match) {
-    return match[1]?.toLowerCase() as "query" | "mutation" | "subscription";
+  for (const definition of document.definitions) {
+    if (definition.kind === "OperationDefinition") {
+      types.add(definition.operation);
+    }
   }
 
-  // Shorthand query: `{ ... }` with no keyword
-  return "query";
+  return types;
 }
 
 /** Register built-in introspection tools */
@@ -304,8 +281,7 @@ function registerBuiltinTools(
   server.tool(
     "get_schema",
     "Get the full definition of a schema by name, including all fields with types and constraints",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    getSchemaShape as any,
+    toMcpShape(getSchemaShape),
     async (args: { name: string }) => {
       const schema = schemaRegistry.get(args.name);
       if (!schema) {
@@ -369,8 +345,7 @@ function registerBuiltinTools(
   server.tool(
     "get_rules",
     "List business rules, optionally filtered by schema or action name",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    getRulesShape as any,
+    toMcpShape(getRulesShape),
     async (args: { schema?: string; action?: string }) => {
       let filtered = rules;
 
@@ -411,8 +386,7 @@ function registerBuiltinTools(
   server.tool(
     "get_state_machine",
     "Get the state machine definition for a schema, including states, transitions, and metadata",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    getStateMachineShape as any,
+    toMcpShape(getStateMachineShape),
     async (args: { schema: string }) => {
       const matching = states.filter((s) => s.schema === args.schema);
 
@@ -455,8 +429,7 @@ function registerBuiltinTools(
   server.tool(
     "query",
     "Execute a read-only GraphQL query against the LinchKit server. Mutations are blocked — use action tools instead.",
-    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    queryShape as any,
+    toMcpShape(queryShape),
     async (args: { query: string; variables?: Record<string, unknown> }) => {
       if (!graphqlEndpoint) {
         return {
@@ -475,10 +448,25 @@ function registerBuiltinTools(
 
       // Block mutation/subscription operations — MCP writes must go through action tools
       // which pass through the CommandLayer middleware pipeline.
-      // We use extractGraphQLOperationType() to robustly detect the operation type even
-      // when queries contain leading comments, fragment definitions, or named operations.
-      const operationType = extractGraphQLOperationType(args.query);
-      if (operationType === "mutation" || operationType === "subscription") {
+      // Uses AST parsing via graphql's parse() for spec-compliant operation type detection.
+      let operationTypes: Set<OperationTypeNode>;
+      try {
+        operationTypes = extractGraphQLOperationTypes(args.query);
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: `Invalid GraphQL query: ${err instanceof Error ? err.message : String(err)}`,
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (operationTypes.has(OperationTypeNode.MUTATION) || operationTypes.has(OperationTypeNode.SUBSCRIPTION)) {
         return {
           content: [
             {

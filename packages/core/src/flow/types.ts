@@ -37,6 +37,34 @@ export interface FlowEngine {
 
 // ── Flow Runtime Context ────────────────────────────────
 
+import type { Actor } from "../types/action";
+
+/** Main Flow Engine — manages flow lifecycle */
+export interface FlowEngine {
+  /** Register a flow definition with the engine */
+  registerFlow(definition: FlowDefinition): void;
+
+  /** Start a new flow instance */
+  startFlow(
+    flowName: string,
+    input: Record<string, unknown>,
+    options?: {
+      instanceId?: string;
+      tenantId?: string;
+      actor?: Actor;
+    },
+  ): Promise<FlowInstance>;
+
+  /** Get status of a flow instance */
+  getFlowStatus(instanceId: string): Promise<FlowInstance | null>;
+
+  /** Send a signal to a running flow instance (e.g., approval) */
+  sendSignal(instanceId: string, signalName: string, data: unknown): Promise<void>;
+
+  /** Cancel a running flow instance */
+  cancelFlow(instanceId: string): Promise<void>;
+}
+
 /** Context available to flow steps during execution */
 export interface FlowStepContext {
   /** Execute a LinchKit action */
@@ -63,7 +91,7 @@ export interface FlowStepContext {
   tenantId?: string;
 
   /** Actor who triggered the flow */
-  actor?: { type: string; id: string };
+  actor?: Actor;
 }
 
 // ── Flow Registry ───────────────────────────────────────

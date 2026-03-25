@@ -18,6 +18,7 @@
     "@fontsource-variable/geist": "^5.2.8",
     "@linchkit/core": "workspace:*",
     "@linchkit/ui-kit": "workspace:*",
+    "@tanstack/react-query": "^5.95.2",
     "@tanstack/react-router": "^1.168.2",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",

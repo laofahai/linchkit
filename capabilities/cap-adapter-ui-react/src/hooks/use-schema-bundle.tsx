@@ -9,9 +9,12 @@ import type { SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { fetchSchemaBundle } from "@/lib/api";
 
+import type { StateDefinition } from "@linchkit/core/types";
+
 export interface ResolvedSchemaBundle {
   schema: SchemaDefinition;
   views: Record<string, ViewDefinition>;
+  states?: StateDefinition[];
 }
 
 function normalizeViews(rawViews: unknown): Record<string, ViewDefinition> {
@@ -75,6 +78,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
         presentation: raw.presentation,
       } as SchemaDefinition,
       views: normalizeViews(raw.views),
+      states: raw.states,
     };
 
     cacheRef.current.set(name, bundle);
