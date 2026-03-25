@@ -175,15 +175,16 @@ export { AIBoundary, AIBoundaryError } from "./ai";
 export {
   type AIAuditEntry,
   type AIAuditEventType,
+  AIAuditLogger,
   type AIAuditLoggerOptions,
   type AIAuditQueryOptions,
   type AIAuditRiskLevel,
-  AIAuditLogger,
 } from "./ai";
 
 // === AI Prompt Sanitizer (server-only — injection detection + PII redaction) ===
 
 export {
+  detectInjection,
   type InjectionDetectionConfig,
   type InjectionDetectionResult,
   type InjectionPattern,
@@ -193,7 +194,6 @@ export {
   type PIIType,
   type PromptSanitizerOptions,
   type SanitizationResult,
-  detectInjection,
   sanitizePII,
   sanitizePrompt,
   sanitizeRecordForAI,
@@ -293,9 +293,9 @@ export {
   GracefulShutdownManager,
   type GracefulShutdownManagerOptions,
   type HealthCheckFn,
+  HealthCheckRegistry,
   type HealthCheckRegistryOptions,
   type HealthCheckResult,
-  HealthCheckRegistry,
   type HealthStatus,
   livenessCheck,
   type ShutdownHook,
@@ -328,3 +328,72 @@ export {
   type MigrationRunnerOptions,
   SchemaMapper,
 } from "./migration";
+
+// === Governance: documentation validation, spec tracking, changelog ===
+
+export {
+  type ChangelogOptions,
+  type ConventionalCommit,
+  type DocCompleteness,
+  type DocIssue,
+  generateChangelog,
+  generateSpecReport,
+  generateVersionedChangelog,
+  parseConventionalCommit,
+  type SpecProgressReport,
+  type SpecStatus,
+  type SpecStatusValue,
+  SpecTracker,
+  type VersionGroup,
+  validateActionDoc,
+  validateCapabilityDoc,
+  validateSchemaDoc,
+} from "./governance";
+
+// === Documentation: API doc generation, Markdown, OpenAPI ===
+
+export {
+  type ActionDoc,
+  type ApiDocGeneratorOptions,
+  actionToDoc,
+  type FieldDoc,
+  fieldToDoc,
+  generateApiDoc,
+  generateOpenAPISpec,
+  type MarkdownRenderOptions,
+  type OpenAPIGeneratorOptions,
+  type OpenAPIOperation,
+  type OpenAPIPathItem,
+  type OpenAPISchemaObject,
+  type OpenAPISpec,
+  renderActionDoc,
+  renderSchemaDoc,
+  renderSystemDoc,
+  type SchemaDoc,
+  type SystemDoc,
+  schemaToDoc,
+} from "./documentation";
+
+// === Methodology: code quality, project structure, convention checking ===
+
+export {
+  type ActionInfo,
+  type CommitInfo,
+  checkActionDefinitions,
+  checkCommitMessages,
+  checkFileNaming,
+  checkImportPatterns,
+  checkSchemaDefinitions,
+  type DirectoryEntry,
+  type ExportBoundaryConfig,
+  type FileContent,
+  type QualityIssue,
+  type QualityReport,
+  type SchemaInfo,
+  type Severity,
+  type StructureExpectation,
+  validateCapabilityStructure,
+  validateExportPatterns,
+  validateNamingConventions,
+  validateProjectStructure,
+} from "./methodology";
