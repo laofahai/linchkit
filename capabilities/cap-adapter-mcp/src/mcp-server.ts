@@ -19,9 +19,11 @@ import type {
   SchemaRegistry,
   StateDefinition,
 } from "@linchkit/core";
+import type { AIAuditLogger, AIBoundary } from "@linchkit/core/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { OperationTypeNode, parse } from "graphql";
 import { z } from "zod";
+import { registerAISecurityTools } from "./ai-security-tools";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
 import { registerScaffoldTools } from "./scaffold-tools";
 import { generateActionTools } from "./tool-registry";
@@ -43,6 +45,10 @@ export interface McpAdapterOptions {
   ontologyRegistry?: OntologyRegistry;
   name?: string;
   version?: string;
+  /** AI boundary engine for pre-flight safety checks (optional) */
+  aiBoundary?: AIBoundary;
+  /** AI audit logger for compliance tracking (optional) */
+  aiAuditLogger?: AIAuditLogger;
   /**
    * Bearer token for Phase 1 auth.
    *
@@ -91,6 +97,8 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     version = "1.0.0",
     bearerToken,
     ontologyRegistry,
+    aiBoundary,
+    aiAuditLogger,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -153,6 +161,9 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
 
   // Register scaffold tools for AI code generation
   registerScaffoldTools(server);
+
+  // Register AI security tools (boundary checks, audit, prompt sanitization)
+  registerAISecurityTools({ server, aiBoundary, aiAuditLogger });
 
   // Register resources
   registerResources(server, schemaRegistry);
