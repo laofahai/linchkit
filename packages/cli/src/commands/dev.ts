@@ -15,6 +15,7 @@ import type {
   CapabilityDefinition,
   DataProvider,
   EventHandlerDefinition,
+  InterfaceDefinition,
   LinchKitConfig,
   LinkDefinition,
   MiddlewareRegistration,
@@ -49,6 +50,7 @@ import {
   createEventBus,
   createFlowRegistry,
   createFlowStepContext,
+  createInterfaceRegistry,
   createLinkRegistry,
   createOntologyRegistry,
   createOutboxWorker,
@@ -148,6 +150,7 @@ export const devCommand = defineCommand({
       console.log(`[linch] Generated capability stylesheet: ${generatedStylesheet.path}`);
     }
 
+    const interfaces: InterfaceDefinition[] = [];
     const schemas: SchemaDefinition[] = [];
     const actions: ActionDefinition[] = [];
     const views: ViewDefinition[] = [];
@@ -160,6 +163,7 @@ export const devCommand = defineCommand({
     const transports: TransportAdapterDefinition[] = [];
 
     for (const cap of capabilities) {
+      if (cap.interfaces) interfaces.push(...cap.interfaces);
       if (cap.schemas) schemas.push(...cap.schemas);
       if (cap.actions) actions.push(...cap.actions);
       if (cap.views) views.push(...cap.views);
@@ -221,7 +225,18 @@ export const devCommand = defineCommand({
     }
 
     // Build registries
+    // Create InterfaceRegistry and register all interfaces BEFORE schemas,
+    // so that interface field injection and validation happen during schema registration.
+    const interfaceRegistry = createInterfaceRegistry();
+    for (const iface of interfaces) {
+      interfaceRegistry.register(iface);
+    }
+    if (interfaces.length > 0) {
+      console.log(`[linch] Registered ${interfaces.length} interface(s): ${interfaces.map((i) => i.name).join(", ")}`);
+    }
+
     const schemaRegistry = new SchemaRegistry();
+    schemaRegistry.setInterfaceRegistry(interfaceRegistry);
     for (const schema of schemas) {
       schemaRegistry.register(schema);
     }
@@ -767,6 +782,7 @@ export const devCommand = defineCommand({
       links: linkRegistry,
       flows: flowRegistry,
       handlers: eventHandlerRegistry,
+      interfaces: interfaceRegistry,
     });
     console.log(
       `[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`,

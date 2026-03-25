@@ -5,7 +5,7 @@ import {
   InMemoryExecutionLogger,
   SchemaRegistry,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "../capabilities/cap-adapter-server/src/data/in-memory-store";
+import { InMemoryStore } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,
   generateCrudActions,

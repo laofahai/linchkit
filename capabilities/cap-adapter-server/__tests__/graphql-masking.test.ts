@@ -7,7 +7,7 @@ import type {
 } from "@linchkit/core";
 import { createActionExecutor } from "@linchkit/core/server";
 import { graphql } from "graphql";
-import { InMemoryStore } from "../src/data/in-memory-store";
+import { InMemoryStore } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,
   type GraphQLContext,

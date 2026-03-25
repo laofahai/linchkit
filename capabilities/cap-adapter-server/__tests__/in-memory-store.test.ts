@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { InMemoryStore } from "../src/data/in-memory-store";
+import { InMemoryStore } from "@linchkit/core/server";
 
 describe("InMemoryStore", () => {
   let store: InMemoryStore;

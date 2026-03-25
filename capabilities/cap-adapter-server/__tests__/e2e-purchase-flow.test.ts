@@ -14,7 +14,7 @@ import {
   InMemoryExecutionLogger,
   SchemaRegistry,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "../src/data/in-memory-store";
+import { InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
