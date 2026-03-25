@@ -115,6 +115,18 @@ bun ./packages/cli/src/index.ts db studio
 - **GraphQL Subscriptions**: SSE-based pub/sub via graphql-yoga. Supports real-time event streaming for schema record changes. Integrated with PersistentEventBus.
 - **MCP Tools**: `list_schemas`, `describe_schema` (full SchemaDescriptor via Ontology), `ontology_overview` (high-level system summary), `search_ontology` (keyword search across schemas/actions/rules), `list_actions` (with filter support), `execute_action`, `create_proposal`, `query` (GraphQL proxy). Registered via `extensions.transports` in cap-adapter-mcp.
 - **Link Type**: `defineLink()` declares relationships as first-class citizens (spec 46). `LinkRegistry` provides bidirectional navigation (`linksFor`, `outgoingLinks`, `incomingLinks`). Drizzle schema generation handles FK columns (many_to_one, one_to_many) and junction tables (many_to_many with properties). GraphQL resolvers auto-generated for all cardinalities. Schema field `ref`/`has_many`/`many_to_many` auto-promoted to implicit Links.
+- **Deployment**: Spec 12 — deployment strategies, environment configuration, production readiness checks.
+- **Documentation**: Spec 25 — auto-generated API docs, schema documentation, capability documentation.
+- **Documentation Governance**: Spec 37 — documentation standards, review process, versioned doc lifecycle.
+- **Methodology**: Spec 29 — development methodology, SOP for capability development and release.
+- **Versioning & Compatibility**: Spec 38 — release compatibility rules, semantic versioning, migration guides.
+- **Capability Hub**: Spec 21b — capability discovery, registry, installation, and dependency resolution.
+- **Data Masking & Tenant Isolation**: Spec 41b + spec 30 — field-level data masking rules, tenant isolation via `tenant_id` scoping, row-level security.
+- **AI Boundary & AI Security**: Spec 22 + spec 27 — AI rule boundaries (what AI can/cannot modify), AI security hardening (prompt injection defense, output validation, audit trail).
+
+## Test Coverage
+
+- ~1874 tests, 0 failures
 
 ## UI Routes
 

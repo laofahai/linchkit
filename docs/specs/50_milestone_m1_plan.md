@@ -32,22 +32,28 @@
 > - ✅ M2: Observability Metrics (spec 28) — complete
 > - ✅ M2: OutboxWorker production reliability — complete
 > - ✅ M2: Flow AIStep tool calling — complete
+> - ✅ Spec 12: Deployment — complete
+> - ✅ Spec 17: Legacy Migration — complete
+> - ✅ Spec 21b: Capability Hub — complete
+> - ✅ Spec 25: Documentation — complete
+> - ✅ Spec 27: AI Security — complete (AI Rule Boundary + AI security hardening)
+> - ✅ Spec 29: Methodology — complete
+> - ✅ Spec 37: Documentation Governance — complete
+> - ✅ Spec 38: Release Compatibility — complete
 >
 > ### Test Coverage
-> - ~1500 tests, 0 failures
+> - ~1874 tests, 0 failures
 >
 > ### Tech Debt Fixed (2026-03-25)
 > - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
 >
-> ### Remaining Specs (TODO)
-> - spec 12: Deployment
-> - spec 17: Legacy Migration
-> - spec 21b: Capability Hub
-> - spec 25: Documentation
-> - spec 27: AI Security (partially done via AI Rule Boundary, spec 22)
-> - spec 29: Methodology
-> - spec 37: Documentation Governance
-> - spec 38: Release Compatibility
+> ### Architecture Improvements
+> - **Browser/Server Boundaries**: Clean separation of browser-safe and server-only code paths across all packages
+> - **Error Hierarchy**: Structured error types with proper HTTP status mapping (validation→400, auth→401, authz→403, not_found→404, business→422, conflict→409, system→500)
+> - **EventBusLike Decoupling**: Core engines depend on `EventBusLike` interface, not concrete EventBus — enables in-memory, persistent, and test implementations interchangeably
+>
+> ### Remaining Work (TODO)
+> - Integration wiring and final polish
 
 ## Overview
 
