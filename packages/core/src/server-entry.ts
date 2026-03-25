@@ -170,6 +170,35 @@ export {
 
 export { AIBoundary, AIBoundaryError } from "./ai";
 
+// === AI Audit (server-only — compliance audit trail) ===
+
+export {
+  type AIAuditEntry,
+  type AIAuditEventType,
+  type AIAuditLoggerOptions,
+  type AIAuditQueryOptions,
+  type AIAuditRiskLevel,
+  AIAuditLogger,
+} from "./ai";
+
+// === AI Prompt Sanitizer (server-only — injection detection + PII redaction) ===
+
+export {
+  type InjectionDetectionConfig,
+  type InjectionDetectionResult,
+  type InjectionPattern,
+  type PIIPattern,
+  type PIISanitizationConfig,
+  type PIISanitizationResult,
+  type PIIType,
+  type PromptSanitizerOptions,
+  type SanitizationResult,
+  detectInjection,
+  sanitizePII,
+  sanitizePrompt,
+  sanitizeRecordForAI,
+} from "./ai";
+
 // === Security: data masking (server-only — uses node:crypto) ===
 
 export {
@@ -250,3 +279,52 @@ export {
   type RelationDescriptor,
   type SchemaDescriptor,
 } from "./ontology";
+
+// === Deployment: health checks, graceful shutdown, environment ===
+
+export {
+  type AggregatedHealthStatus,
+  createDatabaseCheck,
+  createSchemaCheck,
+  detectEnvironment,
+  type EnvironmentConfig,
+  type EnvironmentFeatureFlags,
+  type EnvironmentName,
+  GracefulShutdownManager,
+  type GracefulShutdownManagerOptions,
+  type HealthCheckFn,
+  type HealthCheckRegistryOptions,
+  type HealthCheckResult,
+  HealthCheckRegistry,
+  type HealthStatus,
+  livenessCheck,
+  type ShutdownHook,
+  type ShutdownPhase,
+  type ShutdownStatus,
+  validateRequiredEnvVars,
+} from "./deployment";
+
+// === Legacy migration utilities ===
+
+export {
+  CSVImportSource,
+  type CSVImportSourceOptions,
+  DataImporter,
+  type DataImporterOptions,
+  type ErrorMode,
+  type FieldMapping,
+  type ImportProgress,
+  type ImportRecordError,
+  type ImportResult,
+  type ImportSource,
+  JSONImportSource,
+  type JSONImportSourceOptions,
+  type MappedRecord,
+  type MappingValidationResult,
+  type MigrationPlan,
+  type MigrationResult,
+  MigrationResumeTracker,
+  MigrationRunner,
+  type MigrationRunnerOptions,
+  SchemaMapper,
+} from "./migration";
