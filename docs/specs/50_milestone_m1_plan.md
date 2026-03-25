@@ -42,10 +42,25 @@
 > - ✅ Spec 38: Release Compatibility — complete
 >
 > ### Test Coverage
-> - ~1874 tests, 0 failures
+> - ~1983 tests, 0 failures
 >
 > ### Tech Debt Fixed (2026-03-25)
 > - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
+>
+> ### Integration Wiring Completed (2026-03-25)
+> - GraphQL state transitions: availableTransitions query + transition mutation
+> - GraphQL optimistic locking: _version check with 409 conflict response
+> - GraphQL translatable field resolution: read + write paths
+> - AIBoundary + AIAuditLogger wired into server + flow engine
+> - TenantAwareDataProvider wired into ActionExecutor
+> - DerivedPropertyEngine wired into CRUD + GraphQL
+> - AutomationEngine wired into server lifecycle
+> - InterfaceRegistry wired into server startup
+> - InMemoryStore extracted to @linchkit/core (shared, with optimistic locking)
+> - Large file splits (build-schema, dev.ts)
+> - 5 CLI commands: docs, check, changelog, validate, info
+> - 4 MCP AI security tools
+> - Purchase demo enhanced (interfaces, derived, automations, masking)
 >
 > ### Architecture Improvements
 > - **Browser/Server Boundaries**: Clean separation of browser-safe and server-only code paths across all packages
@@ -53,7 +68,7 @@
 > - **EventBusLike Decoupling**: Core engines depend on `EventBusLike` interface, not concrete EventBus — enables in-memory, persistent, and test implementations interchangeably
 >
 > ### Remaining Work (TODO)
-> - Integration wiring and final polish
+> - Final polish and M2 remaining items
 
 ## Overview
 
