@@ -11,6 +11,7 @@
  * execution and recording usage for auditability.
  */
 
+import { AuthorizationError } from "../errors";
 import type { AICompletionOptions, AICompletionResult, AIService } from "../types/ai";
 import type { Logger } from "../types/logger";
 import type {
@@ -675,12 +676,12 @@ export class AIBoundary {
 // ── AIBoundaryError ─────────────────────────────────────
 
 /** Error thrown when an AI call is blocked by boundary policy */
-export class AIBoundaryError extends Error {
+export class AIBoundaryError extends AuthorizationError {
   readonly violation: string;
   readonly policyName?: string;
 
   constructor(message: string, violation: string, policyName?: string) {
-    super(message);
+    super({ message, code: "ai.boundary.violation" });
     this.name = "AIBoundaryError";
     this.violation = violation;
     this.policyName = policyName;

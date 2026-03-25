@@ -20,7 +20,8 @@ import type {
   InterfaceDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
-import { AIBoundary, AuthorizationError, canUnmask, maskRecord, maskRecords } from "@linchkit/core";
+import { AuthorizationError } from "@linchkit/core";
+import { AIBoundary, canUnmask, maskRecord, maskRecords } from "@linchkit/core/server";
 import {
   type ActionExecutor,
   CacheManager,

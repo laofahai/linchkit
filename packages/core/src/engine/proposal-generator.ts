@@ -14,6 +14,7 @@
  */
 
 import { z } from "zod";
+import { BusinessRuleError } from "../errors";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "../types/action";
@@ -220,13 +221,13 @@ const proposalResponseSchema = z.object({
 
 // ── Error type for proposal generation failures ─────────
 
-export class ProposalGenerationError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
+export class ProposalGenerationError extends BusinessRuleError {
+  override readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super({ message, code: "proposal.generation.failed" });
     this.name = "ProposalGenerationError";
+    this.cause = cause;
   }
 }
 

@@ -22,8 +22,7 @@ export type {
   AIRateLimits,
   AIUsageRecord,
 } from "./ai";
-// AI Boundary
-export { AIBoundary, AIBoundaryError } from "./ai";
+// AI Boundary — runtime classes exported from server-entry.ts only
 export type { AutomationEngine, AutomationRegistry } from "./automation";
 // Capability Hub — discovery and dependency management
 export type {
@@ -196,15 +195,8 @@ export {
   wrapTranslatableValue,
 } from "./schema/translatable";
 
-// Security — data masking
-export {
-  canUnmask,
-  type MaskRecordOptions,
-  maskRecord,
-  maskRecords,
-  maskValue,
-  resolveFieldMasking,
-} from "./security";
+// Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
+export type { MaskRecordOptions } from "./security";
 // Type exports
 export type * from "./types";
 // Non-type exports from types

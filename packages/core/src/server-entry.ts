@@ -166,6 +166,21 @@ export {
   resolveModel,
 } from "./ai/ai-service";
 
+// === AI Boundary (server-only — heavyweight runtime classes) ===
+
+export { AIBoundary, AIBoundaryError } from "./ai";
+
+// === Security: data masking (server-only — uses node:crypto) ===
+
+export {
+  canUnmask,
+  type MaskRecordOptions,
+  maskRecord,
+  maskRecords,
+  maskValue,
+  resolveFieldMasking,
+} from "./security";
+
 // === Flow engine ===
 
 export {
