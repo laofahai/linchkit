@@ -10,6 +10,31 @@
 
 export const VERSION = "0.0.1";
 
+export type {
+  AIActionAccess,
+  AIBoundaryCheckResult,
+  AIBoundaryOptions,
+  AIBudget,
+  AIBudgetConfig,
+  AICallRequest,
+  AIContentFilter,
+  AIPolicy,
+  AIRateLimits,
+  AIUsageRecord,
+} from "./ai";
+// AI Boundary
+export { AIBoundary, AIBoundaryError } from "./ai";
+export type { AutomationEngine, AutomationRegistry } from "./automation";
+// Cache — type exports (browser-safe)
+export type {
+  CacheEntry,
+  CacheManagerOptions,
+  CacheProvider,
+  CacheSetOptions,
+  CacheStats,
+  InMemoryCacheOptions,
+  NamespacedCache,
+} from "./cache";
 // Config center
 export type { ConfigSchemaRef } from "./config";
 export {
@@ -22,7 +47,6 @@ export {
   securityConfig,
   serverConfig,
 } from "./config";
-
 // Define function exports
 export {
   defineAction,
@@ -32,6 +56,7 @@ export {
   defineDataAccess,
   defineEvent,
   defineEventHandler,
+  defineInterface,
   defineLink,
   definePermissionGroup,
   defineRule,
@@ -101,7 +126,6 @@ export {
   SystemError,
   ValidationError,
 } from "./errors";
-export type { AutomationEngine, AutomationRegistry } from "./automation";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
 export type {
   CompiledFlow,
@@ -116,8 +140,6 @@ export type {
 } from "./flow";
 export type { MetricSnapshot, MetricsCollector } from "./observability/metrics";
 export type { TraceState } from "./observability/trace-context";
-export type { LinkRegistry } from "./schema/link-registry";
-export { createLinkRegistry } from "./schema/link-registry";
 export type {
   OntologyRegistry,
   OntologyRegistryDeps,
@@ -125,19 +147,23 @@ export type {
   SchemaDescriptor,
 } from "./ontology";
 export {
+  type AggregateDerived,
+  type ConcatDerived,
   createDerivedPropertyEngine,
+  type DerivedConfig,
+  type DerivedFieldInfo,
   DerivedPropertyEngine,
+  type ExpressionDerived,
   evaluateExpression,
+  type FunctionDerived,
   getDerivedStrategy,
   isDerivedField,
   resolveDerivedValue,
-  type AggregateDerived,
-  type ConcatDerived,
-  type DerivedConfig,
-  type DerivedFieldInfo,
-  type ExpressionDerived,
-  type FunctionDerived,
 } from "./schema/derived-property";
+export type { LinkRegistry } from "./schema/link-registry";
+export { createLinkRegistry } from "./schema/link-registry";
+export type { InterfaceRegistry } from "./schema/schema-interface";
+export { createInterfaceRegistry } from "./schema/schema-interface";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {
@@ -154,6 +180,15 @@ export {
   wrapTranslatableValue,
 } from "./schema/translatable";
 
+// Security — data masking
+export {
+  canUnmask,
+  type MaskRecordOptions,
+  maskRecord,
+  maskRecords,
+  maskValue,
+  resolveFieldMasking,
+} from "./security";
 // Type exports
 export type * from "./types";
 // Non-type exports from types
@@ -166,17 +201,7 @@ export {
 } from "./types";
 export type { Logger } from "./types/logger";
 
-// Security — data masking
-export {
-  canUnmask,
-  maskRecord,
-  maskRecords,
-  maskValue,
-  resolveFieldMasking,
-  type MaskRecordOptions,
-} from "./security";
-
 // Utilities
 export { resolveEnvVars } from "./utils/env";
-export { validateIdentifier } from "./utils/identifier";
 export type { IdentifierValidationResult } from "./utils/identifier";
+export { validateIdentifier } from "./utils/identifier";

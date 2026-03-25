@@ -97,9 +97,7 @@ export class SchemaRegistry {
     if (schema.extends) {
       const parent = this.schemas.get(schema.extends);
       if (!parent) {
-        throw new Error(
-          `Schema "${schema.name}" extends unknown schema "${schema.extends}"`,
-        );
+        throw new Error(`Schema "${schema.name}" extends unknown schema "${schema.extends}"`);
       }
 
       // Check inheritance depth (walk up the chain)
@@ -204,6 +202,14 @@ export class SchemaRegistry {
       fields[fname] = resolveField(fname, fdef);
     }
 
+    // Inject interface fields (before inherited + own fields, so they can be overridden)
+    if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
+      const injected = this._interfaceRegistry.getInjectedFields(schema);
+      for (const [fname, fdef] of Object.entries(injected)) {
+        fields[fname] = resolveField(fname, fdef);
+      }
+    }
+
     // Merge inherited fields (from root ancestor down to parent)
     if (schema.extends) {
       const chain = this.getInheritanceChain(name);
@@ -261,6 +267,7 @@ export class SchemaRegistry {
       abstract: schema.abstract,
       parent: schema.extends,
       children: this.getChildren(name),
+      implements: schema.implements,
       presentation: schema.presentation,
       fields,
       source: schema,
@@ -303,9 +310,7 @@ export class SchemaRegistry {
 
       // Parent must exist
       if (!this.schemas.has(schema.extends)) {
-        errors.push(
-          `Schema "${schema.name}" extends unknown schema "${schema.extends}"`,
-        );
+        errors.push(`Schema "${schema.name}" extends unknown schema "${schema.extends}"`);
         continue;
       }
 
@@ -314,9 +319,7 @@ export class SchemaRegistry {
       let current: SchemaDefinition | undefined = schema;
       while (current?.extends) {
         if (visited.has(current.name)) {
-          errors.push(
-            `Circular inheritance detected involving schema "${current.name}"`,
-          );
+          errors.push(`Circular inheritance detected involving schema "${current.name}"`);
           break;
         }
         visited.add(current.name);

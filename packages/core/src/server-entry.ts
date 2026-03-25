@@ -10,15 +10,15 @@
 // === Automation engine ===
 
 export {
-  createAutomationEngine,
-  createAutomationRegistry,
-  parseCronToInterval,
   type AutomationActionExecutor,
   type AutomationEngine,
   type AutomationEngineOptions,
   type AutomationFlowStarter,
   type AutomationNotifier,
   type AutomationRegistry,
+  createAutomationEngine,
+  createAutomationRegistry,
+  parseCronToInterval,
 } from "./automation";
 
 // === Engine: action, command, approval, state, rule, validation, permission, proposal ===
@@ -103,6 +103,7 @@ export {
 
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
 export { createLinkRegistry, LinkRegistry } from "./schema/link-registry";
+export { createInterfaceRegistry, InterfaceRegistry } from "./schema/schema-interface";
 export { createSchemaRegistry, SchemaRegistry } from "./schema/schema-registry";
 export {
   buildColumn,
@@ -124,6 +125,20 @@ export {
   type OutboxWorkerOptions,
 } from "./event/outbox-worker";
 export { createPersistentEventBus, PersistentEventBus } from "./event/persistent-event-bus";
+
+// === Cache ===
+
+export {
+  type CacheEntry,
+  CacheManager,
+  type CacheManagerOptions,
+  type CacheProvider,
+  type CacheSetOptions,
+  type CacheStats,
+  type InMemoryCacheOptions,
+  InMemoryCacheProvider,
+  type NamespacedCache,
+} from "./cache";
 
 // === Observability ===
 
@@ -154,8 +169,8 @@ export {
 // === Flow engine ===
 
 export {
-  checkRestateHealth,
   type CompiledFlow,
+  checkRestateHealth,
   compileFlow,
   createFlowRegistry,
   createFlowStepContext,
@@ -170,15 +185,20 @@ export {
   FlowRegistryImpl,
   type FlowStepContext,
   type FlowStepContextDeps,
-  registerDeployment,
   type RestateConfig,
+  registerDeployment,
   setupRestateEndpoint,
   type TriggerBinding,
 } from "./flow";
 
 // === Persistence: database, Drizzle ORM, migrations, system tables ===
 
-export { checkConnection, closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
+export {
+  checkConnection,
+  closeDatabase,
+  createDatabase,
+  type DatabaseConfig,
+} from "./persistence/database";
 export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
 export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
 export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";

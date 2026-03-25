@@ -13,7 +13,12 @@ import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
 import type { LinkCardinality } from "../types/link";
 import type { RuleDefinition } from "../types/rule";
-import type { FieldDefinition, SchemaDefinition, SchemaPresentation } from "../types/schema";
+import type {
+  FieldDefinition,
+  InterfaceDefinition,
+  SchemaDefinition,
+  SchemaPresentation,
+} from "../types/schema";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
 
@@ -61,6 +66,8 @@ export interface SchemaDescriptor {
   flows: FlowDefinition[];
   /** Event handlers listening to this schema's events */
   handlers: EventHandlerDefinition[];
+  /** Interfaces this schema implements */
+  interfaces: InterfaceDefinition[];
 }
 
 // ── Registry dependencies ──────────────────────────────────
@@ -80,7 +87,13 @@ interface ActionRegistryLike {
 /** Minimal interface for LinkRegistry */
 interface LinkRegistryLike {
   linksFor(schemaName: string): Array<{
-    link: { name: string; from: string; to: string; cardinality: LinkCardinality; label?: { from?: string; to?: string } };
+    link: {
+      name: string;
+      from: string;
+      to: string;
+      cardinality: LinkCardinality;
+      label?: { from?: string; to?: string };
+    };
     direction: "outgoing" | "incoming";
     relatedSchema: string;
     label: string;
@@ -97,6 +110,13 @@ interface EventHandlerRegistryLike {
   getAll(): EventHandlerDefinition[];
 }
 
+/** Minimal interface for InterfaceRegistry */
+interface InterfaceRegistryLike {
+  interfacesOf(schemaName: string): InterfaceDefinition[];
+  implementors(interfaceName: string): string[];
+  list(): InterfaceDefinition[];
+}
+
 // ── Dependencies for createOntologyRegistry ──────────────────
 
 export interface OntologyRegistryDeps {
@@ -109,6 +129,7 @@ export interface OntologyRegistryDeps {
   views: ViewDefinition[];
   flows?: FlowRegistryLike;
   links?: LinkRegistryLike;
+  interfaces?: InterfaceRegistryLike;
 }
 
 // ── OntologyRegistry interface ──────────────────────────────
@@ -143,6 +164,9 @@ export interface OntologyRegistry {
 
   /** Get all relations for a schema */
   relatedSchemas(schemaName: string): RelationDescriptor[];
+
+  /** Get all schema names that implement a given interface */
+  schemasImplementing(interfaceName: string): string[];
 
   /** Export full ontology as JSON */
   toJSON(): Record<string, SchemaDescriptor>;
@@ -239,6 +263,11 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       }
     }
 
+    // Resolve interfaces for this schema
+    const interfaces: InterfaceDefinition[] = deps.interfaces
+      ? deps.interfaces.interfacesOf(schemaName)
+      : [];
+
     return {
       name: schema.name,
       label: schema.label,
@@ -252,6 +281,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       views: viewsBySchema.get(schemaName) ?? [],
       flows: flowsBySchema.get(schemaName) ?? [],
       handlers: handlersBySchema.get(schemaName) ?? [],
+      interfaces,
     };
   }
 
@@ -324,6 +354,10 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     relatedSchemas(schemaName: string): RelationDescriptor[] {
       const desc = getOrBuild(schemaName);
       return desc?.relations ?? [];
+    },
+
+    schemasImplementing(interfaceName: string): string[] {
+      return deps.interfaces ? deps.interfaces.implementors(interfaceName) : [];
     },
 
     toJSON(): Record<string, SchemaDescriptor> {
@@ -411,7 +445,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 /** Extract schema names from a rule trigger, using action registry to resolve action→schema */
 function extractSchemaFromTrigger(
   rule: RuleDefinition,
-  actionsBySchema: Map<string, ActionDefinition[]>,
+  _actionsBySchema: Map<string, ActionDefinition[]>,
   allActions: ActionDefinition[],
 ): string[] {
   const trigger = rule.trigger;

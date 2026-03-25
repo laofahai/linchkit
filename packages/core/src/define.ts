@@ -10,6 +10,7 @@ import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
+import type { LinkDefinition } from "./types/link";
 import type {
   DataAccessDefinition,
   PermissionGroupDefinition,
@@ -18,13 +19,19 @@ import type {
 import type { RuleDefinition, RuleOverride } from "./types/rule";
 import type {
   FieldDefinition,
+  InterfaceDefinition,
   SchemaDefinition,
   SchemaExtension,
   SchemaOverride,
 } from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
-import type { LinkDefinition } from "./types/link";
 import type { ViewDefinition, ViewExtension } from "./types/view";
+
+// ── Schema Interface ─────────────────────────────────
+
+export function defineInterface(definition: InterfaceDefinition): InterfaceDefinition {
+  return definition;
+}
 
 // ── Schema ──────────────────────────────────────────
 

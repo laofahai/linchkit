@@ -187,6 +187,45 @@ export interface ExposureConfig {
 
 export type FieldExposureMap = Record<string, ExposureConfig>;
 
+// ── Schema Interface ──────────────────────────────────────
+
+/** Interface action template — metadata only, handler provided by implementing schema */
+export interface InterfaceActionTemplate {
+  label: string;
+  requiredFields?: string[];
+  description?: string;
+}
+
+/** Interface state machine template */
+export interface InterfaceStateTemplate {
+  initial: string;
+  transitions: Array<{
+    from: string;
+    to: string;
+    action: string;
+  }>;
+}
+
+/**
+ * Schema Interface — a contract that multiple schemas can implement.
+ * Defines required fields, optional state machine template, and action templates.
+ * See spec: docs/specs/47_schema_interface.md
+ */
+export interface InterfaceDefinition {
+  /** Unique identifier */
+  name: string;
+  /** Human-readable label */
+  label: string;
+  /** Description of what this interface provides */
+  description?: string;
+  /** Required fields — injected into implementing schemas */
+  fields: Record<string, FieldDefinition>;
+  /** Optional state machine template */
+  state?: InterfaceStateTemplate;
+  /** Optional action templates (metadata only, no handler) */
+  actions?: Record<string, InterfaceActionTemplate>;
+}
+
 // ── Schema definition ──────────────────────────────────────
 
 /** Internationalization configuration for a schema's translatable fields */
@@ -209,6 +248,9 @@ export interface SchemaDefinition<
 
   /** When true, schema cannot be instantiated directly (no DB table, no create action). */
   abstract?: boolean;
+
+  /** Interface names this schema implements. Fields from interfaces are auto-injected. */
+  implements?: string[];
 
   fields: TFields;
 
@@ -269,6 +311,8 @@ export interface ResolvedSchema {
   parent?: string;
   /** Child schema names that extend this schema */
   children: string[];
+  /** Interface names this schema implements */
+  implements?: string[];
   /** Presentation metadata */
   presentation?: SchemaPresentation;
   /** All fields including system fields, keyed by field name */

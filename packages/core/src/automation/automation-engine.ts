@@ -9,7 +9,7 @@
  * - Schedule: basic interval support (parsed from cron "seconds" field or fixed interval)
  */
 
-import { evaluateCondition, type ConditionContext } from "../engine/condition-evaluator";
+import { type ConditionContext, evaluateCondition } from "../engine/condition-evaluator";
 import type { EventBusLike } from "../flow/trigger-binding";
 import type {
   AutomationAction,
@@ -193,7 +193,9 @@ class AutomationEngineImpl implements AutomationEngine {
           );
         }
       } catch (err) {
-        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
+        this.logger.error?.(
+          `[AutomationEngine] Unhandled error in "${automation.name}": ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     });
 
@@ -235,7 +237,9 @@ class AutomationEngineImpl implements AutomationEngine {
           );
         }
       } catch (err) {
-        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
+        this.logger.error?.(
+          `[AutomationEngine] Unhandled error in "${automation.name}": ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     });
 
@@ -277,7 +281,9 @@ class AutomationEngineImpl implements AutomationEngine {
           );
         }
       } catch (err) {
-        this.logger.error?.(`[AutomationEngine] Unhandled error in "${automation.name}": ${err}`);
+        this.logger.error?.(
+          `[AutomationEngine] Unhandled error in "${automation.name}": ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     });
 
@@ -293,7 +299,7 @@ class AutomationEngineImpl implements AutomationEngine {
     if (intervalMs === null) {
       this.logger.warn?.(
         `[AutomationEngine] Cannot parse cron "${trigger.cron}" for automation "${automation.name}". ` +
-          "Only basic patterns supported: \"*/N * * * *\" (every N minutes) or \"0 */N * * *\" (every N hours).",
+          'Only basic patterns supported: "*/N * * * *" (every N minutes) or "0 */N * * *" (every N hours).',
       );
       return;
     }
@@ -306,9 +312,7 @@ class AutomationEngineImpl implements AutomationEngine {
         _triggeredAt: new Date().toISOString(),
       });
       if (!result.success) {
-        this.logger.warn?.(
-          `[AutomationEngine] Scheduled automation "${automation.name}" failed`,
-        );
+        this.logger.warn?.(`[AutomationEngine] Scheduled automation "${automation.name}" failed`);
       }
     }, intervalMs);
 
@@ -375,9 +379,7 @@ class AutomationEngineImpl implements AutomationEngine {
 
       case "send_notification": {
         if (!this.notifier) {
-          throw new Error(
-            "AutomationEngine: notifier not configured. Cannot send notification.",
-          );
+          throw new Error("AutomationEngine: notifier not configured. Cannot send notification.");
         }
         await this.notifier.notify(action.channel, action.message);
         break;
