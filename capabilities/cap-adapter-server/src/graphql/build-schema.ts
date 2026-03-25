@@ -768,8 +768,10 @@ export function buildGraphQLSchema(
 
   // Build subscription type when EventBus is available
   let subscription: GraphQLObjectType | undefined;
+  let cleanupSubscriptions: (() => void) | undefined;
   if (eventBus) {
-    const { pubsub } = createEventBusPubSub(eventBus);
+    const { pubsub, unsubscribe } = createEventBusPubSub(eventBus);
+    cleanupSubscriptions = unsubscribe;
     const subscriptionFields = buildSubscriptionFields({
       schemas,
       schemaObjectTypes,
@@ -783,7 +785,8 @@ export function buildGraphQLSchema(
     }
   }
 
-  return new GraphQLSchema({ query, mutation, subscription });
+  const schema = new GraphQLSchema({ query, mutation, subscription });
+  return Object.assign(schema, { cleanup: cleanupSubscriptions });
 }
 
 /**

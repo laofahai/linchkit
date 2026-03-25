@@ -29,9 +29,10 @@ const DEFAULT_INGRESS_URL = "http://localhost:8080";
  * starting flows, querying status, sending signals, and cancelling.
  */
 export function createRestateFlowEngine(config: RestateConfig = {}): FlowEngine {
-  const ingressUrl = config.adminUrl
-    ? config.adminUrl.replace(":9070", ":8080")
-    : DEFAULT_INGRESS_URL;
+  const ingressUrl = config.ingressUrl
+    ?? (config.adminUrl
+      ? config.adminUrl.replace(/:9070\b/, ":8080")
+      : DEFAULT_INGRESS_URL);
 
   /** In-memory registry of flow definitions (for name validation only) */
   const flowDefs = new Map<string, FlowDefinition>();

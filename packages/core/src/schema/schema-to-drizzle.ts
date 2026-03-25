@@ -137,8 +137,8 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
   return { implicitLinks, conflicts, missingTargets };
 }
 
-// Field types that support translatable content (stored as JSONB { locale: value })
-const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+// Re-use from translatable.ts to avoid duplication
+import { TRANSLATABLE_FIELD_TYPES } from "./translatable";
 
 /**
  * Build a Drizzle column definition for a single field.

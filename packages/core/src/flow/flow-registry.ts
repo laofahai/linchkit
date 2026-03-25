@@ -52,7 +52,7 @@ export class FlowRegistryImpl implements IFlowRegistry {
       f.steps.some(
         (step) =>
           step.type === "action" &&
-          (step as import("../types/flow").ActionFlowStep).actionName.includes(schemaName),
+          (step as import("../types/flow").ActionFlowStep).actionName.startsWith(`${schemaName}.`),
       ),
     );
   }

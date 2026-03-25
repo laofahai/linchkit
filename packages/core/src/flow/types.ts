@@ -113,6 +113,9 @@ export interface RestateConfig {
   /** Restate admin URL (default: http://localhost:9070) */
   adminUrl?: string;
 
+  /** Restate ingress URL (default: http://localhost:8080). If omitted, derived from adminUrl. */
+  ingressUrl?: string;
+
   /** Port for the workflow service endpoint (default: 9080) */
   servicePort?: number;
 

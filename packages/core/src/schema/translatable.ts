@@ -147,8 +147,8 @@ export function resolveTranslation(
   return resolveTranslatableValue(value, locale, fallback) ?? "";
 }
 
-// Field types that support the `translatable` flag
-const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
+/** Field types that support the `translatable` flag */
+export const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
 
 /**
  * Validate that a schema's translatable fields are correctly configured.

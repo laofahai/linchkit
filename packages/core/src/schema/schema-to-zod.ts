@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import { TRANSLATABLE_FIELD_TYPES } from "./translatable";
 
 export interface ZodGeneratorOptions {
   /** Resolve state machine states for 'state' type fields */
@@ -19,9 +20,6 @@ export interface ZodGeneratorOptions {
 // Relationship fields (ref/has_many/many_to_many) are virtual — they only declare relationships
 // and don't store input data in the record itself (FK columns are added by generateLinkColumns)
 const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
-
-// Field types that support the `translatable` flag
-const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
 
 /**
  * Generate a Zod schema from a LinchKit SchemaDefinition.
