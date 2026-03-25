@@ -34,6 +34,18 @@ export interface FieldConstraints {
   immutable?: boolean;
 }
 
+// ── Field masking configuration ──────────────────────────────────
+
+export type MaskingStrategy = "full" | "partial" | "hash" | "redact";
+
+export interface MaskingConfig {
+  strategy: MaskingStrategy;
+  /** For 'partial': number of characters to leave visible (default: 4) */
+  visibleChars?: number;
+  /** For 'partial': which end to keep visible (default: 'end') */
+  position?: "start" | "end";
+}
+
 // ── Field definitions ──────────────────────────────────────────
 
 export interface BaseFieldDefinition extends FieldConstraints {
@@ -42,6 +54,8 @@ export interface BaseFieldDefinition extends FieldConstraints {
   description?: string;
   sensitive?: boolean;
   secret?: boolean;
+  /** Data masking configuration. When set, field values are masked based on strategy unless actor has unmask permission. */
+  masking?: MaskingConfig;
   /** Whether this field stores translatable content (i18n). When true, values are stored as JSONB { locale: value }. */
   translatable?: boolean;
   /** Declarative UI hints for auto-layout and rendering */

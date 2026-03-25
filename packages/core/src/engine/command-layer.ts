@@ -16,6 +16,8 @@
 
 import { LinchKitError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
@@ -112,6 +114,8 @@ export interface CommandLayerOptions {
    * If not configured, approvalId is ignored (fail-closed — security slots are NOT skipped).
    */
   verifyApproval?: (approvalId: string) => Promise<boolean>;
+  /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
+  metrics?: MetricsCollector;
 }
 
 export interface CommandLayer {
@@ -154,7 +158,7 @@ export interface CommandExecuteOptions {
  * ```
  */
 export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
-  const { executor, logger = consoleLogger, verifyApproval } = options;
+  const { executor, logger = consoleLogger, verifyApproval, metrics = noopMetricsCollector } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
   function use(registration: MiddlewareRegistration): void {
@@ -398,6 +402,8 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         }
       }
     }
+
+    metrics.increment("command.processed", { command: ctx.command });
 
     return ctx.result;
   }

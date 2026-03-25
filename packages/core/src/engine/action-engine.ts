@@ -7,6 +7,8 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace } from "../observability/trace-context";
 import type {
   ActionContext,
@@ -299,6 +301,8 @@ export interface ActionExecutorOptions {
   /** Config registry — injected into ActionContext for type-safe config access.
    *  Falls back to an empty registry when omitted (e.g. in tests). */
   configRegistry?: ConfigRegistry;
+  /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
+  metrics?: MetricsCollector;
 }
 
 /**
@@ -323,6 +327,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     executionLogger,
     aiService,
     configRegistry,
+    metrics = noopMetricsCollector,
   } = options;
 
   /** Helper: build and log an execution entry */
@@ -693,6 +698,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         await runHandler(dataProvider);
       }
 
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        schema: action.schema ?? "",
+        status: "succeeded",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        schema: action.schema ?? "",
+      });
+
       await logExecution({
         id: executionId,
         action: actionName,
@@ -714,6 +730,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        schema: action.schema ?? "",
+        status: "failed",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        schema: action.schema ?? "",
+      });
+
       // On failure, pendingEvents were NOT persisted (transaction rolled back)
       await logExecution({
         id: executionId,

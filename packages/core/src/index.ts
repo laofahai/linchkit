@@ -166,6 +166,16 @@ export {
 } from "./types";
 export type { Logger } from "./types/logger";
 
+// Security — data masking
+export {
+  canUnmask,
+  maskRecord,
+  maskRecords,
+  maskValue,
+  resolveFieldMasking,
+  type MaskRecordOptions,
+} from "./security";
+
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export { validateIdentifier } from "./utils/identifier";

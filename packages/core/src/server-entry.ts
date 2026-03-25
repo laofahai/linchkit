@@ -196,6 +196,16 @@ export {
 } from "./persistence/system-tables";
 export { TableRegistry } from "./persistence/table-registry";
 
+// === Security: tenant isolation ===
+
+export {
+  createTenantAwareDataProvider,
+  createTenantIsolationMiddleware,
+  defaultTenantResolver,
+  type TenantIsolationMiddlewareOptions,
+  type TenantResolver,
+} from "./security/tenant-isolation";
+
 // === Ontology: unified semantic facade ===
 
 export {

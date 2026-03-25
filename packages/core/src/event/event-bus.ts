@@ -7,6 +7,8 @@
  */
 
 import { consoleLogger } from "../observability/console-logger";
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
 import { withTrace } from "../observability/trace-context";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
@@ -79,17 +81,20 @@ export class EventBus {
   protected maxEmitDepth: number;
   protected maxEventLogSize: number;
   protected logger: Logger;
+  protected metrics: MetricsCollector;
 
   constructor(
     registry: EventHandlerRegistry,
     maxEmitDepth = DEFAULT_MAX_EMIT_DEPTH,
     logger: Logger = consoleLogger,
     maxEventLogSize = DEFAULT_MAX_EVENT_LOG_SIZE,
+    metrics: MetricsCollector = noopMetricsCollector,
   ) {
     this.registry = registry;
     this.maxEmitDepth = maxEmitDepth;
     this.maxEventLogSize = maxEventLogSize;
     this.logger = logger;
+    this.metrics = metrics;
   }
 
   /**
@@ -117,6 +122,8 @@ export class EventBus {
       if (this.eventLog.length > this.maxEventLogSize) {
         this.eventLog = this.eventLog.slice(-this.maxEventLogSize);
       }
+
+      this.metrics.increment("event.emitted", { eventType: event.type });
 
       // Find matching handlers
       const handlers = this.registry.getByEvent(event.type);
@@ -221,11 +228,19 @@ export class EventBus {
 // ── Factory ─────────────────────────────────────────────────
 
 /** Create a new EventBus with its own EventHandlerRegistry */
-export function createEventBus(): {
+export function createEventBus(options?: {
+  metrics?: MetricsCollector;
+}): {
   registry: EventHandlerRegistry;
   bus: EventBus;
 } {
   const registry = new EventHandlerRegistry();
-  const bus = new EventBus(registry);
+  const bus = new EventBus(
+    registry,
+    DEFAULT_MAX_EMIT_DEPTH,
+    consoleLogger,
+    DEFAULT_MAX_EVENT_LOG_SIZE,
+    options?.metrics,
+  );
   return { registry, bus };
 }
