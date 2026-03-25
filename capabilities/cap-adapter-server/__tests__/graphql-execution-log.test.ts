@@ -41,7 +41,7 @@ const graphqlSchema = buildGraphQLSchema([taskSchema], {
   executionLogger,
 });
 const app = createServer(graphqlSchema);
-const port = 3994;
+const port = 3993;
 
 beforeAll(() => {
   app.listen(port);
