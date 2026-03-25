@@ -35,6 +35,7 @@ export const eventStatusEnum = linchkitSchema.enum("event_status", [
   "processing",
   "completed",
   "failed",
+  "dead_letter",
 ]);
 
 export const approvalStatusEnum = linchkitSchema.enum("approval_status", [

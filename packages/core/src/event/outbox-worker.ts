@@ -5,6 +5,9 @@
  * handler execution with exponential backoff. Also picks up
  * "stuck" pending events that were never processed (e.g., crash recovery).
  *
+ * Events that exhaust all retry attempts are moved to "dead_letter" status
+ * for manual inspection / reprocessing.
+ *
  * Lifecycle: create → start() → stop()
  */
 
@@ -19,6 +22,21 @@ import { type EventHandlerRegistry, matchesFilter } from "./event-bus";
 
 const DEFAULT_PRIORITY = 100;
 
+// ── Metrics ────────────────────────────────────────────────
+
+export interface OutboxMetrics {
+  /** Total events successfully processed */
+  processed: number;
+  /** Total handler failures (each retry attempt counts) */
+  failed: number;
+  /** Events moved to dead-letter after exhausting retries */
+  deadLettered: number;
+  /** Total batches executed */
+  batchesRun: number;
+}
+
+// ── Options ────────────────────────────────────────────────
+
 export interface OutboxWorkerOptions {
   /** Drizzle database instance */
   db: PostgresJsDatabase;
@@ -26,7 +44,7 @@ export interface OutboxWorkerOptions {
   registry: EventHandlerRegistry;
   /** Poll interval in milliseconds (default: 5000) */
   pollIntervalMs?: number;
-  /** Maximum retry attempts before giving up (default: 5) */
+  /** Maximum retry attempts before moving to dead-letter (default: 5) */
   maxRetries?: number;
   /** Base delay for exponential backoff in ms (default: 1000) */
   baseDelayMs?: number;
@@ -36,7 +54,11 @@ export interface OutboxWorkerOptions {
   batchSize?: number;
   /** Logger instance */
   logger?: Logger;
+  /** Callback invoked when an event is moved to dead-letter */
+  onDeadLetter?: (eventId: string, eventType: string, errorMessage: string) => void;
 }
+
+// ── Public interface ───────────────────────────────────────
 
 export interface OutboxWorker {
   /** Start polling for retryable events */
@@ -45,6 +67,10 @@ export interface OutboxWorker {
   stop(): Promise<void>;
   /** Process one batch manually (useful for testing) */
   processBatch(): Promise<number>;
+  /** Get current metrics snapshot */
+  getMetrics(): OutboxMetrics;
+  /** Reset metrics counters to zero */
+  resetMetrics(): void;
 }
 
 /**
@@ -60,11 +86,20 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
     maxDelayMs = 300_000,
     batchSize = 10,
     logger = consoleLogger,
+    onDeadLetter,
   } = options;
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let processing = false;
   let stopped = false;
+
+  // Metrics counters
+  const metrics: OutboxMetrics = {
+    processed: 0,
+    failed: 0,
+    deadLettered: 0,
+    batchesRun: 0,
+  };
 
   /** Calculate exponential backoff delay with jitter */
   function calculateDelay(retryCount: number): number {
@@ -171,6 +206,8 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
       return candidates;
     });
 
+    metrics.batchesRun++;
+
     if (rows.length === 0) return 0;
 
     let processed = 0;
@@ -202,6 +239,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
           .where(eq(eventsTable.id, row.id));
 
         processed++;
+        metrics.processed++;
         logger.info(
           `[OutboxWorker] Event "${row.id}" (${row.eventType}) succeeded on retry ${row.retryCount + 1}`,
         );
@@ -210,20 +248,30 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
         const newRetryCount = row.retryCount + 1;
 
         if (newRetryCount >= maxRetries) {
-          // Exhausted retries — leave as failed with no nextRetryAt
+          // Exhausted retries — move to dead-letter
           await db
             .update(eventsTable)
             .set({
-              status: "failed",
+              status: "dead_letter",
               errorMessage,
               retryCount: newRetryCount,
               nextRetryAt: null,
             })
             .where(eq(eventsTable.id, row.id));
 
+          metrics.deadLettered++;
           logger.warn(
-            `[OutboxWorker] Event "${row.id}" (${row.eventType}) exhausted ${maxRetries} retries: ${errorMessage}`,
+            `[OutboxWorker] Event "${row.id}" (${row.eventType}) moved to dead-letter after ${maxRetries} retries: ${errorMessage}`,
           );
+
+          // Notify callback if provided
+          if (onDeadLetter) {
+            try {
+              onDeadLetter(row.id, row.eventType, errorMessage);
+            } catch {
+              // Never let callback errors disrupt the worker
+            }
+          }
         } else {
           // Schedule next retry with exponential backoff
           const delayMs = calculateDelay(newRetryCount);
@@ -239,6 +287,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
             })
             .where(eq(eventsTable.id, row.id));
 
+          metrics.failed++;
           logger.info(
             `[OutboxWorker] Event "${row.id}" (${row.eventType}) retry ${newRetryCount}/${maxRetries} scheduled in ${delayMs}ms`,
           );
@@ -281,5 +330,16 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
     logger.info("[OutboxWorker] Stopped");
   }
 
-  return { start, stop, processBatch };
+  function getMetrics(): OutboxMetrics {
+    return { ...metrics };
+  }
+
+  function resetMetrics(): void {
+    metrics.processed = 0;
+    metrics.failed = 0;
+    metrics.deadLettered = 0;
+    metrics.batchesRun = 0;
+  }
+
+  return { start, stop, processBatch, getMetrics, resetMetrics };
 }
