@@ -274,6 +274,7 @@ const validateCommand = defineCommand({
       const issueCount = allResults.reduce((sum, r) => sum + r.issues.length, 0);
       console.log(`  Found ${issueCount} documentation issue(s).`);
       console.log("");
+      process.exit(1);
     }
   },
 });
