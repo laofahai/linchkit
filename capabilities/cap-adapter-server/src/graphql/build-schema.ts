@@ -194,6 +194,12 @@ const ExecutionLogEntryType = new GraphQLObjectType({
     error: { type: ExecutionErrorType },
     rulesEvaluated: { type: new GraphQLList(new GraphQLNonNull(ExecutionRuleResultType)) },
     stateTransition: { type: ExecutionStateTransitionType },
+    parentExecutionId: { type: GraphQLString },
+    childExecutionIds: {
+      type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
+    },
+    idempotencyKey: { type: GraphQLString },
+    channel: { type: GraphQLString },
     duration: { type: new GraphQLNonNull(GraphQLInt) },
     startedAt: {
       type: new GraphQLNonNull(GraphQLString),
@@ -390,6 +396,16 @@ export function buildGraphQLSchema(
           }),
     };
 
+    // ── PageInfo type for pagination metadata ──────────
+    const pageInfoType = new GraphQLObjectType({
+      name: `${pascalName}PageInfo`,
+      fields: {
+        limit: { type: new GraphQLNonNull(GraphQLInt) },
+        offset: { type: new GraphQLNonNull(GraphQLInt) },
+        hasMore: { type: new GraphQLNonNull(GraphQLBoolean) },
+      },
+    });
+
     // ── ListResult type for paginated responses ──────────
     const listResultType = new GraphQLObjectType({
       name: `${pascalName}ListResult`,
@@ -398,6 +414,7 @@ export function buildGraphQLSchema(
           type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(objectType))),
         },
         total: { type: new GraphQLNonNull(GraphQLInt) },
+        pageInfo: { type: new GraphQLNonNull(pageInfoType) },
       },
     });
 
@@ -409,14 +426,15 @@ export function buildGraphQLSchema(
           type: GraphQLString,
           description: "JSON-encoded filter object",
         },
-        sortField: { type: GraphQLString, description: "Field to sort by" },
+        sortField: { type: GraphQLString, description: "Field to sort by (default: created_at)" },
         sortOrder: {
           type: GraphQLString,
-          description: "Sort order: asc or desc",
+          description: "Sort order: asc or desc (default: desc)",
         },
         page: { type: GraphQLInt, description: "Page number (1-based)" },
         pageSize: { type: GraphQLInt, description: "Number of items per page" },
         locale: { type: GraphQLString, description: "Locale for translatable fields" },
+        includeDeleted: { type: GraphQLBoolean, description: "Include soft-deleted records (default: false)" },
       },
       resolve: dataProvider
         ? async (
@@ -428,6 +446,7 @@ export function buildGraphQLSchema(
               page?: number;
               pageSize?: number;
               locale?: string;
+              includeDeleted?: boolean;
             },
             ctx: GraphQLContext,
           ) => {
@@ -435,6 +454,7 @@ export function buildGraphQLSchema(
             const opts: DataQueryOptions = {
               ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
               ...(locale ? { locale } : {}),
+              ...(args.includeDeleted ? { includeDeleted: true } : {}),
             };
             const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
             const filter = args.filter
@@ -446,15 +466,16 @@ export function buildGraphQLSchema(
 
             // Pass pagination and sort as part of the filter object
             // DataProvider.query() supports these meta keys
+            // Default sort: created_at DESC (newest first)
+            const sortField = args.sortField ?? "created_at";
+            const sortOrder = args.sortOrder ?? "desc";
             const queryFilter: Record<string, unknown> = {
               ...filter,
               offset,
               limit: pageSize,
+              sortField,
+              sortOrder,
             };
-            if (args.sortField) {
-              queryFilter.sortField = args.sortField;
-              queryFilter.sortOrder = args.sortOrder ?? "asc";
-            }
 
             const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
             const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
@@ -468,9 +489,10 @@ export function buildGraphQLSchema(
               const resolved = resolveTranslatableRow(r, schema, locale);
               return applyMasking(resolved, schemaName, ctx);
             });
-            return { items, total };
+            const hasMore = offset + items.length < total;
+            return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
           }
-        : () => ({ items: [], total: 0 }),
+        : () => ({ items: [], total: 0, pageInfo: { limit: 20, offset: 0, hasMore: false } }),
     };
 
     // ── Mutation: create ──────────────────────────────────
@@ -580,6 +602,48 @@ export function buildGraphQLSchema(
             return result.success;
           }
         : () => true,
+    };
+
+    // ── Mutation: restore (clear soft delete) ───────────────
+    mutationFields[`restore${pascalName}`] = {
+      type: objectType,
+      args: {
+        id: { type: new GraphQLNonNull(GraphQLID) },
+      },
+      resolve: dataProvider
+        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+            const locale = ctx.locale;
+            // Fetch the record including deleted ones
+            const opts: DataQueryOptions = {
+              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+              ...(locale ? { locale } : {}),
+              includeDeleted: true,
+            };
+            try {
+              const record = await dataProvider.get(schemaName, args.id, opts);
+              if (!record) {
+                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+              }
+              if (record.deleted_at == null) {
+                // Record is not deleted — just return it as-is
+                return resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
+              }
+              // Clear deleted_at by updating the record
+              const updated = await dataProvider.update(
+                schemaName,
+                args.id,
+                { deleted_at: null },
+                opts,
+              );
+              return resolveTranslatableRow(updated as Record<string, unknown>, schema, locale);
+            } catch (err) {
+              if (err instanceof GraphQLError) throw err;
+              throw new GraphQLError(
+                `Failed to restore ${schemaName} id=${args.id}: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
+        : () => null,
     };
 
     // ── State transition query + mutation ──────────────────
