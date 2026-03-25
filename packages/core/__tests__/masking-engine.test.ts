@@ -37,7 +37,7 @@ describe("maskValue", () => {
   test("hash strategy returns SHA-256 hex", () => {
     const result = maskValue("hello", "hash");
     expect(result).toBeTypeOf("string");
-    expect(result!.length).toBe(64); // SHA-256 hex length
+    expect(result?.length).toBe(64); // SHA-256 hex length
     // Deterministic
     expect(maskValue("hello", "hash")).toBe(result);
     // Different input → different hash
@@ -47,7 +47,7 @@ describe("maskValue", () => {
   test("hash strategy handles non-string values", () => {
     const result = maskValue(12345, "hash");
     expect(result).toBeTypeOf("string");
-    expect(result!.length).toBe(64);
+    expect(result?.length).toBe(64);
   });
 
   test("partial strategy masks with end position (default)", () => {

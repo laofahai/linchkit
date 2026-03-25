@@ -9,7 +9,13 @@
  *                form fields...
  */
 
-import type { SchemaDefinition, ViewAction, ViewDefinition } from "@linchkit/core/types";
+import type {
+  SchemaDefinition,
+  StateDefinition,
+  StateMeta,
+  ViewAction,
+  ViewDefinition,
+} from "@linchkit/core/types";
 import { Button, Separator } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
@@ -20,8 +26,6 @@ import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
-
-import type { StateDefinition, StateMeta } from "@linchkit/core/types";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
 function deriveStatusSteps(
@@ -36,11 +40,13 @@ function deriveStatusSteps(
   if (!("machine" in stateField)) return null;
 
   // Find the corresponding state machine definition
-  const machine = (states ?? []).find(s => s.name === stateField.machine && s.schema === schema.name);
+  const machine = (states ?? []).find(
+    (s) => s.name === stateField.machine && s.schema === schema.name,
+  );
   if (!machine) return null;
 
   // Convert states to StatusBarStep array
-  const steps: StatusBarStep[] = machine.states.map(stateValue => {
+  const steps: StatusBarStep[] = machine.states.map((stateValue) => {
     const meta: StateMeta | undefined = machine.meta?.[stateValue];
     return {
       value: stateValue,

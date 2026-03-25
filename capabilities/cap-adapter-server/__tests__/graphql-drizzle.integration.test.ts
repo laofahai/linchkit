@@ -116,7 +116,8 @@ describe.skipIf(!dbAvailable)("GraphQL + DrizzleDataProvider (integration)", () 
     tableRegistry.register(SCHEMA_NAME, table);
 
     // Create test table via raw SQL (test fixture)
-    await db.execute(sql.raw(`
+    await db.execute(
+      sql.raw(`
       CREATE TABLE IF NOT EXISTS "${SCHEMA_NAME}" (
         "id" text PRIMARY KEY NOT NULL,
         "tenant_id" text,
@@ -130,7 +131,8 @@ describe.skipIf(!dbAvailable)("GraphQL + DrizzleDataProvider (integration)", () 
         "amount" numeric,
         "status" text
       )
-    `));
+    `),
+    );
 
     // Set up DrizzleDataProvider
     provider = new DrizzleDataProvider(db, tableRegistry);
@@ -694,7 +696,7 @@ describe.skipIf(!dbAvailable)("GraphQL Link resolvers (integration)", () => {
     await db.execute(sql.raw('DROP TABLE IF EXISTS "link_dept" CASCADE'));
 
     // Create department table
-    await db!.execute(
+    await db?.execute(
       sql.raw(`
       CREATE TABLE IF NOT EXISTS "link_dept" (
         "id" text PRIMARY KEY NOT NULL,
@@ -711,7 +713,7 @@ describe.skipIf(!dbAvailable)("GraphQL Link resolvers (integration)", () => {
     );
 
     // Create purchase_request table with FK column for the link
-    await db!.execute(
+    await db?.execute(
       sql.raw(`
       CREATE TABLE IF NOT EXISTS "link_pr" (
         "id" text PRIMARY KEY NOT NULL,
@@ -735,6 +737,7 @@ describe.skipIf(!dbAvailable)("GraphQL Link resolvers (integration)", () => {
     linkTableRegistry.register("link_pr", generateDrizzleTable(prSchema));
 
     // Set up data provider
+    // biome-ignore lint/style/noNonNullAssertion: db is guaranteed to be set in beforeAll
     linkProvider = new DrizzleDataProvider(db!, linkTableRegistry);
 
     // Set up action executor with CRUD actions for both schemas

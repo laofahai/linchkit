@@ -281,9 +281,7 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
         });
 
         // Parse AI response — either from structured data or raw content
-        aiResponse = result.data
-          ? (result.data as AIProposalResponse)
-          : JSON.parse(result.content);
+        aiResponse = result.data ? (result.data as AIProposalResponse) : JSON.parse(result.content);
       } catch (err) {
         // Wrap AI errors with a descriptive message
         const message =

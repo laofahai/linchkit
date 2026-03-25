@@ -366,9 +366,7 @@ describe("generateZodSchema", () => {
     const zodSchema = generateZodSchema(schema);
 
     // Object not accepted for non-translatable string
-    expect(
-      zodSchema.safeParse({ sku: { en: "W-001" } }).success,
-    ).toBe(false);
+    expect(zodSchema.safeParse({ sku: { en: "W-001" } }).success).toBe(false);
   });
 
   test("includeSystemFields adds optional system fields", () => {

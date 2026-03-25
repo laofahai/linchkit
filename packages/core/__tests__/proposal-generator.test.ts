@@ -3,11 +3,7 @@ import { mockAIService } from "@linchkit/devtools";
 import type { ProposalDefinition, SchemaDefinition } from "../src";
 import { ProposalGenerationError } from "../src/engine/proposal-generator";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import {
-  ActionRegistry,
-  createProposalGenerator,
-  createSchemaRegistry,
-} from "../src/server-entry";
+import { ActionRegistry, createProposalGenerator, createSchemaRegistry } from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -26,10 +22,14 @@ const projectSchema: SchemaDefinition = {
   label: "Project",
   fields: {
     name: { type: "string", required: true, label: "Name" },
-    status: { type: "enum", label: "Status", options: [
-      { value: "active", label: "Active" },
-      { value: "archived", label: "Archived" },
-    ] },
+    status: {
+      type: "enum",
+      label: "Status",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "archived", label: "Archived" },
+      ],
+    },
   },
 };
 
@@ -362,7 +362,9 @@ describe("ProposalGenerator", () => {
       // Create an AI service that throws "not configured"
       const noopAI = {
         complete: () => {
-          throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
+          throw new Error(
+            "AI service is not configured. Add an 'ai' section to your LinchKit config.",
+          );
         },
       };
 

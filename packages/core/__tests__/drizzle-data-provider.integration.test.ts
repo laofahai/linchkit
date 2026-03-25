@@ -79,7 +79,8 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     tableRegistry.register(SCHEMA_NAME, table);
 
     // Create test table via raw SQL (test fixture — not production DDL)
-    await db.execute(sql.raw(`
+    await db.execute(
+      sql.raw(`
       CREATE TABLE IF NOT EXISTS "${SCHEMA_NAME}" (
         "id" varchar(128) PRIMARY KEY NOT NULL,
         "tenant_id" varchar(128),
@@ -93,7 +94,8 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
         "amount" numeric,
         "status" varchar(50)
       )
-    `));
+    `),
+    );
   });
 
   afterAll(async () => {

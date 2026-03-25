@@ -32,7 +32,9 @@ const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_man
 /**
  * Type guard for relationship field types that have a `target` property.
  */
-function isRelationshipField(field: FieldDefinition): field is FieldDefinition & { target: string } {
+function isRelationshipField(
+  field: FieldDefinition,
+): field is FieldDefinition & { target: string } {
   return field.type === "ref" || field.type === "has_many" || field.type === "many_to_many";
 }
 
@@ -73,8 +75,11 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
       if (!isRelationshipField(field)) continue;
 
       const cardinality: LinkDefinition["cardinality"] =
-        field.type === "ref" ? "many_to_one" :
-        field.type === "has_many" ? "one_to_many" : "many_to_many";
+        field.type === "ref"
+          ? "many_to_one"
+          : field.type === "has_many"
+            ? "one_to_many"
+            : "many_to_many";
       const target = field.target;
 
       // Validate target schema exists
@@ -96,6 +101,7 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
 
       // Check for conflict with explicit links
       if (explicitLinkNames.has(linkName)) {
+        // biome-ignore lint/style/noNonNullAssertion: name is guaranteed to exist in the set
         const explicit = explicitLinks.find((l) => l.name === linkName)!;
         conflicts.push({
           name: linkName,

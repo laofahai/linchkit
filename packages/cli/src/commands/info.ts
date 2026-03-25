@@ -34,7 +34,9 @@ export const infoCommand = defineCommand({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("Config file not found")) {
-        console.error("[linch] No linchkit.config.ts found. Are you in a LinchKit project directory?");
+        console.error(
+          "[linch] No linchkit.config.ts found. Are you in a LinchKit project directory?",
+        );
         console.error("[linch] Run 'linch init' to create a new project.");
       } else {
         console.error(`[linch] Failed to load config: ${msg}`);
@@ -151,7 +153,9 @@ export const infoCommand = defineCommand({
       const maxNameLen = Math.max(...capabilities.map((c) => c.name.length), 4);
       const header = `    ${"Name".padEnd(maxNameLen)}  ${"Type".padEnd(10)}  ${"Category".padEnd(14)}  Version`;
       console.log(header);
-      console.log(`    ${"─".repeat(maxNameLen)}  ${"─".repeat(10)}  ${"─".repeat(14)}  ${"─".repeat(8)}`);
+      console.log(
+        `    ${"─".repeat(maxNameLen)}  ${"─".repeat(10)}  ${"─".repeat(14)}  ${"─".repeat(8)}`,
+      );
       for (const cap of capabilities) {
         console.log(
           `    ${cap.name.padEnd(maxNameLen)}  ${cap.type.padEnd(10)}  ${cap.category.padEnd(14)}  ${cap.version}`,
@@ -169,7 +173,9 @@ export const infoCommand = defineCommand({
     console.log(`    States:          ${stateCount}`);
     console.log(`    Flows:           ${flowCount}`);
     console.log(`    Event Handlers:  ${eventHandlerCount}`);
-    console.log(`    Transports:      ${transportNames.length > 0 ? transportNames.join(", ") : "none"}`);
+    console.log(
+      `    Transports:      ${transportNames.length > 0 ? transportNames.join(", ") : "none"}`,
+    );
     console.log("");
   },
 });

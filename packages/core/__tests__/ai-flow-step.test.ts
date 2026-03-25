@@ -26,13 +26,14 @@ interface MockCallAIResult {
 function createAIStepContext(options?: {
   actions?: Record<string, (input: Record<string, unknown>) => Record<string, unknown>>;
   aiResponses?: Array<MockCallAIResult>;
-}): FlowStepContext & { aiCalls: Array<{ prompt: string }>; actionCalls: Array<{ name: string; input: Record<string, unknown> }> } {
+}): FlowStepContext & {
+  aiCalls: Array<{ prompt: string }>;
+  actionCalls: Array<{ name: string; input: Record<string, unknown> }>;
+} {
   const aiCalls: Array<{ prompt: string }> = [];
   const actionCalls: Array<{ name: string; input: Record<string, unknown> }> = [];
   let aiCallIndex = 0;
-  const aiResponses = options?.aiResponses ?? [
-    { response: "default AI response", tokensUsed: 30 },
-  ];
+  const aiResponses = options?.aiResponses ?? [{ response: "default AI response", tokensUsed: 30 }];
 
   return {
     flowContext: {},
@@ -128,6 +129,7 @@ const aiAfterConditionFlow: FlowDefinition = {
       name: "Check",
       type: "condition",
       expression: "true",
+      // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
       then: "ai-step",
     },
     {
@@ -375,7 +377,7 @@ describe("AI Flow Step Execution", () => {
       const output = steps["ai-with-tools"]?.output as Record<string, unknown>;
       expect(output.response).toBe("Found order ord-1 with amount 500. Processing complete.");
       expect(output.toolCalls).toBeDefined();
-      expect((output.toolCalls as Array<unknown>)).toHaveLength(1);
+      expect(output.toolCalls as Array<unknown>).toHaveLength(1);
     });
 
     it("handles multiple tool calls in a single round", async () => {
@@ -563,7 +565,7 @@ describe("AI Flow Step Execution", () => {
         ],
       };
 
-      let callIdx = 0;
+      const _callIdx = 0;
       const ctx = createAIStepContext({
         aiResponses: [
           // First run of ai-1 (sequential step)

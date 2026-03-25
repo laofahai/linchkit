@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -7,9 +6,10 @@ import {
   SelectValue,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 
 interface RefRecord {
   id: string;
@@ -36,10 +36,10 @@ function getRecordLabel(record: RefRecord, titleField: string | undefined): stri
 }
 
 export function RefDisplay({ value, fieldDef }: WidgetDisplayProps) {
-  if (value == null) return <span className="text-muted-foreground">—</span>;
-
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle } = useSchemaBundle(targetSchema);
+
+  if (value == null) return <span className="text-muted-foreground">—</span>;
   const titleField = bundle?.schema.presentation?.titleField;
 
   // If value is an expanded object with display field
@@ -68,11 +68,13 @@ export function RefInput({
   const titleField = bundle?.schema.presentation?.titleField;
 
   // Determine which fields to fetch: id + titleField (or heuristic candidates)
-  const fetchFields = titleField
-    ? ["id", titleField]
-    : ["id", ...TITLE_FIELD_CANDIDATES];
+  const fetchFields = titleField ? ["id", titleField] : ["id", ...TITLE_FIELD_CANDIDATES];
 
-  const { data, isLoading, error: queryError } = useQuery<RefRecord[]>({
+  const {
+    data,
+    isLoading,
+    error: queryError,
+  } = useQuery<RefRecord[]>({
     queryKey: ["ref-records", targetSchema, fetchFields.join(",")],
     queryFn: async () => {
       const result = await queryList<RefRecord>({
@@ -109,9 +111,7 @@ export function RefInput({
         </SelectTrigger>
         <SelectContent>
           {queryError && (
-            <div className="px-2 py-1 text-xs text-destructive">
-              Failed to load options
-            </div>
+            <div className="px-2 py-1 text-xs text-destructive">Failed to load options</div>
           )}
           {options.length === 0 && !isLoading && !queryError && (
             <SelectItem value="__empty" disabled>

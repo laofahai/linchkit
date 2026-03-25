@@ -290,7 +290,11 @@ function validateSchema(
 
     // Required field without a default will fail at record creation time — this is an error
     // Relationship fields (ref/has_many/many_to_many) are virtual and don't need this check
-    const isVirtual = field.type === "computed" || field.type === "ref" || field.type === "has_many" || field.type === "many_to_many";
+    const isVirtual =
+      field.type === "computed" ||
+      field.type === "ref" ||
+      field.type === "has_many" ||
+      field.type === "many_to_many";
     if (field.required && field.default === undefined && !isVirtual) {
       errors.push({
         code: "REQUIRED_NO_DEFAULT",

@@ -2,9 +2,9 @@
 // because it depends on server-side DataProvider types.
 export {
   canUnmask,
+  type MaskRecordOptions,
   maskRecord,
   maskRecords,
   maskValue,
   resolveFieldMasking,
-  type MaskRecordOptions,
 } from "./masking-engine";

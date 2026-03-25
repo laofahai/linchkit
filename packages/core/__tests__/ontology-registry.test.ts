@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 import type { ActionDefinition } from "../src/types/action";
 import type { EventHandlerDefinition } from "../src/types/event";
 import type { FlowDefinition } from "../src/types/flow";
@@ -11,7 +12,6 @@ import type { RuleDefinition } from "../src/types/rule";
 import type { SchemaDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
-import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 
 // ── Test data ──────────────────────────────────────────
 
@@ -86,11 +86,7 @@ const listView: ViewDefinition = {
   schema: "purchase_request",
   type: "list",
   label: "Purchase Requests",
-  fields: [
-    { field: "title" },
-    { field: "amount" },
-    { field: "status" },
-  ],
+  fields: [{ field: "title" }, { field: "amount" }, { field: "status" }],
 };
 
 const formView: ViewDefinition = {
@@ -217,75 +213,75 @@ describe("OntologyRegistry", () => {
       const desc = registry.describe("purchase_request");
 
       expect(desc).toBeDefined();
-      expect(desc!.name).toBe("purchase_request");
-      expect(desc!.label).toBe("Purchase Request");
-      expect(desc!.description).toBe("Purchase request for procurement");
-      expect(desc!.fields.title).toBeDefined();
-      expect(desc!.fields.amount).toBeDefined();
-      expect(desc!.presentation?.titleField).toBe("title");
+      expect(desc?.name).toBe("purchase_request");
+      expect(desc?.label).toBe("Purchase Request");
+      expect(desc?.description).toBe("Purchase request for procurement");
+      expect(desc?.fields.title).toBeDefined();
+      expect(desc?.fields.amount).toBeDefined();
+      expect(desc?.presentation?.titleField).toBe("title");
     });
 
     test("includes actions for the schema", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.actions).toHaveLength(2);
-      expect(desc!.actions.map((a) => a.name)).toContain("submit_request");
-      expect(desc!.actions.map((a) => a.name)).toContain("approve_request");
+      expect(desc?.actions).toHaveLength(2);
+      expect(desc?.actions.map((a) => a.name)).toContain("submit_request");
+      expect(desc?.actions.map((a) => a.name)).toContain("approve_request");
     });
 
     test("includes rules for the schema", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.rules).toHaveLength(1);
-      expect(desc!.rules[0].name).toBe("budget_check");
+      expect(desc?.rules).toHaveLength(1);
+      expect(desc?.rules[0].name).toBe("budget_check");
     });
 
     test("includes state machine for the schema", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.states).toBeDefined();
-      expect(desc!.states!.initial).toBe("draft");
-      expect(desc!.states!.states).toContain("approved");
+      expect(desc?.states).toBeDefined();
+      expect(desc?.states?.initial).toBe("draft");
+      expect(desc?.states?.states).toContain("approved");
     });
 
     test("includes views for the schema", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.views).toHaveLength(2);
-      expect(desc!.views.map((v) => v.type)).toContain("list");
-      expect(desc!.views.map((v) => v.type)).toContain("form");
+      expect(desc?.views).toHaveLength(2);
+      expect(desc?.views.map((v) => v.type)).toContain("list");
+      expect(desc?.views.map((v) => v.type)).toContain("form");
     });
 
     test("includes relations from links", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.relations).toHaveLength(1);
-      expect(desc!.relations[0].linkName).toBe("department_purchase_request");
-      expect(desc!.relations[0].direction).toBe("outgoing");
-      expect(desc!.relations[0].targetSchema).toBe("department");
-      expect(desc!.relations[0].cardinality).toBe("many_to_one");
+      expect(desc?.relations).toHaveLength(1);
+      expect(desc?.relations[0].linkName).toBe("department_purchase_request");
+      expect(desc?.relations[0].direction).toBe("outgoing");
+      expect(desc?.relations[0].targetSchema).toBe("department");
+      expect(desc?.relations[0].cardinality).toBe("many_to_one");
     });
 
     test("shows incoming relations on department", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("department");
 
-      expect(desc!.relations).toHaveLength(1);
-      expect(desc!.relations[0].direction).toBe("incoming");
-      expect(desc!.relations[0].targetSchema).toBe("purchase_request");
+      expect(desc?.relations).toHaveLength(1);
+      expect(desc?.relations[0].direction).toBe("incoming");
+      expect(desc?.relations[0].targetSchema).toBe("purchase_request");
     });
 
     test("includes flows for the schema", () => {
       const registry = createOntologyRegistry(buildDeps());
       const desc = registry.describe("purchase_request");
 
-      expect(desc!.flows).toHaveLength(1);
-      expect(desc!.flows[0].name).toBe("purchase_approval");
+      expect(desc?.flows).toHaveLength(1);
+      expect(desc?.flows[0].name).toBe("purchase_approval");
     });
 
     test("caches results", () => {
@@ -336,7 +332,7 @@ describe("OntologyRegistry", () => {
       const registry = createOntologyRegistry(buildDeps());
       const state = registry.stateFor("purchase_request");
       expect(state).toBeDefined();
-      expect(state!.initial).toBe("draft");
+      expect(state?.initial).toBe("draft");
     });
 
     test("returns undefined for schema with no state", () => {
@@ -494,9 +490,9 @@ describe("OntologyRegistry", () => {
 
       const desc = registry.describe("department");
       expect(desc).toBeDefined();
-      expect(desc!.relations).toHaveLength(0);
-      expect(desc!.flows).toHaveLength(0);
-      expect(desc!.handlers).toHaveLength(0);
+      expect(desc?.relations).toHaveLength(0);
+      expect(desc?.flows).toHaveLength(0);
+      expect(desc?.handlers).toHaveLength(0);
     });
   });
 });

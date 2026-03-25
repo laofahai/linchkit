@@ -7,7 +7,12 @@
  */
 
 import type { CapabilityDefinition, LinchKitConfig, SchemaDefinition } from "@linchkit/core";
-import { closeDatabase, createDatabase, generateDrizzleSchemaFile, runMigrations } from "@linchkit/core/server";
+import {
+  closeDatabase,
+  createDatabase,
+  generateDrizzleSchemaFile,
+  runMigrations,
+} from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 

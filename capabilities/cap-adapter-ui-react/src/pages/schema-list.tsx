@@ -90,7 +90,7 @@ export function SchemaListPage() {
     } finally {
       setLoading(false);
     }
-  }, [schemaName, listView]);
+  }, [schemaName, listView, schema?.fields]);
 
   useEffect(() => {
     if (!bundleLoading && bundle) {

@@ -1,4 +1,5 @@
 import type { PageAuth, PageLayout, PageRegistration } from "@linchkit/core/types";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRootRoute,
   createRoute,
@@ -6,7 +7,6 @@ import {
   RouterProvider,
   redirect,
 } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient({

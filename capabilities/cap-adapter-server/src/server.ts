@@ -206,7 +206,7 @@ export function createServer(
     // Build GraphQL context with actor, tenant isolation, locale, and data provider for link resolvers
     context: async ({ request }) => {
       const actor = resolveRequestActor
-        ? (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
         : ANONYMOUS_ACTOR;
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
       const locale = resolveRequestLocale(request);
@@ -280,8 +280,8 @@ export function createServer(
         viewsMap[v.name] = v;
       }
       // Collect all state machines that belong to this schema from all capabilities
-      const schemaStates = capabilities.flatMap(cap =>
-        (cap.states ?? []).filter(s => s.schema === params.name)
+      const schemaStates = capabilities.flatMap((cap) =>
+        (cap.states ?? []).filter((s) => s.schema === params.name),
       );
       return { success: true, data: { ...schema, views: viewsMap, states: schemaStates } };
     })
@@ -305,7 +305,7 @@ export function createServer(
       // Resolve locale and actor from request
       const locale = resolveRequestLocale(request);
       const actor = resolveRequestActor
-        ? (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
         : ANONYMOUS_ACTOR;
 
       // Use CommandLayer pipeline when available, otherwise direct executor

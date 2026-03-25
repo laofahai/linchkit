@@ -9,11 +9,7 @@ import type { FieldDefinition } from "./schema";
 
 // ── Cardinality ──────────────────────────────────────────
 
-export type LinkCardinality =
-  | "one_to_one"
-  | "one_to_many"
-  | "many_to_one"
-  | "many_to_many";
+export type LinkCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
 
 // ── Cascade behavior ──────────────────────────────────────────
 

@@ -5,29 +5,27 @@
  * Input: Multi-select combobox for selecting multiple related records.
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
-import { Badge } from "@linchkit/ui-kit/components";
-import { Button } from "@linchkit/ui-kit/components";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@linchkit/ui-kit/components";
-import {
+  Badge,
+  Button,
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { useSchemaBundle } from "@/hooks/use-schema-bundle";
-import { type RelatedRecord, getRecordLabel } from "./relation-utils";
+import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 
 export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
@@ -87,9 +85,7 @@ export function ManyToManyInput({
 
   // Determine which fields to fetch
   const FALLBACK_FIELDS = ["name", "title", "label", "displayName", "display_name"];
-  const fetchFields = titleField
-    ? ["id", titleField]
-    : ["id", ...FALLBACK_FIELDS];
+  const fetchFields = titleField ? ["id", titleField] : ["id", ...FALLBACK_FIELDS];
 
   // Fetch all candidate records for the target schema
   const { data: allRecords, isLoading } = useQuery<RelatedRecord[]>({
@@ -168,11 +164,7 @@ export function ManyToManyInput({
       {selectedRecords.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedRecords.map((record, i) => (
-            <Badge
-              key={record.id ?? i}
-              variant="secondary"
-              className="gap-1 text-xs"
-            >
+            <Badge key={record.id ?? i} variant="secondary" className="gap-1 text-xs">
               {getRecordLabel(record, titleField)}
               <button
                 type="button"

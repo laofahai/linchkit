@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { EventRecord, SchemaDefinition } from "@linchkit/core";
 import { createEventBus } from "@linchkit/core/server";
-import { GraphQLObjectType, printSchema } from "graphql";
+import { type GraphQLObjectType, printSchema } from "graphql";
 import { clearEnumTypeCache } from "../src/graphql";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import {
@@ -254,7 +254,7 @@ describe("buildSubscriptionFields", () => {
 
     expect(fields).not.toBeNull();
     // biome-ignore lint/suspicious/noExplicitAny: test access to internal structure
-    const created = fields!.onTaskCreated as any;
+    const created = fields?.onTaskCreated as any;
     expect(typeof created.subscribe).toBe("function");
     expect(typeof created.resolve).toBe("function");
     unsubscribe();

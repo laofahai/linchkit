@@ -86,10 +86,13 @@ describe.skipIf(!dbAvailable)("PersistentEventBus (integration)", () => {
 
     // Create system tables via raw SQL (test fixture)
     await db.execute(sql.raw('CREATE SCHEMA IF NOT EXISTS "_linchkit"'));
-    await db.execute(sql.raw(`
+    await db.execute(
+      sql.raw(`
       CREATE TYPE "_linchkit"."event_status" AS ENUM('pending', 'processing', 'completed', 'failed')
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE TABLE IF NOT EXISTS "_linchkit"."events" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "tenant_id" varchar(255),
@@ -104,16 +107,23 @@ describe.skipIf(!dbAvailable)("PersistentEventBus (integration)", () => {
         "retry_count" integer DEFAULT 0 NOT NULL,
         "next_retry_at" timestamp
       )
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_type_status" ON "_linchkit"."events" USING btree ("event_type", "status")
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_retry" ON "_linchkit"."events" USING btree ("status", "next_retry_at")
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_tenant" ON "_linchkit"."events" USING btree ("tenant_id", "event_type")
-    `));
+    `),
+    );
   });
 
   afterAll(async () => {

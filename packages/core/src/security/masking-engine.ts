@@ -95,9 +95,7 @@ export function maskValue(
  *
  * Priority: explicit `masking` > `secret` default > `sensitive` default > none.
  */
-export function resolveFieldMasking(
-  field: FieldDefinition,
-): MaskingConfig | undefined {
+export function resolveFieldMasking(field: FieldDefinition): MaskingConfig | undefined {
   if (field.masking) {
     return field.masking;
   }

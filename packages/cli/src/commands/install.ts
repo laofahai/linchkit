@@ -13,8 +13,8 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { validateCapabilityMetadata } from "@linchkit/core";
 import type { CapabilityMetadata } from "@linchkit/core";
+import { validateCapabilityMetadata } from "@linchkit/core";
 import { defineCommand } from "citty";
 
 /**
@@ -34,9 +34,7 @@ function resolveCapabilityJsonPath(packageName: string): string {
  * Load and validate capability metadata from a capability.json path.
  * Returns null if the file does not exist or is not a valid capability.
  */
-export function loadCapabilityMetadata(
-  capJsonPath: string,
-): CapabilityMetadata | null {
+export function loadCapabilityMetadata(capJsonPath: string): CapabilityMetadata | null {
   if (!existsSync(capJsonPath)) return null;
   try {
     const content = readFileSync(capJsonPath, "utf-8");

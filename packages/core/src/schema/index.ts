@@ -5,18 +5,18 @@
  */
 
 export {
+  type AggregateDerived,
+  type ConcatDerived,
   createDerivedPropertyEngine,
+  type DerivedConfig,
+  type DerivedFieldInfo,
   DerivedPropertyEngine,
+  type ExpressionDerived,
   evaluateExpression,
+  type FunctionDerived,
   getDerivedStrategy,
   isDerivedField,
   resolveDerivedValue,
-  type AggregateDerived,
-  type ConcatDerived,
-  type DerivedConfig,
-  type DerivedFieldInfo,
-  type ExpressionDerived,
-  type FunctionDerived,
 } from "./derived-property";
 export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
 export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";

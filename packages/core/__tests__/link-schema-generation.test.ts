@@ -11,16 +11,12 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import {
   GraphQLList,
   GraphQLNonNull,
-  GraphQLObjectType,
+  type GraphQLObjectType,
   type GraphQLOutputType,
 } from "graphql";
-
-import type { LinkDefinition, SchemaDefinition } from "../src/types";
-import {
-  generateDrizzleTable,
-  generateLinkColumns,
-} from "../src/schema/schema-to-drizzle";
 import { generateGraphQLObjectType } from "../../../capabilities/cap-adapter-server/src/graphql/schema-to-graphql";
+import { generateDrizzleTable, generateLinkColumns } from "../src/schema/schema-to-drizzle";
+import type { LinkDefinition, SchemaDefinition } from "../src/types";
 
 // ── Test fixtures ──────────────────────────────────────────
 
@@ -58,18 +54,17 @@ const profileSchema: SchemaDefinition = {
 };
 
 /** Helper: get column config by name from a table */
-function getColumn(
-  table: ReturnType<typeof generateDrizzleTable>,
-  name: string,
-) {
+function _getColumn(table: ReturnType<typeof generateDrizzleTable>, name: string) {
   const config = getTableConfig(table);
   return config.columns.find((c) => c.name === name);
 }
 
 /** Helper: unwrap a GraphQL type to get the named type, stripping NonNull and List wrappers */
-function unwrapType(
-  type: GraphQLOutputType,
-): { isList: boolean; isNonNull: boolean; namedType: GraphQLOutputType } {
+function unwrapType(type: GraphQLOutputType): {
+  isList: boolean;
+  isNonNull: boolean;
+  namedType: GraphQLOutputType;
+} {
   let isList = false;
   let isNonNull = false;
   let current = type;
@@ -183,6 +178,7 @@ describe("generateLinkColumns", () => {
 
     test("FK column has unique constraint", () => {
       const result = generateLinkColumns([link], tables);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.profile_id as any;
 
       expect(col).toBeDefined();
@@ -219,12 +215,8 @@ describe("generateLinkColumns", () => {
       const config = getTableConfig(jt);
 
       // Should have employee_id and project_id columns
-      const employeeIdCol = config.columns.find(
-        (c) => c.name === "employee_id",
-      );
-      const projectIdCol = config.columns.find(
-        (c) => c.name === "project_id",
-      );
+      const employeeIdCol = config.columns.find((c) => c.name === "employee_id");
+      const projectIdCol = config.columns.find((c) => c.name === "project_id");
       expect(employeeIdCol).toBeDefined();
       expect(projectIdCol).toBeDefined();
 
@@ -295,6 +287,7 @@ describe("generateLinkColumns", () => {
         cascade: "delete",
       };
       const result = generateLinkColumns([link], tables);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
 
@@ -313,6 +306,7 @@ describe("generateLinkColumns", () => {
         cascade: "nullify",
       };
       const result = generateLinkColumns([link], tables);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
 
@@ -330,6 +324,7 @@ describe("generateLinkColumns", () => {
         cascade: "delete",
       };
       const result = generateLinkColumns([link], tables);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
 
@@ -388,9 +383,7 @@ describe("generateLinkColumns", () => {
       });
 
       expect(result.junctionTables).toHaveLength(1);
-      expect(getTableName(result.junctionTables[0])).toBe(
-        "app__link_emp_proj",
-      );
+      expect(getTableName(result.junctionTables[0])).toBe("app__link_emp_proj");
     });
   });
 
@@ -405,6 +398,7 @@ describe("generateLinkColumns", () => {
       required: true,
     };
     const result = generateLinkColumns([link], tables);
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
     const col = result.fkColumns.employee.department_id as any;
 
     expect(col).toBeDefined();
@@ -450,18 +444,8 @@ describe("GraphQL link field generation", () => {
 
     // Build typeMap with lazy resolution (GraphQL types reference each other)
     const typeMap = new Map<string, GraphQLObjectType>();
-    const employeeType = generateGraphQLObjectType(
-      employeeSchema,
-      undefined,
-      links,
-      typeMap,
-    );
-    const departmentType = generateGraphQLObjectType(
-      departmentSchema,
-      undefined,
-      links,
-      typeMap,
-    );
+    const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
+    const departmentType = generateGraphQLObjectType(departmentSchema, undefined, links, typeMap);
     typeMap.set("employee", employeeType);
     typeMap.set("department", departmentType);
 
@@ -512,18 +496,8 @@ describe("GraphQL link field generation", () => {
     const links = [link];
 
     const typeMap = new Map<string, GraphQLObjectType>();
-    const departmentType = generateGraphQLObjectType(
-      departmentSchema,
-      undefined,
-      links,
-      typeMap,
-    );
-    const employeeType = generateGraphQLObjectType(
-      employeeSchema,
-      undefined,
-      links,
-      typeMap,
-    );
+    const departmentType = generateGraphQLObjectType(departmentSchema, undefined, links, typeMap);
+    const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
     typeMap.set("department", departmentType);
     typeMap.set("employee", employeeType);
 
@@ -575,18 +549,8 @@ describe("GraphQL link field generation", () => {
     const links = [link];
 
     const typeMap = new Map<string, GraphQLObjectType>();
-    const employeeType = generateGraphQLObjectType(
-      employeeSchema,
-      undefined,
-      links,
-      typeMap,
-    );
-    const profileType = generateGraphQLObjectType(
-      profileSchema,
-      undefined,
-      links,
-      typeMap,
-    );
+    const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
+    const profileType = generateGraphQLObjectType(profileSchema, undefined, links, typeMap);
     typeMap.set("employee", employeeType);
     typeMap.set("profile", profileType);
 
@@ -623,18 +587,8 @@ describe("GraphQL link field generation", () => {
     const links = [link];
 
     const typeMap = new Map<string, GraphQLObjectType>();
-    const employeeType = generateGraphQLObjectType(
-      employeeSchema,
-      undefined,
-      links,
-      typeMap,
-    );
-    const projectType = generateGraphQLObjectType(
-      projectSchema,
-      undefined,
-      links,
-      typeMap,
-    );
+    const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
+    const projectType = generateGraphQLObjectType(projectSchema, undefined, links, typeMap);
     typeMap.set("employee", employeeType);
     typeMap.set("project", projectType);
 
@@ -646,17 +600,13 @@ describe("GraphQL link field generation", () => {
       expect(empFields.projects).toBeDefined();
       const empUnwrapped = unwrapType(empFields.projects.type);
       expect(empUnwrapped.isList).toBe(true);
-      expect((empUnwrapped.namedType as GraphQLObjectType).name).toBe(
-        "Project",
-      );
+      expect((empUnwrapped.namedType as GraphQLObjectType).name).toBe("Project");
 
       // Project -> employees (plural)
       expect(projFields.employees).toBeDefined();
       const projUnwrapped = unwrapType(projFields.employees.type);
       expect(projUnwrapped.isList).toBe(true);
-      expect((projUnwrapped.namedType as GraphQLObjectType).name).toBe(
-        "Employee",
-      );
+      expect((projUnwrapped.namedType as GraphQLObjectType).name).toBe("Employee");
     });
   });
 
@@ -672,44 +622,28 @@ describe("GraphQL link field generation", () => {
     const links = [link];
 
     const typeMap = new Map<string, GraphQLObjectType>();
-    const employeeType = generateGraphQLObjectType(
-      employeeSchema,
-      undefined,
-      links,
-      typeMap,
-    );
-    const departmentType = generateGraphQLObjectType(
-      departmentSchema,
-      undefined,
-      links,
-      typeMap,
-    );
+    const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
+    const departmentType = generateGraphQLObjectType(departmentSchema, undefined, links, typeMap);
     typeMap.set("employee", employeeType);
     typeMap.set("department", departmentType);
 
     test("singular resolver returns null when no dataProvider", async () => {
       const fields = employeeType.getFields();
+      // biome-ignore lint/style/noNonNullAssertion: resolver is guaranteed to exist
       const resolver = fields.department.resolve!;
 
-      const result = await resolver(
-        { id: "emp-1", department_id: "dept-1" },
-        {},
-        {},
-        {} as any,
-      );
+      // biome-ignore lint/suspicious/noExplicitAny: mock GraphQL info object
+      const result = await resolver({ id: "emp-1", department_id: "dept-1" }, {}, {}, {} as any);
       expect(result).toBeNull();
     });
 
     test("list resolver returns empty array when no dataProvider", async () => {
       const fields = departmentType.getFields();
+      // biome-ignore lint/style/noNonNullAssertion: resolver is guaranteed to exist
       const resolver = fields.employees.resolve!;
 
-      const result = await resolver(
-        { id: "dept-1" },
-        {},
-        {},
-        {} as any,
-      );
+      // biome-ignore lint/suspicious/noExplicitAny: mock GraphQL info object
+      const result = await resolver({ id: "dept-1" }, {}, {}, {} as any);
       expect(result).toEqual([]);
     });
   });

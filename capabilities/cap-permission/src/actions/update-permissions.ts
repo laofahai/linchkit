@@ -56,6 +56,7 @@ export const updatePermissionsAction = defineAction({
       throw new Error(`Permission group "${groupName}" does not exist`);
     }
 
+    // biome-ignore lint/style/noNonNullAssertion: length checked above
     const group = groups[0]!;
     const groupId = group.id as string;
 

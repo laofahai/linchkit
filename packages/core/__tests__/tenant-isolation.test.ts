@@ -62,8 +62,8 @@ describe("createTenantAwareDataProvider", () => {
     await wrapped.query("orders", { status: "open" });
 
     expect(base._calls).toHaveLength(1);
-    expect(base._calls[0]!.method).toBe("query");
-    expect(base._calls[0]!.args[2]).toEqual({ tenantId: TENANT_ID });
+    expect(base._calls[0]?.method).toBe("query");
+    expect(base._calls[0]?.args[2]).toEqual({ tenantId: TENANT_ID });
   });
 
   test("query() preserves existing options while injecting tenantId", async () => {
@@ -72,7 +72,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.query("orders", {}, { includeDeleted: true });
 
-    expect(base._calls[0]!.args[2]).toEqual({
+    expect(base._calls[0]?.args[2]).toEqual({
       tenantId: TENANT_ID,
       includeDeleted: true,
     });
@@ -84,7 +84,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.get("orders", "order-1");
 
-    expect(base._calls[0]!.args[2]).toEqual({ tenantId: TENANT_ID });
+    expect(base._calls[0]?.args[2]).toEqual({ tenantId: TENANT_ID });
   });
 
   test("create() auto-sets tenant_id on the record", async () => {
@@ -93,7 +93,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.create("orders", { name: "New Order" });
 
-    const createdData = base._calls[0]!.args[1] as Record<string, unknown>;
+    const createdData = base._calls[0]?.args[1] as Record<string, unknown>;
     expect(createdData.tenant_id).toBe(TENANT_ID);
     expect(createdData.name).toBe("New Order");
   });
@@ -104,7 +104,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.create("orders", { name: "Order", tenant_id: TENANT_ID });
 
-    const createdData = base._calls[0]!.args[1] as Record<string, unknown>;
+    const createdData = base._calls[0]?.args[1] as Record<string, unknown>;
     expect(createdData.tenant_id).toBe(TENANT_ID);
   });
 
@@ -112,9 +112,9 @@ describe("createTenantAwareDataProvider", () => {
     const base = createMockProvider();
     const wrapped = createTenantAwareDataProvider(base, TENANT_ID);
 
-    expect(
-      wrapped.create("orders", { name: "Order", tenant_id: "other_tenant" }),
-    ).rejects.toThrow(AuthorizationError);
+    expect(wrapped.create("orders", { name: "Order", tenant_id: "other_tenant" })).rejects.toThrow(
+      AuthorizationError,
+    );
   });
 
   test("update() injects tenantId and rejects cross-tenant write", async () => {
@@ -123,12 +123,12 @@ describe("createTenantAwareDataProvider", () => {
 
     // Normal update should inject tenantId
     await wrapped.update("orders", "order-1", { name: "Updated" });
-    expect(base._calls[0]!.args[3]).toEqual({ tenantId: TENANT_ID });
+    expect(base._calls[0]?.args[3]).toEqual({ tenantId: TENANT_ID });
 
     // Cross-tenant update should be rejected
-    expect(
-      wrapped.update("orders", "order-1", { tenant_id: "other_tenant" }),
-    ).rejects.toThrow(AuthorizationError);
+    expect(wrapped.update("orders", "order-1", { tenant_id: "other_tenant" })).rejects.toThrow(
+      AuthorizationError,
+    );
   });
 
   test("delete() injects tenantId into options", async () => {
@@ -137,7 +137,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.delete("orders", "order-1");
 
-    expect(base._calls[0]!.args[2]).toEqual({ tenantId: TENANT_ID });
+    expect(base._calls[0]?.args[2]).toEqual({ tenantId: TENANT_ID });
   });
 
   test("count() injects tenantId into options", async () => {
@@ -146,7 +146,7 @@ describe("createTenantAwareDataProvider", () => {
 
     await wrapped.count("orders", { status: "open" });
 
-    expect(base._calls[0]!.args[2]).toEqual({ tenantId: TENANT_ID });
+    expect(base._calls[0]?.args[2]).toEqual({ tenantId: TENANT_ID });
   });
 
   test("create() allows null/undefined tenant_id (auto-set)", async () => {
@@ -157,8 +157,8 @@ describe("createTenantAwareDataProvider", () => {
     await wrapped.create("orders", { name: "B", tenant_id: undefined });
 
     // Both should have been auto-set
-    const data1 = base._calls[0]!.args[1] as Record<string, unknown>;
-    const data2 = base._calls[1]!.args[1] as Record<string, unknown>;
+    const data1 = base._calls[0]?.args[1] as Record<string, unknown>;
+    const data2 = base._calls[1]?.args[1] as Record<string, unknown>;
     expect(data1.tenant_id).toBe(TENANT_ID);
     expect(data2.tenant_id).toBe(TENANT_ID);
   });

@@ -158,7 +158,12 @@ export interface CommandExecuteOptions {
  * ```
  */
 export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
-  const { executor, logger = consoleLogger, verifyApproval, metrics = noopMetricsCollector } = options;
+  const {
+    executor,
+    logger = consoleLogger,
+    verifyApproval,
+    metrics = noopMetricsCollector,
+  } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
   function use(registration: MiddlewareRegistration): void {

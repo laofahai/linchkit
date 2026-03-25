@@ -59,6 +59,7 @@ const conditionFlow: FlowDefinition = {
       name: "Check Condition",
       type: "condition",
       expression: "true",
+      // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
       then: "yes-step",
       else: "no-step",
     },
@@ -124,9 +125,13 @@ describe("SyncFlowEngine", () => {
       const engine = createSyncFlowEngine(createMockStepContext());
       engine.registerFlow(linearFlow);
 
-      const instance = await engine.startFlow("linear-flow", {}, {
-        instanceId: "custom-id-123",
-      });
+      const instance = await engine.startFlow(
+        "linear-flow",
+        {},
+        {
+          instanceId: "custom-id-123",
+        },
+      );
       expect(instance.id).toBe("custom-id-123");
     });
   });
@@ -223,9 +228,13 @@ describe("SyncFlowEngine", () => {
       const engine = createSyncFlowEngine(createMockStepContext());
       engine.registerFlow(linearFlow);
 
-      const instance = await engine.startFlow("linear-flow", {}, {
-        instanceId: "track-me",
-      });
+      const _instance = await engine.startFlow(
+        "linear-flow",
+        {},
+        {
+          instanceId: "track-me",
+        },
+      );
 
       const status = await engine.getFlowStatus("track-me");
       expect(status).not.toBeNull();
@@ -247,7 +256,7 @@ describe("SyncFlowEngine", () => {
       const engine = createSyncFlowEngine(createMockStepContext());
       engine.registerFlow(linearFlow);
 
-      const instance = await engine.startFlow("linear-flow", {}, { instanceId: "cancel-me" });
+      const _instance = await engine.startFlow("linear-flow", {}, { instanceId: "cancel-me" });
       // Already completed, cancel is a no-op
       await engine.cancelFlow("cancel-me");
 
@@ -260,9 +269,7 @@ describe("SyncFlowEngine", () => {
   describe("sendSignal", () => {
     it("throws because SyncFlowEngine does not support signals", async () => {
       const engine = createSyncFlowEngine(createMockStepContext());
-      await expect(engine.sendSignal("id", "sig", {})).rejects.toThrow(
-        "does not support signals",
-      );
+      await expect(engine.sendSignal("id", "sig", {})).rejects.toThrow("does not support signals");
     });
   });
 });

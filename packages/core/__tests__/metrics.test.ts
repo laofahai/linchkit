@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from "bun:test";
-import { InMemoryMetricsCollector, noopMetricsCollector } from "../src/observability/metrics";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { MetricsCollector } from "../src/observability/metrics";
+import { InMemoryMetricsCollector, noopMetricsCollector } from "../src/observability/metrics";
 
 describe("InMemoryMetricsCollector", () => {
   let metrics: InMemoryMetricsCollector;
@@ -153,9 +153,7 @@ describe("InMemoryMetricsCollector", () => {
     it("treats same tags in different order as identical", () => {
       metrics.increment("action.executed", { schema: "order", action: "create" });
       metrics.increment("action.executed", { action: "create", schema: "order" });
-      expect(
-        metrics.getCounter("action.executed", { action: "create", schema: "order" }),
-      ).toBe(2);
+      expect(metrics.getCounter("action.executed", { action: "create", schema: "order" })).toBe(2);
     });
   });
 });

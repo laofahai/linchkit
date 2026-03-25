@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "bun:test";
-import { defineLink, createLinkRegistry } from "@linchkit/core";
-import type { LinkDefinition, LinkRegistry } from "@linchkit/core";
+import { beforeEach, describe, expect, it } from "bun:test";
+import type { LinkRegistry } from "@linchkit/core";
+import { createLinkRegistry, defineLink } from "@linchkit/core";
 
 // ── Test fixtures ──────────────────────────────────────────
 
@@ -136,13 +136,13 @@ describe("LinkRegistry", () => {
 
       const incoming = links.find((l) => l.direction === "incoming");
       expect(incoming).toBeDefined();
-      expect(incoming!.relatedSchema).toBe("employee");
-      expect(incoming!.label).toBe("Employees");
+      expect(incoming?.relatedSchema).toBe("employee");
+      expect(incoming?.label).toBe("Employees");
 
       const outgoing = links.find((l) => l.direction === "outgoing");
       expect(outgoing).toBeDefined();
-      expect(outgoing!.relatedSchema).toBe("project");
-      expect(outgoing!.label).toBe("Projects");
+      expect(outgoing?.relatedSchema).toBe("project");
+      expect(outgoing?.label).toBe("Projects");
     });
 
     it("returns empty array for unknown schema", () => {
@@ -162,10 +162,8 @@ describe("LinkRegistry", () => {
       expect(taskLinks[0].label).toBe("project"); // falls back to `to` schema name
 
       const projectLinks = registry.linksFor("project");
-      const incoming = projectLinks.find(
-        (l) => l.link.name === "task_project",
-      );
-      expect(incoming!.label).toBe("task"); // falls back to `from` schema name
+      const incoming = projectLinks.find((l) => l.link.name === "task_project");
+      expect(incoming?.label).toBe("task"); // falls back to `from` schema name
     });
 
     it("returns both directions for self-referencing link", () => {
@@ -185,12 +183,8 @@ describe("LinkRegistry", () => {
       // employee already has 1 outgoing (to department) + 2 from self-link (outgoing + incoming)
       const selfLinks = links.filter((l) => l.link.name === "employee_manager");
       expect(selfLinks).toHaveLength(2);
-      expect(selfLinks.find((l) => l.direction === "outgoing")!.label).toBe(
-        "Manager",
-      );
-      expect(selfLinks.find((l) => l.direction === "incoming")!.label).toBe(
-        "Direct Reports",
-      );
+      expect(selfLinks.find((l) => l.direction === "outgoing")?.label).toBe("Manager");
+      expect(selfLinks.find((l) => l.direction === "incoming")?.label).toBe("Direct Reports");
     });
   });
 
@@ -297,26 +291,26 @@ describe("LinkRegistry", () => {
       registry.register(userProfileLink);
       const link = registry.linkBetween("user", "profile");
       expect(link).not.toBeNull();
-      expect(link!.cardinality).toBe("one_to_one");
-      expect(link!.required).toBe(true);
+      expect(link?.cardinality).toBe("one_to_one");
+      expect(link?.required).toBe(true);
     });
 
     it("handles one_to_many", () => {
       registry.register(departmentProjectsLink);
       const link = registry.linkBetween("department", "project");
-      expect(link!.cardinality).toBe("one_to_many");
+      expect(link?.cardinality).toBe("one_to_many");
     });
 
     it("handles many_to_one", () => {
       registry.register(employeeDepartmentLink);
       const link = registry.linkBetween("employee", "department");
-      expect(link!.cardinality).toBe("many_to_one");
+      expect(link?.cardinality).toBe("many_to_one");
     });
 
     it("handles many_to_many", () => {
       registry.register(studentCourseLink);
       const link = registry.linkBetween("student", "course");
-      expect(link!.cardinality).toBe("many_to_many");
+      expect(link?.cardinality).toBe("many_to_many");
     });
   });
 
@@ -326,25 +320,23 @@ describe("LinkRegistry", () => {
     it("stores junction table properties on many_to_many links", () => {
       registry.register(studentCourseLink);
       const link = registry.linkBetween("student", "course");
-      expect(link!.properties).toBeDefined();
-      expect(link!.properties!.enrolled_at).toEqual({ type: "datetime" });
-      expect(link!.properties!.grade).toEqual({ type: "text" });
+      expect(link?.properties).toBeDefined();
+      expect(link?.properties?.enrolled_at).toEqual({ type: "datetime" });
+      expect(link?.properties?.grade).toEqual({ type: "text" });
     });
 
     it("links without properties have undefined properties field", () => {
       registry.register(employeeDepartmentLink);
       const link = registry.linkBetween("employee", "department");
-      expect(link!.properties).toBeUndefined();
+      expect(link?.properties).toBeUndefined();
     });
 
     it("many_to_many properties are visible via linksFor()", () => {
       registry.register(studentCourseLink);
       const links = registry.linksFor("student");
       expect(links[0].link.properties).toBeDefined();
-      expect(Object.keys(links[0].link.properties!)).toEqual([
-        "enrolled_at",
-        "grade",
-      ]);
+      // biome-ignore lint/style/noNonNullAssertion: checked above with toBeDefined
+      expect(Object.keys(links[0].link.properties!)).toEqual(["enrolled_at", "grade"]);
     });
   });
 
@@ -354,13 +346,13 @@ describe("LinkRegistry", () => {
     it("stores cascade behavior", () => {
       registry.register(orderCustomerLink);
       const link = registry.linkBetween("order", "customer");
-      expect(link!.cascade).toBe("nullify");
+      expect(link?.cascade).toBe("nullify");
     });
 
     it("cascade defaults to undefined when not set", () => {
       registry.register(employeeDepartmentLink);
       const link = registry.linkBetween("employee", "department");
-      expect(link!.cascade).toBeUndefined();
+      expect(link?.cascade).toBeUndefined();
     });
 
     it("stores description field", () => {
@@ -372,9 +364,7 @@ describe("LinkRegistry", () => {
         description: "A test link with description",
       });
       registry.register(described);
-      expect(registry.list()[0].description).toBe(
-        "A test link with description",
-      );
+      expect(registry.list()[0].description).toBe("A test link with description");
     });
   });
 });

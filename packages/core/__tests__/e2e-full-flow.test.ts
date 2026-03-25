@@ -14,6 +14,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   Actor,
+  FlowDefinition,
   RuleDefinition,
   SchemaDefinition,
   StateDefinition,
@@ -21,9 +22,6 @@ import type {
 import {
   type ActionExecutor,
   type CommandLayer,
-  type DataProvider,
-  InMemoryApprovalStore,
-  InMemoryExecutionLogger,
   canTransition as canTransitionFn,
   createActionExecutor,
   createApprovalEngine,
@@ -33,10 +31,11 @@ import {
   createSchemaRegistry,
   createStateMachine,
   createSyncFlowEngine,
+  type DataProvider,
   evaluateRules,
+  InMemoryApprovalStore,
+  InMemoryExecutionLogger,
 } from "@linchkit/core/server";
-import type { FlowDefinition } from "@linchkit/core";
-import type { EventRecord } from "@linchkit/core";
 
 // ── Schema ───────────────────────────────────────────────
 
@@ -94,7 +93,7 @@ const managerActor: Actor = {
   groups: ["manager", "employee"],
 };
 
-const adminActor: Actor = {
+const _adminActor: Actor = {
   type: "human",
   id: "admin-001",
   name: "Carol Admin",
@@ -109,6 +108,7 @@ function createVersionedDataProvider(): DataProvider {
 
   function getTable(schema: string): Map<string, Record<string, unknown>> {
     if (!store.has(schema)) store.set(schema, new Map());
+    // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after set above
     return store.get(schema)!;
   }
 
@@ -191,7 +191,7 @@ const stateMachine = createStateMachine(expenseStateDef);
 const approvalStore = new InMemoryApprovalStore();
 const approvalEngine = createApprovalEngine({ store: approvalStore });
 const verifyApproval = createApprovalVerifier(approvalStore);
-const { bus: eventBus, registry: eventRegistry } = createEventBus();
+const { bus: _eventBus, registry: eventRegistry } = createEventBus();
 
 // ── Actions ──────────────────────────────────────────────
 
@@ -269,9 +269,7 @@ const submitExpenseAction: ActionDefinition = {
     const id = ctx.input.id as string;
     const record = await ctx.get("expense_report", id);
     if (record.status !== "draft") {
-      throw new Error(
-        `Cannot submit: current status is "${record.status}", expected "draft"`,
-      );
+      throw new Error(`Cannot submit: current status is "${record.status}", expected "draft"`);
     }
     const updated = await ctx.update("expense_report", id, {
       status: "submitted",
@@ -299,9 +297,7 @@ const approveExpenseAction: ActionDefinition = {
     const id = ctx.input.id as string;
     const record = await ctx.get("expense_report", id);
     if (record.status !== "submitted") {
-      throw new Error(
-        `Cannot approve: current status is "${record.status}", expected "submitted"`,
-      );
+      throw new Error(`Cannot approve: current status is "${record.status}", expected "submitted"`);
     }
     const updated = await ctx.update("expense_report", id, {
       status: "approved",
@@ -329,9 +325,7 @@ const rejectExpenseAction: ActionDefinition = {
     const id = ctx.input.id as string;
     const record = await ctx.get("expense_report", id);
     if (record.status !== "submitted") {
-      throw new Error(
-        `Cannot reject: current status is "${record.status}", expected "submitted"`,
-      );
+      throw new Error(`Cannot reject: current status is "${record.status}", expected "submitted"`);
     }
     const updated = await ctx.update("expense_report", id, {
       status: "rejected",
@@ -382,11 +376,7 @@ const requireManagerApprovalRule: RuleDefinition = {
   priority: 15,
 };
 
-const allRules = [
-  blockExcessiveAmountRule,
-  warnLargeAmountRule,
-  requireManagerApprovalRule,
-];
+const allRules = [blockExcessiveAmountRule, warnLargeAmountRule, requireManagerApprovalRule];
 
 const allActions = [
   createExpenseAction,
@@ -659,9 +649,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
 
       expect(result.blocked).toBe(false);
       expect(result.warnings.length).toBeGreaterThanOrEqual(1);
-      expect(result.warnings.some((w) => w.message.includes("large expense"))).toBe(
-        true,
-      );
+      expect(result.warnings.some((w) => w.message.includes("large expense"))).toBe(true);
     });
 
     test("3c. Require approval rule — amount over 10,000 requires manager approval", async () => {
@@ -901,6 +889,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
             name: "Check Amount",
             type: "condition",
             expression: "true",
+            // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
             then: "auto_approve",
             else: "manual_review",
           },
@@ -1006,9 +995,13 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
       const engine = createSyncFlowEngine(ctx);
       engine.registerFlow(flow);
 
-      const instance = await engine.startFlow("trackable-flow", {}, {
-        instanceId: "track-123",
-      });
+      const _instance = await engine.startFlow(
+        "trackable-flow",
+        {},
+        {
+          instanceId: "track-123",
+        },
+      );
 
       const status = await engine.getFlowStatus("track-123");
       expect(status).not.toBeNull();

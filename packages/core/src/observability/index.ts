@@ -2,9 +2,9 @@ export { consoleLogger } from "./console-logger";
 export { InMemoryExecutionLogger } from "./execution-logger";
 export {
   InMemoryMetricsCollector,
-  noopMetricsCollector,
   type MetricSnapshot,
   type MetricsCollector,
+  noopMetricsCollector,
 } from "./metrics";
 export {
   getCurrentTrace,

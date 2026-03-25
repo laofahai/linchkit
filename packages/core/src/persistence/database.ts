@@ -5,9 +5,9 @@
  * Uses postgres.js for best Bun compatibility.
  */
 
+import { sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import type { DatabaseConfig } from "../types/database";
 

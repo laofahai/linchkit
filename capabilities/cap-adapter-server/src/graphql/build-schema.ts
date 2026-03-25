@@ -31,12 +31,12 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
+import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import {
   generateActionInputType,
   generateGraphQLInputType,
   generateGraphQLObjectType,
 } from "./schema-to-graphql";
-import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 
 const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
 
@@ -67,7 +67,7 @@ function toCamelCase(name: string): string {
 }
 
 /** Default anonymous actor used when no auth middleware resolves a real actor */
-const ANONYMOUS_ACTOR: Actor = {
+const _ANONYMOUS_ACTOR: Actor = {
   type: "system",
   id: "anonymous",
   groups: [],
@@ -466,12 +466,11 @@ export function buildGraphQLSchema(
       resolve: executor
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            const result = await executor.execute(
-              `create_${schemaName}`,
-              args.input,
-              ctx.actor,
-              { channel: "http", tenantId: ctx.tenantId, locale },
-            );
+            const result = await executor.execute(`create_${schemaName}`, args.input, ctx.actor, {
+              channel: "http",
+              tenantId: ctx.tenantId,
+              locale,
+            });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");

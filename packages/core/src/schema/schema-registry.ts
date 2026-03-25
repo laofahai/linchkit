@@ -215,6 +215,7 @@ export class SchemaRegistry {
       const chain = this.getInheritanceChain(name);
       // Apply fields from each ancestor (excluding self, which is last in chain)
       for (let i = 0; i < chain.length - 1; i++) {
+        // biome-ignore lint/style/noNonNullAssertion: index is within bounds
         const ancestor = this.schemas.get(chain[i]!);
         if (ancestor) {
           for (const [fname, fdef] of Object.entries(ancestor.fields)) {

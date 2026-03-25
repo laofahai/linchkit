@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  createAutomationEngine,
   type AutomationActionExecutor,
   type AutomationEngine,
   type AutomationFlowStarter,
   type AutomationNotifier,
+  createAutomationEngine,
   parseCronToInterval,
 } from "../src/automation/automation-engine";
-import { createAutomationRegistry, type AutomationRegistry } from "../src/automation/automation-registry";
+import {
+  type AutomationRegistry,
+  createAutomationRegistry,
+} from "../src/automation/automation-registry";
 import type { EventBusLike } from "../src/flow/trigger-binding";
 import type { AutomationDefinition } from "../src/types/automation";
 import type { EventRecord } from "../src/types/event";
@@ -26,7 +29,7 @@ function createMockEventBus(): EventBusLike & {
       if (!handlers.has(eventType)) {
         handlers.set(eventType, []);
       }
-      handlers.get(eventType)!.push(handler);
+      handlers.get(eventType)?.push(handler);
       return () => {
         const arr = handlers.get(eventType);
         if (arr) {
@@ -110,9 +113,7 @@ const eventAutomation: AutomationDefinition = {
     type: "event",
     eventType: "order.created",
   },
-  actions: [
-    { type: "send_notification", channel: "email", message: "New order created" },
-  ],
+  actions: [{ type: "send_notification", channel: "email", message: "New order created" }],
   enabled: true,
 };
 
@@ -124,9 +125,7 @@ const filteredEventAutomation: AutomationDefinition = {
     eventType: "order.created",
     filter: { field: "target.amount", operator: "gt", value: 10000 },
   },
-  actions: [
-    { type: "start_flow", flow: "approval-flow", input: { reason: "large order" } },
-  ],
+  actions: [{ type: "start_flow", flow: "approval-flow", input: { reason: "large order" } }],
   enabled: true,
 };
 
@@ -154,9 +153,7 @@ const stateChangeAutomation: AutomationDefinition = {
     from: "pending",
     to: "approved",
   },
-  actions: [
-    { type: "execute_action", action: "order.fulfill", input: { urgent: false } },
-  ],
+  actions: [{ type: "execute_action", action: "order.fulfill", input: { urgent: false } }],
   enabled: true,
 };
 
@@ -322,10 +319,14 @@ describe("AutomationEngine — field change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { priority: "low" },
-        _new: { priority: "high" },
-      }, { schema: "ticket" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { priority: "low" },
+          _new: { priority: "high" },
+        },
+        { schema: "ticket" },
+      ),
     );
 
     expect(notifier.calls).toHaveLength(1);
@@ -339,10 +340,14 @@ describe("AutomationEngine — field change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { priority: "low" },
-        _new: { priority: "medium" },
-      }, { schema: "ticket" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { priority: "low" },
+          _new: { priority: "medium" },
+        },
+        { schema: "ticket" },
+      ),
     );
 
     expect(notifier.calls).toHaveLength(0);
@@ -355,10 +360,14 @@ describe("AutomationEngine — field change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { priority: "low" },
-        _new: { priority: "high" },
-      }, { schema: "other_schema" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { priority: "low" },
+          _new: { priority: "high" },
+        },
+        { schema: "other_schema" },
+      ),
     );
 
     expect(notifier.calls).toHaveLength(0);
@@ -371,10 +380,14 @@ describe("AutomationEngine — field change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { priority: "high" },
-        _new: { priority: "high" },
-      }, { schema: "ticket" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { priority: "high" },
+          _new: { priority: "high" },
+        },
+        { schema: "ticket" },
+      ),
     );
 
     expect(notifier.calls).toHaveLength(0);
@@ -404,10 +417,14 @@ describe("AutomationEngine — state change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { _state: "pending" },
-        _new: { _state: "approved" },
-      }, { schema: "order" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { _state: "pending" },
+          _new: { _state: "approved" },
+        },
+        { schema: "order" },
+      ),
     );
 
     expect(actionExecutor.calls).toHaveLength(1);
@@ -421,10 +438,14 @@ describe("AutomationEngine — state change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { _state: "draft" },
-        _new: { _state: "approved" },
-      }, { schema: "order" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { _state: "draft" },
+          _new: { _state: "approved" },
+        },
+        { schema: "order" },
+      ),
     );
 
     expect(actionExecutor.calls).toHaveLength(0);
@@ -437,10 +458,14 @@ describe("AutomationEngine — state change triggers", () => {
 
     await bus.emit(
       "record.updated",
-      makeEvent("record.updated", {
-        _old: { _state: "pending" },
-        _new: { _state: "rejected" },
-      }, { schema: "order" }),
+      makeEvent(
+        "record.updated",
+        {
+          _old: { _state: "pending" },
+          _new: { _state: "rejected" },
+        },
+        { schema: "order" },
+      ),
     );
 
     expect(actionExecutor.calls).toHaveLength(0);
@@ -582,9 +607,7 @@ describe("AutomationEngine — event payload merging", () => {
     const automation: AutomationDefinition = {
       name: "test-merge",
       trigger: { type: "event", eventType: "test.event" },
-      actions: [
-        { type: "execute_action", action: "my_action", input: { static: "value" } },
-      ],
+      actions: [{ type: "execute_action", action: "my_action", input: { static: "value" } }],
       enabled: true,
     };
 

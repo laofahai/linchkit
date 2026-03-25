@@ -485,13 +485,16 @@ async function executeAIStep(
     // Execute each tool call via executeAction (each durable)
     const roundResults: Array<{ toolName: string; result: unknown }> = [];
     for (const toolCall of currentToolCalls) {
-      const actionResult = await ctx.run(`${step.id}_tool_${round}_${toolCall.toolName}`, async () => {
-        try {
-          return await stepContext.executeAction(toolCall.toolName, toolCall.args);
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
-      });
+      const actionResult = await ctx.run(
+        `${step.id}_tool_${round}_${toolCall.toolName}`,
+        async () => {
+          try {
+            return await stepContext.executeAction(toolCall.toolName, toolCall.args);
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : String(err) };
+          }
+        },
+      );
       roundResults.push({ toolName: toolCall.toolName, result: actionResult });
       toolResults.push({ toolName: toolCall.toolName, args: toolCall.args, result: actionResult });
     }

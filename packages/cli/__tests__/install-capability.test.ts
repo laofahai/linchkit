@@ -285,9 +285,7 @@ describe("linch install", () => {
         label: "Adapter B",
       };
 
-      const result = validateTypeCompatibility(meta, (name) =>
-        name === "cap-b" ? depMeta : null,
-      );
+      const result = validateTypeCompatibility(meta, (name) => (name === "cap-b" ? depMeta : null));
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0]).toContain("cannot depend on adapter");
     });
@@ -309,9 +307,7 @@ describe("linch install", () => {
         label: "Standard B",
       };
 
-      const result = validateTypeCompatibility(meta, (name) =>
-        name === "cap-b" ? depMeta : null,
-      );
+      const result = validateTypeCompatibility(meta, (name) => (name === "cap-b" ? depMeta : null));
       expect(result.errors.length).toBe(0);
     });
 
@@ -360,7 +356,7 @@ describe("linch install", () => {
       const path = resolve(TEST_DIR, "node_modules", "@linchkit/cap-test", "capability.json");
       const meta = loadCapabilityMetadata(path);
       expect(meta).not.toBeNull();
-      expect(meta!.name).toBe("@linchkit/cap-test");
+      expect(meta?.name).toBe("@linchkit/cap-test");
     });
 
     test("returns null for nonexistent path", () => {
@@ -411,14 +407,11 @@ describe("linch install", () => {
       // Create a local capability so dry-run can read its capability.json
       createLocalCapability("my-cap", validCapability);
 
-      const proc = Bun.spawn(
-        ["bun", "run", CLI_ENTRY, "install", "./my-cap", "--dry-run"],
-        {
-          cwd: TEST_DIR,
-          stdout: "pipe",
-          stderr: "pipe",
-        },
-      );
+      const proc = Bun.spawn(["bun", "run", CLI_ENTRY, "install", "./my-cap", "--dry-run"], {
+        cwd: TEST_DIR,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
       await proc.exited;
 

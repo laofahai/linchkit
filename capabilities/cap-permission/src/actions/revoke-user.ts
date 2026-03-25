@@ -54,6 +54,7 @@ export const revokeUserAction = defineAction({
       return { removed: false, message: "Assignment does not exist" };
     }
 
+    // biome-ignore lint/style/noNonNullAssertion: length checked above
     const assignment = assignments[0]!;
     await ctx.delete("permission_assignment", assignment.id as string);
 

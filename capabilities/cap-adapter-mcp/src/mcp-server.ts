@@ -19,8 +19,8 @@ import type {
   SchemaRegistry,
   StateDefinition,
 } from "@linchkit/core";
-import { OperationTypeNode, parse } from "graphql";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { OperationTypeNode, parse } from "graphql";
 import { z } from "zod";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
 import { registerScaffoldTools } from "./scaffold-tools";
@@ -433,25 +433,23 @@ function registerBuiltinTools(
     "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries. Optionally filter by schema name.",
     toMcpShape(listActionsShape),
     async (args: { schema?: string }) => {
-      let actions = actionRegistry
-        .getAll()
-        .filter((a) => {
-          // Only show actions exposed to MCP (consistent with tool registration)
-          if (a.exposure === undefined || a.exposure === "all") return true;
-          return a.exposure.mcp !== false;
-        });
+      let actions = actionRegistry.getAll().filter((a) => {
+        // Only show actions exposed to MCP (consistent with tool registration)
+        if (a.exposure === undefined || a.exposure === "all") return true;
+        return a.exposure.mcp !== false;
+      });
 
       if (args.schema) {
         actions = actions.filter((a) => a.schema === args.schema);
       }
 
       const result = actions.map((a) => ({
-          name: a.name,
-          label: a.label,
-          description: a.description,
-          schema: a.schema,
-          inputFields: a.input ? Object.keys(a.input) : [],
-        }));
+        name: a.name,
+        label: a.label,
+        description: a.description,
+        schema: a.schema,
+        inputFields: a.input ? Object.keys(a.input) : [],
+      }));
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
@@ -588,7 +586,10 @@ function registerBuiltinTools(
         };
       }
 
-      if (operationTypes.has(OperationTypeNode.MUTATION) || operationTypes.has(OperationTypeNode.SUBSCRIPTION)) {
+      if (
+        operationTypes.has(OperationTypeNode.MUTATION) ||
+        operationTypes.has(OperationTypeNode.SUBSCRIPTION)
+      ) {
         return {
           content: [
             {
@@ -665,7 +666,9 @@ function registerBuiltinTools(
     const ontologyOverviewShape = {
       format: z
         .enum(["markdown", "json"])
-        .describe("Output format: 'markdown' for human-readable summary, 'json' for structured data")
+        .describe(
+          "Output format: 'markdown' for human-readable summary, 'json' for structured data",
+        )
         .optional(),
     };
     server.tool(
@@ -699,7 +702,9 @@ function registerBuiltinTools(
     const searchOntologyShape = {
       query: z
         .string()
-        .describe("Search query — matches against schema names, labels, descriptions, and field names"),
+        .describe(
+          "Search query — matches against schema names, labels, descriptions, and field names",
+        ),
     };
     server.tool(
       "search_ontology",
@@ -713,7 +718,10 @@ function registerBuiltinTools(
             content: [
               {
                 type: "text" as const,
-                text: JSON.stringify({ results: [], message: `No schemas matched query '${args.query}'` }),
+                text: JSON.stringify({
+                  results: [],
+                  message: `No schemas matched query '${args.query}'`,
+                }),
               },
             ],
           };

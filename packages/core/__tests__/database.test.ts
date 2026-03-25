@@ -12,9 +12,9 @@ describe("createDatabase", () => {
   it("throws when a connection is already active", () => {
     // Create first connection (will fail to actually connect but that's fine for this test)
     createDatabase({ url: "postgres://localhost:5432/test_nonexistent_db" });
-    expect(() =>
-      createDatabase({ url: "postgres://localhost:5432/test_nonexistent_db" }),
-    ).toThrow("A database connection is already active");
+    expect(() => createDatabase({ url: "postgres://localhost:5432/test_nonexistent_db" })).toThrow(
+      "A database connection is already active",
+    );
   });
 
   it("applies default connectTimeout and idleTimeout", () => {

@@ -35,10 +35,11 @@ export interface AuthProviderRegistration {
    * Factory function that creates the auth provider instance.
    * Receives a context with the database instance (if available).
    */
-  // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
   create: (ctx: {
+    // biome-ignore lint/suspicious/noExplicitAny: database type varies by driver
     database?: any;
     dataProvider?: import("../engine/action-engine").DataProvider;
+    // biome-ignore lint/suspicious/noExplicitAny: return type varies by auth provider
   }) => any;
   /**
    * Optional function to seed an initial admin user.

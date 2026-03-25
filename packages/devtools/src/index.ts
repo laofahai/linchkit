@@ -8,7 +8,12 @@ export const VERSION = "0.0.1";
 
 export type { TestRuleInput } from "./test-rule";
 export { testRule } from "./test-rule";
-export type { MockAIResponse, MockAIService, TestRuntime, TestRuntimeOptions } from "./test-runtime";
+export type {
+  MockAIResponse,
+  MockAIService,
+  TestRuntime,
+  TestRuntimeOptions,
+} from "./test-runtime";
 export { createTestActor, createTestRuntime, mockAIService } from "./test-runtime";
 export type { TestTransitionInput } from "./test-state";
 export { getAvailableTransitions, testStateMachine } from "./test-state";

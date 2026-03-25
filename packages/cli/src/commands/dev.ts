@@ -691,7 +691,9 @@ export const devCommand = defineCommand({
       flows: flowRegistry,
       handlers: eventHandlerRegistry,
     });
-    console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`);
+    console.log(
+      `[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`,
+    );
 
     const transportCtx: TransportContext = {
       commandLayer,

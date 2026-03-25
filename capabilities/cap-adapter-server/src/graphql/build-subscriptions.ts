@@ -10,19 +10,22 @@
  */
 
 import type { EventBus, EventRecord, SchemaDefinition } from "@linchkit/core";
-import { createPubSub } from "graphql-yoga";
 import {
+  type GraphQLFieldConfig,
   GraphQLID,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLString,
-  type GraphQLFieldConfig,
 } from "graphql";
+import { createPubSub } from "graphql-yoga";
 
 // ── PubSub topic naming ──────────────────────────────────
 
 /** Build the PubSub topic name for a schema + operation */
-export function buildTopic(schemaName: string, operation: "created" | "updated" | "deleted"): string {
+export function buildTopic(
+  schemaName: string,
+  operation: "created" | "updated" | "deleted",
+): string {
   return `${schemaName}.${operation}`;
 }
 

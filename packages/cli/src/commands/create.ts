@@ -281,18 +281,12 @@ export const createCapabilityCommand = defineCommand({
 
     if (withExamples) {
       // Write example files
-      writeFileSync(
-        resolve(outputDir, `src/schemas/${domain}.ts`),
-        exampleSchemaTemplate(domain),
-      );
+      writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleSchemaTemplate(domain));
       writeFileSync(
         resolve(outputDir, `src/actions/create-${domain.replace(/_/g, "-")}.ts`),
         exampleActionTemplate(domain),
       );
-      writeFileSync(
-        resolve(outputDir, `src/views/${domain}.ts`),
-        exampleViewTemplate(domain),
-      );
+      writeFileSync(resolve(outputDir, `src/views/${domain}.ts`), exampleViewTemplate(domain));
     } else {
       // Write .gitkeep files when no examples
       writeFileSync(resolve(outputDir, "src/schemas/.gitkeep"), "");

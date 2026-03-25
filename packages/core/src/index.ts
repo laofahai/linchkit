@@ -25,6 +25,22 @@ export type {
 // AI Boundary
 export { AIBoundary, AIBoundaryError } from "./ai";
 export type { AutomationEngine, AutomationRegistry } from "./automation";
+// Capability Hub — discovery and dependency management
+export type {
+  CapabilityDependency,
+  CapabilityManifest,
+  CapabilityProvides,
+  CapabilityRequires,
+  CapabilitySearchOptions,
+  CompatibilityIssue,
+  ValidationResult,
+} from "./capability";
+export {
+  CapabilityHub,
+  CapabilityHubError,
+  createCapabilityHub,
+  satisfiesVersionRange,
+} from "./capability";
 // Cache — type exports (browser-safe)
 export type {
   CacheEntry,

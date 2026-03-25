@@ -187,16 +187,17 @@ function resolveSecret(explicit?: string): string {
     throw new Error("JWT_SECRET environment variable is required in production");
   }
 
-  console.warn(
-    "[linch] WARNING: Using default dev secret. Set JWT_SECRET in production.",
-  );
+  console.warn("[linch] WARNING: Using default dev secret. Set JWT_SECRET in production.");
   return "dev-secret";
 }
 
 function createAuthInstance(options: BetterAuthProviderOptions) {
   const secret = resolveSecret(options.secret);
   const baseURL =
-    options.baseURL ?? process.env.AUTH_BASE_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+    options.baseURL ??
+    process.env.AUTH_BASE_URL ??
+    process.env.BETTER_AUTH_URL ??
+    "http://localhost:3001";
 
   const sendOTPHandler =
     options.sendOTP ??
@@ -388,7 +389,10 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
       input: { email?: string; token?: string; new_password?: string },
     ): Promise<ResetPasswordResult> {
       const baseURL =
-        options.baseURL ?? process.env.AUTH_BASE_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+        options.baseURL ??
+        process.env.AUTH_BASE_URL ??
+        process.env.BETTER_AUTH_URL ??
+        "http://localhost:3001";
 
       if (input.email && !input.token) {
         // Phone-based accounts use @phone.local placeholder — email reset won't work

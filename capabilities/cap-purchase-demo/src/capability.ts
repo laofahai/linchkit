@@ -12,11 +12,7 @@ import { requestToDepartment, requestToItems } from "./links";
 import { departmentSchema } from "./schemas/department";
 import { purchaseItemSchema } from "./schemas/purchase-item";
 import { purchaseRequestSchema } from "./schemas/purchase-request";
-import {
-  departmentSeedData,
-  purchaseItemSeedData,
-  purchaseRequestSeedData,
-} from "./seed";
+import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";

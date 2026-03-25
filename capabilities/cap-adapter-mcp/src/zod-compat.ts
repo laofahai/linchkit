@@ -14,10 +14,7 @@
  * the shape's keys while converting each value to the SDK's `AnySchema`.
  */
 
-import type {
-  AnySchema,
-  ZodRawShapeCompat,
-} from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 /**
  * Mapped type that converts each value in a record to the SDK's AnySchema,
@@ -38,10 +35,8 @@ type ToMcpShape<T extends Record<string, unknown>> = {
  * The generic parameter preserves the shape's keys so that the SDK's
  * `server.tool<Args>()` can still infer callback argument types.
  */
-export function toMcpShape<T extends Record<string, unknown>>(
-  shape: T,
-): ToMcpShape<T> {
+export function toMcpShape<T extends Record<string, unknown>>(shape: T): ToMcpShape<T> {
   return shape as ToMcpShape<T>;
 }
 
-export type { ZodRawShapeCompat, AnySchema };
+export type { AnySchema, ZodRawShapeCompat };

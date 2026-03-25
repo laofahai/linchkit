@@ -3,18 +3,17 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "../src/types/schema";
 import {
-  DerivedPropertyEngine,
   createDerivedPropertyEngine,
+  type DerivedConfig,
   evaluateExpression,
   getDerivedStrategy,
   isDerivedField,
   resolveDerivedValue,
-  type DerivedConfig,
 } from "../src/schema/derived-property";
-import { generateZodSchema } from "../src/schema/schema-to-zod";
 import { buildTableColumns } from "../src/schema/schema-to-drizzle";
+import { generateZodSchema } from "../src/schema/schema-to-zod";
+import type { SchemaDefinition } from "../src/types/schema";
 
 // ── evaluateExpression ────────────────────────────────────────
 
@@ -516,13 +515,27 @@ describe("Drizzle column generation for derived fields", () => {
 
 describe("isDerivedField and getDerivedStrategy", () => {
   test("isDerivedField returns true for derived fields", () => {
-    expect(isDerivedField({ type: "number", derived: { type: "expression", expr: "a + b" } })).toBe(true);
+    expect(isDerivedField({ type: "number", derived: { type: "expression", expr: "a + b" } })).toBe(
+      true,
+    );
     expect(isDerivedField({ type: "number" })).toBe(false);
   });
 
   test("getDerivedStrategy defaults to store", () => {
-    expect(getDerivedStrategy({ type: "number", derived: { type: "expression", expr: "a" } })).toBe("store");
-    expect(getDerivedStrategy({ type: "number", derived: { type: "expression", expr: "a", strategy: "compute" } })).toBe("compute");
-    expect(getDerivedStrategy({ type: "number", derived: { type: "expression", expr: "a", strategy: "store" } })).toBe("store");
+    expect(getDerivedStrategy({ type: "number", derived: { type: "expression", expr: "a" } })).toBe(
+      "store",
+    );
+    expect(
+      getDerivedStrategy({
+        type: "number",
+        derived: { type: "expression", expr: "a", strategy: "compute" },
+      }),
+    ).toBe("compute");
+    expect(
+      getDerivedStrategy({
+        type: "number",
+        derived: { type: "expression", expr: "a", strategy: "store" },
+      }),
+    ).toBe("store");
   });
 });

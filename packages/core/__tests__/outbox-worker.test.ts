@@ -11,9 +11,7 @@ import { eq, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { EventHandlerRegistry } from "../src/event/event-bus";
 import { createOutboxWorker } from "../src/event/outbox-worker";
-import {
-  eventsTable,
-} from "../src/persistence/system-tables";
+import { eventsTable } from "../src/persistence/system-tables";
 import { closeDatabase, createDatabase } from "../src/server-entry";
 
 // Use test DB on port 5434 (docker-compose postgres-test)
@@ -80,10 +78,13 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
 
     // Create system tables via raw SQL (test fixture)
     await db.execute(sql.raw('CREATE SCHEMA IF NOT EXISTS "_linchkit"'));
-    await db.execute(sql.raw(`
+    await db.execute(
+      sql.raw(`
       CREATE TYPE "_linchkit"."event_status" AS ENUM('pending', 'processing', 'completed', 'failed', 'dead_letter')
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE TABLE IF NOT EXISTS "_linchkit"."events" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "tenant_id" varchar(255),
@@ -98,16 +99,23 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
         "retry_count" integer DEFAULT 0 NOT NULL,
         "next_retry_at" timestamp
       )
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_type_status" ON "_linchkit"."events" USING btree ("event_type", "status")
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_retry" ON "_linchkit"."events" USING btree ("status", "next_retry_at")
-    `));
-    await db.execute(sql.raw(`
+    `),
+    );
+    await db.execute(
+      sql.raw(`
       CREATE INDEX IF NOT EXISTS "idx_events_tenant" ON "_linchkit"."events" USING btree ("tenant_id", "event_type")
-    `));
+    `),
+    );
   });
 
   afterAll(async () => {
@@ -196,7 +204,7 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     await worker.processBatch();
 
     const rows1 = await db.select().from(eventsTable).where(eq(eventsTable.id, id1));
-    const firstDelay = rows1[0]!.nextRetryAt!.getTime() - Date.now();
+    const firstDelay = rows1[0]?.nextRetryAt?.getTime() - Date.now();
     // First retry delay: ~1000ms base * 2^1 = ~2000ms (±25% jitter)
     // Actually retryCount goes from 0→1, delay = 1000 * 2^1 = 2000 ±500
     expect(firstDelay).toBeGreaterThan(1000);
@@ -285,7 +293,7 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     expect(called).toBe(false);
 
     // Status should remain dead_letter
-    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, row!.id));
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, row?.id));
     expect(rows[0]?.status).toBe("dead_letter");
   });
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import type { CreateProposalOptions, ProposalEngine } from "../src";
-import { bumpVersion, createProposalEngine, validatePhase1, validateProposal } from "../src/server-entry";
+import {
+  bumpVersion,
+  createProposalEngine,
+  validatePhase1,
+  validateProposal,
+} from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 

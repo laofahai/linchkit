@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ActionResult, CommandLayer, RuleDefinition, StateDefinition } from "@linchkit/core";
+import type { ActionResult, CommandLayer } from "@linchkit/core";
 import { defineAction, defineRule, defineSchema, defineState } from "@linchkit/core";
 import { ActionRegistry, createSchemaRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";

@@ -1,6 +1,6 @@
-import { describe, expect, it, mock } from "bun:test";
-import { createTriggerBinding } from "../src/flow/trigger-binding";
+import { describe, expect, it } from "bun:test";
 import type { EventBusLike } from "../src/flow/trigger-binding";
+import { createTriggerBinding } from "../src/flow/trigger-binding";
 import type { FlowEngine } from "../src/flow/types";
 import type { EventRecord } from "../src/types/event";
 import type { FlowDefinition, FlowInstance } from "../src/types/flow";
@@ -19,7 +19,7 @@ function createMockEventBus(): EventBusLike & {
       if (!handlers.has(eventType)) {
         handlers.set(eventType, []);
       }
-      handlers.get(eventType)!.push(handler);
+      handlers.get(eventType)?.push(handler);
       return () => {
         const arr = handlers.get(eventType);
         if (arr) {
@@ -67,11 +67,7 @@ function createMockFlowEngine(): FlowEngine & {
   };
 }
 
-function makeEvent(
-  id: string,
-  type: string,
-  payload: Record<string, unknown> = {},
-): EventRecord {
+function makeEvent(id: string, type: string, payload: Record<string, unknown> = {}): EventRecord {
   return {
     id,
     type,
@@ -92,17 +88,13 @@ const eventFlow: FlowDefinition = {
     eventType: "action.succeeded",
     filter: { actionName: "purchase_request.submit" },
   },
-  steps: [
-    { id: "s1", name: "Notify", type: "action", actionName: "notification.send" },
-  ],
+  steps: [{ id: "s1", name: "Notify", type: "action", actionName: "notification.send" }],
 };
 
 const manualFlow: FlowDefinition = {
   name: "manual-flow",
   trigger: { type: "manual" },
-  steps: [
-    { id: "s1", name: "Step 1", type: "action", actionName: "test.action" },
-  ],
+  steps: [{ id: "s1", name: "Step 1", type: "action", actionName: "test.action" }],
 };
 
 const unfilteredEventFlow: FlowDefinition = {
@@ -111,9 +103,7 @@ const unfilteredEventFlow: FlowDefinition = {
     type: "event",
     eventType: "action.succeeded",
   },
-  steps: [
-    { id: "s1", name: "Log", type: "action", actionName: "audit.log" },
-  ],
+  steps: [{ id: "s1", name: "Log", type: "action", actionName: "audit.log" }],
 };
 
 // ── Tests ───────────────────────────────────────────────
@@ -186,10 +176,7 @@ describe("TriggerBinding", () => {
 
     binding.bindAll([unfilteredEventFlow], engine);
 
-    await bus.emit(
-      "action.succeeded",
-      makeEvent("evt-3", "action.succeeded", { anything: true }),
-    );
+    await bus.emit("action.succeeded", makeEvent("evt-3", "action.succeeded", { anything: true }));
 
     expect(engine.started).toHaveLength(1);
     expect(engine.started[0]?.flowName).toBe("audit-log");

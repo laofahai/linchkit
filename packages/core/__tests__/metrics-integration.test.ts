@@ -3,7 +3,7 @@
  * when a MetricsCollector is wired into engines.
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
 import { createCommandLayer } from "../src/engine/command-layer";
 import { evaluateRules, type RuleEvalInput } from "../src/engine/rule-engine";
@@ -35,7 +35,7 @@ function createTestDataProvider(): DataProvider {
       counter++;
       const id = `test_${counter}`;
       const record = { id, ...input };
-      data.get(schema)!.set(id, record);
+      data.get(schema)?.set(id, record);
       return record;
     },
     async update(schema: string, id: string, updates: Record<string, unknown>) {
@@ -78,11 +78,13 @@ describe("ActionExecutor metrics", () => {
     const result = await executor.execute("create_order", { title: "Test" }, testActor);
     expect(result.success).toBe(true);
 
-    expect(metrics.getCounter("action.executed", {
-      action: "create_order",
-      schema: "order",
-      status: "succeeded",
-    })).toBe(1);
+    expect(
+      metrics.getCounter("action.executed", {
+        action: "create_order",
+        schema: "order",
+        status: "succeeded",
+      }),
+    ).toBe(1);
   });
 
   it("records action.duration_ms timing on success", async () => {
@@ -126,11 +128,13 @@ describe("ActionExecutor metrics", () => {
     const result = await executor.execute("failing_action", {}, testActor);
     expect(result.success).toBe(false);
 
-    expect(metrics.getCounter("action.executed", {
-      action: "failing_action",
-      schema: "order",
-      status: "failed",
-    })).toBe(1);
+    expect(
+      metrics.getCounter("action.executed", {
+        action: "failing_action",
+        schema: "order",
+        status: "failed",
+      }),
+    ).toBe(1);
   });
 });
 
@@ -156,7 +160,9 @@ describe("CommandLayer metrics", () => {
 
     await layer.execute({ command: "create_item", input: { name: "test" } });
 
-    expect(metrics.getCounter("command.processed", { command: "create_item", status: "succeeded" })).toBe(1);
+    expect(
+      metrics.getCounter("command.processed", { command: "create_item", status: "succeeded" }),
+    ).toBe(1);
   });
 });
 
@@ -242,16 +248,20 @@ describe("evaluateRules metrics", () => {
     await evaluateRules(rules, defaultInput, { metrics });
 
     // First rule triggers (amount 5000 > 1000)
-    expect(metrics.getCounter("rule.evaluated", {
-      rule: "high-amount-warn",
-      effect: "warn",
-    })).toBe(1);
+    expect(
+      metrics.getCounter("rule.evaluated", {
+        rule: "high-amount-warn",
+        effect: "warn",
+      }),
+    ).toBe(1);
 
     // Second rule also evaluated but not triggered (amount 5000 is not < 100)
-    expect(metrics.getCounter("rule.evaluated", {
-      rule: "low-amount-check",
-      effect: "none",
-    })).toBe(1);
+    expect(
+      metrics.getCounter("rule.evaluated", {
+        rule: "low-amount-check",
+        effect: "none",
+      }),
+    ).toBe(1);
   });
 
   it("records block effect type for blocking rules", async () => {
@@ -269,9 +279,11 @@ describe("evaluateRules metrics", () => {
 
     await evaluateRules(rules, defaultInput, { metrics });
 
-    expect(metrics.getCounter("rule.evaluated", {
-      rule: "block-rule",
-      effect: "block",
-    })).toBe(1);
+    expect(
+      metrics.getCounter("rule.evaluated", {
+        rule: "block-rule",
+        effect: "block",
+      }),
+    ).toBe(1);
   });
 });

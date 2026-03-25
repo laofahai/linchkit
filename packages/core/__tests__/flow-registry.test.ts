@@ -63,6 +63,7 @@ const conditionFlow: FlowDefinition = {
       name: "Check Amount",
       type: "condition",
       expression: "$input.amount > 10000",
+      // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
       then: "approve",
       else: "auto-approve",
     },
@@ -130,16 +131,14 @@ describe("FlowRegistry", () => {
 
     it("throws when registering a flow with no name", () => {
       const registry = createFlowRegistry();
-      expect(() =>
-        registry.register({ ...simpleFlow, name: "" }),
-      ).toThrow("non-empty name");
+      expect(() => registry.register({ ...simpleFlow, name: "" })).toThrow("non-empty name");
     });
 
     it("throws when registering a flow with no steps", () => {
       const registry = createFlowRegistry();
-      expect(() =>
-        registry.register({ ...simpleFlow, name: "empty", steps: [] }),
-      ).toThrow("at least one step");
+      expect(() => registry.register({ ...simpleFlow, name: "empty", steps: [] })).toThrow(
+        "at least one step",
+      );
     });
 
     it("throws when registering a flow with duplicate step IDs", () => {
@@ -168,6 +167,7 @@ describe("FlowRegistry", () => {
               name: "Check",
               type: "condition",
               expression: "true",
+              // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
               then: "nonexistent",
             },
           ],

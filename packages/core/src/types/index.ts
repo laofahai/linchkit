@@ -21,7 +21,6 @@ export {
 export type * from "./cli";
 export type * from "./command";
 export type * from "./config";
-export type * from "./runtime-config";
 export type * from "./database";
 export type * from "./error";
 // Non-type exports
@@ -35,6 +34,7 @@ export type * from "./page";
 export type * from "./permission";
 export type * from "./proposal";
 export type * from "./rule";
+export type * from "./runtime-config";
 export type * from "./schema";
 export type * from "./state";
 export type * from "./transport";

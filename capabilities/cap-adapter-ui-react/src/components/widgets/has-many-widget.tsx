@@ -5,12 +5,11 @@
  * Input: Read-only list of related records with an "Add" link to create form.
  */
 
-import { Badge } from "@linchkit/ui-kit/components";
-import { Button } from "@linchkit/ui-kit/components";
-import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { useSchemaBundle } from "@/hooks/use-schema-bundle";
+import { Badge, Button } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
-import { type RelatedRecord, getRecordLabel } from "./relation-utils";
+import { useSchemaBundle } from "@/hooks/use-schema-bundle";
+import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
+import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 
 export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
@@ -54,11 +53,7 @@ export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   return <span className="text-muted-foreground">--</span>;
 }
 
-export function HasManyInput({
-  value,
-  fieldDef,
-  readonly,
-}: WidgetInputProps) {
+export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
@@ -90,10 +85,7 @@ export function HasManyInput({
         </div>
       )}
       {!readonly && targetSchema && (
-        <Link
-          to="/schemas/$name/new"
-          params={{ name: targetSchema }}
-        >
+        <Link to="/schemas/$name/new" params={{ name: targetSchema }}>
           <Button type="button" variant="outline" size="sm">
             + Add {targetBundle?.schema.label ?? targetSchema}
           </Button>

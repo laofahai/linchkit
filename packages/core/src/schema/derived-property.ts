@@ -101,10 +101,7 @@ function tokenize(expr: string): Token[] {
     }
 
     // Numbers
-    if (
-      /[0-9]/.test(ch) ||
-      (ch === "." && i + 1 < len && /[0-9]/.test(expr.charAt(i + 1)))
-    ) {
+    if (/[0-9]/.test(ch) || (ch === "." && i + 1 < len && /[0-9]/.test(expr.charAt(i + 1)))) {
       let num = "";
       while (i < len && /[0-9.]/.test(expr.charAt(i))) {
         num += expr.charAt(i);
@@ -302,7 +299,11 @@ class ExpressionParser {
   private parseAddition(): number {
     let left = this.parseMultiplication();
     let current = this.peek();
-    while (current && current.type === "operator" && (current.value === "+" || current.value === "-")) {
+    while (
+      current &&
+      current.type === "operator" &&
+      (current.value === "+" || current.value === "-")
+    ) {
       const op = this.advance().value;
       const right = this.parseMultiplication();
       left = op === "+" ? left + right : left - right;
@@ -724,10 +725,7 @@ export class DerivedPropertyEngine {
    *
    * Call this before writing a record (e.g., in Action Engine post-action).
    */
-  computeStoreFields(
-    schemaName: string,
-    record: Record<string, unknown>,
-  ): Record<string, unknown> {
+  computeStoreFields(schemaName: string, record: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     const order = this.topoOrder.get(schemaName) ?? [];
 
