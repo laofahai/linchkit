@@ -10,29 +10,7 @@ import { Button } from "@linchkit/ui-kit/components";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { Link } from "@tanstack/react-router";
-
-interface RelatedRecord {
-  id: string;
-  [key: string]: unknown;
-}
-
-/** Heuristic fallback: guess the title field from common naming patterns */
-const TITLE_FIELD_CANDIDATES = ["name", "title", "label", "displayName", "display_name"];
-
-function guessTitleField(record: RelatedRecord): string {
-  for (const candidate of TITLE_FIELD_CANDIDATES) {
-    if (candidate in record) return candidate;
-  }
-  return "id";
-}
-
-function getRecordLabel(record: RelatedRecord, titleField: string | undefined): string {
-  if (titleField && titleField in record) {
-    return String(record[titleField] ?? record.id);
-  }
-  const guessed = guessTitleField(record);
-  return String(record[guessed] ?? record.id);
-}
+import { type RelatedRecord, getRecordLabel } from "./relation-utils";
 
 export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";

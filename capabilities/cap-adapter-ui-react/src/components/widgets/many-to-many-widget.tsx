@@ -23,32 +23,11 @@ import {
   CommandList,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { Check } from "lucide-react";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
-
-interface RelatedRecord {
-  id: string;
-  [key: string]: unknown;
-}
-
-/** Heuristic fallback: guess the title field from common naming patterns */
-const TITLE_FIELD_CANDIDATES = ["name", "title", "label", "displayName", "display_name"];
-
-function guessTitleField(record: RelatedRecord): string {
-  for (const candidate of TITLE_FIELD_CANDIDATES) {
-    if (candidate in record) return candidate;
-  }
-  return "id";
-}
-
-function getRecordLabel(record: RelatedRecord, titleField: string | undefined): string {
-  if (titleField && titleField in record) {
-    return String(record[titleField] ?? record.id);
-  }
-  const guessed = guessTitleField(record);
-  return String(record[guessed] ?? record.id);
-}
+import { type RelatedRecord, getRecordLabel } from "./relation-utils";
 
 export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
@@ -107,9 +86,10 @@ export function ManyToManyInput({
   const [open, setOpen] = useState(false);
 
   // Determine which fields to fetch
+  const FALLBACK_FIELDS = ["name", "title", "label", "displayName", "display_name"];
   const fetchFields = titleField
     ? ["id", titleField]
-    : ["id", ...TITLE_FIELD_CANDIDATES];
+    : ["id", ...FALLBACK_FIELDS];
 
   // Fetch all candidate records for the target schema
   const { data: allRecords, isLoading } = useQuery<RelatedRecord[]>({
@@ -243,20 +223,7 @@ export function ManyToManyInput({
                           isSelected ? "bg-primary text-primary-foreground" : "opacity-50",
                         )}
                       >
-                        {isSelected && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={3}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-3 w-3"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
+                        {isSelected && <Check className="h-3 w-3" />}
                       </span>
                       {getRecordLabel(record, titleField)}
                     </CommandItem>

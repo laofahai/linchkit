@@ -170,10 +170,11 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     actionsBySchema.set(action.schema, list);
   }
 
-  // Pre-index rules by schema (via trigger)
+  // Pre-index rules by schema (via trigger, using action registry for resolution)
+  const allActions = deps.actions.getAll();
   const rulesBySchema = new Map<string, RuleDefinition[]>();
   for (const rule of deps.rules) {
-    const schemaNames = extractSchemaFromTrigger(rule);
+    const schemaNames = extractSchemaFromTrigger(rule, actionsBySchema, allActions);
     for (const sn of schemaNames) {
       const list = rulesBySchema.get(sn) ?? [];
       list.push(rule);
@@ -407,24 +408,25 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
 // ── Helpers ──────────────────────────────────────────────
 
-/** Extract schema names from a rule trigger */
-function extractSchemaFromTrigger(rule: RuleDefinition): string[] {
+/** Extract schema names from a rule trigger, using action registry to resolve action→schema */
+function extractSchemaFromTrigger(
+  rule: RuleDefinition,
+  actionsBySchema: Map<string, ActionDefinition[]>,
+  allActions: ActionDefinition[],
+): string[] {
   const trigger = rule.trigger;
 
-  // ActionTrigger: look up action names to find their schema
+  // ActionTrigger: resolve action names to their schema via the action registry
   if ("action" in trigger) {
-    // We can't resolve action→schema at this level without access to the action registry,
-    // so we return empty. Rules are indexed by schema via the action's schema field.
-    // For now, match rules to schemas via the action trigger name convention: "schema.action_name"
     const actionNames = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
-    const schemas: string[] = [];
+    const schemas = new Set<string>();
     for (const name of actionNames) {
-      const dotIdx = name.indexOf(".");
-      if (dotIdx > 0) {
-        schemas.push(name.substring(0, dotIdx));
+      const action = allActions.find((a) => a.name === name);
+      if (action) {
+        schemas.add(action.schema);
       }
     }
-    return schemas;
+    return [...schemas];
   }
 
   if ("stateChange" in trigger) {

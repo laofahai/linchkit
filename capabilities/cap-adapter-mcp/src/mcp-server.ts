@@ -376,6 +376,7 @@ function registerBuiltinTools(
           initial: sm.initial,
           states: sm.states,
           transitions: sm.transitions,
+          meta: sm.meta,
         }));
 
       const result: Record<string, unknown> = {
