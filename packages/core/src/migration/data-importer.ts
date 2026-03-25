@@ -63,6 +63,10 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return fields;
 }
 
+/**
+ * Simple CSV parser. Limitation: does not handle RFC 4180 multiline quoted fields
+ * (newlines inside quoted values). For complex CSV files, use a dedicated CSV library.
+ */
 export class CSVImportSource implements ImportSource {
   readonly name = "csv";
   private readonly records: Record<string, unknown>[];
@@ -77,6 +81,7 @@ export class CSVImportSource implements ImportSource {
     }
 
     const hasHeader = options.hasHeader ?? true;
+    // biome-ignore lint/style/noNonNullAssertion: index guaranteed in bounds after empty check
     const firstLine = lines[0]!;
     const headers = hasHeader
       ? parseCSVLine(firstLine, delimiter).map((h) => h.trim())
@@ -86,10 +91,12 @@ export class CSVImportSource implements ImportSource {
     this.records = [];
 
     for (let i = dataStart; i < lines.length; i++) {
+      // biome-ignore lint/style/noNonNullAssertion: index guaranteed in bounds by loop condition
       const line = lines[i]!;
       const values = parseCSVLine(line, delimiter);
       const record: Record<string, unknown> = {};
       for (let j = 0; j < headers.length; j++) {
+        // biome-ignore lint/style/noNonNullAssertion: index guaranteed in bounds by loop condition
         record[headers[j]!] = values[j] ?? "";
       }
       this.records.push(record);
@@ -217,6 +224,7 @@ export class DataImporter {
 
         for (let i = 0; i < batch.length; i++) {
           const globalIndex = offset + i;
+          // biome-ignore lint/style/noNonNullAssertion: index guaranteed in bounds by loop condition
           const sourceRecord = batch[i]!;
 
           try {

@@ -11,8 +11,8 @@
  * 2. PII sanitization — detect and redact common PII patterns
  */
 
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
 import { resolveFieldMasking } from "../security/masking-engine";
+import type { FieldDefinition, SchemaDefinition } from "../types/schema";
 
 // ── Prompt Injection Detection ──────────────────────────────
 
@@ -69,7 +69,8 @@ export interface InjectionDetectionConfig {
 const BUILTIN_INJECTION_PATTERNS: InjectionPattern[] = [
   {
     name: "ignore_instructions",
-    pattern: /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?|directives?)/i,
+    pattern:
+      /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?|directives?)/i,
     weight: 0.8,
   },
   {
@@ -89,7 +90,8 @@ const BUILTIN_INJECTION_PATTERNS: InjectionPattern[] = [
   },
   {
     name: "prompt_leak_attempt",
-    pattern: /reveal\s+(your|the|system)\s+(prompt|instructions?|rules?)|show\s+me\s+(your|the)\s+prompt/i,
+    pattern:
+      /reveal\s+(your|the|system)\s+(prompt|instructions?|rules?)|show\s+me\s+(your|the)\s+prompt/i,
     weight: 0.6,
   },
   {
@@ -294,7 +296,8 @@ export function sanitizePII(text: string, config?: PIISanitizationConfig): PIISa
     ? allPatterns.filter((p) => enabledTypes.includes(p.type))
     : allPatterns;
 
-  const placeholderFn = config?.placeholderFn ?? ((type: PIIType) => `[REDACTED_${type.toUpperCase()}]`);
+  const placeholderFn =
+    config?.placeholderFn ?? ((type: PIIType) => `[REDACTED_${type.toUpperCase()}]`);
 
   let sanitized = text;
   const piiTypesFound = new Set<PIIType>();
@@ -440,10 +443,10 @@ export function sanitizePrompt(text: string, options?: PromptSanitizerOptions): 
     ? detectInjection(text, options?.injection)
     : { detected: false, score: 0, matchedPatterns: [], action: "allow" as const, input: text };
 
-  // Step 2: Block if injection detected
+  // Step 2: Block if injection detected — return empty string to prevent passthrough
   if (injection.action === "block") {
     return {
-      sanitized: text,
+      sanitized: "",
       injection,
       blocked: true,
       blockReason: `Prompt injection detected (score: ${injection.score.toFixed(2)}, patterns: ${injection.matchedPatterns.join(", ")})`,

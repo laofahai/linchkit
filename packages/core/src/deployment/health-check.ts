@@ -99,10 +99,18 @@ export class HealthCheckRegistry {
   private async runSingle(name: string, fn: HealthCheckFn): Promise<HealthCheckResult> {
     const start = Date.now();
     try {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const result = await Promise.race([
         Promise.resolve(fn()),
-        timeoutReject(this.checkTimeoutMs, name),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(new Error(`Health check "${name}" timed out after ${this.checkTimeoutMs}ms`)),
+            this.checkTimeoutMs,
+          );
+        }),
       ]);
+      if (timer) clearTimeout(timer);
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -138,9 +146,7 @@ export function livenessCheck(): HealthCheckResult {
  * @param checkFn - A function that tests DB connectivity (e.g. `SELECT 1`).
  *   Should resolve to true if healthy, throw on failure.
  */
-export function createDatabaseCheck(
-  checkFn: () => Promise<boolean>,
-): HealthCheckFn {
+export function createDatabaseCheck(checkFn: () => Promise<boolean>): HealthCheckFn {
   return async (): Promise<HealthCheckResult> => {
     const start = Date.now();
     try {
@@ -168,9 +174,7 @@ export function createDatabaseCheck(
  *
  * @param getSchemaCount - Returns the number of loaded schemas.
  */
-export function createSchemaCheck(
-  getSchemaCount: () => number,
-): HealthCheckFn {
+export function createSchemaCheck(getSchemaCount: () => number): HealthCheckFn {
   return (): HealthCheckResult => {
     const count = getSchemaCount();
     return {
@@ -190,10 +194,4 @@ function aggregateStatus(results: HealthCheckResult[]): HealthStatus {
   if (results.some((r) => r.status === "unhealthy")) return "unhealthy";
   if (results.some((r) => r.status === "degraded")) return "degraded";
   return "healthy";
-}
-
-function timeoutReject(ms: number, name: string): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`Health check "${name}" timed out after ${ms}ms`)), ms);
-  });
 }

@@ -169,6 +169,7 @@ export class AIAuditLogger {
   private readonly maxContentLength: number;
   private readonly onAuditEntry?: (entry: AIAuditEntry) => void;
   private readonly captureContent: boolean;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in addEntry()
   private entryCounter = 0;
 
   constructor(options?: AIAuditLoggerOptions) {
@@ -420,14 +421,8 @@ export class AIAuditLogger {
     }
 
     // Sort most recent first (by ID suffix as tiebreaker for same-millisecond entries)
-    results.sort((a, b) => {
-      const timeDiff = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-      if (timeDiff !== 0) return timeDiff;
-      // Extract sequence number from ID (format: "audit-{timestamp}-{seq}")
-      const seqA = Number.parseInt(a.id.split("-").pop() ?? "0", 10);
-      const seqB = Number.parseInt(b.id.split("-").pop() ?? "0", 10);
-      return seqB - seqA;
-    });
+    // Reverse to get newest-first (entries are appended in chronological order)
+    results.reverse();
 
     if (options?.offset) {
       results = results.slice(options.offset);
@@ -482,14 +477,18 @@ export class AIAuditLogger {
   private addEntry(partial: Omit<AIAuditEntry, "id" | "timestamp">): AIAuditEntry {
     this.entryCounter += 1;
     const entry: AIAuditEntry = {
-      id: `audit-${Date.now()}-${this.entryCounter}`,
+      id: `audit-${crypto.randomUUID()}`,
       timestamp: new Date().toISOString(),
       ...partial,
     };
 
-    // Trim if at capacity (remove oldest half)
+    // Trim if at capacity (remove oldest half, warn so operators notice)
     if (this.entries.length >= this.maxEntries) {
-      this.entries.splice(0, this.entries.length >> 1);
+      const trimCount = this.entries.length >> 1;
+      this.logger?.warn(
+        `AI audit log trimming ${trimCount} oldest entries (capacity: ${this.maxEntries})`,
+      );
+      this.entries.splice(0, trimCount);
     }
 
     this.entries.push(entry);
