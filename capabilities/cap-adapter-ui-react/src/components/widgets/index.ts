@@ -13,6 +13,8 @@ import { DateTimeDisplay, DateTimeInput } from "./datetime-widget";
 import { EnumDisplay, EnumInput } from "./enum-widget";
 import { JsonDisplay, JsonInput } from "./json-widget";
 import { NumberDisplay, NumberInput } from "./number-widget";
+import { HasManyDisplay, HasManyInput } from "./has-many-widget";
+import { ManyToManyDisplay, ManyToManyInput } from "./many-to-many-widget";
 import { RefDisplay, RefInput } from "./ref-widget";
 import { StateDisplay, StateInput } from "./state-widget";
 import { StringDisplay, StringInput } from "./string-widget";
@@ -104,5 +106,19 @@ export function registerDefaultWidgets() {
     definition: { id: "ref", fieldTypes: "ref", modes: ["display", "input"], isDefault: true },
     display: RefDisplay,
     input: RefInput,
+  });
+
+  // has_many widget for one-to-many relationship fields
+  widgetRegistry.register({
+    definition: { id: "has_many", fieldTypes: "has_many", modes: ["display", "input"], isDefault: true },
+    display: HasManyDisplay,
+    input: HasManyInput,
+  });
+
+  // many_to_many widget for many-to-many relationship fields
+  widgetRegistry.register({
+    definition: { id: "many_to_many", fieldTypes: "many_to_many", modes: ["display", "input"], isDefault: true },
+    display: ManyToManyDisplay,
+    input: ManyToManyInput,
   });
 }

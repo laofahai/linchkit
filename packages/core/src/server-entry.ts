@@ -152,7 +152,7 @@ export {
 
 // === Persistence: database, Drizzle ORM, migrations, system tables ===
 
-export { closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
+export { checkConnection, closeDatabase, createDatabase, type DatabaseConfig } from "./persistence/database";
 export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
 export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
 export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
@@ -169,3 +169,13 @@ export {
   linchkitSchema,
 } from "./persistence/system-tables";
 export { TableRegistry } from "./persistence/table-registry";
+
+// === Ontology: unified semantic facade ===
+
+export {
+  createOntologyRegistry,
+  type OntologyRegistry,
+  type OntologyRegistryDeps,
+  type RelationDescriptor,
+  type SchemaDescriptor,
+} from "./ontology";

@@ -13,9 +13,11 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   DataProvider,
+  EventHandlerDefinition,
   LinchKitConfig,
   LinkDefinition,
   MiddlewareRegistration,
+  RuleDefinition,
   SchemaDefinition,
   StateDefinition,
   TransportAdapterDefinition,
@@ -38,6 +40,7 @@ import {
   createFlowRegistry,
   createFlowStepContext,
   createLinkRegistry,
+  createOntologyRegistry,
   createOutboxWorker,
   createPersistentEventBus,
   createSyncFlowEngine,
@@ -180,6 +183,8 @@ export const devCommand = defineCommand({
     const views: ViewDefinition[] = [];
     const states: StateDefinition[] = [];
     const links: LinkDefinition[] = [];
+    const rules: RuleDefinition[] = [];
+    const eventHandlers: EventHandlerDefinition[] = [];
     const middlewares: MiddlewareRegistration[] = [];
     const transports: TransportAdapterDefinition[] = [];
 
@@ -189,6 +194,8 @@ export const devCommand = defineCommand({
       if (cap.views) views.push(...cap.views);
       if (cap.states) states.push(...cap.states);
       if (cap.links) links.push(...cap.links);
+      if (cap.rules) rules.push(...cap.rules);
+      if (cap.eventHandlers) eventHandlers.push(...cap.eventHandlers);
       if (cap.extensions?.middlewares) {
         for (const [i, mw] of cap.extensions.middlewares.entries()) {
           middlewares.push({
@@ -612,6 +619,19 @@ export const devCommand = defineCommand({
       triggerBinding.bindAll(flowRegistry.getAll(), syncFlowEngine);
     }
 
+    // Build OntologyRegistry — unified semantic facade over all registries
+    const ontologyRegistry = createOntologyRegistry({
+      schemas: schemaRegistry,
+      actions: actionRegistry,
+      rules,
+      states,
+      views,
+      links: linkRegistry,
+      flows: flowRegistry,
+      handlers: eventHandlerRegistry,
+    });
+    console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`);
+
     const transportCtx: TransportContext = {
       commandLayer,
       executor,
@@ -631,6 +651,7 @@ export const devCommand = defineCommand({
       permissionRegistry,
       flowRegistry,
       capabilities,
+      ontologyRegistry,
     };
 
     // Start all transports

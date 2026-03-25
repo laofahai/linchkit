@@ -13,6 +13,7 @@ import type { CommandLayer, MiddlewareRegistration } from "../engine/command-lay
 import type { PermissionRegistry } from "../engine/permission-engine";
 import type { EventBus } from "../event/event-bus";
 import type { FlowRegistry } from "../flow/types";
+import type { OntologyRegistry } from "../ontology";
 import type { LinkRegistry } from "../schema/link-registry";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
@@ -53,6 +54,8 @@ export interface TransportContext {
   capabilities?: CapabilityDefinition[];
   /** Flow registry with all registered flows */
   flowRegistry?: FlowRegistry;
+  /** Ontology registry — unified semantic facade over all registries */
+  ontologyRegistry?: OntologyRegistry;
 }
 
 /** Lifecycle handle returned by transport factory */

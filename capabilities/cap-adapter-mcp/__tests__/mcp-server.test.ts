@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { defineAction, defineSchema } from "@linchkit/core";
+import type { ActionResult, CommandLayer, RuleDefinition, StateDefinition } from "@linchkit/core";
+import { defineAction, defineRule, defineSchema, defineState } from "@linchkit/core";
 import { ActionRegistry, createSchemaRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
@@ -705,5 +705,430 @@ describe("createMcpAdapter — tenantId option", () => {
     });
 
     expect(server).toBeDefined();
+  });
+});
+
+// ── Additional test fixtures for introspection tools ──────────────────
+
+const productSchema = defineSchema({
+  name: "product",
+  label: "Product",
+  description: "Product catalog",
+  fields: {
+    title: { type: "string", label: "Title", required: true },
+    price: { type: "number", label: "Price", min: 0 },
+    status: { type: "state", label: "Status", machine: "product_lifecycle" },
+  },
+  presentation: {
+    titleField: "title",
+    badgeField: "status",
+    summaryFields: ["price"],
+    icon: "package",
+  },
+});
+
+const createProductAction = defineAction({
+  name: "create_product",
+  schema: "product",
+  label: "Create Product",
+  description: "Creates a new product",
+  input: {
+    title: { type: "string", required: true },
+    price: { type: "number", min: 0 },
+  },
+  policy: { mode: "sync", transaction: false },
+  exposure: "all",
+});
+
+const testRule = defineRule({
+  name: "high_value_approval",
+  label: "High Value Approval",
+  description: "Orders above 10000 require approval",
+  trigger: { action: "create_order" },
+  condition: { field: "amount", operator: "gt", value: 10000 },
+  effect: { type: "require_approval", level: "manager", message: "High value order" },
+  priority: 10,
+});
+
+const productRule = defineRule({
+  name: "product_price_check",
+  label: "Product Price Check",
+  description: "Product price must be positive",
+  trigger: { fieldChange: { schema: "product", field: "price" } },
+  condition: { field: "price", operator: "lte", value: 0 },
+  effect: { type: "block", message: "Price must be positive" },
+});
+
+const testStateMachine = defineState({
+  name: "order_status",
+  schema: "order",
+  field: "status",
+  initial: "draft",
+  states: ["draft", "confirmed", "shipped", "delivered"],
+  transitions: [
+    { from: "draft", to: "confirmed", action: "confirm_order" },
+    { from: "confirmed", to: "shipped", action: "ship_order" },
+    { from: "shipped", to: "delivered", action: "deliver_order" },
+  ],
+  meta: {
+    draft: { label: "Draft", color: "gray" },
+    confirmed: { label: "Confirmed", color: "blue" },
+    shipped: { label: "Shipped", color: "orange" },
+    delivered: { label: "Delivered", color: "green" },
+  },
+});
+
+const productStateMachine = defineState({
+  name: "product_lifecycle",
+  schema: "product",
+  field: "status",
+  initial: "draft",
+  states: ["draft", "active", "archived"],
+  transitions: [
+    { from: "draft", to: "active", action: "publish_product" },
+    { from: "active", to: "archived", action: "archive_product" },
+  ],
+});
+
+describe("createMcpAdapter — list_actions with schema filter", () => {
+  test("list_actions returns all actions when no schema filter", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema);
+    schemaRegistry.register(productSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+    actionRegistry.register(createProductAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(2);
+  });
+
+  test("list_actions filters by schema name", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema);
+    schemaRegistry.register(productSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+    actionRegistry.register(createProductAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({ schema: "product" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("create_product");
+    expect(parsed[0].schema).toBe("product");
+  });
+
+  test("list_actions returns empty array for unknown schema", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({ schema: "nonexistent" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(0);
+  });
+});
+
+describe("createMcpAdapter — describe_schema", () => {
+  test("describe_schema returns full schema details with presentation", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(productSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(createProductAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [productRule],
+      states: [productStateMachine],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.describe_schema?.handler({ name: "product" }, {});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0]?.text);
+
+    // Basic info
+    expect(parsed.name).toBe("product");
+    expect(parsed.label).toBe("Product");
+    expect(parsed.description).toBe("Product catalog");
+
+    // Fields
+    expect(parsed.fields.properties).toHaveProperty("title");
+    expect(parsed.fields.properties).toHaveProperty("price");
+
+    // Presentation
+    expect(parsed.presentation).toBeDefined();
+    expect(parsed.presentation.titleField).toBe("title");
+    expect(parsed.presentation.icon).toBe("package");
+
+    // Related actions
+    expect(parsed.actions).toHaveLength(1);
+    expect(parsed.actions[0].name).toBe("create_product");
+
+    // Related rules
+    expect(parsed.rules).toHaveLength(1);
+    expect(parsed.rules[0].name).toBe("product_price_check");
+
+    // Related state machines
+    expect(parsed.stateMachines).toHaveLength(1);
+    expect(parsed.stateMachines[0].name).toBe("product_lifecycle");
+    expect(parsed.stateMachines[0].initial).toBe("draft");
+  });
+
+  test("describe_schema returns error for unknown schema", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.describe_schema?.handler({ name: "nonexistent" }, {});
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("not found");
+  });
+
+  test("describe_schema returns null presentation when not defined", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema); // testSchema has no presentation
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.describe_schema?.handler({ name: "order" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.presentation).toBeNull();
+    expect(parsed.actions).toHaveLength(0);
+    expect(parsed.rules).toHaveLength(0);
+    expect(parsed.stateMachines).toHaveLength(0);
+  });
+
+  test("describe_schema includes action-triggered rules related to the schema", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.register(testSchema);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [testRule, productRule],
+      states: [testStateMachine],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.describe_schema?.handler({ name: "order" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    // testRule triggers on create_order which belongs to schema "order"
+    expect(parsed.rules).toHaveLength(1);
+    expect(parsed.rules[0].name).toBe("high_value_approval");
+    // testStateMachine is for "order" schema
+    expect(parsed.stateMachines).toHaveLength(1);
+    expect(parsed.stateMachines[0].name).toBe("order_status");
+  });
+});
+
+describe("createMcpAdapter — get_rules", () => {
+  test("get_rules returns all rules when no filter", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [testRule, productRule],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_rules?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(2);
+  });
+
+  test("get_rules filters by schema name (fieldChange trigger)", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [testRule, productRule],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_rules?.handler({ schema: "product" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("product_price_check");
+  });
+
+  test("get_rules filters by action name", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [testRule, productRule],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_rules?.handler({ action: "create_order" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("high_value_approval");
+  });
+
+  test("get_rules returns empty array when no matching rules", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      rules: [testRule],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_rules?.handler({ schema: "nonexistent" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(0);
+  });
+});
+
+describe("createMcpAdapter — get_state_machine", () => {
+  test("get_state_machine returns state machine for schema", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      states: [testStateMachine, productStateMachine],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_state_machine?.handler({ schema: "order" }, {});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("order_status");
+    expect(parsed[0].field).toBe("status");
+    expect(parsed[0].initial).toBe("draft");
+    expect(parsed[0].states).toEqual(["draft", "confirmed", "shipped", "delivered"]);
+    expect(parsed[0].transitions).toHaveLength(3);
+    expect(parsed[0].meta).toBeDefined();
+    expect(parsed[0].meta.draft.label).toBe("Draft");
+    expect(parsed[0].meta.draft.color).toBe("gray");
+  });
+
+  test("get_state_machine returns error for schema with no state machine", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+      states: [testStateMachine],
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_state_machine?.handler({ schema: "nonexistent" }, {});
+
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.error).toContain("No state machine found");
+  });
+
+  test("describe_schema tool is registered", async () => {
+    const schemaRegistry = createSchemaRegistry();
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      schemaRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    expect(tools.describe_schema).toBeDefined();
+    expect(tools.get_rules).toBeDefined();
+    expect(tools.get_state_machine).toBeDefined();
   });
 });

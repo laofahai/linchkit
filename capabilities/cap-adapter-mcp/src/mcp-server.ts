@@ -311,19 +311,112 @@ function registerBuiltinTools(
     },
   );
 
+  // describe_schema — detailed schema information with presentation, fields, related actions, rules, and state machines
+  const describeSchemaShape = { name: z.string().describe("Schema name") };
+  server.tool(
+    "describe_schema",
+    "Get detailed schema information including fields with types and constraints, presentation metadata, and related actions, rules, and state machines",
+    toMcpShape(describeSchemaShape),
+    async (args: { name: string }) => {
+      const schema = schemaRegistry.get(args.name);
+      if (!schema) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Full field details as JSON Schema
+      const fieldSchemas = fieldsToJsonSchema(schema.fields);
+
+      // Related actions (MCP-exposed only)
+      const relatedActions = actionRegistry
+        .getAll()
+        .filter((a) => {
+          if (a.schema !== args.name) return false;
+          if (a.exposure === undefined || a.exposure === "all") return true;
+          return a.exposure.mcp !== false;
+        })
+        .map((a) => ({
+          name: a.name,
+          label: a.label,
+          description: a.description,
+          inputFields: a.input ? Object.keys(a.input) : [],
+        }));
+
+      // Related rules
+      const relatedRules = rules
+        .filter((r) => {
+          const trigger = r.trigger;
+          if ("stateChange" in trigger && trigger.stateChange.schema === args.name) return true;
+          if ("fieldChange" in trigger && trigger.fieldChange.schema === args.name) return true;
+          if ("action" in trigger) {
+            // Check if the action belongs to this schema
+            const actionNames = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
+            return actionNames.some((an) => {
+              const act = actionRegistry.get(an);
+              return act?.schema === args.name;
+            });
+          }
+          return false;
+        })
+        .map(serializeRule);
+
+      // Related state machines
+      const relatedStateMachines = states
+        .filter((s) => s.schema === args.name)
+        .map((sm) => ({
+          name: sm.name,
+          field: sm.field,
+          initial: sm.initial,
+          states: sm.states,
+          transitions: sm.transitions,
+        }));
+
+      const result: Record<string, unknown> = {
+        name: schema.name,
+        label: schema.label,
+        description: schema.description,
+        fields: fieldSchemas,
+        presentation: schema.presentation ?? null,
+        actions: relatedActions,
+        rules: relatedRules,
+        stateMachines: relatedStateMachines,
+      };
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
   // list_actions — returns MCP-exposed action summaries with input field names
+  const listActionsShape = {
+    schema: z.string().describe("Filter actions by schema name").optional(),
+  };
   server.tool(
     "list_actions",
-    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries",
-    async () => {
-      const actions = actionRegistry
+    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries. Optionally filter by schema name.",
+    toMcpShape(listActionsShape),
+    async (args: { schema?: string }) => {
+      let actions = actionRegistry
         .getAll()
         .filter((a) => {
           // Only show actions exposed to MCP (consistent with tool registration)
           if (a.exposure === undefined || a.exposure === "all") return true;
           return a.exposure.mcp !== false;
-        })
-        .map((a) => ({
+        });
+
+      if (args.schema) {
+        actions = actions.filter((a) => a.schema === args.schema);
+      }
+
+      const result = actions.map((a) => ({
           name: a.name,
           label: a.label,
           description: a.description,
@@ -332,7 +425,7 @@ function registerBuiltinTools(
         }));
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(actions, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       };
     },
   );
