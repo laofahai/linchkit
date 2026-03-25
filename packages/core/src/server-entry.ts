@@ -101,6 +101,10 @@ export {
 
 // === Schema registry ===
 
+export {
+  createDerivedPropertyEngine,
+  DerivedPropertyEngine,
+} from "./schema/derived-property";
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
 export { createLinkRegistry, LinkRegistry } from "./schema/link-registry";
 export { createInterfaceRegistry, InterfaceRegistry } from "./schema/schema-interface";

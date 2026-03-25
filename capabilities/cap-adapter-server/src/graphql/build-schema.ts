@@ -20,6 +20,7 @@ import type {
   PermissionGroupDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
+import type { DerivedPropertyEngine } from "@linchkit/core";
 import { resolveTranslatableRow } from "@linchkit/core";
 import { maskRecord, maskRecords } from "@linchkit/core/server";
 import {
@@ -81,6 +82,8 @@ export interface GraphQLContext {
   dataProvider?: DataProvider;
   /** Permission groups for data masking unmask checks */
   permissionGroups?: PermissionGroupDefinition[];
+  /** Schema definitions map for link resolver data masking */
+  schemaMap?: Map<string, SchemaDefinition>;
 }
 
 /** Maximum page size for list queries */
@@ -133,11 +136,21 @@ const ActionResultType = new GraphQLObjectType({
 
 // ── Default CRUD action definitions ─────────────────────────
 
+/** Options for CRUD action generation */
+export interface GenerateCrudActionsOptions {
+  /** Derived property engine for auto-computing store-strategy derived fields */
+  derivedPropertyEngine?: DerivedPropertyEngine;
+}
+
 /**
  * Generate default CRUD action definitions for a schema.
  */
-export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[] {
+export function generateCrudActions(
+  schema: SchemaDefinition,
+  options?: GenerateCrudActionsOptions,
+): ActionDefinition[] {
   const name = schema.name;
+  const derivedEngine = options?.derivedPropertyEngine;
 
   const createAction: ActionDefinition = {
     name: `create_${name}`,
@@ -156,6 +169,11 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
           }
         }
       }
+      // Compute store-strategy derived fields before persisting
+      if (derivedEngine) {
+        const derivedValues = derivedEngine.computeStoreFields(name, inputWithDefaults);
+        Object.assign(inputWithDefaults, derivedValues);
+      }
       return ctx.create(name, inputWithDefaults);
     },
   };
@@ -170,6 +188,20 @@ export function generateCrudActions(schema: SchemaDefinition): ActionDefinition[
     handler: async (ctx) => {
       const id = ctx.input.id as string;
       const { id: _id, ...data } = ctx.input;
+      // Compute store-strategy derived fields before persisting.
+      // Merge existing record with new data so derived expressions can access all fields.
+      if (derivedEngine) {
+        let fullRecord: Record<string, unknown>;
+        try {
+          const existing = await ctx.get(name, id);
+          fullRecord = { ...existing, ...data };
+        } catch {
+          // Record not found — use input data only
+          fullRecord = { ...data };
+        }
+        const derivedValues = derivedEngine.computeStoreFields(name, fullRecord);
+        Object.assign(data, derivedValues);
+      }
       return ctx.update(name, id, data);
     },
   };
@@ -287,6 +319,8 @@ export interface BuildGraphQLSchemaOptions {
   eventBus?: EventBus;
   /** Permission groups for data masking (unmask permission checks) */
   permissionGroups?: PermissionGroupDefinition[];
+  /** Derived property engine for auto-computing derived fields on read and write */
+  derivedPropertyEngine?: DerivedPropertyEngine;
 }
 
 /**
@@ -309,6 +343,7 @@ export function buildGraphQLSchema(
   const links = options?.links ?? [];
   const eventBus = options?.eventBus;
   const permissionGroups = options?.permissionGroups ?? [];
+  const derivedEngine = options?.derivedPropertyEngine;
 
   // Build schema lookup map for data masking
   const schemaMap = new Map<string, SchemaDefinition>();
@@ -413,7 +448,12 @@ export function buildGraphQLSchema(
                 args.id,
                 Object.keys(opts).length > 0 ? opts : undefined,
               );
-              return record ? applyMasking(record as Record<string, unknown>, schemaName, ctx) : null;
+              if (!record) return null;
+              // Resolve compute-strategy derived fields on read
+              if (derivedEngine) {
+                derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
+              }
+              return applyMasking(record as Record<string, unknown>, schemaName, ctx);
             } catch (err) {
               console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
               return null;
@@ -493,10 +533,13 @@ export function buildGraphQLSchema(
 
             const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
             const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
-            // Apply data masking to each record in the result set
-            const items = (rawItems as Record<string, unknown>[]).map((r) =>
-              applyMasking(r, schemaName, ctx),
-            );
+            // Resolve compute-strategy derived fields on read, then apply data masking
+            const items = (rawItems as Record<string, unknown>[]).map((r) => {
+              if (derivedEngine) {
+                derivedEngine.resolveComputeFields(schemaName, r);
+              }
+              return applyMasking(r, schemaName, ctx);
+            });
             return { items, total };
           }
         : () => ({ items: [], total: 0 }),

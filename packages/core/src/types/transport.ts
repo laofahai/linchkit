@@ -6,6 +6,9 @@
  * Core only defines the contract; concrete implementations live in capabilities.
  */
 
+import type { AIAuditLogger } from "../ai/ai-audit";
+import type { AIBoundary } from "../ai/ai-boundary";
+import type { AutomationEngine } from "../automation/automation-engine";
 import type { CacheManager } from "../cache/cache-manager";
 import type { ConfigRegistry } from "../config/config-registry";
 import type { EnvironmentConfig } from "../deployment/environment";
@@ -17,6 +20,7 @@ import type { PermissionRegistry } from "../engine/permission-engine";
 import type { EventBus } from "../event/event-bus";
 import type { FlowRegistry } from "../flow/types";
 import type { OntologyRegistry } from "../ontology";
+import type { DerivedPropertyEngine } from "../schema/derived-property";
 import type { LinkRegistry } from "../schema/link-registry";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
@@ -63,6 +67,10 @@ export interface TransportContext {
   cacheManager?: CacheManager;
   /** Health check registry — liveness and readiness probes */
   healthCheckRegistry?: HealthCheckRegistry;
+  /** Derived property engine — computes store/compute-strategy derived fields */
+  derivedPropertyEngine?: DerivedPropertyEngine;
+  /** Automation engine — reactive event-driven automations */
+  automationEngine?: AutomationEngine;
   /** Detected environment config with feature flags */
   environment?: EnvironmentConfig;
 }

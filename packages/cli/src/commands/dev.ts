@@ -26,6 +26,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core";
 import { ConfigRegistry, databaseConfig } from "@linchkit/core";
+import { createDerivedPropertyEngine } from "@linchkit/core";
 import {
   ActionRegistry,
   buildTableColumns,
@@ -694,6 +695,17 @@ export const devCommand = defineCommand({
       triggerBinding.bindAll(flowRegistry.getAll(), flowEngine);
     }
 
+    // Build DerivedPropertyEngine — auto-computes derived fields on write and read
+    const derivedPropertyEngine = createDerivedPropertyEngine();
+    derivedPropertyEngine.register(schemas);
+    const derivedFieldCount = schemas.reduce(
+      (acc, s) => acc + derivedPropertyEngine.getDerivedFields(s.name).length,
+      0,
+    );
+    if (derivedFieldCount > 0) {
+      console.log(`[linch] DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
+    }
+
     // Build OntologyRegistry — unified semantic facade over all registries
     const ontologyRegistry = createOntologyRegistry({
       schemas: schemaRegistry,
@@ -760,6 +772,7 @@ export const devCommand = defineCommand({
       cacheManager,
       healthCheckRegistry,
       environment,
+      derivedPropertyEngine,
     };
 
     // Start all transports

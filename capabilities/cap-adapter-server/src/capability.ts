@@ -27,8 +27,11 @@ export const capAdapterServer = defineCapability({
           const { createServer } = await import("./server");
 
           // Generate CRUD actions for each schema, register into executor (skip duplicates)
+          const crudOpts = ctx.derivedPropertyEngine
+            ? { derivedPropertyEngine: ctx.derivedPropertyEngine }
+            : undefined;
           for (const schema of ctx.schemas) {
-            const cruds = generateCrudActions(schema);
+            const cruds = generateCrudActions(schema, crudOpts);
             for (const crud of cruds) {
               if (!ctx.executor.registry.has(crud.name)) {
                 ctx.executor.registry.register(crud);
@@ -55,12 +58,19 @@ export const capAdapterServer = defineCapability({
             links: ctx.links,
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,
+            derivedPropertyEngine: ctx.derivedPropertyEngine,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
           const serverCfg = serverConfig.from(ctx);
           const port = serverCfg.port;
           const host = serverCfg.host;
+
+          // Build schema map for link resolver data masking
+          const schemaMap = new Map<string, import("@linchkit/core").SchemaDefinition>();
+          for (const s of ctx.schemas) {
+            schemaMap.set(s.name, s);
+          }
 
           // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {
@@ -73,6 +83,8 @@ export const capAdapterServer = defineCapability({
             capabilities: ctx.capabilities,
             dataProvider: ctx.dataProvider,
             healthCheckRegistry: ctx.healthCheckRegistry,
+            permissionGroups: permGroups,
+            schemaMap,
             // Extract tenant ID from X-Tenant-ID header.
             // TODO: support JWT-based tenant extraction via auth capability
             resolveRequestTenantId: (request: Request) => {
