@@ -11,3 +11,4 @@ export {
   generateGraphQLInputType,
   generateGraphQLObjectType,
 } from "./schema-to-graphql";
+export { buildSubscriptionFields, buildTopic, createEventBusPubSub } from "./build-subscriptions";

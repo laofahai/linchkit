@@ -1,7 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import { mockAIService } from "@linchkit/devtools";
 import type { ProposalDefinition, SchemaDefinition } from "../src";
-import { ActionRegistry, createProposalGenerator, createSchemaRegistry } from "../src/server-entry";
+import { ProposalGenerationError } from "../src/engine/proposal-generator";
+import { createOntologyRegistry } from "../src/ontology/ontology-registry";
+import {
+  ActionRegistry,
+  createProposalGenerator,
+  createSchemaRegistry,
+} from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -12,6 +18,18 @@ const taskSchema: SchemaDefinition = {
     title: { type: "string", required: true, label: "Title" },
     description: { type: "text", label: "Description" },
     assignee_id: { type: "string", label: "Assignee" },
+  },
+};
+
+const projectSchema: SchemaDefinition = {
+  name: "project",
+  label: "Project",
+  fields: {
+    name: { type: "string", required: true, label: "Name" },
+    status: { type: "enum", label: "Status", options: [
+      { value: "active", label: "Active" },
+      { value: "archived", label: "Archived" },
+    ] },
   },
 };
 
@@ -294,6 +312,145 @@ describe("ProposalGenerator", () => {
       expect(systemMsg).toBeTruthy();
       expect(systemMsg?.content).toContain("task");
       expect(systemMsg?.content).toContain("title");
+    });
+
+    it("includes ontology context in system prompt when OntologyRegistry is provided", async () => {
+      const { ai, schemaRegistry, actionRegistry } = createDeps({
+        "Add a priority field": addPriorityResponse,
+      });
+      schemaRegistry.register(taskSchema);
+      schemaRegistry.register(projectSchema);
+
+      const ontologyRegistry = createOntologyRegistry({
+        schemas: schemaRegistry,
+        actions: actionRegistry,
+        rules: [],
+        states: [],
+        views: [],
+      });
+
+      const generator = createProposalGenerator({
+        aiService: ai,
+        schemaRegistry,
+        actionRegistry,
+        ontologyRegistry,
+      });
+
+      await generator.generate({
+        description: "Add a priority field to Task schema",
+      });
+
+      expect(ai.callCount).toBe(1);
+      const call = ai.calls[0];
+      const systemMsg = call.messages.find((m) => m.role === "system");
+      expect(systemMsg).toBeTruthy();
+
+      // Ontology markdown includes the "# Ontology" header and "## Fields" sections
+      expect(systemMsg?.content).toContain("Ontology");
+      // Should contain both schema names from ontology
+      expect(systemMsg?.content).toContain("Task");
+      expect(systemMsg?.content).toContain("Project");
+      // Should contain field details from ontology markdown
+      expect(systemMsg?.content).toContain("title");
+      expect(systemMsg?.content).toContain("name");
+    });
+
+    it("throws ProposalGenerationError when AI service is not configured", async () => {
+      const schemaRegistry = createSchemaRegistry();
+      const actionRegistry = new ActionRegistry();
+
+      // Create an AI service that throws "not configured"
+      const noopAI = {
+        complete: () => {
+          throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
+        },
+      };
+
+      const generator = createProposalGenerator({
+        aiService: noopAI,
+        schemaRegistry,
+        actionRegistry,
+      });
+
+      try {
+        await generator.generate({ description: "Add a field" });
+        expect(true).toBe(false); // Should not reach here
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProposalGenerationError);
+        expect((err as ProposalGenerationError).message).toContain("not configured");
+        expect((err as ProposalGenerationError).cause).toBeTruthy();
+      }
+    });
+
+    it("throws ProposalGenerationError with descriptive message on generic AI failure", async () => {
+      const schemaRegistry = createSchemaRegistry();
+      const actionRegistry = new ActionRegistry();
+
+      const failingAI = {
+        complete: () => {
+          throw new Error("Rate limit exceeded");
+        },
+      };
+
+      const generator = createProposalGenerator({
+        aiService: failingAI,
+        schemaRegistry,
+        actionRegistry,
+      });
+
+      try {
+        await generator.generate({ description: "Add a field" });
+        expect(true).toBe(false); // Should not reach here
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProposalGenerationError);
+        expect((err as ProposalGenerationError).message).toContain("Rate limit exceeded");
+        expect((err as ProposalGenerationError).message).toContain("AI proposal generation failed");
+      }
+    });
+
+    it("includes example proposal in system prompt", async () => {
+      const { ai, schemaRegistry, actionRegistry } = createDeps({
+        "Add a priority field": addPriorityResponse,
+      });
+      schemaRegistry.register(taskSchema);
+
+      const generator = createProposalGenerator({
+        aiService: ai,
+        schemaRegistry,
+        actionRegistry,
+      });
+
+      await generator.generate({
+        description: "Add a priority field to Task schema",
+      });
+
+      const call = ai.calls[0];
+      const systemMsg = call.messages.find((m) => m.role === "system");
+      // System prompt should contain the example
+      expect(systemMsg?.content).toContain("Example proposal");
+    });
+
+    it("includes additional context in user message", async () => {
+      const { ai, schemaRegistry, actionRegistry } = createDeps({
+        "Add a deadline": addPriorityResponse,
+      });
+      schemaRegistry.register(taskSchema);
+
+      const generator = createProposalGenerator({
+        aiService: ai,
+        schemaRegistry,
+        actionRegistry,
+      });
+
+      await generator.generate({
+        description: "Add a deadline field to Task",
+        context: { fieldType: "datetime", required: true },
+      });
+
+      const call = ai.calls[0];
+      const userMsg = call.messages.find((m) => m.role === "user");
+      expect(userMsg?.content).toContain("Additional context");
+      expect(userMsg?.content).toContain("datetime");
     });
   });
 
@@ -583,6 +740,65 @@ describe("ProposalGenerator", () => {
       expect(result.impactSummary).toContain("task");
       expect(result.impactSummary).toContain("create_task");
       expect(result.impactSummary).toContain("migration");
+    });
+
+    it("validates action with schema created in same proposal", async () => {
+      const { ai, schemaRegistry, actionRegistry } = createDeps({});
+
+      const generator = createProposalGenerator({
+        aiService: ai,
+        schemaRegistry,
+        actionRegistry,
+      });
+
+      // Proposal creates a schema and an action referencing it
+      const proposal: ProposalDefinition = {
+        id: "test-8",
+        title: "Create invoice module",
+        description: "Create invoice schema with create action",
+        author: { type: "ai", id: "ai", name: "AI" },
+        capability: "billing",
+        changeType: "minor",
+        changes: [
+          {
+            target: "schema",
+            operation: "create",
+            name: "invoice",
+            definition: {
+              name: "invoice",
+              label: "Invoice",
+              fields: {
+                amount: { type: "number", required: true, label: "Amount" },
+              },
+            },
+          },
+          {
+            target: "action",
+            operation: "create",
+            name: "create_invoice",
+            definition: {
+              name: "create_invoice",
+              schema: "invoice",
+              label: "Create Invoice",
+              policy: { mode: "sync", transaction: true },
+            } as never,
+          },
+        ],
+        impact: {
+          schemasAffected: ["invoice"],
+          actionsAffected: ["create_invoice"],
+          rulesAffected: [],
+          dependentsAffected: [],
+          migrationRequired: true,
+        },
+        status: "draft",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const result = await generator.validate(proposal);
+      // Action references "invoice" which is created in the same proposal — should pass
+      expect(result.passed).toBe(true);
     });
   });
 });

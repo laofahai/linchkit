@@ -13,7 +13,9 @@ import type {
   ActionRegistry,
   Actor,
   CommandLayer,
+  OntologyRegistry,
   RuleDefinition,
+  SchemaDescriptor,
   SchemaRegistry,
   StateDefinition,
 } from "@linchkit/core";
@@ -37,6 +39,8 @@ export interface McpAdapterOptions {
   graphqlEndpoint?: string;
   /** Tenant ID for multi-tenant scoping (forwarded as x-tenant-id to GraphQL) */
   tenantId?: string;
+  /** Ontology registry for unified schema introspection (optional, backwards compatible) */
+  ontologyRegistry?: OntologyRegistry;
   name?: string;
   version?: string;
   /**
@@ -86,6 +90,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     name = "linchkit",
     version = "1.0.0",
     bearerToken,
+    ontologyRegistry,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -143,6 +148,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     graphqlEndpoint,
     bearerToken,
     tenantId,
+    ontologyRegistry,
   );
 
   // Register scaffold tools for AI code generation
@@ -257,6 +263,7 @@ function registerBuiltinTools(
   graphqlEndpoint?: string,
   bearerToken?: string,
   tenantId?: string,
+  ontologyRegistry?: OntologyRegistry,
 ): void {
   // list_schemas — returns schema summaries with field names
   server.tool(
@@ -315,9 +322,30 @@ function registerBuiltinTools(
   const describeSchemaShape = { name: z.string().describe("Schema name") };
   server.tool(
     "describe_schema",
-    "Get detailed schema information including fields with types and constraints, presentation metadata, and related actions, rules, and state machines",
+    "Get detailed schema information including fields with types and constraints, presentation metadata, related actions, rules, state machines, relations, views, and flows",
     toMcpShape(describeSchemaShape),
     async (args: { name: string }) => {
+      // Prefer OntologyRegistry when available — unified, richer descriptor
+      if (ontologyRegistry) {
+        const descriptor = ontologyRegistry.describe(args.name);
+        if (!descriptor) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const result = serializeSchemaDescriptor(descriptor);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      // Fallback: manual matching logic (backwards compatible when OntologyRegistry is absent)
       const schema = schemaRegistry.get(args.name);
       if (!schema) {
         return {
@@ -629,6 +657,146 @@ function registerBuiltinTools(
       }
     },
   );
+
+  // ── Ontology-powered tools (only registered when OntologyRegistry is available) ──
+
+  if (ontologyRegistry) {
+    // ontology_overview — full system introspection for AI agents
+    const ontologyOverviewShape = {
+      format: z
+        .enum(["markdown", "json"])
+        .describe("Output format: 'markdown' for human-readable summary, 'json' for structured data")
+        .optional(),
+    };
+    server.tool(
+      "ontology_overview",
+      "Get a full overview of the system ontology — all schemas, actions, rules, state machines, relations, views, and flows. Use 'markdown' for a concise summary or 'json' for structured data.",
+      toMcpShape(ontologyOverviewShape),
+      async (args: { format?: "markdown" | "json" }) => {
+        const format = args.format ?? "markdown";
+
+        if (format === "markdown") {
+          const markdown = ontologyRegistry.toMarkdown();
+          return {
+            content: [{ type: "text" as const, text: markdown }],
+          };
+        }
+
+        // JSON format — serialize all descriptors with field JSON schemas
+        const allDescriptors = ontologyRegistry.toJSON();
+        const serialized: Record<string, unknown> = {};
+        for (const [name, descriptor] of Object.entries(allDescriptors)) {
+          serialized[name] = serializeSchemaDescriptor(descriptor);
+        }
+
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(serialized, null, 2) }],
+        };
+      },
+    );
+
+    // search_ontology — keyword search across schemas
+    const searchOntologyShape = {
+      query: z
+        .string()
+        .describe("Search query — matches against schema names, labels, descriptions, and field names"),
+    };
+    server.tool(
+      "search_ontology",
+      "Search the system ontology by keyword. Returns matching schemas with their full descriptors (actions, rules, states, relations).",
+      toMcpShape(searchOntologyShape),
+      async (args: { query: string }) => {
+        const results = ontologyRegistry.searchSchemas(args.query);
+
+        if (results.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({ results: [], message: `No schemas matched query '${args.query}'` }),
+              },
+            ],
+          };
+        }
+
+        const serialized = results.map(serializeSchemaDescriptor);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(serialized, null, 2) }],
+        };
+      },
+    );
+  }
+}
+
+/** Serialize a SchemaDescriptor to a JSON-safe MCP output format */
+function serializeSchemaDescriptor(descriptor: SchemaDescriptor): Record<string, unknown> {
+  // Convert FieldDefinition records to JSON Schema for MCP consumers
+  const fieldSchemas = fieldsToJsonSchema(descriptor.fields);
+
+  // Serialize actions (MCP-safe subset)
+  const actions = descriptor.actions.map((a) => ({
+    name: a.name,
+    label: a.label,
+    description: a.description,
+    inputFields: a.input ? Object.keys(a.input) : [],
+  }));
+
+  // Serialize rules (strip code conditions)
+  const rules = descriptor.rules.map(serializeRule);
+
+  // Serialize state machine (if present)
+  const stateMachines = descriptor.states
+    ? [
+        {
+          name: descriptor.states.name,
+          field: descriptor.states.field,
+          initial: descriptor.states.initial,
+          states: descriptor.states.states,
+          transitions: descriptor.states.transitions,
+          meta: descriptor.states.meta,
+        },
+      ]
+    : [];
+
+  // Serialize relations
+  const relations = descriptor.relations.map((r) => ({
+    linkName: r.linkName,
+    direction: r.direction,
+    targetSchema: r.targetSchema,
+    cardinality: r.cardinality,
+    label: r.label,
+  }));
+
+  // Serialize views
+  const views = descriptor.views.map((v) => ({
+    name: v.name,
+    type: v.type,
+    schema: v.schema,
+    label: v.label,
+  }));
+
+  // Serialize flows
+  const flows = descriptor.flows.map((f) => ({
+    name: f.name,
+    label: f.label,
+    description: f.description,
+    trigger: f.trigger,
+    stepCount: f.steps.length,
+  }));
+
+  return {
+    name: descriptor.name,
+    label: descriptor.label,
+    description: descriptor.description,
+    fields: fieldSchemas,
+    presentation: descriptor.presentation ?? null,
+    relations,
+    actions,
+    rules,
+    stateMachines,
+    views,
+    flows,
+  };
 }
 
 /** Register MCP resources */

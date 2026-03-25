@@ -46,9 +46,56 @@ describe("linch create capability", () => {
     expect(existsSync(resolve(capDir, "package.json"))).toBe(true);
     expect(existsSync(resolve(capDir, "tsconfig.json"))).toBe(true);
     expect(existsSync(resolve(capDir, "src/index.ts"))).toBe(true);
+    // New directories
+    expect(existsSync(resolve(capDir, "src/schemas"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/actions"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/rules"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/states"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/views"))).toBe(true);
+    // README files for empty directories
+    expect(existsSync(resolve(capDir, "src/rules/README.md"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/states/README.md"))).toBe(true);
+  });
+
+  test("generates example files by default", async () => {
+    await runCreate("cap-inventory", "--dir", "cap-inventory");
+
+    const capDir = resolve(TEST_DIR, "cap-inventory");
+
+    // Example schema
+    expect(existsSync(resolve(capDir, "src/schemas/inventory.ts"))).toBe(true);
+    const schemaContent = readFileSync(resolve(capDir, "src/schemas/inventory.ts"), "utf-8");
+    expect(schemaContent).toContain("defineSchema");
+    expect(schemaContent).toContain("inventorySchema");
+
+    // Example action
+    expect(existsSync(resolve(capDir, "src/actions/create-inventory.ts"))).toBe(true);
+    const actionContent = readFileSync(resolve(capDir, "src/actions/create-inventory.ts"), "utf-8");
+    expect(actionContent).toContain("defineAction");
+    expect(actionContent).toContain("create_inventory");
+
+    // Example views
+    expect(existsSync(resolve(capDir, "src/views/inventory.ts"))).toBe(true);
+    const viewContent = readFileSync(resolve(capDir, "src/views/inventory.ts"), "utf-8");
+    expect(viewContent).toContain("inventoryListView");
+    expect(viewContent).toContain("inventoryFormView");
+  });
+
+  test("--bare skips example files", async () => {
+    await runCreate("cap-bare", "--dir", "cap-bare", "--bare");
+
+    const capDir = resolve(TEST_DIR, "cap-bare");
+
+    // Should have .gitkeep instead of examples
     expect(existsSync(resolve(capDir, "src/schemas/.gitkeep"))).toBe(true);
     expect(existsSync(resolve(capDir, "src/actions/.gitkeep"))).toBe(true);
-    expect(existsSync(resolve(capDir, "src/rules/.gitkeep"))).toBe(true);
+    expect(existsSync(resolve(capDir, "src/views/.gitkeep"))).toBe(true);
+
+    // index.ts should have empty arrays
+    const indexContent = readFileSync(resolve(capDir, "src/index.ts"), "utf-8");
+    expect(indexContent).toContain("schemas: []");
+    expect(indexContent).toContain("actions: []");
+    expect(indexContent).toContain("views: []");
   });
 
   test("capability.json passes validateCapabilityMetadata", async () => {
@@ -104,7 +151,7 @@ describe("linch create capability", () => {
   });
 
   test("src/index.ts exports capability definition", async () => {
-    await runCreate("cap-check", "--dir", "cap-check");
+    await runCreate("cap-check", "--dir", "cap-check", "--bare");
 
     const capDir = resolve(TEST_DIR, "cap-check");
     const content = readFileSync(resolve(capDir, "src/index.ts"), "utf-8");
@@ -133,5 +180,12 @@ describe("linch create capability", () => {
     const { stderr } = await runCreate("cap-bad", "--category", "invalid", "--dir", "cap-bad");
 
     expect(stderr).toContain("Invalid category");
+  });
+
+  test("structure output mentions views/ and states/ directories", async () => {
+    const { stdout } = await runCreate("cap-output", "--dir", "cap-output");
+
+    expect(stdout).toContain("views/");
+    expect(stdout).toContain("states/");
   });
 });

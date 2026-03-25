@@ -113,6 +113,12 @@ export type {
 export type { TraceState } from "./observability/trace-context";
 export type { LinkRegistry } from "./schema/link-registry";
 export { createLinkRegistry } from "./schema/link-registry";
+export type {
+  OntologyRegistry,
+  OntologyRegistryDeps,
+  RelationDescriptor,
+  SchemaDescriptor,
+} from "./ontology";
 export type { SchemaRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {

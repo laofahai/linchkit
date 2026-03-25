@@ -12,6 +12,7 @@ import type {
   Actor,
   DataProvider,
   DataQueryOptions,
+  EventBus,
   ExecutionLogger,
   ExecutionStatus,
   LinkDefinition,
@@ -35,6 +36,7 @@ import {
   generateGraphQLInputType,
   generateGraphQLObjectType,
 } from "./schema-to-graphql";
+import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 
 const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
 
@@ -283,6 +285,8 @@ export interface BuildGraphQLSchemaOptions {
   executionLogger?: ExecutionLogger;
   /** Link definitions for generating bidirectional relation resolver fields */
   links?: LinkDefinition[];
+  /** Event bus for wiring GraphQL subscriptions (real-time CRUD events via SSE) */
+  eventBus?: EventBus;
 }
 
 /**
@@ -303,6 +307,7 @@ export function buildGraphQLSchema(
   const dataProvider = options?.dataProvider;
   const executionLogger = options?.executionLogger;
   const links = options?.links ?? [];
+  const eventBus = options?.eventBus;
 
   if (schemas.length === 0) {
     // Return a minimal valid schema with a placeholder query
@@ -761,7 +766,24 @@ export function buildGraphQLSchema(
     fields: mutationFields as Record<string, GraphQLFieldConfig<unknown, unknown>>,
   });
 
-  return new GraphQLSchema({ query, mutation });
+  // Build subscription type when EventBus is available
+  let subscription: GraphQLObjectType | undefined;
+  if (eventBus) {
+    const { pubsub } = createEventBusPubSub(eventBus);
+    const subscriptionFields = buildSubscriptionFields({
+      schemas,
+      schemaObjectTypes,
+      pubsub,
+    });
+    if (subscriptionFields) {
+      subscription = new GraphQLObjectType({
+        name: "Subscription",
+        fields: subscriptionFields,
+      });
+    }
+  }
+
+  return new GraphQLSchema({ query, mutation, subscription });
 }
 
 /**

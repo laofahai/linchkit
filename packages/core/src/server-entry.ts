@@ -60,6 +60,7 @@ export {
 
 export {
   createProposalGenerator,
+  ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./engine/proposal-generator";
 

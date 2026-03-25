@@ -61,6 +61,7 @@ export {
 // Proposal generator (AI-powered)
 export {
   createProposalGenerator,
+  ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./proposal-generator";
 // Rule engine
