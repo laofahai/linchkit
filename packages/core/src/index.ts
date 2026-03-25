@@ -200,8 +200,37 @@ export {
   validateCapabilityMetadata,
 } from "./types";
 export type { Logger } from "./types/logger";
-
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
 export { validateIdentifier } from "./utils/identifier";
+export type {
+  BreakingChange,
+  CompatibilityCheckResult,
+  MigrationResult,
+  MigrationTransform,
+  ReleaseCompatibilityResult,
+  ReleaseType,
+  RollbackMode,
+  SchemaMigration,
+  SemVer,
+  TenantOverrideImpact,
+  VersionEntry,
+  VersionedEntityType,
+  VersionQuery,
+} from "./versioning";
+// Versioning — release compatibility, migration, version tracking (spec 38)
+export {
+  analyzeCompatibility,
+  applyMigration,
+  classifyRelease,
+  compareSemVer,
+  createVersionRegistry,
+  formatSemVer,
+  getBreakingChanges,
+  isCompatible,
+  MigrationRegistry,
+  parseSemVer,
+  VersionRegistry,
+  validateUpgrade,
+} from "./versioning";
