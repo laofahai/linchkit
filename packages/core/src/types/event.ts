@@ -75,3 +75,11 @@ export interface EventHandlerContext {
   get(schema: string, id: string): Promise<Record<string, unknown>>;
   query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
 }
+
+// ── EventBusLike interface ───────────────────────────────────
+// Minimal event bus contract used by automation and flow modules
+// to subscribe to events without depending on the full EventBus implementation.
+
+export interface EventBusLike {
+  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void;
+}

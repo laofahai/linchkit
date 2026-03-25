@@ -10,15 +10,12 @@
  */
 
 import type { ActorType } from "../types/action";
-import type { EventRecord } from "../types/event";
+import type { EventBusLike, EventRecord } from "../types/event";
 import type { EventFlowTrigger, FlowDefinition, ScheduleFlowTrigger } from "../types/flow";
 import type { FlowEngine } from "./types";
 
-// ── EventBusLike interface (avoids circular deps) ───────────
-
-export interface EventBusLike {
-  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void;
-}
+// Re-export for backwards compatibility
+export type { EventBusLike } from "../types/event";
 
 // ── TriggerBinding interface ────────────────────────────────
 

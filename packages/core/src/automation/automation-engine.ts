@@ -10,7 +10,7 @@
  */
 
 import { type ConditionContext, evaluateCondition } from "../engine/condition-evaluator";
-import type { EventBusLike } from "../flow/trigger-binding";
+import type { EventBusLike } from "../types/event";
 import type {
   AutomationAction,
   AutomationDefinition,
