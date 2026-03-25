@@ -15,6 +15,8 @@ import type {
   DataProvider,
   ExecutionLogger,
   ExecutionStatus,
+  PermissionGroupDefinition,
+  SchemaDefinition,
   SchemaRegistry,
   ViewDefinition,
 } from "@linchkit/core";
@@ -67,6 +69,10 @@ export interface ServerOptions {
   cors?: string[] | boolean;
   /** Health check registry for /health endpoint. When provided, runs all registered checks. */
   healthCheckRegistry?: HealthCheckRegistry;
+  /** Permission groups for data masking in link resolvers */
+  permissionGroups?: PermissionGroupDefinition[];
+  /** Schema definitions map for data masking in link resolvers */
+  schemaMap?: Map<string, SchemaDefinition>;
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -200,6 +206,8 @@ export function createServer(
   const dataProvider = options?.dataProvider;
   const corsOption = options?.cors;
   const healthCheckRegistry = options?.healthCheckRegistry;
+  const permissionGroups = options?.permissionGroups ?? [];
+  const schemaMap = options?.schemaMap;
 
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
@@ -207,14 +215,14 @@ export function createServer(
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
-    // Build GraphQL context with actor, tenant isolation, locale, and data provider for link resolvers
+    // Build GraphQL context with actor, tenant isolation, locale, data provider, and masking context for link resolvers
     context: async ({ request }) => {
       const actor = resolveRequestActor
         ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
         : ANONYMOUS_ACTOR;
       const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
       const locale = resolveRequestLocale(request);
-      return { actor, tenantId, locale, dataProvider };
+      return { actor, tenantId, locale, dataProvider, permissionGroups, schemaMap };
     },
   });
 

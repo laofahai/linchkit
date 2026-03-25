@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { Actor, PermissionGroupDefinition, SchemaDefinition } from "@linchkit/core";
+import type {
+  Actor,
+  LinkDefinition,
+  PermissionGroupDefinition,
+  SchemaDefinition,
+} from "@linchkit/core";
 import { createActionExecutor } from "@linchkit/core/server";
 import { graphql } from "graphql";
 import { InMemoryStore } from "../src/data/in-memory-store";
@@ -235,5 +240,178 @@ describe("GraphQL data masking", () => {
 
     expect(emp.name).toBe("Alice Johnson");
     expect(emp.department).toBe("Engineering");
+  });
+});
+
+// ── Link traversal masking tests ────────────────────────────
+
+const departmentSchema: SchemaDefinition = {
+  name: "department",
+  label: "Department",
+  fields: {
+    name: { type: "string", required: true, label: "Name" },
+    location: { type: "string", label: "Location" },
+  },
+};
+
+const linkedEmployeeSchema: SchemaDefinition = {
+  name: "linked_employee",
+  label: "Linked Employee",
+  fields: {
+    name: { type: "string", required: true, label: "Name" },
+    email: { type: "string", required: true, label: "Email", sensitive: true },
+    ssn: { type: "string", label: "SSN", secret: true },
+    salary: { type: "number", label: "Salary", sensitive: true },
+  },
+};
+
+const deptEmployeeLink: LinkDefinition = {
+  name: "dept_employee",
+  from: "department",
+  to: "linked_employee",
+  cardinality: "one_to_many",
+  label: {
+    from: "Employees",
+    to: "Department",
+  },
+};
+
+// Build linked schema
+const linkStore = new InMemoryStore();
+const linkExecutor = createActionExecutor({ dataProvider: linkStore });
+
+for (const action of generateCrudActions(departmentSchema)) {
+  linkExecutor.registry.register(action);
+}
+for (const action of generateCrudActions(linkedEmployeeSchema)) {
+  linkExecutor.registry.register(action);
+}
+
+const linkSchemaMap = new Map<string, SchemaDefinition>();
+linkSchemaMap.set("department", departmentSchema);
+linkSchemaMap.set("linked_employee", linkedEmployeeSchema);
+
+const linkGqlSchema = buildGraphQLSchema([departmentSchema, linkedEmployeeSchema], {
+  executor: linkExecutor,
+  dataProvider: linkStore,
+  permissionGroups,
+  links: [deptEmployeeLink],
+});
+
+async function executeLinkGql(
+  query: string,
+  actor: Actor,
+  variables?: Record<string, unknown>,
+) {
+  const ctx: GraphQLContext = {
+    actor,
+    permissionGroups,
+    dataProvider: linkStore,
+    schemaMap: linkSchemaMap,
+  };
+  return graphql({
+    schema: linkGqlSchema,
+    source: query,
+    contextValue: ctx,
+    variableValues: variables,
+  });
+}
+
+describe("GraphQL link traversal masking", () => {
+  const deptId = "dept-link-1";
+  const empId1 = "emp-link-1";
+  const empId2 = "emp-link-2";
+
+  test("setup: create test records", async () => {
+    await linkStore.create("department", {
+      id: deptId,
+      name: "Engineering",
+      location: "Building A",
+    });
+    await linkStore.create("linked_employee", {
+      id: empId1,
+      name: "Bob Smith",
+      email: "bob@secret.com",
+      ssn: "111-22-3333",
+      salary: 120000,
+      department_id: deptId,
+    });
+    await linkStore.create("linked_employee", {
+      id: empId2,
+      name: "Carol Jones",
+      email: "carol@secret.com",
+      ssn: "444-55-6666",
+      salary: 95000,
+      department_id: deptId,
+    });
+  });
+
+  test("anonymous: sensitive fields masked when traversing one_to_many link", async () => {
+    const result = await executeLinkGql(
+      `{ department(id: "${deptId}") { id name linked_employees { id name email ssn salary } } }`,
+      anonymousActor,
+    );
+
+    expect(result.errors).toBeUndefined();
+    const dept = result.data?.department as Record<string, unknown>;
+    expect(dept).not.toBeNull();
+    expect(dept.name).toBe("Engineering");
+
+    const employees = dept.linked_employees as Record<string, unknown>[];
+    expect(employees).toHaveLength(2);
+
+    for (const emp of employees) {
+      // Non-sensitive fields are visible
+      expect(typeof emp.name).toBe("string");
+
+      // Sensitive email is masked (not equal to original)
+      expect(emp.email).not.toBe("bob@secret.com");
+      expect(emp.email).not.toBe("carol@secret.com");
+
+      // Secret SSN is fully masked (null for secret fields)
+      expect(emp.ssn).toBeNull();
+
+      // Sensitive number field is coerced to null
+      expect(emp.salary).toBeNull();
+    }
+  });
+
+  test("anonymous: sensitive fields masked when traversing many_to_one (reverse) link", async () => {
+    const result = await executeLinkGql(
+      `{ linkedEmployee(id: "${empId1}") { id name department { id name location } } }`,
+      anonymousActor,
+    );
+
+    expect(result.errors).toBeUndefined();
+    const emp = result.data?.linkedEmployee as Record<string, unknown>;
+    expect(emp).not.toBeNull();
+
+    // Department fields are all non-sensitive, should be visible
+    const dept = emp.department as Record<string, unknown>;
+    expect(dept).not.toBeNull();
+    expect(dept.name).toBe("Engineering");
+    expect(dept.location).toBe("Building A");
+  });
+
+  test("system_admin: sees unmasked data through link traversal", async () => {
+    const result = await executeLinkGql(
+      `{ department(id: "${deptId}") { id name linked_employees { id name email ssn salary } } }`,
+      adminActor,
+    );
+
+    expect(result.errors).toBeUndefined();
+    const dept = result.data?.department as Record<string, unknown>;
+    const employees = dept.linked_employees as Record<string, unknown>[];
+    expect(employees).toHaveLength(2);
+
+    const bob = employees.find((e) => e.name === "Bob Smith") as Record<string, unknown>;
+    expect(bob.email).toBe("bob@secret.com");
+    expect(bob.ssn).toBe("111-22-3333");
+    expect(bob.salary).toBe(120000);
+
+    const carol = employees.find((e) => e.name === "Carol Jones") as Record<string, unknown>;
+    expect(carol.email).toBe("carol@secret.com");
+    expect(carol.ssn).toBe("444-55-6666");
+    expect(carol.salary).toBe(95000);
   });
 });

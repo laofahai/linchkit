@@ -7,15 +7,18 @@
 
 import type {
   ActionDefinition,
+  Actor,
   DataProvider,
   FieldDefinition,
   LinkDefinition,
   Logger,
+  MaskRecordOptions,
+  PermissionGroupDefinition,
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { resolveTranslatableValue } from "@linchkit/core";
-import { consoleLogger } from "@linchkit/core/server";
+import { consoleLogger, maskRecord } from "@linchkit/core/server";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -239,6 +242,57 @@ export interface LinkResolverContext {
   dataProvider?: DataProvider;
   /** Tenant ID for data isolation */
   tenantId?: string;
+  /** Authenticated actor for permission-based data masking */
+  actor?: Actor;
+  /** Permission groups for data masking unmask checks */
+  permissionGroups?: PermissionGroupDefinition[];
+  /** Schema definitions map for data masking lookups */
+  schemaMap?: Map<string, SchemaDefinition>;
+}
+
+/** Field types whose masked values cannot be represented as strings in GraphQL (must become null) */
+const NON_STRING_FIELD_TYPES = new Set(["number", "boolean", "date", "datetime", "json"]);
+
+/**
+ * Apply data masking to a single record using context actor and permissions.
+ * Returns the masked record with non-string masked fields coerced to null.
+ */
+function applyLinkMasking(
+  record: Record<string, unknown>,
+  schemaName: string,
+  ctx: LinkResolverContext,
+): Record<string, unknown> {
+  if (!ctx.actor || !ctx.schemaMap) return record;
+  const schemaDef = ctx.schemaMap.get(schemaName);
+  if (!schemaDef) return record;
+  const maskOpts: MaskRecordOptions = {
+    actor: ctx.actor,
+    groups: ctx.permissionGroups ?? [],
+    capabilityName: schemaDef.name,
+  };
+  const masked = maskRecord(record, schemaDef, maskOpts);
+  // Coerce masked non-string fields to null (GraphQL type mismatch)
+  for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+    if (
+      NON_STRING_FIELD_TYPES.has(fieldDef.type) &&
+      typeof masked[fieldName] === "string" &&
+      masked[fieldName] !== record[fieldName]
+    ) {
+      masked[fieldName] = null;
+    }
+  }
+  return masked;
+}
+
+/**
+ * Apply data masking to an array of records.
+ */
+function applyLinkMaskingArray(
+  records: Record<string, unknown>[],
+  schemaName: string,
+  ctx: LinkResolverContext,
+): Record<string, unknown>[] {
+  return records.map((r) => applyLinkMasking(r, schemaName, ctx));
 }
 
 /**
@@ -303,9 +357,12 @@ function buildLinkFields(
               const fkValue = obj[fkColumn] as string | undefined;
               if (!fkValue || !ctx.dataProvider) return null;
               try {
-                return await ctx.dataProvider.get(link.to, fkValue, {
+                const record = await ctx.dataProvider.get(link.to, fkValue, {
                   tenantId: ctx.tenantId,
                 });
+                return record
+                  ? applyLinkMasking(record as Record<string, unknown>, link.to, ctx)
+                  : null;
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (many_to_one from): ${err}`,
@@ -330,10 +387,15 @@ function buildLinkFields(
               const id = obj.id as string;
               if (!id || !ctx.dataProvider) return [];
               try {
-                return await ctx.dataProvider.query(
+                const records = await ctx.dataProvider.query(
                   link.from,
                   { [fkColumn]: id },
                   { tenantId: ctx.tenantId },
+                );
+                return applyLinkMaskingArray(
+                  records as Record<string, unknown>[],
+                  link.from,
+                  ctx,
                 );
               } catch (err) {
                 moduleLogger.error(
@@ -363,10 +425,15 @@ function buildLinkFields(
               const id = obj.id as string;
               if (!id || !ctx.dataProvider) return [];
               try {
-                return await ctx.dataProvider.query(
+                const records = await ctx.dataProvider.query(
                   link.to,
                   { [fkColumn]: id },
                   { tenantId: ctx.tenantId },
+                );
+                return applyLinkMaskingArray(
+                  records as Record<string, unknown>[],
+                  link.to,
+                  ctx,
                 );
               } catch (err) {
                 moduleLogger.error(
@@ -392,9 +459,12 @@ function buildLinkFields(
               const fkValue = obj[fkColumn] as string | undefined;
               if (!fkValue || !ctx.dataProvider) return null;
               try {
-                return await ctx.dataProvider.get(link.from, fkValue, {
+                const record = await ctx.dataProvider.get(link.from, fkValue, {
                   tenantId: ctx.tenantId,
                 });
+                return record
+                  ? applyLinkMasking(record as Record<string, unknown>, link.from, ctx)
+                  : null;
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_many to): ${err}`,
@@ -422,9 +492,12 @@ function buildLinkFields(
               const fkValue = obj[fkColumn] as string | undefined;
               if (!fkValue || !ctx.dataProvider) return null;
               try {
-                return await ctx.dataProvider.get(link.to, fkValue, {
+                const record = await ctx.dataProvider.get(link.to, fkValue, {
                   tenantId: ctx.tenantId,
                 });
+                return record
+                  ? applyLinkMasking(record as Record<string, unknown>, link.to, ctx)
+                  : null;
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_one from): ${err}`,
@@ -453,7 +526,10 @@ function buildLinkFields(
                   { [fkColumn]: id },
                   { tenantId: ctx.tenantId },
                 );
-                return results[0] ?? null;
+                const first = results[0] ?? null;
+                return first
+                  ? applyLinkMasking(first as Record<string, unknown>, link.from, ctx)
+                  : null;
               } catch (err) {
                 moduleLogger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_one to): ${err}`,
@@ -511,7 +587,8 @@ function buildLinkFields(
                   }
                 }),
               );
-              return results.filter(Boolean);
+              const filtered = results.filter(Boolean) as Record<string, unknown>[];
+              return applyLinkMaskingArray(filtered, otherSchema, ctx);
             } catch (err) {
               moduleLogger.error(
                 `[link-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
