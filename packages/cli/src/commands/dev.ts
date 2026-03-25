@@ -54,6 +54,7 @@ import {
   createRestateFlowEngine,
   createSchemaCheck,
   createSyncFlowEngine,
+  createTenantAwareDataProvider,
   createTenantIsolationMiddleware,
   createTriggerBinding,
   DrizzleApprovalStore,
@@ -355,6 +356,11 @@ export const devCommand = defineCommand({
       requireTenant: !environment.isDevelopment,
     });
     middlewares.push(tenantMiddleware);
+    // TODO: Wire createTenantAwareDataProvider into the request pipeline.
+    // Currently the middleware sets ctx.tenantId, and GraphQL resolvers pass it
+    // to DataQueryOptions. Full row-level isolation via TenantAwareDataProvider
+    // requires per-request data provider wrapping, which needs CommandContext
+    // to carry a dataProvider reference. Tracked for next iteration.
     console.log(
       `[linch] Tenant isolation middleware registered (requireTenant=${!environment.isDevelopment})`,
     );
