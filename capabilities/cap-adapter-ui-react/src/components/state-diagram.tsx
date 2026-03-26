@@ -1,25 +1,18 @@
 /**
- * StateDiagram — ReactFlow-based state machine visualization with dagre auto-layout.
+ * StateDiagram — Clean, professional state machine visualization.
  *
- * Renders states as styled nodes and transitions as labeled edges.
- * Layout: left-to-right (horizontal), computed automatically by dagre.
- *
- * Features:
- * - Rounded rectangle nodes with meta.color tinting
- * - Initial state indicator (dot icon + thicker border)
- * - Terminal state indicator (double border)
- * - Smooth bezier edges with labeled transitions
- * - Self-loop handling via curved loopback edges
- * - MiniMap + Controls + fitView
+ * Uses ReactFlow + dagre for auto-layout. Left-to-right horizontal flow.
+ * Design: white card nodes with left color accent bar, uniform slate edges.
  */
 
 import {
   Background,
+  BaseEdge,
   Controls,
   type Edge,
   type EdgeProps,
+  getBezierPath,
   Handle,
-  MiniMap,
   type Node,
   type NodeProps,
   Position,
@@ -29,7 +22,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
-import { CircleDotIcon } from "lucide-react";
+import { CircleIcon } from "lucide-react";
 import { useMemo } from "react";
 
 // ── Types ────────────────────────────────────────────────
@@ -54,9 +47,15 @@ export interface StateMachineDetail {
   meta?: Record<string, StateMeta>;
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// ── Constants ────────────────────────────────────────────
 
 const DEFAULT_STATE_COLOR = "#6b7280";
+const EDGE_COLOR = "#94a3b8";
+const NODE_WIDTH = 140;
+const NODE_HEIGHT = 44;
+const ARROW_ID = "state-arrow";
+
+// ── Helpers ──────────────────────────────────────────────
 
 function getStateColor(
   stateName: string,
@@ -66,18 +65,7 @@ function getStateColor(
 }
 
 /**
- * Convert a hex color to an rgba string with the given alpha.
- */
-function hexToRgba(hex: string, alpha: number): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16);
-  const g = Number.parseInt(hex.slice(3, 5), 16);
-  const b = Number.parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-/**
  * Resolve state label from meta, supporting `t:` i18n prefix.
- * Falls back to raw state name if no label is found.
  */
 function getStateLabel(
   stateName: string,
@@ -95,7 +83,6 @@ function getStateLabel(
 // ── Custom state node ────────────────────────────────────
 
 interface StateNodeData {
-  stateName: string;
   label: string;
   color: string;
   isInitial: boolean;
@@ -104,71 +91,92 @@ interface StateNodeData {
 }
 
 function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
-  const { label, color, isInitial, isTerminal, stateName } = data;
-
-  const bgTint = hexToRgba(color, 0.08);
-  const borderWidth = isInitial ? 3 : 2;
+  const { label, color, isInitial, isTerminal } = data;
 
   return (
     <div
-      className="relative px-5 py-3 text-center"
       style={{
-        backgroundColor: bgTint,
-        border: `${borderWidth}px solid ${color}`,
-        borderRadius: 12,
-        minWidth: 140,
-        minHeight: 50,
-        // Terminal states get a double border effect via box-shadow
-        boxShadow: isTerminal
-          ? `0 0 0 3px white, 0 0 0 5px ${color}`
-          : `0 1px 3px ${hexToRgba(color, 0.15)}`,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        background: "#ffffff",
+        border: isTerminal ? "1px dashed #cbd5e1" : "1px solid #e2e8f0",
+        borderRadius: 6,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* Left accent bar */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          backgroundColor: color,
+          borderRadius: "6px 0 0 6px",
+        }}
+      />
+
       <Handle
         type="target"
         position={Position.Left}
         style={{
-          background: color,
-          width: 8,
-          height: 8,
-          border: "2px solid white",
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
         }}
       />
 
-      {/* Colored accent bar at top */}
       <div
-        className="absolute top-0 left-0 right-0"
         style={{
-          backgroundColor: color,
-          opacity: 0.6,
-          height: 3,
-          borderRadius: "10px 10px 0 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 5,
+          paddingLeft: 8,
+          paddingRight: 4,
         }}
-      />
-
-      <div className="flex items-center justify-center gap-1.5">
+      >
         {isInitial && (
-          <CircleDotIcon className="size-3.5 flex-shrink-0" style={{ color }} />
+          <CircleIcon
+            style={{
+              width: 10,
+              height: 10,
+              color: color,
+              fill: color,
+              flexShrink: 0,
+            }}
+          />
         )}
-        <span className="font-semibold text-sm leading-tight" style={{ color }}>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: "#1e293b",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {label}
         </span>
       </div>
-
-      {label !== stateName && (
-        <div className="text-[10px] text-gray-400 font-mono mt-0.5">
-          {stateName}
-        </div>
-      )}
 
       <Handle
         type="source"
         position={Position.Right}
         style={{
-          background: color,
-          width: 8,
-          height: 8,
-          border: "2px solid white",
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
         }}
       />
     </div>
@@ -177,30 +185,23 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
 
 // ── Self-loop edge ───────────────────────────────────────
 
-/**
- * Custom edge component that renders a self-referencing loop.
- * Draws an SVG path that goes above the node and curves back.
- */
 function SelfLoopEdge({
   id,
   sourceX,
   sourceY,
   label,
-  style,
-  markerEnd,
 }: EdgeProps) {
-  // Draw a loop that goes up from the right handle, curves over the node, and comes back to the left handle
-  const loopRadius = 30;
-  const loopHeight = 50;
+  const loopWidth = 40;
+  const loopHeight = 45;
 
+  // Arc goes up from source handle, curves above the node, returns to same point
   const path = `M ${sourceX} ${sourceY}
-    C ${sourceX + loopRadius} ${sourceY - loopHeight},
-      ${sourceX - loopRadius - 60} ${sourceY - loopHeight},
-      ${sourceX - 60} ${sourceY}`;
+    C ${sourceX + loopWidth} ${sourceY - loopHeight},
+      ${sourceX - loopWidth - 50} ${sourceY - loopHeight},
+      ${sourceX - 50} ${sourceY}`;
 
-  // Label position: centered above the loop
-  const labelX = sourceX - 30;
-  const labelY = sourceY - loopHeight - 8;
+  const labelX = sourceX - 25;
+  const labelY = sourceY - loopHeight - 6;
 
   return (
     <>
@@ -208,15 +209,16 @@ function SelfLoopEdge({
         id={id}
         d={path}
         fill="none"
-        style={style}
-        markerEnd={markerEnd as string}
+        stroke={EDGE_COLOR}
+        strokeWidth={1.5}
+        markerEnd={`url(#${ARROW_ID})`}
       />
       {label && (
         <foreignObject
-          x={labelX - 40}
+          x={labelX - 45}
           y={labelY - 10}
-          width={80}
-          height={24}
+          width={90}
+          height={22}
           requiredExtensions="http://www.w3.org/1999/xhtml"
         >
           <div
@@ -230,15 +232,15 @@ function SelfLoopEdge({
           >
             <span
               style={{
-                fontSize: 10,
-                fontFamily: "ui-monospace, monospace",
+                fontSize: 11,
                 fontWeight: 500,
-                color: (style as Record<string, unknown>)?.stroke as string ?? "#666",
-                backgroundColor: "white",
-                padding: "1px 5px",
-                borderRadius: 3,
-                border: "1px solid #e5e7eb",
+                color: "#475569",
+                backgroundColor: "#ffffff",
+                padding: "1px 6px",
+                borderRadius: 9999,
+                border: "1px solid #e2e8f0",
                 whiteSpace: "nowrap",
+                lineHeight: "18px",
               }}
             >
               {label as string}
@@ -250,7 +252,68 @@ function SelfLoopEdge({
   );
 }
 
-// ── Node & edge types registry ───────────────────────────
+// ── Labeled edge (overrides default to use pill labels) ──
+
+function LabeledEdge(props: EdgeProps) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, label } = props;
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{ stroke: EDGE_COLOR, strokeWidth: 1.5 }}
+        markerEnd={`url(#${ARROW_ID})`}
+      />
+      {label && (
+        <foreignObject
+          x={labelX - 45}
+          y={labelY - 11}
+          width={90}
+          height={22}
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: "#475569",
+                backgroundColor: "#ffffff",
+                padding: "1px 6px",
+                borderRadius: 9999,
+                border: "1px solid #e2e8f0",
+                whiteSpace: "nowrap",
+                lineHeight: "18px",
+              }}
+            >
+              {label as string}
+            </span>
+          </div>
+        </foreignObject>
+      )}
+    </>
+  );
+}
+
+// ── Node & edge type registries ──────────────────────────
 
 const nodeTypes = {
   stateNode: StateNode,
@@ -258,12 +321,10 @@ const nodeTypes = {
 
 const edgeTypes = {
   selfLoop: SelfLoopEdge,
+  labeled: LabeledEdge,
 };
 
 // ── Dagre layout ─────────────────────────────────────────
-
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 60;
 
 function getLayoutedElements(
   nodes: Node<StateNodeData>[],
@@ -273,17 +334,16 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "LR",
-    nodesep: 80,
-    ranksep: 150,
-    marginx: 50,
-    marginy: 50,
+    nodesep: 60,
+    ranksep: 180,
+    marginx: 40,
+    marginy: 40,
   });
 
   for (const node of nodes) {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
-  // Only add non-self-loop edges to dagre (self-loops don't affect layout)
   for (const edge of edges) {
     if (edge.source !== edge.target) {
       g.setEdge(edge.source, edge.target);
@@ -325,99 +385,58 @@ function buildStateGraph(
     machine.states.filter((s) => !hasOutgoing.has(s)),
   );
 
-  // Build nodes
-  const nodes: Node<StateNodeData>[] = machine.states.map((state) => {
-    const color = getStateColor(state, machine.meta);
-    const label = getStateLabel(state, machine.meta, t);
-    return {
-      id: state,
-      type: "stateNode",
-      position: { x: 0, y: 0 },
-      data: {
-        stateName: state,
-        label,
-        color,
-        isInitial: state === machine.initial,
-        isTerminal: terminalStates.has(state),
-      },
-    };
-  });
+  const nodes: Node<StateNodeData>[] = machine.states.map((state) => ({
+    id: state,
+    type: "stateNode",
+    position: { x: 0, y: 0 },
+    data: {
+      label: getStateLabel(state, machine.meta, t),
+      color: getStateColor(state, machine.meta),
+      isInitial: state === machine.initial,
+      isTerminal: terminalStates.has(state),
+    },
+  }));
 
-  // Build edges (flatten from-arrays)
   const edges: Edge[] = [];
   let edgeIdx = 0;
-
-  // Track edge count between same source-target pairs for offsetting parallel edges
-  const edgePairCount = new Map<string, number>();
 
   for (const tr of machine.transitions) {
     const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
     for (const from of froms) {
-      const fromColor = getStateColor(from, machine.meta);
       const isSelfLoop = from === tr.to;
-      const pairKey = `${from}->${tr.to}`;
-      const pairIdx = edgePairCount.get(pairKey) ?? 0;
-      edgePairCount.set(pairKey, pairIdx + 1);
-
-      if (isSelfLoop) {
-        // Self-loop: use custom edge type
-        edges.push({
-          id: `tr-${edgeIdx++}`,
-          source: from,
-          target: tr.to,
-          type: "selfLoop",
-          label: tr.action,
-          style: {
-            stroke: fromColor,
-            strokeWidth: 1.5,
-          },
-          markerEnd: {
-            type: "arrowclosed" as unknown as undefined,
-            color: fromColor,
-            width: 16,
-            height: 16,
-          } as unknown as string,
-        });
-      } else {
-        // Normal edge: smooth bezier
-        edges.push({
-          id: `tr-${edgeIdx++}`,
-          source: from,
-          target: tr.to,
-          type: "default",
-          animated: false,
-          label: tr.action,
-          style: {
-            stroke: fromColor,
-            strokeWidth: 1.5,
-          },
-          labelStyle: {
-            fill: "#374151",
-            fontSize: 10,
-            fontFamily: "ui-monospace, monospace",
-            fontWeight: 500,
-          },
-          labelBgStyle: {
-            fill: "white",
-            fillOpacity: 0.95,
-            stroke: "#e5e7eb",
-            strokeWidth: 0.5,
-            rx: 3,
-            ry: 3,
-          },
-          labelBgPadding: [6, 3] as [number, number],
-          markerEnd: {
-            type: "arrowclosed" as unknown as undefined,
-            color: fromColor,
-            width: 16,
-            height: 16,
-          } as unknown as string,
-        });
-      }
+      edges.push({
+        id: `tr-${edgeIdx++}`,
+        source: from,
+        target: tr.to,
+        type: isSelfLoop ? "selfLoop" : "labeled",
+        label: tr.action,
+      });
     }
   }
 
   return getLayoutedElements(nodes, edges);
+}
+
+// ── Arrow marker definition ─────────────────────────────
+
+function ArrowMarkerDefs() {
+  return (
+    <svg style={{ position: "absolute", width: 0, height: 0 }}>
+      <defs>
+        <marker
+          id={ARROW_ID}
+          viewBox="0 0 10 10"
+          refX="10"
+          refY="5"
+          markerWidth="8"
+          markerHeight="8"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={EDGE_COLOR} />
+        </marker>
+      </defs>
+    </svg>
+  );
 }
 
 // ── Main component ───────────────────────────────────────
@@ -441,13 +460,15 @@ export function StateDiagram({
     <div
       style={{
         width: "100%",
-        height: 400,
-        border: "1px solid #e5e7eb",
+        height: 350,
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
         borderRadius: 8,
         overflow: "hidden",
-        background: "#fafafa",
+        position: "relative",
       }}
     >
+      <ArrowMarkerDefs />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -460,28 +481,18 @@ export function StateDiagram({
         elementsSelectable={false}
         fitView
         fitViewOptions={{ padding: 0.3 }}
-        minZoom={0.3}
+        minZoom={0.5}
         maxZoom={2}
-        defaultEdgeOptions={{
-          type: "default",
-        }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={20} size={1} color="#e2e8f0" />
-        <Controls showInteractive={false} position="bottom-left" />
-        <MiniMap
-          position="bottom-right"
-          nodeStrokeWidth={3}
-          pannable
-          zoomable
-          nodeColor={(node) => {
-            const data = node.data as StateNodeData;
-            return data?.color ?? DEFAULT_STATE_COLOR;
-          }}
-          maskColor="rgba(0, 0, 0, 0.06)"
+        <Background gap={20} size={1} color="#e9ecef" />
+        <Controls
+          showInteractive={false}
+          position="bottom-left"
           style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 4,
+            borderRadius: 6,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
           }}
         />
       </ReactFlow>
