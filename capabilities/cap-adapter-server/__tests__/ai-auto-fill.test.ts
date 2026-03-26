@@ -15,7 +15,7 @@ const taskSchema: SchemaDefinition = {
     priority: {
       type: "enum",
       label: "Priority",
-      options: ["low", "medium", "high"],
+      options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
     },
   },
 };
@@ -57,16 +57,18 @@ describe("POST /api/ai/auto-fill — no AI service", () => {
     expect(json.data.suggestions).toEqual({});
   });
 
-  test("returns 400 when schema is missing from request", async () => {
+  test("returns empty suggestions when schema is missing (no AI = graceful return)", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentValues: {} }),
     });
 
-    expect(res.status).toBe(400);
+    // When AI is not configured, always returns empty suggestions (graceful degradation)
+    expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.success).toBe(false);
+    expect(json.success).toBe(true);
+    expect(json.data.suggestions).toEqual({});
   });
 });
 

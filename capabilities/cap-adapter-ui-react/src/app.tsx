@@ -202,6 +202,20 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const proposalsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/proposals",
+    component: ProposalsPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
+  const evolutionRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/evolution",
+    component: EvolutionPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
