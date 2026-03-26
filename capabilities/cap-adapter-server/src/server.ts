@@ -13,11 +13,13 @@ import type {
   CapabilityDefinition,
   CommandLayer,
   DataProvider,
+  EventBus,
   ExecutionLogger,
   ExecutionStatus,
   PermissionGroupDefinition,
   SchemaDefinition,
   SchemaRegistry,
+  SubscriptionConfig,
   ViewDefinition,
 } from "@linchkit/core";
 import { createTenantAwareDataProvider } from "@linchkit/core/server";
@@ -27,6 +29,11 @@ import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { generateDefaultViews } from "./default-views";
 import { createLinkDataLoaders } from "./graphql/link-dataloader";
+import {
+  SubscriptionManager,
+  formatSSEEvent,
+  parseSubscriptionQuery,
+} from "./subscription-manager";
 
 export interface ServerOptions {
   /** Server port (default: 3001) */
@@ -80,6 +87,10 @@ export interface ServerOptions {
   schemaMap?: Map<string, SchemaDefinition>;
   /** Static tenant list for /api/tenants endpoint (used by TenantSwitcher UI) */
   tenants?: Array<{ id: string; name: string }>;
+  /** Event bus for SSE subscription endpoint (/api/subscribe) */
+  eventBus?: EventBus;
+  /** Subscription configuration (heartbeat, limits, etc.) */
+  subscriptionConfig?: SubscriptionConfig;
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -516,6 +527,107 @@ export function createServer(
       const response = await yoga.handle(request);
       return response;
     });
+
+  // ── SSE Subscription endpoint (/api/subscribe) ────────────
+  const eventBus = options?.eventBus;
+  const subscriptionConfig = options?.subscriptionConfig;
+
+  if (eventBus) {
+    const subManager = new SubscriptionManager(eventBus, subscriptionConfig);
+    subManager.start();
+
+    app.get("/api/subscribe", async ({ request, set, query }) => {
+      // Resolve actor for permission filtering
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+      const tenantId = resolveRequestTenantId
+        ? await resolveRequestTenantId(request, actor)
+        : undefined;
+
+      // Parse filter from query params
+      const filter = parseSubscriptionQuery(query as Record<string, string | undefined>);
+      filter.tenantId = tenantId;
+
+      // Set up SSE response via ReadableStream
+      let connectionId: string | null = null;
+
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+
+          const push = (event: import("./subscription-manager").SubscriptionEvent | null): boolean => {
+            try {
+              const eventId = subManager.nextEventId();
+              const text = formatSSEEvent(event, event ? eventId : undefined);
+              controller.enqueue(encoder.encode(text));
+              return true;
+            } catch {
+              return false;
+            }
+          };
+
+          const close = () => {
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
+          };
+
+          connectionId = subManager.addConnection({
+            userId: actor.id,
+            actor,
+            filter,
+            push,
+            close,
+          });
+
+          if (!connectionId) {
+            // Too many connections for this user
+            controller.enqueue(
+              encoder.encode(
+                `event: error\ndata: ${JSON.stringify({ error: "Too many connections" })}\n\n`,
+              ),
+            );
+            controller.close();
+            return;
+          }
+
+          // Send initial connection event
+          controller.enqueue(
+            encoder.encode(
+              `event: connected\ndata: ${JSON.stringify({ connectionId })}\n\n`,
+            ),
+          );
+        },
+        cancel() {
+          if (connectionId) {
+            subManager.removeConnection(connectionId);
+          }
+        },
+      });
+
+      set.headers["content-type"] = "text/event-stream";
+      set.headers["cache-control"] = "no-cache";
+      set.headers["connection"] = "keep-alive";
+      set.headers["x-accel-buffering"] = "no";
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    });
+
+    // Store manager reference for cleanup on server close
+    // biome-ignore lint/suspicious/noExplicitAny: attaching to Elysia instance for lifecycle management
+    (app as any).__subscriptionManager = subManager;
+  }
 
   return app;
 }

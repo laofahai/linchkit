@@ -67,6 +67,7 @@ export function resolveTranslatableValue(
  * Normalize a translatable field value for storage.
  *
  * - If the value is already a locale map (object), pass through.
+ * - If the value is a JSON-encoded locale map string (starts with "{"), parse it.
  * - If the value is a plain string, wrap as `{ [defaultLocale]: value }`.
  * - If the value is null/undefined, pass through.
  */
@@ -81,8 +82,23 @@ export function normalizeTranslatableValue(
     return value as TranslatableValue;
   }
 
-  // Plain string → wrap with default locale
+  // String — could be a JSON-encoded locale map or a plain string
   if (typeof value === "string") {
+    // Try parsing JSON-encoded locale maps (e.g. '{"en":"Hello","zh-CN":"你好"}')
+    if (value.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(value);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+          // Validate all values are strings (locale map shape)
+          const entries = Object.entries(parsed);
+          if (entries.length > 0 && entries.every(([_, v]) => typeof v === "string")) {
+            return parsed as TranslatableValue;
+          }
+        }
+      } catch {
+        // Not valid JSON — fall through to plain string wrapping
+      }
+    }
     return { [defaultLocale]: value };
   }
 
@@ -198,6 +214,13 @@ export function getTranslatableFields(schema: SchemaDefinition): Set<string> {
 }
 
 /**
+ * Hidden property key used to stash the raw JSONB locale maps on a resolved row.
+ * GraphQL `_i18n` field resolvers read from this to return the full locale map
+ * even after the main field has been resolved to a single-locale string.
+ */
+export const I18N_RAW_KEY = "__i18n_raw__";
+
+/**
  * Resolve all translatable fields in a data row from JSONB to plain strings.
  *
  * This is the read-path helper: given a raw DB row, replace every translatable
@@ -205,6 +228,9 @@ export function getTranslatableFields(schema: SchemaDefinition): Set<string> {
  *
  * Non-translatable fields and fields not present in the row are left untouched.
  * Returns a shallow copy of the row with resolved values.
+ *
+ * The original JSONB locale maps are preserved under `I18N_RAW_KEY` so that
+ * downstream resolvers (e.g., GraphQL `_i18n` fields) can still access them.
  */
 export function resolveTranslatableRow(
   row: Record<string, unknown>,
@@ -216,11 +242,22 @@ export function resolveTranslatableRow(
 
   const defaultLocale = schema.i18n?.defaultLocale;
   const resolved = { ...row };
+  const rawMap: Record<string, unknown> = {};
 
   for (const fieldName of translatableFields) {
     if (fieldName in resolved) {
-      resolved[fieldName] = resolveTranslatableValue(resolved[fieldName], locale, defaultLocale);
+      const raw = resolved[fieldName];
+      // Preserve the raw JSONB locale map before resolving
+      if (raw !== null && raw !== undefined && typeof raw === "object" && !Array.isArray(raw)) {
+        rawMap[fieldName] = raw;
+      }
+      resolved[fieldName] = resolveTranslatableValue(raw, locale, defaultLocale);
     }
+  }
+
+  // Stash raw locale maps for `_i18n` field resolvers
+  if (Object.keys(rawMap).length > 0) {
+    resolved[I18N_RAW_KEY] = rawMap;
   }
 
   return resolved;

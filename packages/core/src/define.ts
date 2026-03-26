@@ -7,6 +7,7 @@
 
 import type { ActionDefinition, ActionOverride } from "./types/action";
 import type { AutomationDefinition } from "./types/automation";
+import type { WatcherDefinition } from "./types/watcher";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
@@ -166,4 +167,12 @@ export function defineAutomation(
   definition: Omit<AutomationDefinition, "enabled"> & { enabled?: boolean },
 ): AutomationDefinition {
   return { enabled: true, ...definition };
+}
+
+// ── Watcher (data-condition triggered automation, spec 45) ──
+
+export function defineWatcher(
+  definition: Omit<WatcherDefinition, "enabled"> & { enabled?: boolean },
+): WatcherDefinition {
+  return { enabled: true, tenantScoped: true, ...definition };
 }

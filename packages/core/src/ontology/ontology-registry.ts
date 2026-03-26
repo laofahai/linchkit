@@ -54,13 +54,13 @@ export interface SchemaDescriptor {
   presentation?: SchemaPresentation;
   /** Relations from LinkRegistry */
   relations: RelationDescriptor[];
-  /** Actions operating on this schema */
+  /** Actions operating on this schema (includes inherited from parent) */
   actions: ActionDefinition[];
-  /** Rules affecting this schema */
+  /** Rules affecting this schema (includes inherited from parent) */
   rules: RuleDefinition[];
-  /** State machine (if defined) */
+  /** State machine (if defined, or inherited from parent) */
   states?: StateDefinition;
-  /** Views for this schema */
+  /** Views for this schema (includes inherited from parent) */
   views: ViewDefinition[];
   /** Flows triggered by this schema's actions/events */
   flows: FlowDefinition[];
@@ -68,6 +68,12 @@ export interface SchemaDescriptor {
   handlers: EventHandlerDefinition[];
   /** Interfaces this schema implements */
   interfaces: InterfaceDefinition[];
+  /** Parent schema name (null if no parent) */
+  parent?: string | null;
+  /** Direct child schema names */
+  children?: string[];
+  /** Whether this is an abstract schema (cannot be instantiated) */
+  abstract?: boolean;
 }
 
 // ── Registry dependencies ──────────────────────────────────
@@ -77,6 +83,10 @@ interface SchemaRegistryLike {
   getAll(): SchemaDefinition[];
   get(name: string): SchemaDefinition | undefined;
   has(name: string): boolean;
+  /** Get the full inheritance chain (root to self) for inheritance-aware lookups */
+  getInheritanceChain?(name: string): string[];
+  /** Get all descendant schema names recursively */
+  getAllDescendants?(name: string): string[];
 }
 
 /** Minimal interface for ActionRegistry */
@@ -246,6 +256,35 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     }
   }
 
+  /** Collect items from the inheritance chain (ancestors only, excluding self) */
+  function collectFromAncestors<T>(
+    schemaName: string,
+    getter: (name: string) => T[],
+  ): T[] {
+    if (!deps.schemas.getInheritanceChain) return [];
+    const chain = deps.schemas.getInheritanceChain(schemaName);
+    // chain = [root, ..., parent, self]; exclude self (last element)
+    const result: T[] = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      // biome-ignore lint/style/noNonNullAssertion: index is within bounds
+      result.push(...getter(chain[i]!));
+    }
+    return result;
+  }
+
+  /** Get the inherited state machine (walk ancestors, closest parent wins) */
+  function inheritedState(schemaName: string): StateDefinition | undefined {
+    if (!deps.schemas.getInheritanceChain) return undefined;
+    const chain = deps.schemas.getInheritanceChain(schemaName);
+    // Walk from parent to root (chain order is root→self, so reverse excluding self)
+    for (let i = chain.length - 2; i >= 0; i--) {
+      // biome-ignore lint/style/noNonNullAssertion: index is within bounds
+      const state = statesBySchema.get(chain[i]!);
+      if (state) return state;
+    }
+    return undefined;
+  }
+
   function buildDescriptor(schemaName: string): SchemaDescriptor | undefined {
     const schema = deps.schemas.get(schemaName);
     if (!schema) return undefined;
@@ -268,6 +307,47 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       ? deps.interfaces.interfacesOf(schemaName)
       : [];
 
+    // Merge inherited actions (parent actions + own actions)
+    const inheritedActions = collectFromAncestors(schemaName, (n) => actionsBySchema.get(n) ?? []);
+    const ownActions = actionsBySchema.get(schemaName) ?? [];
+    // Deduplicate: child action overrides parent action of same name
+    const ownActionNames = new Set(ownActions.map((a) => a.name));
+    const mergedActions = [
+      ...inheritedActions.filter((a) => !ownActionNames.has(a.name)),
+      ...ownActions,
+    ];
+
+    // Merge inherited rules (parent rules + own rules)
+    const inheritedRules = collectFromAncestors(schemaName, (n) => rulesBySchema.get(n) ?? []);
+    const ownRules = rulesBySchema.get(schemaName) ?? [];
+    const ownRuleNames = new Set(ownRules.map((r) => r.name));
+    const mergedRules = [
+      ...inheritedRules.filter((r) => !ownRuleNames.has(r.name)),
+      ...ownRules,
+    ];
+
+    // State machine: own takes priority, then inherited
+    const ownState = statesBySchema.get(schemaName);
+    const mergedState = ownState ?? inheritedState(schemaName);
+
+    // Merge inherited views (parent views + own views)
+    const inheritedViews = collectFromAncestors(schemaName, (n) => viewsBySchema.get(n) ?? []);
+    const ownViews = viewsBySchema.get(schemaName) ?? [];
+    const ownViewNames = new Set(ownViews.map((v) => v.name));
+    const mergedViews = [
+      ...inheritedViews.filter((v) => !ownViewNames.has(v.name)),
+      ...ownViews,
+    ];
+
+    // Resolve children
+    const children: string[] = deps.schemas.getAllDescendants
+      ? deps.schemas.getAllDescendants(schemaName).filter((n) => {
+          // Only direct children
+          const child = deps.schemas.get(n);
+          return child?.extends === schemaName;
+        })
+      : [];
+
     return {
       name: schema.name,
       label: schema.label,
@@ -275,13 +355,16 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       fields: schema.fields,
       presentation: schema.presentation,
       relations,
-      actions: actionsBySchema.get(schemaName) ?? [],
-      rules: rulesBySchema.get(schemaName) ?? [],
-      states: statesBySchema.get(schemaName),
-      views: viewsBySchema.get(schemaName) ?? [],
+      actions: mergedActions,
+      rules: mergedRules,
+      states: mergedState,
+      views: mergedViews,
       flows: flowsBySchema.get(schemaName) ?? [],
       handlers: handlersBySchema.get(schemaName) ?? [],
       interfaces,
+      parent: schema.extends ?? null,
+      children,
+      abstract: schema.abstract,
     };
   }
 
@@ -328,19 +411,23 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     },
 
     actionsFor(schemaName: string): ActionDefinition[] {
-      return actionsBySchema.get(schemaName) ?? [];
+      const desc = getOrBuild(schemaName);
+      return desc?.actions ?? [];
     },
 
     rulesFor(schemaName: string): RuleDefinition[] {
-      return rulesBySchema.get(schemaName) ?? [];
+      const desc = getOrBuild(schemaName);
+      return desc?.rules ?? [];
     },
 
     stateFor(schemaName: string): StateDefinition | undefined {
-      return statesBySchema.get(schemaName);
+      const desc = getOrBuild(schemaName);
+      return desc?.states;
     },
 
     viewsFor(schemaName: string): ViewDefinition[] {
-      return viewsBySchema.get(schemaName) ?? [];
+      const desc = getOrBuild(schemaName);
+      return desc?.views ?? [];
     },
 
     flowsFor(schemaName: string): FlowDefinition[] {

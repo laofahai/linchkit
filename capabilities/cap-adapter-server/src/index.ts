@@ -23,6 +23,12 @@ export {
   createEventBusPubSub,
 } from "./graphql/build-subscriptions";
 export type { RuntimeContext, RuntimeContextOptions } from "./runtime-context";
+export {
+  SubscriptionManager,
+  formatSSEEvent,
+  parseSubscriptionQuery,
+} from "./subscription-manager";
+export type { SubscriptionEvent, SubscriptionFilter } from "./subscription-manager";
 export { createRuntimeContext } from "./runtime-context";
 export type { ServerOptions } from "./server";
 export { createServer } from "./server";

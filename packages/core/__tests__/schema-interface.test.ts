@@ -3,6 +3,7 @@ import { createOntologyRegistry } from "../src/ontology/ontology-registry";
 import { createInterfaceRegistry } from "../src/schema/schema-interface";
 import { createSchemaRegistry } from "../src/schema/schema-registry";
 import type { InterfaceDefinition, SchemaDefinition } from "../src/types/schema";
+import type { StateDefinition } from "../src/types/state";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -559,5 +560,728 @@ describe("OntologyRegistry with interfaces", () => {
     expect(desc).toBeDefined();
     expect(desc?.interfaces).toEqual([]);
     expect(ontology.schemasImplementing("anything")).toEqual([]);
+  });
+});
+
+// ── Enum compatibility validation ───────────────────────────
+
+describe("InterfaceRegistry enum validation", () => {
+  it("errors when schema field is missing enum values required by interface", () => {
+    const registry = createInterfaceRegistry();
+    const iface: InterfaceDefinition = {
+      name: "statusable",
+      label: "Statusable",
+      fields: {
+        status: {
+          type: "string",
+          enum: ["draft", "active", "archived"],
+        },
+      },
+    };
+    registry.register(iface);
+
+    const schema: SchemaDefinition = {
+      name: "my_schema",
+      implements: ["statusable"],
+      fields: {
+        // Schema overrides enum but misses "archived"
+        status: { type: "string", enum: ["draft", "active"] },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("archived");
+    expect(errors[0]).toContain("missing value");
+  });
+
+  it("allows schema to add extra enum values beyond interface requirements", () => {
+    const registry = createInterfaceRegistry();
+    const iface: InterfaceDefinition = {
+      name: "statusable",
+      label: "Statusable",
+      fields: {
+        status: { type: "string", enum: ["draft", "active"] },
+      },
+    };
+    registry.register(iface);
+
+    const schema: SchemaDefinition = {
+      name: "my_schema",
+      implements: ["statusable"],
+      fields: {
+        // Schema adds an extra enum value — this is fine (superset)
+        status: { type: "string", enum: ["draft", "active", "suspended"] },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors).toEqual([]);
+  });
+
+  it("errors when schema omits enum entirely but interface requires it", () => {
+    const registry = createInterfaceRegistry();
+    const iface: InterfaceDefinition = {
+      name: "prioritizable",
+      label: "Prioritizable",
+      fields: {
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+      },
+    };
+    registry.register(iface);
+
+    const schema: SchemaDefinition = {
+      name: "task",
+      implements: ["prioritizable"],
+      fields: {
+        // Schema defines field with same type but no enum
+        priority: { type: "string" },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("must define enum");
+  });
+
+  it("errors when two interfaces have same field with conflicting enum values", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "iface_a",
+      label: "A",
+      fields: {
+        priority: { type: "string", enum: ["low", "high"] },
+      },
+    });
+    registry.register({
+      name: "iface_b",
+      label: "B",
+      fields: {
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["iface_a", "iface_b"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.some((e) => e.includes("conflicting enum"))).toBe(true);
+  });
+
+  it("no error when two interfaces have same field with identical enum values", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "iface_a",
+      label: "A",
+      fields: {
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+      },
+    });
+    registry.register({
+      name: "iface_b",
+      label: "B",
+      fields: {
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["iface_a", "iface_b"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    // Should have no enum conflict errors (types are same, enums are identical)
+    expect(errors.filter((e) => e.includes("enum"))).toEqual([]);
+  });
+});
+
+// ── Required constraint validation ───────────────────────────
+
+describe("InterfaceRegistry required constraint validation", () => {
+  it("errors when schema weakens required=true to required=false", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "named",
+      label: "Named",
+      fields: {
+        display_name: { type: "string", required: true },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["named"],
+      fields: {
+        display_name: { type: "string", required: false },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("required");
+    expect(errors[0]).toContain("not required");
+  });
+
+  it("allows schema to strengthen required=false to required=true", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "named",
+      label: "Named",
+      fields: {
+        display_name: { type: "string", required: false },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["named"],
+      fields: {
+        display_name: { type: "string", required: true },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors).toEqual([]);
+  });
+
+  it("allows schema field without explicit required when interface has required=true", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "named",
+      label: "Named",
+      fields: {
+        display_name: { type: "string", required: true },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["named"],
+      fields: {
+        // required is undefined (not explicitly false), which is acceptable
+        display_name: { type: "string" },
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors).toEqual([]);
+  });
+});
+
+// ── Cross-interface state machine conflict detection ─────────
+
+describe("InterfaceRegistry state machine validation", () => {
+  it("errors when two interfaces have conflicting initial states", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "workflow_a",
+      label: "Workflow A",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "active", action: "activate" }],
+      },
+    });
+    registry.register({
+      name: "workflow_b",
+      label: "Workflow B",
+      fields: { priority: { type: "string" } },
+      state: {
+        initial: "new",
+        transitions: [{ from: "new", to: "active", action: "activate" }],
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["workflow_a", "workflow_b"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.some((e) => e.includes("conflicting initial states"))).toBe(true);
+  });
+
+  it("errors when two interfaces have conflicting transitions (same from+action, different to)", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "flow_a",
+      label: "Flow A",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+      },
+    });
+    registry.register({
+      name: "flow_b",
+      label: "Flow B",
+      fields: { priority: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "pending", action: "submit" }],
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["flow_a", "flow_b"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.some((e) => e.includes("conflicting transition"))).toBe(true);
+  });
+
+  it("no error when two interfaces have compatible state machines", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "flow_a",
+      label: "Flow A",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+      },
+    });
+    registry.register({
+      name: "flow_b",
+      label: "Flow B",
+      fields: { priority: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [
+          // Same initial, non-conflicting transitions
+          { from: "submitted", to: "approved", action: "approve" },
+        ],
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["flow_a", "flow_b"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors).toEqual([]);
+  });
+
+  it("no state conflict when only one interface has state", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface); // has state
+    registry.register(archivableInterface); // no state
+
+    const schema: SchemaDefinition = {
+      name: "test",
+      implements: ["approvable", "archivable"],
+      fields: { x: { type: "string" } },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors).toEqual([]);
+  });
+});
+
+// ── State compatibility validation (schema state vs interface state) ─
+
+describe("InterfaceRegistry validateStateCompatibility", () => {
+  it("returns no errors when schema has no custom state (interface state used as-is)", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface);
+    registry.registerImplementor("purchase_request", ["approvable"]);
+
+    const errors = registry.validateStateCompatibility("purchase_request", null);
+    expect(errors).toEqual([]);
+  });
+
+  it("returns no errors when schema state is a superset of interface state", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface);
+    registry.registerImplementor("purchase_request", ["approvable"]);
+
+    const schemaState: StateDefinition = {
+      name: "purchase_request_status",
+      schema: "purchase_request",
+      field: "status",
+      initial: "draft",
+      states: ["draft", "submitted", "approved", "rejected", "cancelled"],
+      transitions: [
+        { from: "draft", to: "submitted", action: "submit" },
+        { from: "submitted", to: "approved", action: "approve" },
+        { from: "submitted", to: "rejected", action: "reject" },
+        // Extra transition not in interface — that's fine
+        { from: "draft", to: "cancelled", action: "cancel" },
+      ],
+    };
+
+    const errors = registry.validateStateCompatibility("purchase_request", schemaState);
+    expect(errors).toEqual([]);
+  });
+
+  it("errors when schema state has different initial than interface", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface);
+    registry.registerImplementor("purchase_request", ["approvable"]);
+
+    const schemaState: StateDefinition = {
+      name: "purchase_request_status",
+      schema: "purchase_request",
+      field: "status",
+      initial: "new", // interface expects "draft"
+      states: ["new", "submitted", "approved", "rejected"],
+      transitions: [
+        { from: "new", to: "submitted", action: "submit" },
+        { from: "submitted", to: "approved", action: "approve" },
+        { from: "submitted", to: "rejected", action: "reject" },
+      ],
+    };
+
+    const errors = registry.validateStateCompatibility("purchase_request", schemaState);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain('initial "new"');
+    expect(errors[0]).toContain('"draft"');
+  });
+
+  it("errors when schema state is missing an interface-required transition", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface);
+    registry.registerImplementor("purchase_request", ["approvable"]);
+
+    const schemaState: StateDefinition = {
+      name: "purchase_request_status",
+      schema: "purchase_request",
+      field: "status",
+      initial: "draft",
+      states: ["draft", "submitted", "approved"],
+      transitions: [
+        { from: "draft", to: "submitted", action: "submit" },
+        { from: "submitted", to: "approved", action: "approve" },
+        // Missing: { from: "submitted", to: "rejected", action: "reject" }
+      ],
+    };
+
+    const errors = registry.validateStateCompatibility("purchase_request", schemaState);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("missing transition");
+    expect(errors[0]).toContain("reject");
+  });
+
+  it("returns no errors for schema with no interfaces", () => {
+    const registry = createInterfaceRegistry();
+    const schemaState: StateDefinition = {
+      name: "test_status",
+      schema: "test",
+      field: "status",
+      initial: "draft",
+      states: ["draft"],
+      transitions: [],
+    };
+
+    const errors = registry.validateStateCompatibility("test", schemaState);
+    expect(errors).toEqual([]);
+  });
+
+  it("validates against multiple interfaces with state", () => {
+    const registry = createInterfaceRegistry();
+    // Register two interfaces with compatible but distinct state templates
+    registry.register({
+      name: "submittable",
+      label: "Submittable",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+      },
+    });
+    registry.register({
+      name: "reviewable",
+      label: "Reviewable",
+      fields: { reviewer: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "submitted", to: "reviewed", action: "review" }],
+      },
+    });
+    registry.registerImplementor("doc", ["submittable", "reviewable"]);
+
+    // Schema state must include both transitions
+    const schemaState: StateDefinition = {
+      name: "doc_status",
+      schema: "doc",
+      field: "status",
+      initial: "draft",
+      states: ["draft", "submitted", "reviewed"],
+      transitions: [
+        { from: "draft", to: "submitted", action: "submit" },
+        // Missing: review transition
+      ],
+    };
+
+    const errors = registry.validateStateCompatibility("doc", schemaState);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("review");
+    expect(errors[0]).toContain("reviewable");
+  });
+
+  it("supports array-form 'from' in schema state transitions", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "resetable",
+      label: "Resetable",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [
+          { from: "active", to: "draft", action: "reset" },
+          { from: "paused", to: "draft", action: "reset" },
+        ],
+      },
+    });
+    registry.registerImplementor("task", ["resetable"]);
+
+    // Schema uses array-form "from" to express both transitions
+    const schemaState: StateDefinition = {
+      name: "task_status",
+      schema: "task",
+      field: "status",
+      initial: "draft",
+      states: ["draft", "active", "paused"],
+      transitions: [
+        { from: ["active", "paused"], to: "draft", action: "reset" },
+      ],
+    };
+
+    const errors = registry.validateStateCompatibility("task", schemaState);
+    expect(errors).toEqual([]);
+  });
+});
+
+// ── getMergedStateTemplate ───────────────────────────────────
+
+describe("InterfaceRegistry getMergedStateTemplate", () => {
+  it("returns null when no interface has state", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(archivableInterface); // no state
+    registry.registerImplementor("test", ["archivable"]);
+
+    expect(registry.getMergedStateTemplate("test")).toBeNull();
+  });
+
+  it("returns single interface state as-is", () => {
+    const registry = createInterfaceRegistry();
+    registry.register(approvableInterface);
+    registry.registerImplementor("test", ["approvable"]);
+
+    const merged = registry.getMergedStateTemplate("test");
+    expect(merged).not.toBeNull();
+    expect(merged?.initial).toBe("draft");
+    expect(merged?.transitions).toHaveLength(3);
+  });
+
+  it("merges transitions from multiple interfaces", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "submittable",
+      label: "Submittable",
+      fields: { status: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+      },
+    });
+    registry.register({
+      name: "reviewable",
+      label: "Reviewable",
+      fields: { reviewer: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "submitted", to: "reviewed", action: "review" }],
+      },
+    });
+    registry.registerImplementor("doc", ["submittable", "reviewable"]);
+
+    const merged = registry.getMergedStateTemplate("doc");
+    expect(merged).not.toBeNull();
+    expect(merged?.initial).toBe("draft");
+    expect(merged?.transitions).toHaveLength(2);
+    expect(merged?.transitions.some((t) => t.action === "submit")).toBe(true);
+    expect(merged?.transitions.some((t) => t.action === "review")).toBe(true);
+  });
+
+  it("deduplicates identical transitions from multiple interfaces", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "flow_a",
+      label: "Flow A",
+      fields: { x: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "active", action: "activate" }],
+      },
+    });
+    registry.register({
+      name: "flow_b",
+      label: "Flow B",
+      fields: { y: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "active", action: "activate" }],
+      },
+    });
+    registry.registerImplementor("test", ["flow_a", "flow_b"]);
+
+    const merged = registry.getMergedStateTemplate("test");
+    expect(merged?.transitions).toHaveLength(1);
+  });
+
+  it("returns null for unknown schema", () => {
+    const registry = createInterfaceRegistry();
+    expect(registry.getMergedStateTemplate("nonexistent")).toBeNull();
+  });
+});
+
+// ── Multiple validation errors ──────────────────────────────
+
+describe("InterfaceRegistry multiple validation errors", () => {
+  it("collects multiple errors in a single validation", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "strict_iface",
+      label: "Strict",
+      fields: {
+        name: { type: "string", required: true },
+        priority: { type: "string", enum: ["low", "high"] },
+        count: { type: "number" },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "bad_schema",
+      implements: ["strict_iface"],
+      fields: {
+        name: { type: "number" }, // wrong type
+        priority: { type: "string", enum: ["low"] }, // missing "high"
+        count: { type: "number" }, // ok
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    // Should have at least 2 errors: type mismatch + missing enum value
+    expect(errors.length).toBeGreaterThanOrEqual(2);
+    expect(errors.some((e) => e.includes("name") && e.includes("number"))).toBe(true);
+    expect(errors.some((e) => e.includes("high") && e.includes("missing value"))).toBe(true);
+  });
+
+  it("reports both missing interface and field type errors", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "existing_iface",
+      label: "Existing",
+      fields: { x: { type: "string" } },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "bad_schema",
+      implements: ["nonexistent", "existing_iface"],
+      fields: {
+        x: { type: "number" }, // conflicts with existing_iface
+      },
+    };
+
+    const errors = registry.validateImplementation(schema);
+    expect(errors.length).toBeGreaterThanOrEqual(2);
+    expect(errors.some((e) => e.includes("not registered"))).toBe(true);
+    expect(errors.some((e) => e.includes("number") && e.includes("string"))).toBe(true);
+  });
+});
+
+// ── SchemaRegistry integration with new validation ──────────
+
+describe("SchemaRegistry integration with enhanced validation", () => {
+  it("throws on register when schema weakens required constraint", () => {
+    const ifaceRegistry = createInterfaceRegistry();
+    ifaceRegistry.register({
+      name: "named",
+      label: "Named",
+      fields: {
+        display_name: { type: "string", required: true },
+      },
+    });
+
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+
+    const schema: SchemaDefinition = {
+      name: "bad",
+      implements: ["named"],
+      fields: {
+        display_name: { type: "string", required: false },
+      },
+    };
+
+    expect(() => schemaRegistry.register(schema)).toThrow("required");
+  });
+
+  it("throws on register when schema enum is missing interface-required values", () => {
+    const ifaceRegistry = createInterfaceRegistry();
+    ifaceRegistry.register({
+      name: "prioritizable",
+      label: "Prioritizable",
+      fields: {
+        priority: { type: "string", enum: ["low", "medium", "high"] },
+      },
+    });
+
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+
+    const schema: SchemaDefinition = {
+      name: "task",
+      implements: ["prioritizable"],
+      fields: {
+        priority: { type: "string", enum: ["low", "high"] }, // missing "medium"
+      },
+    };
+
+    expect(() => schemaRegistry.register(schema)).toThrow("medium");
+  });
+
+  it("throws on register when two interfaces have conflicting state machines", () => {
+    const ifaceRegistry = createInterfaceRegistry();
+    ifaceRegistry.register({
+      name: "flow_a",
+      label: "Flow A",
+      fields: { x: { type: "string" } },
+      state: {
+        initial: "draft",
+        transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+      },
+    });
+    ifaceRegistry.register({
+      name: "flow_b",
+      label: "Flow B",
+      fields: { y: { type: "string" } },
+      state: {
+        initial: "new", // conflicts with flow_a's initial
+        transitions: [],
+      },
+    });
+
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+
+    const schema: SchemaDefinition = {
+      name: "bad",
+      implements: ["flow_a", "flow_b"],
+      fields: { z: { type: "string" } },
+    };
+
+    expect(() => schemaRegistry.register(schema)).toThrow("conflicting initial");
   });
 });

@@ -21,6 +21,19 @@ export {
   parseCronToInterval,
 } from "./automation";
 
+// === Watcher engine (data-condition automation, spec 45) ===
+
+export {
+  type WatcherDataQuerier,
+  type WatcherEngine,
+  type WatcherEngineOptions,
+  type WatcherRegistry,
+  createWatcherEngine,
+  createWatcherRegistry,
+  evaluateComparison,
+  parseDuration,
+} from "./automation";
+
 // === Engine: action, command, approval, state, rule, validation, permission, proposal ===
 
 export {

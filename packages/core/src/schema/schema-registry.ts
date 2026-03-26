@@ -120,6 +120,18 @@ export class SchemaRegistry {
           `Inheritance depth exceeds maximum of ${MAX_INHERITANCE_DEPTH} levels for schema "${schema.name}"`,
         );
       }
+
+      // Validate field type conflicts: child cannot change parent field's type
+      const parentFields = this.collectInheritedFields(schema.extends);
+      for (const [fname, fdef] of Object.entries(schema.fields)) {
+        const parentField = parentFields[fname];
+        if (parentField && fdef.type !== parentField.type) {
+          throw new Error(
+            `Schema "${schema.name}" cannot change type of inherited field "${fname}" ` +
+              `from "${parentField.type}" to "${fdef.type}"`,
+          );
+        }
+      }
     }
 
     // Validate interface implementation
@@ -160,10 +172,27 @@ export class SchemaRegistry {
   }
 
   /**
+   * Collect all inherited fields from the full ancestor chain for a schema.
+   * Used for field type conflict validation at registration time.
+   */
+  private collectInheritedFields(name: string): Record<string, FieldDefinition> {
+    const fields: Record<string, FieldDefinition> = {};
+    const chain = this.getInheritanceChain(name);
+    // chain includes `name` itself as last element; iterate all
+    for (const schemaName of chain) {
+      const schema = this.schemas.get(schemaName);
+      if (schema) {
+        Object.assign(fields, schema.fields);
+      }
+    }
+    return fields;
+  }
+
+  /**
    * Collect the full inheritance chain for a schema (from root ancestor to self).
    * Returns an array of schema names ordered from root to self.
    */
-  private getInheritanceChain(name: string): string[] {
+  getInheritanceChain(name: string): string[] {
     const chain: string[] = [];
     let current = this.schemas.get(name);
     while (current) {
@@ -176,7 +205,7 @@ export class SchemaRegistry {
   /**
    * Get direct children of a schema (schemas that extend it).
    */
-  private getChildren(name: string): string[] {
+  getChildren(name: string): string[] {
     const children: string[] = [];
     for (const schema of this.schemas.values()) {
       if (schema.extends === name) {
@@ -184,6 +213,21 @@ export class SchemaRegistry {
       }
     }
     return children;
+  }
+
+  /**
+   * Get all descendants of a schema recursively (children, grandchildren, etc.).
+   */
+  getAllDescendants(name: string): string[] {
+    const descendants: string[] = [];
+    const queue = this.getChildren(name);
+    while (queue.length > 0) {
+      // biome-ignore lint/style/noNonNullAssertion: length checked above
+      const child = queue.shift()!;
+      descendants.push(child);
+      queue.push(...this.getChildren(child));
+    }
+    return descendants;
   }
 
   /**

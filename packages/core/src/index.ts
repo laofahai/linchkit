@@ -24,6 +24,7 @@ export type {
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
 export type { AutomationEngine, AutomationRegistry } from "./automation";
+export type { WatcherEngine, WatcherRegistry } from "./automation";
 // Cache — type exports (browser-safe)
 export type {
   CacheEntry,
@@ -78,6 +79,7 @@ export {
   defineSchema,
   defineState,
   defineView,
+  defineWatcher,
   disableRule,
   extendPermissionGroup,
   extendSchema,
@@ -163,7 +165,9 @@ export type {
 } from "./ontology";
 export {
   type AggregateDerived,
+  type CascadeTarget,
   type ConcatDerived,
+  computeAggregate,
   createDerivedPropertyEngine,
   type DerivedConfig,
   type DerivedFieldInfo,
@@ -173,6 +177,7 @@ export {
   type FunctionDerived,
   getDerivedStrategy,
   isDerivedField,
+  resolveAggregateValue,
   resolveDerivedValue,
 } from "./schema/derived-property";
 export type { LinkRegistry } from "./schema/link-registry";
@@ -184,12 +189,14 @@ export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-
 export {
   createTranslatableValue,
   getTranslatableFields,
+  I18N_RAW_KEY,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
   resolveTranslation,
+  TRANSLATABLE_FIELD_TYPES,
   type TranslatableValue,
   validateTranslatableSchema,
   wrapTranslatableValue,

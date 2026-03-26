@@ -95,11 +95,21 @@ function getTransitionActionNames(
   return actionNames;
 }
 
+/** Relationship field types that require subfield selection in GraphQL. */
+const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
+
 /** Extract GraphQL field names from view fields, always including the state field */
 function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition): string[] {
   const fields = new Set<string>(["id"]);
   for (const f of view.fields) {
-    if (!f.field.includes(".")) {
+    if (f.field.includes(".")) continue;
+
+    const fieldDef = schema?.fields?.[f.field];
+
+    // Relationship fields need subfield selection: `department { id }`
+    if (fieldDef && RELATION_FIELD_TYPES.has(fieldDef.type ?? "")) {
+      fields.add(`${f.field} { id }`);
+    } else {
       fields.add(f.field);
     }
   }

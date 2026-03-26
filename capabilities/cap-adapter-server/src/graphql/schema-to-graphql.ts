@@ -13,7 +13,7 @@ import type {
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
-import { resolveTranslatableValue } from "@linchkit/core";
+import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core/server";
 export type { LinkResolverContext } from "./link-resolvers";
 import type { LinkResolverContext } from "./link-resolvers";
@@ -328,14 +328,21 @@ export function generateGraphQLObjectType(
             },
           };
 
-          // Also generate a `{field}_i18n` field that returns the full JSONB locale map as JSON string
+          // Also generate a `{field}_i18n` field that returns the full JSONB locale map as JSON string.
+          // After resolveTranslatableRow, the raw JSONB is stashed under I18N_RAW_KEY.
           fields[`${fieldName}_i18n`] = {
             type: GraphQLString,
             description: `All translations for ${field.label ?? fieldName} (JSON-encoded locale map)`,
             resolve: (obj: Record<string, unknown>) => {
+              // First check the stashed raw locale map (set by resolveTranslatableRow)
+              const rawMap = obj[I18N_RAW_KEY] as Record<string, unknown> | undefined;
+              if (rawMap && rawMap[name] !== undefined && rawMap[name] !== null) {
+                return JSON.stringify(rawMap[name]);
+              }
+              // Fallback: value might still be a JSONB object (not yet resolved)
               const raw = obj[name];
               if (raw === null || raw === undefined) return null;
-              if (typeof raw === "string") return null; // Already resolved, no full map available
+              if (typeof raw === "string") return null;
               return JSON.stringify(raw);
             },
           };

@@ -62,7 +62,8 @@ export function generateCrudActions(
       // Compute store-strategy derived fields before persisting
       if (derivedEngine) {
         try {
-          const derivedValues = derivedEngine.computeStoreFields(name, inputWithDefaults);
+          // Use async version to support aggregate computations
+          const derivedValues = await derivedEngine.computeStoreFieldsAsync(name, inputWithDefaults);
           Object.assign(inputWithDefaults, derivedValues);
         } catch (err) {
           throw new Error(
@@ -70,7 +71,16 @@ export function generateCrudActions(
           );
         }
       }
-      return ctx.create(name, inputWithDefaults);
+      const result = await ctx.create(name, inputWithDefaults);
+      // Cascade recalculate parent aggregate fields if this child schema affects any
+      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+        try {
+          await derivedEngine.cascadeRecalculate(name, result);
+        } catch {
+          // Cascade failures are non-fatal — log but don't fail the create
+        }
+      }
+      return result;
     },
   };
 
@@ -120,7 +130,8 @@ export function generateCrudActions(
           }
         }
         try {
-          const derivedValues = derivedEngine.computeStoreFields(name, fullRecord);
+          // Use async version to support aggregate computations
+          const derivedValues = await derivedEngine.computeStoreFieldsAsync(name, fullRecord);
           Object.assign(data, derivedValues);
         } catch (err) {
           throw new Error(
@@ -128,7 +139,16 @@ export function generateCrudActions(
           );
         }
       }
-      return ctx.update(name, id, data);
+      const result = await ctx.update(name, id, data);
+      // Cascade recalculate parent aggregate fields if this child schema affects any
+      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+        try {
+          await derivedEngine.cascadeRecalculate(name, result);
+        } catch {
+          // Cascade failures are non-fatal — log but don't fail the update
+        }
+      }
+      return result;
     },
   };
 
@@ -141,7 +161,24 @@ export function generateCrudActions(
     exposure: "all",
     handler: async (ctx) => {
       const id = ctx.input.id as string;
+      // Capture the record before deletion for cascade recalculation
+      let deletedRecord: Record<string, unknown> | undefined;
+      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+        try {
+          deletedRecord = await ctx.get(name, id);
+        } catch {
+          // Record may not exist — skip cascade
+        }
+      }
       await ctx.delete(name, id);
+      // Cascade recalculate parent aggregate fields after delete
+      if (derivedEngine && deletedRecord) {
+        try {
+          await derivedEngine.cascadeRecalculate(name, deletedRecord);
+        } catch {
+          // Cascade failures are non-fatal
+        }
+      }
       return { deleted: true, id };
     },
   };
@@ -165,7 +202,16 @@ export function generateCrudActions(
         return record;
       }
       // Clear deleted_at to restore the record
-      return ctx.update(name, id, { deleted_at: null });
+      const result = await ctx.update(name, id, { deleted_at: null });
+      // Cascade recalculate parent aggregate fields after restore
+      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+        try {
+          await derivedEngine.cascadeRecalculate(name, result);
+        } catch {
+          // Cascade failures are non-fatal
+        }
+      }
+      return result;
     },
   };
 

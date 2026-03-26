@@ -6,7 +6,9 @@
 
 export {
   type AggregateDerived,
+  type CascadeTarget,
   type ConcatDerived,
+  computeAggregate,
   createDerivedPropertyEngine,
   type DerivedConfig,
   type DerivedFieldInfo,
@@ -16,6 +18,7 @@ export {
   type FunctionDerived,
   getDerivedStrategy,
   isDerivedField,
+  resolveAggregateValue,
   resolveDerivedValue,
 } from "./derived-property";
 export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
@@ -30,12 +33,14 @@ export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
 export {
   createTranslatableValue,
   getTranslatableFields,
+  I18N_RAW_KEY,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
   resolveTranslation,
+  TRANSLATABLE_FIELD_TYPES,
   type TranslatableValue,
   validateTranslatableSchema,
   wrapTranslatableValue,

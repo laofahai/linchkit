@@ -53,6 +53,23 @@ export interface LinchKitConfig {
   /** Flow engine configuration */
   flow?: FlowEngineConfig;
 
+  /** Realtime subscription configuration (SSE-based server→client push) */
+  subscription?: SubscriptionConfig;
+
   /** Installed capabilities loaded by the host project */
   capabilities?: CapabilityDefinition[];
+}
+
+/** Configuration for the SSE realtime subscription system */
+export interface SubscriptionConfig {
+  /** Whether subscription is enabled (default: true when server capability is loaded) */
+  enabled?: boolean;
+  /** Maximum SSE connections per user (default: 3) */
+  maxConnectionsPerUser?: number;
+  /** Heartbeat interval in milliseconds (default: 30000) */
+  heartbeatInterval?: number;
+  /** Idle timeout in milliseconds — close connection after no subscribed events (default: 300000) */
+  idleTimeout?: number;
+  /** Maximum buffered events per connection before dropping (default: 100) */
+  maxBufferSize?: number;
 }

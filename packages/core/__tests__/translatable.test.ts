@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createTranslatableValue,
   getTranslatableFields,
+  I18N_RAW_KEY,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
@@ -125,6 +126,35 @@ describe("normalizeTranslatableValue", () => {
   test("passes through undefined", () => {
     expect(normalizeTranslatableValue(undefined, "en")).toBeUndefined();
   });
+
+  test("parses JSON-encoded locale map string", () => {
+    const jsonStr = '{"en":"Hello","zh-CN":"你好"}';
+    expect(normalizeTranslatableValue(jsonStr, "en")).toEqual({
+      en: "Hello",
+      "zh-CN": "你好",
+    });
+  });
+
+  test("wraps string starting with { if not valid JSON", () => {
+    const str = "{not valid json";
+    expect(normalizeTranslatableValue(str, "en")).toEqual({ en: "{not valid json" });
+  });
+
+  test("wraps string starting with { if JSON is not a locale map", () => {
+    // Array values are not a locale map
+    const arrayJson = '["en","zh-CN"]';
+    expect(normalizeTranslatableValue(arrayJson, "en")).toEqual({ en: arrayJson });
+  });
+
+  test("wraps string starting with { if values are not all strings", () => {
+    const mixedJson = '{"en":"Hello","count":42}';
+    expect(normalizeTranslatableValue(mixedJson, "en")).toEqual({ en: mixedJson });
+  });
+
+  test("parses single-locale JSON string", () => {
+    const jsonStr = '{"ja":"こんにちは"}';
+    expect(normalizeTranslatableValue(jsonStr, "en")).toEqual({ ja: "こんにちは" });
+  });
 });
 
 describe("getTranslatableFields", () => {
@@ -217,6 +247,45 @@ describe("resolveTranslatableRow", () => {
     const result = resolveTranslatableRow(row, productSchema, "en");
     expect(result.sku).toBe("W-001");
     expect(result.name).toBeUndefined();
+  });
+
+  test("preserves raw JSONB locale maps under I18N_RAW_KEY", () => {
+    const row = {
+      name: { en: "Widget", "zh-CN": "小部件" },
+      description: { en: "A useful widget" },
+      sku: "W-001",
+    };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+
+    // Main fields should be resolved strings
+    expect(result.name).toBe("Widget");
+    expect(result.description).toBe("A useful widget");
+
+    // Raw JSONB locale maps should be stashed
+    const rawMap = result[I18N_RAW_KEY] as Record<string, unknown>;
+    expect(rawMap).toBeDefined();
+    expect(rawMap.name).toEqual({ en: "Widget", "zh-CN": "小部件" });
+    expect(rawMap.description).toEqual({ en: "A useful widget" });
+  });
+
+  test("does not set I18N_RAW_KEY when no translatable fields have JSONB values", () => {
+    const row = { sku: "W-001", price: 9.99 };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+    expect(result[I18N_RAW_KEY]).toBeUndefined();
+  });
+
+  test("does not stash plain string values (only objects) in I18N_RAW_KEY", () => {
+    // If a translatable field already has a string value (defensive case)
+    const row = {
+      name: "Widget",
+      sku: "W-001",
+    };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+    // name was already a string, so it shouldn't be in the raw map
+    const rawMap = result[I18N_RAW_KEY] as Record<string, unknown> | undefined;
+    if (rawMap) {
+      expect(rawMap.name).toBeUndefined();
+    }
   });
 });
 

@@ -8,13 +8,15 @@
  * - expression: arithmetic/logic on fields within the same record
  * - concat: string concatenation of multiple fields
  * - function: custom compute function
- * - aggregate: cross-record aggregation (stub — requires Link integration, M4)
+ * - aggregate: cross-record aggregation via Link system (SUM, COUNT, AVG, MIN, MAX)
  *
  * Strategies:
  * - store: persisted to DB, recalculated on write (default)
  * - compute: calculated on read, not persisted
  */
 
+import type { DataProvider } from "../engine/action-engine";
+import type { LinkDefinition, LinkRegistryInterface } from "../types/link";
 import type { FieldDefinition, SchemaDefinition } from "../types/schema";
 
 // ── Derived field type definitions ────────────────────────────
@@ -48,7 +50,7 @@ export interface FunctionDerived {
   deps?: string[];
 }
 
-/** Aggregate derivation (stub — full implementation in M4) */
+/** Aggregate derivation: cross-record aggregation via Link system */
 export interface AggregateDerived {
   type: "aggregate";
   source: { link: string; schema: string; filter?: Record<string, unknown> };
@@ -402,11 +404,12 @@ export function evaluateExpression(expr: string, record: Record<string, unknown>
 // ── Derived field resolution ──────────────────────────────────
 
 /**
- * Resolve a single derived field value for a record.
+ * Resolve a single derived field value for a record (synchronous).
+ * For aggregate type, returns undefined — use resolveAggregateValue() instead.
  *
  * @param derived - The derived configuration from the field definition
  * @param record - The current record data
- * @returns The computed value, or undefined if cannot compute (e.g. aggregate stub)
+ * @returns The computed value, or undefined if cannot compute (e.g. aggregate without data provider)
  */
 export function resolveDerivedValue(
   derived: DerivedConfig,
@@ -431,12 +434,96 @@ export function resolveDerivedValue(
       return derived.compute(record);
 
     case "aggregate":
-      // Aggregate requires data provider access — stub returns undefined
-      // Full implementation in M4 when Link-based cross-record queries are available
+      // Aggregate requires async data provider access — use resolveAggregateValue()
       return undefined;
 
     default:
       return undefined;
+  }
+}
+
+/**
+ * Resolve an aggregate derived field value by querying related records via the data provider.
+ *
+ * Determines the FK column from the link definition and queries all related records,
+ * then computes the aggregate operation (sum, count, avg, min, max).
+ *
+ * @param derived - The aggregate derived configuration
+ * @param record - The parent record (must have an `id` field)
+ * @param link - The link definition connecting parent to child schema
+ * @param dataProvider - Data provider for querying related records
+ * @returns The aggregated value
+ */
+export async function resolveAggregateValue(
+  derived: AggregateDerived,
+  record: Record<string, unknown>,
+  link: LinkDefinition,
+  dataProvider: DataProvider,
+): Promise<number> {
+  const parentId = record.id as string;
+  if (!parentId) return 0;
+
+  // Determine the FK column name and query direction based on link cardinality.
+  // The parent schema is on the side that "has" the aggregate (i.e., the "from" side
+  // of one_to_many, or the "to" side of many_to_one).
+  const childSchema = derived.source.schema;
+  let fkColumn: string;
+
+  if (link.from === childSchema) {
+    // Link: child → parent, FK is on the child table: `{parent}_id`
+    fkColumn = `${link.to}_id`;
+  } else {
+    // Link: parent → child, FK is on the child table: `{parent}_id`
+    fkColumn = `${link.from}_id`;
+  }
+
+  // Build filter: FK column matches parent ID + any user-specified filter
+  const filter: Record<string, unknown> = { [fkColumn]: parentId };
+  if (derived.source.filter) {
+    Object.assign(filter, derived.source.filter);
+  }
+
+  const relatedRecords = await dataProvider.query(childSchema, filter);
+
+  return computeAggregate(derived.op, derived.field, relatedRecords);
+}
+
+/**
+ * Compute an aggregate operation on an array of records.
+ */
+export function computeAggregate(
+  op: AggregateDerived["op"],
+  field: string | undefined,
+  records: Array<Record<string, unknown>>,
+): number {
+  if (op === "count") {
+    return records.length;
+  }
+
+  if (!field) return 0;
+
+  const values = records
+    .map((r) => {
+      const v = r[field];
+      if (v === null || v === undefined) return undefined;
+      const num = Number(v);
+      return Number.isNaN(num) ? undefined : num;
+    })
+    .filter((v): v is number => v !== undefined);
+
+  if (values.length === 0) return 0;
+
+  switch (op) {
+    case "sum":
+      return values.reduce((a, b) => a + b, 0);
+    case "avg":
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    case "min":
+      return Math.min(...values);
+    case "max":
+      return Math.max(...values);
+    default:
+      return 0;
   }
 }
 
@@ -449,6 +536,20 @@ export interface DerivedFieldInfo {
   fieldDefinition: FieldDefinition;
   derived: DerivedConfig;
   strategy: "store" | "compute";
+}
+
+/** Information about a cascade target: which parent schema/field to recalculate */
+export interface CascadeTarget {
+  /** Parent schema that has the aggregate derived field */
+  parentSchema: string;
+  /** Field name on the parent schema that needs recalculation */
+  parentField: string;
+  /** The aggregate derived config */
+  derived: AggregateDerived;
+  /** The link definition connecting child to parent */
+  link: LinkDefinition;
+  /** FK column name on the child record pointing to the parent */
+  fkColumn: string;
 }
 
 /**
@@ -504,6 +605,9 @@ function parseDerivedConfig(field: FieldDefinition): DerivedConfig | undefined {
  * It scans schema definitions, collects derived fields, builds a dependency
  * graph, detects cycles, and provides methods to resolve derived values
  * for records.
+ *
+ * Supports cross-schema aggregate computations (SUM, COUNT, AVG, MIN, MAX)
+ * via Link system integration, with cascade recalculation when related records change.
  */
 export class DerivedPropertyEngine {
   /** All registered derived fields, keyed by "schema.field" */
@@ -515,6 +619,28 @@ export class DerivedPropertyEngine {
   /** Topological order for store-strategy fields (schema-scoped) */
   private topoOrder = new Map<string, string[]>();
 
+  /** Cascade targets: child schema name → list of parent aggregate fields to recalculate */
+  private cascadeMap = new Map<string, CascadeTarget[]>();
+
+  /** Optional link registry for aggregate resolution */
+  private linkRegistry?: LinkRegistryInterface;
+
+  /** Optional data provider for aggregate resolution */
+  private dataProvider?: DataProvider;
+
+  /**
+   * Wire the engine with a link registry and data provider for aggregate support.
+   * Call this after register() once the link registry and data provider are available.
+   */
+  wire(options: { linkRegistry?: LinkRegistryInterface; dataProvider?: DataProvider }): void {
+    this.linkRegistry = options.linkRegistry;
+    this.dataProvider = options.dataProvider;
+    // Rebuild cascade map now that we have the link registry
+    if (this.linkRegistry) {
+      this.buildCascadeMap();
+    }
+  }
+
   /**
    * Register all derived fields from a set of schema definitions.
    * Call this once during startup after all schemas are registered.
@@ -525,6 +651,7 @@ export class DerivedPropertyEngine {
     this.fields.clear();
     this.depGraph.clear();
     this.topoOrder.clear();
+    this.cascadeMap.clear();
 
     // Phase 1: collect derived fields
     for (const schema of schemas) {
@@ -543,7 +670,7 @@ export class DerivedPropertyEngine {
           strategy,
         });
 
-        // Build dependency edges (within same schema only for now)
+        // Build dependency edges (within same schema only for non-aggregate types)
         const deps = new Set<string>();
         const depFieldNames = this.getDependencyFieldNames(derived);
         for (const dep of depFieldNames) {
@@ -555,6 +682,53 @@ export class DerivedPropertyEngine {
 
     // Phase 2: cycle detection + topological sort per schema
     this.buildTopoOrder(schemas);
+
+    // Phase 3: build cascade map if link registry is available
+    if (this.linkRegistry) {
+      this.buildCascadeMap();
+    }
+  }
+
+  /**
+   * Build the cascade map: for each aggregate derived field, record which
+   * child schema changes should trigger recalculation of the parent field.
+   */
+  private buildCascadeMap(): void {
+    this.cascadeMap.clear();
+    if (!this.linkRegistry) return;
+
+    for (const info of this.fields.values()) {
+      if (info.derived.type !== "aggregate") continue;
+
+      const agg = info.derived;
+      const linkName = agg.source.link;
+      const childSchema = agg.source.schema;
+
+      // Find the link definition
+      const allLinks = this.linkRegistry.list();
+      const link = allLinks.find((l) => l.name === linkName);
+      if (!link) continue;
+
+      // Determine FK column on the child record
+      let fkColumn: string;
+      if (link.from === childSchema) {
+        fkColumn = `${link.to}_id`;
+      } else {
+        fkColumn = `${link.from}_id`;
+      }
+
+      const target: CascadeTarget = {
+        parentSchema: info.schemaName,
+        parentField: info.fieldName,
+        derived: agg,
+        link,
+        fkColumn,
+      };
+
+      const existing = this.cascadeMap.get(childSchema) ?? [];
+      existing.push(target);
+      this.cascadeMap.set(childSchema, existing);
+    }
   }
 
   /**
@@ -680,10 +854,35 @@ export class DerivedPropertyEngine {
   }
 
   /**
+   * Get aggregate derived fields for a schema.
+   */
+  getAggregateFields(schemaName: string): DerivedFieldInfo[] {
+    return this.getDerivedFields(schemaName).filter((f) => f.derived.type === "aggregate");
+  }
+
+  /**
+   * Get cascade targets for a child schema.
+   * Returns the list of parent schema fields that need recalculation
+   * when a record in the child schema is created, updated, or deleted.
+   */
+  getCascadeTargets(childSchemaName: string): CascadeTarget[] {
+    return this.cascadeMap.get(childSchemaName) ?? [];
+  }
+
+  /**
+   * Check if a child schema has any cascade targets (i.e., any parent schema
+   * has aggregate derived fields that depend on this child schema).
+   */
+  hasCascadeTargets(childSchemaName: string): boolean {
+    return (this.cascadeMap.get(childSchemaName) ?? []).length > 0;
+  }
+
+  /**
    * Resolve all "compute"-strategy derived fields for a record.
    * Modifies the record in-place and returns it.
    *
    * Call this when reading records (e.g., in GraphQL resolvers or data provider).
+   * Note: aggregate compute-strategy fields require resolveComputeFieldsAsync().
    */
   resolveComputeFields(
     schemaName: string,
@@ -720,10 +919,45 @@ export class DerivedPropertyEngine {
   }
 
   /**
-   * Compute all "store"-strategy derived field values for a record.
+   * Resolve all "compute"-strategy derived fields for a record, including async aggregates.
+   * Modifies the record in-place and returns it.
+   */
+  async resolveComputeFieldsAsync(
+    schemaName: string,
+    record: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    // First resolve all non-aggregate compute fields synchronously
+    this.resolveComputeFields(schemaName, record);
+
+    // Then resolve aggregate compute fields asynchronously
+    if (this.dataProvider && this.linkRegistry) {
+      for (const info of this.fields.values()) {
+        if (
+          info.schemaName !== schemaName ||
+          info.strategy !== "compute" ||
+          info.derived.type !== "aggregate"
+        ) {
+          continue;
+        }
+        const agg = info.derived;
+        const allLinks = this.linkRegistry.list();
+        const link = allLinks.find((l) => l.name === agg.source.link);
+        if (!link) continue;
+
+        const value = await resolveAggregateValue(agg, record, link, this.dataProvider);
+        record[info.fieldName] = value;
+      }
+    }
+
+    return record;
+  }
+
+  /**
+   * Compute all "store"-strategy derived field values for a record (synchronous).
    * Returns a map of field name → computed value (to be merged into the write payload).
    *
    * Call this before writing a record (e.g., in Action Engine post-action).
+   * Note: aggregate store-strategy fields require computeStoreFieldsAsync().
    */
   computeStoreFields(schemaName: string, record: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
@@ -737,6 +971,9 @@ export class DerivedPropertyEngine {
       const info = this.fields.get(key);
       if (!info || info.strategy !== "store") continue;
 
+      // Skip aggregates in sync mode — they need async resolution
+      if (info.derived.type === "aggregate") continue;
+
       const value = resolveDerivedValue(info.derived, working);
       if (value !== undefined) {
         result[info.fieldName] = value;
@@ -748,6 +985,7 @@ export class DerivedPropertyEngine {
     for (const info of this.fields.values()) {
       if (info.schemaName !== schemaName || info.strategy !== "store") continue;
       if (result[info.fieldName] !== undefined) continue;
+      if (info.derived.type === "aggregate") continue;
 
       const value = resolveDerivedValue(info.derived, working);
       if (value !== undefined) {
@@ -757,6 +995,136 @@ export class DerivedPropertyEngine {
     }
 
     return result;
+  }
+
+  /**
+   * Compute all "store"-strategy derived field values for a record, including async aggregates.
+   * Returns a map of field name → computed value (to be merged into the write payload).
+   */
+  async computeStoreFieldsAsync(
+    schemaName: string,
+    record: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    // Start with sync computations
+    const result = this.computeStoreFields(schemaName, record);
+    const working = { ...record, ...result };
+
+    // Then resolve aggregate store fields asynchronously
+    if (this.dataProvider && this.linkRegistry) {
+      for (const info of this.fields.values()) {
+        if (
+          info.schemaName !== schemaName ||
+          info.strategy !== "store" ||
+          info.derived.type !== "aggregate"
+        ) {
+          continue;
+        }
+        const agg = info.derived;
+        const allLinks = this.linkRegistry.list();
+        const link = allLinks.find((l) => l.name === agg.source.link);
+        if (!link) continue;
+
+        const value = await resolveAggregateValue(agg, working, link, this.dataProvider);
+        result[info.fieldName] = value;
+        working[info.fieldName] = value;
+      }
+    }
+
+    // Re-resolve any expression/function fields that depend on aggregate results
+    const order = this.topoOrder.get(schemaName) ?? [];
+    for (const key of order) {
+      const info = this.fields.get(key);
+      if (!info || info.strategy !== "store") continue;
+      if (info.derived.type === "aggregate") continue;
+
+      // Check if any dependency is an aggregate field
+      const depNames = this.getDependencyFieldNames(info.derived);
+      const hasAggDep = depNames.some(
+        (d) => result[d] !== undefined && this.fields.get(`${schemaName}.${d}`)?.derived.type === "aggregate",
+      );
+      if (hasAggDep) {
+        const value = resolveDerivedValue(info.derived, working);
+        if (value !== undefined) {
+          result[info.fieldName] = value;
+          working[info.fieldName] = value;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Cascade recalculate: when a child record is created, updated, or deleted,
+   * find all affected parent records and recalculate their aggregate derived fields.
+   *
+   * @param childSchemaName - The schema of the record that changed
+   * @param childRecord - The child record (for extracting FK values to find parent records)
+   * @param dataProvider - Data provider for querying and updating parent records
+   * @returns Map of "parentSchema.parentId" → updated field values
+   */
+  async cascadeRecalculate(
+    childSchemaName: string,
+    childRecord: Record<string, unknown>,
+    dataProvider?: DataProvider,
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const dp = dataProvider ?? this.dataProvider;
+    if (!dp) return new Map();
+
+    const targets = this.getCascadeTargets(childSchemaName);
+    if (targets.length === 0) return new Map();
+
+    const updates = new Map<string, Record<string, unknown>>();
+
+    for (const target of targets) {
+      // Find the parent record ID from the child record's FK column
+      const parentId = childRecord[target.fkColumn] as string | undefined;
+      if (!parentId) continue;
+
+      // Get the parent record
+      let parentRecord: Record<string, unknown>;
+      try {
+        parentRecord = await dp.get(target.parentSchema, parentId);
+      } catch {
+        // Parent not found — skip (may have been deleted)
+        continue;
+      }
+
+      // Recalculate the aggregate field
+      const value = await resolveAggregateValue(
+        target.derived,
+        parentRecord,
+        target.link,
+        dp,
+      );
+
+      // Collect update for this parent
+      const updateKey = `${target.parentSchema}.${parentId}`;
+      const existing = updates.get(updateKey) ?? {};
+      existing[target.parentField] = value;
+      updates.set(updateKey, existing);
+
+      // Apply the update to the parent record
+      await dp.update(target.parentSchema, parentId, { [target.parentField]: value });
+
+      // Check if there are non-aggregate store fields that depend on this aggregate field
+      const storeFields = this.getStoreFields(target.parentSchema);
+      const updatedParent = { ...parentRecord, [target.parentField]: value };
+      for (const sf of storeFields) {
+        if (sf.derived.type === "aggregate") continue;
+        const deps = this.getDependencyFieldNames(sf.derived);
+        if (deps.includes(target.parentField)) {
+          const recomputed = resolveDerivedValue(sf.derived, updatedParent);
+          if (recomputed !== undefined) {
+            existing[sf.fieldName] = recomputed;
+            updatedParent[sf.fieldName] = recomputed;
+            await dp.update(target.parentSchema, parentId, { [sf.fieldName]: recomputed });
+          }
+        }
+      }
+    }
+
+    return updates;
   }
 
   /**

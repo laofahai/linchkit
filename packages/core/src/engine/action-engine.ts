@@ -120,9 +120,34 @@ export class ActionRegistry {
     return Array.from(this.actions.values());
   }
 
-  /** Get all actions for a given schema */
+  /** Get all actions for a given schema (own only, no inheritance) */
   getBySchema(schema: string): ActionDefinition[] {
     return this.getAll().filter((a) => a.schema === schema);
+  }
+
+  /**
+   * Get all actions for a schema including actions inherited from ancestor schemas.
+   * Child actions override parent actions of the same name.
+   * @param schema - The schema name
+   * @param inheritanceChain - Ordered from root ancestor to self (e.g., ['party', 'customer'])
+   */
+  getBySchemaWithInheritance(schema: string, inheritanceChain: string[]): ActionDefinition[] {
+    const ownActions = this.getBySchema(schema);
+    const ownNames = new Set(ownActions.map((a) => a.name));
+
+    // Collect inherited actions from ancestors (excluding self, which is last in chain)
+    const inherited: ActionDefinition[] = [];
+    for (let i = 0; i < inheritanceChain.length - 1; i++) {
+      // biome-ignore lint/style/noNonNullAssertion: index is within bounds
+      for (const action of this.getBySchema(inheritanceChain[i]!)) {
+        // Only include if not overridden by a closer descendant or self
+        if (!ownNames.has(action.name) && !inherited.some((a) => a.name === action.name)) {
+          inherited.push(action);
+        }
+      }
+    }
+
+    return [...inherited, ...ownActions];
   }
 
   /** Check if an action is registered */

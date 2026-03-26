@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { ActionRegistry } from "../src/engine/action-engine";
+import { createOntologyRegistry } from "../src/ontology/ontology-registry";
 import { createSchemaRegistry } from "../src/schema/schema-registry";
+import type { ActionDefinition } from "../src/types/action";
+import type { RuleDefinition } from "../src/types/rule";
 import type { SchemaDefinition } from "../src/types/schema";
+import type { StateDefinition } from "../src/types/state";
+import type { ViewDefinition } from "../src/types/view";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -111,6 +117,57 @@ describe("Schema Inheritance (spec 49)", () => {
 
       // Own fields
       expect(resolved.fields.premium_tier).toBeDefined();
+    });
+
+    it("child cannot change type of inherited field", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+
+      expect(() =>
+        registry.register({
+          name: "bad_child",
+          extends: "party",
+          fields: {
+            // Try to change email from string to number
+            email: { type: "number", label: "Email" },
+          },
+        }),
+      ).toThrow('cannot change type of inherited field "email" from "string" to "number"');
+    });
+
+    it("child can override non-structural properties (label, required, default)", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register({
+        name: "strict_party",
+        extends: "party",
+        fields: {
+          // Same type, but change required and label
+          email: { type: "string", required: true, label: "Required Email" },
+          extra: { type: "string" },
+        },
+      });
+
+      const resolved = registry.resolve("strict_party");
+      expect(resolved.fields.email.definition.required).toBe(true);
+      expect(resolved.fields.email.label).toBe("Required Email");
+    });
+
+    it("grandchild cannot change type of grandparent field", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+
+      expect(() =>
+        registry.register({
+          name: "bad_grandchild",
+          extends: "customer",
+          fields: {
+            // Try to change grandparent field type
+            name: { type: "number" },
+          },
+        }),
+      ).toThrow('cannot change type of inherited field "name" from "string" to "number"');
     });
   });
 
@@ -296,6 +353,427 @@ describe("Schema Inheritance (spec 49)", () => {
 
       const resolved = registry.resolve("customer");
       expect(resolved.fields.email.definition.required).toBe(true);
+    });
+  });
+
+  describe("getInheritanceChain", () => {
+    it("returns single element for schema with no parent", () => {
+      const registry = createSchemaRegistry();
+      registry.register({ name: "standalone", fields: { x: { type: "string" } } });
+
+      const chain = registry.getInheritanceChain("standalone");
+      expect(chain).toEqual(["standalone"]);
+    });
+
+    it("returns root-to-self order for 2-level chain", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+
+      const chain = registry.getInheritanceChain("customer");
+      expect(chain).toEqual(["party", "customer"]);
+    });
+
+    it("returns root-to-self order for 3-level chain", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+      registry.register({
+        name: "premium_customer",
+        extends: "customer",
+        fields: { tier: { type: "string" } },
+      });
+
+      const chain = registry.getInheritanceChain("premium_customer");
+      expect(chain).toEqual(["party", "customer", "premium_customer"]);
+    });
+  });
+
+  describe("getChildren and getAllDescendants", () => {
+    it("getChildren returns direct children only", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+      registry.register(supplierSchema);
+      registry.register({
+        name: "premium_customer",
+        extends: "customer",
+        fields: { tier: { type: "string" } },
+      });
+
+      const children = registry.getChildren("party");
+      expect(children).toContain("customer");
+      expect(children).toContain("supplier");
+      expect(children).not.toContain("premium_customer"); // grandchild, not direct
+    });
+
+    it("getAllDescendants returns all descendants recursively", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+      registry.register(supplierSchema);
+      registry.register({
+        name: "premium_customer",
+        extends: "customer",
+        fields: { tier: { type: "string" } },
+      });
+
+      const descendants = registry.getAllDescendants("party");
+      expect(descendants).toContain("customer");
+      expect(descendants).toContain("supplier");
+      expect(descendants).toContain("premium_customer");
+      expect(descendants).toHaveLength(3);
+    });
+
+    it("getAllDescendants returns empty for leaf schema", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+
+      const descendants = registry.getAllDescendants("customer");
+      expect(descendants).toEqual([]);
+    });
+  });
+
+  describe("action inheritance via ActionRegistry", () => {
+    it("getBySchemaWithInheritance returns inherited + own actions", () => {
+      const schemaRegistry = createSchemaRegistry();
+      schemaRegistry.register(partySchema);
+      schemaRegistry.register(customerSchema);
+
+      const actionRegistry = new ActionRegistry();
+      const parentAction: ActionDefinition = {
+        name: "update_contact_info",
+        schema: "party",
+        label: "Update Contact Info",
+        handler: async () => ({}),
+      };
+      const childAction: ActionDefinition = {
+        name: "upgrade_loyalty",
+        schema: "customer",
+        label: "Upgrade Loyalty",
+        handler: async () => ({}),
+      };
+      actionRegistry.register(parentAction);
+      actionRegistry.register(childAction);
+
+      const chain = schemaRegistry.getInheritanceChain("customer");
+      const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
+
+      expect(actions).toHaveLength(2);
+      expect(actions.map((a) => a.name)).toContain("update_contact_info");
+      expect(actions.map((a) => a.name)).toContain("upgrade_loyalty");
+    });
+
+    it("child action overrides parent action with same name", () => {
+      const schemaRegistry = createSchemaRegistry();
+      schemaRegistry.register(partySchema);
+      schemaRegistry.register(customerSchema);
+
+      const actionRegistry = new ActionRegistry();
+      actionRegistry.register({
+        name: "validate_party",
+        schema: "party",
+        label: "Validate Party",
+        handler: async () => ({ source: "parent" }),
+      });
+      // Child defines same-named action with overwrite to simulate override
+      actionRegistry.register(
+        {
+          name: "validate_party",
+          schema: "customer",
+          label: "Validate Customer",
+          handler: async () => ({ source: "child" }),
+        },
+        { overwrite: true },
+      );
+
+      const chain = schemaRegistry.getInheritanceChain("customer");
+      const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
+
+      // Only one "validate_party" action — child's version wins since it's in customer schema
+      const validateActions = actions.filter((a) => a.name === "validate_party");
+      expect(validateActions).toHaveLength(1);
+      expect(validateActions[0]?.label).toBe("Validate Customer");
+    });
+
+    it("3-level chain inherits all ancestor actions", () => {
+      const schemaRegistry = createSchemaRegistry();
+      schemaRegistry.register(partySchema);
+      schemaRegistry.register(customerSchema);
+      schemaRegistry.register({
+        name: "premium_customer",
+        extends: "customer",
+        fields: { tier: { type: "string" } },
+      });
+
+      const actionRegistry = new ActionRegistry();
+      actionRegistry.register({
+        name: "party_action",
+        schema: "party",
+        label: "Party Action",
+        handler: async () => ({}),
+      });
+      actionRegistry.register({
+        name: "customer_action",
+        schema: "customer",
+        label: "Customer Action",
+        handler: async () => ({}),
+      });
+      actionRegistry.register({
+        name: "premium_action",
+        schema: "premium_customer",
+        label: "Premium Action",
+        handler: async () => ({}),
+      });
+
+      const chain = schemaRegistry.getInheritanceChain("premium_customer");
+      const actions = actionRegistry.getBySchemaWithInheritance("premium_customer", chain);
+
+      expect(actions).toHaveLength(3);
+      expect(actions.map((a) => a.name)).toContain("party_action");
+      expect(actions.map((a) => a.name)).toContain("customer_action");
+      expect(actions.map((a) => a.name)).toContain("premium_action");
+    });
+  });
+
+  describe("OntologyRegistry inheritance integration", () => {
+    function setupOntologyWithInheritance() {
+      const schemaRegistry = createSchemaRegistry();
+      schemaRegistry.register(partySchema);
+      schemaRegistry.register(customerSchema);
+      schemaRegistry.register(supplierSchema);
+
+      const actionRegistry = new ActionRegistry();
+      const parentAction: ActionDefinition = {
+        name: "update_contact_info",
+        schema: "party",
+        label: "Update Contact Info",
+        handler: async () => ({}),
+      };
+      const customerAction: ActionDefinition = {
+        name: "upgrade_loyalty",
+        schema: "customer",
+        label: "Upgrade Loyalty",
+        handler: async () => ({}),
+      };
+      actionRegistry.register(parentAction);
+      actionRegistry.register(customerAction);
+
+      const parentRule: RuleDefinition = {
+        name: "party_email_format",
+        label: "Party Email Format",
+        trigger: { action: "update_contact_info" },
+        condition: { field: "email", operator: "contains", value: "@" },
+        effect: { type: "block", message: "Invalid email" },
+      };
+
+      const parentState: StateDefinition = {
+        name: "party_status",
+        schema: "party",
+        field: "status",
+        initial: "active",
+        states: ["active", "inactive"],
+        transitions: [
+          { from: "active", to: "inactive", action: "deactivate" },
+          { from: "inactive", to: "active", action: "activate" },
+        ],
+      };
+
+      const parentView: ViewDefinition = {
+        name: "party_list",
+        schema: "party",
+        type: "list",
+        fields: [
+          { field: "name", label: "Name" },
+          { field: "email", label: "Email" },
+        ],
+      };
+
+      const customerView: ViewDefinition = {
+        name: "customer_list",
+        schema: "customer",
+        type: "list",
+        fields: [
+          { field: "name", label: "Name" },
+          { field: "credit_limit", label: "Credit Limit" },
+        ],
+      };
+
+      const ontology = createOntologyRegistry({
+        schemas: schemaRegistry,
+        actions: actionRegistry,
+        rules: [parentRule],
+        states: [parentState],
+        views: [parentView, customerView],
+      });
+
+      return { schemaRegistry, actionRegistry, ontology };
+    }
+
+    it("actionsFor returns inherited actions", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      const actions = ontology.actionsFor("customer");
+      expect(actions.map((a) => a.name)).toContain("update_contact_info");
+      expect(actions.map((a) => a.name)).toContain("upgrade_loyalty");
+    });
+
+    it("rulesFor returns inherited rules", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      // Rules defined on party (via update_contact_info action) should apply to customer
+      const parentRules = ontology.rulesFor("party");
+      expect(parentRules).toHaveLength(1);
+      expect(parentRules[0]?.name).toBe("party_email_format");
+    });
+
+    it("stateFor returns inherited state machine when child has none", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      // Party has a state machine, customer doesn't define its own
+      const customerState = ontology.stateFor("customer");
+      expect(customerState).toBeDefined();
+      expect(customerState?.name).toBe("party_status");
+      expect(customerState?.initial).toBe("active");
+    });
+
+    it("stateFor returns own state when child overrides", () => {
+      const schemaRegistry = createSchemaRegistry();
+      schemaRegistry.register(partySchema);
+      schemaRegistry.register(customerSchema);
+
+      const parentState: StateDefinition = {
+        name: "party_status",
+        schema: "party",
+        field: "status",
+        initial: "active",
+        states: ["active", "inactive"],
+        transitions: [],
+      };
+      const customerState: StateDefinition = {
+        name: "customer_status",
+        schema: "customer",
+        field: "status",
+        initial: "new",
+        states: ["new", "active", "churned"],
+        transitions: [],
+      };
+
+      const ontology = createOntologyRegistry({
+        schemas: schemaRegistry,
+        actions: new ActionRegistry(),
+        rules: [],
+        states: [parentState, customerState],
+        views: [],
+      });
+
+      const state = ontology.stateFor("customer");
+      expect(state?.name).toBe("customer_status");
+      expect(state?.initial).toBe("new");
+    });
+
+    it("viewsFor returns inherited + own views", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      const views = ontology.viewsFor("customer");
+      expect(views.map((v) => v.name)).toContain("party_list");
+      expect(views.map((v) => v.name)).toContain("customer_list");
+    });
+
+    it("describe includes parent and children info", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      const partyDesc = ontology.describe("party");
+      expect(partyDesc?.parent).toBeNull();
+      expect(partyDesc?.children).toContain("customer");
+      expect(partyDesc?.children).toContain("supplier");
+      expect(partyDesc?.abstract).toBe(true);
+
+      const customerDesc = ontology.describe("customer");
+      expect(customerDesc?.parent).toBe("party");
+      expect(customerDesc?.children).toEqual([]);
+      expect(customerDesc?.abstract).toBeUndefined();
+    });
+
+    it("supplier does not inherit customer-specific actions", () => {
+      const { ontology } = setupOntologyWithInheritance();
+
+      const supplierActions = ontology.actionsFor("supplier");
+      // Supplier should inherit parent (party) actions but not sibling (customer) actions
+      expect(supplierActions.map((a) => a.name)).toContain("update_contact_info");
+      expect(supplierActions.map((a) => a.name)).not.toContain("upgrade_loyalty");
+    });
+  });
+
+  describe("edge cases", () => {
+    it("schema without extends has empty inheritance chain", () => {
+      const registry = createSchemaRegistry();
+      registry.register({ name: "standalone", fields: { x: { type: "string" } } });
+
+      const resolved = registry.resolve("standalone");
+      expect(resolved.parent).toBeUndefined();
+      expect(resolved.children).toEqual([]);
+    });
+
+    it("multiple children of the same parent are independent", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+      registry.register(supplierSchema);
+
+      const resolvedCustomer = registry.resolve("customer");
+      const resolvedSupplier = registry.resolve("supplier");
+
+      // Customer has its fields, not supplier's
+      expect(resolvedCustomer.fields.credit_limit).toBeDefined();
+      expect(resolvedCustomer.fields.tax_id).toBeUndefined();
+
+      // Supplier has its fields, not customer's
+      expect(resolvedSupplier.fields.tax_id).toBeDefined();
+      expect(resolvedSupplier.fields.credit_limit).toBeUndefined();
+    });
+
+    it("system fields are present in both parent and child", () => {
+      const registry = createSchemaRegistry();
+      registry.register(partySchema);
+      registry.register(customerSchema);
+
+      const resolvedParent = registry.resolve("party");
+      const resolvedChild = registry.resolve("customer");
+
+      expect(resolvedParent.fields.id).toBeDefined();
+      expect(resolvedParent.fields.tenant_id).toBeDefined();
+      expect(resolvedChild.fields.id).toBeDefined();
+      expect(resolvedChild.fields.tenant_id).toBeDefined();
+    });
+
+    it("non-abstract parent can still be extended", () => {
+      const registry = createSchemaRegistry();
+      registry.register({
+        name: "document",
+        label: "Document",
+        // Not abstract — can create documents directly
+        fields: {
+          title: { type: "string", required: true },
+          content: { type: "text" },
+        },
+      });
+      registry.register({
+        name: "invoice",
+        extends: "document",
+        fields: {
+          amount: { type: "number", required: true },
+        },
+      });
+
+      const resolvedDoc = registry.resolve("document");
+      expect(resolvedDoc.abstract).toBeUndefined();
+      expect(resolvedDoc.children).toContain("invoice");
+
+      const resolvedInvoice = registry.resolve("invoice");
+      expect(resolvedInvoice.fields.title).toBeDefined();
+      expect(resolvedInvoice.fields.amount).toBeDefined();
     });
   });
 });
