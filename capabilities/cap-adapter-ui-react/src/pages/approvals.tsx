@@ -50,7 +50,7 @@ const STATUS_VARIANTS: Record<string, "default" | "destructive" | "outline" | "s
   pending: "outline",
   approved: "default",
   rejected: "destructive",
-  expired: "secondary",
+  expired: "outline",
   cancelled: "secondary",
 };
 

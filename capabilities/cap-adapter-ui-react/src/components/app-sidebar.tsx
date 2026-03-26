@@ -179,6 +179,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
 
         {/* Administration section — only items with working routes */}
+        {/* TODO: Add permission check to hide admin items from non-admin users once auth system is fully wired in UI */}
         <SidebarGroup>
           <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
           <SidebarMenu>

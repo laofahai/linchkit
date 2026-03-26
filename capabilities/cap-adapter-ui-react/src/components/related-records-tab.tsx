@@ -219,6 +219,25 @@ export function RelatedRecordsTab({
     </Button>
   );
 
+  // Show empty state with create button when no records exist
+  if (!loading && data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <p className="text-sm text-muted-foreground mb-3">
+          {t("emptyState.relatedRecords", "No records yet")}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleCreateNew}
+        >
+          <Plus className="mr-1.5 size-3.5" />
+          {t("common.new", "New")}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="py-2">
       <AutoList

@@ -96,7 +96,7 @@ export function ListToolbar({
         schema={schema}
         globalFilter={globalFilter}
         onGlobalFilterChange={onGlobalFilterChange}
-        onClearAll={hasActiveFilters ? onClearFilters : undefined}
+        onClearAll={hasActiveFilters ? () => { onClearFilters(); onClearAISearch?.(); } : undefined}
         bazzaColumns={bazzaColumns}
         bazzaFilters={bazzaFilters}
         bazzaActions={bazzaActions}
