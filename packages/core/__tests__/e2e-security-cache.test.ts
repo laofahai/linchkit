@@ -157,6 +157,7 @@ function createMockAIService(result?: Partial<AICompletionResult>): AIService {
   };
 
   return {
+    configured: true,
     complete: mock(() => Promise.resolve(defaultResult)),
   };
 }

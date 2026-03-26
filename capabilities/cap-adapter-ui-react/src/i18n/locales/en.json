@@ -339,6 +339,23 @@
     "deleteTitle": "Delete records",
     "deleteConfirm": "Are you sure you want to delete {{count}} record(s)? This action cannot be undone."
   },
+  "states": {
+    "draft": "Draft",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled",
+    "new": "New",
+    "confirmed": "Confirmed",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "active": "Active",
+    "inactive": "Inactive",
+    "archived": "Archived",
+    "completed": "Completed",
+    "in_progress": "In Progress",
+    "on_hold": "On Hold"
+  },
   "schemas": {
     "purchase_request": {
       "_label": "Purchase Request",

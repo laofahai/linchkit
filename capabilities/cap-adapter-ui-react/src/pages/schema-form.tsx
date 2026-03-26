@@ -39,6 +39,7 @@ import { createRecord, deleteRecord, executeAction, isAiEnabled, queryRecord, up
 function deriveStatusSteps(
   schema: SchemaDefinition,
   states?: StateDefinition[],
+  resolve?: (label: string | undefined, fallback: string) => string,
 ): StatusBarStep[] | null {
   // Look for a state field
   const stateFieldEntry = Object.entries(schema.fields).find(([, f]) => f.type === "state");
@@ -53,12 +54,14 @@ function deriveStatusSteps(
   );
   if (!machine) return null;
 
-  // Convert states to StatusBarStep array
+  // Convert states to StatusBarStep array, resolving t: prefixed labels
   const steps: StatusBarStep[] = machine.states.map((stateValue) => {
     const meta: StateMeta | undefined = machine.meta?.[stateValue];
+    const rawLabel = meta?.label ?? stateValue;
+    const label = resolve ? resolve(rawLabel, stateValue) : rawLabel;
     return {
       value: stateValue,
-      label: meta?.label ?? stateValue,
+      label,
       color: meta?.color,
     };
   });
@@ -242,11 +245,11 @@ export function SchemaFormPage() {
     [bundle?.views, schema],
   );
 
-  // Status bar steps derived from schema
+  // Status bar steps derived from schema, with i18n label resolution
   const statusSteps = useMemo((): StatusBarStep[] | null => {
     if (!schema) return null;
-    return deriveStatusSteps(schema, bundle?.states);
-  }, [schema, bundle]);
+    return deriveStatusSteps(schema, bundle?.states, resolveLabel);
+  }, [schema, bundle, resolveLabel]);
 
   const isCreate = !params.id || params.id === "new";
   const [formMode, setFormMode] = useState<"create" | "edit" | "view">(

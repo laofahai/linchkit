@@ -160,6 +160,10 @@ class AutomationEngineImpl implements AutomationEngine {
       case "schedule":
         this.bindScheduleTrigger(automation);
         break;
+
+      case "flowCompleted":
+        this.bindFlowCompletedTrigger(automation);
+        break;
     }
   }
 
@@ -316,6 +320,37 @@ class AutomationEngineImpl implements AutomationEngine {
     }, intervalMs);
 
     this.intervals.push(interval);
+  }
+
+  private bindFlowCompletedTrigger(automation: AutomationDefinition): void {
+    const trigger = automation.trigger;
+    if (trigger.type !== "flowCompleted") return;
+
+    // Listen to flow.completed and flow.failed events
+    const eventType = trigger.status === "failed" ? "flow.failed" : "flow.completed";
+    const unsub = this.eventBus.subscribe(eventType, async (event: EventRecord) => {
+      try {
+        const current = this.registry.get(automation.name);
+        if (!current?.enabled) return;
+
+        // Check that the source flow matches
+        const flowName = event.payload.flowName as string | undefined;
+        if (flowName !== trigger.sourceFlow) return;
+
+        const result = await this.executeAutomation(current, event.payload);
+        if (!result.success) {
+          this.logger.warn?.(
+            `[AutomationEngine] Flow-completed automation "${automation.name}" failed`,
+          );
+        }
+      } catch (err) {
+        this.logger.error?.(
+          `[AutomationEngine] Unhandled error in "${automation.name}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    });
+
+    this.unsubscribers.push(unsub);
   }
 
   // ── Private: executing actions ────────────────────────

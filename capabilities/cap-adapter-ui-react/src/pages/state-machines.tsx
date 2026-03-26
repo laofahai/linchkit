@@ -29,6 +29,10 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "@tanstack/react-router";
+import {
+  StateDiagram,
+  type StateMachineDetail,
+} from "../components/state-diagram";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -77,10 +81,10 @@ const DEMO_STATES: StateMachineSummary[] = [
     transitionCount: 4,
     states: ["draft", "pending", "approved", "rejected"],
     meta: {
-      draft: { label: "Draft", color: "#6b7280" },
-      pending: { label: "Pending", color: "#f59e0b" },
-      approved: { label: "Approved", color: "#10b981" },
-      rejected: { label: "Rejected", color: "#ef4444" },
+      draft: { label: "t:states.draft", color: "#6b7280" },
+      pending: { label: "t:states.pending", color: "#f59e0b" },
+      approved: { label: "t:states.approved", color: "#10b981" },
+      rejected: { label: "t:states.rejected", color: "#ef4444" },
     },
   },
   {
@@ -92,11 +96,11 @@ const DEMO_STATES: StateMachineSummary[] = [
     transitionCount: 5,
     states: ["new", "confirmed", "shipped", "delivered", "cancelled"],
     meta: {
-      new: { label: "New", color: "#3b82f6" },
-      confirmed: { label: "Confirmed", color: "#8b5cf6" },
-      shipped: { label: "Shipped", color: "#f59e0b" },
-      delivered: { label: "Delivered", color: "#10b981" },
-      cancelled: { label: "Cancelled", color: "#ef4444" },
+      new: { label: "t:states.new", color: "#3b82f6" },
+      confirmed: { label: "t:states.confirmed", color: "#8b5cf6" },
+      shipped: { label: "t:states.shipped", color: "#f59e0b" },
+      delivered: { label: "t:states.delivered", color: "#10b981" },
+      cancelled: { label: "t:states.cancelled", color: "#ef4444" },
     },
   },
 ];
@@ -115,10 +119,10 @@ const DEMO_DETAILS: Record<string, StateMachineDetail> = {
       { from: "rejected", to: "draft", action: "reopen" },
     ],
     meta: {
-      draft: { label: "Draft", color: "#6b7280" },
-      pending: { label: "Pending", color: "#f59e0b" },
-      approved: { label: "Approved", color: "#10b981" },
-      rejected: { label: "Rejected", color: "#ef4444" },
+      draft: { label: "t:states.draft", color: "#6b7280" },
+      pending: { label: "t:states.pending", color: "#f59e0b" },
+      approved: { label: "t:states.approved", color: "#10b981" },
+      rejected: { label: "t:states.rejected", color: "#ef4444" },
     },
   },
   order_lifecycle: {
@@ -135,11 +139,11 @@ const DEMO_DETAILS: Record<string, StateMachineDetail> = {
       { from: "confirmed", to: "cancelled", action: "cancel_order" },
     ],
     meta: {
-      new: { label: "New", color: "#3b82f6" },
-      confirmed: { label: "Confirmed", color: "#8b5cf6" },
-      shipped: { label: "Shipped", color: "#f59e0b" },
-      delivered: { label: "Delivered", color: "#10b981" },
-      cancelled: { label: "Cancelled", color: "#ef4444" },
+      new: { label: "t:states.new", color: "#3b82f6" },
+      confirmed: { label: "t:states.confirmed", color: "#8b5cf6" },
+      shipped: { label: "t:states.shipped", color: "#f59e0b" },
+      delivered: { label: "t:states.delivered", color: "#10b981" },
+      cancelled: { label: "t:states.cancelled", color: "#ef4444" },
     },
   },
 };
@@ -152,8 +156,21 @@ function getStateColor(stateName: string, meta?: Record<string, StateMeta>): str
   return meta?.[stateName]?.color ?? DEFAULT_STATE_COLOR;
 }
 
-function getStateLabel(stateName: string, meta?: Record<string, StateMeta>): string {
-  return meta?.[stateName]?.label ?? stateName;
+/**
+ * Resolve state label from meta, supporting `t:` i18n prefix.
+ * Falls back to raw state name if no label is found.
+ */
+function getStateLabel(
+  stateName: string,
+  meta?: Record<string, StateMeta>,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const raw = meta?.[stateName]?.label ?? stateName;
+  if (raw.startsWith("t:") && t) {
+    const key = raw.slice(2);
+    return t(key, { defaultValue: stateName });
+  }
+  return raw;
 }
 
 // ── Layout helpers ───────────────────────────────────────
@@ -292,7 +309,7 @@ function getRectEdgePoint(
 
 // ── State diagram component ─────────────────────────────
 
-function StateDiagram({ machine }: { machine: StateMachineDetail }) {
+function StateDiagram({ machine, t }: { machine: StateMachineDetail; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const nodes = computeLayout(machine);
   const terminalStates = getTerminalStates(machine);
   const posMap = new Map(nodes.map((n) => [n.state, n]));
@@ -503,7 +520,7 @@ function StateDiagram({ machine }: { machine: StateMachineDetail }) {
         {/* State nodes */}
         {nodes.map((node) => {
           const color = getStateColor(node.state, machine.meta);
-          const label = getStateLabel(node.state, machine.meta);
+          const label = getStateLabel(node.state, machine.meta, t);
           const isInitial = node.state === machine.initial;
           const isTerminal = terminalStates.has(node.state);
 
@@ -700,7 +717,7 @@ export function StateMachinesPage() {
                         }}
                       >
                         {s === machine.initial && <CircleDotIcon className="size-2.5 mr-0.5" />}
-                        {getStateLabel(s, machine.meta)}
+                        {getStateLabel(s, machine.meta, t)}
                       </Badge>
                     ))}
                   </div>
@@ -796,7 +813,7 @@ export function StateMachineDetailPage() {
         <div>
           <h1 className="text-lg font-semibold">{machine.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {machine.schema}.{machine.field} — {t("stateMachines.initial")}: {getStateLabel(machine.initial, machine.meta)}
+            {machine.schema}.{machine.field} — {t("stateMachines.initial")}: {getStateLabel(machine.initial, machine.meta, t)}
           </p>
         </div>
       </div>
@@ -807,7 +824,7 @@ export function StateMachineDetailPage() {
           <CardTitle className="text-base">{t("stateMachines.diagram")}</CardTitle>
         </CardHeader>
         <CardContent className="overflow-auto">
-          <StateDiagram machine={machine} />
+          <StateDiagram machine={machine} t={t} />
         </CardContent>
       </Card>
 
@@ -839,7 +856,7 @@ export function StateMachineDetailPage() {
                             color: getStateColor(fromState, machine.meta),
                           }}
                         >
-                          {getStateLabel(fromState, machine.meta)}
+                          {getStateLabel(fromState, machine.meta, t)}
                         </Badge>
                       </td>
                       <td className="p-2 text-center">
@@ -856,7 +873,7 @@ export function StateMachineDetailPage() {
                             color: getStateColor(tr.to, machine.meta),
                           }}
                         >
-                          {getStateLabel(tr.to, machine.meta)}
+                          {getStateLabel(tr.to, machine.meta, t)}
                         </Badge>
                       </td>
                     </tr>

@@ -236,8 +236,13 @@ function StateBreakdownBadges({
     <div className="flex flex-wrap gap-1 mt-2">
       {sorted.map(([state, count]) => {
         const colorClass = getStateBadgeClass(stateMeta?.[state]?.color);
-        const stateLabel = stateMeta?.[state]?.label
-          ?? t(`states.${state}`, { defaultValue: state });
+        const rawLabel = stateMeta?.[state]?.label;
+        let stateLabel: string;
+        if (rawLabel?.startsWith("t:")) {
+          stateLabel = t(rawLabel.slice(2), { defaultValue: state });
+        } else {
+          stateLabel = rawLabel ?? t(`states.${state}`, { defaultValue: state });
+        }
         return (
           <span
             key={state}

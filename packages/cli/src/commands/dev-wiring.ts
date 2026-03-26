@@ -220,6 +220,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // ── AI Boundary — wraps AI service with default safety policy ──
   // Stub AI service until a real provider is configured via capability
   const stubAiService = {
+    configured: false,
     complete: async () => {
       throw new Error("AI service not configured. Register an AI provider capability.");
     },

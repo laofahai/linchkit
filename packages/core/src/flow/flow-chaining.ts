@@ -37,11 +37,12 @@ export interface FlowCompletedPayload {
 /**
  * Emit a flow.completed or flow.failed event to the EventBus.
  * Called by flow engines after a flow finishes execution.
+ * Returns a promise so the caller can choose to await or fire-and-forget.
  */
-export function emitFlowCompletionEvent(
+export async function emitFlowCompletionEvent(
   eventBus: EventBusLike & { emit?: (event: EventRecord) => Promise<void> },
   instance: FlowInstance,
-): void {
+): Promise<void> {
   const eventType = instance.status === "completed" ? FLOW_COMPLETED_EVENT : FLOW_FAILED_EVENT;
 
   const payload: FlowCompletedPayload = {
@@ -63,9 +64,11 @@ export function emitFlowCompletionEvent(
   };
 
   if (typeof eventBus.emit === "function") {
-    eventBus.emit(event).catch(() => {
+    try {
+      await eventBus.emit(event);
+    } catch {
       // Swallow errors from event emission — don't fail the flow
-    });
+    }
   }
 }
 

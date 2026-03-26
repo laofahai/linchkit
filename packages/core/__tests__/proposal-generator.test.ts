@@ -361,6 +361,7 @@ describe("ProposalGenerator", () => {
 
       // Create an AI service that throws "not configured"
       const noopAI = {
+        configured: false,
         complete: () => {
           throw new Error(
             "AI service is not configured. Add an 'ai' section to your LinchKit config.",
@@ -389,6 +390,7 @@ describe("ProposalGenerator", () => {
       const actionRegistry = new ActionRegistry();
 
       const failingAI = {
+        configured: true,
         complete: () => {
           throw new Error("Rate limit exceeded");
         },

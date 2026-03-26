@@ -2,7 +2,7 @@
  * FlowDetailPage — Visual flow step diagram with step details.
  *
  * Route: /admin/flows/$name
- * Renders flow steps as connected boxes with SVG arrows.
+ * Renders flow steps using ReactFlow with dagre auto-layout.
  */
 
 import {
@@ -16,38 +16,33 @@ import {
 import { useParams } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
+  ArrowRightIcon,
   BotIcon,
-  CheckCircle2Icon,
   ClockIcon,
+  GitBranchIcon,
   GitForkIcon,
+  LinkIcon,
   PlayIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   SplitIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
 
 // ── Types ────────────────────────────────────────────────
 
-interface FlowStep {
-  id: string;
-  name: string;
-  type: string;
-  description?: string;
-  actionName?: string;
-  expression?: string;
-  then?: string;
-  else?: string;
-  prompt?: string | { template: string; variables: Record<string, string> };
-  model?: string;
-  approvers?: string[];
-  timeout?: number;
-  onTimeout?: string;
-  duration?: number;
-  signal?: string;
-  steps?: string[];
-  joinType?: string;
+interface FlowChainConfig {
+  flow: string;
+  inputMapping?: Record<string, string>;
+  onStatus?: "completed" | "failed";
+}
+
+interface FlowDependencyInfo {
+  upstream: string[];
+  downstream: string[];
 }
 
 interface FlowDetail {
@@ -60,6 +55,9 @@ interface FlowDetail {
   onError?: string;
   maxRetries?: number;
   timeout?: number;
+  onComplete?: FlowChainConfig | FlowChainConfig[];
+  /** Populated by the API with upstream/downstream dependency info */
+  dependencies?: FlowDependencyInfo;
 }
 
 // ── Demo data ────────────────────────────────────────────
@@ -78,6 +76,8 @@ const DEMO_FLOWS: Record<string, FlowDetail> = {
       { id: "approval", name: "Manager Approval", type: "approval", approvers: ["managers"], timeout: 604800000, onTimeout: "reject" },
       { id: "notify", name: "Notify Requester", type: "action", actionName: "notify_requester" },
     ],
+    onComplete: { flow: "onboarding_flow", inputMapping: { requestId: "$result.__steps.calc.output.requestId" } },
+    dependencies: { upstream: [], downstream: ["onboarding_flow"] },
   },
   ai_evolution_analysis: {
     name: "ai_evolution_analysis",
@@ -105,6 +105,7 @@ const DEMO_FLOWS: Record<string, FlowDetail> = {
       { id: "review", name: "HR Review", type: "approval", approvers: ["hr_team"] },
       { id: "welcome", name: "Send Welcome", type: "action", actionName: "send_welcome_email" },
     ],
+    dependencies: { upstream: ["purchase_approval_flow"], downstream: [] },
   },
 };
 
@@ -129,7 +130,7 @@ const STEP_CONFIG: Record<string, { color: string; bgClass: string; icon: React.
   ai: {
     color: "#10b981",
     bgClass: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800",
-    icon: <BotIcon className="size-4" />,
+    icon: <SparklesIcon className="size-4" />,
   },
   wait: {
     color: "#6b7280",
@@ -147,162 +148,8 @@ function getStepConfig(type: string) {
   return STEP_CONFIG[type] ?? {
     color: "#6b7280",
     bgClass: "bg-muted border-border",
-    icon: <CheckCircle2Icon className="size-4" />,
+    icon: <PlayIcon className="size-4" />,
   };
-}
-
-// ── Step detail summary ──────────────────────────────────
-
-function StepDetail({ step }: { step: FlowStep }) {
-  const { t } = useTranslation();
-  const details: Array<{ label: string; value: string }> = [];
-
-  if (step.type === "action" && step.actionName) {
-    details.push({ label: t("flows.stepAction"), value: step.actionName });
-  }
-  if (step.type === "condition" && step.expression) {
-    details.push({ label: t("flows.stepCondition"), value: step.expression });
-    if (step.then) details.push({ label: "Then", value: step.then });
-    if (step.else) details.push({ label: "Else", value: step.else });
-  }
-  if (step.type === "ai") {
-    const promptText = typeof step.prompt === "string" ? step.prompt : step.prompt?.template ?? "";
-    if (promptText) details.push({ label: t("flows.stepPrompt"), value: promptText.slice(0, 80) + (promptText.length > 80 ? "..." : "") });
-    if (step.model) details.push({ label: t("flows.stepModel"), value: step.model });
-  }
-  if (step.type === "approval") {
-    if (step.approvers?.length) details.push({ label: t("flows.stepApprovers"), value: step.approvers.join(", ") });
-    if (step.onTimeout) details.push({ label: t("flows.stepOnTimeout"), value: step.onTimeout });
-  }
-  if (step.type === "wait") {
-    if (step.signal) details.push({ label: t("flows.stepSignal"), value: step.signal });
-  }
-  if (step.type === "parallel") {
-    if (step.steps?.length) details.push({ label: t("flows.stepParallelSteps"), value: step.steps.join(", ") });
-    if (step.joinType) details.push({ label: t("flows.stepJoinType"), value: step.joinType });
-  }
-
-  if (details.length === 0) return null;
-
-  return (
-    <div className="mt-1 space-y-0.5">
-      {details.map((d) => (
-        <div key={d.label} className="text-[10px] text-muted-foreground truncate">
-          <span className="font-medium">{d.label}:</span> {d.value}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Flow diagram component ───────────────────────────────
-
-function FlowDiagram({ steps }: { steps: FlowStep[] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [positions, setPositions] = useState<Array<{ x: number; y: number; w: number; h: number }>>([]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const nodes = containerRef.current.querySelectorAll("[data-step-node]");
-    const newPositions: Array<{ x: number; y: number; w: number; h: number }> = [];
-    const containerRect = containerRef.current.getBoundingClientRect();
-    for (const node of nodes) {
-      const rect = (node as HTMLElement).getBoundingClientRect();
-      newPositions.push({
-        x: rect.left - containerRect.left + rect.width / 2,
-        y: rect.top - containerRect.top,
-        w: rect.width,
-        h: rect.height,
-      });
-    }
-    setPositions(newPositions);
-  }, [steps]);
-
-  return (
-    <div ref={containerRef} className="relative py-4">
-      {/* SVG arrows layer */}
-      {positions.length > 1 && (
-        <svg
-          className="absolute inset-0 pointer-events-none"
-          style={{ width: "100%", height: "100%" }}
-        >
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="8"
-              markerHeight="6"
-              refX="7"
-              refY="3"
-              orient="auto"
-            >
-              <polygon
-                points="0 0, 8 3, 0 6"
-                className="fill-muted-foreground/50"
-              />
-            </marker>
-          </defs>
-          {positions.map((pos, i) => {
-            if (i === 0) return null;
-            const prev = positions[i - 1];
-            if (!prev) return null;
-            const startY = prev.y + prev.h;
-            const endY = pos.y;
-            const midY = (startY + endY) / 2;
-            return (
-              <path
-                key={`arrow-${i}`}
-                d={`M ${prev.x} ${startY} C ${prev.x} ${midY}, ${pos.x} ${midY}, ${pos.x} ${endY}`}
-                fill="none"
-                className="stroke-muted-foreground/40"
-                strokeWidth="2"
-                markerEnd="url(#arrowhead)"
-              />
-            );
-          })}
-        </svg>
-      )}
-
-      {/* Step nodes */}
-      <div className="flex flex-col items-center gap-6">
-        {steps.map((step) => {
-          const config = getStepConfig(step.type);
-          const isCondition = step.type === "condition";
-          return (
-            <div
-              key={step.id}
-              data-step-node
-              className={`
-                relative border rounded-lg p-3 w-64 shadow-sm
-                ${config.bgClass}
-                ${isCondition ? "rotate-0" : ""}
-              `}
-              style={{
-                borderLeftWidth: "3px",
-                borderLeftColor: config.color,
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <span style={{ color: config.color }}>{config.icon}</span>
-                <span className="font-medium text-sm">{step.name}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-1">
-                <Badge variant="secondary" className="text-[10px] h-4">
-                  {step.type}
-                </Badge>
-              </div>
-              <StepDetail step={step} />
-              {isCondition && (
-                <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1 text-[9px] text-muted-foreground">
-                  {step.then && <span className="bg-emerald-100 dark:bg-emerald-900 rounded px-1">Y: {step.then}</span>}
-                  {step.else && <span className="bg-red-100 dark:bg-red-900 rounded px-1">N: {step.else}</span>}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 // ── Main component ───────────────────────────────────────
@@ -409,7 +256,7 @@ export function FlowDetailPage() {
         <CardHeader>
           <CardTitle className="text-base">{t("flows.diagram")}</CardTitle>
         </CardHeader>
-        <CardContent className="flex justify-center overflow-auto">
+        <CardContent>
           <FlowDiagram steps={flow.steps} />
         </CardContent>
       </Card>

@@ -17,9 +17,9 @@ export const purchaseRequestState: StateDefinition = {
     { from: "rejected", to: "pending", action: "submit_purchase_request" },
   ],
   meta: {
-    draft: { label: "Draft", color: "gray" },
-    pending: { label: "Pending", color: "yellow" },
-    approved: { label: "Approved", color: "green" },
-    rejected: { label: "Rejected", color: "red" },
+    draft: { label: "t:states.draft", color: "gray" },
+    pending: { label: "t:states.pending", color: "yellow" },
+    approved: { label: "t:states.approved", color: "green" },
+    rejected: { label: "t:states.rejected", color: "red" },
   },
 };

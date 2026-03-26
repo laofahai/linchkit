@@ -512,6 +512,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const childExecutionIds: string[] = [];
     const pendingEvents: PendingEvent[] = [];
     const noopAi: AIService = {
+      configured: false,
       complete: () => {
         throw new Error(
           "AI service is not configured. Add an 'ai' section to your LinchKit config.",

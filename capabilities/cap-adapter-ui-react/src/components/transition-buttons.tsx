@@ -55,17 +55,29 @@ export function TransitionButtons({
     fetchTransitions();
   }, [fetchTransitions]);
 
-  // Resolve label for a state value from state machine meta
+  // Resolve label for a state value from state machine meta, with t: prefix support
   function resolveStateLabel(stateValue: string): string {
-    if (!states) return stateValue;
-    for (const machine of states) {
-      const meta: StateMeta | undefined = machine.meta?.[stateValue];
-      if (meta?.label) return meta.label;
+    if (states) {
+      for (const machine of states) {
+        const meta: StateMeta | undefined = machine.meta?.[stateValue];
+        if (meta?.label) {
+          // Support t: prefix convention for i18n
+          if (meta.label.startsWith("t:")) {
+            const key = meta.label.slice(2);
+            return t(key, { defaultValue: stateValue });
+          }
+          return meta.label;
+        }
+      }
     }
-    // Try i18n key
-    const i18nKey = `schemas.${schemaName}.states.${stateValue}`;
-    const translated = t(i18nKey, stateValue);
-    return translated !== i18nKey ? translated : stateValue;
+    // Try schema-specific i18n key, then common state key
+    const schemaKey = `schemas.${schemaName}.states.${stateValue}`;
+    const schemaTranslated = t(schemaKey, { defaultValue: "" });
+    if (schemaTranslated) return schemaTranslated;
+    const commonKey = `states.${stateValue}`;
+    const commonTranslated = t(commonKey, { defaultValue: "" });
+    if (commonTranslated) return commonTranslated;
+    return stateValue;
   }
 
   async function handleTransition(to: string) {

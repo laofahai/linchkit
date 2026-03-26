@@ -192,6 +192,7 @@ export function mockAIService(
   const calls: AICompletionOptions[] = [];
 
   return {
+    configured: true,
     calls,
     get callCount() {
       return calls.length;

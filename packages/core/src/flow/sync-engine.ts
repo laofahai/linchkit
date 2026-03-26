@@ -383,7 +383,7 @@ export function createSyncFlowEngine(
     definition: FlowDefinition,
     input: Record<string, unknown>,
     instanceId: string,
-    options?: { tenantId?: string; actor?: Actor },
+    runOptions?: { tenantId?: string; actor?: Actor },
   ): Promise<FlowInstance> {
     const stepMap = buildStepMap(definition.steps);
 
@@ -410,8 +410,8 @@ export function createSyncFlowEngine(
     // multiple flows run concurrently (each gets its own tenant/actor/flowContext).
     const runCtx: FlowStepContext = {
       ...stepContext,
-      tenantId: options?.tenantId,
-      actor: options?.actor,
+      tenantId: runOptions?.tenantId,
+      actor: runOptions?.actor,
       flowContext,
     };
 
@@ -461,7 +461,11 @@ export function createSyncFlowEngine(
 
     // Emit flow completion/failure event to EventBus
     if (options?.eventBus && (instance.status === "completed" || instance.status === "failed")) {
-      emitFlowCompletionEvent(options.eventBus, instance);
+      try {
+        await emitFlowCompletionEvent(options.eventBus, instance);
+      } catch {
+        // Don't fail the flow if event emission fails
+      }
     }
 
     // Process explicit onComplete chains (only via flowRegistry, not self-reference)
@@ -533,4 +537,6 @@ export function createSyncFlowEngine(
       flowDefs.set(definition.name, definition);
     },
   };
+
+  return engine;
 }

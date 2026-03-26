@@ -339,6 +339,23 @@
     "deleteTitle": "批量删除记录",
     "deleteConfirm": "确定要删除 {{count}} 条记录吗？此操作无法撤销。"
   },
+  "states": {
+    "draft": "草稿",
+    "pending": "待审批",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "cancelled": "已取消",
+    "new": "新建",
+    "confirmed": "已确认",
+    "shipped": "已发货",
+    "delivered": "已交付",
+    "active": "激活",
+    "inactive": "未激活",
+    "archived": "已归档",
+    "completed": "已完成",
+    "in_progress": "进行中",
+    "on_hold": "暂停"
+  },
   "schemas": {
     "purchase_request": {
       "_label": "采购申请",

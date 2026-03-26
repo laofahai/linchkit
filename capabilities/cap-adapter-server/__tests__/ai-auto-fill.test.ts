@@ -79,6 +79,7 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
   let server: ReturnType<typeof createServer>;
 
   const mockAiService: AIService = {
+    configured: true,
     complete: async () => ({
       content: JSON.stringify({
         title: { value: "Weekly Report", confidence: 0.8, reason: "Common task title" },
@@ -178,6 +179,7 @@ describe("GET /api/app-config — aiEnabled flag", () => {
   test("aiEnabled is true when AI service is configured", async () => {
     const PORT = 31903;
     const mockAi: AIService = {
+      configured: true,
       complete: async () => ({
         content: "",
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },

@@ -58,6 +58,7 @@ function createRegistries() {
 }
 
 const noopAIService = {
+  configured: true,
   complete: async () => ({
     content: "ok",
     model: "test",
