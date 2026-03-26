@@ -15,16 +15,16 @@ import {
   CardTitle,
 } from "@linchkit/ui-kit/components";
 import {
-  CheckCircleIcon,
   AlertTriangleIcon,
-  XCircleIcon,
+  CheckCircleIcon,
   DatabaseIcon,
+  HardDriveIcon,
   HeartIcon,
   LayersIcon,
   RadioIcon,
-  HardDriveIcon,
   RefreshCwIcon,
   ServerIcon,
+  XCircleIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -164,7 +164,7 @@ export function HealthMonitorPage() {
   return (
     <div className="w-full p-4 space-y-6">
       {/* Toolbar */}
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         {lastRefresh && (
           <span className="text-xs text-muted-foreground">
             {t("health.lastRefresh")}: {lastRefresh.toLocaleTimeString()}
@@ -178,9 +178,11 @@ export function HealthMonitorPage() {
 
       {/* Overall status banner */}
       {health && (
-        <div className={`rounded-lg p-4 flex items-center gap-3 ${STATUS_BG[health.status]}`}>
+        <div
+          className={`rounded-lg p-4 flex flex-wrap items-center gap-3 ${STATUS_BG[health.status]}`}
+        >
           <StatusIcon status={health.status} />
-          <div>
+          <div className="min-w-0">
             <div className={`font-medium ${STATUS_TEXT[health.status]}`}>
               {t(`health.overall.${health.status}`)}
             </div>
@@ -188,9 +190,15 @@ export function HealthMonitorPage() {
               {health.checks.length} {t("health.checksRun")}
             </div>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto shrink-0">
             <Badge
-              variant={health.status === "healthy" ? "default" : health.status === "degraded" ? "secondary" : "destructive"}
+              variant={
+                health.status === "healthy"
+                  ? "default"
+                  : health.status === "degraded"
+                    ? "secondary"
+                    : "destructive"
+              }
             >
               {health.status.toUpperCase()}
             </Badge>
@@ -231,19 +239,26 @@ export function HealthMonitorPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t("executionLog.status")}</span>
                     <Badge
-                      variant={check.status === "healthy" ? "default" : check.status === "degraded" ? "secondary" : "destructive"}
+                      variant={
+                        check.status === "healthy"
+                          ? "default"
+                          : check.status === "degraded"
+                            ? "secondary"
+                            : "destructive"
+                      }
                       className="text-[10px]"
                     >
                       {check.status}
                     </Badge>
                   </div>
                   {/* Show metadata if available */}
-                  {check.metadata && Object.entries(check.metadata).map(([key, val]) => (
-                    <div key={key} className="flex justify-between">
-                      <span className="text-muted-foreground">{key}</span>
-                      <span className="font-mono">{String(val)}</span>
-                    </div>
-                  ))}
+                  {check.metadata &&
+                    Object.entries(check.metadata).map(([key, val]) => (
+                      <div key={key} className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">{key}</span>
+                        <span className="font-mono truncate">{String(val)}</span>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -267,7 +282,10 @@ export function HealthMonitorPage() {
               <InfoItem label={t("health.runtime")} value={`Bun ${health.system.nodeVersion}`} />
               <InfoItem label={t("health.platform")} value={health.system.platform} />
               <InfoItem label={t("health.schemaCount")} value={String(health.system.schemaCount)} />
-              <InfoItem label={t("health.capabilityCount")} value={String(health.system.capabilityCount)} />
+              <InfoItem
+                label={t("health.capabilityCount")}
+                value={String(health.system.capabilityCount)}
+              />
             </div>
           </CardContent>
         </Card>
@@ -285,9 +303,9 @@ export function HealthMonitorPage() {
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 min-w-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-sm font-medium font-mono">{value}</div>
+      <div className="text-sm font-medium font-mono truncate">{value}</div>
     </div>
   );
 }

@@ -115,9 +115,11 @@ function SettingRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-sm font-medium ${mono ? "font-mono" : ""}`}>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2 border-b border-border/50 last:border-0">
+      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
+      <span
+        className={`text-sm font-medium truncate max-w-[60%] sm:max-w-none ${mono ? "font-mono" : ""}`}
+      >
         {value}
       </span>
     </div>
@@ -141,9 +143,7 @@ export function SettingsPage() {
       const json = await res.json();
       setSettings(json.data as SettingsData);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t("settings.fetchError"),
-      );
+      setError(err instanceof Error ? err.message : t("settings.fetchError"));
     } finally {
       setLoading(false);
     }
@@ -165,9 +165,7 @@ export function SettingsPage() {
     return (
       <div className="p-6">
         <Card>
-          <CardContent className="py-8 text-center text-destructive">
-            {error}
-          </CardContent>
+          <CardContent className="py-8 text-center text-destructive">{error}</CardContent>
         </Card>
       </div>
     );
@@ -178,12 +176,12 @@ export function SettingsPage() {
   return (
     <div className="p-4 space-y-6">
       {/* Read-only notice */}
-      <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+      <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-700 dark:text-blue-300 break-words">
         <InfoIcon className="size-4 mt-0.5 shrink-0" />
-        <span>{t("settings.readOnlyNotice")}</span>
+        <span className="min-w-0">{t("settings.readOnlyNotice")}</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* System Info */}
         <Card>
           <CardHeader className="pb-3">
@@ -217,16 +215,8 @@ export function SettingsPage() {
               value={settings.general.registeredActions}
               mono
             />
-            <SettingRow
-              label={t("settings.rules")}
-              value={settings.general.registeredRules}
-              mono
-            />
-            <SettingRow
-              label={t("settings.flows")}
-              value={settings.general.registeredFlows}
-              mono
-            />
+            <SettingRow label={t("settings.rules")} value={settings.general.registeredRules} mono />
+            <SettingRow label={t("settings.flows")} value={settings.general.registeredFlows} mono />
             <SettingRow
               label={t("settings.stateMachines")}
               value={settings.general.registeredStates}
@@ -258,17 +248,9 @@ export function SettingsPage() {
             />
             <SettingRow
               label={t("settings.provider")}
-              value={
-                <Badge variant="secondary">
-                  {settings.database.provider}
-                </Badge>
-              }
+              value={<Badge variant="secondary">{settings.database.provider}</Badge>}
             />
-            <SettingRow
-              label={t("settings.poolSize")}
-              value={settings.database.poolSize}
-              mono
-            />
+            <SettingRow label={t("settings.poolSize")} value={settings.database.poolSize} mono />
             <SettingRow
               label={t("settings.debugMode")}
               value={settings.database.debug ? t("common.yes") : t("common.no")}
@@ -326,9 +308,7 @@ export function SettingsPage() {
               <ShieldCheckIcon className="size-4" />
               {t("settings.authentication")}
             </CardTitle>
-            <CardDescription>
-              {t("settings.authenticationDesc")}
-            </CardDescription>
+            <CardDescription>{t("settings.authenticationDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
             <SettingRow
@@ -361,13 +341,7 @@ export function SettingsPage() {
             <SettingRow
               label={t("settings.tenancyMode")}
               value={
-                <Badge
-                  variant={
-                    settings.tenancy.mode === "multi"
-                      ? "default"
-                      : "secondary"
-                  }
-                >
+                <Badge variant={settings.tenancy.mode === "multi" ? "default" : "secondary"}>
                   {settings.tenancy.mode}
                 </Badge>
               }
@@ -390,16 +364,8 @@ export function SettingsPage() {
             <CardDescription>{t("settings.serverDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
-            <SettingRow
-              label={t("settings.host")}
-              value={settings.server.host}
-              mono
-            />
-            <SettingRow
-              label={t("settings.port")}
-              value={settings.server.port}
-              mono
-            />
+            <SettingRow label={t("settings.host")} value={settings.server.host} mono />
+            <SettingRow label={t("settings.port")} value={settings.server.port} mono />
           </CardContent>
         </Card>
 
@@ -410,9 +376,7 @@ export function SettingsPage() {
               <NetworkIcon className="size-4" />
               {t("settings.subscriptions")}
             </CardTitle>
-            <CardDescription>
-              {t("settings.subscriptionsDesc")}
-            </CardDescription>
+            <CardDescription>{t("settings.subscriptionsDesc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
             <SettingRow
@@ -420,9 +384,7 @@ export function SettingsPage() {
               value={
                 <span className="flex items-center gap-2">
                   <StatusDot active={settings.subscription.enabled} />
-                  {settings.subscription.enabled
-                    ? t("common.yes")
-                    : t("common.no")}
+                  {settings.subscription.enabled ? t("common.yes") : t("common.no")}
                 </span>
               }
             />
@@ -470,23 +432,19 @@ export function SettingsPage() {
             />
             <SettingRow
               label={t("settings.engine")}
-              value={
-                <Badge variant="secondary">{settings.flow.engine}</Badge>
-              }
+              value={<Badge variant="secondary">{settings.flow.engine}</Badge>}
             />
           </CardContent>
         </Card>
 
         {/* Capabilities */}
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-2 lg:col-span-3">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <LayersIcon className="size-4" />
               {t("settings.capabilities")}
             </CardTitle>
-            <CardDescription>
-              {t("settings.capabilitiesDesc")}
-            </CardDescription>
+            <CardDescription>{t("settings.capabilitiesDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             {settings.general.capabilities.length > 0 ? (
@@ -498,9 +456,7 @@ export function SettingsPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                {t("settings.noCapabilities")}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("settings.noCapabilities")}</p>
             )}
           </CardContent>
         </Card>

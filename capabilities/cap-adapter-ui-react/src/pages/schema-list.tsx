@@ -298,6 +298,8 @@ export function SchemaListPage() {
     setData([]);
     setDataError(null);
     setLoading(true);
+    setActiveSavedViewId(null);
+    setCurrentBazzaFilters([]);
   }, [schemaName]);
 
   const fetchData = useCallback(async () => {
@@ -746,6 +748,7 @@ export function SchemaListPage() {
           onBulkAction={handleBulkAction}
           onRowClick={handleRowClick}
           toolbarExtra={toolbarExtraContent}
+          onFiltersChange={setCurrentBazzaFilters}
           onRefresh={handleRefresh}
           refreshing={refreshing}
         />

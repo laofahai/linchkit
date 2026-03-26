@@ -489,6 +489,51 @@ export async function aiSearch(request: AISearchRequest): Promise<AISearchResult
   return json.data ?? null;
 }
 
+// ── AI Intent Resolution ────────────────────────────────
+
+/** Field schema info returned from intent resolution */
+export interface IntentFieldSchema {
+  type: string;
+  label?: string;
+  required: boolean;
+  options?: Array<{ value: string; label?: string }>;
+  description?: string;
+}
+
+/** Result from AI intent resolution */
+export interface IntentResolution {
+  action: string;
+  schema: string;
+  input: Record<string, unknown>;
+  missingFields: string[];
+  confidence: number;
+  explanation: string;
+  actionLabel: string;
+  actionDescription?: string;
+  inputSchema: Record<string, IntentFieldSchema>;
+}
+
+/**
+ * Resolve a natural language message to an action intent.
+ * Returns null if AI is not configured or no intent could be resolved.
+ */
+export async function resolveIntent(
+  message: string,
+  context: { schema?: string; recordId?: string },
+): Promise<IntentResolution | null> {
+  const res = await fetch("/api/ai/resolve-intent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ message, context }),
+  });
+  handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error("AI intent resolution failed");
+  }
+  const json = await res.json();
+  return json.data ?? null;
+}
+
 // ── Execution Logs ──────────────────────────────────────
 
 export interface ExecutionLogEntry {

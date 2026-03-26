@@ -165,7 +165,10 @@
     "saveViewTitle": "Save View",
     "saveViewDesc": "Save the current filters as a named view for quick access.",
     "viewName": "View Name",
-    "viewNamePlaceholder": "e.g. My Pending Items"
+    "viewNamePlaceholder": "e.g. My Pending Items",
+    "rename": "Rename",
+    "renameTitle": "Rename View",
+    "deleteConfirm": "Delete this saved view?"
   },
   "lens": {
     "title": "Filter",
@@ -295,7 +298,13 @@
     "reject": "Reject",
     "acceptAll": "Accept All",
     "dismissAll": "Dismiss All",
-    "suggestionsAvailable": "{{count}} AI suggestion(s) available"
+    "suggestionsAvailable": "{{count}} AI suggestion(s) available",
+    "executeAction": "Execute",
+    "executing": "Executing...",
+    "actionSuccess": "Action executed successfully.",
+    "actionExecFailed": "Action execution failed.",
+    "actionCancelled": "Action cancelled.",
+    "missingFields": "Missing required fields"
   },
   "health": {
     "title": "System Health",
@@ -321,7 +330,31 @@
   "emptyState": {
     "title": "No {{label}} yet",
     "description": "Create your first {{label}} to get started.",
-    "createButton": "Create {{label}}"
+    "createButton": "Create {{label}}",
+    "rules": {
+      "title": "No rules defined",
+      "description": "Rules will appear here once they are registered in the system."
+    },
+    "flows": {
+      "title": "No workflows defined",
+      "description": "Workflows will appear here once they are registered in the system."
+    },
+    "proposals": {
+      "title": "No AI proposals yet",
+      "description": "AI-generated change proposals will appear here."
+    },
+    "stateMachines": {
+      "title": "No state machines defined",
+      "description": "State machines will appear here once they are registered in the system."
+    },
+    "approvals": {
+      "title": "No pending approvals",
+      "description": "Approval requests will appear here when actions require approval."
+    },
+    "executionLogs": {
+      "title": "No execution logs",
+      "description": "Action execution history will appear here once actions are executed."
+    }
   },
   "toast": {
     "recordCreated": "Record created successfully",

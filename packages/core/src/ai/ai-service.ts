@@ -24,6 +24,7 @@ import type {
   AIProviderType,
   AIService,
   AIServiceConfig,
+  AIStreamResult,
   AITaskType,
   AITenantConfig,
   AIToolCall,
@@ -80,6 +81,8 @@ export function createAIService(config: AIServiceConfig): AIService {
     configured: true,
     complete: (options) =>
       executeWithFallback(config, options, costEstimator, cache),
+    completeStream: (options) =>
+      executeStream(config, options),
   };
 }
 
@@ -534,5 +537,66 @@ async function executeCompletion(
     model: resolved.modelId,
     provider: resolved.provider,
     duration,
+  };
+}
+
+// ── Streaming completion ─────────────────────────────────
+
+/**
+ * Execute a streaming completion request.
+ * Returns an async iterable of text chunks using Vercel AI SDK's streamText.
+ */
+async function executeStream(
+  config: AIServiceConfig,
+  options: AICompletionOptions,
+): Promise<AIStreamResult> {
+  // Resolve tenant-specific config if tenantId is specified
+  const effectiveConfig = options.tenantId
+    ? resolveTenantConfig(config, options.tenantId)
+    : config;
+
+  // Apply model routing if taskType is specified and no explicit model
+  let resolvedOptions = options;
+  if (options.taskType && !options.model) {
+    const route = resolveModelRoute(effectiveConfig.routing, options.taskType);
+    if (route) {
+      resolvedOptions = {
+        ...options,
+        model: route.model,
+        provider: route.provider ?? options.provider,
+      };
+    }
+  }
+
+  // Resolve model
+  const resolved = resolveModel(effectiveConfig, resolvedOptions.provider, resolvedOptions.model);
+
+  // Enforce maxTokens limit
+  let maxOutputTokens = resolvedOptions.maxTokens;
+  if (effectiveConfig.limits?.maxTokensPerRequest) {
+    if (maxOutputTokens) {
+      maxOutputTokens = Math.min(maxOutputTokens, effectiveConfig.limits.maxTokensPerRequest);
+    } else {
+      maxOutputTokens = effectiveConfig.limits.maxTokensPerRequest;
+    }
+  }
+
+  // Get provider language model
+  const model = await getLanguageModel(effectiveConfig, resolved);
+
+  const { streamText } = await import("ai");
+
+  const result = streamText({
+    model,
+    messages: resolvedOptions.messages,
+    temperature: resolvedOptions.temperature ?? 0,
+    maxOutputTokens,
+    abortSignal: resolvedOptions.timeout ? AbortSignal.timeout(resolvedOptions.timeout) : undefined,
+  });
+
+  return {
+    textStream: result.textStream,
+    model: resolved.modelId,
+    provider: resolved.provider,
   };
 }

@@ -165,7 +165,10 @@
     "saveViewTitle": "保存视图",
     "saveViewDesc": "将当前筛选条件保存为命名视图，方便快速访问。",
     "viewName": "视图名称",
-    "viewNamePlaceholder": "例如：我的待办项"
+    "viewNamePlaceholder": "例如：我的待办项",
+    "rename": "重命名",
+    "renameTitle": "重命名视图",
+    "deleteConfirm": "确定删除此视图？"
   },
   "lens": {
     "title": "筛选",
@@ -295,7 +298,13 @@
     "reject": "拒绝",
     "acceptAll": "全部采纳",
     "dismissAll": "全部忽略",
-    "suggestionsAvailable": "{{count}} 条 AI 建议可用"
+    "suggestionsAvailable": "{{count}} 条 AI 建议可用",
+    "executeAction": "执行",
+    "executing": "执行中...",
+    "actionSuccess": "操作执行成功。",
+    "actionExecFailed": "操作执行失败。",
+    "actionCancelled": "操作已取消。",
+    "missingFields": "缺少必填字段"
   },
   "health": {
     "title": "系统健康",
@@ -321,7 +330,31 @@
   "emptyState": {
     "title": "暂无{{label}}",
     "description": "创建第一条{{label}}记录以开始使用。",
-    "createButton": "新建{{label}}"
+    "createButton": "新建{{label}}",
+    "rules": {
+      "title": "暂无规则",
+      "description": "规则注册到系统后将显示在此处。"
+    },
+    "flows": {
+      "title": "暂无工作流",
+      "description": "工作流注册到系统后将显示在此处。"
+    },
+    "proposals": {
+      "title": "暂无 AI 提案",
+      "description": "AI 生成的变更提案将显示在此处。"
+    },
+    "stateMachines": {
+      "title": "暂无状态机",
+      "description": "状态机注册到系统后将显示在此处。"
+    },
+    "approvals": {
+      "title": "暂无待审批项",
+      "description": "需要审批的操作请求将显示在此处。"
+    },
+    "executionLogs": {
+      "title": "暂无执行日志",
+      "description": "操作执行历史将在操作执行后显示在此处。"
+    }
   },
   "toast": {
     "recordCreated": "记录创建成功",

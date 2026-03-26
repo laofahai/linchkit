@@ -1,8 +1,11 @@
 /**
- * EmptyState — Displayed when a schema list has no records.
+ * EmptyState — Displayed when a list has no records.
  *
- * Shows an icon, title, description, and a CTA button to create
- * the first record. All text is localized via react-i18next.
+ * Two modes:
+ * 1. Schema-driven: pass `schemaName` + `schemaLabel` for schema list pages (shows create button).
+ * 2. Generic: pass `title` + optional `description` / `icon` / `hideAction` for admin pages.
+ *
+ * All text is localized via react-i18next.
  */
 
 import { Button } from "@linchkit/ui-kit/components";
@@ -12,39 +15,68 @@ import { useTranslation } from "react-i18next";
 
 export interface EmptyStateProps {
   /** Schema machine name (used for navigation). */
-  schemaName: string;
+  schemaName?: string;
   /** Human-readable schema label. */
-  schemaLabel: string;
+  schemaLabel?: string;
+  /** Override default title text. */
+  title?: string;
+  /** Override default description text. */
+  description?: string;
+  /** Override default icon. */
+  icon?: React.ReactNode;
+  /** Hide the create/action button (useful for admin pages where creation is not user-driven). */
+  hideAction?: boolean;
 }
 
-export function EmptyState({ schemaName, schemaLabel }: EmptyStateProps) {
+export function EmptyState({
+  schemaName,
+  schemaLabel,
+  title,
+  description,
+  icon,
+  hideAction = false,
+}: EmptyStateProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  const displayTitle = title
+    ?? (schemaLabel
+      ? t("emptyState.title", "No {{label}} yet", { label: schemaLabel })
+      : t("common.noData", "No data"));
+
+  const displayDescription = description
+    ?? (schemaLabel
+      ? t("emptyState.description", "Create your first {{label}} to get started.", { label: schemaLabel })
+      : undefined);
+
+  const showCreateButton = !hideAction && schemaName && schemaLabel;
 
   return (
     <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
       <div className="rounded-full bg-muted p-4 mb-4">
-        <PackageOpen className="size-10 text-muted-foreground" />
+        {icon ?? <PackageOpen className="size-10 text-muted-foreground" />}
       </div>
 
       <h3 className="text-lg font-medium text-foreground mb-1">
-        {t("emptyState.title", "No {{label}} yet", { label: schemaLabel })}
+        {displayTitle}
       </h3>
 
-      <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-        {t("emptyState.description", "Create your first {{label}} to get started.", {
-          label: schemaLabel,
-        })}
-      </p>
+      {displayDescription && (
+        <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+          {displayDescription}
+        </p>
+      )}
 
-      <Button
-        onClick={() =>
-          navigate({ to: "/schemas/$name/new", params: { name: schemaName } })
-        }
-      >
-        <Plus className="mr-1.5 size-4" />
-        {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}
-      </Button>
+      {showCreateButton && (
+        <Button
+          onClick={() =>
+            navigate({ to: "/schemas/$name/new", params: { name: schemaName } })
+          }
+        >
+          <Plus className="mr-1.5 size-4" />
+          {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}
+        </Button>
+      )}
     </div>
   );
 }

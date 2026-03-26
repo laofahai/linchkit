@@ -38,7 +38,8 @@ import { BulkEditDialog } from "./bulk-edit-dialog";
 import { ImportDialog } from "./import-dialog";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
-import type { AutoListProps, AutoListViewDefinition } from "./types";
+import type { AutoListProps, AutoListViewDefinition, EmptyStateConfig } from "./types";
+import { EmptyState } from "../empty-state";
 
 /** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
 const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
@@ -233,6 +234,7 @@ function AutoListExternal({
   defaultSorting,
   onRefresh,
   refreshing = false,
+  emptyState,
 }: {
   externalColumns: ColumnDef<Record<string, unknown>, unknown>[];
   data: Record<string, unknown>[];
@@ -243,6 +245,7 @@ function AutoListExternal({
   defaultSorting?: SortingState;
   onRefresh?: () => void;
   refreshing?: boolean;
+  emptyState?: EmptyStateConfig;
 }) {
   const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? []);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -281,6 +284,18 @@ function AutoListExternal({
   }
 
   const hasActiveFilters = globalFilter !== "";
+
+  // Show empty state when no data and not filtering
+  if (data.length === 0 && !hasActiveFilters && emptyState) {
+    return (
+      <EmptyState
+        title={emptyState.title}
+        description={emptyState.description}
+        icon={emptyState.icon}
+        hideAction
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -321,6 +336,7 @@ function AutoListSchema({
   toolbarExtra,
   onInlineEditSaved,
   onInlineEditError,
+  onFiltersChange,
   onRefresh,
   refreshing = false,
 }: {
@@ -337,6 +353,7 @@ function AutoListSchema({
   toolbarExtra?: React.ReactNode;
   onInlineEditSaved?: (recordId: string, updatedRecord: Record<string, unknown>) => void;
   onInlineEditError?: (error: Error) => void;
+  onFiltersChange?: (filters: Array<{ field: string; operator: string; values: unknown[] }>) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
@@ -410,6 +427,17 @@ function AutoListSchema({
   useEffect(() => {
     setRowSelection({});
   }, [columnFilters, globalFilter, bazzaFilterState, aiSearchState.result]);
+
+  // Notify parent of filter changes (used by saved views)
+  useEffect(() => {
+    onFiltersChange?.(
+      bazzaFilterState.map((f) => ({
+        field: f.field,
+        operator: f.operator,
+        values: [...f.values],
+      })),
+    );
+  }, [bazzaFilterState, onFiltersChange]);
 
   const toolbarActions = useMemo(
     () => (view.actions ?? []).filter((a) => a.position === "toolbar"),
@@ -674,6 +702,7 @@ export function AutoList(props: AutoListProps) {
         defaultSorting={props.defaultSorting}
         onRefresh={props.onRefresh}
         refreshing={props.refreshing}
+        emptyState={props.emptyState}
       />
     );
   }
@@ -694,6 +723,7 @@ export function AutoList(props: AutoListProps) {
       toolbarExtra={props.toolbarExtra}
       onInlineEditSaved={props.onInlineEditSaved}
       onInlineEditError={props.onInlineEditError}
+      onFiltersChange={props.onFiltersChange}
       onRefresh={props.onRefresh}
       refreshing={props.refreshing}
     />

@@ -3,12 +3,21 @@
  *
  * Renders states as styled nodes and transitions as labeled edges.
  * Layout: left-to-right (horizontal), computed automatically by dagre.
+ *
+ * Features:
+ * - Rounded rectangle nodes with meta.color tinting
+ * - Initial state indicator (dot icon + thicker border)
+ * - Terminal state indicator (double border)
+ * - Smooth bezier edges with labeled transitions
+ * - Self-loop handling via curved loopback edges
+ * - MiniMap + Controls + fitView
  */
 
 import {
   Background,
   Controls,
   type Edge,
+  type EdgeProps,
   Handle,
   MiniMap,
   type Node,
@@ -57,6 +66,16 @@ function getStateColor(
 }
 
 /**
+ * Convert a hex color to an rgba string with the given alpha.
+ */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16);
+  const g = Number.parseInt(hex.slice(3, 5), 16);
+  const b = Number.parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
  * Resolve state label from meta, supporting `t:` i18n prefix.
  * Falls back to raw state name if no label is found.
  */
@@ -87,36 +106,51 @@ interface StateNodeData {
 function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
   const { label, color, isInitial, isTerminal, stateName } = data;
 
+  const bgTint = hexToRgba(color, 0.08);
+  const borderWidth = isInitial ? 3 : 2;
+
   return (
     <div
-      className="relative rounded-xl px-4 py-3 min-w-[120px] text-center shadow-sm"
+      className="relative px-5 py-3 text-center"
       style={{
-        backgroundColor: "white",
-        border: `${isInitial ? "3px" : "2px"} solid ${color}`,
-        outline: isTerminal ? `2px solid ${color}40` : undefined,
-        outlineOffset: isTerminal ? "3px" : undefined,
+        backgroundColor: bgTint,
+        border: `${borderWidth}px solid ${color}`,
+        borderRadius: 12,
+        minWidth: 140,
+        minHeight: 50,
+        // Terminal states get a double border effect via box-shadow
+        boxShadow: isTerminal
+          ? `0 0 0 3px white, 0 0 0 5px ${color}`
+          : `0 1px 3px ${hexToRgba(color, 0.15)}`,
       }}
     >
       <Handle
         type="target"
         position={Position.Left}
-        style={{ background: color, width: 8, height: 8 }}
+        style={{
+          background: color,
+          width: 8,
+          height: 8,
+          border: "2px solid white",
+        }}
       />
 
       {/* Colored accent bar at top */}
       <div
-        className="absolute top-0 left-0 right-0 h-1 rounded-t-xl"
-        style={{ backgroundColor: color, opacity: 0.7 }}
+        className="absolute top-0 left-0 right-0"
+        style={{
+          backgroundColor: color,
+          opacity: 0.6,
+          height: 3,
+          borderRadius: "10px 10px 0 0",
+        }}
       />
 
       <div className="flex items-center justify-center gap-1.5">
         {isInitial && (
-          <CircleDotIcon className="size-3" style={{ color }} />
+          <CircleDotIcon className="size-3.5 flex-shrink-0" style={{ color }} />
         )}
-        <span
-          className="font-semibold text-sm"
-          style={{ color }}
-        >
+        <span className="font-semibold text-sm leading-tight" style={{ color }}>
           {label}
         </span>
       </div>
@@ -130,21 +164,105 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
       <Handle
         type="source"
         position={Position.Right}
-        style={{ background: color, width: 8, height: 8 }}
+        style={{
+          background: color,
+          width: 8,
+          height: 8,
+          border: "2px solid white",
+        }}
       />
     </div>
   );
 }
 
-// ── Node types registry ──────────────────────────────────
+// ── Self-loop edge ───────────────────────────────────────
+
+/**
+ * Custom edge component that renders a self-referencing loop.
+ * Draws an SVG path that goes above the node and curves back.
+ */
+function SelfLoopEdge({
+  id,
+  sourceX,
+  sourceY,
+  label,
+  style,
+  markerEnd,
+}: EdgeProps) {
+  // Draw a loop that goes up from the right handle, curves over the node, and comes back to the left handle
+  const loopRadius = 30;
+  const loopHeight = 50;
+
+  const path = `M ${sourceX} ${sourceY}
+    C ${sourceX + loopRadius} ${sourceY - loopHeight},
+      ${sourceX - loopRadius - 60} ${sourceY - loopHeight},
+      ${sourceX - 60} ${sourceY}`;
+
+  // Label position: centered above the loop
+  const labelX = sourceX - 30;
+  const labelY = sourceY - loopHeight - 8;
+
+  return (
+    <>
+      <path
+        id={id}
+        d={path}
+        fill="none"
+        style={style}
+        markerEnd={markerEnd as string}
+      />
+      {label && (
+        <foreignObject
+          x={labelX - 40}
+          y={labelY - 10}
+          width={80}
+          height={24}
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "ui-monospace, monospace",
+                fontWeight: 500,
+                color: (style as Record<string, unknown>)?.stroke as string ?? "#666",
+                backgroundColor: "white",
+                padding: "1px 5px",
+                borderRadius: 3,
+                border: "1px solid #e5e7eb",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {label as string}
+            </span>
+          </div>
+        </foreignObject>
+      )}
+    </>
+  );
+}
+
+// ── Node & edge types registry ───────────────────────────
 
 const nodeTypes = {
   stateNode: StateNode,
 };
 
+const edgeTypes = {
+  selfLoop: SelfLoopEdge,
+};
+
 // ── Dagre layout ─────────────────────────────────────────
 
-const NODE_WIDTH = 140;
+const NODE_WIDTH = 160;
 const NODE_HEIGHT = 60;
 
 function getLayoutedElements(
@@ -156,17 +274,20 @@ function getLayoutedElements(
   g.setGraph({
     rankdir: "LR",
     nodesep: 80,
-    ranksep: 120,
-    marginx: 40,
-    marginy: 40,
+    ranksep: 150,
+    marginx: 50,
+    marginy: 50,
   });
 
   for (const node of nodes) {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
+  // Only add non-self-loop edges to dagre (self-loops don't affect layout)
   for (const edge of edges) {
-    g.setEdge(edge.source, edge.target);
+    if (edge.source !== edge.target) {
+      g.setEdge(edge.source, edge.target);
+    }
   }
 
   dagre.layout(g);
@@ -224,30 +345,75 @@ function buildStateGraph(
 
   // Build edges (flatten from-arrays)
   const edges: Edge[] = [];
-  // Track edge pairs for consistent coloring
   let edgeIdx = 0;
+
+  // Track edge count between same source-target pairs for offsetting parallel edges
+  const edgePairCount = new Map<string, number>();
 
   for (const tr of machine.transitions) {
     const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
     for (const from of froms) {
       const fromColor = getStateColor(from, machine.meta);
-      edges.push({
-        id: `tr-${edgeIdx++}`,
-        source: from,
-        target: tr.to,
-        type: "smoothstep",
-        animated: true,
-        label: tr.action,
-        style: { stroke: fromColor, strokeWidth: 1.5, strokeOpacity: 0.6 },
-        labelStyle: {
-          fill: fromColor,
-          fontSize: 10,
-          fontFamily: "ui-monospace, monospace",
-          fontWeight: 500,
-        },
-        labelBgStyle: { fill: "white", fillOpacity: 0.85 },
-        labelBgPadding: [4, 2] as [number, number],
-      });
+      const isSelfLoop = from === tr.to;
+      const pairKey = `${from}->${tr.to}`;
+      const pairIdx = edgePairCount.get(pairKey) ?? 0;
+      edgePairCount.set(pairKey, pairIdx + 1);
+
+      if (isSelfLoop) {
+        // Self-loop: use custom edge type
+        edges.push({
+          id: `tr-${edgeIdx++}`,
+          source: from,
+          target: tr.to,
+          type: "selfLoop",
+          label: tr.action,
+          style: {
+            stroke: fromColor,
+            strokeWidth: 1.5,
+          },
+          markerEnd: {
+            type: "arrowclosed" as unknown as undefined,
+            color: fromColor,
+            width: 16,
+            height: 16,
+          } as unknown as string,
+        });
+      } else {
+        // Normal edge: smooth bezier
+        edges.push({
+          id: `tr-${edgeIdx++}`,
+          source: from,
+          target: tr.to,
+          type: "default",
+          animated: false,
+          label: tr.action,
+          style: {
+            stroke: fromColor,
+            strokeWidth: 1.5,
+          },
+          labelStyle: {
+            fill: "#374151",
+            fontSize: 10,
+            fontFamily: "ui-monospace, monospace",
+            fontWeight: 500,
+          },
+          labelBgStyle: {
+            fill: "white",
+            fillOpacity: 0.95,
+            stroke: "#e5e7eb",
+            strokeWidth: 0.5,
+            rx: 3,
+            ry: 3,
+          },
+          labelBgPadding: [6, 3] as [number, number],
+          markerEnd: {
+            type: "arrowclosed" as unknown as undefined,
+            color: fromColor,
+            width: 16,
+            height: 16,
+          } as unknown as string,
+        });
+      }
     }
   }
 
@@ -256,7 +422,13 @@ function buildStateGraph(
 
 // ── Main component ───────────────────────────────────────
 
-export function StateDiagram({ machine, t }: { machine: StateMachineDetail; t?: (key: string, opts?: Record<string, unknown>) => string }) {
+export function StateDiagram({
+  machine,
+  t,
+}: {
+  machine: StateMachineDetail;
+  t?: (key: string, opts?: Record<string, unknown>) => string;
+}) {
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
     () => buildStateGraph(machine, t),
     [machine, t],
@@ -266,13 +438,23 @@ export function StateDiagram({ machine, t }: { machine: StateMachineDetail; t?: 
   const [edges, , onEdgesChange] = useEdgesState(layoutedEdges);
 
   return (
-    <div style={{ width: "100%", height: 350 }}>
+    <div
+      style={{
+        width: "100%",
+        height: 400,
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
+        overflow: "hidden",
+        background: "#fafafa",
+      }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
@@ -280,17 +462,27 @@ export function StateDiagram({ machine, t }: { machine: StateMachineDetail; t?: 
         fitViewOptions={{ padding: 0.3 }}
         minZoom={0.3}
         maxZoom={2}
+        defaultEdgeOptions={{
+          type: "default",
+        }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={16} size={1} color="#e2e8f0" />
-        <Controls showInteractive={false} />
+        <Background gap={20} size={1} color="#e2e8f0" />
+        <Controls showInteractive={false} position="bottom-left" />
         <MiniMap
+          position="bottom-right"
           nodeStrokeWidth={3}
+          pannable
+          zoomable
           nodeColor={(node) => {
             const data = node.data as StateNodeData;
             return data?.color ?? DEFAULT_STATE_COLOR;
           }}
-          maskColor="rgba(0, 0, 0, 0.08)"
+          maskColor="rgba(0, 0, 0, 0.06)"
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 4,
+          }}
         />
       </ReactFlow>
     </div>

@@ -1045,9 +1045,10 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     })
     // ── AI Chat endpoint ──────────────────────────────────
     .post("/api/ai/chat", async ({ body, set }) => {
-      const { message, context } = (body ?? {}) as {
+      const { message, context, stream } = (body ?? {}) as {
         message?: string;
         context?: { schema?: string; recordId?: string };
+        stream?: boolean;
       };
 
       if (!message || typeof message !== "string") {
@@ -1056,6 +1057,21 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
       }
 
       if (!aiService?.configured) {
+        // For streaming mode, return a single SSE event with the unconfigured message
+        if (stream) {
+          set.headers["content-type"] = "text/event-stream";
+          set.headers["cache-control"] = "no-cache";
+          set.headers["connection"] = "keep-alive";
+          const msg = "AI service is not configured. Configure an AI provider in linchkit.config.ts to enable the assistant.";
+          const encoder = new TextEncoder();
+          return new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk: msg })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, suggestions: [] })}\n\n`));
+              controller.close();
+            },
+          });
+        }
         return {
           success: true,
           data: {
@@ -1085,17 +1101,79 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         }
       }
 
+      const completionOptions = {
+        model: "fast" as const,
+        messages: [
+          { role: "system" as const, content: systemPrompt },
+          { role: "user" as const, content: message },
+        ],
+        temperature: 0.3,
+        maxTokens: 1024,
+        timeout: 30_000,
+      };
+
+      // ── Streaming mode ──
+      if (stream && aiService.completeStream) {
+        try {
+          const streamResult = await aiService.completeStream(completionOptions);
+          set.headers["content-type"] = "text/event-stream";
+          set.headers["cache-control"] = "no-cache";
+          set.headers["connection"] = "keep-alive";
+
+          const encoder = new TextEncoder();
+          let fullText = "";
+
+          return new ReadableStream({
+            async start(controller) {
+              try {
+                for await (const chunk of streamResult.textStream) {
+                  fullText += chunk;
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ chunk })}\n\n`),
+                  );
+                }
+
+                // Extract suggestions from the full assembled text
+                let suggestions: Array<{ action: string; label: string }> = [];
+                const suggestionsMatch = fullText.match(
+                  /<!-- suggestions:(\[.*?\]) -->/s,
+                );
+                if (suggestionsMatch?.[1]) {
+                  try {
+                    suggestions = JSON.parse(suggestionsMatch[1]);
+                  } catch {
+                    // Ignore parse errors for suggestions
+                  }
+                }
+
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ done: true, suggestions })}\n\n`),
+                );
+                controller.close();
+              } catch (err) {
+                const errorMessage =
+                  err instanceof Error ? err.message : "AI stream failed";
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ error: errorMessage })}\n\n`),
+                );
+                controller.close();
+              }
+            },
+          });
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : "AI stream failed";
+          set.status = 500;
+          return {
+            success: false,
+            error: { message: errorMessage },
+          };
+        }
+      }
+
+      // ── Non-streaming mode ──
       try {
-        const result = await aiService.complete({
-          model: "fast",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message },
-          ],
-          temperature: 0.3,
-          maxTokens: 1024,
-          timeout: 30_000,
-        });
+        const result = await aiService.complete(completionOptions);
 
         // Extract suggestions from the response if present
         let reply = result.content;
@@ -1124,6 +1202,162 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           success: false,
           error: { message: errorMessage },
         };
+      }
+    })
+    // ── AI Intent Resolution endpoint — natural language to action proposal ──
+    .post("/api/ai/resolve-intent", async ({ body, set }) => {
+      const { message, context } = (body ?? {}) as {
+        message?: string;
+        context?: { schema?: string; recordId?: string };
+      };
+
+      if (!message || typeof message !== "string") {
+        set.status = 400;
+        return { success: false, error: { message: "message is required" } };
+      }
+
+      if (!aiService?.configured) {
+        return { success: true, data: null };
+      }
+
+      // Collect available actions from executor registry
+      const actionRegistry = executor?.registry;
+      if (!actionRegistry) {
+        return { success: true, data: null };
+      }
+
+      // Build action catalog for the AI prompt
+      const allActions = actionRegistry.getAll();
+      const actionCatalog = allActions.map((a) => {
+        const inputFields = a.input
+          ? Object.entries(a.input).map(([name, field]) => ({
+              name,
+              type: field.type,
+              label: field.label,
+              required: field.required ?? false,
+              options: (field as { options?: Array<{ value: string; label?: string }> }).options?.map(
+                (o) => o.value,
+              ),
+              description: field.description,
+            }))
+          : [];
+        return {
+          name: a.name,
+          schema: a.schema,
+          label: a.label,
+          description: a.description,
+          inputFields,
+        };
+      });
+
+      // Build schema context
+      let schemaContext = "";
+      if (context?.schema && schemaRegistry) {
+        const schema = schemaRegistry.get(context.schema);
+        if (schema) {
+          schemaContext = `\nCurrent schema context: ${schema.name}`;
+          if (schema.label) schemaContext += ` (${schema.label})`;
+          schemaContext += `\nFields: ${Object.entries(schema.fields)
+            .map(([k, v]) => `${k}(${v.type}${v.label ? `, label: ${v.label}` : ""})`)
+            .join(", ")}`;
+          if (context.recordId) schemaContext += `\nViewing record ID: ${context.recordId}`;
+        }
+      }
+
+      const systemPrompt = `You are LinchKit AI Intent Resolver. Given a user's natural language request, determine which action to execute and extract the input parameters.
+
+Available actions:
+${JSON.stringify(actionCatalog, null, 2)}
+${schemaContext}
+
+Respond with a JSON object (and nothing else) in this exact format:
+{
+  "action": "action_name or null if no match",
+  "schema": "schema_name or null",
+  "input": { "field_name": "extracted_value" },
+  "missingFields": ["field names that are required but not extracted"],
+  "confidence": 0.0 to 1.0,
+  "explanation": "Human-readable explanation of what will happen"
+}
+
+Rules:
+- Only match actions from the available list above.
+- Extract parameter values from the user message. Convert types appropriately (strings to numbers, etc.).
+- If you cannot determine a good match, set action to null and confidence to 0.
+- If some required fields are missing from the user message, list them in missingFields.
+- The explanation should be concise and user-friendly.`;
+
+      try {
+        const result = await aiService.complete({
+          model: "fast",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+          temperature: 0.1,
+          maxTokens: 1024,
+          timeout: 30_000,
+        });
+
+        // Parse the JSON response
+        let parsed: {
+          action: string | null;
+          schema: string | null;
+          input: Record<string, unknown>;
+          missingFields?: string[];
+          confidence: number;
+          explanation: string;
+        };
+        try {
+          // Strip markdown code fences if present
+          const cleaned = result.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          parsed = JSON.parse(cleaned);
+        } catch {
+          // AI didn't return valid JSON — no intent resolved
+          return { success: true, data: null };
+        }
+
+        if (!parsed.action || parsed.confidence < 0.3) {
+          return { success: true, data: null };
+        }
+
+        // Verify the action actually exists
+        const matchedAction = actionRegistry.get(parsed.action);
+        if (!matchedAction) {
+          return { success: true, data: null };
+        }
+
+        return {
+          success: true,
+          data: {
+            action: parsed.action,
+            schema: parsed.schema ?? matchedAction.schema,
+            input: parsed.input ?? {},
+            missingFields: parsed.missingFields ?? [],
+            confidence: parsed.confidence,
+            explanation: parsed.explanation,
+            actionLabel: matchedAction.label,
+            actionDescription: matchedAction.description,
+            inputSchema: matchedAction.input
+              ? Object.fromEntries(
+                  Object.entries(matchedAction.input).map(([k, v]) => [
+                    k,
+                    {
+                      type: v.type,
+                      label: v.label,
+                      required: v.required ?? false,
+                      options: (v as { options?: Array<{ value: string; label?: string }> }).options,
+                      description: v.description,
+                    },
+                  ]),
+                )
+              : {},
+          },
+        };
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "AI request failed";
+        set.status = 500;
+        return { success: false, error: { message: errorMessage } };
       }
     })
     // ── AI Search endpoint — natural language to DeclarativeCondition ──

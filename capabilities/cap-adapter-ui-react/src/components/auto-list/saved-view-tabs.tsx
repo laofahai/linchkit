@@ -26,7 +26,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { SavedView, SavedViewFilter, SavedViewSort } from "../../hooks/use-saved-views";
+import type { SavedView } from "../../hooks/use-saved-views";
 
 export interface SavedViewTabsProps {
   views: SavedView[];
@@ -124,7 +124,7 @@ export function SavedViewTabs({
               <DropdownMenuContent align="start" className="w-36">
                 <DropdownMenuItem onClick={() => openRenameDialog(view)}>
                   <Pencil className="mr-2 size-3.5" />
-                  {t("common.edit", "Rename")}
+                  {t("viewTabs.rename", "Rename")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -198,7 +198,7 @@ export function SavedViewTabs({
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{t("common.edit", "Rename")}</DialogTitle>
+            <DialogTitle>{t("viewTabs.renameTitle", "Rename View")}</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             <Input
