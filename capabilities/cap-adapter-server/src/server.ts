@@ -18,6 +18,7 @@ import type {
   ExecutionLogger,
   ExecutionStatus,
   FlowDefinition,
+  LinchKitConfig,
   PermissionGroupDefinition,
   RuleDefinition,
   SchemaDefinition,
@@ -106,6 +107,8 @@ export interface ServerOptions {
   flows?: FlowDefinition[];
   /** State definitions — used by /api/states endpoints */
   states?: StateDefinition[];
+  /** LinchKit project config — used by /api/settings (sanitized, no secrets) */
+  linchKitConfig?: LinchKitConfig;
 }
 
 /** Default anonymous actor for unauthenticated requests. */

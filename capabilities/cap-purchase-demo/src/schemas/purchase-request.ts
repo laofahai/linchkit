@@ -33,23 +33,23 @@ export const purchaseRequestSchema: SchemaDefinition = {
       label: "t:schemas.purchase_request.fields.title",
       ui: { importance: "primary" },
     },
-    description: { type: "text", label: "Description" },
-    department: { type: "ref", target: "department", label: "Department" },
+    description: { type: "text", label: "t:schemas.purchase_request.fields.description" },
+    department: { type: "ref", target: "department", label: "t:schemas.purchase_request.fields.department" },
     amount: {
       type: "number",
       required: true,
-      label: "Amount",
+      label: "t:schemas.purchase_request.fields.amount",
       ui: { importance: "primary", format: "currency" },
     },
     requester: {
       type: "string",
-      label: "Requester",
+      label: "t:schemas.purchase_request.fields.requester",
       ui: { importance: "primary" },
     },
     requester_email: {
       type: "string",
       required: true,
-      label: "Requester Email",
+      label: "t:schemas.purchase_request.fields.requester_email",
       format: "email",
       sensitive: true,
       masking: {
@@ -68,21 +68,21 @@ export const purchaseRequestSchema: SchemaDefinition = {
     priority: {
       type: "enum",
       options: [
-        { value: "low", label: "Low" },
-        { value: "medium", label: "Medium" },
-        { value: "high", label: "High" },
-        { value: "urgent", label: "Urgent" },
+        { value: "low", label: "t:schemas.purchase_request.enums.priority.low" },
+        { value: "medium", label: "t:schemas.purchase_request.enums.priority.medium" },
+        { value: "high", label: "t:schemas.purchase_request.enums.priority.high" },
+        { value: "urgent", label: "t:schemas.purchase_request.enums.priority.urgent" },
       ],
-      label: "Priority",
+      label: "t:schemas.purchase_request.fields.priority",
       ui: { importance: "primary", display: "badge" },
     },
-    notes: { type: "text", label: "Notes" },
-    audit_notes: { type: "text", label: "Audit Notes" },
+    notes: { type: "text", label: "t:schemas.purchase_request.fields.notes" },
+    audit_notes: { type: "text", label: "t:schemas.purchase_request.fields.audit_notes" },
 
     // Timestamp fields (auto-populated by automations)
     submitted_at: {
       type: "datetime",
-      label: "Submitted At",
+      label: "t:schemas.purchase_request.fields.submitted_at",
       immutable: true,
       ui: { importance: "detail" },
     },
