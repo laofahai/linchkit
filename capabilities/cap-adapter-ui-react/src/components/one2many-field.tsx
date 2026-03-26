@@ -248,7 +248,7 @@ export function One2ManyField({
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  async function commitEdit() {
+  const commitEdit = useCallback(async () => {
     if (!editingCell) return;
     const { id, field } = editingCell;
     const col = columns.find((c) => c.field === field);
@@ -296,7 +296,7 @@ export function One2ManyField({
       });
       setEditingCell(null);
     }
-  }
+  }, [editingCell, editValue, columns, pendingRows, records, childSchemaName, gqlFields]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") {

@@ -26,7 +26,7 @@ import {
   CircleDotIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "@tanstack/react-router";
 
@@ -156,125 +156,442 @@ function getStateLabel(stateName: string, meta?: Record<string, StateMeta>): str
   return meta?.[stateName]?.label ?? stateName;
 }
 
+// ── Layout helpers ───────────────────────────────────────
+
+/** Node dimensions for layout calculation */
+const NODE_WIDTH = 140;
+const NODE_HEIGHT = 56;
+const H_SPACING = 160;
+const V_SPACING = 100;
+const PADDING = 60;
+const INITIAL_DOT_OFFSET = 40;
+
+interface LayoutNode {
+  state: string;
+  x: number;
+  y: number;
+  depth: number;
+}
+
+/**
+ * BFS-based layout: arranges states left-to-right by transition depth.
+ * Initial state starts at depth 0; terminal states land on the right.
+ */
+function computeLayout(machine: StateMachineDetail): LayoutNode[] {
+  const { states, transitions, initial } = machine;
+
+  // Build adjacency list
+  const adjacency = new Map<string, string[]>();
+  for (const s of states) adjacency.set(s, []);
+  for (const tr of transitions) {
+    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+    for (const f of froms) {
+      adjacency.get(f)?.push(tr.to);
+    }
+  }
+
+  // BFS from initial state to assign depth
+  const depthMap = new Map<string, number>();
+  const queue: string[] = [initial];
+  depthMap.set(initial, 0);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentDepth = depthMap.get(current)!;
+    for (const neighbor of adjacency.get(current) ?? []) {
+      if (!depthMap.has(neighbor)) {
+        depthMap.set(neighbor, currentDepth + 1);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  // Assign depth to any unreachable states (place them at max depth + 1)
+  const maxDepth = Math.max(0, ...depthMap.values());
+  for (const s of states) {
+    if (!depthMap.has(s)) {
+      depthMap.set(s, maxDepth + 1);
+    }
+  }
+
+  // Group states by depth
+  const depthGroups = new Map<number, string[]>();
+  for (const s of states) {
+    const d = depthMap.get(s)!;
+    if (!depthGroups.has(d)) depthGroups.set(d, []);
+    depthGroups.get(d)!.push(s);
+  }
+
+  // Assign positions: columns by depth, rows within each column
+  const nodes: LayoutNode[] = [];
+  const sortedDepths = [...depthGroups.keys()].sort((a, b) => a - b);
+
+  for (const depth of sortedDepths) {
+    const group = depthGroups.get(depth)!;
+    const colX = PADDING + INITIAL_DOT_OFFSET + depth * (NODE_WIDTH + H_SPACING);
+    const startY = PADDING;
+
+    for (let i = 0; i < group.length; i++) {
+      const y = startY + i * (NODE_HEIGHT + V_SPACING);
+      nodes.push({ state: group[i], x: colX, y, depth });
+    }
+  }
+
+  // Center vertically: find max row count across columns, center smaller columns
+  const maxGroupSize = Math.max(...[...depthGroups.values()].map((g) => g.length));
+  const maxTotalHeight = maxGroupSize * NODE_HEIGHT + (maxGroupSize - 1) * V_SPACING;
+
+  for (const depth of sortedDepths) {
+    const group = depthGroups.get(depth)!;
+    const groupHeight = group.length * NODE_HEIGHT + (group.length - 1) * V_SPACING;
+    const offsetY = (maxTotalHeight - groupHeight) / 2;
+    for (const node of nodes) {
+      if (node.depth === depth) {
+        node.y += offsetY;
+      }
+    }
+  }
+
+  return nodes;
+}
+
+/**
+ * Determine terminal states: states with no outgoing transitions.
+ */
+function getTerminalStates(machine: StateMachineDetail): Set<string> {
+  const hasOutgoing = new Set<string>();
+  for (const tr of machine.transitions) {
+    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+    for (const f of froms) hasOutgoing.add(f);
+  }
+  return new Set(machine.states.filter((s) => !hasOutgoing.has(s)));
+}
+
+/**
+ * Compute connection points on rectangle edges for a line from (sx,sy) to (tx,ty).
+ */
+function getRectEdgePoint(
+  rx: number, ry: number, rw: number, rh: number,
+  targetX: number, targetY: number,
+): { x: number; y: number } {
+  const cx = rx + rw / 2;
+  const cy = ry + rh / 2;
+  const dx = targetX - cx;
+  const dy = targetY - cy;
+
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  const scaleX = (rw / 2) / absDx;
+  const scaleY = (rh / 2) / absDy;
+  const scale = Math.min(scaleX || Infinity, scaleY || Infinity);
+
+  return { x: cx + dx * scale, y: cy + dy * scale };
+}
+
 // ── State diagram component ─────────────────────────────
 
 function StateDiagram({ machine }: { machine: StateMachineDetail }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [nodePositions, setNodePositions] = useState<Map<string, { cx: number; cy: number; w: number; h: number }>>(new Map());
+  const nodes = computeLayout(machine);
+  const terminalStates = getTerminalStates(machine);
+  const posMap = new Map(nodes.map((n) => [n.state, n]));
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const nodes = containerRef.current.querySelectorAll("[data-state-node]");
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const positions = new Map<string, { cx: number; cy: number; w: number; h: number }>();
-    for (const node of nodes) {
-      const el = node as HTMLElement;
-      const stateName = el.getAttribute("data-state-node") ?? "";
-      const rect = el.getBoundingClientRect();
-      positions.set(stateName, {
-        cx: rect.left - containerRect.left + rect.width / 2,
-        cy: rect.top - containerRect.top + rect.height / 2,
-        w: rect.width,
-        h: rect.height,
-      });
+  // Calculate SVG dimensions
+  const maxX = Math.max(...nodes.map((n) => n.x)) + NODE_WIDTH + PADDING;
+  const maxY = Math.max(...nodes.map((n) => n.y)) + NODE_HEIGHT + PADDING;
+  const svgWidth = Math.max(maxX, 400);
+  const svgHeight = Math.max(maxY, 200);
+
+  // Flatten transitions (expand from-arrays)
+  const flatTransitions: { from: string; to: string; action: string }[] = [];
+  for (const tr of machine.transitions) {
+    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+    for (const f of froms) {
+      flatTransitions.push({ from: f, to: tr.to, action: tr.action });
     }
-    setNodePositions(positions);
-  }, [machine]);
+  }
 
-  // Arrange states in a grid layout
-  const stateCount = machine.states.length;
-  const cols = Math.min(stateCount, 4);
-  const rows = Math.ceil(stateCount / cols);
+  // Detect bidirectional pairs to offset curves properly
+  const edgePairCount = new Map<string, number>();
+  const edgePairIndex = new Map<string, number>();
+  for (const tr of flatTransitions) {
+    const key = [tr.from, tr.to].sort().join("||");
+    edgePairCount.set(key, (edgePairCount.get(key) ?? 0) + 1);
+  }
+  for (const tr of flatTransitions) {
+    const key = [tr.from, tr.to].sort().join("||");
+    const idx = edgePairIndex.get(key) ?? 0;
+    edgePairIndex.set(key, idx + 1);
+    (tr as { _pairIdx?: number })._pairIdx = idx;
+    (tr as { _pairTotal?: number })._pairTotal = edgePairCount.get(key) ?? 1;
+  }
 
   return (
-    <div ref={containerRef} className="relative" style={{ minHeight: rows * 120 + 40 }}>
-      {/* SVG arrow layer */}
-      {nodePositions.size > 0 && (
-        <svg className="absolute inset-0 pointer-events-none" style={{ width: "100%", height: "100%" }}>
-          <defs>
-            <marker id="state-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" className="fill-muted-foreground/60" />
-            </marker>
-          </defs>
-          {machine.transitions.map((tr, i) => {
-            const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
-            return froms.map((fromState) => {
-              const fromPos = nodePositions.get(fromState);
-              const toPos = nodePositions.get(tr.to);
-              if (!fromPos || !toPos) return null;
-
-              // Calculate edge points
-              const dx = toPos.cx - fromPos.cx;
-              const dy = toPos.cy - fromPos.cy;
-              const angle = Math.atan2(dy, dx);
-
-              const startX = fromPos.cx + Math.cos(angle) * (fromPos.w / 2 + 4);
-              const startY = fromPos.cy + Math.sin(angle) * (fromPos.h / 2 + 4);
-              const endX = toPos.cx - Math.cos(angle) * (toPos.w / 2 + 8);
-              const endY = toPos.cy - Math.sin(angle) * (toPos.h / 2 + 8);
-
-              // Curve control point offset
-              const midX = (startX + endX) / 2;
-              const midY = (startY + endY) / 2;
-              const perpX = -Math.sin(angle) * 20;
-              const perpY = Math.cos(angle) * 20;
-
-              return (
-                <g key={`${fromState}-${tr.to}-${i}`}>
-                  <path
-                    d={`M ${startX} ${startY} Q ${midX + perpX} ${midY + perpY}, ${endX} ${endY}`}
-                    fill="none"
-                    className="stroke-muted-foreground/40"
-                    strokeWidth="1.5"
-                    markerEnd="url(#state-arrow)"
-                  />
-                  {/* Action label on the arrow */}
-                  <text
-                    x={midX + perpX * 0.6}
-                    y={midY + perpY * 0.6 - 4}
-                    className="fill-muted-foreground text-[9px]"
-                    textAnchor="middle"
-                  >
-                    {tr.action}
-                  </text>
-                </g>
-              );
-            });
-          })}
-        </svg>
-      )}
-
-      {/* State nodes */}
-      <div
-        className="grid gap-8 justify-items-center py-6"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+    <div className="overflow-x-auto">
+      <svg
+        width={svgWidth}
+        height={svgHeight}
+        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        className="select-none"
       >
-        {machine.states.map((stateName) => {
-          const color = getStateColor(stateName, machine.meta);
-          const label = getStateLabel(stateName, machine.meta);
-          const isInitial = stateName === machine.initial;
+        <defs>
+          {/* Arrow markers per state color */}
+          {machine.states.map((s) => {
+            const color = getStateColor(s, machine.meta);
+            return (
+              <marker
+                key={`arrow-${s}`}
+                id={`arrow-${s}`}
+                markerWidth="10"
+                markerHeight="7"
+                refX="9"
+                refY="3.5"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill={color} opacity="0.7" />
+              </marker>
+            );
+          })}
+          {/* Initial state arrow marker */}
+          <marker
+            id="arrow-initial"
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
+            orient="auto"
+          >
+            <polygon points="0 0, 8 3, 0 6" fill="#374151" />
+          </marker>
+          {/* Drop shadow filter */}
+          <filter id="node-shadow" x="-10%" y="-10%" width="130%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.08" />
+          </filter>
+        </defs>
+
+        {/* Transition arrows */}
+        {flatTransitions.map((tr, i) => {
+          const fromNode = posMap.get(tr.from);
+          const toNode = posMap.get(tr.to);
+          if (!fromNode || !toNode) return null;
+
+          const fromCx = fromNode.x + NODE_WIDTH / 2;
+          const fromCy = fromNode.y + NODE_HEIGHT / 2;
+          const toCx = toNode.x + NODE_WIDTH / 2;
+          const toCy = toNode.y + NODE_HEIGHT / 2;
+
+          const color = getStateColor(tr.from, machine.meta);
+
+          // Edge connection points
+          const start = getRectEdgePoint(fromNode.x, fromNode.y, NODE_WIDTH, NODE_HEIGHT, toCx, toCy);
+          const end = getRectEdgePoint(toNode.x, toNode.y, NODE_WIDTH, NODE_HEIGHT, fromCx, fromCy);
+
+          // Self-loop detection
+          if (tr.from === tr.to) {
+            const loopX = fromNode.x + NODE_WIDTH / 2;
+            const loopY = fromNode.y;
+            return (
+              <g key={`tr-${i}`}>
+                <path
+                  d={`M ${loopX - 15} ${loopY} C ${loopX - 30} ${loopY - 50}, ${loopX + 30} ${loopY - 50}, ${loopX + 15} ${loopY}`}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="1.5"
+                  strokeOpacity="0.6"
+                  markerEnd={`url(#arrow-${tr.from})`}
+                />
+                <text
+                  x={loopX}
+                  y={loopY - 42}
+                  textAnchor="middle"
+                  fill={color}
+                  fontSize="10"
+                  fontFamily="ui-monospace, monospace"
+                  opacity="0.8"
+                >
+                  {tr.action}
+                </text>
+              </g>
+            );
+          }
+
+          // Curve offset for multiple edges between same pair
+          const pairIdx = (tr as { _pairIdx?: number })._pairIdx ?? 0;
+          const pairTotal = (tr as { _pairTotal?: number })._pairTotal ?? 1;
+          const curveDirection = tr.from < tr.to ? 1 : -1;
+          const baseOffset = pairTotal > 1 ? 35 : 20;
+          const offsetMultiplier = pairTotal > 1 ? (pairIdx - (pairTotal - 1) / 2) : 0;
+          const curveOffset = baseOffset * curveDirection + offsetMultiplier * 25 * curveDirection;
+
+          // Perpendicular offset for curve control point
+          const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const nx = len > 0 ? -dy / len : 0;
+          const ny = len > 0 ? dx / len : 0;
+
+          const midX = (start.x + end.x) / 2 + nx * curveOffset;
+          const midY = (start.y + end.y) / 2 + ny * curveOffset;
+
+          // Label position along the curve
+          const labelX = (start.x + 2 * midX + end.x) / 4;
+          const labelY = (start.y + 2 * midY + end.y) / 4 - 6;
+
           return (
-            <div
-              key={stateName}
-              data-state-node={stateName}
-              className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border-2 min-w-[100px] shadow-sm bg-background"
-              style={{ borderColor: color }}
-            >
-              <div className="flex items-center gap-1.5">
-                {isInitial && (
-                  <CircleDotIcon className="size-3" style={{ color }} />
-                )}
-                <span className="font-medium text-sm" style={{ color }}>
-                  {label}
-                </span>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {stateName}
-              </span>
-            </div>
+            <g key={`tr-${i}`}>
+              <path
+                d={`M ${start.x} ${start.y} Q ${midX} ${midY}, ${end.x} ${end.y}`}
+                fill="none"
+                stroke={color}
+                strokeWidth="1.5"
+                strokeOpacity="0.5"
+                markerEnd={`url(#arrow-${tr.from})`}
+              />
+              {/* Action label background */}
+              <text
+                x={labelX}
+                y={labelY}
+                textAnchor="middle"
+                stroke="white"
+                strokeWidth="3"
+                fontSize="10"
+                fontFamily="ui-monospace, monospace"
+                paintOrder="stroke"
+              >
+                {tr.action}
+              </text>
+              {/* Action label */}
+              <text
+                x={labelX}
+                y={labelY}
+                textAnchor="middle"
+                fill={color}
+                fontSize="10"
+                fontFamily="ui-monospace, monospace"
+                opacity="0.85"
+              >
+                {tr.action}
+              </text>
+            </g>
           );
         })}
-      </div>
+
+        {/* Initial state indicator: filled dot + short arrow */}
+        {(() => {
+          const initNode = posMap.get(machine.initial);
+          if (!initNode) return null;
+          const dotX = initNode.x - 28;
+          const dotY = initNode.y + NODE_HEIGHT / 2;
+          return (
+            <g>
+              <circle cx={dotX} cy={dotY} r="5" fill="#374151" />
+              <line
+                x1={dotX + 6}
+                y1={dotY}
+                x2={initNode.x - 2}
+                y2={dotY}
+                stroke="#374151"
+                strokeWidth="1.5"
+                markerEnd="url(#arrow-initial)"
+              />
+            </g>
+          );
+        })()}
+
+        {/* State nodes */}
+        {nodes.map((node) => {
+          const color = getStateColor(node.state, machine.meta);
+          const label = getStateLabel(node.state, machine.meta);
+          const isInitial = node.state === machine.initial;
+          const isTerminal = terminalStates.has(node.state);
+
+          return (
+            <g key={node.state} filter="url(#node-shadow)">
+              {/* Terminal state: outer double border */}
+              {isTerminal && (
+                <rect
+                  x={node.x - 4}
+                  y={node.y - 4}
+                  width={NODE_WIDTH + 8}
+                  height={NODE_HEIGHT + 8}
+                  rx="14"
+                  ry="14"
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="1.5"
+                  strokeOpacity="0.4"
+                />
+              )}
+              {/* Main rectangle */}
+              <rect
+                x={node.x}
+                y={node.y}
+                width={NODE_WIDTH}
+                height={NODE_HEIGHT}
+                rx="10"
+                ry="10"
+                fill="white"
+                stroke={color}
+                strokeWidth={isInitial ? "2.5" : "1.5"}
+              />
+              {/* Colored accent bar at top */}
+              <rect
+                x={node.x}
+                y={node.y}
+                width={NODE_WIDTH}
+                height="4"
+                rx="10"
+                ry="10"
+                fill={color}
+                opacity="0.7"
+              />
+              <clipPath id={`clip-top-${node.state}`}>
+                <rect x={node.x} y={node.y} width={NODE_WIDTH} height="4" />
+              </clipPath>
+              <rect
+                x={node.x}
+                y={node.y}
+                width={NODE_WIDTH}
+                height="10"
+                rx="10"
+                ry="10"
+                fill={color}
+                opacity="0.7"
+                clipPath={`url(#clip-top-${node.state})`}
+              />
+              {/* State label (from meta.label or fallback) */}
+              <text
+                x={node.x + NODE_WIDTH / 2}
+                y={node.y + NODE_HEIGHT / 2 - 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={color}
+                fontSize="13"
+                fontWeight="600"
+                fontFamily="system-ui, -apple-system, sans-serif"
+              >
+                {label}
+              </text>
+              {/* Raw state value (smaller, below label) */}
+              {label !== node.state && (
+                <text
+                  x={node.x + NODE_WIDTH / 2}
+                  y={node.y + NODE_HEIGHT / 2 + 14}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="#9ca3af"
+                  fontSize="9"
+                  fontFamily="ui-monospace, monospace"
+                >
+                  {node.state}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

@@ -208,6 +208,9 @@ export function SchemaListPage() {
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("list");
+  // Track whether at least one successful fetch has been completed, to distinguish
+  // "no records exist" from "data not yet loaded" for the empty state message.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   // Single delete confirmation dialog state
   const [singleDeleteOpen, setSingleDeleteOpen] = useState(false);
@@ -273,6 +276,7 @@ export function SchemaListPage() {
         pageSize: currentListView.pageSize ?? 50,
       });
       setData(result.items);
+      setHasLoadedOnce(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : t("errors.failedToLoadData", "Failed to load data");
       setDataError(message);

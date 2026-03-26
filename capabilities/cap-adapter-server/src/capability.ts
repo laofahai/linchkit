@@ -118,6 +118,10 @@ export const capAdapterServer = defineCapability({
               console.log(`[cap-adapter-server] Health:  http://${displayHost}:${port}/health`);
             },
             stop: () => {
+              // Stop the subscription manager (heartbeat/idle timers) if present
+              // biome-ignore lint/suspicious/noExplicitAny: accessing internal lifecycle ref
+              const subManager = (app as any).__subscriptionManager;
+              if (subManager?.stop) subManager.stop();
               app.stop();
             },
           };

@@ -796,13 +796,13 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     })
     // ── AI Search endpoint — natural language to DeclarativeCondition ──
     .post("/api/ai/search", async ({ body, set }) => {
-      const { query, schema: targetSchema, fields } = (body ?? {}) as {
+      const { query: rawQuery, schema: targetSchema, fields } = (body ?? {}) as {
         query?: string;
         schema?: string;
         fields?: Record<string, { label?: string; type?: string; options?: string[] }>;
       };
 
-      if (!query || !targetSchema) {
+      if (!rawQuery || !targetSchema) {
         set.status = 400;
         return { success: false, error: { message: "Missing 'query' or 'schema' in request body." } };
       }
@@ -810,6 +810,20 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
       if (!aiService) {
         return { success: true, data: null };
       }
+
+      // Sanitize query: strip control characters, limit length, escape quotes
+      const sanitizedQuery = rawQuery
+        .replace(/[\x00-\x1f\x7f]/g, "") // strip control characters
+        .slice(0, 500) // limit length
+        .replace(/"/g, '\\"'); // escape quotes
+
+      // Build allowed field names set (schema fields + system fields)
+      const SYSTEM_FIELDS = new Set(["id", "tenant_id", "created_at", "updated_at", "created_by", "updated_by", "_version"]);
+      const SENSITIVE_FIELDS = new Set(["_password", "password", "secret", "token", "tenant_id"]);
+      const allowedFields = new Set([
+        ...Object.keys(fields ?? {}),
+        ...SYSTEM_FIELDS,
+      ]);
 
       try {
         const fieldDescs = Object.entries(fields ?? {}).map(([name, def]) => {
@@ -830,7 +844,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           "",
           "Available operators: eq, neq, gt, gte, lt, lte, in, not_in, contains, between, startsWith, endsWith, is_null, not_null",
           "",
-          `Query: "${query}"`,
+          `Query: "${sanitizedQuery}"`,
           "",
           'Respond with valid JSON only (no markdown, no code fences). The response must have this exact shape:',
           '{ "filter": <condition>, "explanation": "<brief explanation>" }',
@@ -872,9 +886,12 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           return { success: true, data: null };
         }
 
+        // Validate AI-generated filter: strip fields not in schema or sensitive fields
+        const validatedFilter = validateAIFilter(parsed.filter, allowedFields, SENSITIVE_FIELDS);
+
         return {
           success: true,
-          data: { filter: parsed.filter, explanation: parsed.explanation ?? "" },
+          data: { filter: validatedFilter, explanation: parsed.explanation ?? "" },
         };
       } catch (err) {
         const errMsg = process.env.NODE_ENV === "production"
