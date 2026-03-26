@@ -519,35 +519,14 @@ function buildStateGraph(
       continue;
     }
 
-    // Normalize pair key so A->B and B->A share the same counter
-    const pairKey = [from, to].sort().join("::");
-    const currentIndex = pairEdgeCounts.get(pairKey) ?? 0;
-    pairEdgeCounts.set(pairKey, currentIndex + 1);
+    // Check dagre positions to determine if this is a reverse (right-to-left) edge
+    const sourceIdx = machine.states.indexOf(from);
+    const targetIdx = machine.states.indexOf(to);
+    const isReverse = sourceIdx > targetIdx;
 
-    // Determine if this is a "reverse" edge (target sorts before source)
-    const isReverse = from > to;
-
-    // For parallel edges, alternate between top and bottom handles
-    let sourceHandle: string;
-    let targetHandle: string;
-
-    if (currentIndex === 0) {
-      // First edge between this pair: standard right->left
-      sourceHandle = "right";
-      targetHandle = "left";
-    } else {
-      // Additional edges: route through bottom for second, top for third, etc.
-      const useBottom = isReverse
-        ? currentIndex % 2 === 0
-        : currentIndex % 2 === 1;
-      if (useBottom) {
-        sourceHandle = "bottom-source";
-        targetHandle = "bottom-target";
-      } else {
-        sourceHandle = "top-source";
-        targetHandle = "top-target";
-      }
-    }
+    // Forward: right→left (default flow), Reverse: bottom→bottom (goes around below)
+    const sourceHandle = isReverse ? "bottom-source" : "right";
+    const targetHandle = isReverse ? "bottom-target" : "left";
 
     edges.push({
       id: `tr-${edgeIdx++}`,
@@ -612,7 +591,7 @@ export function StateDiagram({
     <div
       style={{
         width: "100%",
-        height: 450,
+        height: 350,
         background: "#f8fafc",
         border: "1px solid #e2e8f0",
         borderRadius: 8,
