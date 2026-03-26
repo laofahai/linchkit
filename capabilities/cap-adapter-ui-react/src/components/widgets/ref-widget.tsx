@@ -105,7 +105,7 @@ export function RefInput({
           className={cn(
             "w-full",
             dirty && !error && "border-ring",
-            error && "border-destructive",
+            error && "border-destructive focus-visible:ring-destructive",
           )}
           onBlur={onBlur}
         >

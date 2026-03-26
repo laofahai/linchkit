@@ -700,8 +700,14 @@ function CellDisplay({ col, value }: { col: ColumnDef; value: unknown }) {
   }
 
   if (col.type === "boolean") {
-    return <span className="px-2">{value ? "Yes" : "No"}</span>;
+    return <BooleanCellDisplay value={value} />;
   }
 
   return <span className="px-2">{String(value)}</span>;
+}
+
+/** i18n-aware boolean cell display */
+function BooleanCellDisplay({ value }: { value: unknown }) {
+  const { t } = useTranslation();
+  return <span className="px-2">{value ? t("common.yes", "Yes") : t("common.no", "No")}</span>;
 }

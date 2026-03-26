@@ -204,7 +204,7 @@ export function buildSelectionColumn(): ColumnDef<DataRow> {
               : false
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
+        aria-label={i18next.t("list.selectAll", "Select all")}
         onClick={(e) => e.stopPropagation()}
       />
     ),
@@ -212,7 +212,7 @@ export function buildSelectionColumn(): ColumnDef<DataRow> {
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
+        aria-label={i18next.t("list.selectRow", "Select row")}
         onClick={(e) => e.stopPropagation()}
       />
     ),

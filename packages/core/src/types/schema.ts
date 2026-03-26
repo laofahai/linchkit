@@ -30,6 +30,8 @@ export interface FieldConstraints {
   min?: number;
   max?: number;
   format?: "email" | "url" | "phone" | "uuid" | (string & {});
+  /** Regex pattern for string field validation */
+  pattern?: string;
   default?: unknown;
   immutable?: boolean;
 }

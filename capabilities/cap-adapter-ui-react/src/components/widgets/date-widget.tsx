@@ -26,7 +26,7 @@ export function DateInput({
         onBlur={onBlur}
         disabled={readonly}
         aria-invalid={!!error}
-        className={cn(required && requiredBg, dirty && !error && "border-ring")}
+        className={cn(required && requiredBg, dirty && !error && "border-ring", error && "border-destructive focus-visible:ring-destructive")}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

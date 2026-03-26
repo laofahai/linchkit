@@ -88,7 +88,10 @@
       "minLength": "{{field}}至少需要{{min}}个字符",
       "maxLength": "{{field}}最多允许{{max}}个字符",
       "format": "{{field}}格式不正确",
-      "invalidOption": "请为{{field}}选择一个有效选项"
+      "pattern": "{{field}}格式不符合要求",
+      "invalidOption": "请为{{field}}选择一个有效选项",
+      "hasErrors": "请先修正以下错误再提交",
+      "uniqueHint": "必须唯一 — 保存时验证"
     }
   },
   "list": {

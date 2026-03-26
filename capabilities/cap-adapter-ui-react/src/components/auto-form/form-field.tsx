@@ -3,12 +3,14 @@
  *
  * Uses display:contents to participate in parent grid layout.
  * Label auto-sizes; all labels in the same group align to the widest one.
- * Required fields get a subtle slate background on the input (no asterisk).
+ * Required fields show a red asterisk next to the label.
+ * Unique fields show a hint note below the input.
  * Edit mode uses standard bordered inputs (shadcn Input).
  */
 
 import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useTranslation } from "react-i18next";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 
@@ -39,10 +41,19 @@ export function FormFieldRow({
   onChange,
   onBlur,
 }: FormFieldRowProps) {
+  const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
   const rawLabel = node.label ?? viewField?.label ?? fieldDef.label ?? node.field;
   const label = resolveLabel(rawLabel, node.field);
   const colspan = node.colspan ?? 1;
+  const showUnique = !!fieldDef.unique && !isViewMode && !readonly;
+
+  // Unique hint displayed below input for fields with unique constraint
+  const uniqueHint = showUnique ? (
+    <p className="mt-0.5 text-xs text-muted-foreground italic">
+      {t("form.validation.uniqueHint", "Must be unique — validated on save")}
+    </p>
+  ) : null;
 
   // For nolabel fields, span both label + value columns
   if (node.nolabel) {
@@ -50,6 +61,7 @@ export function FormFieldRow({
       <div
         className={cn("py-2 text-sm leading-9 min-h-[36px]", node.className)}
         style={{ gridColumn: `span ${colspan * 2}` }}
+        data-field={node.field}
       >
         {isViewMode || readonly ? (
           <div className="text-foreground leading-9">
@@ -72,7 +84,7 @@ export function FormFieldRow({
             required={required}
           />
         )}
-        {/* Error messages are rendered by individual widget components */}
+        {uniqueHint}
       </div>
     );
   }
@@ -90,12 +102,14 @@ export function FormFieldRow({
         )}
       >
         {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
       </Label>
 
       {/* Value cell */}
       <div
         className={cn("text-sm leading-9 min-h-[36px] min-w-0", "py-1", "max-md:pt-0")}
         style={colspan > 1 ? { gridColumn: `span ${colspan * 2 - 1}` } : undefined}
+        data-field={node.field}
       >
         {isViewMode || readonly ? (
           <div className="text-foreground leading-9">
@@ -118,7 +132,7 @@ export function FormFieldRow({
             required={required}
           />
         )}
-        {/* Error messages are rendered by individual widget components */}
+        {uniqueHint}
       </div>
     </>
   );

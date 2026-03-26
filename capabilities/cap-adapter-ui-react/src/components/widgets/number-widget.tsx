@@ -28,7 +28,7 @@ export function NumberInput({
     <div className="space-y-1">
       <Input
         type="number"
-        className={cn("tabular-nums", required && requiredBg, dirty && !error && "border-ring")}
+        className={cn("tabular-nums", required && requiredBg, dirty && !error && "border-ring", error && "border-destructive focus-visible:ring-destructive")}
         value={value != null ? Number(value) : ""}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         onBlur={onBlur}

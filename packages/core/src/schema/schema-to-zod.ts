@@ -136,6 +136,9 @@ function applyStringConstraints(schema: z.ZodString, field: FieldDefinition): z.
   if (field.format === "url") {
     result = result.url();
   }
+  if (field.pattern) {
+    result = result.regex(new RegExp(field.pattern));
+  }
 
   return result;
 }

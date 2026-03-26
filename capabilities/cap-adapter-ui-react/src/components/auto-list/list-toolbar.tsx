@@ -71,7 +71,7 @@ export function ListToolbar({
   const overflowActions = toolbarActions.slice(1);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       {/* Left: Unified SearchBar */}
       <SearchBar
         schema={schema}
@@ -82,10 +82,10 @@ export function ListToolbar({
         bazzaFilters={bazzaFilters}
         bazzaActions={bazzaActions}
         bazzaStrategy={bazzaStrategy}
-        className="max-w-md"
+        className="w-full max-w-md md:w-auto"
       />
 
-      <div className="flex-1" />
+      <div className="hidden flex-1 md:block" />
 
       {/* Right: Actions */}
       <div className="flex shrink-0 items-center gap-2">

@@ -46,7 +46,7 @@ export function EnumInput({
           className={cn(
             required && requiredBg,
             dirty && !error && "border-ring",
-            error && "border-destructive",
+            error && "border-destructive focus-visible:ring-destructive",
           )}
           onBlur={onBlur}
         >

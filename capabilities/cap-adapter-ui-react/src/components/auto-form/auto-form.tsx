@@ -67,6 +67,7 @@ export function AutoForm({
   const [activeTab, setActiveTab] = useState<Record<string, number>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isViewMode = mode === "view";
 
@@ -141,11 +142,20 @@ export function AutoForm({
             field: fieldLabel,
             max: fieldDef?.max ?? 0,
           });
-        case "invalid_string":
+        case "invalid_string": {
+          // Check if this is a pattern (regex) validation failure
+          const stringDetails = _details as { validation?: string } | undefined;
+          if (stringDetails?.validation === "regex") {
+            return t("form.validation.pattern", {
+              defaultValue: "{{field}} does not match the required format",
+              field: fieldLabel,
+            });
+          }
           return t("form.validation.format", {
             defaultValue: "{{field}} format is invalid",
             field: fieldLabel,
           });
+        }
         case "invalid_enum_value":
           return t("form.validation.invalidOption", {
             defaultValue: "Please select a valid option for {{field}}",
@@ -240,6 +250,22 @@ export function AutoForm({
     });
   }
 
+  /** Scroll the first error field into view after validation failure */
+  function scrollToFirstError() {
+    if (!formRef.current) return;
+    // Find the first element with aria-invalid="true" or the first error message
+    const firstInvalid = formRef.current.querySelector<HTMLElement>(
+      '[aria-invalid="true"], [data-field] .text-destructive',
+    );
+    if (firstInvalid) {
+      firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focus the input if it's focusable
+      if ("focus" in firstInvalid && typeof firstInvalid.focus === "function") {
+        firstInvalid.focus({ preventScroll: true });
+      }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -253,6 +279,8 @@ export function AutoForm({
     setFormError(null);
 
     if (!validateAll()) {
+      // Scroll to first field with an error
+      scrollToFirstError();
       return;
     }
 
@@ -406,7 +434,7 @@ export function AutoForm({
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <form id="auto-form" onSubmit={handleSubmit} noValidate>
+    <form id="auto-form" ref={formRef} onSubmit={handleSubmit} noValidate>
       {/* Form-level error banner */}
       {formError && !isViewMode && (
         <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -424,12 +452,17 @@ export function AutoForm({
       {!isViewMode && !hideFooter && (
         <div className="flex items-center justify-between pt-4">
           <div className="text-sm text-muted-foreground">
-            {hasDirtyFields && (
+            {hasErrors ? (
+              <span className="inline-flex items-center gap-1.5 text-destructive">
+                <AlertCircle className="size-3.5" />
+                {t("form.validation.hasErrors", "Please fix the errors below before submitting")}
+              </span>
+            ) : hasDirtyFields ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                 {t("form.fieldModified")}
               </span>
-            )}
+            ) : null}
           </div>
           <div className="flex items-center gap-3">
             {onCancel && (

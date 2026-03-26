@@ -287,8 +287,8 @@ export function AutoList({
       />
 
       {/* Table */}
-      <div className="rounded border border-border">
-        <table className="w-full text-sm">
+      <div className="rounded border border-border overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-border bg-muted/50">

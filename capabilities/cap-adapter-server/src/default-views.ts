@@ -5,7 +5,7 @@
  * sensible defaults so the UI always receives usable view definitions.
  */
 
-import type { SchemaDefinition, ViewDefinition, ViewFieldConfig, ViewAction } from "@linchkit/core";
+import type { FormLayoutNode, SchemaDefinition, ViewDefinition, ViewFieldConfig, ViewAction } from "@linchkit/core";
 
 /** System fields excluded from auto-generated views */
 const SYSTEM_FIELD_NAMES = new Set([
@@ -18,6 +18,9 @@ const SYSTEM_FIELD_NAMES = new Set([
   "_version",
   "is_deleted",
 ]);
+
+/** Field types that benefit from full-width display (single column). */
+const WIDE_FIELD_TYPES = new Set(["text", "json", "html", "richtext"]);
 
 /** Maximum number of fields shown in a default list view */
 const MAX_LIST_FIELDS = 6;
@@ -73,6 +76,10 @@ function generateDefaultListView(schema: SchemaDefinition): ViewDefinition {
 
 /**
  * Generate a default form view for a schema.
+ *
+ * Produces a two-column layout matching the client-side fallback:
+ * - Short fields (string, number, boolean, enum, state, date, ref) split into left/right groups
+ * - Wide fields (text, json, html, richtext) placed full-width below the columns
  */
 function generateDefaultFormView(schema: SchemaDefinition): ViewDefinition {
   const formFields = getNonSystemFields(schema);
@@ -82,12 +89,58 @@ function generateDefaultFormView(schema: SchemaDefinition): ViewDefinition {
     { action: `update_${schema.name}`, label: "Save", position: "form-header" },
   ];
 
+  // Partition fields into short (two-column) and wide (full-width)
+  const shortFields: string[] = [];
+  const wideFields: string[] = [];
+  for (const name of formFields) {
+    const fieldType = schema.fields[name]?.type;
+    if (fieldType && WIDE_FIELD_TYPES.has(fieldType)) {
+      wideFields.push(name);
+    } else {
+      shortFields.push(name);
+    }
+  }
+
+  // Split short fields evenly into left and right columns
+  const mid = Math.ceil(shortFields.length / 2);
+  const leftFields = shortFields.slice(0, mid);
+  const rightFields = shortFields.slice(mid);
+
+  const layoutNodes: FormLayoutNode[] = [];
+
+  // Top-level group with two inner groups for the two-column layout
+  if (shortFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      children: [
+        {
+          type: "group",
+          children: leftFields.map((f) => ({ type: "field" as const, field: f })),
+        },
+        {
+          type: "group",
+          children: rightFields.map((f) => ({ type: "field" as const, field: f })),
+        },
+      ],
+    });
+  }
+
+  // Wide fields in a single-column group below
+  if (wideFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      columns: 1,
+      children: wideFields.map((f) => ({ type: "field" as const, field: f })),
+    });
+  }
+
   return {
     name: `${schema.name}_form_default`,
     schema: schema.name,
     type: "form",
     label: `${schema.label ?? schema.name} Form`,
     fields: toViewFields(formFields),
+    layout: layoutNodes.length > 0 ? { nodes: layoutNodes } : undefined,
     actions,
   };
 }

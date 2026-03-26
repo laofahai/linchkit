@@ -94,12 +94,19 @@ function getTransitionActionNames(
   return actionNames;
 }
 
-/** Extract GraphQL field names from view fields */
-function getRecordFields(view: ViewDefinition): string[] {
+/** Extract GraphQL field names from view fields, always including the state field */
+function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition): string[] {
   const fields = new Set<string>(["id"]);
   for (const f of view.fields) {
     if (!f.field.includes(".")) {
       fields.add(f.field);
+    }
+  }
+  // Always include the state field so state-machine features work even if the view omits it
+  if (schema) {
+    const stateFieldName = Object.entries(schema.fields).find(([, f]) => f.type === "state")?.[0];
+    if (stateFieldName) {
+      fields.add(stateFieldName);
     }
   }
   return Array.from(fields);
@@ -121,6 +128,7 @@ const SYSTEM_FIELDS = new Set([
   "created_by",
   "updated_by",
   "_version",
+  "is_deleted",
 ]);
 
 /** Field types that benefit from full-width display (single column). */
@@ -241,11 +249,11 @@ export function SchemaFormPage() {
 
   /** Fields to strip when cloning a record — system-managed, not user data. */
   const CLONE_STRIP_FIELDS = useMemo(
-    () => new Set(["id", "created_at", "updated_at", "created_by", "updated_by", "_version", "tenant_id"]),
+    () => new Set(["id", "created_at", "updated_at", "created_by", "updated_by", "_version", "tenant_id", "is_deleted"]),
     [],
   );
 
-  const recordFields = useMemo(() => (formView ? getRecordFields(formView) : []), [formView]);
+  const recordFields = useMemo(() => (formView ? getRecordFields(formView, schema) : []), [formView, schema]);
 
   // Stabilize recordFields via ref so fetchRecord doesn't get recreated on every render
   const recordFieldsRef = useRef(recordFields);
@@ -263,7 +271,7 @@ export function SchemaFormPage() {
         setRecordError(t("errors.recordNotFound", 'Record "{{id}}" not found.', { id: params.id }));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load record";
+      const message = err instanceof Error ? err.message : t("errors.recordLoadFailed", "Failed to load record.");
       setRecordError(message);
     } finally {
       setLoading(false);
@@ -290,11 +298,15 @@ export function SchemaFormPage() {
       }
     } catch (err) {
       console.warn("Failed to load clone source:", err);
+      toast.error(t("toast.cloneSourceFailed", "Failed to load clone source. You can fill the form manually."));
       // Non-fatal — user can still fill the form manually
     } finally {
       setLoading(false);
     }
   }, [cloneId, schemaName, formView, CLONE_STRIP_FIELDS]);
+
+  // Sync form mode when navigating between create/edit via URL changes
+  useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
 
   useEffect(() => {
     if (!bundleLoading && bundle) {
@@ -324,8 +336,14 @@ export function SchemaFormPage() {
     return () => setBreadcrumbTitle(null);
   }, [record, schema, isCreate, params.id, setBreadcrumbTitle]);
 
+  // Dynamically find the state field name from the schema
+  const stateFieldName = useMemo(
+    () => schema ? Object.entries(schema.fields).find(([, f]) => f.type === "state")?.[0] : undefined,
+    [schema],
+  );
+
   // Resolve business actions from view's stateActions mapping or state machine transitions
-  const recordStatus = record ? String(record.status ?? "") : undefined;
+  const recordStatus = record && stateFieldName ? String(record[stateFieldName] ?? "") : undefined;
   const businessActions = useMemo(() => {
     if (!formView) return [];
     const allActions = formView.actions ?? [];
@@ -560,12 +578,12 @@ export function SchemaFormPage() {
     <div className="bg-muted/30 min-h-full">
       {/* Sticky control panel */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={handleBack}>
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={handleBack}>
             <ArrowLeft className="size-4" />
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {/* State transition buttons */}
             {!isCreate && hasStateMachine && params.id && (
               <TransitionButtons
@@ -580,7 +598,7 @@ export function SchemaFormPage() {
             )}
 
             {!isCreate && hasStateMachine && (businessActions.length > 0 || !isEditing) && (
-              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Separator orientation="vertical" className="h-5 mx-1 hidden md:block" />
             )}
 
             {businessActions.map((a) => (
@@ -602,7 +620,7 @@ export function SchemaFormPage() {
             ))}
 
             {businessActions.length > 0 && (
-              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Separator orientation="vertical" className="h-5 mx-1 hidden md:block" />
             )}
 
             {!isCreate && !isEditing && (
@@ -638,11 +656,11 @@ export function SchemaFormPage() {
       </div>
 
       {/* Sheet card */}
-      <div className="flex gap-6 my-4 px-4">
+      <div className="flex gap-6 my-4 px-2 md:px-4">
         <div className="flex-1 min-w-0 space-y-4">
-          <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-semibold text-foreground">{recordTitle}</h1>
+          <div className="bg-background rounded shadow-sm border border-border/50 px-3 py-3 md:px-6 md:py-4">
+            <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-xl font-semibold text-foreground truncate">{recordTitle}</h1>
               {!isCreate && recordStatus && statusSteps && (
                 <StatusBar steps={statusSteps} current={recordStatus} />
               )}
