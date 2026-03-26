@@ -3,9 +3,22 @@
  *
  * Displays health check results as status cards with auto-refresh.
  * Fetches from GET /health endpoint every 30 seconds.
+ *
+ * Data source audit:
+ * - Health checks: DYNAMIC — fetched from GET /health which delegates to
+ *   HealthCheckRegistry.runAll() on the server. The UI renders whatever
+ *   checks the server returns.
+ * - CHECK_ICONS: HARDCODED cosmetic map — provides per-check icons for
+ *   known check names (liveness, database, schemas, eventbus, cache).
+ *   Unknown checks gracefully fall back to a generic ServerIcon.
+ *   TODO: Consider letting the server return an icon hint per check so
+ *   the UI doesn't need a hardcoded icon map.
+ * - System info: DYNAMIC — returned by the /health endpoint.
  */
 
 import {
+  Alert,
+  AlertDescription,
   Badge,
   Button,
   Card,
@@ -17,6 +30,7 @@ import {
 import {
   AlertTriangleIcon,
   CheckCircleIcon,
+  ClockIcon,
   DatabaseIcon,
   HardDriveIcon,
   HeartIcon,
@@ -163,18 +177,21 @@ export function HealthMonitorPage() {
 
   return (
     <div className="w-full p-4 space-y-6">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {lastRefresh && (
-          <span className="text-xs text-muted-foreground">
-            {t("health.lastRefresh")}: {lastRefresh.toLocaleTimeString()}
+      {/* Last refresh alert */}
+      <Alert variant="default">
+        <ClockIcon className="size-4" />
+        <AlertDescription className="flex items-center justify-between">
+          <span className="text-muted-foreground">
+            {lastRefresh
+              ? `${t("health.lastRefresh")}: ${lastRefresh.toLocaleTimeString()}`
+              : t("common.loading")}
           </span>
-        )}
-        <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
-          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          {t("executionLog.refresh")}
-        </Button>
-      </div>
+          <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
+            <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+            {t("executionLog.refresh")}
+          </Button>
+        </AlertDescription>
+      </Alert>
 
       {/* Overall status banner */}
       {health && (

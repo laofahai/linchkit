@@ -193,6 +193,42 @@ export class DrizzleDataProvider implements DataProvider {
   }
 
   /**
+   * Coerce date/datetime string values to Date objects for Drizzle timestamp/date columns.
+   *
+   * Drizzle's `timestamp()` and `date()` columns (in default mode: "date") call
+   * `.toISOString()` on values during serialization. If a string is passed instead
+   * of a Date object, this call fails. This method converts string values to Date
+   * objects for all timestamp/date columns, and excludes null/undefined values.
+   */
+  private coerceDateColumns(
+    data: Record<string, unknown>,
+    table: PgTable,
+  ): Record<string, unknown> {
+    const columns = getTableColumns(table);
+    const result = { ...data };
+
+    for (const [key, value] of Object.entries(result)) {
+      if (value == null) continue;
+      if (!(key in columns)) continue;
+
+      const col = columns[key] as PgColumn;
+      const colType = col.columnType;
+
+      // PgTimestamp and PgDate expect Date objects; PgTimestampString and PgDateString expect strings
+      if (colType === "PgTimestamp" || colType === "PgDate") {
+        if (typeof value === "string") {
+          const parsed = new Date(value);
+          if (!Number.isNaN(parsed.getTime())) {
+            result[key] = parsed;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Normalize translatable fields in input data before writing to DB.
    * Wraps plain string values as `{ [locale]: value }` for translatable fields.
    * Uses the provided locale, falling back to the schema's defaultLocale.
@@ -388,8 +424,11 @@ export class DrizzleDataProvider implements DataProvider {
       }
     }
 
+    // Coerce string dates to Date objects for timestamp/date columns
+    const coercedData = this.coerceDateColumns(insertData, table);
+
     try {
-      const rows = await this.db.insert(table).values(insertData).returning();
+      const rows = await this.db.insert(table).values(coercedData).returning();
       const result = rows[0] as Record<string, unknown> | undefined;
       if (!result) {
         throw new SystemError({
@@ -501,9 +540,12 @@ export class DrizzleDataProvider implements DataProvider {
 
     const whereClause = and(...conditions);
 
+    // Coerce string dates to Date objects for timestamp/date columns
+    const coercedUpdateData = this.coerceDateColumns(updateData, table);
+
     let rows: Record<string, unknown>[];
     try {
-      rows = (await this.db.update(table).set(updateData).where(whereClause).returning()) as Record<
+      rows = (await this.db.update(table).set(coercedUpdateData).where(whereClause).returning()) as Record<
         string,
         unknown
       >[];

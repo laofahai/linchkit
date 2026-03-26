@@ -165,7 +165,7 @@ export function mountAdminRoutes(
           maxBufferSize: cfg?.subscription?.maxBufferSize ?? 100,
         },
         flow: {
-          configured: !!cfg?.flow,
+          configured: true,
           engine: cfg?.flow?.restate ? "restate" : "sync",
         },
       };
