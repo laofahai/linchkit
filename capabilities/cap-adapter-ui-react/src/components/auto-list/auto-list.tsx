@@ -3,6 +3,7 @@
  *
  * Orchestrates: toolbar (search + filter), table rendering, pagination.
  * Uses bazza/ui DataTableFilter for column filtering (integrated into SearchBar).
+ * Supports AI-powered natural language search via useAISearch hook.
  */
 
 import { Skeleton } from "@linchkit/ui-kit/components";
@@ -21,6 +22,7 @@ import {
 import { Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAISearch, isNaturalLanguageQuery } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { useDataTableFilters } from "../data-table-filter";
@@ -34,6 +36,80 @@ import type { AutoListProps } from "./types";
 
 /** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
 const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
+
+/**
+ * Apply a DeclarativeCondition filter to a single row (client-side evaluation).
+ * Supports simple conditions, composite (and/or), and not.
+ */
+function evaluateCondition(
+  row: Record<string, unknown>,
+  condition: Record<string, unknown>,
+): boolean {
+  const operator = condition.operator as string;
+
+  // Composite: and / or
+  if (operator === "and" || operator === "or") {
+    const conditions = condition.conditions as Record<string, unknown>[];
+    if (!Array.isArray(conditions)) return true;
+    if (operator === "and") return conditions.every((c) => evaluateCondition(row, c));
+    return conditions.some((c) => evaluateCondition(row, c));
+  }
+
+  // Not
+  if (operator === "not") {
+    const inner = condition.condition as Record<string, unknown>;
+    if (!inner) return true;
+    return !evaluateCondition(row, inner);
+  }
+
+  // Simple condition
+  const field = condition.field as string;
+  const value = condition.value;
+  if (!field) return true;
+
+  const rowVal = row[field];
+
+  switch (operator) {
+    case "eq":
+      return rowVal === value || String(rowVal) === String(value);
+    case "neq":
+      return rowVal !== value && String(rowVal) !== String(value);
+    case "gt":
+      return Number(rowVal) > Number(value);
+    case "gte":
+      return Number(rowVal) >= Number(value);
+    case "lt":
+      return Number(rowVal) < Number(value);
+    case "lte":
+      return Number(rowVal) <= Number(value);
+    case "contains":
+      return String(rowVal ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
+    case "startsWith":
+      return String(rowVal ?? "").toLowerCase().startsWith(String(value ?? "").toLowerCase());
+    case "endsWith":
+      return String(rowVal ?? "").toLowerCase().endsWith(String(value ?? "").toLowerCase());
+    case "in": {
+      const arr = Array.isArray(value) ? value : [value];
+      return arr.some((v) => String(rowVal) === String(v));
+    }
+    case "not_in": {
+      const arr = Array.isArray(value) ? value : [value];
+      return !arr.some((v) => String(rowVal) === String(v));
+    }
+    case "between": {
+      const arr = Array.isArray(value) ? value : [];
+      if (arr.length < 2) return true;
+      const n = Number(rowVal);
+      return n >= Number(arr[0]) && n <= Number(arr[1]);
+    }
+    case "is_null":
+      return rowVal === null || rowVal === undefined;
+    case "not_null":
+      return rowVal !== null && rowVal !== undefined;
+    default:
+      return true;
+  }
+}
 
 export function AutoList({
   schema,
@@ -63,6 +139,35 @@ export function AutoList({
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  // AI search hook
+  const {
+    aiSearch: aiSearchState,
+    triggerAISearch,
+    clearAISearch,
+  } = useAISearch(schema);
+
+  // Handle search submission (Enter key)
+  const handleSearchSubmit = useCallback(
+    (query: string) => {
+      if (isNaturalLanguageQuery(query)) {
+        triggerAISearch(query);
+      }
+    },
+    [triggerAISearch],
+  );
+
+  // Clear AI search when global filter text changes (user is typing)
+  const handleGlobalFilterChange = useCallback(
+    (value: string) => {
+      setGlobalFilter(value);
+      // Don't auto-clear AI filter on every keystroke; only when text is cleared
+      if (!value && aiSearchState.result) {
+        // Keep AI filter active — user can explicitly clear via chip
+      }
+    },
+    [aiSearchState.result],
+  );
+
   // Bazza filter column configs from schema
   const filterColumnsConfig = useMemo(
     () => buildFilterColumns(schema, data, stateMeta, resolveLabel),
@@ -88,7 +193,7 @@ export function AutoList({
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset
   useEffect(() => {
     setRowSelection({});
-  }, [columnFilters, globalFilter, bazzaFilterState]);
+  }, [columnFilters, globalFilter, bazzaFilterState, aiSearchState.result]);
 
   const toolbarActions = useMemo(
     () => (view.actions ?? []).filter((a) => a.position === "toolbar"),
@@ -124,41 +229,53 @@ export function AutoList({
     onError: onInlineEditError,
   });
 
-  // Pre-filter data using bazza filter logic before passing to TanStack Table
+  // Pre-filter data using bazza filter logic + AI filter before passing to TanStack Table
   const filteredData = useMemo(() => {
-    if (bazzaFilterState.length === 0) return data;
-    return data.filter((row) =>
-      bazzaFilterState.every((f) => {
-        const val = row[f.field];
-        const fv = f.values;
-        if (fv.length === 0) return true;
-        switch (f.operator) {
-          case "eq":
-          case "in":
-            return fv.includes(val as string);
-          case "neq":
-          case "not_in":
-            return !fv.includes(val as string);
-          case "contains":
-            return String(val ?? "")
-              .toLowerCase()
-              .includes(String(fv[0] ?? "").toLowerCase());
-          case "gt":
-            return Number(val) > Number(fv[0]);
-          case "gte":
-            return Number(val) >= Number(fv[0]);
-          case "lt":
-            return Number(val) < Number(fv[0]);
-          case "lte":
-            return Number(val) <= Number(fv[0]);
-          case "between":
-            return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
-          default:
-            return true;
-        }
-      }),
-    );
-  }, [data, bazzaFilterState]);
+    let result = data;
+
+    // Apply bazza filters
+    if (bazzaFilterState.length > 0) {
+      result = result.filter((row) =>
+        bazzaFilterState.every((f) => {
+          const val = row[f.field];
+          const fv = f.values;
+          if (fv.length === 0) return true;
+          switch (f.operator) {
+            case "eq":
+            case "in":
+              return fv.includes(val as string);
+            case "neq":
+            case "not_in":
+              return !fv.includes(val as string);
+            case "contains":
+              return String(val ?? "")
+                .toLowerCase()
+                .includes(String(fv[0] ?? "").toLowerCase());
+            case "gt":
+              return Number(val) > Number(fv[0]);
+            case "gte":
+              return Number(val) >= Number(fv[0]);
+            case "lt":
+              return Number(val) < Number(fv[0]);
+            case "lte":
+              return Number(val) <= Number(fv[0]);
+            case "between":
+              return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
+            default:
+              return true;
+          }
+        }),
+      );
+    }
+
+    // Apply AI filter
+    if (aiSearchState.result?.filter) {
+      const aiFilter = aiSearchState.result.filter as Record<string, unknown>;
+      result = result.filter((row) => evaluateCondition(row, aiFilter));
+    }
+
+    return result;
+  }, [data, bazzaFilterState, aiSearchState.result]);
 
   const columns = useMemo(() => {
     const cols = buildColumns({
@@ -198,7 +315,7 @@ export function AutoList({
     initialState: { pagination: { pageSize: view.pageSize ?? 10 } },
   });
 
-  const hasActiveFilters = globalFilter !== "" || bazzaFilterState.length > 0;
+  const hasActiveFilters = globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const selectedIds = useMemo(
@@ -210,7 +327,8 @@ export function AutoList({
     setColumnFilters([]);
     setBazzaFilters([]);
     setGlobalFilter("");
-  }, []);
+    clearAISearch();
+  }, [clearAISearch]);
 
   // CSV export: all filtered rows
   const handleExportCsv = useCallback(() => {
@@ -270,7 +388,7 @@ export function AutoList({
       <ListToolbar
         schema={schema}
         globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
+        onGlobalFilterChange={handleGlobalFilterChange}
         hasActiveFilters={hasActiveFilters}
         onClearFilters={handleClearAllFilters}
         toolbarActions={toolbarActions}
@@ -284,6 +402,9 @@ export function AutoList({
         bazzaActions={bazzaActions}
         bazzaStrategy={bazzaStrategy}
         toolbarExtra={toolbarExtra}
+        aiSearchState={aiSearchState}
+        onClearAISearch={clearAISearch}
+        onSearchSubmit={handleSearchSubmit}
       />
 
       {/* Table */}

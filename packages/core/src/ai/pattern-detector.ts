@@ -447,8 +447,8 @@ export class PatternDetector {
   private detectStateFlowPatterns(logs: ExecutionLogEntry[]): PatternInsight[] {
     const insights: PatternInsight[] = [];
 
-    // Collect state transitions grouped by schema + record
-    const transitions = new Map<string, Array<{ from: string; to: string; action: string }>>();
+    // Collect state transitions grouped by schema + record, with timestamps for ordering
+    const transitions = new Map<string, Array<{ from: string; to: string; action: string; time: number }>>();
 
     for (const log of logs) {
       if (!log.stateTransition || !log.schema || !log.recordId) continue;
@@ -463,6 +463,7 @@ export class PatternDetector {
         from: log.stateTransition.from,
         to: log.stateTransition.to,
         action: log.action,
+        time: log.startedAt.getTime(),
       });
     }
 
@@ -475,6 +476,8 @@ export class PatternDetector {
         pathMap = new Map();
         schemaPaths.set(schema, pathMap);
       }
+      // Sort transitions by time ascending to build correct path
+      trans.sort((a, b) => a.time - b.time);
       // Build path string: "draft→submitted→approved→done"
       const states = [trans[0].from, ...trans.map((t) => t.to)];
       const pathStr = states.join("→");

@@ -443,3 +443,52 @@ describe("buildGraphQLSchema update mutation _version arg", () => {
     expect(fields._version).toBeUndefined();
   });
 });
+
+// ── i18n field name collision ─────────────────────────────
+
+describe("i18n field name collision", () => {
+  test("skips auto-generated _i18n field when name already exists in schema", () => {
+    const schema: SchemaDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", translatable: true, label: "Name" },
+        // This field name collides with the auto-generated name_i18n
+        name_i18n: { type: "string", label: "Custom i18n field" },
+      },
+    };
+
+    const objectType = generateGraphQLObjectType(schema);
+    const fields = objectType.getFields();
+
+    // The name_i18n field should exist (from the schema definition)
+    expect(fields.name_i18n).toBeDefined();
+
+    // The resolver for name_i18n should use the schema-defined field (not the auto-generated one)
+    // Resolve with a simple record to verify it uses the schema field resolver
+    const result = fields.name_i18n.resolve?.(
+      { name_i18n: "custom_value" },
+      {},
+      {} as any,
+      {} as any,
+    );
+    expect(result).toBe("custom_value");
+  });
+
+  test("generates _i18n field when no collision exists", () => {
+    const schema: SchemaDefinition = {
+      name: "article",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        title: { type: "string", translatable: true, label: "Title" },
+      },
+    };
+
+    const objectType = generateGraphQLObjectType(schema);
+    const fields = objectType.getFields();
+
+    // Both title and title_i18n should exist
+    expect(fields.title).toBeDefined();
+    expect(fields.title_i18n).toBeDefined();
+  });
+});

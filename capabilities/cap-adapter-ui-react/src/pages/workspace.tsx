@@ -32,6 +32,7 @@ import {
 } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 import { getStateBadgeClass } from "@/lib/state-colors";
+import { AIInsightsPanel } from "@/components/ai-insights-panel";
 import type { StateDefinition, StateMeta } from "@linchkit/core/types";
 
 // ── Types ────────────────────────────────────────────────
@@ -558,6 +559,11 @@ export function WorkspacePage() {
           <QuickActions schemas={schemas} />
         </section>
       )}
+
+      {/* AI Insights */}
+      <section>
+        <AIInsightsPanel />
+      </section>
 
       {/* Recent activity */}
       <section>

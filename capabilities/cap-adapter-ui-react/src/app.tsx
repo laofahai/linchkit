@@ -31,6 +31,8 @@ import { HealthMonitorPage } from "./pages/health-monitor";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
 import { StateMachineDetailPage, StateMachinesPage } from "./pages/state-machines";
+import { EvolutionPage } from "./pages/evolution";
+import { ProposalsPage } from "./pages/proposals";
 import { WorkspacePage } from "./pages/workspace";
 
 // ── Root route (no layout) ────────────────────────────────────────
@@ -172,6 +174,34 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const flowsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/flows",
+    component: FlowsPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
+  const flowDetailRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/flows/$name",
+    component: FlowDetailPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
+  const stateMachinesRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/states",
+    component: StateMachinesPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
+  const stateMachineDetailRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/states/$name",
+    component: StateMachineDetailPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -183,6 +213,10 @@ function buildRouter(appConfig: AppConfig) {
       schemaFormEditRoute,
       executionLogsRoute,
       healthMonitorRoute,
+      flowsRoute,
+      flowDetailRoute,
+      stateMachinesRoute,
+      stateMachineDetailRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),

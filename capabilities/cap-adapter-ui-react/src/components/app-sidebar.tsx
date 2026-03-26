@@ -12,7 +12,9 @@ import {
 } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
 import {
+  CircleDotIcon,
   DatabaseIcon,
+  GitBranchIcon,
   HeartPulseIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
@@ -59,6 +61,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         },
       ],
       adminItems: [
+        {
+          title: t("flows.title"),
+          url: "/admin/flows",
+          icon: <GitBranchIcon />,
+        },
+        {
+          title: t("stateMachines.title"),
+          url: "/admin/states",
+          icon: <CircleDotIcon />,
+        },
         {
           title: t("executionLog.title"),
           url: "/admin/executions",

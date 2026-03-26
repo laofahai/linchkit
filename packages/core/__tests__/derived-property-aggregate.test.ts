@@ -859,3 +859,172 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
     expect(order.is_large_order).toBe(1);
   });
 });
+
+// ── Recursive cascade with depth limit ────────────────────────
+
+describe("DerivedPropertyEngine — recursive cascade", () => {
+  test("cascades recursively through multiple levels", async () => {
+    const store = new InMemoryStore();
+    const linkRegistry = createLinkRegistry();
+
+    // Chain: company -> department -> employee
+    linkRegistry.register({
+      name: "company_to_depts",
+      from: "company",
+      to: "department",
+      cardinality: "one_to_many",
+    });
+    linkRegistry.register({
+      name: "dept_to_employees",
+      from: "department",
+      to: "employee",
+      cardinality: "one_to_many",
+    });
+
+    const companySchema: SchemaDefinition = {
+      name: "company",
+      fields: {
+        total_departments: {
+          type: "number",
+          derived: {
+            type: "aggregate",
+            source: { link: "company_to_depts", schema: "department" },
+            op: "sum",
+            field: "employee_count",
+            strategy: "store",
+          },
+        },
+      },
+    };
+
+    const departmentSchema: SchemaDefinition = {
+      name: "department",
+      fields: {
+        company_id: { type: "string" },
+        employee_count: {
+          type: "number",
+          derived: {
+            type: "aggregate",
+            source: { link: "dept_to_employees", schema: "employee" },
+            op: "count",
+            strategy: "store",
+          },
+        },
+      },
+    };
+
+    const employeeSchema: SchemaDefinition = {
+      name: "employee",
+      fields: {
+        department_id: { type: "string" },
+        name: { type: "string" },
+      },
+    };
+
+    const engine = createDerivedPropertyEngine();
+    engine.register([companySchema, departmentSchema, employeeSchema]);
+    engine.wire({ linkRegistry, dataProvider: store });
+
+    // Create company and department
+    await store.create("company", { id: "c1", total_departments: 0 });
+    await store.create("department", { id: "d1", company_id: "c1", employee_count: 0 });
+
+    // Add an employee — should cascade to department, then to company
+    const emp = await store.create("employee", { id: "e1", department_id: "d1", name: "Alice" });
+    const updates = await engine.cascadeRecalculate("employee", emp);
+
+    // Department should have employee_count = 1
+    const dept = await store.get("department", "d1");
+    expect(dept.employee_count).toBe(1);
+
+    // Company should have total_departments = 1 (sum of employee_count across departments)
+    const company = await store.get("company", "c1");
+    expect(company.total_departments).toBe(1);
+
+    // Should have updates for both levels
+    expect(updates.has("department.d1")).toBe(true);
+    expect(updates.has("company.c1")).toBe(true);
+  });
+
+  test("respects maxCascadeDepth limit", async () => {
+    const store = new InMemoryStore();
+    const linkRegistry = createLinkRegistry();
+
+    // Same chain as above
+    linkRegistry.register({
+      name: "company_to_depts",
+      from: "company",
+      to: "department",
+      cardinality: "one_to_many",
+    });
+    linkRegistry.register({
+      name: "dept_to_employees",
+      from: "department",
+      to: "employee",
+      cardinality: "one_to_many",
+    });
+
+    const companySchema: SchemaDefinition = {
+      name: "company",
+      fields: {
+        total_departments: {
+          type: "number",
+          derived: {
+            type: "aggregate",
+            source: { link: "company_to_depts", schema: "department" },
+            op: "sum",
+            field: "employee_count",
+            strategy: "store",
+          },
+        },
+      },
+    };
+
+    const departmentSchema: SchemaDefinition = {
+      name: "department",
+      fields: {
+        company_id: { type: "string" },
+        employee_count: {
+          type: "number",
+          derived: {
+            type: "aggregate",
+            source: { link: "dept_to_employees", schema: "employee" },
+            op: "count",
+            strategy: "store",
+          },
+        },
+      },
+    };
+
+    const employeeSchema: SchemaDefinition = {
+      name: "employee",
+      fields: {
+        department_id: { type: "string" },
+        name: { type: "string" },
+      },
+    };
+
+    const engine = createDerivedPropertyEngine();
+    engine.register([companySchema, departmentSchema, employeeSchema]);
+    engine.wire({ linkRegistry, dataProvider: store });
+
+    await store.create("company", { id: "c1", total_departments: 0 });
+    await store.create("department", { id: "d1", company_id: "c1", employee_count: 0 });
+
+    const emp = await store.create("employee", { id: "e1", department_id: "d1", name: "Bob" });
+
+    // With maxCascadeDepth=1, should only cascade one level (employee → department)
+    const updates = await engine.cascadeRecalculate("employee", emp, undefined, { maxCascadeDepth: 1 });
+
+    // Department should be updated
+    const dept = await store.get("department", "d1");
+    expect(dept.employee_count).toBe(1);
+
+    // Company should NOT be updated (depth limit reached)
+    const company = await store.get("company", "c1");
+    expect(company.total_departments).toBe(0);
+
+    expect(updates.has("department.d1")).toBe(true);
+    expect(updates.has("company.c1")).toBe(false);
+  });
+});
