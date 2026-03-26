@@ -224,10 +224,10 @@ function ProposalDetailDialog({
                       ) : (
                         <XCircleIcon className="h-4 w-4 text-red-500" />
                       )}
-                      <span>Phase {phase.phase}: {phase.status}</span>
+                      <span>{t("proposals.phase", { phase: phase.phase, status: phase.status })}</span>
                       {phase.errors.length > 0 && (
                         <span className="text-red-500 text-xs">
-                          ({phase.errors.length} error{phase.errors.length > 1 ? "s" : ""})
+                          ({t("proposals.phaseErrors", { count: phase.errors.length })})
                         </span>
                       )}
                     </div>
@@ -308,7 +308,7 @@ export function ProposalsPage() {
 
   const handleReject = async (id: string) => {
     try {
-      await rejectProposal(id, "Rejected by user");
+      await rejectProposal(id, t("proposals.defaultRejectReason"));
       toast.success(t("proposals.rejectSuccess"));
       setDialogOpen(false);
       loadProposals();

@@ -559,7 +559,11 @@
       "capability": "Capability",
       "author": "Author",
       "date": "Date"
-    }
+    },
+    "phase": "Phase {{phase}}: {{status}}",
+    "phaseErrors": "{{count}} error",
+    "phaseErrors_other": "{{count}} errors",
+    "defaultRejectReason": "Rejected by user"
   },
   "evolution": {
     "title": "Evolution History",

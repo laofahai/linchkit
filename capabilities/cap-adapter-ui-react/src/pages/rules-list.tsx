@@ -170,14 +170,14 @@ export function RulesListPage() {
         const json = await res.json();
         setRules(json.data ?? []);
       } else {
-        applyDemoFilters();
+        clearRules();
       }
     } catch {
       applyDemoFilters();
     } finally {
       setLoading(false);
     }
-  }, [schemaFilter, triggerFilter, applyDemoFilters]);
+  }, [schemaFilter, triggerFilter, clearRules]);
 
   useEffect(() => {
     fetchRules();

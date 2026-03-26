@@ -6,11 +6,9 @@
  * when AI service is not configured.
  */
 
-import type { ProposalDefinition } from "@linchkit/core";
-import { createProposalEngine, PatternDetector } from "@linchkit/core/server";
+import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
+import { PatternDetector, createProposalEngine } from "@linchkit/core/server";
 import type { PatternInsight } from "@linchkit/core/server";
-import type { ExecutionLogger } from "@linchkit/core/types";
-import type { Elysia } from "elysia";
 
 // ── Types ─────────────────────────────────────────────────
 

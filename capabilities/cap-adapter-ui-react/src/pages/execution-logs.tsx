@@ -76,78 +76,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ── Demo data ───────────────────────────────────────────
-
-const DEMO_ENTRIES: ExecutionLogEntry[] = [
-  {
-    id: "exec_001",
-    action: "create_purchase_request",
-    schema: "purchase_request",
-    recordId: "pr_001",
-    actor: { type: "human", id: "alice" },
-    input: { title: "Office Supplies Q2", amount: 1500 },
-    output: { id: "pr_001" },
-    status: "succeeded",
-    duration: 12,
-    startedAt: new Date(Date.now() - 3600000).toISOString(),
-    completedAt: new Date(Date.now() - 3600000 + 12).toISOString(),
-  },
-  {
-    id: "exec_002",
-    action: "submit_purchase_request",
-    schema: "purchase_request",
-    recordId: "pr_001",
-    actor: { type: "human", id: "alice" },
-    input: { id: "pr_001" },
-    output: { id: "pr_001", status: "pending" },
-    status: "succeeded",
-    stateTransition: { from: "draft", to: "pending" },
-    duration: 8,
-    startedAt: new Date(Date.now() - 3500000).toISOString(),
-    completedAt: new Date(Date.now() - 3500000 + 8).toISOString(),
-  },
-  {
-    id: "exec_003",
-    action: "approve_purchase_request",
-    schema: "purchase_request",
-    recordId: "pr_002",
-    actor: { type: "human", id: "bob" },
-    input: { id: "pr_002" },
-    status: "blocked",
-    error: { code: "RULE.BUDGET.EXCEEDED", message: "Amount exceeds department budget" },
-    rulesEvaluated: [
-      { rule: "budget_check", result: "blocked", message: "Amount 25000 > limit 20000" },
-    ],
-    duration: 5,
-    startedAt: new Date(Date.now() - 1800000).toISOString(),
-    completedAt: new Date(Date.now() - 1800000 + 5).toISOString(),
-  },
-  {
-    id: "exec_004",
-    action: "update_purchase_request",
-    schema: "purchase_request",
-    recordId: "pr_004",
-    actor: { type: "human", id: "dave" },
-    input: { id: "pr_004", amount: 9000, notes: "Updated estimate" },
-    status: "failed",
-    error: { message: "Record not found: purchase_request/pr_999" },
-    duration: 3,
-    startedAt: new Date(Date.now() - 900000).toISOString(),
-    completedAt: new Date(Date.now() - 900000 + 3).toISOString(),
-  },
-  {
-    id: "exec_005",
-    action: "create_purchase_request",
-    schema: "purchase_request",
-    actor: { type: "human", id: "carol" },
-    input: { title: "Marketing materials", amount: 2500, department: "Marketing" },
-    output: { id: "pr_005" },
-    status: "succeeded",
-    duration: 15,
-    startedAt: new Date(Date.now() - 600000).toISOString(),
-    completedAt: new Date(Date.now() - 600000 + 15).toISOString(),
-  },
-];
+// No demo data — shows empty state when API is unavailable
 
 // ── Expanded detail view ────────────────────────────────
 
@@ -222,14 +151,10 @@ export function ExecutionLogsPage() {
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const applyDemoData = useCallback(() => {
-    let filtered: ExecutionLogEntry[] = DEMO_ENTRIES;
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((e) => e.status === statusFilter);
-    }
-    setTotal(filtered.length);
-    setEntries(filtered);
-  }, [statusFilter]);
+  const clearData = useCallback(() => {
+    setTotal(0);
+    setEntries([]);
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -244,14 +169,14 @@ export function ExecutionLogsPage() {
         setEntries(result.items);
         setTotal(result.total);
       } else {
-        applyDemoData();
+        clearData();
       }
     } catch {
       applyDemoData();
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, applyDemoData]);
+  }, [statusFilter, clearData]);
 
   useEffect(() => {
     fetchLogs();

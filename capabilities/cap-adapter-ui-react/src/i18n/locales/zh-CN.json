@@ -559,7 +559,11 @@
       "capability": "能力模块",
       "author": "作者",
       "date": "日期"
-    }
+    },
+    "phase": "阶段 {{phase}}：{{status}}",
+    "phaseErrors": "{{count}} 个错误",
+    "phaseErrors_other": "{{count}} 个错误",
+    "defaultRejectReason": "用户拒绝"
   },
   "evolution": {
     "title": "进化历史",
