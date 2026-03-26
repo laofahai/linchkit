@@ -99,14 +99,9 @@ async function fetchSchemaSummaries(
   for (const s of schemas) {
     const alias = toCamelCase(s.name);
     const stateInfo = stateFields.get(s.name);
-    if (stateInfo) {
-      // Fetch all records' state field values (pageSize=0 means all)
-      queryParts.push(
-        `${alias}: ${alias}List(pageSize: 0) { total items { ${stateInfo.fieldName} } }`,
-      );
-    } else {
-      queryParts.push(`${alias}: ${alias}List(pageSize: 1) { total }`);
-    }
+    // Only fetch total count — state breakdown should be a server-side
+    // aggregation, not a client-side full-table scan (pageSize=0 was fetching ALL records).
+    queryParts.push(`${alias}: ${alias}List(pageSize: 1) { total }`);
   }
 
   const query = `query { ${queryParts.join("\n    ")} }`;

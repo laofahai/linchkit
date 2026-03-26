@@ -484,5 +484,37 @@
     "reviewProposal": "Review Proposal",
     "dataPoints": "{{count}} data points",
     "viewMore": "{{count}} more insight(s)"
+  },
+  "rules": {
+    "title": "Rules",
+    "subtitle": "Business rule definitions — event-driven adjudicators that validate, block, enrich, or require approval.",
+    "allTriggers": "All Triggers",
+    "allSchemas": "All Schemas",
+    "rulesCount": "rules",
+    "noRules": "No rules registered.",
+    "ruleNotFound": "Rule not found.",
+    "trigger": "Trigger",
+    "condition": "Condition",
+    "effectLabel": "Effect",
+    "rawDefinition": "Raw Definition",
+    "reason": "Reason",
+    "approvalLevel": "Approval Level",
+    "targetAction": "Target Action",
+    "enrichFields": "Enriched Fields",
+    "actionParams": "Action Params",
+    "triggerTypes": {
+      "action": "Action",
+      "stateChange": "State Change",
+      "fieldChange": "Field Change",
+      "event": "Event",
+      "schedule": "Schedule"
+    },
+    "effectTypes": {
+      "block": "Block",
+      "warn": "Warning",
+      "require_approval": "Require Approval",
+      "enrich": "Enrich Data",
+      "execute_action": "Execute Action"
+    }
   }
 }

@@ -484,5 +484,37 @@
     "reviewProposal": "查看提案",
     "dataPoints": "{{count}} 个数据点",
     "viewMore": "还有 {{count}} 项洞察"
+  },
+  "rules": {
+    "title": "规则",
+    "subtitle": "业务规则定义 — 事件驱动的裁决器，用于验证、拦截、数据补充或要求审批。",
+    "allTriggers": "全部触发器",
+    "allSchemas": "全部模型",
+    "rulesCount": "条规则",
+    "noRules": "暂无已注册的规则。",
+    "ruleNotFound": "规则未找到。",
+    "trigger": "触发器",
+    "condition": "条件",
+    "effectLabel": "效果",
+    "rawDefinition": "原始定义",
+    "reason": "原因",
+    "approvalLevel": "审批级别",
+    "targetAction": "目标操作",
+    "enrichFields": "补充字段",
+    "actionParams": "操作参数",
+    "triggerTypes": {
+      "action": "Action 触发",
+      "stateChange": "状态变更",
+      "fieldChange": "字段变更",
+      "event": "事件触发",
+      "schedule": "定时触发"
+    },
+    "effectTypes": {
+      "block": "拦截",
+      "warn": "警告",
+      "require_approval": "需要审批",
+      "enrich": "数据补充",
+      "execute_action": "执行操作"
+    }
   }
 }

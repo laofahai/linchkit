@@ -29,6 +29,7 @@ import {
   MonitorIcon,
   MoonIcon,
   ScrollTextIcon,
+  ShieldCheckIcon,
   SparklesIcon,
   SunIcon,
 } from "lucide-react";
@@ -228,6 +229,10 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
               <CommandItem onSelect={() => navigate("/admin/health")}>
                 <HeartPulseIcon />
                 <span>{t("health.title")}</span>
+              </CommandItem>
+              <CommandItem onSelect={() => navigate("/admin/rules")}>
+                <ShieldCheckIcon />
+                <span>{t("rules.title")}</span>
               </CommandItem>
             </CommandGroup>
 

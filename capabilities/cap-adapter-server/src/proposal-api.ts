@@ -6,7 +6,7 @@
  * when AI service is not configured.
  */
 
-import type { ProposalDefinition, ProposalStatus } from "@linchkit/core";
+import type { ProposalDefinition } from "@linchkit/core";
 import { createProposalEngine } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 
