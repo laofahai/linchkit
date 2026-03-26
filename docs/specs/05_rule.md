@@ -316,3 +316,50 @@ export const ovr = overrideRule('amount_check', {
 
 export const dis = disableRule('some_rule_name')
 ```
+
+## 11. UI Management
+
+Rule 需要独立的管理界面，让系统管理员和业务管理员可以查看、理解和审计所有业务规则。
+
+### 11.1 Rule 列表页 (`/admin/rules`)
+
+展示所有已注册的 Rule，支持以下能力：
+
+| 功能 | 说明 |
+|------|------|
+| **按 Schema 筛选** | 只看某个 Schema 相关的 Rule |
+| **按 Trigger 类型筛选** | action / stateChange / fieldChange / event / schedule |
+| **按 Effect 类型筛选** | block / warn / require_approval / enrich / execute_action |
+| **按启用状态筛选** | 已启用 / 已禁用（被 `disableRule` 覆盖的） |
+| **按来源筛选** | 原始 Capability / Bridge 覆盖 / Bridge 新增 |
+| **搜索** | 按 Rule name / label 搜索 |
+
+列表列：name、label、trigger 摘要、effect 类型、priority、来源 Capability、启用状态。
+
+### 11.2 Rule 详情视图
+
+点击 Rule 进入详情页，展示完整定义：
+
+- **Trigger 区**：触发条件的可视化展示（Action 名称、状态变更路径、事件类型等）
+- **Condition 可视化**：声明式条件渲染为树形表达式（and/or/not 分支 + 叶子条件卡片）。代码式条件显示函数签名 + 源码位置
+- **Effect 区**：效果类型 + 参数（message、level、setFields 等）
+- **Context 区**（如有）：数据查询的结构化展示
+- **Override 链**：如果被 Bridge `overrideRule` 覆盖，展示覆盖前后的对比 diff
+
+### 11.3 Rule 执行历史
+
+每条 Rule 详情页底部包含执行历史 Tab：
+
+- 从 `_linchkit_executions` 表中筛选包含该 Rule 评估结果的执行记录
+- 展示：触发时间、触发 Action、评估结果（命中/未命中）、Effect 执行结果
+- 支持按时间范围筛选
+- 高频命中的 Rule 标记为"活跃"，长期未命中的标记为"休眠"
+
+### 11.4 AI 建议规则集成
+
+在 Rule 列表页和 Schema 详情页中，展示 AI 建议的规则：
+
+- AI 通过 evolver Agent 分析执行数据后生成的 Rule Proposal
+- 以"建议卡片"形式展示（区别于已生效的 Rule）
+- 用户可以点击"查看详情" → 跳转到 Proposal 审批流程
+- 标注建议原因（如"检测到 X 模式，建议添加 Y 规则"）

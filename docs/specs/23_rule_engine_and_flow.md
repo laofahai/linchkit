@@ -275,3 +275,54 @@ export const evolutionFlow = defineFlow({
 - 复杂业务流程
 - 跨 Capability 编排
 - Saga 补偿模式
+
+## 6. UI Management
+
+Rule Engine 和 Flow 需要可视化管理界面，帮助管理员理解系统行为、监控流程执行。
+
+### 6.1 Flow 列表页 (`/admin/flows`)
+
+展示所有已注册的 Flow：
+
+| 列 | 说明 |
+|------|------|
+| **name** | Flow 标识 |
+| **label** | 人类可读名称 |
+| **trigger** | 触发方式（action / schedule / 手动） |
+| **步骤数** | steps 数量 |
+| **运行中实例** | 当前正在执行的实例数 |
+| **最近执行** | 最近一次执行的时间和状态 |
+
+支持按 trigger 类型筛选、按 Capability 筛选。
+
+### 6.2 Flow 可视化步骤图
+
+Flow 详情页展示 **步骤流程图**：
+
+- 每个 step 渲染为节点卡片（显示 name、type 图标、状态）
+- 节点按执行顺序连线（顺序 → 线性、parallel → 分叉/合并、branch → 条件分支）
+- 当前运行中的实例高亮到正在执行的步骤
+- 已完成步骤标记为绿色，失败步骤标记为红色，等待中步骤标记为黄色
+- 点击节点展开详情：输入/输出数据、执行耗时、错误信息
+- branches 条件以标签形式渲染在分支路径上
+
+实现方式：基于 SVG/Canvas 的轻量流程图渲染（不引入 React Flow 等重量级库），或直接使用 Restate Web UI（端口 9070）作为外链。
+
+### 6.3 Flow 执行监控
+
+Flow 列表页可展开查看某个 Flow 的所有执行实例：
+
+- 实例列表：实例 ID、触发时间、当前步骤、状态（running / completed / failed / waiting_approval）
+- 点击实例进入步骤图视图，高亮当前执行位置
+- 失败实例提供重试入口（调用 Restate 重试 API）
+- 等待审批的实例提供"去审批"入口
+
+### 6.4 State Machine 可视化（Schema 页面内嵌）
+
+在 Schema 详情页中内嵌状态机图：
+
+- **状态节点**：每个状态渲染为圆角矩形，使用 `meta.color` 着色
+- **迁移箭头**：状态间的有向箭头，标注触发 Action 名称
+- **当前记录状态高亮**：在记录详情页中，高亮当前状态节点，灰化不可达状态
+- **可交互**：点击迁移箭头可跳转到对应 Action 定义
+- 渲染方式：基于 `defineState` 定义的 states + transitions 生成 DAG 布局

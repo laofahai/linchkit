@@ -969,3 +969,22 @@ Bridge 模块可以扩展导航（给已有菜单加项）。
 - AI 辅助填写的模型选型（轻量本地模型 vs 云端 API，延迟与成本平衡）
 - Command Palette 的自然语言 Intent 解析实现方案（MCP 工具调用 vs 自定义 parser）
 - Action Preview 的影响分析深度（只分析直接影响 vs 级联影响）
+
+## 15. Admin Pages 路由汇总
+
+以下是系统管理页面的完整路由清单，所有路由均需要 `system_admin` 或对应管理角色权限：
+
+| 路由 | 页面 | 说明 | 里程碑 |
+|------|------|------|--------|
+| `/admin/executions` | 执行日志 | Action 执行记录、错误追踪、性能分析 | M0 |
+| `/admin/health` | 系统健康 | 服务状态、数据库连接、Restate 连接、Worker 状态 | M1 |
+| `/admin/rules` | Rule 管理 | Rule 列表、详情、执行历史、AI 建议规则（见 `05_rule.md` §11） | M2 |
+| `/admin/flows` | Flow 管理 | Flow 列表、步骤图、执行监控、实例管理（见 `23_rule_engine_and_flow.md` §6） | M2 |
+| `/admin/proposals` | Proposal 审批 | AI 生成的变更提案审批、diff 展示、影响分析（见 `15_ai_developer_experience.md` §8.1） | M2 |
+| `/admin/evolution` | 进化历史 | AI 辅助系统演进的时间线、变更对比、指标趋势（见 `15_ai_developer_experience.md` §8.3） | M3 |
+| `/admin/automations` | 自动化管理 | Watcher 列表、配置、触发历史、状态监控（见 `45_reactive_automation.md` §11） | M3 |
+| `/admin/insights` | AI 洞察 | 异常检测、优化建议、使用模式分析（见 `15_ai_developer_experience.md` §8.2） | M3 |
+| `/admin/schemas` | Schema 浏览 | Schema 定义查看、字段结构、关联关系、状态机可视化 | M1 |
+| `/admin/events` | 事件浏览 | Event 时间线、事件溯源、EventHandler 关联 | M2 |
+
+所有 admin 页面共享统一的布局（左侧 admin 导航 + 主工作区），通过 `defineNavigation` 注册到左侧导航的"系统管理"分组下。

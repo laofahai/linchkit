@@ -317,3 +317,52 @@ defineWatcher({
 - 定时（cron）Watcher
 - Watcher 管理 UI（启用/禁用、查看状态、历史）
 - `cooldown` 去重策略
+
+## 11. UI Management
+
+Watcher（响应式自动化）需要管理界面，让管理员配置、监控和审计自动化规则。
+
+### 11.1 自动化规则列表 (`/admin/automations`)
+
+展示所有已注册的 Watcher：
+
+| 列 | 说明 |
+|------|------|
+| **name** | Watcher 标识 |
+| **label** | 人类可读名称 |
+| **watch.schema** | 监视的 Schema |
+| **trigger.type** | 触发类型（threshold / staleness / schedule / set_change） |
+| **effect.action** | 触发的 Action |
+| **enabled** | 启用状态（开关控件，支持直接切换） |
+| **上次触发** | 最近一次触发的时间 |
+| **触发次数** | 累计触发次数（从 `_linchkit.watcher_state` 统计） |
+
+筛选：按 Schema、trigger 类型、启用状态筛选。
+
+### 11.2 Watcher 配置详情
+
+点击 Watcher 进入详情页：
+
+- **监视配置**：watch 的 schema、filter、aggregate 的结构化展示
+- **触发条件**：threshold 的条件表达式、staleness 的时间阈值、schedule 的 cron 表达式（附带人类可读说明，如"每周一 9:00"）
+- **去重策略**：debounce 模式 + cooldown 参数
+- **效果配置**：目标 Action + 参数模板
+- **当前状态**：从 `_linchkit.watcher_state` 读取每个 group_key 的当前条件状态和上次触发时间
+
+### 11.3 触发历史 / 执行日志
+
+Watcher 详情页底部展示触发历史：
+
+- 每次触发记录：触发时间、group_key、条件评估结果、执行的 Action、Action 执行结果（成功/失败）
+- 支持时间范围筛选
+- 失败的触发高亮显示，附带错误信息
+- 阈值 Watcher 展示聚合值的历史趋势（简单折线图：值 vs 阈值线）
+
+### 11.4 Watcher 状态监控
+
+在自动化列表页顶部展示整体状态面板：
+
+- **活跃 Watcher 数**：当前启用的 Watcher 总数
+- **今日触发数**：当日所有 Watcher 的累计触发次数
+- **失败数**：当日触发但 Action 执行失败的次数
+- **下次定时评估**：最近一个 schedule/staleness Watcher 的下次评估时间

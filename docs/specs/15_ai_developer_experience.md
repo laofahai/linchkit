@@ -336,3 +336,55 @@ LinchKit 场景：
 - evolver Agent（自动优化建议）
 - AI 上下文随系统演进自动增强
 - cap-a2a（Agent 间协作，视协议成熟度）
+
+## 8. AI Management UI
+
+AI 能力在 UI 中需要专用的管理和交互界面，涵盖 Proposal 审批、洞察展示、进化历史和辅助交互。
+
+### 8.1 AI Proposal 审批 UI (`/admin/proposals`)
+
+AI 生成的 Proposal（Rule 变更、Schema 调整、Flow 优化等）需要人工审批界面：
+
+- **Proposal 列表**：状态（pending / approved / rejected / deployed）、创建时间、变更类型、影响范围
+- **Proposal 详情**：
+  - 变更 diff 展示（类似 Git diff，标注新增/修改/删除）
+  - 影响分析：受影响的 Schema、Action、Rule、Flow
+  - AI 生成的变更说明和理由
+  - 审批操作：approve / reject / request_changes，附带审批意见
+- **批量审批**：多个低风险 Proposal 可以批量 approve
+
+### 8.2 AI Insights 仪表盘
+
+在工作台和 `/admin/insights` 展示 AI 分析产出的洞察：
+
+- **异常检测卡片**：AI 识别到的数据异常（如"采购金额突增 300%"、"审批在 submitted 状态平均停留 5 天"）
+- **优化建议卡片**：AI 建议的 Rule/Flow 优化（如"建议为 > ¥50,000 的采购增加二级审批"）
+- **使用模式分析**：热门 Action、低使用率 Schema、频繁失败的 Rule
+- 每张卡片可展开查看详细分析 + 证据数据 + 一键创建 Proposal
+
+### 8.3 进化历史时间线 (`/admin/evolution`)
+
+展示系统在 AI 辅助下的演进历史：
+
+- **时间线视图**：按时间排列所有 AI 参与的系统变更
+- 每个事件节点包含：变更类型（新增 Rule / 调整 Schema / 优化 Flow）、Proposal ID、审批人、部署时间
+- **Before/After 对比**：点击事件可查看变更前后的定义对比
+- **指标趋势**：叠加展示关键指标（Rule 命中率、审批耗时、错误率）的变化趋势，标注每次变更对指标的影响
+- 可按 Capability 筛选
+
+### 8.4 AI 辅助面板
+
+在业务操作中按需展开的 AI 辅助面板（不常驻，见 `13_view_and_ui.md` §2.2）：
+
+- **上下文摘要**：当前记录/列表的 AI 摘要（如"本月采购集中在 IT 设备，同比增长 20%"）
+- **智能建议**：基于当前上下文的操作建议（如"该供应商最近交付延迟较多，建议换供应商"）
+- **对话交互**：自然语言问答，AI 通过 MCP 工具查询系统数据回答
+- **证据引用**：AI 回答中引用的数据源链接（点击跳转到对应记录）
+
+### 8.5 AI 搜索与自动填充
+
+表单和搜索中的 AI 增强：
+
+- **智能搜索**：Command Palette 中支持自然语言查询（"上个月超过 5 万的采购"），AI 转化为 GraphQL 查询
+- **表单自动填充**：新建记录时，AI 根据上下文和历史数据建议字段值（如根据供应商自动填充付款条款）
+- **关联推荐**：ref 字段选择时，AI 根据上下文排序候选项（如根据采购品类推荐常用供应商）
