@@ -34,6 +34,7 @@ import {
   StateDiagram,
   type StateMachineDetail,
 } from "../components/state-diagram";
+import { getStateBadgeClass } from "../lib/state-colors";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -152,11 +153,7 @@ export function StateMachinesPage() {
               <Badge
                 key={s}
                 variant="outline"
-                className="text-[10px]"
-                style={{
-                  borderColor: getStateColor(s, machine.meta),
-                  color: getStateColor(s, machine.meta),
-                }}
+                className={`text-[10px] ${getStateBadgeClass(getStateColor(s, machine.meta))}`}
               >
                 {s === machine.initial && <CircleDotIcon className="size-2.5 mr-0.5" />}
                 {getStateLabel(s, machine.meta, t)}
@@ -275,10 +272,7 @@ function TransitionsAutoList({ machine }: { machine: StateMachineDetail }) {
         return (
           <Badge
             variant="outline"
-            style={{
-              borderColor: getStateColor(fromState, machine.meta),
-              color: getStateColor(fromState, machine.meta),
-            }}
+            className={getStateBadgeClass(getStateColor(fromState, machine.meta))}
           >
             {getStateLabel(fromState, machine.meta, t)}
           </Badge>
@@ -303,10 +297,7 @@ function TransitionsAutoList({ machine }: { machine: StateMachineDetail }) {
         return (
           <Badge
             variant="outline"
-            style={{
-              borderColor: getStateColor(toState, machine.meta),
-              color: getStateColor(toState, machine.meta),
-            }}
+            className={getStateBadgeClass(getStateColor(toState, machine.meta))}
           >
             {getStateLabel(toState, machine.meta, t)}
           </Badge>

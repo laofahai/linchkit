@@ -103,29 +103,17 @@ function resolveActionLabel(
   return actionName;
 }
 
-/**
- * Apply reduced opacity to a color for muted accent bars.
- */
-function muteColor(color: string): string {
-  if (color.startsWith("#")) {
-    const hex = color.replace("#", "");
-    const fullHex =
-      hex.length === 3
-        ? hex
-            .split("")
-            .map((c) => c + c)
-            .join("")
-        : hex;
-    const r = Number.parseInt(fullHex.slice(0, 2), 16);
-    const g = Number.parseInt(fullHex.slice(2, 4), 16);
-    const b = Number.parseInt(fullHex.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, 0.55)`;
-  }
-  if (color.startsWith("rgb(")) {
-    return color.replace("rgb(", "rgba(").replace(")", ", 0.55)");
-  }
-  return color;
-}
+import { resolveColorToken } from "../lib/state-colors";
+
+/** Tailwind accent bar classes keyed by StateColorToken — single source of truth */
+const ACCENT_BAR_CLASS: Record<string, string> = {
+  default: "bg-gray-400",
+  secondary: "bg-gray-400",
+  success: "bg-green-500",
+  warning: "bg-amber-500",
+  danger: "bg-red-500",
+  info: "bg-blue-500",
+};
 
 /** Pill-style edge label used by EdgeLabelRenderer */
 function EdgeLabel({
@@ -191,18 +179,9 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
         overflow: "hidden",
       }}
     >
-      {/* Left accent bar — muted color */}
+      {/* Left accent bar — uses same color tokens as state badges */}
       <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 4,
-          backgroundColor: color,
-          opacity: 0.3,
-          borderRadius: "6px 0 0 6px",
-        }}
+        className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-md ${ACCENT_BAR_CLASS[resolveColorToken(color)] ?? "bg-gray-400"}`}
       />
 
       {/* Handles: left target, right source, top target+source, bottom target+source */}
@@ -421,8 +400,8 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "LR",
-    nodesep: 100,
-    ranksep: 250,
+    nodesep: 120,
+    ranksep: 280,
     marginx: 40,
     marginy: 40,
   });
@@ -443,6 +422,8 @@ function getLayoutedElements(
     const pos = g.node(node.id);
     return {
       ...node,
+      targetPosition: Position.Left,
+      sourcePosition: Position.Right,
       position: {
         x: pos.x - NODE_WIDTH / 2,
         y: pos.y - NODE_HEIGHT / 2,
@@ -572,10 +553,16 @@ function buildStateGraph(
       id: `tr-${edgeIdx++}`,
       source: from,
       target: to,
-      type: "labeled",
+      type: "smoothstep",
       sourceHandle,
       targetHandle,
       label: actionLabel,
+      labelStyle: { fontSize: 11, fill: "#4b5563", fontWeight: 500 },
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9 },
+      labelBgPadding: [4, 8] as [number, number],
+      labelBgBorderRadius: 4,
+      style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+      markerEnd: { type: "arrowclosed" as const, color: EDGE_COLOR },
     });
   }
 
@@ -625,7 +612,7 @@ export function StateDiagram({
     <div
       style={{
         width: "100%",
-        height: 420,
+        height: 450,
         background: "#f8fafc",
         border: "1px solid #e2e8f0",
         borderRadius: 8,
@@ -633,7 +620,6 @@ export function StateDiagram({
         position: "relative",
       }}
     >
-      <ArrowMarkerDefs />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -645,12 +631,11 @@ export function StateDiagram({
         nodesConnectable={false}
         elementsSelectable={false}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.35 }}
         minZoom={0.5}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={20} size={1} color="#e9ecef" />
         <Controls
           showInteractive={false}
           position="bottom-left"
