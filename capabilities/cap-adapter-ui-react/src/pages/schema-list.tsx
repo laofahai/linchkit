@@ -1,20 +1,26 @@
 /**
- * SchemaListPage — Dynamic list view powered by schema bundle from API.
+ * SchemaListPage — Dynamic schema view with List/Calendar toggle.
  *
  * Fetches schema + view definitions from server. Shows error states
  * when API is unavailable — no silent demo data fallback.
+ * When the schema has date/datetime fields, a calendar view toggle appears.
  */
 
+import type { ViewDefinition } from "@linchkit/core/types";
 import { Button } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Loader2, RefreshCw, ServerCrash } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Calendar, List, Loader2, RefreshCw, ServerCrash } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AutoCalendar } from "../components/auto-calendar";
 import { AutoList } from "../components/auto-list";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { deleteRecord, queryList } from "../lib/api";
+
+type ActiveView = "list" | "calendar";
 
 /** Extract GraphQL field names from the view definition. */
 function getQueryFields(
@@ -49,6 +55,27 @@ function getPrimaryView<TView extends { type: string }>(
   return Object.values(views ?? {}).find((view) => view.type === type);
 }
 
+/** Find the first date/datetime field in schema for calendar view fallback. */
+function findDateField(
+  schemaFields: Record<string, { type?: string }>,
+  calendarView?: ViewDefinition,
+): string | null {
+  // If a calendar view is defined, use its dateField
+  if (calendarView?.dateField) return calendarView.dateField;
+
+  // Auto-detect: find first date or datetime field
+  const dateFieldNames = Object.entries(schemaFields)
+    .filter(([, def]) => def.type === "date" || def.type === "datetime")
+    .map(([name]) => name);
+
+  // Prefer fields with meaningful names
+  const preferred = ["due_date", "date", "scheduled_at", "submitted_at", "requested_at", "created_at"];
+  for (const p of preferred) {
+    if (dateFieldNames.includes(p)) return p;
+  }
+  return dateFieldNames[0] ?? null;
+}
+
 export function SchemaListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -66,10 +93,19 @@ export function SchemaListPage() {
 
   const schema = bundle?.schema;
   const listView = getPrimaryView(bundle?.views, "list") as AutoListViewDefinition | undefined;
+  const calendarViewDef = getPrimaryView(bundle?.views, "calendar") as ViewDefinition | undefined;
 
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<ActiveView>("list");
+
+  // Detect if calendar view is available (schema has date fields)
+  const calendarDateField = useMemo(
+    () => (schema ? findDateField(schema.fields, calendarViewDef) : null),
+    [schema, calendarViewDef],
+  );
+  const hasCalendarOption = calendarDateField !== null;
 
   const fetchData = useCallback(async () => {
     if (!listView || !schemaName) return;
@@ -77,6 +113,10 @@ export function SchemaListPage() {
     setDataError(null);
     try {
       const fields = getQueryFields(listView, schema?.fields);
+      // Ensure the date field is included in the query for calendar view
+      if (calendarDateField && !fields.some((f) => f === calendarDateField)) {
+        fields.push(calendarDateField);
+      }
       const result = await queryList({
         schema: schemaName,
         fields,
@@ -90,7 +130,7 @@ export function SchemaListPage() {
     } finally {
       setLoading(false);
     }
-  }, [schemaName, listView, schema?.fields]);
+  }, [schemaName, listView, schema?.fields, calendarDateField]);
 
   useEffect(() => {
     if (!bundleLoading && bundle) {
@@ -193,17 +233,67 @@ export function SchemaListPage() {
 
   return (
     <div className="p-4">
-      <AutoList
-        schema={schema}
-        view={listView}
-        data={data}
-        loading={loading}
-        title={title}
-        selectable
-        onAction={handleAction}
-        onBulkAction={(action, ids) => console.log(`Bulk ${action}:`, ids)}
-        onRowClick={handleRowClick}
-      />
+      {/* View toggle (only shown when calendar is available) */}
+      {hasCalendarOption && (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <div className="flex items-center rounded-md border border-border">
+            <button
+              type="button"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors rounded-l-md",
+                activeView === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground",
+              )}
+              onClick={() => setActiveView("list")}
+              title={t("calendar.listView", "List view")}
+            >
+              <List className="h-4 w-4" />
+              {t("calendar.list", "List")}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors rounded-r-md border-l border-border",
+                activeView === "calendar"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground",
+              )}
+              onClick={() => setActiveView("calendar")}
+              title={t("calendar.calendarView", "Calendar view")}
+            >
+              <Calendar className="h-4 w-4" />
+              {t("calendar.calendar", "Calendar")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active view content */}
+      {activeView === "list" ? (
+        <AutoList
+          schema={schema}
+          view={listView}
+          data={data}
+          loading={loading}
+          title={hasCalendarOption ? undefined : title}
+          selectable
+          onAction={handleAction}
+          onBulkAction={(action, ids) => console.log(`Bulk ${action}:`, ids)}
+          onRowClick={handleRowClick}
+        />
+      ) : (
+        <AutoCalendar
+          schema={schema}
+          dateField={calendarDateField!}
+          titleField={calendarViewDef?.titleField}
+          colorField={calendarViewDef?.colorField}
+          data={data}
+          onRecordClick={handleRowClick}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }

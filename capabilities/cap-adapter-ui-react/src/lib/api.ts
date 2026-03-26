@@ -5,14 +5,17 @@
  * Uses plain fetch — no external GraphQL client library needed.
  */
 
+import { getTenantHeaders } from "./tenant";
+
 // ── Auth header helper ──────────────────────────────────
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("linchkit:token");
+  const tenantHeaders = getTenantHeaders();
   if (token) {
-    return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Bearer ${token}`, ...tenantHeaders };
   }
-  return {};
+  return { ...tenantHeaders };
 }
 
 function handleUnauthorized(res: Response): void {
@@ -277,7 +280,7 @@ export interface SchemaInfo {
   description?: string;
 }
 
-import type { StateDefinition } from "@linchkit/core/types";
+import type { LinkDefinition, StateDefinition } from "@linchkit/core/types";
 
 /** Full schema bundle with views (from GET /api/schemas/:name) */
 export interface SchemaBundle {
@@ -288,6 +291,7 @@ export interface SchemaBundle {
   presentation?: Record<string, unknown>;
   views: Record<string, unknown>;
   states?: StateDefinition[];
+  links?: LinkDefinition[];
 }
 
 /**
@@ -334,4 +338,109 @@ export async function executeAction(
   });
   if (actionName !== "login") handleUnauthorized(res);
   return res.json();
+}
+
+// ── State Transitions ───────────────────────────────────
+
+export interface AvailableTransition {
+  from: string;
+  to: string;
+  action: string;
+}
+
+/**
+ * Query available state transitions for a record via GraphQL.
+ */
+export async function queryAvailableTransitions(
+  schema: string,
+  id: string,
+): Promise<AvailableTransition[]> {
+  const queryName = `${toCamelCase(schema)}AvailableTransitions`;
+  const query = `
+    query ($id: ID!) {
+      ${queryName}(id: $id) { from to action }
+    }
+  `;
+  const res = await graphql<Record<string, AvailableTransition[]>>(query, { id });
+  throwOnErrors(res);
+  return res.data?.[queryName] ?? [];
+}
+
+/**
+ * Execute a state transition via GraphQL mutation.
+ */
+export async function transitionRecord<T = Record<string, unknown>>(
+  schema: string,
+  id: string,
+  to: string,
+  fields: string[],
+): Promise<T> {
+  const mutationName = `transition${toPascalCase(schema)}`;
+  const fieldList = fields.join(" ");
+  const query = `
+    mutation ($id: ID!, $to: String!) {
+      ${mutationName}(id: $id, to: $to) { ${fieldList} }
+    }
+  `;
+  const res = await graphql<Record<string, T>>(query, { id, to });
+  throwOnErrors(res);
+  const result = res.data?.[mutationName];
+  if (result === undefined) throw new Error("No data returned");
+  return result;
+}
+
+// ── Execution Logs ──────────────────────────────────────
+
+export interface ExecutionLogEntry {
+  id: string;
+  action: string;
+  schema?: string;
+  recordId?: string;
+  actor: { type: string; id: string };
+  input: Record<string, unknown>;
+  output?: unknown;
+  status: "succeeded" | "failed" | "blocked" | "pending_approval";
+  error?: { code?: string; message: string };
+  stateTransition?: { from: string; to: string };
+  duration: number;
+  startedAt: string;
+  completedAt: string;
+}
+
+export interface ExecutionLogListResult {
+  items: ExecutionLogEntry[];
+  total: number;
+}
+
+/**
+ * Query execution logs for a specific schema/record via GraphQL.
+ */
+export async function queryExecutionLogs(
+  options: {
+    schema?: string;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<ExecutionLogListResult> {
+  const query = `
+    query ($schema: String, $page: Int, $pageSize: Int) {
+      executionLogs(schema: $schema, page: $page, pageSize: $pageSize, sortField: "startedAt", sortOrder: "desc") {
+        items {
+          id action schema recordId
+          actor { type id }
+          status duration startedAt completedAt
+          error { code message }
+          stateTransition { from to }
+        }
+        total
+      }
+    }
+  `;
+  const res = await graphql<{ executionLogs: ExecutionLogListResult }>(query, {
+    schema: options.schema,
+    page: options.page,
+    pageSize: options.pageSize,
+  });
+  throwOnErrors(res);
+  return res.data?.executionLogs ?? { items: [], total: 0 };
 }

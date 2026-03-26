@@ -19,6 +19,7 @@ import { useTheme } from "@linchkit/ui-kit/hooks";
 import { BellIcon, GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { changeLanguage, languageNames, type SupportedLanguage, supportedLanguages } from "@/i18n";
+import { TenantSwitcher } from "./tenant-switcher";
 
 export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?: () => void }) {
   const { theme, setTheme } = useTheme();
@@ -34,6 +35,9 @@ export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?:
 
   return (
     <div className="flex items-center gap-1">
+      {/* Tenant switcher */}
+      <TenantSwitcher />
+
       {/* Command Palette trigger */}
       <Tooltip>
         <TooltipTrigger asChild>

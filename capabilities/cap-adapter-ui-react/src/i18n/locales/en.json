@@ -136,6 +136,47 @@
     "noValues": "No matching values.",
     "enterValue": "Enter a value and press Enter"
   },
+  "calendar": {
+    "today": "Today",
+    "more": "more",
+    "noEvents": "No records on this day.",
+    "list": "List",
+    "calendar": "Calendar",
+    "listView": "List view",
+    "calendarView": "Calendar view",
+    "weekdays": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
+  "tree": {
+    "noRecords": "No records found",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "rootNodes": "{{count}} root node",
+    "rootNodes_other": "{{count}} root nodes",
+    "childCount": "{{count}} child",
+    "childCount_other": "{{count}} children"
+  },
+  "detail": {
+    "relatedRecords": "Related Records",
+    "activity": "Activity",
+    "noActivity": "No activity recorded yet."
+  },
+  "masking": {
+    "tooltip": "This field is masked for privacy"
+  },
+  "tenant": {
+    "noTenant": "No tenant",
+    "switchTenant": "Switch tenant",
+    "selectTenant": "Select tenant",
+    "clearTenant": "Clear tenant"
+  },
   "language": {
     "label": "Language",
     "en": "English",

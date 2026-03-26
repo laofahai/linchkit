@@ -136,6 +136,47 @@
     "noValues": "没有匹配的值。",
     "enterValue": "输入值后按回车确认"
   },
+  "calendar": {
+    "today": "今天",
+    "more": "更多",
+    "noEvents": "当日无记录。",
+    "list": "列表",
+    "calendar": "日历",
+    "listView": "列表视图",
+    "calendarView": "日历视图",
+    "weekdays": {
+      "sun": "日",
+      "mon": "一",
+      "tue": "二",
+      "wed": "三",
+      "thu": "四",
+      "fri": "五",
+      "sat": "六"
+    }
+  },
+  "tree": {
+    "noRecords": "暂无记录",
+    "expandAll": "全部展开",
+    "collapseAll": "全部收起",
+    "rootNodes": "{{count}} 个根节点",
+    "rootNodes_other": "{{count}} 个根节点",
+    "childCount": "{{count}} 个子节点",
+    "childCount_other": "{{count}} 个子节点"
+  },
+  "detail": {
+    "relatedRecords": "关联记录",
+    "activity": "操作记录",
+    "noActivity": "暂无操作记录。"
+  },
+  "masking": {
+    "tooltip": "此字段已遮罩，数据受隐私保护"
+  },
+  "tenant": {
+    "noTenant": "未选择租户",
+    "switchTenant": "切换租户",
+    "selectTenant": "选择租户",
+    "clearTenant": "清除租户"
+  },
   "language": {
     "label": "语言",
     "en": "English",

@@ -8,8 +8,10 @@
 
 import type { FieldDefinition, ViewFieldConfig } from "@linchkit/core/types";
 import { Input, Label } from "@linchkit/ui-kit/components";
+import { isMaskedValue } from "../lib/masking";
 import type { WidgetDisplayProps, WidgetInputProps } from "../lib/widget-registry";
 import { widgetRegistry } from "../lib/widget-registry";
+import { MaskedValue } from "./masked-value";
 
 // ── Display component ─────────────────────────────────────
 
@@ -22,6 +24,11 @@ interface FieldDisplayProps {
 export function FieldDisplay({ field: viewField, value, fieldDef }: FieldDisplayProps) {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">&mdash;</span>;
+  }
+
+  // Detect masked values and render with lock indicator
+  if (isMaskedValue(value)) {
+    return <MaskedValue value={String(value)} />;
   }
 
   const widgetId = widgetRegistry.resolve({
@@ -65,6 +72,11 @@ export function FieldInput({
   dirty,
   required,
 }: FieldInputProps) {
+  // Masked values are always read-only — show masked display instead of input
+  if (isMaskedValue(value)) {
+    return <MaskedValue value={String(value)} />;
+  }
+
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,
     mode: "input",

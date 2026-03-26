@@ -21,8 +21,11 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ActivityPanel } from "../components/activity-panel";
 import { AutoForm } from "../components/auto-form";
+import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
+import { TransitionButtons } from "../components/transition-buttons";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
@@ -278,6 +281,11 @@ export function SchemaFormPage() {
     ? t("common.new", "New")
     : String((titleField && record?.[titleField]) ?? record?.title ?? params.id ?? "");
 
+  // Whether schema has state machine
+  const hasStateMachine = statusSteps !== null && statusSteps.length > 0;
+  // Whether schema has links
+  const hasLinks = (bundle?.links ?? []).length > 0;
+
   return (
     <div className="bg-muted/30 min-h-full">
       {/* Sticky control panel */}
@@ -288,6 +296,23 @@ export function SchemaFormPage() {
           </Button>
 
           <div className="flex items-center gap-2">
+            {/* State transition buttons */}
+            {!isCreate && hasStateMachine && params.id && (
+              <TransitionButtons
+                schemaName={schemaName}
+                recordId={params.id}
+                recordFields={recordFields}
+                states={bundle?.states}
+                onTransitioned={(updated) => {
+                  setRecord(updated);
+                }}
+              />
+            )}
+
+            {!isCreate && hasStateMachine && (businessActions.length > 0 || !isEditing) && (
+              <Separator orientation="vertical" className="h-5 mx-1" />
+            )}
+
             {businessActions.map((a) => (
               <Button
                 key={a.action}
@@ -333,7 +358,7 @@ export function SchemaFormPage() {
 
       {/* Sheet card */}
       <div className="flex gap-6 my-4 px-4">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-4">
           <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-semibold text-foreground">{recordTitle}</h1>
@@ -354,6 +379,23 @@ export function SchemaFormPage() {
               hideFooter
             />
           </div>
+
+          {/* Related records panel — only in view/edit mode with links */}
+          {!isCreate && hasLinks && params.id && (
+            <RelatedRecordsPanel
+              schemaName={schemaName}
+              recordId={params.id}
+              links={bundle!.links!}
+            />
+          )}
+
+          {/* Activity / execution log panel — only in view/edit mode */}
+          {!isCreate && params.id && (
+            <ActivityPanel
+              schemaName={schemaName}
+              recordId={params.id}
+            />
+          )}
         </div>
       </div>
     </div>

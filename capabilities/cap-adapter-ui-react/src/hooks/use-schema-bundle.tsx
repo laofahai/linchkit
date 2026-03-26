@@ -5,7 +5,7 @@
  * Once a schema is loaded, subsequent navigations serve from cache.
  */
 
-import type { SchemaDefinition, StateDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { LinkDefinition, SchemaDefinition, StateDefinition, ViewDefinition } from "@linchkit/core/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { fetchSchemaBundle } from "@/lib/api";
 
@@ -13,6 +13,7 @@ export interface ResolvedSchemaBundle {
   schema: SchemaDefinition;
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
+  links?: LinkDefinition[];
 }
 
 function normalizeViews(rawViews: unknown): Record<string, ViewDefinition> {
@@ -77,6 +78,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
       } as SchemaDefinition,
       views: normalizeViews(raw.views),
       states: raw.states,
+      links: raw.links,
     };
 
     cacheRef.current.set(name, bundle);
