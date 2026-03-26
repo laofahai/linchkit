@@ -290,7 +290,7 @@ export function FlowsPage() {
         toolbarExtra={
           <>
             <Select value={triggerFilter} onValueChange={setTriggerFilter}>
-              <SelectTrigger className="w-40 h-9">
+              <SelectTrigger className="w-40 h-7 text-[0.8rem]">
                 <SelectValue placeholder={t("flows.allTriggers")} />
               </SelectTrigger>
               <SelectContent>
@@ -303,9 +303,8 @@ export function FlowsPage() {
             <span className="text-sm text-muted-foreground">
               {filtered.length} {t("flows.flowCount")}
             </span>
-            <Button variant="outline" size="sm" onClick={fetchFlows} disabled={loading}>
-              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-              {t("executionLog.refresh")}
+            <Button variant="outline" size="icon-sm" onClick={fetchFlows} disabled={loading} title={t("executionLog.refresh")}>
+              <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </>
         }

@@ -49,11 +49,21 @@ export interface StateChangeAutomationTrigger {
   to?: string;
 }
 
+/** Trigger when a specific flow completes */
+export interface FlowCompletedAutomationTrigger {
+  type: "flowCompleted";
+  /** Name of the source flow that must complete to trigger this automation */
+  sourceFlow: string;
+  /** Optional: only trigger on specific completion status (default: "completed") */
+  status?: "completed" | "failed";
+}
+
 export type AutomationTrigger =
   | EventAutomationTrigger
   | ScheduleAutomationTrigger
   | FieldChangeAutomationTrigger
-  | StateChangeAutomationTrigger;
+  | StateChangeAutomationTrigger
+  | FlowCompletedAutomationTrigger;
 
 // ── Automation actions ─────────────────────────────────
 

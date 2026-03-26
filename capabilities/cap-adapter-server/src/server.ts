@@ -376,7 +376,7 @@ export function createServer(
     // App config — tells the UI which capabilities are loaded and their pages
     .get("/api/app-config", () => {
       const authEnabled = capabilities.some((c) => c.name === "cap-auth");
-      const aiEnabled = !!aiService;
+      const aiEnabled = !!aiService?.configured;
       const pages = capabilities.flatMap((c) => c.pages ?? []);
       return {
         success: true,
@@ -668,7 +668,7 @@ export function createServer(
         return { success: false, error: { message: "Missing 'schema' or 'fields' in request body." } };
       }
 
-      if (!aiService) {
+      if (!aiService?.configured) {
         return { success: true, data: { suggestions: {} } };
       }
 
@@ -767,12 +767,12 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         return { success: false, error: { message: "message is required" } };
       }
 
-      if (!aiService) {
+      if (!aiService?.configured) {
         return {
           success: true,
           data: {
             reply:
-              "AI service is not configured. Add an `ai` section to your LinchKit config to enable AI features.",
+              "AI service is not configured. Configure an AI provider in linchkit.config.ts to enable the assistant.",
             suggestions: [],
           },
         };
@@ -851,7 +851,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         return { success: false, error: { message: "Missing 'query' or 'schema' in request body." } };
       }
 
-      if (!aiService) {
+      if (!aiService?.configured) {
         return { success: true, data: null };
       }
 

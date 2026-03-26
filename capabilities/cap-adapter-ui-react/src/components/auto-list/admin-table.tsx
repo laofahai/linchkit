@@ -120,7 +120,7 @@ export function AdminTable({
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 placeholder={searchPlaceholder ?? t("list.search")}
-                className="pl-8 h-9"
+                className="pl-8 h-7 text-[0.8rem]"
               />
             </div>
           )}

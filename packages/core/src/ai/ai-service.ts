@@ -77,6 +77,7 @@ export function createAIService(config: AIServiceConfig): AIService {
     config.cache?.enabled ? new AIResponseCache(config.cache) : undefined;
 
   return {
+    configured: true,
     complete: (options) =>
       executeWithFallback(config, options, costEstimator, cache),
   };
@@ -88,6 +89,7 @@ export function createAIService(config: AIServiceConfig): AIService {
  */
 export function createNoopAIService(): AIService {
   return {
+    configured: false,
     complete: () => {
       throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
     },

@@ -12,6 +12,7 @@
  */
 
 import type { Actor, ActorType } from "../types/action";
+import type { EventBusLike } from "../types/event";
 import type {
   ActionFlowStep,
   AIFlowStep,
@@ -21,7 +22,8 @@ import type {
   FlowStep,
   ParallelFlowStep,
 } from "../types/flow";
-import type { FlowEngine, FlowStepContext } from "./types";
+import { emitFlowCompletionEvent, processOnCompleteChains } from "./flow-chaining";
+import type { FlowEngine, FlowRegistry, FlowStepContext } from "./types";
 
 // ── Expression resolver ─────────────────────────────────
 
@@ -286,7 +288,13 @@ async function executeAIStep(
  * - `ai` steps
  * - `parallel` steps (run sequentially with a warning)
  */
-export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
+export function createSyncFlowEngine(
+  stepContext: FlowStepContext,
+  options?: {
+    eventBus?: EventBusLike & { emit?: (event: import("../types/event").EventRecord) => Promise<void> };
+    flowRegistry?: FlowRegistry;
+  },
+): FlowEngine {
   /** In-memory registry of flow definitions */
   const flowDefs = new Map<string, FlowDefinition>();
 
@@ -451,23 +459,40 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
       };
     }
 
+    // Emit flow completion/failure event to EventBus
+    if (options?.eventBus && (instance.status === "completed" || instance.status === "failed")) {
+      emitFlowCompletionEvent(options.eventBus, instance);
+    }
+
+    // Process explicit onComplete chains (only via flowRegistry, not self-reference)
+    if (options?.flowRegistry && instance.status === "completed") {
+      try {
+        await processOnCompleteChains(instance, options.flowRegistry, engine);
+      } catch (chainErr) {
+        // Don't fail the parent flow if chaining fails
+        console.warn(
+          `[SyncFlowEngine] onComplete chain failed for flow "${instance.flowName}": ${chainErr instanceof Error ? chainErr.message : String(chainErr)}`,
+        );
+      }
+    }
+
     return instance;
   }
 
   // ── FlowEngine interface ────────────────────────────────
 
-  return {
-    async startFlow(flowName, input, options) {
+  const engine: FlowEngine = {
+    async startFlow(flowName, input, startOptions) {
       const definition = flowDefs.get(flowName);
       if (!definition) {
         throw new Error(`Flow "${flowName}" is not registered`);
       }
 
-      const instanceId = options?.instanceId ?? crypto.randomUUID();
-      const tenantId = options?.tenantId;
+      const instanceId = startOptions?.instanceId ?? crypto.randomUUID();
+      const tenantId = startOptions?.tenantId;
       let actor: Actor | undefined;
-      if (options?.actor) {
-        const optActor = options.actor;
+      if (startOptions?.actor) {
+        const optActor = startOptions.actor;
         if ("groups" in optActor && optActor.groups) {
           actor = optActor as Actor;
         } else {

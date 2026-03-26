@@ -471,7 +471,7 @@ export function ProposalsPage() {
         toolbarExtra={
           <>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36 h-9">
+              <SelectTrigger className="w-36 h-7 text-[0.8rem]">
                 <SelectValue placeholder={t("proposals.filter.all")} />
               </SelectTrigger>
               <SelectContent>
@@ -481,9 +481,8 @@ export function ProposalsPage() {
                 <SelectItem value="rejected">{t("proposals.filter.rejected")}</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={loadProposals}>
-              <RefreshCwIcon className="h-4 w-4 mr-1" />
-              {t("executionLog.refresh")}
+            <Button variant="outline" size="icon-sm" onClick={loadProposals} disabled={loading} title={t("executionLog.refresh")}>
+              <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </>
         }

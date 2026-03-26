@@ -44,18 +44,35 @@ async function sendAIChat(
   message: string,
   context: { schema?: string; recordId?: string },
 ): Promise<AIChatResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   try {
     const res = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, context }),
+      signal: controller.signal,
     });
-    return res.json();
-  } catch {
-    return {
-      success: false,
-      error: { message: "Failed to connect to AI service" },
-    };
+
+    const data = await res.json();
+
+    if (!res.ok && !data?.error?.message) {
+      return {
+        success: false,
+        error: { message: `Request failed (${res.status})` },
+      };
+    }
+
+    return data as AIChatResponse;
+  } catch (err) {
+    const message =
+      err instanceof DOMException && err.name === "AbortError"
+        ? "Request timed out. Please try again."
+        : "Failed to connect to AI service";
+    return { success: false, error: { message } };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -105,23 +122,26 @@ export function AIAssistant({
     setInput("");
     setLoading(true);
 
-    const response = await sendAIChat(trimmed, {
-      schema: params.name,
-      recordId: params.id,
-    });
+    try {
+      const response = await sendAIChat(trimmed, {
+        schema: params.name,
+        recordId: params.id,
+      });
 
-    const assistantMsg: ChatMessage = {
-      id: `ai-${Date.now()}`,
-      role: "assistant",
-      content: response.success
-        ? (response.data?.reply ?? t("ai.noResponse"))
-        : (response.error?.message ?? t("ai.error")),
-      suggestions: response.success ? response.data?.suggestions : undefined,
-      timestamp: new Date(),
-    };
+      const assistantMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        role: "assistant",
+        content: response.success
+          ? (response.data?.reply ?? t("ai.noResponse"))
+          : (response.error?.message ?? t("ai.error")),
+        suggestions: response.success ? response.data?.suggestions : undefined,
+        timestamp: new Date(),
+      };
 
-    setMessages((prev) => [...prev, assistantMsg]);
-    setLoading(false);
+      setMessages((prev) => [...prev, assistantMsg]);
+    } finally {
+      setLoading(false);
+    }
   }, [input, loading, params.name, params.id, t]);
 
   const handleKeyDown = useCallback(

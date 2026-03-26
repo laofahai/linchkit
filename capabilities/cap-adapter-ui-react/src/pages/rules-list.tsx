@@ -17,7 +17,6 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  FilterIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
 } from "lucide-react";
@@ -348,9 +347,8 @@ export function RulesListPage() {
         }}
         toolbarExtra={
           <>
-            <FilterIcon className="size-4 text-muted-foreground" />
             <Select value={triggerFilter} onValueChange={setTriggerFilter}>
-              <SelectTrigger className="w-44 h-9">
+              <SelectTrigger className="w-44 h-7 text-[0.8rem]">
                 <SelectValue placeholder={t("rules.allTriggers")} />
               </SelectTrigger>
               <SelectContent>
@@ -364,7 +362,7 @@ export function RulesListPage() {
             </Select>
             {schemas.length > 0 && (
               <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-                <SelectTrigger className="w-44 h-9">
+                <SelectTrigger className="w-44 h-7 text-[0.8rem]">
                   <SelectValue placeholder={t("rules.allSchemas")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -378,9 +376,8 @@ export function RulesListPage() {
             <span className="text-sm text-muted-foreground">
               {rules.length} {t("rules.rulesCount")}
             </span>
-            <Button variant="outline" size="sm" onClick={fetchRules} disabled={loading}>
-              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-              {t("executionLog.refresh")}
+            <Button variant="outline" size="icon-sm" onClick={fetchRules} disabled={loading} title={t("executionLog.refresh")}>
+              <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </>
         }

@@ -139,6 +139,21 @@ export interface FlowDefinition {
   maxRetries?: number;
   /** Timeout for the entire flow in milliseconds */
   timeout?: number;
+
+  /** Explicit chaining: trigger downstream flow(s) on completion */
+  onComplete?: FlowChainConfig | FlowChainConfig[];
+}
+
+/** Configuration for explicit flow chaining */
+export interface FlowChainConfig {
+  /** Name of the downstream flow to trigger */
+  flow: string;
+  /** Map upstream output fields to downstream input fields.
+   *  Keys are downstream input field names, values are expressions
+   *  (e.g., "$result.orderId" or "$context.amount") */
+  inputMapping?: Record<string, string>;
+  /** Only chain on specific status (default: "completed") */
+  onStatus?: "completed" | "failed";
 }
 
 // ── Flow instance (runtime state) ──────────────────────

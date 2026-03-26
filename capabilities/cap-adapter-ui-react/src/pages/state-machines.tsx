@@ -637,16 +637,15 @@ export function StateMachinesPage() {
           <h1 className="text-lg font-semibold">{t("stateMachines.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("stateMachines.subtitle")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchMachines} disabled={loading}>
-          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          {t("executionLog.refresh")}
+        <Button variant="outline" size="icon-sm" onClick={fetchMachines} disabled={loading} title={t("executionLog.refresh")}>
+          <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
       {allSchemas.length > 1 && (
         <div className="flex items-center gap-2">
           <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 h-7 text-[0.8rem]">
               <SelectValue placeholder={t("stateMachines.allSchemas")} />
             </SelectTrigger>
             <SelectContent>

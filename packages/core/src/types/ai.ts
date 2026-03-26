@@ -199,6 +199,8 @@ export interface AICompletionResult {
 
 /** The ctx.ai interface available in Action handlers */
 export interface AIService {
+  /** Whether a real AI provider is configured (false for noop) */
+  configured: boolean;
   /** Single completion request */
   complete(options: AICompletionOptions): Promise<AICompletionResult>;
 }
