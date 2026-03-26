@@ -16,7 +16,6 @@ import {
 import {
   ActivityIcon,
   BrainCircuitIcon,
-  CloudIcon,
   DatabaseIcon,
   GlobeIcon,
   InfoIcon,
@@ -177,28 +176,7 @@ export function SettingsPage() {
   if (!settings) return null;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-5xl">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("settings.subtitle")}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={fetchSettings}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          <RefreshCwIcon
-            className={`size-3.5 ${loading ? "animate-spin" : ""}`}
-          />
-          {t("common.refresh")}
-        </button>
-      </div>
-
+    <div className="p-4 space-y-6">
       {/* Read-only notice */}
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
         <InfoIcon className="size-4 mt-0.5 shrink-0" />

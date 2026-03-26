@@ -2,8 +2,8 @@
  * Proposal / Evolution / AI Insights REST API endpoints
  *
  * Mounts onto the Elysia app instance. Uses ProposalEngine from core
- * for proposal lifecycle management, and generates demo insights
- * when AI service is not configured.
+ * for proposal lifecycle management. PatternDetector analyzes real
+ * execution logs to generate insights on demand (cached with short TTL).
  */
 
 import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";

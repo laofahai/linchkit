@@ -63,54 +63,7 @@ interface FlowDetail {
   dependencies?: FlowDependencyInfo;
 }
 
-// ── Demo data ────────────────────────────────────────────
-
-const DEMO_FLOWS: Record<string, FlowDetail> = {
-  purchase_approval_flow: {
-    name: "purchase_approval_flow",
-    label: "Purchase Approval",
-    description: "Multi-step purchase request approval process with budget check",
-    version: 1,
-    trigger: { type: "event", eventType: "action.succeeded.submit_request" },
-    onError: "compensate",
-    steps: [
-      { id: "calc", name: "Calculate Total", type: "action", actionName: "calculate_total" },
-      { id: "check", name: "Budget Check", type: "condition", expression: "$prev.output.amount > 10000", then: "approval", else: "notify" },
-      { id: "approval", name: "Manager Approval", type: "approval", approvers: ["managers"], timeout: 604800000, onTimeout: "reject" },
-      { id: "notify", name: "Notify Requester", type: "action", actionName: "notify_requester" },
-    ],
-    onComplete: { flow: "onboarding_flow", inputMapping: { requestId: "$result.__steps.calc.output.requestId" } },
-    dependencies: { upstream: [], downstream: ["onboarding_flow"] },
-  },
-  ai_evolution_analysis: {
-    name: "ai_evolution_analysis",
-    label: "AI Evolution Analysis",
-    description: "Weekly AI analysis of execution data to discover optimization opportunities",
-    version: 1,
-    trigger: { type: "schedule", cron: "0 2 * * 1" },
-    steps: [
-      { id: "collect", name: "Collect Data", type: "action", actionName: "collect_execution_stats" },
-      { id: "analyze", name: "AI Analyze", type: "ai", prompt: "Analyze execution data for optimization", model: "claude-sonnet" },
-      { id: "gen_proposals", name: "Generate Proposals", type: "ai", prompt: "Generate Rule/Schema change suggestions" },
-      { id: "create", name: "Create Proposals", type: "action", actionName: "create_proposal" },
-    ],
-  },
-  onboarding_flow: {
-    name: "onboarding_flow",
-    label: "Employee Onboarding",
-    description: "Automated onboarding process for new employees",
-    version: 1,
-    trigger: { type: "manual" },
-    steps: [
-      { id: "create_account", name: "Create Account", type: "action", actionName: "create_employee_account" },
-      { id: "setup", name: "Setup Tasks", type: "parallel", steps: ["provision_laptop", "create_email"], joinType: "all" },
-      { id: "wait_docs", name: "Wait for Documents", type: "wait", signal: "documents_uploaded", timeout: 259200000 },
-      { id: "review", name: "HR Review", type: "approval", approvers: ["hr_team"] },
-      { id: "welcome", name: "Send Welcome", type: "action", actionName: "send_welcome_email" },
-    ],
-    dependencies: { upstream: ["purchase_approval_flow"], downstream: [] },
-  },
-};
+// No demo data — shows empty state when API is unavailable
 
 // ── Step styling config ──────────────────────────────────
 
@@ -262,21 +215,10 @@ export function FlowDetailPage() {
         const json = await res.json();
         setFlow(json.data);
       } else {
-        // Try demo data
-        const demo = DEMO_FLOWS[name as string];
-        if (demo) {
-          setFlow(demo);
-        } else {
-          setError(t("flows.notFound", { name }));
-        }
+        setError(t("flows.notFound", { name }));
       }
     } catch {
-      const demo = DEMO_FLOWS[name as string];
-      if (demo) {
-        setFlow(demo);
-      } else {
-        setError(t("flows.loadFailed"));
-      }
+      setError(t("flows.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -404,7 +346,7 @@ export function FlowDetailPage() {
                         {c.onStatus && <Badge variant="secondary" className="text-[9px] h-4">{c.onStatus}</Badge>}
                         {c.inputMapping && (
                           <span className="text-muted-foreground/60">
-                            ({Object.keys(c.inputMapping).length} mapped fields)
+                            ({t("flows.mappedFields", { count: Object.keys(c.inputMapping).length })})
                           </span>
                         )}
                       </div>

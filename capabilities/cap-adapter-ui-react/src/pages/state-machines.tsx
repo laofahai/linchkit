@@ -98,7 +98,7 @@ export function StateMachinesPage() {
         const json = await res.json();
         setMachines(json.data ?? []);
       } else {
-        setMachines(DEMO_STATES);
+        setMachines([]);
       }
     } catch {
       setMachines(DEMO_STATES);
@@ -345,20 +345,10 @@ export function StateMachineDetailPage() {
         const json = await res.json();
         setMachine(json.data);
       } else {
-        const demo = DEMO_DETAILS[name as string];
-        if (demo) {
-          setMachine(demo);
-        } else {
-          setError(t("stateMachines.notFound", { name }));
-        }
+        setError(t("stateMachines.notFound", { name }));
       }
     } catch {
-      const demo = DEMO_DETAILS[name as string];
-      if (demo) {
-        setMachine(demo);
-      } else {
-        setError(t("stateMachines.loadFailed"));
-      }
+      setError(t("stateMachines.loadFailed"));
     } finally {
       setLoading(false);
     }

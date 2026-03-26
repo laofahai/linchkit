@@ -172,7 +172,7 @@ export function ExecutionLogsPage() {
         clearData();
       }
     } catch {
-      applyDemoData();
+      clearData();
     } finally {
       setLoading(false);
     }

@@ -471,6 +471,10 @@
     "triggeredBy": "被触发于",
     "triggers": "触发",
     "onComplete": "完成时",
+    "mappedFields": "{{count}} 个映射字段",
+    "mappedFields_other": "{{count}} 个映射字段",
+    "chainIn": "{{count}} 入",
+    "chainOut": "{{count}} 出",
     "columns": {
       "name": "名称",
       "trigger": "触发方式",

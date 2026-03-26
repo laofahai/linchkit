@@ -329,19 +329,20 @@ export function ProposalsPage() {
       cell: ({ row }) => {
         const p = row.original as unknown as Proposal;
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-w-[320px]">
             {p.author.type === "ai" ? (
               <BotIcon className="h-4 w-4 text-purple-500 shrink-0" />
             ) : (
               <UserIcon className="h-4 w-4 text-blue-500 shrink-0" />
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="font-medium text-sm truncate">{p.title}</div>
               <div className="text-xs text-muted-foreground truncate">{p.description}</div>
             </div>
           </div>
         );
       },
+      size: 320,
     },
     {
       accessorKey: "status",

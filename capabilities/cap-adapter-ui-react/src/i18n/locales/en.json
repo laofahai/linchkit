@@ -471,6 +471,10 @@
     "triggeredBy": "Triggered by",
     "triggers": "Triggers",
     "onComplete": "On Complete",
+    "mappedFields": "{{count}} mapped field",
+    "mappedFields_other": "{{count}} mapped fields",
+    "chainIn": "{{count}} in",
+    "chainOut": "{{count}} out",
     "columns": {
       "name": "Name",
       "trigger": "Trigger",

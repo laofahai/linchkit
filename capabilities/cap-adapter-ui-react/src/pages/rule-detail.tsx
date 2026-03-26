@@ -231,49 +231,7 @@ function EffectDisplay({ effect, t }: { effect: RuleListItem["effect"]; t: (key:
   );
 }
 
-// ── Demo fallback ────────────────────────────────────────
-
-const DEMO_RULES: Record<string, RuleListItem> = {
-  amount_check: {
-    name: "amount_check",
-    label: "High-value purchase requires approval",
-    description: "Purchase requests over 10,000 require director approval",
-    priority: 10,
-    trigger: { action: "submit_request" },
-    condition: { field: "target.amount", operator: "gt", value: 10000 },
-    effect: { type: "require_approval", level: "director", message: "Amount exceeds 10,000 — director approval required" },
-  },
-  budget_check: {
-    name: "budget_check",
-    label: "Department budget limit",
-    description: "Block purchases that exceed department quarterly budget",
-    priority: 20,
-    trigger: { action: "submit_request" },
-    condition: { operator: "and", conditions: [
-      { field: "target.amount", operator: "gt", value: 20000 },
-      { field: "target.department", operator: "eq", value: "Engineering" },
-    ] },
-    effect: { type: "block", message: "Amount exceeds department budget", reason: "BUDGET.EXCEEDED" },
-  },
-  auto_priority: {
-    name: "auto_priority",
-    label: "Auto-set priority for large orders",
-    description: "Automatically set priority to high for orders >= 5000",
-    priority: 5,
-    trigger: { action: "create_purchase_request" },
-    condition: { field: "target.amount", operator: "gte", value: 5000 },
-    effect: { type: "enrich", setFields: { priority: "high" } },
-  },
-  state_notification: {
-    name: "state_notification",
-    label: "Notify on approval",
-    description: "Send notification email when a purchase request is approved",
-    priority: 0,
-    trigger: { stateChange: { schema: "purchase_request", to: "approved" } },
-    condition: { type: "code" },
-    effect: { type: "execute_action", action: "send_notification", params: { template: "approval_notice" } },
-  },
-};
+// No demo data — shows empty state when API is unavailable
 
 // ── Component ────────────────────────────────────────────
 
@@ -295,24 +253,12 @@ export function RuleDetailPage() {
         const json = await res.json();
         setRule(json.data ?? null);
       } else if (res.status === 404) {
-        // Try demo data
-        const demo = DEMO_RULES[name];
-        if (demo) {
-          setRule(demo);
-        } else {
-          setError(t("rules.ruleNotFound"));
-        }
-      } else {
-        const demo = DEMO_RULES[name];
-        setRule(demo ?? null);
-      }
-    } catch {
-      const demo = DEMO_RULES[name];
-      if (demo) {
-        setRule(demo);
+        setError(t("rules.ruleNotFound"));
       } else {
         setError(t("rules.ruleNotFound"));
       }
+    } catch {
+      setError(t("rules.ruleNotFound"));
     } finally {
       setLoading(false);
     }

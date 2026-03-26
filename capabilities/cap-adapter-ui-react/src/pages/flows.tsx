@@ -139,7 +139,7 @@ export function FlowsPage() {
         setFlows([]);
       }
     } catch {
-      setFlows(DEMO_FLOWS);
+      setFlows([]);
     } finally {
       setLoading(false);
     }
@@ -219,13 +219,13 @@ export function FlowsPage() {
             {flow.chainedFrom && flow.chainedFrom.length > 0 && (
               <Badge variant="outline" className="text-[9px] gap-0.5 h-5">
                 <LinkIcon className="size-2.5" />
-                {flow.chainedFrom.length} in
+                {t("flows.chainIn", { count: flow.chainedFrom.length })}
               </Badge>
             )}
             {flow.chainsTo && flow.chainsTo.length > 0 && (
               <Badge variant="outline" className="text-[9px] gap-0.5 h-5">
                 <ArrowRightIcon className="size-2.5" />
-                {flow.chainsTo.length} out
+                {t("flows.chainOut", { count: flow.chainsTo.length })}
               </Badge>
             )}
           </div>
