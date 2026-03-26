@@ -55,9 +55,12 @@ const graphqlSchema = buildGraphQLSchema([taskSchema]);
 
 const mockAiService: AIService = {
   configured: true,
-  complete: async (prompt: string) => {
-    // Route to different responses based on the prompt content
-    if (prompt.includes("auto-fill") || prompt.includes("suggest values")) {
+  complete: async (options) => {
+    // Concatenate all message contents for routing
+    const allText = options.messages.map((m) => m.content).join(" ");
+
+    // Route to different responses based on prompt content
+    if (allText.includes("auto-fill") || allText.includes("suggest") || allText.includes("Fields that need suggestions")) {
       return {
         content: JSON.stringify({
           title: { value: "Weekly Standup Notes", confidence: 0.85, reason: "Common task title" },
@@ -69,14 +72,17 @@ const mockAiService: AIService = {
         duration: 100,
       };
     }
-    if (prompt.includes("search filter") || prompt.includes("structured filter")) {
+    if (allText.includes("search filter") || allText.includes("structured filter")) {
       return {
         content: JSON.stringify({
-          operator: "and",
-          conditions: [
-            { field: "priority", operator: "eq", value: "high" },
-            { field: "assignee", operator: "eq", value: "Alice" },
-          ],
+          filter: {
+            operator: "and",
+            conditions: [
+              { field: "priority", operator: "eq", value: "high" },
+              { field: "assignee", operator: "eq", value: "Alice" },
+            ],
+          },
+          explanation: "Filter by high priority and assignee Alice",
         }),
         usage: { inputTokens: 80, outputTokens: 40, totalTokens: 120 },
         model: "test-model",
@@ -84,7 +90,7 @@ const mockAiService: AIService = {
         duration: 80,
       };
     }
-    if (prompt.includes("resolve") || prompt.includes("intent")) {
+    if (allText.includes("Intent Resolver") || allText.includes("resolve") || allText.includes("intent")) {
       return {
         content: JSON.stringify({
           action: "create_task",
@@ -313,8 +319,9 @@ describe("E2E AI endpoints — with mock AI service", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data).toBeDefined();
-    // Should return a structured condition
-    expect(json.data.operator || json.data.field).toBeDefined();
+    // Should return a structured filter condition with explanation
+    expect(json.data.filter).toBeDefined();
+    expect(json.data.filter.operator || json.data.filter.field).toBeDefined();
   });
 
   test("10. /api/ai/search returns 400 when query is missing", async () => {

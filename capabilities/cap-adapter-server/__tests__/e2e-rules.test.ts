@@ -253,11 +253,12 @@ describe("E2E rule evaluation", () => {
   });
 
   test("6. Record state unchanged after blocked rule", async () => {
-    // Create a high-amount purchase
+    // Create a high-amount purchase with explicit status
     const createResult = await restAction("create_purchase", {
       title: "Blocked Purchase",
       amount: 200000,
       department: "Sales",
+      status: "draft",
     });
     const id = (createResult.body.data as Record<string, unknown>).id as string;
 
