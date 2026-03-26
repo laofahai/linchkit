@@ -101,8 +101,13 @@
     "placeholder": "搜索...",
     "noResults": "未找到结果。",
     "navigation": "导航",
+    "schemas": "数据模型",
     "actions": "操作",
     "actionsComingSoon": "操作启动功能即将推出...",
+    "preferences": "偏好设置",
+    "switchToLight": "切换为浅色模式",
+    "switchToDark": "切换为深色模式",
+    "switchToSystem": "切换为系统主题",
     "shortcutSettings": "⌘,"
   },
   "executionLog": {

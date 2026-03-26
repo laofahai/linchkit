@@ -101,8 +101,13 @@
     "placeholder": "Search...",
     "noResults": "No results found.",
     "navigation": "Navigation",
+    "schemas": "Schemas",
     "actions": "Actions",
     "actionsComingSoon": "Action launching coming soon...",
+    "preferences": "Preferences",
+    "switchToLight": "Switch to Light Mode",
+    "switchToDark": "Switch to Dark Mode",
+    "switchToSystem": "Switch to System Theme",
     "shortcutSettings": "⌘,"
   },
   "executionLog": {

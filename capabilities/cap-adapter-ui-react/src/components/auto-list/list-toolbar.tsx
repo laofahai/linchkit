@@ -9,7 +9,6 @@ import {
 } from "@linchkit/ui-kit/components";
 import { ChevronDown, Columns3, Download, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { TOOLBAR_ICON_BTN } from "../../lib/constants";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import type {
   Column,
@@ -143,7 +142,7 @@ export function ListToolbar({
         {/* Overflow menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className={TOOLBAR_ICON_BTN}>
+            <Button variant="ghost" size="icon-sm">
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>

@@ -22,8 +22,7 @@ export function ListPagination({ table }: ListPaginationProps) {
       <div className="flex items-center gap-1">
         <Button
           variant="outline"
-          size="icon"
-          className="size-7"
+          size="icon-sm"
           disabled={!table.getCanPreviousPage()}
           onClick={() => table.setPageIndex(0)}
         >
@@ -31,8 +30,7 @@ export function ListPagination({ table }: ListPaginationProps) {
         </Button>
         <Button
           variant="outline"
-          size="icon"
-          className="size-7"
+          size="icon-sm"
           disabled={!table.getCanPreviousPage()}
           onClick={() => table.previousPage()}
         >
@@ -43,8 +41,7 @@ export function ListPagination({ table }: ListPaginationProps) {
         </span>
         <Button
           variant="outline"
-          size="icon"
-          className="size-7"
+          size="icon-sm"
           disabled={!table.getCanNextPage()}
           onClick={() => table.nextPage()}
         >
@@ -52,8 +49,7 @@ export function ListPagination({ table }: ListPaginationProps) {
         </Button>
         <Button
           variant="outline"
-          size="icon"
-          className="size-7"
+          size="icon-sm"
           disabled={!table.getCanNextPage()}
           onClick={() => table.setPageIndex(table.getPageCount() - 1)}
         >

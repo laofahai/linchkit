@@ -25,6 +25,7 @@ import { purchaseItemSchema } from "./schemas/purchase-item";
 import { purchaseRequestSchema } from "./schemas/purchase-request";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
+import { departmentListView } from "./views/department-list";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
 
@@ -42,7 +43,7 @@ export const capPurchaseDemo = defineCapability({
   schemas: [purchaseRequestSchema, departmentSchema, purchaseItemSchema],
   actions: [submitAction, approveAction],
   states: [purchaseRequestState],
-  views: [purchaseRequestListView, purchaseRequestFormView],
+  views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
   links: [requestToDepartment, requestToItems],
   automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
