@@ -71,6 +71,7 @@ export function buildSystemPrompt(options: {
       if (fieldNames.length > 0) {
         const fieldDescriptions = fieldNames.map((name) => {
           const field = descriptor.fields[name];
+          if (!field) return `  - ${name}`;
           return `  - ${name}: ${field.type}${field.label ? ` (${field.label})` : ""}${field.required ? " [required]" : ""}`;
         });
         parts.push(`Fields:\n${fieldDescriptions.join("\n")}`);
@@ -95,7 +96,7 @@ export function buildSystemPrompt(options: {
       // Relations
       if (descriptor.relations.length > 0) {
         const relList = descriptor.relations
-          .map((r) => `  - ${r.label}: ${r.relatedSchema} (${r.cardinality})`)
+          .map((r) => `  - ${r.label ?? r.linkName}: ${r.targetSchema} (${r.cardinality})`)
           .join("\n");
         parts.push(`Relations:\n${relList}`);
       }
