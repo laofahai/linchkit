@@ -5,7 +5,7 @@
  * Handles automatic reconnection with exponential backoff.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface UseSubscriptionOptions {
   /** GraphQL subscription query string */
@@ -46,6 +46,15 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
   const onDataRef = useRef(onData);
   onDataRef.current = onData;
 
+  // Serialize variables to a stable string to avoid reconnections on object reference changes
+  const variablesKey = useMemo(
+    () => (variables ? JSON.stringify(variables) : ""),
+    [variables],
+  );
+  // Keep a ref to variables so the effect closure always has the latest value
+  const variablesRef = useRef(variables);
+  variablesRef.current = variables;
+
   // Ref to track reconnect attempts for exponential backoff
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,8 +84,9 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
         const params = new URLSearchParams({
           query,
         });
-        if (variables && Object.keys(variables).length > 0) {
-          params.set("variables", JSON.stringify(variables));
+        const vars = variablesRef.current;
+        if (vars && Object.keys(vars).length > 0) {
+          params.set("variables", JSON.stringify(vars));
         }
 
         const url = `/graphql?${params.toString()}`;
@@ -176,7 +186,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
       }
       setConnected(false);
     };
-  }, [query, variables, enabled, cleanup]);
+  }, [query, variablesKey, enabled, cleanup]);
 
   return { connected, error };
 }

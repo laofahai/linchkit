@@ -17,9 +17,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  Skeleton,
+  toast,
 } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Calendar, List, Loader2, RefreshCw, ServerCrash } from "lucide-react";
+import { Calendar, List, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
@@ -151,6 +153,7 @@ function generateFallbackListView(
     actions: [
       { action: "create", label: "New", position: "toolbar" as const, variant: "default" as const },
       { action: "edit", label: "Edit", position: "row" as const },
+      { action: "duplicate", label: "t:common.duplicate", position: "row" as const },
       {
         action: "delete",
         label: "Delete",
@@ -198,8 +201,12 @@ export function SchemaListPage() {
 
   const schema = bundle?.schema;
   const explicitListView = getPrimaryView(bundle?.views, "list") as AutoListViewDefinition | undefined;
-  // Fallback: auto-generate a list view from schema fields when none is defined
-  const listView = explicitListView ?? (schema ? generateFallbackListView(schema) : undefined);
+  // Fallback: auto-generate a list view from schema fields when none is defined.
+  // Memoize to avoid creating a new object reference on every render.
+  const listView = useMemo(
+    () => explicitListView ?? (schema ? generateFallbackListView(schema) : undefined),
+    [explicitListView, schema],
+  );
   const calendarViewDef = getPrimaryView(bundle?.views, "calendar") as ViewDefinition | undefined;
 
   const [data, setData] = useState<Record<string, unknown>[]>([]);
@@ -219,20 +226,34 @@ export function SchemaListPage() {
   );
   const hasCalendarOption = calendarDateField !== null;
 
+  // Use refs for values needed inside fetchData to keep its identity stable.
+  // This prevents the useCallback from changing on every render, which would
+  // cascade into the useEffect and subscription handler causing infinite loops.
+  const listViewRef = useRef(listView);
+  listViewRef.current = listView;
+  const schemaFieldsRef = useRef(schema?.fields);
+  schemaFieldsRef.current = schema?.fields;
+  const bundleLinksRef = useRef(bundle?.links);
+  bundleLinksRef.current = bundle?.links;
+  const calendarDateFieldRef = useRef(calendarDateField);
+  calendarDateFieldRef.current = calendarDateField;
+
   const fetchData = useCallback(async () => {
-    if (!listView || !schemaName) return;
+    const currentListView = listViewRef.current;
+    if (!currentListView || !schemaName) return;
     setLoading(true);
     setDataError(null);
     try {
-      const fields = getQueryFields(listView, schema?.fields, bundle?.links, schemaName);
+      const fields = getQueryFields(currentListView, schemaFieldsRef.current, bundleLinksRef.current, schemaName);
       // Ensure the date field is included in the query for calendar view
-      if (calendarDateField && !fields.some((f) => f === calendarDateField)) {
-        fields.push(calendarDateField);
+      const dateField = calendarDateFieldRef.current;
+      if (dateField && !fields.some((f) => f === dateField)) {
+        fields.push(dateField);
       }
       const result = await queryList({
         schema: schemaName,
         fields,
-        pageSize: listView.pageSize ?? 50,
+        pageSize: currentListView.pageSize ?? 50,
       });
       setData(result.items);
     } catch (err) {
@@ -242,7 +263,7 @@ export function SchemaListPage() {
     } finally {
       setLoading(false);
     }
-  }, [schemaName, listView, schema?.fields, calendarDateField]);
+  }, [schemaName]);
 
   // ── Real-time subscription via SSE ──────────────────────
   const [hasNewData, setHasNewData] = useState(false);
@@ -252,11 +273,29 @@ export function SchemaListPage() {
     [schemaName],
   );
 
+  // Debounced refresh on subscription events to avoid rapid-fire fetches
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSubscriptionData = useCallback(() => {
-    // Mark that new data is available — auto-refresh the list
+    // Debounce: wait 500ms before refreshing, merge multiple events
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
     setHasNewData(true);
-    fetchData().then(() => setHasNewData(false));
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      fetchData().then(() => setHasNewData(false));
+    }, 500);
   }, [fetchData]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   useSubscription({
     query: subscriptionQuery,
@@ -264,13 +303,15 @@ export function SchemaListPage() {
     onData: handleSubscriptionData,
   });
 
+  // Initial data fetch — only depends on schemaName and bundle readiness
+  const bundleReady = !bundleLoading && !!bundle;
   useEffect(() => {
-    if (!bundleLoading && bundle) {
+    if (bundleReady) {
       fetchData();
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchData, bundleLoading, bundle]);
+  }, [fetchData, bundleReady]);
 
   async function handleAction(actionName: string, recordId: string) {
     if (!schemaName) return;
@@ -281,12 +322,20 @@ export function SchemaListPage() {
       case "edit":
         navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
         break;
+      case "duplicate":
+        navigate({
+          to: "/schemas/$name/new",
+          params: { name: schemaName },
+          search: { clone: recordId },
+        });
+        break;
       case "delete":
         try {
           await deleteRecord(schemaName, recordId);
+          toast.success(t("toast.recordDeleted", "Record deleted successfully"));
           await fetchData();
         } catch (err) {
-          console.error("Delete failed:", err);
+          toast.error(t("toast.deleteFailed", "Failed to delete record"));
         }
         break;
       default:
@@ -313,12 +362,14 @@ export function SchemaListPage() {
 
   async function executeBulkDelete() {
     if (!schemaName || pendingBulkIds.current.length === 0) return;
+    const count = pendingBulkIds.current.length;
     setBulkDeleting(true);
     try {
       await bulkDeleteRecords(schemaName, pendingBulkIds.current);
+      toast.success(t("toast.bulkDeleted", "{{count}} record(s) deleted successfully", { count }));
       await fetchData();
     } catch (err) {
-      console.error("Bulk delete failed:", err);
+      toast.error(t("toast.bulkDeleteFailed", "Failed to delete records"));
     } finally {
       setBulkDeleting(false);
       setBulkDeleteOpen(false);
@@ -338,11 +389,36 @@ export function SchemaListPage() {
     );
   }
 
-  // Loading bundle
+  // Loading bundle — show table skeleton matching final layout
   if (bundleLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      <div className="p-4 space-y-4">
+        {/* Toolbar skeleton: search bar + action button */}
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+        {/* Table skeleton: header + rows */}
+        <div className="rounded border border-border">
+          {/* Header row */}
+          <div className="flex items-center gap-4 border-b border-border bg-muted/50 px-3 py-2.5">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          {/* Data rows */}
+          {Array.from({ length: 5 }, (_, i) => `skel-row-${i}`).map((key) => (
+            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
