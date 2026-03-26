@@ -22,6 +22,7 @@ import type {
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
+import type { CacheManager } from "@linchkit/core/server";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
 import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
 export { generateCrudActions, type GenerateCrudActionsOptions } from "./build-crud-actions";
@@ -236,6 +237,8 @@ export interface BuildGraphQLSchemaOptions {
   executionLogger?: ExecutionLogger;
   /** Link definitions for generating bidirectional relation resolver fields */
   links?: LinkDefinition[];
+  /** Cache manager for caching query results (optional — queries go direct when absent) */
+  cacheManager?: CacheManager;
   /** Event bus for wiring GraphQL subscriptions (real-time CRUD events via SSE) */
   eventBus?: EventBus;
   /** Permission groups for data masking (unmask permission checks) */
@@ -268,6 +271,26 @@ export function buildGraphQLSchema(
   const permissionGroups = options?.permissionGroups ?? [];
   const derivedEngine = options?.derivedPropertyEngine;
   const stateDefinitions = options?.stateDefinitions ?? [];
+  const cacheManager = options?.cacheManager;
+
+  /** Default TTL for GraphQL query cache entries (30s) */
+  const GQL_CACHE_TTL = 30_000;
+
+  /** Cache-aware wrapper: try cache first, fall back to loader, store result */
+  async function cachedQuery<T>(cacheKey: string, tags: string[], loader: () => Promise<T>): Promise<T> {
+    if (!cacheManager) return loader();
+    const cached = cacheManager.get<T>(cacheKey);
+    if (cached !== undefined) return cached;
+    const result = await loader();
+    cacheManager.set(cacheKey, result, { ttl: GQL_CACHE_TTL, tags });
+    return result;
+  }
+
+  /** Invalidate all cached queries for a given schema name */
+  function invalidateSchemaCache(schemaName: string): void {
+    if (!cacheManager) return;
+    cacheManager.invalidateByPrefix(`gql:${schemaName}:`);
+  }
 
   // Build state machine lookup: machine name → StateMachine instance
   const stateMachineMap = new Map<string, ReturnType<typeof createStateMachine>>();
@@ -368,29 +391,33 @@ export function buildGraphQLSchema(
       resolve: dataProvider
         ? async (_root: unknown, args: { id: string; locale?: string }, ctx: GraphQLContext) => {
             const locale = args.locale ?? ctx.locale;
-            const opts: DataQueryOptions = {
-              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
-              ...(locale ? { locale } : {}),
-            };
-            try {
-              const record = await dataProvider.get(
-                schemaName,
-                args.id,
-                Object.keys(opts).length > 0 ? opts : undefined,
-              );
-              if (!record) return null;
-              // Resolve compute-strategy derived fields on read
-              if (derivedEngine) {
-                derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
+            const cacheKey = `gql:${schemaName}:${args.id}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
+            const tags = [`gql:${schemaName}`];
+            return cachedQuery(cacheKey, tags, async () => {
+              const opts: DataQueryOptions = {
+                ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+                ...(locale ? { locale } : {}),
+              };
+              try {
+                const record = await dataProvider.get(
+                  schemaName,
+                  args.id,
+                  Object.keys(opts).length > 0 ? opts : undefined,
+                );
+                if (!record) return null;
+                // Resolve compute-strategy derived fields on read
+                if (derivedEngine) {
+                  derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
+                }
+                // Resolve translatable JSONB → plain strings BEFORE masking,
+                // so masking always operates on strings, not locale-map objects.
+                const resolved = resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
+                return applyMasking(resolved, schemaName, ctx);
+              } catch (err) {
+                console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
+                return null;
               }
-              // Resolve translatable JSONB → plain strings BEFORE masking,
-              // so masking always operates on strings, not locale-map objects.
-              const resolved = resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
-              return applyMasking(resolved, schemaName, ctx);
-            } catch (err) {
-              console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
-              return null;
-            }
+            });
           }
         : (_root: unknown, args: { id: string }) => ({
             ...mockRecord,
@@ -453,46 +480,50 @@ export function buildGraphQLSchema(
             ctx: GraphQLContext,
           ) => {
             const locale = args.locale ?? ctx.locale;
-            const opts: DataQueryOptions = {
-              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
-              ...(locale ? { locale } : {}),
-              ...(args.includeDeleted ? { includeDeleted: true } : {}),
-            };
-            const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
-            const filter = args.filter
-              ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
-              : {};
-            const page = args.page ?? 1;
-            const pageSize = Math.min(Math.max(args.pageSize ?? 20, 1), MAX_PAGE_SIZE);
-            const offset = (page - 1) * pageSize;
+            const listCacheKey = `gql:${schemaName}:list:${JSON.stringify(args)}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
+            const tags = [`gql:${schemaName}`];
+            return cachedQuery(listCacheKey, tags, async () => {
+              const opts: DataQueryOptions = {
+                ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+                ...(locale ? { locale } : {}),
+                ...(args.includeDeleted ? { includeDeleted: true } : {}),
+              };
+              const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
+              const filter = args.filter
+                ? (safeParseJSON(args.filter, "filter") as Record<string, unknown>)
+                : {};
+              const page = args.page ?? 1;
+              const pageSize = Math.min(Math.max(args.pageSize ?? 20, 1), MAX_PAGE_SIZE);
+              const offset = (page - 1) * pageSize;
 
-            // Pass pagination and sort as part of the filter object
-            // DataProvider.query() supports these meta keys
-            // Default sort: created_at DESC (newest first)
-            const sortField = args.sortField ?? "created_at";
-            const sortOrder = args.sortOrder ?? "desc";
-            const queryFilter: Record<string, unknown> = {
-              ...filter,
-              offset,
-              limit: pageSize,
-              sortField,
-              sortOrder,
-            };
+              // Pass pagination and sort as part of the filter object
+              // DataProvider.query() supports these meta keys
+              // Default sort: created_at DESC (newest first)
+              const sortField = args.sortField ?? "created_at";
+              const sortOrder = args.sortOrder ?? "desc";
+              const queryFilter: Record<string, unknown> = {
+                ...filter,
+                offset,
+                limit: pageSize,
+                sortField,
+                sortOrder,
+              };
 
-            const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
-            const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
-            // Resolve compute-strategy derived fields on read, then resolve
-            // translatable JSONB → plain strings BEFORE masking so masking
-            // always operates on strings, not locale-map objects.
-            const items = (rawItems as Record<string, unknown>[]).map((r) => {
-              if (derivedEngine) {
-                derivedEngine.resolveComputeFields(schemaName, r);
-              }
-              const resolved = resolveTranslatableRow(r, schema, locale);
-              return applyMasking(resolved, schemaName, ctx);
+              const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
+              const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
+              // Resolve compute-strategy derived fields on read, then resolve
+              // translatable JSONB → plain strings BEFORE masking so masking
+              // always operates on strings, not locale-map objects.
+              const items = (rawItems as Record<string, unknown>[]).map((r) => {
+                if (derivedEngine) {
+                  derivedEngine.resolveComputeFields(schemaName, r);
+                }
+                const resolved = resolveTranslatableRow(r, schema, locale);
+                return applyMasking(resolved, schemaName, ctx);
+              });
+              const hasMore = offset + items.length < total;
+              return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
             });
-            const hasMore = offset + items.length < total;
-            return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
           }
         : () => ({ items: [], total: 0, pageInfo: { limit: 20, offset: 0, hasMore: false } }),
     };
@@ -516,6 +547,7 @@ export function buildGraphQLSchema(
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
             }
+            invalidateSchemaCache(schemaName);
             const data = result.data as Record<string, unknown>;
             return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
@@ -572,6 +604,7 @@ export function buildGraphQLSchema(
               }
               throw new Error(errorMessage);
             }
+            invalidateSchemaCache(schemaName);
             const data = result.data as Record<string, unknown>;
             return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
@@ -601,6 +634,7 @@ export function buildGraphQLSchema(
               ctx.actor,
               { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
             );
+            if (result.success) invalidateSchemaCache(schemaName);
             return result.success;
           }
         : () => true,
@@ -627,6 +661,7 @@ export function buildGraphQLSchema(
                 (errData?.error as string) ?? `Failed to restore ${schemaName} id=${args.id}`,
               );
             }
+            invalidateSchemaCache(schemaName);
             const data = result.data as Record<string, unknown>;
             return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
@@ -733,6 +768,7 @@ export function buildGraphQLSchema(
                   (errData?.error as string) ?? `State transition failed`,
                 );
               }
+              invalidateSchemaCache(schemaName);
               const data = result.data as Record<string, unknown>;
               return data ? resolveTranslatableRow(data, schema, ctx.locale) : data;
             }

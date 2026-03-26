@@ -59,6 +59,7 @@ export const capAdapterServer = defineCapability({
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,
             derivedPropertyEngine: ctx.derivedPropertyEngine,
+            cacheManager: ctx.cacheManager,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
