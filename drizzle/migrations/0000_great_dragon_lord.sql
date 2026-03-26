@@ -100,7 +100,8 @@ CREATE TABLE "purchase_item" (
 	"name" varchar(255) NOT NULL,
 	"quantity" numeric NOT NULL,
 	"unit_price" numeric NOT NULL,
-	"specification" text
+	"specification" text,
+	"purchase_request_id" varchar(128)
 );
 --> statement-breakpoint
 CREATE TABLE "purchase_request" (
@@ -123,9 +124,12 @@ CREATE TABLE "purchase_request" (
 	"audit_notes" text,
 	"submitted_at" timestamp,
 	"approved_at" timestamp,
-	"approved_by" varchar(255)
+	"approved_by" varchar(255),
+	"department_id" varchar(128)
 );
 --> statement-breakpoint
+ALTER TABLE "purchase_item" ADD CONSTRAINT "purchase_item_purchase_request_id_purchase_request_id_fk" FOREIGN KEY ("purchase_request_id") REFERENCES "public"."purchase_request"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "purchase_request" ADD CONSTRAINT "purchase_request_department_id_department_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."department"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_events_type_status" ON "_linchkit"."events" USING btree ("event_type","status");--> statement-breakpoint
 CREATE INDEX "idx_events_retry" ON "_linchkit"."events" USING btree ("status","next_retry_at");--> statement-breakpoint
 CREATE INDEX "idx_events_tenant" ON "_linchkit"."events" USING btree ("tenant_id","event_type");--> statement-breakpoint

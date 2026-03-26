@@ -1,5 +1,5 @@
 {
-  "id": "5a8ca282-ce67-4b0b-9f94-597956ac34a6",
+  "id": "8effda78-65fc-4789-960d-4c03c388ed3d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -719,10 +719,30 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "purchase_request_id": {
+          "name": "purchase_request_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "purchase_item_purchase_request_id_purchase_request_id_fk": {
+          "name": "purchase_item_purchase_request_id_purchase_request_id_fk",
+          "tableFrom": "purchase_item",
+          "tableTo": "purchase_request",
+          "columnsFrom": [
+            "purchase_request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -856,10 +876,30 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "purchase_request_department_id_department_id_fk": {
+          "name": "purchase_request_department_id_department_id_fk",
+          "tableFrom": "purchase_request",
+          "tableTo": "department",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -11,6 +11,7 @@ import {
   InMemoryApprovalStore,
 } from "../src/engine/approval-engine";
 import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
+import { PermissionRegistry } from "../src/engine/permission-engine";
 import { evaluateRules } from "../src/engine/rule-engine";
 import { createEventBus, type EventBus } from "../src/event/event-bus";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
@@ -1284,5 +1285,237 @@ describe("ApprovalEngine — deferred executor wiring", () => {
       managerActor,
     );
     expect(successResult.success).toBe(true);
+  });
+});
+
+describe("ApprovalEngine — permissionRegistry integration", () => {
+  let store: InMemoryApprovalStore;
+  let dataProvider: DataProvider;
+  let executor: ActionExecutor;
+  let eventBus: EventBus;
+  let registry: PermissionRegistry;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    dataProvider = createMemoryDataProvider();
+    const executionLogger = new InMemoryExecutionLogger();
+    executor = createActionExecutor({ dataProvider, executionLogger });
+    executor.registry.register(submitRequestAction);
+
+    const { bus } = createEventBus();
+    eventBus = bus;
+
+    registry = new PermissionRegistry();
+    // Register a "manager" permission group
+    registry.register({
+      name: "manager",
+      label: "Manager",
+      permissions: {
+        purchase_management: {
+          purchase_request: {
+            actions: { submit_request: true, approve_request: true },
+          },
+        },
+      },
+    });
+    // Register a "system_admin" group
+    registry.register({
+      name: "system_admin",
+      label: "System Admin",
+      permissions: {},
+    });
+  });
+
+  it("auto-enables enforceAssignee when permissionRegistry is provided", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // defaultActor.id is "user-1", not "manager-1" — should fail because
+    // enforceAssignee is auto-enabled by permissionRegistry
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow("not the assigned user");
+  });
+
+  it("role assignee resolved via permissionRegistry groups", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "manager" },
+    });
+
+    // managerActor.groups includes "manager" which is a registered permission group
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("role assignee denied when actor has no matching permission group", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-3",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "manager" },
+    });
+
+    // defaultActor.groups is ["employee"] — no "manager" permission group
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow("no matching permission group");
+  });
+
+  it("system_admin bypasses all assignee checks with permissionRegistry", async () => {
+    const adminActor: Actor = {
+      type: "human",
+      id: "admin-1",
+      name: "Super Admin",
+      groups: ["system_admin"],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-4",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "specific-user-99" },
+    });
+
+    // admin is not "specific-user-99" but system_admin bypasses
+    const result = await engine.approve({ approvalId: createResult.approvalId }, adminActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("system actor bypasses assignee checks", async () => {
+    const systemActor: Actor = {
+      type: "system",
+      id: "cron-job",
+      groups: [],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-5",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "someone-else" },
+    });
+
+    // System actors bypass assignee checks
+    const result = await engine.approve({ approvalId: createResult.approvalId }, systemActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("enforceAssignee=false overrides permissionRegistry auto-enable", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+      enforceAssignee: false,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-6",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "someone-else" },
+    });
+
+    // enforceAssignee explicitly false, so anyone can approve
+    const result = await engine.approve({ approvalId: createResult.approvalId }, otherActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("without permissionRegistry, role check falls back to metadata.role", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      enforceAssignee: true,
+      // No permissionRegistry — fallback behavior
+    });
+
+    const actorWithRole: Actor = {
+      type: "human",
+      id: "user-role-1",
+      groups: [],
+      metadata: { role: "director" },
+    };
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      schema: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-7",
+      effect: { type: "require_approval", level: "director" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "director" },
+    });
+
+    // Fallback: metadata.role matches
+    const result = await engine.approve({ approvalId: createResult.approvalId }, actorWithRole);
+    expect(result.success).toBe(true);
   });
 });

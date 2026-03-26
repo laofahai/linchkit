@@ -30,6 +30,7 @@
     "@restatedev/restate-sdk": "1.11.1",
     "@tanstack/react-table": "^8.21.3",
     "ai": "^6.0.134",
+    "dataloader": "^2.2.3",
     "drizzle-orm": "^0.45.1"
   }
 }

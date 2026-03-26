@@ -85,9 +85,21 @@ export const capAdapterServer = defineCapability({
             healthCheckRegistry: ctx.healthCheckRegistry,
             permissionGroups: permGroups,
             schemaMap,
-            // Extract tenant ID from X-Tenant-ID header.
-            // TODO: support JWT-based tenant extraction via auth capability
-            resolveRequestTenantId: (request: Request) => {
+            // Extract tenant ID from verified actor (set by auth middleware) first,
+            // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
+            // Never decode JWT directly — that bypasses signature verification.
+            resolveRequestTenantId: (request: Request, actor?: { tenantId?: string; metadata?: Record<string, unknown> }) => {
+              // Prefer tenant from verified actor (auth middleware already validated the JWT)
+              if (actor) {
+                const actorTenant = actor.tenantId
+                  ?? (typeof actor.metadata?.tenantId === "string" ? actor.metadata.tenantId : undefined)
+                  ?? (typeof actor.metadata?.tenant_id === "string" ? actor.metadata.tenant_id : undefined)
+                  ?? (typeof actor.metadata?.org_id === "string" ? actor.metadata.org_id : undefined);
+                if (actorTenant) {
+                  return actorTenant;
+                }
+              }
+              // Fallback: explicit header (e.g., dev mode without auth, or service-to-service)
               return request.headers.get("x-tenant-id") ?? undefined;
             },
           });

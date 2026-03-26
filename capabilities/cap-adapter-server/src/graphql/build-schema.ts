@@ -86,6 +86,8 @@ export interface GraphQLContext {
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for link resolver data masking */
   schemaMap?: Map<string, SchemaDefinition>;
+  /** Per-request DataLoaders for batched link resolution (avoids N+1 queries) */
+  linkLoaders?: import("./link-dataloader").LinkDataLoaders;
 }
 
 /** Maximum page size for list queries */

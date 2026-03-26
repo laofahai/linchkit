@@ -176,6 +176,15 @@ describe("createServer", () => {
     expect(body.data.task._version).toBe(1);
   });
 
+  test("tenants endpoint returns empty list when no tenants configured", async () => {
+    const res = await fetch(`http://localhost:${port}/api/tenants`);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { success: boolean; data: unknown[] };
+    expect(body.success).toBe(true);
+    expect(body.data).toEqual([]);
+  });
+
   test("action endpoint returns 500 when no executor configured", async () => {
     const res = await fetch(`http://localhost:${port}/api/actions/submit_request`, {
       method: "POST",
@@ -191,5 +200,39 @@ describe("createServer", () => {
     expect(body.success).toBe(false);
     expect(body.error.code).toBe("SYSTEM.SERVER.NOT_CONFIGURED");
     expect(body.error.type).toBe("system");
+  });
+});
+
+// ── Tenant endpoint tests ──────────────────────────────
+
+describe("createServer /api/tenants with configured tenants", () => {
+  const schema = buildGraphQLSchema([taskSchema]);
+  const testTenants = [
+    { id: "tenant-a", name: "Tenant A" },
+    { id: "tenant-b", name: "Tenant B" },
+  ];
+  const app = createServer(schema, { tenants: testTenants });
+  const port = 4099;
+
+  beforeAll(() => {
+    app.listen(port);
+  });
+
+  afterAll(() => {
+    app.stop();
+  });
+
+  test("returns configured tenant list", async () => {
+    const res = await fetch(`http://localhost:${port}/api/tenants`);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      success: boolean;
+      data: Array<{ id: string; name: string }>;
+    };
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(2);
+    expect(body.data[0]).toEqual({ id: "tenant-a", name: "Tenant A" });
+    expect(body.data[1]).toEqual({ id: "tenant-b", name: "Tenant B" });
   });
 });

@@ -2,12 +2,12 @@
  * View type definitions
  *
  * Headless architecture: logic layer (@linchkit/core) and rendering layer (@linchkit/cap-adapter-ui-react) are separated.
- * Supports four view types: list / form / kanban / dashboard.
+ * Supports view types: list / form / kanban / calendar / dashboard / tree.
  */
 
 // ── View types ───────────────────────────────────────
 
-export type ViewType = "list" | "form" | "kanban" | "dashboard" | "workspace";
+export type ViewType = "list" | "form" | "kanban" | "calendar" | "dashboard" | "workspace" | "tree";
 
 // ── View field configuration ───────────────────────────────────
 
@@ -53,6 +53,20 @@ export interface ViewDefinition {
 
   // Kanban-specific
   groupBy?: string;
+
+  // Calendar-specific
+  /** Date/datetime field used to place records on the calendar (e.g. "due_date"). */
+  dateField?: string;
+  /** Field used as display title for calendar entries. Defaults to first text field. */
+  titleField?: string;
+  /** Field used for color-coding calendar entries (e.g. a state or enum field). */
+  colorField?: string;
+
+  // Tree-specific
+  /** Field referencing the parent record (e.g. "parent_id"). Required for tree views. */
+  parentField?: string;
+  /** Field used as display label for tree nodes (e.g. "name"). Defaults to first text field. */
+  labelField?: string;
 
   // Form-specific
   layout?: FormLayout;

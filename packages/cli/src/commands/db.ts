@@ -6,9 +6,15 @@
  * generates a Drizzle schema barrel file, then delegates to drizzle-kit.
  */
 
-import type { CapabilityDefinition, LinchKitConfig, SchemaDefinition } from "@linchkit/core";
+import type {
+  CapabilityDefinition,
+  LinchKitConfig,
+  LinkDefinition,
+  SchemaDefinition,
+} from "@linchkit/core";
 import {
   closeDatabase,
+  convertSchemaRelationshipFieldsToImplicitLinks,
   createDatabase,
   generateDrizzleSchemaFile,
   runMigrations,
@@ -16,8 +22,11 @@ import {
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
-/** Load schemas from linchkit.config.ts */
-async function loadSchemas(): Promise<SchemaDefinition[]> {
+/** Load schemas and links from linchkit.config.ts */
+async function loadSchemasAndLinks(): Promise<{
+  schemas: SchemaDefinition[];
+  links: LinkDefinition[];
+}> {
   let config: LinchKitConfig = {};
   try {
     const result = await loadConfig();
@@ -29,18 +38,29 @@ async function loadSchemas(): Promise<SchemaDefinition[]> {
 
   const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
   const schemas: SchemaDefinition[] = [];
+  const links: LinkDefinition[] = [];
   for (const cap of capabilities) {
     if (cap.schemas) schemas.push(...cap.schemas);
+    if (cap.links) links.push(...cap.links);
   }
-  return schemas;
+
+  // Auto-promote schema relationship fields to implicit links (same as dev.ts)
+  const { implicitLinks } = convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+  if (implicitLinks.length > 0) {
+    links.push(...implicitLinks);
+  }
+
+  return { schemas, links };
 }
 
 /** Generate the schema barrel file and return its path */
 async function generateSchema(): Promise<string> {
-  const schemas = await loadSchemas();
-  const schemaFile = generateDrizzleSchemaFile(schemas);
+  const { schemas, links } = await loadSchemasAndLinks();
+  const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
   console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
-  console.log(`[linch] ${schemas.length} capability table(s) + system tables`);
+  console.log(
+    `[linch] ${schemas.length} capability table(s) + system tables, ${links.length} link(s)`,
+  );
   return schemaFile;
 }
 

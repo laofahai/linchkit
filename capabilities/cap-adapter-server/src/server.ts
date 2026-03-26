@@ -25,6 +25,7 @@ import type { HealthCheckRegistry } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
+import { createLinkDataLoaders } from "./graphql/link-dataloader";
 
 export interface ServerOptions {
   /** Server port (default: 3001) */
@@ -46,9 +47,11 @@ export interface ServerOptions {
   /**
    * Resolve tenant ID from a request for GraphQL tenant isolation.
    * Called on each GraphQL request to extract the tenant context.
+   * The actor (already verified by auth middleware) is passed so that
+   * tenant can be extracted from verified claims instead of raw JWT.
    * Return undefined for no tenant filtering (e.g., admin/system users).
    */
-  resolveRequestTenantId?: (request: Request) => Promise<string | undefined> | string | undefined;
+  resolveRequestTenantId?: (request: Request, actor?: Actor) => Promise<string | undefined> | string | undefined;
   /**
    * Resolve the authenticated actor from a request.
    * Called on each GraphQL and REST request to extract the actor context.
@@ -74,6 +77,8 @@ export interface ServerOptions {
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for data masking in link resolvers */
   schemaMap?: Map<string, SchemaDefinition>;
+  /** Static tenant list for /api/tenants endpoint (used by TenantSwitcher UI) */
+  tenants?: Array<{ id: string; name: string }>;
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -210,6 +215,7 @@ export function createServer(
   const healthCheckRegistry = options?.healthCheckRegistry;
   const permissionGroups = options?.permissionGroups ?? [];
   const schemaMap = options?.schemaMap;
+  const tenants = options?.tenants ?? [];
 
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
@@ -222,14 +228,16 @@ export function createServer(
       const actor = resolveRequestActor
         ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
         : ANONYMOUS_ACTOR;
-      const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request) : undefined;
+      const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request, actor) : undefined;
       const locale = resolveRequestLocale(request);
       // Wrap DataProvider with tenant isolation for this request so all GraphQL
       // resolvers (get, list, link traversal) enforce row-level tenant scoping.
       const scopedProvider = tenantId && dataProvider
         ? createTenantAwareDataProvider(dataProvider, tenantId)
         : dataProvider;
-      return { actor, tenantId, locale, dataProvider: scopedProvider, permissionGroups, schemaMap };
+      // Create per-request DataLoaders for batched link resolution (avoids N+1)
+      const linkLoaders = scopedProvider ? createLinkDataLoaders(scopedProvider) : undefined;
+      return { actor, tenantId, locale, dataProvider: scopedProvider, permissionGroups, schemaMap, linkLoaders };
     },
   });
 
@@ -284,6 +292,10 @@ export function createServer(
         },
       };
     })
+    // Tenant list — consumed by TenantSwitcher UI component
+    .get("/api/tenants", () => {
+      return { success: true, data: tenants };
+    })
     // Schema metadata endpoints
     .get("/api/schemas", () => {
       if (!schemaRegistry) {
@@ -317,7 +329,11 @@ export function createServer(
       const schemaStates = capabilities.flatMap((cap) =>
         (cap.states ?? []).filter((s) => s.schema === params.name),
       );
-      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates } };
+      // Collect all links related to this schema (from or to)
+      const schemaLinks = capabilities.flatMap((cap) =>
+        (cap.links ?? []).filter((l) => l.from === params.name || l.to === params.name),
+      );
+      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks } };
     })
     // REST action endpoint — executes via ActionExecutor
     // Body is unwrapped action input (Stripe-style, see spec 16 §2.4)

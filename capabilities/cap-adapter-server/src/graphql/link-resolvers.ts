@@ -4,6 +4,8 @@
  * Generates resolver fields that navigate Link relationships (many_to_one,
  * one_to_many, one_to_one, many_to_many) with data masking support.
  *
+ * Uses DataLoader for batched loading to avoid N+1 query problems.
+ *
  * Extracted from schema-to-graphql.ts to keep each module focused.
  */
 
@@ -23,6 +25,7 @@ import {
   GraphQLObjectType,
   type GraphQLOutputType,
 } from "graphql";
+import type { LinkDataLoaders } from "./link-dataloader";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -38,6 +41,8 @@ export interface LinkResolverContext {
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for data masking lookups */
   schemaMap?: Map<string, SchemaDefinition>;
+  /** Per-request DataLoaders for batched link resolution (created in context factory) */
+  linkLoaders?: LinkDataLoaders;
 }
 
 // ── Masking helpers ────────────────────────────────────────
@@ -85,6 +90,46 @@ function applyLinkMaskingArray(
   ctx: LinkResolverContext,
 ): Record<string, unknown>[] {
   return records.map((r) => applyLinkMasking(r, schemaName, ctx));
+}
+
+// ── DataLoader-aware fetch helpers ─────────────────────────
+
+/**
+ * Fetch a single record by ID, using DataLoader when available.
+ */
+async function fetchOne(
+  schema: string,
+  id: string,
+  ctx: LinkResolverContext,
+): Promise<Record<string, unknown> | null> {
+  if (ctx.linkLoaders) {
+    return ctx.linkLoaders.getLoader.load({ schema, id, tenantId: ctx.tenantId });
+  }
+  // Fallback: direct dataProvider call (backward compatible)
+  if (!ctx.dataProvider) return null;
+  const record = await ctx.dataProvider.get(schema, id, { tenantId: ctx.tenantId });
+  return (record as Record<string, unknown>) ?? null;
+}
+
+/**
+ * Query records by FK filter, using DataLoader when available.
+ */
+async function fetchByFK(
+  schema: string,
+  fkColumn: string,
+  fkValue: string,
+  ctx: LinkResolverContext,
+): Promise<Record<string, unknown>[]> {
+  if (ctx.linkLoaders) {
+    return ctx.linkLoaders.queryLoader.load({ schema, fkColumn, fkValue, tenantId: ctx.tenantId });
+  }
+  // Fallback: direct dataProvider call (backward compatible)
+  if (!ctx.dataProvider) return [];
+  return (await ctx.dataProvider.query(
+    schema,
+    { [fkColumn]: fkValue },
+    { tenantId: ctx.tenantId },
+  )) as Record<string, unknown>[];
 }
 
 // ── Link field builder ─────────────────────────────────────
@@ -136,14 +181,10 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || !ctx.dataProvider) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
               try {
-                const record = await ctx.dataProvider.get(link.to, fkValue, {
-                  tenantId: ctx.tenantId,
-                });
-                return record
-                  ? applyLinkMasking(record as Record<string, unknown>, link.to, ctx)
-                  : null;
+                const record = await fetchOne(link.to, fkValue, ctx);
+                return record ? applyLinkMasking(record, link.to, ctx) : null;
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (many_to_one from): ${err}`,
@@ -165,14 +206,10 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from} records`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || !ctx.dataProvider) return [];
+              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
               try {
-                const records = await ctx.dataProvider.query(
-                  link.from,
-                  { [fkColumn]: id },
-                  { tenantId: ctx.tenantId },
-                );
-                return applyLinkMaskingArray(records as Record<string, unknown>[], link.from, ctx);
+                const records = await fetchByFK(link.from, fkColumn, id, ctx);
+                return applyLinkMaskingArray(records, link.from, ctx);
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (many_to_one to): ${err}`,
@@ -198,14 +235,10 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to} records`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || !ctx.dataProvider) return [];
+              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
               try {
-                const records = await ctx.dataProvider.query(
-                  link.to,
-                  { [fkColumn]: id },
-                  { tenantId: ctx.tenantId },
-                );
-                return applyLinkMaskingArray(records as Record<string, unknown>[], link.to, ctx);
+                const records = await fetchByFK(link.to, fkColumn, id, ctx);
+                return applyLinkMaskingArray(records, link.to, ctx);
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_many from): ${err}`,
@@ -227,14 +260,10 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || !ctx.dataProvider) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
               try {
-                const record = await ctx.dataProvider.get(link.from, fkValue, {
-                  tenantId: ctx.tenantId,
-                });
-                return record
-                  ? applyLinkMasking(record as Record<string, unknown>, link.from, ctx)
-                  : null;
+                const record = await fetchOne(link.from, fkValue, ctx);
+                return record ? applyLinkMasking(record, link.from, ctx) : null;
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_many to): ${err}`,
@@ -259,14 +288,10 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || !ctx.dataProvider) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
               try {
-                const record = await ctx.dataProvider.get(link.to, fkValue, {
-                  tenantId: ctx.tenantId,
-                });
-                return record
-                  ? applyLinkMasking(record as Record<string, unknown>, link.to, ctx)
-                  : null;
+                const record = await fetchOne(link.to, fkValue, ctx);
+                return record ? applyLinkMasking(record, link.to, ctx) : null;
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_one from): ${err}`,
@@ -288,17 +313,11 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from}`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || !ctx.dataProvider) return null;
+              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
               try {
-                const results = await ctx.dataProvider.query(
-                  link.from,
-                  { [fkColumn]: id },
-                  { tenantId: ctx.tenantId },
-                );
+                const results = await fetchByFK(link.from, fkColumn, id, ctx);
                 const first = results[0] ?? null;
-                return first
-                  ? applyLinkMasking(first as Record<string, unknown>, link.from, ctx)
-                  : null;
+                return first ? applyLinkMasking(first, link.from, ctx) : null;
               } catch (err) {
                 logger.error(
                   `[link-resolver] Failed to resolve ${link.name} (one_to_one to): ${err}`,
@@ -328,33 +347,18 @@ export function buildLinkFields(
           description: label ?? `Related ${otherSchema} records`,
           resolve: async (obj, _args, ctx) => {
             const id = obj.id as string;
-            const dp = ctx.dataProvider;
-            if (!id || !dp) return [];
+            if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
             try {
               // Query junction table for matching rows
-              const junctionRows = await dp.query(
-                junctionTable,
-                { [thisFkCol]: id },
-                { tenantId: ctx.tenantId },
-              );
-              // Fetch each related record by ID
+              const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);
+              // Collect related IDs from junction rows
               const relatedIds = junctionRows
                 .map((row) => row[otherFkCol] as string)
                 .filter(Boolean);
               if (relatedIds.length === 0) return [];
+              // Batch-fetch related records via DataLoader (or direct calls)
               const results = await Promise.all(
-                relatedIds.map(async (relatedId) => {
-                  try {
-                    return await dp.get(otherSchema, relatedId, {
-                      tenantId: ctx.tenantId,
-                    });
-                  } catch (err) {
-                    logger.error(
-                      `[link-resolver] Failed to fetch ${otherSchema}#${relatedId} in ${link.name}: ${err}`,
-                    );
-                    return null;
-                  }
-                }),
+                relatedIds.map((relatedId) => fetchOne(otherSchema, relatedId, ctx)),
               );
               const filtered = results.filter(Boolean) as Record<string, unknown>[];
               return applyLinkMaskingArray(filtered, otherSchema, ctx);
