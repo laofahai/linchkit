@@ -224,6 +224,29 @@ export async function deleteRecord(schema: string, id: string): Promise<boolean>
   return result;
 }
 
+/**
+ * Delete multiple records in parallel via GraphQL mutations.
+ * Returns an object with counts of succeeded and failed deletions.
+ */
+export async function bulkDeleteRecords(
+  schema: string,
+  ids: string[],
+): Promise<{ succeeded: number; failed: number; errors: string[] }> {
+  const results = await Promise.allSettled(ids.map((id) => deleteRecord(schema, id)));
+  const errors: string[] = [];
+  let succeeded = 0;
+  let failed = 0;
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      succeeded++;
+    } else {
+      failed++;
+      errors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+    }
+  }
+  return { succeeded, failed, errors };
+}
+
 // ── App config ──────────────────────────────────────────
 
 /** Application config returned by GET /api/app-config */

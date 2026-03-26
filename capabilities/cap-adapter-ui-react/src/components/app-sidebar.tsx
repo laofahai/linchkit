@@ -16,6 +16,7 @@ import {
   BlocksIcon,
   BoxIcon,
   DatabaseIcon,
+  HeartPulseIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
   Settings2Icon,
@@ -73,6 +74,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: t("executionLog.title"),
           url: "/admin/executions",
           icon: <ScrollTextIcon />,
+          items: [],
+        },
+        {
+          title: t("health.title"),
+          url: "/admin/health",
+          icon: <HeartPulseIcon />,
           items: [],
         },
         {

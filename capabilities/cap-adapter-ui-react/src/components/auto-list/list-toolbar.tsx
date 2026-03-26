@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
-import { ChevronDown, Columns3, Download, MoreHorizontal, X } from "lucide-react";
+import { ChevronDown, Columns3, Download, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import type {
@@ -35,6 +35,8 @@ interface ListToolbarProps {
   bazzaFilters?: FiltersState | undefined;
   bazzaActions?: DataTableFilterActions | undefined;
   bazzaStrategy?: FilterStrategy | undefined;
+  /** Extra content rendered after the primary action button. */
+  toolbarExtra?: React.ReactNode;
 }
 
 /**
@@ -57,6 +59,7 @@ export function ListToolbar({
   bazzaFilters,
   bazzaActions,
   bazzaStrategy,
+  toolbarExtra,
 }: ListToolbarProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -106,6 +109,7 @@ export function ListToolbar({
                   className="text-destructive"
                   onClick={() => onBulkAction?.("delete")}
                 >
+                  <Trash2 className="mr-2 size-3.5" />
                   {t("common.delete")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -131,6 +135,9 @@ export function ListToolbar({
             {resolveLabel(primaryAction.label, primaryAction.action)}
           </Button>
         )}
+
+        {/* Extra toolbar content (e.g. view toggle) */}
+        {toolbarExtra}
 
         {/* Overflow menu */}
         <DropdownMenu>

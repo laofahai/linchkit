@@ -39,4 +39,6 @@ export interface AutoListProps {
   onBulkAction?: (actionName: string, recordIds: string[]) => void;
   onRowClick?: (recordId: string) => void;
   selectable?: boolean;
+  /** Extra content rendered after the primary action button in the toolbar. */
+  toolbarExtra?: React.ReactNode;
 }

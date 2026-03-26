@@ -41,7 +41,12 @@
     "myObjects": "My Objects",
     "myObjectsDesc": "Bookmarked records, objects you own, and recently accessed items.",
     "quickActions": "Quick Actions",
-    "quickActionsDesc": "Launch common actions or use natural language via Command Palette."
+    "quickActionsDesc": "Launch common actions or use natural language via Command Palette.",
+    "dataOverview": "Data Overview",
+    "quickActionsLabel": "Quick Actions",
+    "recentActivity": "Recent Activity",
+    "recentActivityDesc": "Latest operations across all schemas.",
+    "viewAll": "View all"
   },
   "auth": {
     "login": "Log in",
@@ -181,6 +186,31 @@
     "label": "Language",
     "en": "English",
     "zhCN": "中文"
+  },
+  "health": {
+    "title": "System Health",
+    "subtitle": "Real-time health monitoring for all system components.",
+    "lastRefresh": "Last refresh",
+    "fetchError": "Failed to fetch health status",
+    "checksRun": "checks executed",
+    "latency": "Latency",
+    "systemInfo": "System Information",
+    "version": "Version",
+    "uptime": "Uptime",
+    "runtime": "Runtime",
+    "platform": "Platform",
+    "schemaCount": "Schemas",
+    "capabilityCount": "Capabilities",
+    "autoRefresh": "Auto-refreshes every {{seconds}} seconds",
+    "overall": {
+      "healthy": "All systems operational",
+      "degraded": "Some systems are degraded",
+      "unhealthy": "System issues detected"
+    }
+  },
+  "bulk": {
+    "deleteTitle": "Delete records",
+    "deleteConfirm": "Are you sure you want to delete {{count}} record(s)? This action cannot be undone."
   },
   "schemas": {
     "purchase_request": {

@@ -44,6 +44,7 @@ export function AutoList({
   onBulkAction,
   onRowClick,
   selectable = false,
+  toolbarExtra,
 }: AutoListProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -200,6 +201,7 @@ export function AutoList({
         bazzaFilters={bazzaFilterState}
         bazzaActions={bazzaActions}
         bazzaStrategy={bazzaStrategy}
+        toolbarExtra={toolbarExtra}
       />
 
       {/* Table */}

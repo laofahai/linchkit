@@ -25,6 +25,7 @@ import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
 import { ExecutionLogsPage } from "./pages/execution-logs";
+import { HealthMonitorPage } from "./pages/health-monitor";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
 import { WorkspacePage } from "./pages/workspace";
@@ -158,6 +159,13 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const healthMonitorRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/health",
+    component: HealthMonitorPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -168,6 +176,7 @@ function buildRouter(appConfig: AppConfig) {
       schemaFormNewRoute,
       schemaFormEditRoute,
       executionLogsRoute,
+      healthMonitorRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),

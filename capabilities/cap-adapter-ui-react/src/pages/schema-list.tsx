@@ -7,18 +7,26 @@
  */
 
 import type { ViewDefinition } from "@linchkit/core/types";
-import { Button } from "@linchkit/ui-kit/components";
-import { cn } from "@linchkit/ui-kit/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Button,
+} from "@linchkit/ui-kit/components";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Calendar, List, Loader2, RefreshCw, ServerCrash } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
 import { AutoList } from "../components/auto-list";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
-import { useSchemaLabel } from "../i18n/use-schema-label";
-import { deleteRecord, queryList } from "../lib/api";
+import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
 type ActiveView = "list" | "calendar";
 
@@ -81,8 +89,6 @@ export function SchemaListPage() {
   const { t } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string };
   const schemaName = params.name;
-  const { resolveLabel } = useSchemaLabel();
-
   // Fetch schema bundle from API
   const {
     bundle,
@@ -99,6 +105,11 @@ export function SchemaListPage() {
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("list");
+
+  // Bulk delete confirmation dialog state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const pendingBulkIds = useRef<string[]>([]);
 
   // Detect if calendar view is available (schema has date fields)
   const calendarDateField = useMemo(
@@ -167,6 +178,33 @@ export function SchemaListPage() {
     navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
   }
 
+  function handleBulkAction(action: string, ids: string[]) {
+    if (!schemaName || ids.length === 0) return;
+    switch (action) {
+      case "delete":
+        pendingBulkIds.current = ids;
+        setBulkDeleteOpen(true);
+        break;
+      default:
+        console.log(`Bulk ${action}:`, ids);
+    }
+  }
+
+  async function executeBulkDelete() {
+    if (!schemaName || pendingBulkIds.current.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      await bulkDeleteRecords(schemaName, pendingBulkIds.current);
+      await fetchData();
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
+      pendingBulkIds.current = [];
+    }
+  }
+
   // Missing schema name in route
   if (!schemaName) {
     return (
@@ -229,47 +267,32 @@ export function SchemaListPage() {
     );
   }
 
-  const title = resolveLabel(listView.label ?? schema.label, schema.name);
+  // View toggle buttons for toolbar (icon-only, shown when calendar is available)
+  const viewToggle = hasCalendarOption ? (
+    <div className="flex items-center rounded-md border border-border">
+      <Button
+        variant={activeView === "list" ? "default" : "ghost"}
+        size="icon"
+        className="h-8 w-8 rounded-r-none"
+        onClick={() => setActiveView("list")}
+        title={t("calendar.listView", "List view")}
+      >
+        <List className="h-4 w-4" />
+      </Button>
+      <Button
+        variant={activeView === "calendar" ? "default" : "ghost"}
+        size="icon"
+        className="h-8 w-8 rounded-l-none border-l border-border"
+        onClick={() => setActiveView("calendar")}
+        title={t("calendar.calendarView", "Calendar view")}
+      >
+        <Calendar className="h-4 w-4" />
+      </Button>
+    </div>
+  ) : null;
 
   return (
     <div className="p-4">
-      {/* View toggle (only shown when calendar is available) */}
-      {hasCalendarOption && (
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <div className="flex items-center rounded-md border border-border">
-            <button
-              type="button"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors rounded-l-md",
-                activeView === "list"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground",
-              )}
-              onClick={() => setActiveView("list")}
-              title={t("calendar.listView", "List view")}
-            >
-              <List className="h-4 w-4" />
-              {t("calendar.list", "List")}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors rounded-r-md border-l border-border",
-                activeView === "calendar"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground",
-              )}
-              onClick={() => setActiveView("calendar")}
-              title={t("calendar.calendarView", "Calendar view")}
-            >
-              <Calendar className="h-4 w-4" />
-              {t("calendar.calendar", "Calendar")}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Active view content */}
       {activeView === "list" ? (
         <AutoList
@@ -277,11 +300,11 @@ export function SchemaListPage() {
           view={listView}
           data={data}
           loading={loading}
-          title={hasCalendarOption ? undefined : title}
           selectable
           onAction={handleAction}
-          onBulkAction={(action, ids) => console.log(`Bulk ${action}:`, ids)}
+          onBulkAction={handleBulkAction}
           onRowClick={handleRowClick}
+          toolbarExtra={viewToggle}
         />
       ) : (
         <AutoCalendar
@@ -294,6 +317,30 @@ export function SchemaListPage() {
           loading={loading}
         />
       )}
+
+      {/* Bulk delete confirmation dialog */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("bulk.deleteTitle", "Delete records")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={executeBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? t("common.loading") : t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

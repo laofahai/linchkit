@@ -41,7 +41,12 @@
     "myObjects": "我的对象",
     "myObjectsDesc": "收藏的记录、你拥有的对象、以及最近访问的项目。",
     "quickActions": "快捷操作",
-    "quickActionsDesc": "启动常用操作或通过命令面板使用自然语言。"
+    "quickActionsDesc": "启动常用操作或通过命令面板使用自然语言。",
+    "dataOverview": "数据概览",
+    "quickActionsLabel": "快捷操作",
+    "recentActivity": "最近活动",
+    "recentActivityDesc": "所有数据模型的最新操作记录。",
+    "viewAll": "查看全部"
   },
   "auth": {
     "login": "登录",
@@ -181,6 +186,31 @@
     "label": "语言",
     "en": "English",
     "zhCN": "中文"
+  },
+  "health": {
+    "title": "系统健康",
+    "subtitle": "实时监控所有系统组件的运行状态。",
+    "lastRefresh": "上次刷新",
+    "fetchError": "获取健康状态失败",
+    "checksRun": "项检查已执行",
+    "latency": "延迟",
+    "systemInfo": "系统信息",
+    "version": "版本",
+    "uptime": "运行时间",
+    "runtime": "运行时",
+    "platform": "平台",
+    "schemaCount": "数据模型",
+    "capabilityCount": "能力模块",
+    "autoRefresh": "每 {{seconds}} 秒自动刷新",
+    "overall": {
+      "healthy": "所有系统运行正常",
+      "degraded": "部分系统性能下降",
+      "unhealthy": "检测到系统问题"
+    }
+  },
+  "bulk": {
+    "deleteTitle": "删除记录",
+    "deleteConfirm": "确定要删除 {{count}} 条记录吗？此操作无法撤销。"
   },
   "schemas": {
     "purchase_request": {
