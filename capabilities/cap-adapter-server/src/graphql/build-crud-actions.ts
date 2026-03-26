@@ -146,5 +146,28 @@ export function generateCrudActions(
     },
   };
 
-  return [createAction, updateAction, deleteAction];
+  const restoreAction: ActionDefinition = {
+    name: `restore_${name}`,
+    schema: name,
+    label: `Restore ${schema.label ?? name}`,
+    description: `Restore a soft-deleted ${schema.label ?? name} record`,
+    policy: { mode: "sync", transaction: true },
+    exposure: "all",
+    handler: async (ctx) => {
+      const id = ctx.input.id as string;
+      // Restore needs to see soft-deleted records; override queryOptions
+      const record = await ctx.get(name, id, { includeDeleted: true });
+      if (!record) {
+        throw new Error(`Record "${id}" not found in "${name}"`);
+      }
+      if (record.deleted_at == null) {
+        // Record is not deleted — return it as-is
+        return record;
+      }
+      // Clear deleted_at to restore the record
+      return ctx.update(name, id, { deleted_at: null });
+    },
+  };
+
+  return [createAction, updateAction, deleteAction, restoreAction];
 }

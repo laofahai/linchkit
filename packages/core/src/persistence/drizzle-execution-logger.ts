@@ -52,6 +52,7 @@ export class DrizzleExecutionLogger {
       errorMessage: entry.error?.message ?? null,
       durationMs: entry.duration,
       parentExecutionId: entry.parentExecutionId ?? null,
+      idempotencyKey: entry.idempotencyKey ?? null,
       metadata: Object.keys(metadata).length > 0 ? metadata : null,
       startedAt: entry.startedAt,
       completedAt: entry.completedAt,
@@ -101,6 +102,16 @@ export class DrizzleExecutionLogger {
       .limit(1);
     const row = rows[0];
     return row ? rowToEntry(row) : undefined;
+  }
+
+  async getByIdempotencyKey(key: string): Promise<ExecutionLogEntry | null> {
+    const rows = await this.db
+      .select()
+      .from(executionsTable)
+      .where(eq(executionsTable.idempotencyKey, key))
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToEntry(row) : null;
   }
 
   async findMany(options?: ExecutionLogFindOptions): Promise<ExecutionLogListResult> {
@@ -169,6 +180,7 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     stateTransition: meta.stateTransition,
     parentExecutionId: row.parentExecutionId ?? undefined,
     childExecutionIds: meta.childExecutionIds,
+    idempotencyKey: row.idempotencyKey ?? undefined,
     duration: row.durationMs ?? 0,
     startedAt: row.startedAt,
     channel: row.channel ?? undefined,

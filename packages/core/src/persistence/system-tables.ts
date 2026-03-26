@@ -13,6 +13,7 @@ import {
   pgSchema,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -67,6 +68,7 @@ export const executionsTable = linchkitSchema.table(
     durationMs: integer("duration_ms"),
     channel: varchar("channel", { length: 50 }),
     parentExecutionId: varchar("parent_execution_id", { length: 255 }),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }),
     metadata: jsonb("metadata"),
     startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { mode: "date" }),
@@ -75,6 +77,8 @@ export const executionsTable = linchkitSchema.table(
   (table) => [
     index("idx_executions_action_created").on(table.actionName, table.createdAt),
     index("idx_executions_tenant").on(table.tenantId, table.createdAt),
+    // Scoped to tenant: different tenants may reuse the same idempotency key
+    uniqueIndex("idx_executions_idempotency_key").on(table.tenantId, table.idempotencyKey),
   ],
 );
 

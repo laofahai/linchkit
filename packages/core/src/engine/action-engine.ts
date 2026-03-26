@@ -82,6 +82,8 @@ export interface ExecuteOptions {
   skipRules?: string[];
   /** Approval ID that authorized this re-execution */
   approvalId?: string;
+  /** Include soft-deleted records in data operations (used by restore action) */
+  includeDeleted?: boolean;
   /** Idempotency key — if provided and an execution with this key already succeeded, return cached result */
   idempotencyKey?: string;
   /** Internal: current recursion depth for child action execution */
@@ -491,10 +493,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         );
       },
     };
-    // Build DataQueryOptions for locale (tenant isolation is now handled by the provider wrapper)
-    const queryOptions: DataQueryOptions | undefined = execOptions?.locale
-      ? { locale: execOptions.locale }
-      : undefined;
+    // Build DataQueryOptions for locale and includeDeleted (tenant isolation is now handled by the provider wrapper)
+    const queryOptions: DataQueryOptions | undefined =
+      execOptions?.locale || execOptions?.includeDeleted
+        ? { locale: execOptions?.locale, includeDeleted: execOptions?.includeDeleted }
+        : undefined;
 
     // Wrap the base DataProvider with tenant isolation when tenantId is present.
     // This enforces row-level tenant scoping on ALL data operations (get/query/create/update/delete/count).

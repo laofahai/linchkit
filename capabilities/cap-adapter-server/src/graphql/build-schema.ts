@@ -610,38 +610,23 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: dataProvider
+      resolve: executor
         ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            // Fetch the record including deleted ones
-            const opts: DataQueryOptions = {
-              ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
-              ...(locale ? { locale } : {}),
-              includeDeleted: true,
-            };
-            try {
-              const record = await dataProvider.get(schemaName, args.id, opts);
-              if (!record) {
-                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
-              }
-              if (record.deleted_at == null) {
-                // Record is not deleted — just return it as-is
-                return resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
-              }
-              // Clear deleted_at by updating the record
-              const updated = await dataProvider.update(
-                schemaName,
-                args.id,
-                { deleted_at: null },
-                opts,
-              );
-              return resolveTranslatableRow(updated as Record<string, unknown>, schema, locale);
-            } catch (err) {
-              if (err instanceof GraphQLError) throw err;
+            const result = await executor.execute(
+              `restore_${schemaName}`,
+              { id: args.id },
+              ctx.actor,
+              { channel: "http", tenantId: ctx.tenantId, locale, includeDeleted: true },
+            );
+            if (!result.success) {
+              const errData = result.data as Record<string, unknown> | undefined;
               throw new GraphQLError(
-                `Failed to restore ${schemaName} id=${args.id}: ${err instanceof Error ? err.message : String(err)}`,
+                (errData?.error as string) ?? `Failed to restore ${schemaName} id=${args.id}`,
               );
             }
+            const data = result.data as Record<string, unknown>;
+            return data ? resolveTranslatableRow(data, schema, locale) : data;
           }
         : () => null,
     };
