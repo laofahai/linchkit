@@ -31,6 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
+import { useSchemaLabel } from "../i18n/use-schema-label";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ function getStepConfig(type: string) {
 
 export function FlowDetailPage() {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
   // biome-ignore lint/suspicious/noExplicitAny: TanStack Router param typing
   const { name } = useParams({ strict: false }) as any;
   const [flow, setFlow] = useState<FlowDetail | null>(null);

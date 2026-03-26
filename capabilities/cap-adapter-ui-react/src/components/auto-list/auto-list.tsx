@@ -25,6 +25,7 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { SchemaDefinition, StateMeta } from "@linchkit/core/types";
 import { useAISearch, isNaturalLanguageQuery } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -319,12 +320,12 @@ function AutoListSchema({
   onRefresh,
   refreshing = false,
 }: {
-  schema: NonNullable<AutoListProps extends infer T ? T extends { schema?: infer S } ? S : never : never>;
-  view: NonNullable<AutoListProps extends infer T ? T extends { view?: infer V } ? V : never : never>;
+  schema: SchemaDefinition;
+  view: AutoListViewDefinition;
   data: Record<string, unknown>[];
   loading?: boolean;
   title?: string;
-  stateMeta?: Record<string, unknown>;
+  stateMeta?: Partial<Record<string, StateMeta>>;
   onAction?: (actionName: string, recordId: string) => void;
   onBulkAction?: (actionName: string, recordIds: string[]) => void;
   onRowClick?: (recordId: string) => void;
