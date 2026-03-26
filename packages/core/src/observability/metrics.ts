@@ -130,12 +130,134 @@ export class InMemoryMetricsCollector implements MetricsCollector {
     return this.histograms.filter((s) => s.name === name).map((s) => s.value);
   }
 
+  /**
+   * Compute percentiles for a named histogram metric.
+   * Returns an object with p50, p90, p95, p99, min, max, count, and mean.
+   * Returns null if no observations exist for the given name.
+   */
+  getPercentiles(
+    name: string,
+  ): {
+    count: number;
+    min: number;
+    max: number;
+    mean: number;
+    p50: number;
+    p90: number;
+    p95: number;
+    p99: number;
+  } | null {
+    const values = this.getHistogramValues(name);
+    if (values.length === 0) return null;
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const count = sorted.length;
+    const sum = sorted.reduce((acc, v) => acc + v, 0);
+
+    return {
+      count,
+      min: sorted[0],
+      max: sorted[count - 1],
+      mean: sum / count,
+      p50: percentile(sorted, 0.5),
+      p90: percentile(sorted, 0.9),
+      p95: percentile(sorted, 0.95),
+      p99: percentile(sorted, 0.99),
+    };
+  }
+
+  /**
+   * Get all counters matching a name prefix.
+   * Returns an array of { tags, value } entries.
+   */
+  getCountersByPrefix(prefix: string): Array<{ name: string; tags: Record<string, string>; value: number }> {
+    const result: Array<{ name: string; tags: Record<string, string>; value: number }> = [];
+    for (const snapshot of this.counters.values()) {
+      if (snapshot.name.startsWith(prefix)) {
+        result.push({ name: snapshot.name, tags: { ...snapshot.tags }, value: snapshot.value });
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Build a summary of all collected metrics suitable for health endpoints.
+   * Groups counters by name, provides percentiles for histograms, and includes gauges.
+   */
+  getSummary(): MetricsSummary {
+    // Aggregate counters by name
+    const counterTotals = new Map<string, number>();
+    for (const snapshot of this.counters.values()) {
+      counterTotals.set(snapshot.name, (counterTotals.get(snapshot.name) ?? 0) + snapshot.value);
+    }
+    const counters: Record<string, number> = {};
+    for (const [name, total] of counterTotals) {
+      counters[name] = total;
+    }
+
+    // Collect unique histogram names and compute percentiles
+    const histogramNames = new Set<string>();
+    for (const s of this.histograms) {
+      histogramNames.add(s.name);
+    }
+    const histogramSummaries: Record<string, ReturnType<InMemoryMetricsCollector["getPercentiles"]>> = {};
+    for (const name of histogramNames) {
+      histogramSummaries[name] = this.getPercentiles(name);
+    }
+
+    // Collect gauges
+    const gauges: Record<string, number> = {};
+    for (const snapshot of this.gauges.values()) {
+      // Use the full key with tags for uniqueness
+      const tagStr = Object.entries(snapshot.tags)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}=${v}`)
+        .join(",");
+      const key = tagStr ? `${snapshot.name}{${tagStr}}` : snapshot.name;
+      gauges[key] = snapshot.value;
+    }
+
+    return { counters, gauges, histograms: histogramSummaries };
+  }
+
   /** Clear all collected metrics */
   reset(): void {
     this.counters.clear();
     this.gauges.clear();
     this.histograms.length = 0;
   }
+}
+
+// ── Percentile helper ──────────────────────────────────
+
+/** Compute the p-th percentile from a sorted array using nearest-rank method */
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const index = Math.ceil(p * sorted.length) - 1;
+  return sorted[Math.max(0, index)];
+}
+
+// ── MetricsSummary type ────────────────────────────────
+
+export interface MetricsSummary {
+  /** Counter totals grouped by metric name */
+  counters: Record<string, number>;
+  /** Current gauge values (keyed by name or name{tags}) */
+  gauges: Record<string, number>;
+  /** Histogram percentile summaries keyed by metric name */
+  histograms: Record<
+    string,
+    {
+      count: number;
+      min: number;
+      max: number;
+      mean: number;
+      p50: number;
+      p90: number;
+      p95: number;
+      p99: number;
+    } | null
+  >;
 }
 
 /** No-op metrics collector — silently discards all metrics */

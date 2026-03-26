@@ -409,16 +409,49 @@ export function SchemaFormPage() {
 
   const isEditing = formMode === "edit" || formMode === "create";
 
+  /** Prepare mutation input by stripping non-input fields and converting ref values to FK columns. */
+  function prepareMutationInput(data: Record<string, unknown>): Record<string, unknown> {
+    if (!schema) return data;
+    const input: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      const fieldDef = schema.fields[key];
+      if (!fieldDef) continue;
+      // Skip derived fields — they are computed, not user input
+      if (fieldDef.derived) continue;
+      // Convert ref field values to FK column format (e.g., department → department_id)
+      if (fieldDef.type === "ref") {
+        const target = (fieldDef as { target?: string }).target;
+        if (target) {
+          const fkKey = `${target}_id`;
+          // Extract ID from expanded object or use raw value
+          const refValue = typeof value === "object" && value !== null && "id" in value
+            ? (value as { id: string }).id
+            : value;
+          // Only send if the value is not empty
+          if (refValue != null && refValue !== "") {
+            input[fkKey] = refValue;
+          }
+        }
+        continue;
+      }
+      // Skip has_many and many_to_many — they are managed via junction tables, not direct input
+      if (fieldDef.type === "has_many" || fieldDef.type === "many_to_many") continue;
+      input[key] = value;
+    }
+    return input;
+  }
+
   async function handleSubmit(data: Record<string, unknown>) {
     if (!schemaName) return;
     setSaving(true);
+    const mutationInput = prepareMutationInput(data);
     try {
       if (isCreate) {
-        await createRecord(schemaName, data, recordFields);
+        await createRecord(schemaName, mutationInput, recordFields);
         toast.success(t("toast.recordCreated", "Record created successfully"));
         navigate({ to: "/schemas/$name", params: { name: schemaName } });
       } else if (params.id) {
-        await updateRecord(schemaName, params.id, data, recordFields);
+        await updateRecord(schemaName, params.id, mutationInput, recordFields);
         toast.success(t("toast.recordUpdated", "Record updated successfully"));
         await fetchRecord();
         setFormMode("view");

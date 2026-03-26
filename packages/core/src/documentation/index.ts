@@ -1,7 +1,8 @@
 /**
  * Documentation generation module
  *
- * Generates API documentation, Markdown, and OpenAPI specs from the ontology.
+ * Generates API documentation, Markdown, OpenAPI specs, capability specs,
+ * and provides documentation search from the ontology.
  */
 
 export {
@@ -15,6 +16,25 @@ export {
   type SystemDoc,
   schemaToDoc,
 } from "./api-doc-generator";
+
+export {
+  type CapabilityActionDoc,
+  type CapabilityRelationDoc,
+  type CapabilityRuleDoc,
+  type CapabilitySchemaDoc,
+  type CapabilitySpecDoc,
+  type CapabilityStateMachineDoc,
+  type CapabilityViewDoc,
+  generateCapabilityDoc,
+  renderCapabilityDoc,
+} from "./capability-doc-generator";
+
+export {
+  createDocSearchIndex,
+  DocSearchIndex,
+  type DocSearchOptions,
+  type DocSearchResult,
+} from "./doc-search";
 
 export {
   type MarkdownRenderOptions,

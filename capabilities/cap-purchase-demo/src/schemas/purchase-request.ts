@@ -48,6 +48,7 @@ export const purchaseRequestSchema: SchemaDefinition = {
     },
     requester_email: {
       type: "string",
+      required: true,
       label: "Requester Email",
       format: "email",
       sensitive: true,

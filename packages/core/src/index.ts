@@ -51,6 +51,17 @@ export {
   createCapabilityHub,
   satisfiesVersionRange,
 } from "./capability";
+// Capability local registry — file-based capability tracking
+export type {
+  RegistryEntry,
+  RegistrySearchOptions,
+  TrustLevel,
+} from "./capability";
+export {
+  LocalCapabilityRegistry,
+  checkTrustPermissions,
+  createLocalRegistry,
+} from "./capability";
 // Config center
 export type { ConfigSchemaRef } from "./config";
 export {

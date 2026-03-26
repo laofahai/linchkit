@@ -375,10 +375,13 @@ export function generateGraphQLObjectType(
  * Generate a GraphQL input type from a LinchKit SchemaDefinition.
  * Excludes system fields — those are managed by the server.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
+ * When links are provided, adds FK columns for many_to_one and one_to_one relationships
+ * (e.g., department ref → department_id input field).
  */
 export function generateGraphQLInputType(
   schema: SchemaDefinition,
   stateMachines?: Map<string, StateDefinition>,
+  links?: LinkDefinition[],
 ): GraphQLInputObjectType {
   const typeName = `${toPascalCase(schema.name)}Input`;
 
@@ -403,6 +406,23 @@ export function generateGraphQLInputType(
           type: field.required ? new GraphQLNonNull(graphqlType) : graphqlType,
           description: field.description ?? field.label,
         };
+      }
+
+      // Add FK input fields for many_to_one and one_to_one links where this schema is the "from" side.
+      // E.g., if purchase_request has a many_to_one link to department, add `department_id: String`.
+      if (links) {
+        for (const link of links) {
+          if (link.from === schema.name && (link.cardinality === "many_to_one" || link.cardinality === "one_to_one")) {
+            const fkFieldName = `${link.to}_id`;
+            // Don't overwrite if already defined
+            if (!fields[fkFieldName]) {
+              fields[fkFieldName] = {
+                type: GraphQLString,
+                description: `FK reference to ${link.to} (from link "${link.name}")`,
+              };
+            }
+          }
+        }
       }
 
       return fields;

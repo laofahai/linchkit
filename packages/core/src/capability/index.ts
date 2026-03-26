@@ -1,7 +1,8 @@
 /**
  * Capability Hub module — public exports
  *
- * Capability discovery, dependency resolution, and manifest management.
+ * Capability discovery, dependency resolution, manifest management,
+ * and local registry for file-based capability tracking.
  */
 
 export type {
@@ -21,3 +22,13 @@ export type {
   CapabilityProvides,
   CapabilityRequires,
 } from "./capability-manifest";
+export type {
+  RegistryEntry,
+  RegistrySearchOptions,
+  TrustLevel,
+} from "./local-registry";
+export {
+  LocalCapabilityRegistry,
+  checkTrustPermissions,
+  createLocalRegistry,
+} from "./local-registry";

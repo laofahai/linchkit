@@ -373,7 +373,7 @@ export function buildGraphQLSchema(
   for (const schema of schemas) {
     const objectType = schemaObjectTypes.get(schema.name);
     if (!objectType) continue;
-    const inputType = generateGraphQLInputType(schema);
+    const inputType = generateGraphQLInputType(schema, undefined, links);
     const camelName = toCamelCase(schema.name);
     const pascalName = toPascalCase(schema.name);
     const schemaName = schema.name;

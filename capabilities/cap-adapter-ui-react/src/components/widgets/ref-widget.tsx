@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
+import { requiredBg } from "./utils";
 
 interface RefRecord {
   id: string;
@@ -60,6 +61,7 @@ export function RefInput({
   readonly,
   error,
   dirty,
+  required,
   fieldDef,
 }: WidgetInputProps) {
   const { t } = useTranslation();
@@ -104,6 +106,7 @@ export function RefInput({
         <SelectTrigger
           className={cn(
             "w-full",
+            required && requiredBg,
             dirty && !error && "border-ring",
             error && "border-destructive focus-visible:ring-destructive",
           )}
