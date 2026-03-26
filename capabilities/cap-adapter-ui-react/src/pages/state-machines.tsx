@@ -42,12 +42,6 @@ interface StateMeta {
   description?: string;
 }
 
-interface Transition {
-  from: string | string[];
-  to: string;
-  action: string;
-}
-
 interface StateMachineSummary {
   name: string;
   schema: string;
@@ -56,16 +50,6 @@ interface StateMachineSummary {
   stateCount: number;
   transitionCount: number;
   states: string[];
-  meta?: Record<string, StateMeta>;
-}
-
-interface StateMachineDetail {
-  name: string;
-  schema: string;
-  field: string;
-  initial: string;
-  states: string[];
-  transitions: Transition[];
   meta?: Record<string, StateMeta>;
 }
 
@@ -173,9 +157,9 @@ function getStateLabel(
   return raw;
 }
 
-// ── Layout helpers ───────────────────────────────────────
+// SVG-based StateDiagram replaced by ReactFlow component in state-diagram.tsx
 
-/** Node dimensions for layout calculation */
+/** Node dimensions for layout calculation - kept for transition table only */
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 56;
 const H_SPACING = 160;

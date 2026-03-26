@@ -17,8 +17,10 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ArrowRightIcon,
   CalendarIcon,
   GitBranchIcon,
+  LinkIcon,
   MousePointerClickIcon,
   PlayIcon,
   RefreshCwIcon,
@@ -44,6 +46,10 @@ interface FlowSummary {
   trigger: { type: string; eventType?: string; cron?: string };
   stepCount: number;
   steps: FlowStepSummary[];
+  /** Chain indicator — list of downstream flow names triggered on completion */
+  chainsTo?: string[];
+  /** Chain indicator — list of upstream flow names that trigger this flow */
+  chainedFrom?: string[];
 }
 
 // ── Demo data ────────────────────────────────────────────
@@ -62,6 +68,7 @@ const DEMO_FLOWS: FlowSummary[] = [
       { id: "approval", name: "Manager Approval", type: "approval" },
       { id: "notify", name: "Notify Requester", type: "action" },
     ],
+    chainsTo: ["onboarding_flow"],
   },
   {
     name: "ai_evolution_analysis",
@@ -91,6 +98,7 @@ const DEMO_FLOWS: FlowSummary[] = [
       { id: "review", name: "HR Review", type: "approval" },
       { id: "welcome", name: "Send Welcome", type: "action" },
     ],
+    chainedFrom: ["purchase_approval_flow"],
   },
 ];
 
@@ -247,6 +255,32 @@ export function FlowsPage() {
         </span>
       ),
       size: 80,
+    },
+    {
+      id: "chain",
+      header: t("flows.columns.chain", { defaultValue: "Chain" }),
+      cell: ({ row }) => {
+        const flow = row.original as unknown as FlowSummary;
+        const hasChain = (flow.chainsTo?.length ?? 0) > 0 || (flow.chainedFrom?.length ?? 0) > 0;
+        if (!hasChain) return null;
+        return (
+          <div className="flex items-center gap-1">
+            {flow.chainedFrom && flow.chainedFrom.length > 0 && (
+              <Badge variant="outline" className="text-[9px] gap-0.5 h-5">
+                <LinkIcon className="size-2.5" />
+                {flow.chainedFrom.length} in
+              </Badge>
+            )}
+            {flow.chainsTo && flow.chainsTo.length > 0 && (
+              <Badge variant="outline" className="text-[9px] gap-0.5 h-5">
+                <ArrowRightIcon className="size-2.5" />
+                {flow.chainsTo.length} out
+              </Badge>
+            )}
+          </div>
+        );
+      },
+      size: 100,
     },
     {
       id: "version",

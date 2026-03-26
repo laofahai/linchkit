@@ -251,6 +251,82 @@ export function FlowDetailPage() {
         </span>
       </div>
 
+      {/* Flow chain dependencies */}
+      {(flow.dependencies?.upstream?.length || flow.dependencies?.downstream?.length || flow.onComplete) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <LinkIcon className="size-4" />
+              {t("flows.chainDependencies", { defaultValue: "Flow Chain" })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {/* Upstream flows */}
+              {flow.dependencies?.upstream && flow.dependencies.upstream.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground font-medium min-w-[90px]">
+                    {t("flows.triggeredBy", { defaultValue: "Triggered by" })}:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {flow.dependencies.upstream.map((name) => (
+                      <Link key={name} to={"/admin/flows/$name" as "/"} params={{ name }}>
+                        <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
+                          <GitBranchIcon className="size-3" />
+                          {name}
+                          <ArrowRightIcon className="size-3" />
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Downstream flows (from onComplete) */}
+              {flow.dependencies?.downstream && flow.dependencies.downstream.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground font-medium min-w-[90px]">
+                    {t("flows.triggers", { defaultValue: "Triggers" })}:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {flow.dependencies.downstream.map((name) => (
+                      <Link key={name} to={"/admin/flows/$name" as "/"} params={{ name }}>
+                        <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
+                          <ArrowRightIcon className="size-3" />
+                          {name}
+                          <GitBranchIcon className="size-3" />
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* onComplete config details */}
+              {flow.onComplete && (
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-muted-foreground font-medium min-w-[90px]">
+                    {t("flows.onComplete", { defaultValue: "On Complete" })}:
+                  </span>
+                  <div className="text-xs text-muted-foreground">
+                    {(Array.isArray(flow.onComplete) ? flow.onComplete : [flow.onComplete]).map((c) => (
+                      <div key={c.flow} className="flex items-center gap-1">
+                        <ArrowRightIcon className="size-3" />
+                        <span className="font-mono">{c.flow}</span>
+                        {c.onStatus && <Badge variant="secondary" className="text-[9px] h-4">{c.onStatus}</Badge>}
+                        {c.inputMapping && (
+                          <span className="text-muted-foreground/60">
+                            ({Object.keys(c.inputMapping).length} mapped fields)
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Flow diagram */}
       <Card>
         <CardHeader>

@@ -56,11 +56,21 @@ function getStateColor(
   return meta?.[stateName]?.color ?? DEFAULT_STATE_COLOR;
 }
 
+/**
+ * Resolve state label from meta, supporting `t:` i18n prefix.
+ * Falls back to raw state name if no label is found.
+ */
 function getStateLabel(
   stateName: string,
   meta?: Record<string, StateMeta>,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
-  return meta?.[stateName]?.label ?? stateName;
+  const raw = meta?.[stateName]?.label ?? stateName;
+  if (raw.startsWith("t:") && t) {
+    const key = raw.slice(2);
+    return t(key, { defaultValue: stateName });
+  }
+  return raw;
 }
 
 // ── Custom state node ────────────────────────────────────
@@ -177,7 +187,10 @@ function getLayoutedElements(
 
 // ── Build graph from StateMachineDetail ──────────────────
 
-function buildStateGraph(machine: StateMachineDetail): {
+function buildStateGraph(
+  machine: StateMachineDetail,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+): {
   nodes: Node<StateNodeData>[];
   edges: Edge[];
 } {
@@ -194,7 +207,7 @@ function buildStateGraph(machine: StateMachineDetail): {
   // Build nodes
   const nodes: Node<StateNodeData>[] = machine.states.map((state) => {
     const color = getStateColor(state, machine.meta);
-    const label = getStateLabel(state, machine.meta);
+    const label = getStateLabel(state, machine.meta, t);
     return {
       id: state,
       type: "stateNode",
@@ -243,10 +256,10 @@ function buildStateGraph(machine: StateMachineDetail): {
 
 // ── Main component ───────────────────────────────────────
 
-export function StateDiagram({ machine }: { machine: StateMachineDetail }) {
+export function StateDiagram({ machine, t }: { machine: StateMachineDetail; t?: (key: string, opts?: Record<string, unknown>) => string }) {
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildStateGraph(machine),
-    [machine],
+    () => buildStateGraph(machine, t),
+    [machine, t],
   );
 
   const [nodes, , onNodesChange] = useNodesState(layoutedNodes);
