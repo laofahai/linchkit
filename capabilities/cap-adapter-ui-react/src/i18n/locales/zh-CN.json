@@ -345,6 +345,17 @@
     "deleteTitle": "批量删除记录",
     "deleteConfirm": "确定要删除 {{count}} 条记录吗？此操作无法撤销。"
   },
+  "bulkEdit": {
+    "title": "批量编辑",
+    "description": "选择要更新的字段，将应用到 {{count}} 条已选记录。",
+    "selectFields": "选择要更新的字段",
+    "applyToCount": "应用到 {{count}} 条记录",
+    "applying": "正在更新记录...",
+    "summaryUpdated": "成功更新 {{count}} 条记录",
+    "summaryFailed": "{{count}} 条记录更新失败",
+    "errorDetails": "错误详情",
+    "noEditableFields": "没有可编辑的字段。"
+  },
   "states": {
     "draft": "草稿",
     "pending": "待审批",
@@ -645,5 +656,20 @@
     "errorRow": "行",
     "errorMessage": "错误",
     "noMappedData": "没有可导入的数据，请至少映射一个列。"
+  },
+  "versionHistory": {
+    "title": "版本历史",
+    "created": "创建",
+    "fieldsChanged": "{{count}} 个字段变更",
+    "field": "字段",
+    "oldValue": "旧值",
+    "newValue": "新值",
+    "restore": "恢复",
+    "restoreSuccess": "已恢复到所选版本",
+    "compare": "对比",
+    "compareSelected": "对比选中版本",
+    "twoSelected": "已选择 2 个版本",
+    "noVersions": "暂无版本历史记录。",
+    "versionCount": "{{count}} 个版本"
   }
 }

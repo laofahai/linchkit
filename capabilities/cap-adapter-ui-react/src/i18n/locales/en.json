@@ -345,6 +345,17 @@
     "deleteTitle": "Delete records",
     "deleteConfirm": "Are you sure you want to delete {{count}} record(s)? This action cannot be undone."
   },
+  "bulkEdit": {
+    "title": "Bulk Edit",
+    "description": "Select fields to update across {{count}} selected records.",
+    "selectFields": "Select fields to update",
+    "applyToCount": "Apply to {{count}} records",
+    "applying": "Updating records...",
+    "summaryUpdated": "{{count}} record(s) updated successfully",
+    "summaryFailed": "{{count}} record(s) failed",
+    "errorDetails": "Error details",
+    "noEditableFields": "No editable fields available."
+  },
   "states": {
     "draft": "Draft",
     "pending": "Pending",
@@ -645,5 +656,20 @@
     "errorRow": "Row",
     "errorMessage": "Error",
     "noMappedData": "No data to import. Please map at least one column."
+  },
+  "versionHistory": {
+    "title": "Version History",
+    "created": "Created",
+    "fieldsChanged": "{{count}} field(s) changed",
+    "field": "Field",
+    "oldValue": "Old Value",
+    "newValue": "New Value",
+    "restore": "Restore",
+    "restoreSuccess": "Record restored to selected version",
+    "compare": "Compare",
+    "compareSelected": "Compare Selected",
+    "twoSelected": "2 versions selected",
+    "noVersions": "No version history available.",
+    "versionCount": "{{count}} version(s)"
   }
 }

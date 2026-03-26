@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
-import { ChevronDown, Columns3, Download, MoreHorizontal, RefreshCw, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, Columns3, Download, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -125,6 +125,10 @@ export function ListToolbar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onBulkAction?.("edit")}>
+                  <Pencil className="mr-2 size-3.5" />
+                  {t("bulkEdit.title", "Bulk Edit")}
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onBulkAction?.("export")}>
                   <Download className="mr-2 size-3.5" />
                   {t("common.export")}

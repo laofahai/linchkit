@@ -273,14 +273,7 @@ export function StateMachinesPage() {
   );
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">{t("stateMachines.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("stateMachines.subtitle")}</p>
-        </div>
-      </div>
-
+    <div className="p-4">
       <AutoList
         externalColumns={columns}
         data={tableData}
@@ -314,6 +307,98 @@ export function StateMachinesPage() {
         }
       />
     </div>
+  );
+}
+
+// ── Transitions AutoList sub-component ───────────────────
+
+interface FlatTransition {
+  id: string;
+  from: string;
+  action: string;
+  to: string;
+}
+
+function TransitionsAutoList({ machine }: { machine: StateMachineDetail }) {
+  const { t } = useTranslation();
+
+  // Flatten transitions (expand multi-from into individual rows)
+  const flatTransitions = useMemo<FlatTransition[]>(() => {
+    const rows: FlatTransition[] = [];
+    for (const tr of machine.transitions) {
+      const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+      for (const fromState of froms) {
+        rows.push({
+          id: `${fromState}-${tr.to}-${tr.action}`,
+          from: fromState,
+          action: tr.action,
+          to: tr.to,
+        });
+      }
+    }
+    return rows;
+  }, [machine.transitions]);
+
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "from",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.from")} />,
+      cell: ({ row }) => {
+        const fromState = row.getValue("from") as string;
+        return (
+          <Badge
+            variant="outline"
+            style={{
+              borderColor: getStateColor(fromState, machine.meta),
+              color: getStateColor(fromState, machine.meta),
+            }}
+          >
+            {getStateLabel(fromState, machine.meta, t)}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "action",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.action")} />,
+      cell: ({ row }) => (
+        <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
+          <ArrowRightIcon className="size-3" />
+          {row.getValue("action") as string}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "to",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.to")} />,
+      cell: ({ row }) => {
+        const toState = row.getValue("to") as string;
+        return (
+          <Badge
+            variant="outline"
+            style={{
+              borderColor: getStateColor(toState, machine.meta),
+              color: getStateColor(toState, machine.meta),
+            }}
+          >
+            {getStateLabel(toState, machine.meta, t)}
+          </Badge>
+        );
+      },
+    },
+  ], [t, machine.meta]);
+
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => flatTransitions.map((tr) => ({ ...tr }) as Record<string, unknown>),
+    [flatTransitions],
+  );
+
+  return (
+    <AutoList
+      externalColumns={columns}
+      data={tableData}
+      pageSize={50}
+    />
   );
 }
 

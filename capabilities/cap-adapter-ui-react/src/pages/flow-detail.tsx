@@ -27,9 +27,11 @@ import {
   SparklesIcon,
   SplitIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 
@@ -151,6 +153,92 @@ function getStepConfig(type: string) {
     bgClass: "bg-muted border-border",
     icon: <PlayIcon className="size-4" />,
   };
+}
+
+// ── Step list AutoList sub-component ─────────────────────
+
+function StepListAutoList({
+  steps,
+  resolveLabel,
+}: {
+  steps: FlowStep[];
+  resolveLabel: (key: string, fallback: string) => string;
+}) {
+  const { t } = useTranslation();
+
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      id: "index",
+      header: "#",
+      size: 50,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.index + 1}</span>
+      ),
+    },
+    {
+      accessorKey: "id",
+      header: "ID",
+      size: 120,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">{row.getValue("id") as string}</span>
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: ({ column }) => <SortableHeader column={column} label={t("flows.stepName")} />,
+      cell: ({ row }) => {
+        const step = row.original as unknown as FlowStep;
+        return <span className="font-medium">{resolveLabel(step.name, step.name)}</span>;
+      },
+    },
+    {
+      accessorKey: "type",
+      header: ({ column }) => <SortableHeader column={column} label={t("flows.stepType")} />,
+      cell: ({ row }) => {
+        const step = row.original as unknown as FlowStep;
+        const config = getStepConfig(step.type);
+        return (
+          <div className="flex items-center gap-1.5" style={{ color: config.color }}>
+            {config.icon}
+            <span className="text-xs">{step.type}</span>
+          </div>
+        );
+      },
+      size: 120,
+    },
+    {
+      id: "details",
+      header: t("flows.stepDetails"),
+      cell: ({ row }) => {
+        const step = row.original as unknown as FlowStep;
+        let detail = "";
+        if (step.type === "action" && step.actionName) detail = step.actionName;
+        else if (step.type === "condition" && step.expression) detail = step.expression;
+        else if (step.type === "ai" && typeof step.prompt === "string") detail = step.prompt.slice(0, 60);
+        else if (step.type === "approval" && step.approvers) detail = step.approvers.join(", ");
+        else if (step.type === "wait") detail = step.signal ?? "duration";
+        else if (step.type === "parallel" && step.steps) detail = step.steps.join(", ");
+        return (
+          <span className="text-xs text-muted-foreground max-w-xs truncate block">
+            {detail}
+          </span>
+        );
+      },
+    },
+  ], [t, resolveLabel]);
+
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => steps.map((s) => ({ ...s }) as Record<string, unknown>),
+    [steps],
+  );
+
+  return (
+    <AutoList
+      externalColumns={columns}
+      data={tableData}
+      pageSize={50}
+    />
+  );
 }
 
 // ── Main component ───────────────────────────────────────
@@ -345,45 +433,7 @@ export function FlowDetailPage() {
           <CardTitle className="text-base">{t("flows.stepList")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="p-2 text-left font-medium">#</th>
-                  <th className="p-2 text-left font-medium">ID</th>
-                  <th className="p-2 text-left font-medium">{t("flows.stepName")}</th>
-                  <th className="p-2 text-left font-medium">{t("flows.stepType")}</th>
-                  <th className="p-2 text-left font-medium">{t("flows.stepDetails")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flow.steps.map((step, i) => {
-                  const config = getStepConfig(step.type);
-                  return (
-                    <tr key={step.id} className="border-b">
-                      <td className="p-2 text-muted-foreground">{i + 1}</td>
-                      <td className="p-2 font-mono text-xs">{step.id}</td>
-                      <td className="p-2 font-medium">{resolveLabel(step.name, step.name)}</td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-1.5" style={{ color: config.color }}>
-                          {config.icon}
-                          <span className="text-xs">{step.type}</span>
-                        </div>
-                      </td>
-                      <td className="p-2 text-xs text-muted-foreground max-w-xs truncate">
-                        {step.type === "action" && step.actionName}
-                        {step.type === "condition" && step.expression}
-                        {step.type === "ai" && (typeof step.prompt === "string" ? step.prompt.slice(0, 60) : "")}
-                        {step.type === "approval" && step.approvers?.join(", ")}
-                        {step.type === "wait" && (step.signal ?? "duration")}
-                        {step.type === "parallel" && step.steps?.join(", ")}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <StepListAutoList steps={flow.steps} resolveLabel={resolveLabel} />
         </CardContent>
       </Card>
     </div>

@@ -28,6 +28,7 @@ import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { TransitionButtons } from "../components/transition-buttons";
+import { VersionHistoryPanel } from "../components/version-history-panel";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
@@ -875,6 +876,10 @@ export function SchemaFormPage() {
                       {t("detail.relatedRecords", "Related Records")}
                     </TabsTrigger>
                   )}
+                  {/* Version history tab */}
+                  <TabsTrigger value="version-history">
+                    {t("versionHistory.title", "Version History")}
+                  </TabsTrigger>
                   {/* Audit trail tab */}
                   <TabsTrigger value="audit-trail">
                     {t("detail.auditTrail", "Audit Trail")}
@@ -903,6 +908,21 @@ export function SchemaFormPage() {
                     />
                   </TabsContent>
                 )}
+
+                {/* Version history tab content */}
+                <TabsContent value="version-history">
+                  <VersionHistoryPanel
+                    schemaName={schemaName}
+                    recordId={params.id!}
+                    currentRecord={record}
+                    fields={schema.fields}
+                    recordFields={recordFields}
+                    onRestore={() => {
+                      fetchRecord();
+                      toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
+                    }}
+                  />
+                </TabsContent>
 
                 {/* Audit trail tab content */}
                 <TabsContent value="audit-trail">

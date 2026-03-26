@@ -11,6 +11,8 @@ import type {
   ActionResult,
   Actor,
   AIService,
+  ApprovalEngine,
+  ApprovalStatus,
   CapabilityDefinition,
   CommandLayer,
   DataProvider,
@@ -109,6 +111,8 @@ export interface ServerOptions {
   states?: StateDefinition[];
   /** LinchKit project config — used by /api/settings (sanitized, no secrets) */
   linchKitConfig?: LinchKitConfig;
+  /** Approval engine — when provided, enables /api/approvals REST endpoints */
+  approvalEngine?: ApprovalEngine;
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -293,6 +297,7 @@ export function createServer(
   const aiService = options?.aiService;
   const metricsCollector = options?.metricsCollector;
   const linchKitConfig = options?.linchKitConfig;
+  const approvalEngine = options?.approvalEngine;
   const serverStartedAt = Date.now();
 
   // Create graphql-yoga instance with actor + tenant context factory
@@ -840,6 +845,102 @@ export function createServer(
         return { success: false, error: { message: `Execution ${params.id} not found.` } };
       }
       return { success: true, data: entry };
+    })
+    // ── Approval REST endpoints ──────────────────────────
+    .get("/api/approvals", async ({ request, query, set }) => {
+      if (!approvalEngine) {
+        set.status = 501;
+        return { success: false, error: { message: "Approval engine not configured." } };
+      }
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+
+      const statusFilter = query.status as ApprovalStatus | undefined;
+      const requests = await approvalEngine.store.query({
+        status: statusFilter ?? "pending",
+        tenantId: resolveRequestTenantId
+          ? (await resolveRequestTenantId(request, actor)) ?? undefined
+          : undefined,
+      });
+      return { success: true, data: { items: requests, total: requests.length } };
+    })
+    .get("/api/approvals/count", async ({ request, set }) => {
+      if (!approvalEngine) {
+        return { success: true, data: { count: 0 } };
+      }
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+      const requests = await approvalEngine.store.query({
+        status: "pending",
+        tenantId: resolveRequestTenantId
+          ? (await resolveRequestTenantId(request, actor)) ?? undefined
+          : undefined,
+      });
+      return { success: true, data: { count: requests.length } };
+    })
+    .get("/api/approvals/:id", async ({ params, set }) => {
+      if (!approvalEngine) {
+        set.status = 501;
+        return { success: false, error: { message: "Approval engine not configured." } };
+      }
+      const request = await approvalEngine.store.getById(params.id);
+      if (!request) {
+        set.status = 404;
+        return { success: false, error: { message: `Approval ${params.id} not found.` } };
+      }
+      return { success: true, data: request };
+    })
+    .post("/api/approvals/:id/approve", async ({ params, body, request, set }) => {
+      if (!approvalEngine) {
+        set.status = 501;
+        return { success: false, error: { message: "Approval engine not configured." } };
+      }
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+      const { note } = (body ?? {}) as { note?: string };
+      try {
+        const result = await approvalEngine.approve(
+          { approvalId: params.id, note },
+          actor,
+        );
+        return { success: true, data: result };
+      } catch (err) {
+        set.status = 400;
+        return {
+          success: false,
+          error: { message: err instanceof Error ? err.message : String(err) },
+        };
+      }
+    })
+    .post("/api/approvals/:id/reject", async ({ params, body, request, set }) => {
+      if (!approvalEngine) {
+        set.status = 501;
+        return { success: false, error: { message: "Approval engine not configured." } };
+      }
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+      const { note } = (body ?? {}) as { note?: string };
+      if (!note || note.trim() === "") {
+        set.status = 400;
+        return { success: false, error: { message: "Rejection note is required." } };
+      }
+      try {
+        const result = await approvalEngine.reject(
+          { approvalId: params.id, note },
+          actor,
+        );
+        return { success: true, data: result };
+      } catch (err) {
+        set.status = 400;
+        return {
+          success: false,
+          error: { message: err instanceof Error ? err.message : String(err) },
+        };
+      }
     })
     // ── AI Auto-Fill endpoint ────────────────────────────
     .post("/api/ai/auto-fill", async ({ body, set }) => {

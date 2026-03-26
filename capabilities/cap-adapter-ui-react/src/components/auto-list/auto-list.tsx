@@ -34,6 +34,7 @@ import type { FiltersState } from "../data-table-filter/core/types";
 import { buildColumns, buildSelectionColumn } from "./columns";
 import { exportCsv } from "./csv-export";
 import { buildFilterColumns } from "./filter-columns";
+import { BulkEditDialog } from "./bulk-edit-dialog";
 import { ImportDialog } from "./import-dialog";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
@@ -350,6 +351,7 @@ function AutoListSchema({
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
 
   // AI search hook
   const {
@@ -554,11 +556,15 @@ function AutoListSchema({
     exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
   }, [selectedRows, view.fields, schema.name, resolveLabel]);
 
-  // Intercept bulk actions to handle export internally
+  // Intercept bulk actions to handle export and edit internally
   const handleBulkAction = useCallback(
     (actionName: string) => {
       if (actionName === "export") {
         handleExportSelected();
+        return;
+      }
+      if (actionName === "edit") {
+        setBulkEditOpen(true);
         return;
       }
       onBulkAction?.(actionName, selectedIds);
@@ -634,6 +640,18 @@ function AutoListSchema({
         onOpenChange={setImportOpen}
         schema={schema}
         onImported={onRefresh}
+      />
+
+      <BulkEditDialog
+        open={bulkEditOpen}
+        onOpenChange={setBulkEditOpen}
+        schema={schema}
+        selectedIds={selectedIds}
+        queryFields={queryFields}
+        onCompleted={() => {
+          setRowSelection({});
+          onRefresh?.();
+        }}
       />
     </div>
   );

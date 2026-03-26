@@ -10,8 +10,6 @@ import { useTranslation } from "react-i18next";
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -33,10 +31,8 @@ import {
   ClockIcon,
   CodeIcon,
   RefreshCwIcon,
-  ShieldAlertIcon,
   UserIcon,
   XCircleIcon,
-  ZapIcon,
 } from "lucide-react";
 import {
   type Proposal,
@@ -431,32 +427,7 @@ export function ProposalsPage() {
   );
 
   return (
-    <div className="space-y-6 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <ZapIcon className="h-5 w-5 text-purple-500" />
-            {t("proposals.title")}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("proposals.subtitle")}
-          </p>
-        </div>
-      </div>
-
-      {/* Pending count banner */}
-      {pendingCount > 0 && (
-        <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/50">
-          <CardContent className="py-3 flex items-center gap-3">
-            <ShieldAlertIcon className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-            <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
-              {t("proposals.pendingBanner", { count: pendingCount })}
-            </span>
-          </CardContent>
-        </Card>
-      )}
-
+    <div className="p-4">
       <AutoList
         externalColumns={columns}
         data={tableData}
@@ -483,6 +454,11 @@ export function ProposalsPage() {
                 <SelectItem value="rejected">{t("proposals.filter.rejected")}</SelectItem>
               </SelectContent>
             </Select>
+            {pendingCount > 0 && (
+              <Badge variant="outline" className="text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700">
+                {t("proposals.pendingBanner", { count: pendingCount })}
+              </Badge>
+            )}
             <Button variant="outline" size="icon-sm" onClick={loadProposals} disabled={loading} title={t("executionLog.refresh")}>
               <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
