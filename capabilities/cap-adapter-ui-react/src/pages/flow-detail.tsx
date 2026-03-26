@@ -187,7 +187,7 @@ function StepListAutoList({
 
   return (
     <AutoList
-      externalColumns={columns}
+      columns={columns}
       data={tableData}
       pageSize={50}
     />

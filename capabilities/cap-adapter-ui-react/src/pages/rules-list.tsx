@@ -277,7 +277,7 @@ export function RulesListPage() {
   return (
     <div className="p-4">
       <AutoList
-        externalColumns={columns}
+        columns={columns}
         data={tableData}
         pageSize={20}
         loading={loading}

@@ -198,7 +198,7 @@ export function StateMachinesPage() {
   return (
     <div className="p-4">
       <AutoList
-        externalColumns={columns}
+        columns={columns}
         data={tableData}
         pageSize={20}
         loading={loading}
@@ -322,7 +322,7 @@ function TransitionsAutoList({ machine }: { machine: StateMachineDetail }) {
 
   return (
     <AutoList
-      externalColumns={columns}
+      columns={columns}
       data={tableData}
       pageSize={50}
     />

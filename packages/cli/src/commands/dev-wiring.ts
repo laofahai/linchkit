@@ -25,6 +25,8 @@ import {
   ActionRegistry,
   AIAuditLogger,
   AIBoundary,
+  createAIService,
+  createNoopAIService,
   CacheManager,
   checkConnection,
   checkRestateHealth,
@@ -217,16 +219,17 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   });
   console.log("[linch] AIAuditLogger created");
 
+  // ── AI Service — create from config or use noop ──
+  const aiService = config.ai
+    ? createAIService(config.ai)
+    : createNoopAIService();
+  if (config.ai) {
+    console.log(`[linch] AIService created (provider: ${config.ai.defaultProvider})`);
+  }
+
   // ── AI Boundary — wraps AI service with default safety policy ──
-  // Stub AI service until a real provider is configured via capability
-  const stubAiService = {
-    configured: false,
-    complete: async () => {
-      throw new Error("AI service not configured. Register an AI provider capability.");
-    },
-  };
   const aiBoundary = new AIBoundary({
-    aiService: stubAiService,
+    aiService: aiService,
     onUsageRecord: (record) => {
       // Forward usage records to audit logger as AI call events
       aiAuditLogger.logCall({
@@ -278,7 +281,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   if (flowCount > 0) {
     // Create step context for flow execution
     const flowStepContext = createFlowStepContext({
-      aiService: stubAiService,
+      aiService: aiService,
       aiBoundary,
       actionEngine: {
         execute: (actionName, input, options) => {
@@ -477,6 +480,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     automationEngine,
     aiBoundary,
     aiAuditLogger,
+    aiService,
   };
 
   return {

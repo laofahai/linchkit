@@ -282,11 +282,15 @@ export function ExecutionLogsPage() {
   return (
     <div className="p-4">
       <AutoList
-        externalColumns={columns}
+        columns={columns}
         data={tableData}
         pageSize={20}
         defaultSorting={[{ id: "startedAt", desc: true }]}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.executionLogs.title"),
+          description: t("emptyState.executionLogs.description"),
+        }}
         onRowClick={(id) => {
           setExpandedId(expandedId === id ? null : id);
         }}

@@ -420,7 +420,7 @@ export function ApprovalsPage() {
   return (
     <div className="p-4">
       <AutoList
-        externalColumns={columns}
+        columns={columns}
         data={tableData}
         pageSize={20}
         defaultSorting={[{ id: "createdAt", desc: true }]}

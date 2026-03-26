@@ -274,7 +274,7 @@ export function AutoList({
     aiSearch: aiSearchState,
     triggerAISearch,
     clearAISearch,
-  } = useAISearch(schema ?? null);
+  } = useAISearch(schema);
 
   const handleSearchSubmit = useCallback(
     (query: string) => {
