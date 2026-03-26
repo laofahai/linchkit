@@ -1,12 +1,30 @@
 /**
  * StateDiagram — Clean, professional state machine visualization.
  *
- * Uses Mermaid.js for rendering state diagrams. Produces clean,
- * readable diagrams with proper arrows, labels, and state markers.
+ * Uses ReactFlow + dagre for auto-layout. Left-to-right horizontal flow.
+ * Design: white card nodes with left color accent bar, uniform slate edges.
  */
 
-import mermaid from "mermaid";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  Background,
+  BaseEdge,
+  Controls,
+  type Edge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  getBezierPath,
+  Handle,
+  type Node,
+  type NodeProps,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import dagre from "dagre";
+import { CircleIcon } from "lucide-react";
+import { useMemo } from "react";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -28,33 +46,26 @@ export interface StateMachineDetail {
     action: string;
   }>;
   meta?: Record<string, StateMeta>;
+  /** Optional map from action name to display label (for i18n resolution) */
+  actionLabels?: Record<string, string>;
 }
 
-// ── Mermaid initialization ───────────────────────────────
+// ── Constants ────────────────────────────────────────────
 
-let mermaidInitialized = false;
-
-function ensureMermaidInit() {
-  if (mermaidInitialized) return;
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: "base",
-    themeVariables: {
-      primaryColor: "#f1f5f9",
-      primaryTextColor: "#1e293b",
-      primaryBorderColor: "#cbd5e1",
-      lineColor: "#94a3b8",
-      fontSize: "14px",
-      fontFamily: "inherit",
-    },
-    stateDiagram: {
-      defaultRenderer: "dagre-wrapper",
-    },
-  });
-  mermaidInitialized = true;
-}
+const DEFAULT_STATE_COLOR = "#6b7280";
+const EDGE_COLOR = "#94a3b8";
+const NODE_WIDTH = 140;
+const NODE_HEIGHT = 44;
+const ARROW_ID = "state-arrow";
 
 // ── Helpers ──────────────────────────────────────────────
+
+function getStateColor(
+  stateName: string,
+  meta?: Record<string, StateMeta>,
+): string {
+  return meta?.[stateName]?.color ?? DEFAULT_STATE_COLOR;
+}
 
 /**
  * Resolve state label from meta, supporting `t:` i18n prefix.
@@ -73,68 +84,524 @@ function getStateLabel(
 }
 
 /**
- * Sanitize a state name for Mermaid (remove special chars that break syntax).
+ * Resolve action label: use actionLabels map, then try t() i18n, then fall back to raw name.
  */
-function sanitizeId(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, "_");
-}
-
-// ── Build Mermaid definition ─────────────────────────────
-
-function buildMermaidDef(
-  detail: StateMachineDetail,
+function resolveActionLabel(
+  actionName: string,
+  actionLabels?: Record<string, string>,
   t?: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
-  const lines: string[] = ["stateDiagram-v2"];
-
-  // Map original state names to sanitized IDs
-  const idMap = new Map<string, string>();
-  for (const state of detail.states) {
-    idMap.set(state, sanitizeId(state));
+  if (actionLabels?.[actionName]) {
+    return actionLabels[actionName];
   }
-
-  // State aliases (display labels)
-  for (const state of detail.states) {
-    const id = idMap.get(state)!;
-    const label = getStateLabel(state, detail.meta, t);
-    lines.push(`  ${id}: ${label}`);
-  }
-
-  // Initial state transition
-  const initialId = idMap.get(detail.initial);
-  if (initialId) {
-    lines.push(`  [*] --> ${initialId}`);
-  }
-
-  // Transitions
-  for (const tr of detail.transitions) {
-    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
-    for (const from of froms) {
-      const fromId = idMap.get(from) ?? sanitizeId(from);
-      const toId = idMap.get(tr.to) ?? sanitizeId(tr.to);
-      lines.push(`  ${fromId} --> ${toId}: ${tr.action}`);
+  if (t) {
+    const resolved = t(`actions.${actionName}`, { defaultValue: "" });
+    if (resolved && resolved !== "") {
+      return resolved;
     }
   }
-
-  // Terminal states (no outgoing transitions) point to [*]
-  const fromStates = new Set<string>();
-  for (const tr of detail.transitions) {
-    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
-    for (const f of froms) fromStates.add(f);
-  }
-  for (const state of detail.states) {
-    if (!fromStates.has(state)) {
-      const id = idMap.get(state)!;
-      lines.push(`  ${id} --> [*]`);
-    }
-  }
-
-  return lines.join("\n");
+  return actionName;
 }
 
-// ── Counter for unique render IDs ────────────────────────
+/**
+ * Apply reduced opacity to a color for muted accent bars.
+ */
+function muteColor(color: string): string {
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : hex;
+    const r = Number.parseInt(fullHex.slice(0, 2), 16);
+    const g = Number.parseInt(fullHex.slice(2, 4), 16);
+    const b = Number.parseInt(fullHex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.55)`;
+  }
+  if (color.startsWith("rgb(")) {
+    return color.replace("rgb(", "rgba(").replace(")", ", 0.55)");
+  }
+  return color;
+}
 
-let renderCounter = 0;
+/** Pill-style edge label used by EdgeLabelRenderer */
+function EdgeLabel({
+  label,
+  x,
+  y,
+}: { label: string; x: number; y: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+        pointerEvents: "all",
+      }}
+      className="nodrag nopan"
+    >
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          color: "#475569",
+          backgroundColor: "#ffffff",
+          padding: "2px 8px",
+          borderRadius: 9999,
+          border: "1px solid #e2e8f0",
+          whiteSpace: "nowrap",
+          lineHeight: "16px",
+          display: "inline-block",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ── Custom state node ────────────────────────────────────
+
+interface StateNodeData {
+  label: string;
+  color: string;
+  isInitial: boolean;
+  isTerminal: boolean;
+  [key: string]: unknown;
+}
+
+function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
+  const { label, color, isInitial, isTerminal } = data;
+
+  return (
+    <div
+      style={{
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        background: "#ffffff",
+        border: isTerminal ? "1px dashed #cbd5e1" : "1px solid #e2e8f0",
+        borderRadius: 6,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Left accent bar — muted color */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          backgroundColor: muteColor(color),
+          borderRadius: "6px 0 0 6px",
+        }}
+      />
+
+      {/* Handles: left target, right source, top target+source, bottom target+source */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="top-source"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top-target"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom-source"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="bottom-target"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 5,
+          paddingLeft: 8,
+          paddingRight: 4,
+        }}
+      >
+        {isInitial && (
+          <CircleIcon
+            style={{
+              width: 10,
+              height: 10,
+              color: color,
+              fill: color,
+              flexShrink: 0,
+            }}
+          />
+        )}
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: "#1e293b",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Self-loop edge ───────────────────────────────────────
+
+function SelfLoopEdge({
+  id,
+  sourceX,
+  sourceY,
+  label,
+}: EdgeProps) {
+  // Self-loop arcs above the node (source and target are top handles)
+  const loopWidth = 40;
+  const loopHeight = 50;
+
+  const path = `M ${sourceX - 20} ${sourceY}
+    C ${sourceX - 20} ${sourceY - loopHeight},
+      ${sourceX + 20} ${sourceY - loopHeight},
+      ${sourceX + 20} ${sourceY}`;
+
+  const labelX = sourceX;
+  const labelY = sourceY - loopHeight - 4;
+
+  return (
+    <>
+      <path
+        id={id}
+        d={path}
+        fill="none"
+        stroke={EDGE_COLOR}
+        strokeWidth={1.5}
+        markerEnd={`url(#${ARROW_ID})`}
+      />
+      {label && (
+        <EdgeLabelRenderer>
+          <EdgeLabel label={label as string} x={labelX} y={labelY} />
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+// ── Labeled edge (overrides default to use pill labels) ──
+
+function LabeledEdge(props: EdgeProps) {
+  const {
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    label,
+    data,
+  } = props;
+
+  // Apply vertical offset for parallel edges between the same pair of nodes
+  const offsetY = (data?.offsetY as number) ?? 0;
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY: sourceY + offsetY,
+    targetX,
+    targetY: targetY + offsetY,
+    sourcePosition,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{ stroke: EDGE_COLOR, strokeWidth: 1.5 }}
+        markerEnd={`url(#${ARROW_ID})`}
+      />
+      {label && (
+        <EdgeLabelRenderer>
+          <EdgeLabel label={label as string} x={labelX} y={labelY} />
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+// ── Node & edge type registries ──────────────────────────
+
+const nodeTypes = {
+  stateNode: StateNode,
+};
+
+const edgeTypes = {
+  selfLoop: SelfLoopEdge,
+  labeled: LabeledEdge,
+};
+
+// ── Dagre layout ─────────────────────────────────────────
+
+function getLayoutedElements(
+  nodes: Node<StateNodeData>[],
+  edges: Edge[],
+): { nodes: Node<StateNodeData>[]; edges: Edge[] } {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: "LR",
+    nodesep: 80,
+    ranksep: 200,
+    marginx: 40,
+    marginy: 40,
+  });
+
+  for (const node of nodes) {
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  }
+
+  for (const edge of edges) {
+    if (edge.source !== edge.target) {
+      g.setEdge(edge.source, edge.target);
+    }
+  }
+
+  dagre.layout(g);
+
+  const layoutedNodes = nodes.map((node) => {
+    const pos = g.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: pos.x - NODE_WIDTH / 2,
+        y: pos.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+}
+
+// ── Build graph from StateMachineDetail ──────────────────
+
+function buildStateGraph(
+  machine: StateMachineDetail,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+): {
+  nodes: Node<StateNodeData>[];
+  edges: Edge[];
+} {
+  const stateSet = new Set(machine.states);
+
+  // Determine terminal states (no outgoing transitions)
+  const hasOutgoing = new Set<string>();
+  for (const tr of machine.transitions) {
+    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+    for (const f of froms) hasOutgoing.add(f);
+  }
+  const terminalStates = new Set(
+    machine.states.filter((s) => !hasOutgoing.has(s)),
+  );
+
+  const nodes: Node<StateNodeData>[] = machine.states.map((state) => ({
+    id: state,
+    type: "stateNode",
+    position: { x: 0, y: 0 },
+    data: {
+      label: getStateLabel(state, machine.meta, t),
+      color: getStateColor(state, machine.meta),
+      isInitial: state === machine.initial,
+      isTerminal: terminalStates.has(state),
+    },
+  }));
+
+  // Flatten transitions into individual edges, tracking each (from, to) pair
+  const edges: Edge[] = [];
+  let edgeIdx = 0;
+
+  // Count edges between each directed pair to apply offset for parallel edges
+  const pairEdgeCounts = new Map<string, number>();
+
+  // First pass: collect all edges
+  interface RawEdge {
+    from: string;
+    to: string;
+    action: string;
+    isSelfLoop: boolean;
+  }
+  const rawEdges: RawEdge[] = [];
+
+  for (const tr of machine.transitions) {
+    const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
+    for (const from of froms) {
+      rawEdges.push({
+        from,
+        to: tr.to,
+        action: tr.action,
+        isSelfLoop: from === tr.to,
+      });
+    }
+  }
+
+  // Second pass: assign offsets for parallel/bidirectional edges
+  for (const raw of rawEdges) {
+    const { from, to, action, isSelfLoop } = raw;
+
+    // Skip edges referencing non-existent states (prevents dangling arrows)
+    if (!stateSet.has(from) || !stateSet.has(to)) {
+      continue;
+    }
+
+    const actionLabel = resolveActionLabel(action, machine.actionLabels, t);
+
+    if (isSelfLoop) {
+      edges.push({
+        id: `tr-${edgeIdx++}`,
+        source: from,
+        target: to,
+        type: "selfLoop",
+        sourceHandle: "top-source",
+        targetHandle: "top-target",
+        label: actionLabel,
+      });
+      continue;
+    }
+
+    // Normalize pair key so A->B and B->A share the same counter
+    const pairKey = [from, to].sort().join("::");
+    const currentIndex = pairEdgeCounts.get(pairKey) ?? 0;
+    pairEdgeCounts.set(pairKey, currentIndex + 1);
+
+    // Determine if this is a "reverse" edge (target sorts before source)
+    const isReverse = from > to;
+
+    // For parallel edges, alternate between top and bottom handles
+    let sourceHandle: string;
+    let targetHandle: string;
+
+    if (currentIndex === 0) {
+      // First edge between this pair: standard right->left
+      sourceHandle = "right";
+      targetHandle = "left";
+    } else {
+      // Additional edges: route through bottom for second, top for third, etc.
+      const useBottom = isReverse
+        ? currentIndex % 2 === 0
+        : currentIndex % 2 === 1;
+      if (useBottom) {
+        sourceHandle = "bottom-source";
+        targetHandle = "bottom-target";
+      } else {
+        sourceHandle = "top-source";
+        targetHandle = "top-target";
+      }
+    }
+
+    edges.push({
+      id: `tr-${edgeIdx++}`,
+      source: from,
+      target: to,
+      type: "labeled",
+      sourceHandle,
+      targetHandle,
+      label: actionLabel,
+    });
+  }
+
+  return getLayoutedElements(nodes, edges);
+}
+
+// ── Arrow marker definition ─────────────────────────────
+
+function ArrowMarkerDefs() {
+  return (
+    <svg style={{ position: "absolute", width: 0, height: 0 }}>
+      <defs>
+        <marker
+          id={ARROW_ID}
+          viewBox="0 0 10 10"
+          refX="10"
+          refY="5"
+          markerWidth="8"
+          markerHeight="8"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={EDGE_COLOR} />
+        </marker>
+      </defs>
+    </svg>
+  );
+}
 
 // ── Main component ───────────────────────────────────────
 
@@ -145,46 +612,19 @@ export function StateDiagram({
   machine: StateMachineDetail;
   t?: (key: string, opts?: Record<string, unknown>) => string;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const definition = useMemo(
-    () => buildMermaidDef(machine, t),
+  const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
+    () => buildStateGraph(machine, t),
     [machine, t],
   );
 
-  const renderDiagram = useCallback(async () => {
-    if (!containerRef.current) return;
-
-    ensureMermaidInit();
-
-    const id = `mermaid-state-${++renderCounter}`;
-    try {
-      const { svg } = await mermaid.render(id, definition);
-      if (containerRef.current) {
-        containerRef.current.innerHTML = svg;
-        // Make the SVG responsive
-        const svgEl = containerRef.current.querySelector("svg");
-        if (svgEl) {
-          svgEl.style.maxWidth = "100%";
-          svgEl.style.height = "auto";
-        }
-      }
-    } catch (err) {
-      console.error("Mermaid render error:", err);
-      if (containerRef.current) {
-        containerRef.current.innerHTML = `<pre style="color:#ef4444;padding:16px;font-size:13px;">State diagram render error. Definition:\n${definition}</pre>`;
-      }
-    }
-  }, [definition]);
-
-  useEffect(() => {
-    renderDiagram();
-  }, [renderDiagram]);
+  const [nodes, , onNodesChange] = useNodesState(layoutedNodes);
+  const [edges, , onEdgesChange] = useEdgesState(layoutedEdges);
 
   return (
     <div
       style={{
         width: "100%",
+        height: 350,
         background: "#f8fafc",
         border: "1px solid #e2e8f0",
         borderRadius: 8,
@@ -192,11 +632,34 @@ export function StateDiagram({
         position: "relative",
       }}
     >
-      <div
-        ref={containerRef}
-        className="w-full overflow-x-auto p-4"
-        style={{ minHeight: 120 }}
-      />
+      <ArrowMarkerDefs />
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.5}
+        maxZoom={2}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background gap={20} size={1} color="#e9ecef" />
+        <Controls
+          showInteractive={false}
+          position="bottom-left"
+          style={{
+            borderRadius: 6,
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        />
+      </ReactFlow>
     </div>
   );
 }
