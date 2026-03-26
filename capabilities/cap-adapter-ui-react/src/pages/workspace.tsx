@@ -137,14 +137,9 @@ async function fetchSchemaSummaries(
       const total = data?.total ?? 0;
       const stateInfo = stateFields.get(s.name);
 
-      // Build state breakdown by counting occurrences
+      // State breakdown requires server-side aggregation (not yet implemented).
+      // For now, only total count is available.
       const stateBreakdown: StateBreakdown = {};
-      if (stateInfo && data?.items) {
-        for (const item of data.items) {
-          const stateValue = item[stateInfo.fieldName] ?? "unknown";
-          stateBreakdown[stateValue] = (stateBreakdown[stateValue] ?? 0) + 1;
-        }
-      }
 
       // Extract state meta for color resolution
       let stateMeta: Partial<Record<string, StateMeta>> | undefined;

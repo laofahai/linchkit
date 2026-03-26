@@ -967,6 +967,19 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
 
   if (eventBus) {
     const subManager = new SubscriptionManager(eventBus, subscriptionConfig);
+
+    // Wire permission checker: verify the actor can read the schema before delivering events.
+    // Check schema exposure config — if GraphQL is explicitly disabled, deny SSE events too.
+    if (schemaRegistry) {
+      subManager.setPermissionChecker((_actor, schemaName) => {
+        const schemaDef = schemaRegistry.get(schemaName);
+        if (!schemaDef) return false; // Unknown schema — deny
+        // If exposure is configured and graphql is explicitly false, deny
+        if (schemaDef.exposure?.graphql === false) return false;
+        return true;
+      });
+    }
+
     subManager.start();
 
     app.get("/api/subscribe", async ({ request, set, query }) => {
