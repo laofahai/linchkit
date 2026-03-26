@@ -27,6 +27,7 @@ import { AutoList } from "../components/auto-list";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
+import { TOOLBAR_ICON_BTN } from "../lib/constants";
 
 type ActiveView = "list" | "calendar";
 
@@ -274,7 +275,7 @@ export function SchemaListPage() {
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
         size="sm"
-        className="h-7 w-7 p-0 rounded-r-none"
+        className={`${TOOLBAR_ICON_BTN} rounded-r-none`}
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
@@ -283,7 +284,7 @@ export function SchemaListPage() {
       <Button
         variant={activeView === "calendar" ? "default" : "ghost"}
         size="sm"
-        className="h-7 w-7 p-0 rounded-l-none border-l border-border"
+        className={`${TOOLBAR_ICON_BTN} rounded-l-none border-l border-border`}
         onClick={() => setActiveView("calendar")}
         title={t("calendar.calendarView", "Calendar view")}
       >
