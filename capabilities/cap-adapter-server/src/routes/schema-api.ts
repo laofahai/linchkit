@@ -23,7 +23,8 @@ export function mountSchemaRoutes(
         return { success: true, data: [] };
       }
       // Lightweight list — name/label/description/icon for navigation
-      const schemas = schemaRegistry.getAll().map((s) => ({
+      // Filter out system schemas (prefixed with "_") — they have dedicated admin pages
+      const schemas = schemaRegistry.getAll().filter((s) => !s.name.startsWith("_")).map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,

@@ -55,8 +55,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, []);
 
   const data = useMemo(() => {
-    // Build schema sub-items from API data with dynamic icons
-    const schemaItems = schemas.map((s) => {
+    // Build schema sub-items from API data with dynamic icons.
+    // Filter out system schemas (prefixed with "_") — they have dedicated admin pages
+    // and no GraphQL types generated (exposure: { graphql: false }).
+    const schemaItems = schemas.filter((s) => !s.name.startsWith("_")).map((s) => {
       const Icon = getLucideIcon(s.icon);
       return {
         title: resolveLabel(s.label, s.name),
@@ -179,6 +181,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
 
         {/* Administration section — only items with working routes */}
+        {/* TODO: Menu registration should eventually come from capability extensions (extensions.menuItems)
+            instead of being hardcoded here. Each capability would register its own admin menu entries. */}
         {/* TODO: Add permission check to hide admin items from non-admin users once auth system is fully wired in UI */}
         <SidebarGroup>
           <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
