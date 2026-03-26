@@ -3,7 +3,7 @@
  */
 
 /** Subtle background for required fields (no asterisk) */
-export const requiredBg = "bg-slate-100 dark:bg-slate-800/50";
+export const requiredBg = "bg-muted";
 
 export function formatDate(value: unknown): string {
   try {

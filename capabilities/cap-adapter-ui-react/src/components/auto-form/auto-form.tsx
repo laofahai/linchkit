@@ -104,12 +104,17 @@ export function AutoForm({
       const fieldLabel = fieldDef?.label ?? fieldName;
 
       switch (code) {
-        case "invalid_type":
+        case "invalid_type": {
           // When a required field receives undefined/null
-          if (fieldDef?.required) {
+          const details = _details as { received?: string } | undefined;
+          if (fieldDef?.required && (details?.received === "undefined" || details?.received === "null")) {
+            return t("form.required");
+          }
+          if (details?.received === "undefined" || details?.received === "null") {
             return t("form.required");
           }
           return t("form.invalid");
+        }
         case "too_small":
           if (fieldDef?.type === "string" || fieldDef?.type === "text") {
             return t("form.validation.minLength", {
@@ -401,11 +406,11 @@ export function AutoForm({
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <form id="auto-form" onSubmit={handleSubmit}>
+    <form id="auto-form" onSubmit={handleSubmit} noValidate>
       {/* Form-level error banner */}
       {formError && !isViewMode && (
         <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{formError}</span>
         </div>
       )}
@@ -421,7 +426,7 @@ export function AutoForm({
           <div className="text-sm text-muted-foreground">
             {hasDirtyFields && (
               <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+                <span className="inline-block h-2 w-2 rounded-full bg-primary" />
                 {t("form.fieldModified")}
               </span>
             )}

@@ -187,7 +187,7 @@ export function ManyToManyInput({
             size="sm"
             className={cn(
               "w-full justify-start text-left font-normal",
-              dirty && !error && "border-blue-300",
+              dirty && !error && "border-ring",
               error && "border-destructive",
             )}
             onBlur={onBlur}
@@ -211,7 +211,7 @@ export function ManyToManyInput({
                     >
                       <span
                         className={cn(
-                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                          "mr-2 flex size-4 items-center justify-center rounded-sm border",
                           isSelected ? "bg-primary text-primary-foreground" : "opacity-50",
                         )}
                       >

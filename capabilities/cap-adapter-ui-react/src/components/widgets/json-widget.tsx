@@ -11,7 +11,7 @@ export function JsonInput({ value, onChange, onBlur, readonly, error, dirty }: W
   return (
     <div className="space-y-1">
       <Textarea
-        className={cn("min-h-[120px] font-mono text-xs", dirty && !error && "border-blue-300")}
+        className={cn("min-h-[120px] font-mono text-xs", dirty && !error && "border-ring")}
         value={
           value != null ? (typeof value === "string" ? value : JSON.stringify(value, null, 2)) : ""
         }

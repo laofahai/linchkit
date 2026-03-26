@@ -72,9 +72,7 @@ export function FormFieldRow({
             required={required}
           />
         )}
-        {error && !isViewMode && !readonly && (
-          <p className="mt-1 text-xs text-destructive">{error}</p>
-        )}
+        {/* Error messages are rendered by individual widget components */}
       </div>
     );
   }
@@ -120,9 +118,7 @@ export function FormFieldRow({
             required={required}
           />
         )}
-        {error && !isViewMode && !readonly && (
-          <p className="mt-1 text-xs text-destructive">{error}</p>
-        )}
+        {/* Error messages are rendered by individual widget components */}
       </div>
     </>
   );

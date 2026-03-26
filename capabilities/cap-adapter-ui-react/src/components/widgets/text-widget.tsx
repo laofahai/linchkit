@@ -33,7 +33,7 @@ export function TextInput({
         disabled={readonly}
         placeholder={placeholder}
         aria-invalid={!!error}
-        className={cn(required && requiredBg, dirty && !error && "border-blue-300")}
+        className={cn(required && requiredBg, dirty && !error && "border-ring")}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

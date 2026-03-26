@@ -102,7 +102,7 @@ export function RefInput({
         <SelectTrigger
           className={cn(
             "w-full",
-            dirty && !error && "border-blue-300",
+            dirty && !error && "border-ring",
             error && "border-destructive",
           )}
           onBlur={onBlur}
