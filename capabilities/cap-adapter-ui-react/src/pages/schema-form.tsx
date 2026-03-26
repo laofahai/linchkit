@@ -437,7 +437,15 @@ export function SchemaFormPage() {
       if (fieldDef.type === "ref") {
         const target = (fieldDef as { target?: string }).target;
         if (target) {
-          const fkKey = `${target}_id`;
+          // Check bundle.links for actual FK column name, fall back to convention
+          const link = bundle?.links?.find(
+            (l) =>
+              (l.from === schemaName && l.to === target && (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
+              (l.to === schemaName && l.from === target && l.cardinality === "one_to_many"),
+          );
+          const fkKey = link
+            ? (link.from === schemaName ? `${link.to}_id` : `${link.from}_id`)
+            : `${target}_id`;
           // Extract ID from expanded object or use raw value
           const refValue = typeof value === "object" && value !== null && "id" in value
             ? (value as { id: string }).id

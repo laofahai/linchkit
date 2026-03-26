@@ -547,7 +547,7 @@ export function One2ManyField({
                                     return prev;
                                   });
                                 }
-                              });
+                              }).catch(console.error);
                             }}
                             onKeyDown={handleKeyDown}
                           />

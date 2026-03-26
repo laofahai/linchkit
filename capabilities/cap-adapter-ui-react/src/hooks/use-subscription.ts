@@ -287,7 +287,7 @@ export function useSchemaSubscription(
   onEventRef.current = onEvent;
 
   // Stable keys to avoid unnecessary reconnections
-  const schemasKey = useMemo(() => schemas.sort().join(","), [schemas]);
+  const schemasKey = useMemo(() => [...schemas].sort().join(","), [schemas]);
   const idsKey = useMemo(() => (ids ? ids.sort().join(",") : ""), [ids]);
 
   const reconnectAttemptRef = useRef(0);

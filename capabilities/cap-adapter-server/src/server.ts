@@ -1073,6 +1073,13 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     // Store manager reference for cleanup on server close
     // biome-ignore lint/suspicious/noExplicitAny: attaching to Elysia instance for lifecycle management
     (app as any).__subscriptionManager = subManager;
+
+    // Register shutdown handler to stop heartbeat/idle timers
+    const stopManager = () => subManager.stop();
+    process.once("SIGINT", stopManager);
+    process.once("SIGTERM", stopManager);
+    // Also hook into Elysia's onStop lifecycle
+    app.onStop(stopManager);
   }
 
   return app;
