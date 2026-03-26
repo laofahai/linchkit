@@ -34,6 +34,7 @@ import { TeamSwitcher } from "@/components/team-switcher";
 import { useSchemas } from "@/hooks/use-schemas";
 import { useSchemaLabel } from "@/i18n/use-schema-label";
 import { getLucideIcon } from "@/lib/dynamic-icon";
+import { fetchApprovalCount } from "@/lib/approval-api";
 import { fetchPendingCount } from "@/lib/proposal-api";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -41,11 +42,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { schemas } = useSchemas();
   const { resolveLabel } = useSchemaLabel();
   const [pendingCount, setPendingCount] = useState(0);
+  const [approvalCount, setApprovalCount] = useState(0);
 
   useEffect(() => {
     fetchPendingCount()
       .then(setPendingCount)
       .catch(() => setPendingCount(0));
+    fetchApprovalCount()
+      .then(setApprovalCount)
+      .catch(() => setApprovalCount(0));
   }, []);
 
   const data = useMemo(() => {

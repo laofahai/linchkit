@@ -24,6 +24,7 @@ import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
+import { ApprovalsPage } from "./pages/approvals";
 import { ExecutionLogsPage } from "./pages/execution-logs";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { FlowsPage } from "./pages/flows";
@@ -163,6 +164,13 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const approvalsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/approvals",
+    component: ApprovalsPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   const executionLogsRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/admin/executions",
@@ -249,6 +257,7 @@ function buildRouter(appConfig: AppConfig) {
       schemaListRoute,
       schemaFormNewRoute,
       schemaFormEditRoute,
+      approvalsRoute,
       executionLogsRoute,
       healthMonitorRoute,
       flowsRoute,
