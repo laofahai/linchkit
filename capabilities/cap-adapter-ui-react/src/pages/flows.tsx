@@ -1,5 +1,5 @@
 /**
- * FlowsPage — Lists all registered flows using AdminTable.
+ * FlowsPage — Lists all registered flows using AutoList.
  *
  * Route: /admin/flows
  * Fetches from /api/flows REST endpoint (falls back to demo data).
@@ -19,7 +19,6 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowRightIcon,
   CalendarIcon,
-  GitBranchIcon,
   LinkIcon,
   MousePointerClickIcon,
   PlayIcon,
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AdminTable, SortableHeader } from "@/components/auto-list";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -202,7 +201,7 @@ export function FlowsPage() {
     ? flows
     : flows.filter((f) => f.trigger.type === triggerFilter);
 
-  // Build AdminTable column definitions
+  // Build AutoList column definitions
   const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
     {
       accessorKey: "label",
@@ -295,7 +294,7 @@ export function FlowsPage() {
     },
   ], [t]);
 
-  // Convert flows to DataRow for AdminTable
+  // Convert flows to DataRow for AutoList
   const tableData = useMemo<Record<string, unknown>[]>(
     () => filtered.map((f) => ({ ...f }) as Record<string, unknown>),
     [filtered],
@@ -311,15 +310,13 @@ export function FlowsPage() {
         </div>
       </div>
 
-      <AdminTable
-        columns={columns}
+      <AutoList
+        externalColumns={columns}
         data={tableData}
         pageSize={20}
-        emptyMessage={loading ? t("common.loading") : t("flows.noFlows")}
-        emptyIcon={<GitBranchIcon className="mx-auto mb-2 size-8 opacity-40" />}
-        onRowClick={(row) => {
-          const flow = row as unknown as FlowSummary;
-          navigate({ to: "/admin/flows/$name" as "/", params: { name: flow.name } });
+        loading={loading}
+        onRowClick={(id) => {
+          navigate({ to: "/admin/flows/$name" as "/", params: { name: id } });
         }}
         toolbarExtra={
           <>

@@ -1,14 +1,17 @@
 /**
- * AutoList — Schema-driven list view powered by TanStack Table.
+ * AutoList — Universal list view powered by TanStack Table.
  *
- * Orchestrates: toolbar (search + filter), table rendering, pagination.
- * Uses bazza/ui DataTableFilter for column filtering (integrated into SearchBar).
- * Supports AI-powered natural language search via useAISearch hook.
+ * Two modes:
+ * 1. Schema-driven: pass `schema` + `view` to auto-build columns, filters, AI search, inline edit.
+ * 2. External-columns: pass `externalColumns` (raw ColumnDef[]) for admin/non-schema pages.
+ *
+ * Both modes share identical table rendering, sorting, global filtering, pagination, and toolbar.
  */
 
-import { Skeleton } from "@linchkit/ui-kit/components";
+import { Input, Skeleton } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
+  type ColumnDef,
   type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
@@ -19,7 +22,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { Inbox } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAISearch, isNaturalLanguageQuery } from "../../hooks/use-ai-search";
@@ -32,7 +35,7 @@ import { exportCsv } from "./csv-export";
 import { buildFilterColumns } from "./filter-columns";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
-import type { AutoListProps } from "./types";
+import type { AutoListProps, AutoListViewDefinition } from "./types";
 
 /** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
 const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
@@ -141,7 +144,165 @@ function evaluateCondition(
   }
 }
 
-export function AutoList({
+// ── Shared table rendering ──────────────────────────────────────────────────
+
+interface TableShellProps {
+  table: ReturnType<typeof useReactTable<Record<string, unknown>>>;
+  columns: ColumnDef<Record<string, unknown>, unknown>[];
+  onRowClick?: (recordId: string) => void;
+  hasActiveFilters: boolean;
+}
+
+/** Shared table + pagination rendering used by both modes. */
+function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShellProps) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {/* Table */}
+      <div className="rounded border border-border overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
+                {headerGroup.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="px-3 py-2 text-left font-medium text-muted-foreground"
+                    style={header.getSize() !== 150 ? { width: header.getSize() } : undefined}
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="py-12 text-center text-muted-foreground">
+                  <Inbox className="mx-auto mb-2 size-8 opacity-40" />
+                  <p className="text-sm">{t("list.noRecords")}</p>
+                  {hasActiveFilters && <p className="mt-1 text-xs">{t("list.filterHint")}</p>}
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "border-b border-border last:border-0 transition-colors",
+                    onRowClick && "cursor-pointer hover:bg-muted/50",
+                    row.getIsSelected() && "bg-muted",
+                  )}
+                  onClick={() => {
+                    const id = String(row.original.id ?? row.original.name ?? row.id);
+                    if (onRowClick) onRowClick(id);
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-3 py-1.5">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <ListPagination table={table} />
+    </>
+  );
+}
+
+// ── External-columns mode ───────────────────────────────────────────────────
+
+function AutoListExternal({
+  externalColumns,
+  data,
+  loading = false,
+  onRowClick,
+  toolbarExtra,
+  pageSize = 20,
+  defaultSorting,
+}: {
+  externalColumns: ColumnDef<Record<string, unknown>, unknown>[];
+  data: Record<string, unknown>[];
+  loading?: boolean;
+  onRowClick?: (recordId: string) => void;
+  toolbarExtra?: React.ReactNode;
+  pageSize?: number;
+  defaultSorting?: SortingState;
+}) {
+  const { t } = useTranslation();
+  const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? []);
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const table = useReactTable({
+    data,
+    columns: externalColumns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize } },
+  });
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+        <div className="rounded border border-border">
+          {SKELETON_KEYS.map((key) => (
+            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Simple toolbar: search + extra */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative w-72">
+          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder={t("list.search")}
+            className="pl-8 h-7 text-[0.8rem]"
+          />
+        </div>
+        {toolbarExtra && <div className="flex items-center gap-2">{toolbarExtra}</div>}
+      </div>
+
+      <TableShell
+        table={table}
+        columns={externalColumns}
+        onRowClick={onRowClick}
+        hasActiveFilters={globalFilter !== ""}
+      />
+    </div>
+  );
+}
+
+// ── Schema-driven mode ──────────────────────────────────────────────────────
+
+function AutoListSchema({
   schema,
   view,
   data,
@@ -155,7 +316,25 @@ export function AutoList({
   toolbarExtra,
   onInlineEditSaved,
   onInlineEditError,
-}: AutoListProps) {
+  onRefresh,
+  refreshing = false,
+}: {
+  schema: NonNullable<AutoListProps extends infer T ? T extends { schema?: infer S } ? S : never : never>;
+  view: NonNullable<AutoListProps extends infer T ? T extends { view?: infer V } ? V : never : never>;
+  data: Record<string, unknown>[];
+  loading?: boolean;
+  title?: string;
+  stateMeta?: Record<string, unknown>;
+  onAction?: (actionName: string, recordId: string) => void;
+  onBulkAction?: (actionName: string, recordIds: string[]) => void;
+  onRowClick?: (recordId: string) => void;
+  selectable?: boolean;
+  toolbarExtra?: React.ReactNode;
+  onInlineEditSaved?: (recordId: string, updatedRecord: Record<string, unknown>) => void;
+  onInlineEditError?: (error: Error) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
 
@@ -435,64 +614,85 @@ export function AutoList({
         aiSearchState={aiSearchState}
         onClearAISearch={clearAISearch}
         onSearchSubmit={handleSearchSubmit}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
       />
 
-      {/* Table */}
-      <div className="rounded border border-border overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
-          <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="px-3 py-2 text-left font-medium text-muted-foreground"
-                    style={header.getSize() !== 150 ? { width: header.getSize() } : undefined}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="py-12 text-center text-muted-foreground">
-                  <Inbox className="mx-auto mb-2 size-8 opacity-40" />
-                  <p className="text-sm">{t("list.noRecords")}</p>
-                  {hasActiveFilters && <p className="mt-1 text-xs">{t("list.filterHint")}</p>}
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "border-b border-border last:border-0 transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-muted/50",
-                    row.getIsSelected() && "bg-muted",
-                  )}
-                  onClick={() => {
-                    const id = String(row.original.id ?? "");
-                    if (id && onRowClick) onRowClick(id);
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-1.5">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <ListPagination table={table} />
+      <TableShell
+        table={table}
+        columns={columns}
+        onRowClick={onRowClick}
+        hasActiveFilters={hasActiveFilters}
+      />
     </div>
+  );
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+export function AutoList(props: AutoListProps) {
+  if (props.externalColumns) {
+    return (
+      <AutoListExternal
+        externalColumns={props.externalColumns}
+        data={props.data}
+        loading={props.loading}
+        onRowClick={props.onRowClick}
+        toolbarExtra={props.toolbarExtra}
+        pageSize={props.pageSize}
+        defaultSorting={props.defaultSorting}
+      />
+    );
+  }
+
+  // Schema-driven mode — schema and view are guaranteed present by the discriminated union
+  return (
+    <AutoListSchema
+      schema={props.schema}
+      view={props.view}
+      data={props.data}
+      loading={props.loading}
+      title={props.title}
+      stateMeta={props.stateMeta}
+      onAction={props.onAction}
+      onBulkAction={props.onBulkAction}
+      onRowClick={props.onRowClick}
+      selectable={props.selectable}
+      toolbarExtra={props.toolbarExtra}
+      onInlineEditSaved={props.onInlineEditSaved}
+      onInlineEditError={props.onInlineEditError}
+      onRefresh={props.onRefresh}
+      refreshing={props.refreshing}
+    />
+  );
+}
+
+/**
+ * Sortable column header — reusable across column defs (admin and schema pages).
+ * Usage: `header: ({ column }) => <SortableHeader column={column} label="Name" />`
+ */
+export function SortableHeader({
+  column,
+  label,
+}: {
+  column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void };
+  label: string;
+}) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-xs font-medium hover:text-foreground"
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {label}
+      {sorted === "asc" ? (
+        <ArrowUp className="size-3.5" />
+      ) : sorted === "desc" ? (
+        <ArrowDown className="size-3.5" />
+      ) : (
+        <ArrowUpDown className="size-3.5 opacity-30" />
+      )}
+    </button>
   );
 }

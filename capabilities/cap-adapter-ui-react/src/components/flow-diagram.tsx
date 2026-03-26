@@ -9,14 +9,12 @@ import {
   Background,
   Controls,
   type Edge,
-  type EdgeProps,
   Handle,
   MiniMap,
   type Node,
   type NodeProps,
   Position,
   ReactFlow,
-  SmoothStepEdge,
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
@@ -183,12 +181,22 @@ interface FlowNodeData {
   step: FlowStep;
   config: StepTypeConfig;
   params: string[];
+  resolveLabel?: (label: string | undefined, fallback: string) => string;
   [key: string]: unknown;
+}
+
+/** Resolve a label value, handling t: prefix for i18n */
+function resolveNodeLabel(
+  label: string,
+  resolve?: (label: string | undefined, fallback: string) => string,
+): string {
+  if (resolve) return resolve(label, label);
+  return label;
 }
 
 /** Standard rectangular node (action, approval, ai, wait, parallel) */
 function FlowStepNode({ data }: NodeProps<Node<FlowNodeData>>) {
-  const { step, config, params } = data;
+  const { step, config, params, resolveLabel } = data;
   const isDashed = config.dashed;
 
   return (
@@ -209,7 +217,7 @@ function FlowStepNode({ data }: NodeProps<Node<FlowNodeData>>) {
       <div className="flex items-center gap-1.5 mb-1">
         <span style={{ color: config.color }}>{config.icon}</span>
         <span className="font-semibold text-xs text-gray-800 dark:text-gray-200 leading-tight">
-          {step.name}
+          {resolveNodeLabel(step.name, resolveLabel)}
         </span>
       </div>
 
@@ -252,7 +260,7 @@ function FlowStepNode({ data }: NodeProps<Node<FlowNodeData>>) {
 
 /** Diamond-shaped node for condition steps */
 function ConditionNode({ data }: NodeProps<Node<FlowNodeData>>) {
-  const { step, config, params } = data;
+  const { step, config, params, resolveLabel } = data;
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: 200, height: 120 }}>
@@ -286,7 +294,7 @@ function ConditionNode({ data }: NodeProps<Node<FlowNodeData>>) {
         <div className="flex items-center justify-center gap-1 mb-0.5">
           <span style={{ color: config.color }}>{config.icon}</span>
           <span className="font-semibold text-xs text-gray-800 dark:text-gray-200">
-            {step.name}
+            {resolveNodeLabel(step.name, resolveLabel)}
           </span>
         </div>
         <span
@@ -385,7 +393,10 @@ function getLayoutedElements(
 
 // ── Build nodes and edges from FlowStep[] ────────────────
 
-function buildFlowGraph(steps: FlowStep[]): {
+function buildFlowGraph(
+  steps: FlowStep[],
+  resolveLabel?: (label: string | undefined, fallback: string) => string,
+): {
   nodes: Node<FlowNodeData>[];
   edges: Edge[];
 } {
@@ -401,13 +412,13 @@ function buildFlowGraph(steps: FlowStep[]): {
       id: step.id,
       type: step.type === "condition" ? "conditionStep" : "flowStep",
       position: { x: 0, y: 0 }, // Will be computed by dagre
-      data: { step, config, params },
+      data: { step, config, params, resolveLabel },
     });
   }
 
   // Build edges: sequential flow + condition branches
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
+    const step = steps[i]!;
 
     if (step.type === "condition") {
       // Condition step: explicit then/else edges
@@ -443,7 +454,7 @@ function buildFlowGraph(steps: FlowStep[]): {
       }
       // If condition has no explicit then/else, fall through to next
       if (!step.then && !step.else && i < steps.length - 1) {
-        const next = steps[i + 1];
+        const next = steps[i + 1]!;
         edges.push({
           id: `${step.id}->${next.id}`,
           source: step.id,
@@ -457,7 +468,7 @@ function buildFlowGraph(steps: FlowStep[]): {
     } else {
       // Non-condition step: connect to next step in sequence
       if (i < steps.length - 1) {
-        const next = steps[i + 1];
+        const next = steps[i + 1]!;
         // Skip if this step is a branch target (already connected from condition)
         const isConditionTarget = steps.some(
           (s) =>
@@ -485,10 +496,10 @@ function buildFlowGraph(steps: FlowStep[]): {
 
 // ── Main component ───────────────────────────────────────
 
-export function FlowDiagram({ steps }: { steps: FlowStep[] }) {
+export function FlowDiagram({ steps, resolveLabel }: { steps: FlowStep[]; resolveLabel?: (label: string | undefined, fallback: string) => string }) {
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
-    () => buildFlowGraph(steps),
-    [steps],
+    () => buildFlowGraph(steps, resolveLabel),
+    [steps, resolveLabel],
   );
 
   const [nodes, , onNodesChange] = useNodesState(layoutedNodes);

@@ -1,7 +1,7 @@
 /**
  * AI Proposals Page — /admin/proposals
  *
- * Lists all AI-generated proposals using AdminTable with status filtering,
+ * Lists all AI-generated proposals using AutoList with status filtering,
  * approval/rejection actions, and detail view for each proposal.
  */
 
@@ -44,7 +44,7 @@ import {
   fetchProposals,
   rejectProposal,
 } from "@/lib/proposal-api";
-import { AdminTable, SortableHeader } from "@/components/auto-list";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 
 // ── Status badge ─────────────────────────────────────────
 
@@ -325,7 +325,7 @@ export function ProposalsPage() {
     (p) => p.status === "draft" || p.status === "validated",
   ).length;
 
-  // Build AdminTable column defs
+  // Build AutoList column defs
   const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
     {
       accessorKey: "title",
@@ -424,7 +424,7 @@ export function ProposalsPage() {
     },
   ], [t]);
 
-  // Convert proposals to DataRow for AdminTable
+  // Convert proposals to DataRow for AutoList
   const tableData = useMemo<Record<string, unknown>[]>(
     () => proposals.map((p) => ({ ...p }) as Record<string, unknown>),
     [proposals],
@@ -457,16 +457,18 @@ export function ProposalsPage() {
         </Card>
       )}
 
-      <AdminTable
-        columns={columns}
+      <AutoList
+        externalColumns={columns}
         data={tableData}
         pageSize={20}
         defaultSorting={[{ id: "createdAt", desc: true }]}
-        emptyMessage={loading ? t("common.loading") : t("proposals.noProposals")}
-        onRowClick={(row) => {
-          const p = row as unknown as Proposal;
-          setSelectedProposal(p);
-          setDialogOpen(true);
+        loading={loading}
+        onRowClick={(id) => {
+          const p = proposals.find((p) => p.id === id);
+          if (p) {
+            setSelectedProposal(p);
+            setDialogOpen(true);
+          }
         }}
         toolbarExtra={
           <>

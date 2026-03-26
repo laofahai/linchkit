@@ -1,5 +1,5 @@
 /**
- * ExecutionLogsPage — Displays execution log entries using AdminTable.
+ * ExecutionLogsPage — Displays execution log entries using AutoList.
  *
  * Fetches from /api/executions REST endpoint (or uses demo data in dev mode).
  * Spec ref: 11_execution_log.md, 39_execution_contract.md
@@ -18,7 +18,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDownIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AdminTable, SortableHeader } from "@/components/auto-list";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -257,7 +257,7 @@ export function ExecutionLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Build column definitions for AdminTable
+  // Build column definitions for AutoList
   const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
     {
       accessorKey: "startedAt",
@@ -348,7 +348,7 @@ export function ExecutionLogsPage() {
     },
   ], [t, expandedId]);
 
-  // Convert entries to DataRow format for AdminTable
+  // Convert entries to DataRow format for AutoList
   const tableData = useMemo<Record<string, unknown>[]>(
     () => entries.map((e) => ({ ...e }) as Record<string, unknown>),
     [entries],
@@ -364,16 +364,14 @@ export function ExecutionLogsPage() {
         </div>
       </div>
 
-      <AdminTable
-        columns={columns}
+      <AutoList
+        externalColumns={columns}
         data={tableData}
         pageSize={20}
-        searchPlaceholder={t("executionLog.search", { defaultValue: t("list.search") })}
         defaultSorting={[{ id: "startedAt", desc: true }]}
-        emptyMessage={loading ? t("common.loading") : t("executionLog.noEntries")}
-        onRowClick={(row) => {
-          const entry = row as unknown as ExecutionLogEntry;
-          setExpandedId(expandedId === entry.id ? null : entry.id);
+        loading={loading}
+        onRowClick={(id) => {
+          setExpandedId(expandedId === id ? null : id);
         }}
         toolbarExtra={
           <>

@@ -206,6 +206,7 @@ export function SchemaListPage() {
 
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("list");
   // Track whether at least one successful fetch has been completed, to distinguish
@@ -352,6 +353,15 @@ export function SchemaListPage() {
       setLoading(false);
     }
   }, [fetchData, bundleReady, bundleSchemaName]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchData]);
 
   async function handleAction(actionName: string, recordId: string) {
     if (!schemaName) return;
@@ -581,6 +591,8 @@ export function SchemaListPage() {
           onBulkAction={handleBulkAction}
           onRowClick={handleRowClick}
           toolbarExtra={toolbarExtraContent}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
         />
       ) : (
         <div className="space-y-4">

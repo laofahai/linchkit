@@ -1,6 +1,4 @@
-export { AdminTable, SortableHeader } from "./admin-table";
-export type { AdminTableProps } from "./admin-table";
-export { AutoList } from "./auto-list";
+export { AutoList, SortableHeader } from "./auto-list";
 export { InlineEditCell } from "./inline-edit-cell";
 export { StatusBadge } from "./status-badge";
 export type {

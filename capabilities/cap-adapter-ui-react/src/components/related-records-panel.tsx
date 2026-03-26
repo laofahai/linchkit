@@ -22,6 +22,8 @@ interface RelatedRecordsPanelProps {
   schemaName: string;
   recordId: string;
   links: LinkDefinition[];
+  /** When true, renders without the outer card wrapper (for embedding in parent tabs). */
+  bare?: boolean;
 }
 
 interface LinkTab {
@@ -131,6 +133,7 @@ export function RelatedRecordsPanel({
   schemaName,
   recordId,
   links,
+  bare = false,
 }: RelatedRecordsPanelProps) {
   const { t } = useTranslation();
   const tabs = deriveLinkTabs(schemaName, links);
@@ -141,29 +144,37 @@ export function RelatedRecordsPanel({
   if (!firstTab) return null;
   const defaultTab = firstTab.key;
 
+  const content = (
+    <Tabs defaultValue={defaultTab}>
+      <TabsList variant="line">
+        {tabs.map((tab) => (
+          <TabsTrigger key={tab.key} value={tab.key}>
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {tabs.map((tab) => (
+        <TabsContent key={tab.key} value={tab.key}>
+          <RelatedRecordsList
+            schemaName={schemaName}
+            recordId={recordId}
+            tab={tab}
+          />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+
+  if (bare) {
+    return content;
+  }
+
   return (
     <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4">
       <h2 className="text-sm font-semibold text-muted-foreground mb-3">
         {t("detail.relatedRecords", "Related Records")}
       </h2>
-      <Tabs defaultValue={defaultTab}>
-        <TabsList variant="line">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.key} value={tab.key}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {tabs.map((tab) => (
-          <TabsContent key={tab.key} value={tab.key}>
-            <RelatedRecordsList
-              schemaName={schemaName}
-              recordId={recordId}
-              tab={tab}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+      {content}
     </div>
   );
 }

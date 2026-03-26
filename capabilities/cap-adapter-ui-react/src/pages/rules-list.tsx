@@ -1,5 +1,5 @@
 /**
- * RulesListPage — Lists all registered business rules using AdminTable.
+ * RulesListPage — Lists all registered business rules using AutoList.
  *
  * Fetches from /api/rules REST endpoint (with demo data fallback).
  * Spec ref: 05_rule.md
@@ -18,11 +18,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useNavigate } from "@tanstack/react-router";
 import {
   RefreshCwIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AdminTable, SortableHeader } from "@/components/auto-list";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -237,7 +236,7 @@ export function RulesListPage() {
   // Collect unique schemas from rules for filter dropdown
   const schemas = [...new Set(rules.map((r) => getSchemaFromTrigger(r.trigger)).filter(Boolean))] as string[];
 
-  // Build AdminTable column definitions
+  // Build AutoList column definitions
   const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
     {
       accessorKey: "label",
@@ -319,7 +318,7 @@ export function RulesListPage() {
     },
   ], [t]);
 
-  // Convert rules to DataRow for AdminTable
+  // Convert rules to DataRow for AutoList
   const tableData = useMemo<Record<string, unknown>[]>(
     () => rules.map((r) => ({ ...r }) as Record<string, unknown>),
     [rules],
@@ -335,15 +334,13 @@ export function RulesListPage() {
         </div>
       </div>
 
-      <AdminTable
-        columns={columns}
+      <AutoList
+        externalColumns={columns}
         data={tableData}
         pageSize={20}
-        emptyMessage={loading ? t("common.loading") : t("rules.noRules")}
-        emptyIcon={<ShieldCheckIcon className="mx-auto mb-2 size-8 opacity-40" />}
-        onRowClick={(row) => {
-          const rule = row as unknown as RuleListItem;
-          navigate({ to: "/admin/rules/$name", params: { name: rule.name } });
+        loading={loading}
+        onRowClick={(id) => {
+          navigate({ to: "/admin/rules/$name", params: { name: id } });
         }}
         toolbarExtra={
           <>

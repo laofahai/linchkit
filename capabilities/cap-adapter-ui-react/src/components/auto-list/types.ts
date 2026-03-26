@@ -37,6 +37,10 @@ interface AutoListBaseProps {
   onRowClick?: (recordId: string) => void;
   /** Extra content rendered after the primary action button in the toolbar. */
   toolbarExtra?: React.ReactNode;
+  /** Callback to trigger data refresh. */
+  onRefresh?: () => void;
+  /** Whether a refresh is currently in progress (shows spinning icon on refresh button). */
+  refreshing?: boolean;
 }
 
 /** Schema-driven mode — uses ViewDefinition + SchemaDefinition to build columns automatically. */

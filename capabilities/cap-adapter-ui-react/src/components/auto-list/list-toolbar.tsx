@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
-import { ChevronDown, Columns3, Download, MoreHorizontal, Trash2, X } from "lucide-react";
+import { ChevronDown, Columns3, Download, MoreHorizontal, RefreshCw, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -46,6 +46,10 @@ interface ListToolbarProps {
   onClearAISearch?: () => void;
   /** Callback when search is submitted (Enter key) */
   onSearchSubmit?: (query: string) => void;
+  /** Callback to trigger data refresh. */
+  onRefresh?: () => void;
+  /** Whether a refresh is currently in progress (shows spinning icon). */
+  refreshing?: boolean;
 }
 
 /**
@@ -73,6 +77,8 @@ export function ListToolbar({
   aiSearchState,
   onClearAISearch,
   onSearchSubmit,
+  onRefresh,
+  refreshing = false,
 }: ListToolbarProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -149,6 +155,19 @@ export function ListToolbar({
             onClick={() => onAction?.(primaryAction.action, "")}
           >
             {resolveLabel(primaryAction.label, primaryAction.action)}
+          </Button>
+        )}
+
+        {/* Refresh button */}
+        {onRefresh && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRefresh}
+            disabled={refreshing}
+            title={t("common.refresh", "Refresh")}
+          >
+            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
         )}
 
