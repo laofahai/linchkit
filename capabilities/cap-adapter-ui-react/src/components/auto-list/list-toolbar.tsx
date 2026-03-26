@@ -21,7 +21,7 @@ import { SearchBar } from "./search-bar";
 
 interface ListToolbarProps {
   title?: string;
-  schema: SchemaDefinition;
+  schema?: SchemaDefinition;
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
   hasActiveFilters: boolean;

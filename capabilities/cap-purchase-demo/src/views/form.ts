@@ -58,19 +58,13 @@ export const purchaseRequestFormView: ViewDefinition = {
         ],
       },
       {
+        type: "group",
+        columns: 1,
+        children: [{ type: "field", field: "description" }],
+      },
+      {
         type: "notebook",
         children: [
-          {
-            type: "page",
-            title: "t:form.sectionDetails",
-            children: [
-              {
-                type: "group",
-                columns: 1,
-                children: [{ type: "field", field: "description", nolabel: true }],
-              },
-            ],
-          },
           {
             type: "page",
             title: "t:schemas.purchase_request.fields.notes",

@@ -142,47 +142,7 @@ function TriggerTypeBadge({ type }: { type: string }) {
   );
 }
 
-// ── Demo data ────────────────────────────────────────────
-
-const DEMO_RULES: RuleListItem[] = [
-  {
-    name: "amount_check",
-    label: "High-value purchase requires approval",
-    description: "Purchase requests over 10,000 require director approval",
-    priority: 10,
-    trigger: { action: "submit_request" },
-    condition: { field: "target.amount", operator: "gt", value: 10000 },
-    effect: { type: "require_approval", level: "director", message: "Amount exceeds 10,000 — director approval required" },
-  },
-  {
-    name: "budget_check",
-    label: "Department budget limit",
-    description: "Block purchases that exceed department quarterly budget",
-    priority: 20,
-    trigger: { action: "submit_request" },
-    condition: { operator: "and", conditions: [
-      { field: "target.amount", operator: "gt", value: 20000 },
-      { field: "target.department", operator: "eq", value: "Engineering" },
-    ] },
-    effect: { type: "block", message: "Amount exceeds department budget", reason: "BUDGET.EXCEEDED" },
-  },
-  {
-    name: "auto_priority",
-    label: "Auto-set priority for large orders",
-    priority: 5,
-    trigger: { action: "create_purchase_request" },
-    condition: { field: "target.amount", operator: "gte", value: 5000 },
-    effect: { type: "enrich", setFields: { priority: "high" } },
-  },
-  {
-    name: "state_notification",
-    label: "Notify on approval",
-    priority: 0,
-    trigger: { stateChange: { schema: "purchase_request", to: "approved" } },
-    condition: { type: "code" },
-    effect: { type: "execute_action", action: "send_notification", params: { template: "approval_notice" } },
-  },
-];
+// No demo data — shows empty state when API is unavailable
 
 // ── Component ────────────────────────────────────────────
 
@@ -194,19 +154,9 @@ export function RulesListPage() {
   const [schemaFilter, setSchemaFilter] = useState<string>("all");
   const [triggerFilter, setTriggerFilter] = useState<string>("all");
 
-  const applyDemoFilters = useCallback(() => {
-    let filtered = DEMO_RULES;
-    if (schemaFilter !== "all") {
-      filtered = filtered.filter((r) => {
-        const schema = getSchemaFromTrigger(r.trigger);
-        return schema?.includes(schemaFilter);
-      });
-    }
-    if (triggerFilter !== "all") {
-      filtered = filtered.filter((r) => getTriggerType(r.trigger) === triggerFilter);
-    }
-    setRules(filtered);
-  }, [schemaFilter, triggerFilter]);
+  const clearRules = useCallback(() => {
+    setRules([]);
+  }, []);
 
   const fetchRules = useCallback(async () => {
     setLoading(true);

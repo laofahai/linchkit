@@ -856,83 +856,81 @@ export function SchemaFormPage() {
 
           {/* Bottom tabs: relation tabs + other panels */}
           {!isCreate && params.id && (
-            <div className="bg-background rounded shadow-sm border border-border/50 px-3 py-3 md:px-6 md:py-4">
-              <Tabs defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]!.name}` : "audit-trail"}>
-                <TabsList variant="line">
-                  {/* One_to_many relationship tabs */}
-                  {one2manyLinks.map((link) => {
-                    const tabLabel =
-                      (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
-                      link.to;
-                    return (
-                      <TabsTrigger key={`link-${link.name}`} value={`link-${link.name}`}>
-                        {tabLabel}
-                      </TabsTrigger>
-                    );
-                  })}
-                  {/* Other links tab (many_to_many, etc.) */}
-                  {hasOtherLinks && (
-                    <TabsTrigger value="related">
-                      {t("detail.relatedRecords", "Related Records")}
+            <Tabs defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]!.name}` : "audit-trail"}>
+              <TabsList variant="line">
+                {/* One_to_many relationship tabs */}
+                {one2manyLinks.map((link) => {
+                  const tabLabel =
+                    (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
+                    link.to;
+                  return (
+                    <TabsTrigger key={`link-${link.name}`} value={`link-${link.name}`}>
+                      {tabLabel}
                     </TabsTrigger>
-                  )}
-                  {/* Version history tab */}
-                  <TabsTrigger value="version-history">
-                    {t("versionHistory.title", "Version History")}
-                  </TabsTrigger>
-                  {/* Audit trail tab */}
-                  <TabsTrigger value="audit-trail">
-                    {t("detail.auditTrail", "Audit Trail")}
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* One_to_many tab content */}
-                {one2manyLinks.map((link) => (
-                  <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
-                    <RelatedRecordsTab
-                      parentSchema={schemaName}
-                      parentId={params.id!}
-                      link={link}
-                    />
-                  </TabsContent>
-                ))}
-
-                {/* Other links tab content */}
+                  );
+                })}
+                {/* Other links tab (many_to_many, etc.) */}
                 {hasOtherLinks && (
-                  <TabsContent value="related">
-                    <RelatedRecordsPanel
-                      schemaName={schemaName}
-                      recordId={params.id!}
-                      links={otherLinks}
-                      bare
-                    />
-                  </TabsContent>
+                  <TabsTrigger value="related">
+                    {t("detail.relatedRecords", "Related Records")}
+                  </TabsTrigger>
                 )}
+                {/* Version history tab */}
+                <TabsTrigger value="version-history">
+                  {t("versionHistory.title", "Version History")}
+                </TabsTrigger>
+                {/* Audit trail tab */}
+                <TabsTrigger value="audit-trail">
+                  {t("detail.auditTrail", "Audit Trail")}
+                </TabsTrigger>
+              </TabsList>
 
-                {/* Version history tab content */}
-                <TabsContent value="version-history">
-                  <VersionHistoryPanel
-                    schemaName={schemaName}
-                    recordId={params.id!}
-                    currentRecord={record}
-                    fields={schema.fields}
-                    recordFields={recordFields}
-                    onRestore={() => {
-                      fetchRecord();
-                      toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
-                    }}
+              {/* One_to_many tab content */}
+              {one2manyLinks.map((link) => (
+                <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
+                  <RelatedRecordsTab
+                    parentSchema={schemaName}
+                    parentId={params.id!}
+                    link={link}
                   />
                 </TabsContent>
+              ))}
 
-                {/* Audit trail tab content */}
-                <TabsContent value="audit-trail">
-                  <ActivityPanel
+              {/* Other links tab content */}
+              {hasOtherLinks && (
+                <TabsContent value="related">
+                  <RelatedRecordsPanel
                     schemaName={schemaName}
                     recordId={params.id!}
+                    links={otherLinks}
+                    bare
                   />
                 </TabsContent>
-              </Tabs>
-            </div>
+              )}
+
+              {/* Version history tab content */}
+              <TabsContent value="version-history">
+                <VersionHistoryPanel
+                  schemaName={schemaName}
+                  recordId={params.id!}
+                  currentRecord={record}
+                  fields={schema.fields}
+                  recordFields={recordFields}
+                  onRestore={() => {
+                    fetchRecord();
+                    toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
+                  }}
+                />
+              </TabsContent>
+
+              {/* Audit trail tab content */}
+              <TabsContent value="audit-trail">
+                <ActivityPanel
+                  schemaName={schemaName}
+                  recordId={params.id!}
+                />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </div>

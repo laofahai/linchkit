@@ -29,7 +29,7 @@ import type {
 } from "../data-table-filter/core/types";
 
 export interface SearchBarProps {
-  schema: SchemaDefinition;
+  schema?: SchemaDefinition;
   /** Global text filter */
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;

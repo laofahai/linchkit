@@ -51,55 +51,7 @@ interface FlowSummary {
   chainedFrom?: string[];
 }
 
-// ── Demo data ────────────────────────────────────────────
-
-const DEMO_FLOWS: FlowSummary[] = [
-  {
-    name: "purchase_approval_flow",
-    label: "Purchase Approval",
-    description: "Multi-step purchase request approval process with budget check",
-    version: 1,
-    trigger: { type: "event", eventType: "action.succeeded.submit_request" },
-    stepCount: 4,
-    steps: [
-      { id: "calc", name: "Calculate Total", type: "action" },
-      { id: "check", name: "Budget Check", type: "condition" },
-      { id: "approval", name: "Manager Approval", type: "approval" },
-      { id: "notify", name: "Notify Requester", type: "action" },
-    ],
-    chainsTo: ["onboarding_flow"],
-  },
-  {
-    name: "ai_evolution_analysis",
-    label: "AI Evolution Analysis",
-    description: "Weekly AI analysis of execution data to discover optimization opportunities",
-    version: 1,
-    trigger: { type: "schedule", cron: "0 2 * * 1" },
-    stepCount: 4,
-    steps: [
-      { id: "collect", name: "Collect Data", type: "action" },
-      { id: "analyze", name: "AI Analyze", type: "ai" },
-      { id: "gen_proposals", name: "Generate Proposals", type: "ai" },
-      { id: "create", name: "Create Proposals", type: "action" },
-    ],
-  },
-  {
-    name: "onboarding_flow",
-    label: "Employee Onboarding",
-    description: "Automated onboarding process for new employees",
-    version: 1,
-    trigger: { type: "manual" },
-    stepCount: 5,
-    steps: [
-      { id: "create_account", name: "Create Account", type: "action" },
-      { id: "setup", name: "Setup Tasks", type: "parallel" },
-      { id: "wait_docs", name: "Wait for Documents", type: "wait" },
-      { id: "review", name: "HR Review", type: "approval" },
-      { id: "welcome", name: "Send Welcome", type: "action" },
-    ],
-    chainedFrom: ["purchase_approval_flow"],
-  },
-];
+// No demo data — shows empty state when API is unavailable
 
 // ── Trigger badge ────────────────────────────────────────
 
@@ -184,7 +136,7 @@ export function FlowsPage() {
         const json = await res.json();
         setFlows(json.data ?? []);
       } else {
-        setFlows(DEMO_FLOWS);
+        setFlows([]);
       }
     } catch {
       setFlows(DEMO_FLOWS);

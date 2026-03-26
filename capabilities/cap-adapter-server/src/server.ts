@@ -1308,7 +1308,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     });
 
   // ── Proposal / Evolution / AI Insights endpoints ──────────
-  mountProposalAPI(app);
+  mountProposalAPI(app, executionLogger);
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────
   const eventBus = options?.eventBus;

@@ -8,7 +8,7 @@
  * Both modes share identical table rendering, sorting, global filtering, pagination, and toolbar.
  */
 
-import { Input, Skeleton } from "@linchkit/ui-kit/components";
+import { Skeleton } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
   type ColumnDef,
@@ -22,7 +22,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, SearchIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SchemaDefinition, StateMeta } from "@linchkit/core/types";
@@ -231,6 +231,8 @@ function AutoListExternal({
   toolbarExtra,
   pageSize = 20,
   defaultSorting,
+  onRefresh,
+  refreshing = false,
 }: {
   externalColumns: ColumnDef<Record<string, unknown>, unknown>[];
   data: Record<string, unknown>[];
@@ -239,8 +241,9 @@ function AutoListExternal({
   toolbarExtra?: React.ReactNode;
   pageSize?: number;
   defaultSorting?: SortingState;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
-  const { t } = useTranslation();
   const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? []);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -277,27 +280,26 @@ function AutoListExternal({
     );
   }
 
+  const hasActiveFilters = globalFilter !== "";
+
   return (
     <div className="space-y-4">
-      {/* Simple toolbar: search + extra */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-72">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder={t("list.search")}
-            className="pl-8 h-7 text-[0.8rem]"
-          />
-        </div>
-        {toolbarExtra && <div className="flex items-center gap-2">{toolbarExtra}</div>}
-      </div>
+      <ListToolbar
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={() => setGlobalFilter("")}
+        toolbarActions={[]}
+        toolbarExtra={toolbarExtra}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+      />
 
       <TableShell
         table={table}
         columns={externalColumns}
         onRowClick={onRowClick}
-        hasActiveFilters={globalFilter !== ""}
+        hasActiveFilters={hasActiveFilters}
       />
     </div>
   );
@@ -670,6 +672,8 @@ export function AutoList(props: AutoListProps) {
         toolbarExtra={props.toolbarExtra}
         pageSize={props.pageSize}
         defaultSorting={props.defaultSorting}
+        onRefresh={props.onRefresh}
+        refreshing={props.refreshing}
       />
     );
   }

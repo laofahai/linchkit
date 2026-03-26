@@ -7,7 +7,9 @@
  */
 
 import type { ProposalDefinition } from "@linchkit/core";
-import { createProposalEngine } from "@linchkit/core/server";
+import { createProposalEngine, PatternDetector } from "@linchkit/core/server";
+import type { PatternInsight } from "@linchkit/core/server";
+import type { ExecutionLogger } from "@linchkit/core/types";
 import type { Elysia } from "elysia";
 
 // ── Types ─────────────────────────────────────────────────
@@ -51,191 +53,86 @@ export interface EvolutionEntry {
 // ── Singleton ProposalEngine (in-memory for M2) ──────────
 
 const proposalEngine = createProposalEngine();
+const patternDetector = new PatternDetector();
 
-// ── Demo data seeding ────────────────────────────────────
+// ── Cached insights from PatternDetector ─────────────────
 
-let seeded = false;
+let cachedInsights: AIInsight[] = [];
+let insightsLastScanned = 0;
+/** Minimum interval between insight scans (5 minutes) */
+const INSIGHT_SCAN_INTERVAL_MS = 5 * 60 * 1000;
 
-function seedDemoData(): void {
-  if (seeded) return;
-  seeded = true;
-
-  // Create some demo proposals for showcase
-  const demoProposals = [
-    {
-      title: "Add auto-approve rule for small purchases",
-      description: "AI detected that 87% of purchase requests under $1,000 are approved within 5 minutes. Suggests adding an auto-approve rule for amounts under $1,000 to reduce manual work.",
-      author: { type: "ai" as const, id: "ai-evolver", name: "AI Evolver" },
-      capability: "purchase_management",
-      changeType: "minor" as const,
-      changes: [
-        {
-          target: "rule" as const,
-          operation: "create" as const,
-          name: "auto_approve_small_purchases",
-          diff: 'Add rule: if amount < 1000, auto-approve (skip manual approval step)',
-        },
-      ],
-    },
-    {
-      title: "Set default department to General Administration",
-      description: "AI observed that 73% of purchase requests set department to 'General Administration'. Suggests setting this as the default value.",
-      author: { type: "ai" as const, id: "ai-evolver", name: "AI Evolver" },
-      capability: "purchase_management",
-      changeType: "patch" as const,
-      changes: [
-        {
-          target: "schema" as const,
-          operation: "update" as const,
-          name: "purchase_request",
-          diff: 'Set default value for "department" field to "General Administration"',
-        },
-      ],
-    },
-    {
-      title: "Add email validation rule for requester field",
-      description: "AI detected that 95% of requester values follow the pattern user@company.com. Suggests adding a validation rule to enforce this format.",
-      author: { type: "ai" as const, id: "ai-evolver", name: "AI Evolver" },
-      capability: "purchase_management",
-      changeType: "minor" as const,
-      changes: [
-        {
-          target: "rule" as const,
-          operation: "create" as const,
-          name: "validate_requester_email",
-          diff: 'Add validation rule: requester must match pattern *@company.com',
-        },
-      ],
-    },
-  ];
-
-  for (const demo of demoProposals) {
-    proposalEngine.createProposal(demo);
-  }
+/**
+ * Map PatternInsight from core to the AIInsight REST type.
+ */
+function mapPatternInsightToAIInsight(pi: PatternInsight): AIInsight {
+  const categoryMap: Record<string, AIInsight["category"]> = {
+    repetitive_action: "rule_suggestion",
+    default_value: "default_value",
+    validation_pattern: "validation",
+    state_flow: "optimization",
+    timing: "optimization",
+  };
+  return {
+    id: pi.id,
+    description: pi.description,
+    confidence: pi.confidence,
+    category: categoryMap[pi.type] ?? "optimization",
+    suggestedAction: pi.suggestedAction.description,
+    relatedSchema: pi.schema,
+    detectedAt: new Date().toISOString(),
+    dataPoints: pi.evidence.count,
+  };
 }
 
-// ── Demo insights (static for now, AI-generated in future) ──
-
-function generateDemoInsights(): AIInsight[] {
-  return [
-    {
-      id: "insight-1",
-      description: "3 purchase requests over $10,000 were manually approved this week — auto-approve rule suggested",
-      confidence: 0.87,
-      category: "rule_suggestion",
-      suggestedAction: "Create auto-approve rule for high-value purchases with manager pre-approval",
-      relatedSchema: "purchase_request",
-      relatedField: "amount",
-      detectedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      dataPoints: 47,
-    },
-    {
-      id: "insight-2",
-      description: 'Department field is always set to "General Administration" — consider setting a default',
-      confidence: 0.73,
-      category: "default_value",
-      suggestedAction: "Set default value for department field",
-      relatedSchema: "purchase_request",
-      relatedField: "department",
-      detectedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      dataPoints: 156,
-    },
-    {
-      id: "insight-3",
-      description: "Requester email follows pattern user@company.com — add validation rule?",
-      confidence: 0.95,
-      category: "validation",
-      suggestedAction: "Add email format validation rule",
-      relatedSchema: "purchase_request",
-      relatedField: "requester",
-      detectedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-      dataPoints: 89,
-    },
-    {
-      id: "insight-4",
-      description: "Average approval time increased 40% this month — potential bottleneck in approval flow",
-      confidence: 0.62,
-      category: "optimization",
-      suggestedAction: "Review approval workflow and consider parallel approvers",
-      relatedSchema: "purchase_request",
-      detectedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      dataPoints: 234,
-    },
-    {
-      id: "insight-5",
-      description: "Unusual spike in rejected requests from Engineering department — investigate pattern",
-      confidence: 0.78,
-      category: "anomaly",
-      suggestedAction: "Review rejection reasons for Engineering department requests",
-      relatedSchema: "purchase_request",
-      relatedField: "department",
-      detectedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      dataPoints: 12,
-    },
-  ];
-}
-
-// ── Demo evolution history ───────────────────────────────
-
-function generateDemoEvolution(): EvolutionEntry[] {
+/**
+ * Scan execution logs with PatternDetector and create proposals for detected patterns.
+ * Results are cached to avoid repeated scans.
+ */
+async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight[]> {
   const now = Date.now();
-  return [
-    {
-      id: "evo-1",
-      proposalId: "demo-p1",
-      title: "Added priority field to purchase requests",
-      description: "AI suggested adding a priority field based on observed urgency patterns in purchase request descriptions.",
-      changeType: "minor",
-      capability: "purchase_management",
-      authorType: "ai",
-      authorName: "AI Evolver",
-      approvedBy: "admin",
-      appliedAt: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      reasoning: "Analysis of 200+ purchase requests showed 35% contained urgency keywords. A dedicated priority field improves workflow routing.",
-      changes: [
-        { target: "schema", operation: "update", name: "purchase_request", diff: 'Added field: priority (enum: low, medium, high, urgent)' },
-      ],
-      version: "1.1.0",
-      canRevert: true,
-    },
-    {
-      id: "evo-2",
-      proposalId: "demo-p2",
-      title: "Optimized approval threshold from $5,000 to $10,000",
-      description: "Based on 6-month approval data analysis, raised the auto-approve threshold to reduce unnecessary manual reviews.",
-      changeType: "patch",
-      capability: "purchase_management",
-      authorType: "ai",
-      authorName: "AI Evolver",
-      approvedBy: "finance_manager",
-      appliedAt: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
-      reasoning: "Historical data shows 99.2% of requests between $5,000-$10,000 were approved. Raising the threshold saves ~15 hours/week of review time.",
-      changes: [
-        { target: "rule", operation: "update", name: "amount_approval_threshold", diff: 'Changed threshold: $5,000 -> $10,000' },
-      ],
-      version: "1.0.2",
-      canRevert: true,
-    },
-    {
-      id: "evo-3",
-      proposalId: "demo-p3",
-      title: "Added department budget validation rule",
-      description: "New rule to check department monthly budget before allowing purchase request submission.",
-      changeType: "minor",
-      capability: "purchase_management",
-      authorType: "human",
-      authorName: "Developer",
-      approvedBy: "admin",
-      appliedAt: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      reasoning: "Multiple departments exceeded their monthly budgets. This rule prevents over-spending by validating against budget allocation.",
-      changes: [
-        { target: "rule", operation: "create", name: "department_budget_check", diff: 'New rule: validate purchase amount against department monthly budget' },
-        { target: "schema", operation: "update", name: "purchase_request", diff: 'Added computed field: department_budget_remaining' },
-      ],
-      version: "1.1.0",
-      canRevert: false,
-    },
-  ];
+  if (now - insightsLastScanned < INSIGHT_SCAN_INTERVAL_MS && cachedInsights.length > 0) {
+    return cachedInsights;
+  }
+
+  try {
+    const patterns = await patternDetector.analyze(executionLogger);
+    cachedInsights = patterns.map(mapPatternInsightToAIInsight);
+    insightsLastScanned = now;
+
+    // Auto-create proposals for high-confidence patterns not already proposed
+    for (const pattern of patterns) {
+      if (pattern.confidence >= 0.8) {
+        const existing = proposalEngine.listProposals({});
+        const alreadyProposed = existing.some(
+          (p) => p.title === pattern.suggestedAction.description,
+        );
+        if (!alreadyProposed) {
+          proposalEngine.createProposal({
+            title: pattern.suggestedAction.description,
+            description: pattern.description,
+            author: { type: "ai", id: "pattern-detector", name: "Pattern Detector" },
+            capability: pattern.schema,
+            changeType: "minor",
+            changes: [
+              {
+                target: "rule",
+                operation: "create",
+                name: pattern.id,
+                diff: pattern.suggestedAction.description,
+              },
+            ],
+          });
+        }
+      }
+    }
+  } catch {
+    // If analysis fails (e.g. no logs), return empty
+    cachedInsights = [];
+    insightsLastScanned = now;
+  }
+
+  return cachedInsights;
 }
 
 // ── Mount endpoints onto Elysia app ──────────────────────
@@ -243,10 +140,18 @@ function generateDemoEvolution(): EvolutionEntry[] {
 /**
  * Register proposal/evolution/insights REST endpoints on the given Elysia app.
  * Call this in createServer() after the main app is created.
+ *
+ * @param app Elysia app instance
+ * @param executionLogger Optional execution logger for real PatternDetector analysis
  */
 // biome-ignore lint/suspicious/noExplicitAny: Elysia plugin typing
-export function mountProposalAPI(app: any): void {
-  seedDemoData();
+export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): void {
+  // Run initial pattern scan in background if execution logger is available
+  if (executionLogger) {
+    scanInsights(executionLogger).catch(() => {
+      // Silently ignore startup scan errors
+    });
+  }
 
   // ── Proposals ──────────────────────────────────────────
 
@@ -342,15 +247,42 @@ export function mountProposalAPI(app: any): void {
 
   // ── AI Insights ────────────────────────────────────────
 
-  app.get("/api/ai/insights", () => {
-    const insights = generateDemoInsights();
+  app.get("/api/ai/insights", async () => {
+    if (!executionLogger) {
+      return { success: true, data: [] };
+    }
+    const insights = await scanInsights(executionLogger);
     return { success: true, data: insights };
   });
 
   // ── Evolution History ──────────────────────────────────
 
   app.get("/api/evolution/history", () => {
-    const history = generateDemoEvolution();
+    // Evolution history is derived from committed/deployed proposals
+    const allProposals = proposalEngine.listProposals({});
+    const committed = allProposals.filter(
+      (p) => p.status === "committed" || p.status === "deployed",
+    );
+    const history: EvolutionEntry[] = committed.map((p) => ({
+      id: `evo-${p.id}`,
+      proposalId: p.id,
+      title: p.title,
+      description: p.description,
+      changeType: p.changeType,
+      capability: p.capability,
+      authorType: p.author.type,
+      authorName: p.author.name ?? p.author.id,
+      approvedBy: p.approvedBy ? `${p.approvedBy.type}:${p.approvedBy.id}` : "unknown",
+      appliedAt: (p.committedAt ?? p.approvedAt ?? p.updatedAt).toISOString(),
+      reasoning: p.description,
+      changes: p.changes.map((c) => ({
+        target: c.target,
+        operation: c.operation,
+        name: c.name,
+        diff: c.diff,
+      })),
+      canRevert: false,
+    }));
     return { success: true, data: history };
   });
 

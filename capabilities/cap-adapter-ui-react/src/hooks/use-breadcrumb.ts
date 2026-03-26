@@ -20,6 +20,12 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
   approvals: { i18nKey: "approvals.title", linkable: true },
   executions: { i18nKey: "executionLog.title", linkable: true },
   health: { i18nKey: "health.title", linkable: true },
+  proposals: { i18nKey: "proposals.title", linkable: true },
+  evolution: { i18nKey: "evolution.title", linkable: true },
+  flows: { i18nKey: "flows.title", linkable: true },
+  rules: { i18nKey: "rules.title", linkable: true },
+  states: { i18nKey: "stateMachines.title", linkable: true },
+  settings: { i18nKey: "settings.title", linkable: true },
   new: { i18nKey: "common.create", linkable: true },
 };
 

@@ -466,7 +466,19 @@
     "stepJoinType": "Join",
     "onError": "On Error",
     "notFound": "Flow \"{{name}}\" not found.",
-    "loadFailed": "Failed to load flow."
+    "loadFailed": "Failed to load flow.",
+    "chainDependencies": "Flow Chain",
+    "triggeredBy": "Triggered by",
+    "triggers": "Triggers",
+    "onComplete": "On Complete",
+    "columns": {
+      "name": "Name",
+      "trigger": "Trigger",
+      "steps": "Steps",
+      "stepCount": "Count",
+      "chain": "Chain",
+      "version": "Version"
+    }
   },
   "stateMachines": {
     "title": "State Machines",
@@ -483,7 +495,12 @@
     "action": "Action",
     "initial": "Initial",
     "notFound": "State machine \"{{name}}\" not found.",
-    "loadFailed": "Failed to load state machine."
+    "loadFailed": "Failed to load state machine.",
+    "columns": {
+      "name": "Name",
+      "schema": "Schema",
+      "states": "States"
+    }
   },
   "aiSearch": {
     "title": "AI Search",
@@ -534,6 +551,14 @@
       "rejected": "Rejected",
       "committed": "Committed",
       "deployed": "Deployed"
+    },
+    "columns": {
+      "title": "Title",
+      "status": "Status",
+      "changeType": "Type",
+      "capability": "Capability",
+      "author": "Author",
+      "date": "Date"
     }
   },
   "evolution": {
@@ -635,6 +660,13 @@
       "require_approval": "Require Approval",
       "enrich": "Enrich Data",
       "execute_action": "Execute Action"
+    },
+    "columns": {
+      "name": "Name",
+      "schema": "Schema",
+      "triggerType": "Trigger",
+      "effect": "Effect",
+      "priority": "Priority"
     }
   },
   "import": {

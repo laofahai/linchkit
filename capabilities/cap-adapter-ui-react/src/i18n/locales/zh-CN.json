@@ -466,7 +466,19 @@
     "stepJoinType": "汇聚方式",
     "onError": "错误处理",
     "notFound": "未找到工作流「{{name}}」。",
-    "loadFailed": "加载工作流失败。"
+    "loadFailed": "加载工作流失败。",
+    "chainDependencies": "工作流链",
+    "triggeredBy": "被触发于",
+    "triggers": "触发",
+    "onComplete": "完成时",
+    "columns": {
+      "name": "名称",
+      "trigger": "触发方式",
+      "steps": "步骤",
+      "stepCount": "数量",
+      "chain": "链路",
+      "version": "版本"
+    }
   },
   "stateMachines": {
     "title": "状态机",
@@ -483,7 +495,12 @@
     "action": "操作",
     "initial": "初始状态",
     "notFound": "未找到状态机「{{name}}」。",
-    "loadFailed": "加载状态机失败。"
+    "loadFailed": "加载状态机失败。",
+    "columns": {
+      "name": "名称",
+      "schema": "数据模型",
+      "states": "状态"
+    }
   },
   "aiSearch": {
     "title": "AI 搜索",
@@ -534,6 +551,14 @@
       "rejected": "已拒绝",
       "committed": "已提交",
       "deployed": "已部署"
+    },
+    "columns": {
+      "title": "标题",
+      "status": "状态",
+      "changeType": "类型",
+      "capability": "能力模块",
+      "author": "作者",
+      "date": "日期"
     }
   },
   "evolution": {
@@ -635,6 +660,13 @@
       "require_approval": "需要审批",
       "enrich": "数据补充",
       "execute_action": "执行操作"
+    },
+    "columns": {
+      "name": "名称",
+      "schema": "数据模型",
+      "triggerType": "触发器",
+      "effect": "效果",
+      "priority": "优先级"
     }
   },
   "import": {

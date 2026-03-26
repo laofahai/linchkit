@@ -219,6 +219,11 @@ export { AIResponseCache } from "./ai";
 
 export { AIBoundary, AIBoundaryError } from "./ai";
 
+// === AI Pattern Detection (server-only — analysis engine) ===
+
+export { PatternDetector } from "./ai";
+export type { PatternDetectorConfig, PatternInsight, PatternEvidence, PatternType } from "./ai";
+
 // === AI Audit (server-only — compliance audit trail) ===
 
 export {
