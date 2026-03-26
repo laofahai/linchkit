@@ -17,14 +17,11 @@ import {
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
-import {
-  queryAvailableTransitions,
-  transitionRecord,
-} from "../../lib/api";
+import { transitionRecord } from "../../lib/api";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -240,8 +237,6 @@ export function AutoKanban({
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [transitioningId, setTransitioningId] = useState<string | null>(null);
-  // Cache available transitions per record to validate drops
-  const transitionsCache = useRef<Map<string, Set<string>>>(new Map());
 
   const stateField = stateDefinition.field;
   const allStates = stateDefinition.states;

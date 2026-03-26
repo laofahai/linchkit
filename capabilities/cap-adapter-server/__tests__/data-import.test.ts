@@ -6,10 +6,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { SchemaDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryExecutionLogger, SchemaRegistry } from "@linchkit/core/server";
 import { InMemoryStore } from "@linchkit/core/server";
-import { buildGraphQLSchema } from "../src/graphql/build-schema";
+import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Fixtures ──────────────────────────────────────────────
@@ -24,18 +24,6 @@ const productSchema: SchemaDefinition = {
   },
 };
 
-const createProductAction: ActionDefinition = {
-  name: "create_product",
-  schema: "product",
-  label: "Create Product",
-  kind: "create",
-  policy: { mode: "sync", transaction: false },
-  handler: async (ctx) => {
-    const record = await ctx.data.create("product", ctx.input);
-    return record;
-  },
-};
-
 // ── Server setup ──────────────────────────────────────────
 
 const store = new InMemoryStore();
@@ -45,7 +33,11 @@ const executor = createActionExecutor({
   executionLogger,
 });
 
-executor.registry.register(createProductAction);
+// Register auto-generated CRUD actions (same as real server setup)
+const crudActions = generateCrudActions(productSchema);
+for (const action of crudActions) {
+  executor.registry.register(action);
+}
 
 const schemaRegistry = new SchemaRegistry();
 schemaRegistry.register(productSchema);

@@ -37,6 +37,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
 import { useSchemas } from "@/hooks/use-schemas";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import { aiSearch } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
@@ -50,6 +51,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const open = controlledOpen ?? internalOpen;
   const { t } = useTranslation();
   const { schemas } = useSchemas();
+  const { resolveLabel } = useSchemaLabel();
   const { theme, setTheme } = useTheme();
 
   // AI search state within the palette
@@ -189,7 +191,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                       <Icon />
                       <span>
                         {t("aiSearch.searchIn", "Search in {{schema}}", {
-                          schema: schema.label ?? schema.name,
+                          schema: resolveLabel(schema.label, schema.name),
                         })}
                       </span>
                     </CommandItem>
@@ -253,7 +255,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                         onSelect={() => navigate(`/schemas/${schema.name}`)}
                       >
                         <Icon />
-                        <span>{schema.label ?? schema.name}</span>
+                        <span>{resolveLabel(schema.label, schema.name)}</span>
                       </CommandItem>
                     );
                   })}

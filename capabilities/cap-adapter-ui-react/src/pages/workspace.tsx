@@ -23,6 +23,7 @@ import {
   Hourglass,
 } from "lucide-react";
 import { useSchemas } from "@/hooks/use-schemas";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import {
   fetchSchemaBundle,
   graphql,
