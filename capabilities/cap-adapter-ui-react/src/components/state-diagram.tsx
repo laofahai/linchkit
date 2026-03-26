@@ -10,6 +10,7 @@ import {
   BaseEdge,
   Controls,
   type Edge,
+  EdgeLabelRenderer,
   type EdgeProps,
   getBezierPath,
   Handle,
@@ -45,6 +46,8 @@ export interface StateMachineDetail {
     action: string;
   }>;
   meta?: Record<string, StateMeta>;
+  /** Optional map from action name to display label (for i18n resolution) */
+  actionLabels?: Record<string, string>;
 }
 
 // ── Constants ────────────────────────────────────────────
@@ -80,6 +83,85 @@ function getStateLabel(
   return raw;
 }
 
+/**
+ * Resolve action label: use actionLabels map, then try t() i18n, then fall back to raw name.
+ */
+function resolveActionLabel(
+  actionName: string,
+  actionLabels?: Record<string, string>,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (actionLabels?.[actionName]) {
+    return actionLabels[actionName];
+  }
+  if (t) {
+    const resolved = t(`actions.${actionName}`, { defaultValue: "" });
+    if (resolved && resolved !== "") {
+      return resolved;
+    }
+  }
+  return actionName;
+}
+
+/**
+ * Apply reduced opacity to a color for muted accent bars.
+ */
+function muteColor(color: string): string {
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    const fullHex =
+      hex.length === 3
+        ? hex
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : hex;
+    const r = Number.parseInt(fullHex.slice(0, 2), 16);
+    const g = Number.parseInt(fullHex.slice(2, 4), 16);
+    const b = Number.parseInt(fullHex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.55)`;
+  }
+  if (color.startsWith("rgb(")) {
+    return color.replace("rgb(", "rgba(").replace(")", ", 0.55)");
+  }
+  return color;
+}
+
+/** Pill-style edge label used by EdgeLabelRenderer */
+function EdgeLabel({
+  label,
+  x,
+  y,
+}: { label: string; x: number; y: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+        pointerEvents: "all",
+      }}
+      className="nodrag nopan"
+    >
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          color: "#475569",
+          backgroundColor: "#ffffff",
+          padding: "2px 8px",
+          borderRadius: 9999,
+          border: "1px solid #e2e8f0",
+          whiteSpace: "nowrap",
+          lineHeight: "16px",
+          display: "inline-block",
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 // ── Custom state node ────────────────────────────────────
 
 interface StateNodeData {
@@ -109,7 +191,7 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
         overflow: "hidden",
       }}
     >
-      {/* Left accent bar */}
+      {/* Left accent bar — muted color */}
       <div
         style={{
           position: "absolute",
@@ -117,14 +199,76 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
           top: 0,
           bottom: 0,
           width: 4,
-          backgroundColor: color,
+          backgroundColor: muteColor(color),
           borderRadius: "6px 0 0 6px",
+        }}
+      />
+
+      {/* Handles: left target, right source, top target+source, bottom target+source */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="top-source"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
         }}
       />
 
       <Handle
         type="target"
-        position={Position.Left}
+        position={Position.Top}
+        id="top-target"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom-source"
+        style={{
+          background: "transparent",
+          border: "none",
+          width: 1,
+          height: 1,
+        }}
+      />
+
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="bottom-target"
         style={{
           background: "transparent",
           border: "none",
@@ -168,17 +312,6 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
           {label}
         </span>
       </div>
-
-      <Handle
-        type="source"
-        position={Position.Right}
-        style={{
-          background: "transparent",
-          border: "none",
-          width: 1,
-          height: 1,
-        }}
-      />
     </div>
   );
 }
@@ -191,17 +324,17 @@ function SelfLoopEdge({
   sourceY,
   label,
 }: EdgeProps) {
+  // Self-loop arcs above the node (source and target are top handles)
   const loopWidth = 40;
-  const loopHeight = 45;
+  const loopHeight = 50;
 
-  // Arc goes up from source handle, curves above the node, returns to same point
-  const path = `M ${sourceX} ${sourceY}
-    C ${sourceX + loopWidth} ${sourceY - loopHeight},
-      ${sourceX - loopWidth - 50} ${sourceY - loopHeight},
-      ${sourceX - 50} ${sourceY}`;
+  const path = `M ${sourceX - 20} ${sourceY}
+    C ${sourceX - 20} ${sourceY - loopHeight},
+      ${sourceX + 20} ${sourceY - loopHeight},
+      ${sourceX + 20} ${sourceY}`;
 
-  const labelX = sourceX - 25;
-  const labelY = sourceY - loopHeight - 6;
+  const labelX = sourceX;
+  const labelY = sourceY - loopHeight - 4;
 
   return (
     <>
@@ -214,39 +347,9 @@ function SelfLoopEdge({
         markerEnd={`url(#${ARROW_ID})`}
       />
       {label && (
-        <foreignObject
-          x={labelX - 45}
-          y={labelY - 10}
-          width={90}
-          height={22}
-          requiredExtensions="http://www.w3.org/1999/xhtml"
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: "#475569",
-                backgroundColor: "#ffffff",
-                padding: "1px 6px",
-                borderRadius: 9999,
-                border: "1px solid #e2e8f0",
-                whiteSpace: "nowrap",
-                lineHeight: "18px",
-              }}
-            >
-              {label as string}
-            </span>
-          </div>
-        </foreignObject>
+        <EdgeLabelRenderer>
+          <EdgeLabel label={label as string} x={labelX} y={labelY} />
+        </EdgeLabelRenderer>
       )}
     </>
   );
@@ -255,13 +358,26 @@ function SelfLoopEdge({
 // ── Labeled edge (overrides default to use pill labels) ──
 
 function LabeledEdge(props: EdgeProps) {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, label } = props;
-
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const {
+    id,
     sourceX,
     sourceY,
     targetX,
     targetY,
+    sourcePosition,
+    targetPosition,
+    label,
+    data,
+  } = props;
+
+  // Apply vertical offset for parallel edges between the same pair of nodes
+  const offsetY = (data?.offsetY as number) ?? 0;
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY: sourceY + offsetY,
+    targetX,
+    targetY: targetY + offsetY,
     sourcePosition,
     targetPosition,
   });
@@ -275,39 +391,9 @@ function LabeledEdge(props: EdgeProps) {
         markerEnd={`url(#${ARROW_ID})`}
       />
       {label && (
-        <foreignObject
-          x={labelX - 45}
-          y={labelY - 11}
-          width={90}
-          height={22}
-          requiredExtensions="http://www.w3.org/1999/xhtml"
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: "#475569",
-                backgroundColor: "#ffffff",
-                padding: "1px 6px",
-                borderRadius: 9999,
-                border: "1px solid #e2e8f0",
-                whiteSpace: "nowrap",
-                lineHeight: "18px",
-              }}
-            >
-              {label as string}
-            </span>
-          </div>
-        </foreignObject>
+        <EdgeLabelRenderer>
+          <EdgeLabel label={label as string} x={labelX} y={labelY} />
+        </EdgeLabelRenderer>
       )}
     </>
   );
@@ -334,8 +420,8 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "LR",
-    nodesep: 60,
-    ranksep: 180,
+    nodesep: 80,
+    ranksep: 200,
     marginx: 40,
     marginy: 40,
   });
@@ -375,6 +461,8 @@ function buildStateGraph(
   nodes: Node<StateNodeData>[];
   edges: Edge[];
 } {
+  const stateSet = new Set(machine.states);
+
   // Determine terminal states (no outgoing transitions)
   const hasOutgoing = new Set<string>();
   for (const tr of machine.transitions) {
@@ -397,21 +485,97 @@ function buildStateGraph(
     },
   }));
 
+  // Flatten transitions into individual edges, tracking each (from, to) pair
   const edges: Edge[] = [];
   let edgeIdx = 0;
+
+  // Count edges between each directed pair to apply offset for parallel edges
+  const pairEdgeCounts = new Map<string, number>();
+
+  // First pass: collect all edges
+  interface RawEdge {
+    from: string;
+    to: string;
+    action: string;
+    isSelfLoop: boolean;
+  }
+  const rawEdges: RawEdge[] = [];
 
   for (const tr of machine.transitions) {
     const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
     for (const from of froms) {
-      const isSelfLoop = from === tr.to;
+      rawEdges.push({
+        from,
+        to: tr.to,
+        action: tr.action,
+        isSelfLoop: from === tr.to,
+      });
+    }
+  }
+
+  // Second pass: assign offsets for parallel/bidirectional edges
+  for (const raw of rawEdges) {
+    const { from, to, action, isSelfLoop } = raw;
+
+    // Skip edges referencing non-existent states (prevents dangling arrows)
+    if (!stateSet.has(from) || !stateSet.has(to)) {
+      continue;
+    }
+
+    const actionLabel = resolveActionLabel(action, machine.actionLabels, t);
+
+    if (isSelfLoop) {
       edges.push({
         id: `tr-${edgeIdx++}`,
         source: from,
-        target: tr.to,
-        type: isSelfLoop ? "selfLoop" : "labeled",
-        label: tr.action,
+        target: to,
+        type: "selfLoop",
+        sourceHandle: "top-source",
+        targetHandle: "top-target",
+        label: actionLabel,
       });
+      continue;
     }
+
+    // Normalize pair key so A->B and B->A share the same counter
+    const pairKey = [from, to].sort().join("::");
+    const currentIndex = pairEdgeCounts.get(pairKey) ?? 0;
+    pairEdgeCounts.set(pairKey, currentIndex + 1);
+
+    // Determine if this is a "reverse" edge (target sorts before source)
+    const isReverse = from > to;
+
+    // For parallel edges, alternate between top and bottom handles
+    let sourceHandle: string;
+    let targetHandle: string;
+
+    if (currentIndex === 0) {
+      // First edge between this pair: standard right->left
+      sourceHandle = "right";
+      targetHandle = "left";
+    } else {
+      // Additional edges: route through bottom for second, top for third, etc.
+      const useBottom = isReverse
+        ? currentIndex % 2 === 0
+        : currentIndex % 2 === 1;
+      if (useBottom) {
+        sourceHandle = "bottom-source";
+        targetHandle = "bottom-target";
+      } else {
+        sourceHandle = "top-source";
+        targetHandle = "top-target";
+      }
+    }
+
+    edges.push({
+      id: `tr-${edgeIdx++}`,
+      source: from,
+      target: to,
+      type: "labeled",
+      sourceHandle,
+      targetHandle,
+      label: actionLabel,
+    });
   }
 
   return getLayoutedElements(nodes, edges);
@@ -480,7 +644,7 @@ export function StateDiagram({
         nodesConnectable={false}
         elementsSelectable={false}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.2 }}
         minZoom={0.5}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
