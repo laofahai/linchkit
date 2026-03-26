@@ -83,28 +83,28 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
   switch (status) {
     case "succeeded":
       return (
-        <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
+        <Badge variant="outline" className="gap-1 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
           <CheckCircle2 className="h-3 w-3" />
           {t("executionLog.succeeded")}
         </Badge>
       );
     case "failed":
       return (
-        <Badge variant="outline" className="gap-1 text-red-600 border-red-200 bg-red-50">
+        <Badge variant="outline" className="gap-1 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
           <XCircle className="h-3 w-3" />
           {t("executionLog.failed")}
         </Badge>
       );
     case "blocked":
       return (
-        <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-200 bg-yellow-50">
+        <Badge variant="outline" className="gap-1 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950">
           <AlertTriangle className="h-3 w-3" />
           {t("executionLog.blocked")}
         </Badge>
       );
     case "pending_approval":
       return (
-        <Badge variant="outline" className="gap-1 text-blue-600 border-blue-200 bg-blue-50">
+        <Badge variant="outline" className="gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950">
           <Hourglass className="h-3 w-3" />
           {t("executionLog.pendingApproval")}
         </Badge>

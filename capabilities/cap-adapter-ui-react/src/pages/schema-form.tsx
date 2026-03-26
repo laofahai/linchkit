@@ -170,7 +170,8 @@ export function SchemaFormPage() {
         setFormMode("view");
       }
     } catch (err) {
-      console.error("Save failed:", err);
+      // Re-throw so AutoForm's built-in server error parser handles display
+      throw err;
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,6 @@
 import { useMatches } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { useSchemas } from "./use-schemas";
 
 export interface BreadcrumbItem {
   label: string;
@@ -6,61 +8,117 @@ export interface BreadcrumbItem {
 }
 
 /**
- * Build breadcrumb items from current route matches.
- * Route context can provide `breadcrumb` label via route context or static data.
- * Falls back to path segment formatting.
+ * Well-known route segments mapped to i18n key and whether they are linkable.
+ * Segments like "schemas" and "admin" are namespace prefixes without their
+ * own route, so they appear in the breadcrumb but are not clickable.
+ */
+const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
+  schemas: { i18nKey: "nav.schemas", linkable: false },
+  admin: { i18nKey: "nav.administration", linkable: false },
+  executions: { i18nKey: "executionLog.title", linkable: true },
+  health: { i18nKey: "health.title", linkable: true },
+  new: { i18nKey: "common.create", linkable: true },
+};
+
+/**
+ * Build breadcrumb items from the deepest matched route pathname.
+ *
+ * Because TanStack Router uses flat paths like `/schemas/$name/$id`,
+ * there is only one leaf match — not one per segment. We decompose
+ * the pathname into cumulative segments and resolve each label via:
+ *
+ *   1. Well-known segment → i18n key
+ *   2. Schema name → schema label (SchemasContext / i18n)
+ *   3. UUID-like ID → truncated hash
+ *   4. Fallback: capitalize raw segment
  */
 export function useBreadcrumb(): BreadcrumbItem[] {
   const matches = useMatches();
-  const items: BreadcrumbItem[] = [];
+  const { t } = useTranslation();
+  const { schemas } = useSchemas();
 
-  for (const match of matches) {
-    // Skip root route
-    if (match.pathname === "/" && matches.length > 1 && match.id === "__root__") {
-      continue;
-    }
+  // Find the deepest non-layout match to get the full pathname
+  const leafMatch = matches[matches.length - 1];
+  if (!leafMatch) return [];
 
-    // Home route
-    if (match.pathname === "/" && match.id !== "__root__") {
-      items.push({ label: "Home", href: "/" });
-      continue;
-    }
+  const pathname = leafMatch.pathname;
 
-    // Use route context breadcrumb if available
-    const context = match.context as Record<string, unknown> | undefined;
-    const staticData = match.staticData as Record<string, unknown> | undefined;
-    const breadcrumbLabel = (context?.breadcrumb as string) ?? (staticData?.breadcrumb as string);
-
-    if (breadcrumbLabel) {
-      items.push({ label: breadcrumbLabel, href: match.pathname });
-      continue;
-    }
-
-    // Fall back to formatting the last path segment
-    const segments = match.pathname.split("/").filter(Boolean);
-    const lastSegment = segments[segments.length - 1];
-    if (!lastSegment) continue;
-
-    // Skip param segments that duplicate parent context (e.g. $name, $id)
-    // but show them with formatted label
-    const label = formatSegment(lastSegment);
-    items.push({ label, href: match.pathname });
+  // Home page — single item, no link needed
+  if (pathname === "/") {
+    return [{ label: t("nav.home") }];
   }
 
-  return deduplicateItems(items);
+  // Build cumulative breadcrumb from path segments
+  const segments = pathname.split("/").filter(Boolean);
+  const items: BreadcrumbItem[] = [{ label: t("nav.home"), href: "/" }];
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]!;
+    const cumulativePath = `/${segments.slice(0, i + 1).join("/")}`;
+    const isLast = i === segments.length - 1;
+    const parentSegment = i > 0 ? segments[i - 1] : undefined;
+
+    const resolved = resolveSegmentLabel(segment, parentSegment, t, schemas);
+
+    items.push({
+      label: resolved.label,
+      // Last item never links; non-linkable segments (namespace prefixes) also skip href
+      href: isLast ? undefined : resolved.linkable ? cumulativePath : undefined,
+    });
+  }
+
+  return items;
+}
+
+interface ResolvedSegment {
+  label: string;
+  linkable: boolean;
+}
+
+/**
+ * Resolve a human-readable label for a URL segment.
+ */
+function resolveSegmentLabel(
+  segment: string,
+  parentSegment: string | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  schemas: Array<{ name: string; label?: string }>,
+): ResolvedSegment {
+  // 1. Well-known segment
+  const known = KNOWN_SEGMENTS[segment];
+  if (known) {
+    return { label: t(known.i18nKey), linkable: known.linkable };
+  }
+
+  // 2. Schema name — when parent is "schemas"
+  if (parentSegment === "schemas") {
+    const schemaInfo = schemas.find((s) => s.name === segment);
+    if (schemaInfo?.label) {
+      // Support t: prefix convention
+      if (schemaInfo.label.startsWith("t:")) {
+        const key = schemaInfo.label.slice(2);
+        return { label: t(key, { defaultValue: formatSegment(segment) }), linkable: true };
+      }
+      return { label: schemaInfo.label, linkable: true };
+    }
+    // Try i18n key: schemas.<name>._label
+    const schemaI18nLabel = t(`schemas.${segment}._label`, { defaultValue: "" });
+    if (schemaI18nLabel) {
+      return { label: schemaI18nLabel, linkable: true };
+    }
+    return { label: formatSegment(segment), linkable: true };
+  }
+
+  // 3. UUID-like IDs — truncate with hash prefix
+  if (/^[a-f0-9-]{8,}$/.test(segment)) {
+    return { label: `#${segment.slice(0, 8)}`, linkable: true };
+  }
+
+  // 4. Fallback
+  return { label: formatSegment(segment), linkable: true };
 }
 
 /** Format a URL segment into a readable label */
 function formatSegment(segment: string): string {
-  // If it looks like an ID (starts with common prefixes), show as-is
-  if (/^[a-f0-9-]{8,}$/.test(segment)) {
-    return `${segment.slice(0, 8)}…`;
-  }
-
   return segment.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Remove consecutive duplicate labels */
-function deduplicateItems(items: BreadcrumbItem[]): BreadcrumbItem[] {
-  return items.filter((item, i) => i === 0 || item.label !== items[i - 1]?.label);
 }

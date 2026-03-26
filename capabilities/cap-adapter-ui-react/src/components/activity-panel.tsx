@@ -35,10 +35,10 @@ interface StatusConfig {
 }
 
 const STATUS_CONFIG: Record<string, StatusConfig> = {
-  succeeded: { icon: CheckCircle, color: "text-green-600", variant: "default" },
-  failed: { icon: XCircle, color: "text-red-600", variant: "destructive" },
-  blocked: { icon: ShieldAlert, color: "text-yellow-600", variant: "secondary" },
-  pending_approval: { icon: Clock, color: "text-blue-600", variant: "outline" },
+  succeeded: { icon: CheckCircle, color: "text-green-600 dark:text-green-400", variant: "default" },
+  failed: { icon: XCircle, color: "text-red-600 dark:text-red-400", variant: "destructive" },
+  blocked: { icon: ShieldAlert, color: "text-yellow-600 dark:text-yellow-400", variant: "secondary" },
+  pending_approval: { icon: Clock, color: "text-blue-600 dark:text-blue-400", variant: "outline" },
 };
 
 const DEFAULT_STATUS_CONFIG: StatusConfig = {

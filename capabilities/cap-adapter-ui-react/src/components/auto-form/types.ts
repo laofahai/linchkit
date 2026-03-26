@@ -4,15 +4,37 @@
 
 import type { SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
 
+/** Field-level errors returned from server validation */
+export interface ServerFieldErrors {
+  [fieldName: string]: string;
+}
+
+/** Structured submit result for server-side error propagation */
+export interface SubmitResult {
+  /** Per-field validation errors from server */
+  fieldErrors?: ServerFieldErrors;
+  /** General form-level error message */
+  formError?: string;
+}
+
 export interface AutoFormProps {
   schema: SchemaDefinition;
   view: ViewDefinition;
   data?: Record<string, unknown>;
   recordStatus?: string;
-  onSubmit?: (data: Record<string, unknown>) => void;
+  /**
+   * Called on form submit after client validation passes.
+   * Return a SubmitResult to display server-side errors on the form.
+   * Return void or undefined on success.
+   */
+  onSubmit?: (data: Record<string, unknown>) => void | SubmitResult | Promise<void | SubmitResult | undefined>;
   onCancel?: () => void;
   onAction?: (actionName: string) => void;
   mode?: "create" | "edit" | "view";
   /** Hide the built-in footer (Save/Cancel) — use when page provides its own buttons */
   hideFooter?: boolean;
+  /** External server-side errors to display (set by parent component) */
+  serverErrors?: ServerFieldErrors;
+  /** External form-level error message */
+  formError?: string;
 }

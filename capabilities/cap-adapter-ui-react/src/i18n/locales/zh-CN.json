@@ -62,12 +62,21 @@
     "required": "此字段为必填项",
     "invalid": "无效的值",
     "saved": "保存成功",
+    "saveFailed": "保存失败，请检查表单后重试。",
     "fieldModified": "已修改",
     "sectionCore": "核心信息",
     "sectionAdditional": "补充信息",
     "sectionRelated": "关联",
     "sectionDetails": "详细信息",
-    "sectionSystem": "系统"
+    "sectionSystem": "系统",
+    "validation": {
+      "min": "{{field}}不能小于{{min}}",
+      "max": "{{field}}不能大于{{max}}",
+      "minLength": "{{field}}至少需要{{min}}个字符",
+      "maxLength": "{{field}}最多允许{{max}}个字符",
+      "format": "{{field}}格式不正确",
+      "invalidOption": "请为{{field}}选择一个有效选项"
+    }
   },
   "list": {
     "noResults": "未找到结果",

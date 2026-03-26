@@ -62,12 +62,21 @@
     "required": "This field is required",
     "invalid": "Invalid value",
     "saved": "Saved successfully",
+    "saveFailed": "Failed to save. Please check the form and try again.",
     "fieldModified": "Modified",
     "sectionCore": "Core Information",
     "sectionAdditional": "Additional Details",
     "sectionRelated": "Related",
     "sectionDetails": "Details",
-    "sectionSystem": "System"
+    "sectionSystem": "System",
+    "validation": {
+      "min": "{{field}} must be at least {{min}}",
+      "max": "{{field}} must be at most {{max}}",
+      "minLength": "{{field}} must be at least {{min}} characters",
+      "maxLength": "{{field}} must be at most {{max}} characters",
+      "format": "{{field}} format is invalid",
+      "invalidOption": "Please select a valid option for {{field}}"
+    }
   },
   "list": {
     "noResults": "No results found",

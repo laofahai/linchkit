@@ -3,6 +3,15 @@
  *
  * Orchestrates form state, validation, and rendering of layout nodes
  * (groups, notebooks, fields, separators).
+ *
+ * Validation features:
+ * - Client-side: Zod schema generated from SchemaDefinition (required, min, max, format)
+ * - Validates on blur (per-field) and on submit (all fields)
+ * - Re-validates changed fields that previously had errors
+ * - Server-side: parses GraphQL/API error responses and maps to field errors
+ * - Displays form-level error banner for non-field-specific server errors
+ * - Submit button disabled while validation errors exist
+ * - i18n-aware error messages via Zod custom error map
  */
 
 import { generateZodSchema } from "@linchkit/core/define";
@@ -16,12 +25,13 @@ import type {
   ViewAction,
 } from "@linchkit/core/types";
 import { Button } from "@linchkit/ui-kit/components";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
-import type { AutoFormProps } from "./types";
+import type { AutoFormProps, SubmitResult } from "./types";
 
 export function AutoForm({
   schema,
@@ -33,6 +43,8 @@ export function AutoForm({
   onAction: _onAction,
   mode = "create",
   hideFooter = false,
+  serverErrors: externalServerErrors,
+  formError: externalFormError,
 }: AutoFormProps) {
   const { t } = useTranslation();
   const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
@@ -53,8 +65,23 @@ export function AutoForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<Record<string, number>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const isViewMode = mode === "view";
+
+  // Merge external server errors into local errors
+  useEffect(() => {
+    if (externalServerErrors && Object.keys(externalServerErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...externalServerErrors }));
+    }
+  }, [externalServerErrors]);
+
+  useEffect(() => {
+    if (externalFormError) {
+      setFormError(externalFormError);
+    }
+  }, [externalFormError]);
 
   // ── State-driven action buttons ──
 
@@ -69,6 +96,63 @@ export function AutoForm({
     return headerActions;
   }, [view, recordStatus]);
 
+  // ── i18n-aware Zod error message translation ──
+
+  const translateZodMessage = useCallback(
+    (code: string, fieldName: string, _details?: Record<string, unknown>): string => {
+      const fieldDef = schema.fields[fieldName];
+      const fieldLabel = fieldDef?.label ?? fieldName;
+
+      switch (code) {
+        case "invalid_type":
+          // When a required field receives undefined/null
+          if (fieldDef?.required) {
+            return t("form.required");
+          }
+          return t("form.invalid");
+        case "too_small":
+          if (fieldDef?.type === "string" || fieldDef?.type === "text") {
+            return t("form.validation.minLength", {
+              defaultValue: "{{field}} must be at least {{min}} characters",
+              field: fieldLabel,
+              min: fieldDef.min ?? 1,
+            });
+          }
+          return t("form.validation.min", {
+            defaultValue: "{{field}} must be at least {{min}}",
+            field: fieldLabel,
+            min: fieldDef?.min ?? 0,
+          });
+        case "too_big":
+          if (fieldDef?.type === "string" || fieldDef?.type === "text") {
+            return t("form.validation.maxLength", {
+              defaultValue: "{{field}} must be at most {{max}} characters",
+              field: fieldLabel,
+              max: fieldDef.max ?? 0,
+            });
+          }
+          return t("form.validation.max", {
+            defaultValue: "{{field}} must be at most {{max}}",
+            field: fieldLabel,
+            max: fieldDef?.max ?? 0,
+          });
+        case "invalid_string":
+          return t("form.validation.format", {
+            defaultValue: "{{field}} format is invalid",
+            field: fieldLabel,
+          });
+        case "invalid_enum_value":
+          return t("form.validation.invalidOption", {
+            defaultValue: "Please select a valid option for {{field}}",
+            field: fieldLabel,
+          });
+        default:
+          return t("form.invalid");
+      }
+    },
+    [schema, t],
+  );
+
   // ── Validation ──
 
   const validateField = useCallback(
@@ -77,11 +161,15 @@ export function AutoForm({
       if (!fieldShape) return undefined;
       const result = fieldShape.safeParse(value);
       if (!result.success) {
-        return result.error.issues[0]?.message ?? t("form.invalid");
+        const issue = result.error.issues[0];
+        if (issue) {
+          return translateZodMessage(issue.code, fieldName, issue as unknown as Record<string, unknown>);
+        }
+        return t("form.invalid");
       }
       return undefined;
     },
-    [zodSchema, t],
+    [zodSchema, t, translateZodMessage],
   );
 
   const validateAll = useCallback((): boolean => {
@@ -94,17 +182,25 @@ export function AutoForm({
     for (const issue of result.error.issues) {
       const fieldName = issue.path[0];
       if (typeof fieldName === "string" && !newErrors[fieldName]) {
-        newErrors[fieldName] = issue.message;
+        newErrors[fieldName] = translateZodMessage(
+          issue.code,
+          fieldName,
+          issue as unknown as Record<string, unknown>,
+        );
       }
     }
     setErrors(newErrors);
     return false;
-  }, [zodSchema, formData]);
+  }, [zodSchema, formData, translateZodMessage]);
 
   // ── Handlers ──
 
   function handleChange(fieldName: string, value: unknown) {
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
+
+    // Clear form-level error on any change
+    if (formError) setFormError(null);
+
     const isDirty = value !== initialDataRef.current[fieldName];
     setDirtyFields((prev) => {
       const next = new Set(prev);
@@ -139,10 +235,47 @@ export function AutoForm({
     });
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (validateAll()) {
-      onSubmit?.(formData);
+
+    // Mark all fields as touched on submit attempt
+    const allFields = new Set<string>(
+      view.fields.filter((f) => f.visible !== false).map((f) => f.field),
+    );
+    setTouchedFields(allFields);
+
+    // Clear previous form-level error
+    setFormError(null);
+
+    if (!validateAll()) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await onSubmit?.(formData);
+
+      // Handle server-side errors returned by onSubmit
+      if (result) {
+        const submitResult = result as SubmitResult;
+        if (submitResult.fieldErrors) {
+          setErrors((prev) => ({ ...prev, ...submitResult.fieldErrors }));
+        }
+        if (submitResult.formError) {
+          setFormError(submitResult.formError);
+        }
+      }
+    } catch (err) {
+      // Parse server error responses
+      const parsed = parseServerError(err);
+      if (parsed.fieldErrors) {
+        setErrors((prev) => ({ ...prev, ...parsed.fieldErrors }));
+      }
+      if (parsed.formError) {
+        setFormError(parsed.formError);
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -265,10 +398,17 @@ export function AutoForm({
   }, [view]);
 
   const hasDirtyFields = dirtyFields.size > 0;
+  const hasErrors = Object.keys(errors).length > 0;
 
   return (
     <form id="auto-form" onSubmit={handleSubmit}>
-      {/* Action buttons moved to page-level control panel */}
+      {/* Form-level error banner */}
+      {formError && !isViewMode && (
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{formError}</span>
+        </div>
+      )}
 
       {/* Layout nodes */}
       {layoutNodes.map((node, i) => (
@@ -292,7 +432,7 @@ export function AutoForm({
                 {t("common.cancel")}
               </Button>
             )}
-            <Button type="submit">
+            <Button type="submit" disabled={hasErrors || submitting}>
               {mode === "create" ? t("common.create") : t("common.save")}
             </Button>
           </div>
@@ -344,4 +484,102 @@ function getNodeKey(node: FormLayoutNode, index: number): string {
     default:
       return `node-${index}`;
   }
+}
+
+/**
+ * Parse server error responses into field-level and form-level errors.
+ *
+ * Handles:
+ * - GraphQL validation errors with field paths
+ * - REST API validation errors with field details
+ * - Generic Error instances
+ */
+function parseServerError(err: unknown): {
+  fieldErrors?: Record<string, string>;
+  formError?: string;
+} {
+  if (!err) return {};
+
+  // Handle Error instances with structured data
+  if (err instanceof Error) {
+    const message = err.message;
+
+    // Try to parse GraphQL-style error with field details
+    // e.g. "Validation failed: title is required, amount must be positive"
+    const fieldErrors = parseValidationMessage(message);
+    if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+      return { fieldErrors };
+    }
+
+    return { formError: message };
+  }
+
+  // Handle plain objects (e.g. from response.json())
+  if (typeof err === "object" && err !== null) {
+    const obj = err as Record<string, unknown>;
+
+    // REST-style: { error: { code: "validation", details: { field: "message" } } }
+    if (obj.error && typeof obj.error === "object") {
+      const error = obj.error as Record<string, unknown>;
+      if (error.details && typeof error.details === "object") {
+        return { fieldErrors: error.details as Record<string, string> };
+      }
+      if (typeof error.message === "string") {
+        return { formError: error.message };
+      }
+    }
+
+    // GraphQL-style: { errors: [{ message, extensions: { fieldErrors } }] }
+    if (Array.isArray(obj.errors)) {
+      const fieldErrors: Record<string, string> = {};
+      let formMessage: string | undefined;
+
+      for (const gqlError of obj.errors) {
+        if (typeof gqlError === "object" && gqlError !== null) {
+          const ext = (gqlError as Record<string, unknown>).extensions as Record<string, unknown> | undefined;
+          if (ext?.fieldErrors && typeof ext.fieldErrors === "object") {
+            Object.assign(fieldErrors, ext.fieldErrors);
+          } else {
+            formMessage = String((gqlError as Record<string, unknown>).message ?? "");
+          }
+        }
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        return { fieldErrors, formError: formMessage };
+      }
+      if (formMessage) {
+        return { formError: formMessage };
+      }
+    }
+  }
+
+  return { formError: String(err) };
+}
+
+/**
+ * Try to extract field-level errors from a validation error message string.
+ * Matches patterns like "fieldName: error message" or "fieldName is required".
+ */
+function parseValidationMessage(message: string): Record<string, string> | null {
+  // Pattern: "Validation failed: field1 error, field2 error"
+  const validationPrefix = /^(?:Validation (?:failed|error)):?\s*/i;
+  const body = message.replace(validationPrefix, "");
+
+  // Try "field: message" pattern (common in REST APIs)
+  const colonPattern = /(\w+):\s*([^,]+)/g;
+  const result: Record<string, string> = {};
+  let match: RegExpExecArray | null;
+
+  match = colonPattern.exec(body);
+  while (match !== null) {
+    const field = match[1];
+    const msg = match[2];
+    if (field && msg) {
+      result[field] = msg.trim();
+    }
+    match = colonPattern.exec(body);
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
 }
