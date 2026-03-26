@@ -103,11 +103,21 @@ function toCamelCase(name: string): string {
   );
 }
 
-/** Derive the FK column name on the child table pointing to parent */
+/** Derive the FK column name on the child table pointing to parent.
+ *  Must match the convention in schema-to-drizzle.ts generateLinkColumns():
+ *  - one_to_many: FK = `{from}_id` on the `to` (child) table
+ *  - many_to_one: FK = `{to}_id` on the `from` (child) table
+ */
 function deriveFkField(link: LinkDefinition, parentSchema: string): string {
-  // FK is always named after the parent schema + "_id"
-  // For one_to_many: from=parent, to=child → FK = from + "_id"
-  // For many_to_one viewed from "to" side: from=child, to=parent → FK = to + "_id"
+  if (link.cardinality === "one_to_many") {
+    // Parent is `from`, child is `to`. FK on child table = `{from}_id`
+    return `${link.from}_id`;
+  }
+  if (link.cardinality === "many_to_one") {
+    // Parent is `to`, child is `from`. FK on child table = `{to}_id`
+    return `${link.to}_id`;
+  }
+  // Fallback for one_to_one or unexpected cardinalities
   return `${parentSchema}_id`;
 }
 
@@ -521,19 +531,23 @@ export function One2ManyField({
                             value={editValue}
                             onChange={setEditValue}
                             onBlur={() => {
-                              commitEdit();
-                              if (row.isPending) {
-                                const updatedRow = {
-                                  ...pendingRows.find((r) => r._tempId === row.id)!,
-                                  [col.field]:
-                                    col.type === "number"
-                                      ? editValue === ""
-                                        ? null
-                                        : Number(editValue)
-                                      : editValue,
-                                };
-                                handlePendingRowBlur(updatedRow);
-                              }
+                              // commitEdit is the single source of truth for
+                              // persisting the edit value into pendingRows state.
+                              // After it completes, check if the pending row is
+                              // ready for auto-save.
+                              commitEdit().then(() => {
+                                if (row.isPending) {
+                                  // Re-read the latest pending row from state via
+                                  // setState callback to avoid stale closure
+                                  setPendingRows((prev) => {
+                                    const updatedRow = prev.find((r) => r._tempId === row.id);
+                                    if (updatedRow) {
+                                      handlePendingRowBlur(updatedRow);
+                                    }
+                                    return prev;
+                                  });
+                                }
+                              });
                             }}
                             onKeyDown={handleKeyDown}
                           />

@@ -129,13 +129,22 @@ export function useSchemaBundle(name: string) {
   }, [name, fetchBundle]);
 
   useEffect(() => {
+    // Guard: skip fetch when name is empty (e.g. during initial render before schema name is known)
+    if (!name) {
+      setBundle(undefined);
+      setLoading(false);
+      setError(false);
+      return;
+    }
+
     const cached = getBundle(name);
     setBundle(cached);
-    setLoading(!cached);
     setError(false);
 
     if (!cached) {
       load();
+    } else {
+      setLoading(false);
     }
   }, [name, getBundle, load]);
 

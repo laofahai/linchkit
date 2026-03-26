@@ -250,20 +250,39 @@ export function AutoForm({
     });
   }
 
-  /** Scroll the first error field into view after validation failure */
+  /** Scroll the first error field into view after validation failure.
+   *  If the error element is inside a hidden notebook tab, activate that tab first. */
   function scrollToFirstError() {
     if (!formRef.current) return;
     // Find the first element with aria-invalid="true" or the first error message
     const firstInvalid = formRef.current.querySelector<HTMLElement>(
       '[aria-invalid="true"], [data-field] .text-destructive',
     );
-    if (firstInvalid) {
+    if (!firstInvalid) return;
+
+    // If the element is inside a hidden tab panel, switch to that tab first
+    const tabPanel = firstInvalid.closest<HTMLElement>('[role="tabpanel"]');
+    if (tabPanel && tabPanel.hidden) {
+      const panelId = tabPanel.id;
+      if (panelId) {
+        // Find the tab trigger that controls this panel
+        const trigger = formRef.current.querySelector<HTMLElement>(
+          `[role="tab"][aria-controls="${panelId}"]`,
+        );
+        if (trigger) {
+          trigger.click();
+        }
+      }
+    }
+
+    // Use requestAnimationFrame to let the DOM update after potential tab switch
+    requestAnimationFrame(() => {
       firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
       // Focus the input if it's focusable
       if ("focus" in firstInvalid && typeof firstInvalid.focus === "function") {
         firstInvalid.focus({ preventScroll: true });
       }
-    }
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {

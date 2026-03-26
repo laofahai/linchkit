@@ -3,7 +3,7 @@
  *
  * Uses display:contents to participate in parent grid layout.
  * Label auto-sizes; all labels in the same group align to the widest one.
- * Required fields show a red asterisk next to the label.
+ * Required fields distinguished by input background color.
  * Unique fields show a hint note below the input.
  * Edit mode uses standard bordered inputs (shadcn Input).
  */
@@ -102,7 +102,6 @@ export function FormFieldRow({
         )}
       >
         {label}
-        {required && <span className="ml-0.5 text-destructive">*</span>}
       </Label>
 
       {/* Value cell */}
