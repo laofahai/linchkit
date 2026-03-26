@@ -177,51 +177,29 @@ export function HealthMonitorPage() {
 
   return (
     <div className="w-full p-4 space-y-6">
-      {/* Last refresh alert */}
-      <Alert variant="default">
-        <ClockIcon className="size-4" />
-        <AlertDescription className="flex items-center justify-between">
-          <span className="text-muted-foreground">
-            {lastRefresh
-              ? `${t("health.lastRefresh")}: ${lastRefresh.toLocaleTimeString()}`
-              : t("common.loading")}
+      {/* Combined status + refresh alert */}
+      <Alert variant="default" className={health ? STATUS_BG[health.status] : undefined}>
+        {health ? <StatusIcon status={health.status} /> : <ClockIcon className="size-4" />}
+        <AlertDescription className="flex items-center justify-between gap-3">
+          <span className={`font-medium ${health ? STATUS_TEXT[health.status] : ""}`}>
+            {health ? t(`health.overall.${health.status}`) : t("common.loading")}
           </span>
-          <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
-            <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            {t("executionLog.refresh")}
-          </Button>
+          <span className="ml-auto flex items-center gap-2 shrink-0">
+            <span className="text-xs text-muted-foreground">
+              {health && (
+                <>
+                  {health.checks.length} {t("health.checksRun")} &middot;{" "}
+                </>
+              )}
+              {lastRefresh && `${t("health.lastRefresh")}: ${lastRefresh.toLocaleTimeString()}`}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
+              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+              {t("executionLog.refresh")}
+            </Button>
+          </span>
         </AlertDescription>
       </Alert>
-
-      {/* Overall status banner */}
-      {health && (
-        <div
-          className={`rounded-lg p-4 flex flex-wrap items-center gap-3 ${STATUS_BG[health.status]}`}
-        >
-          <StatusIcon status={health.status} />
-          <div className="min-w-0">
-            <div className={`font-medium ${STATUS_TEXT[health.status]}`}>
-              {t(`health.overall.${health.status}`)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {health.checks.length} {t("health.checksRun")}
-            </div>
-          </div>
-          <div className="ml-auto shrink-0">
-            <Badge
-              variant={
-                health.status === "healthy"
-                  ? "default"
-                  : health.status === "degraded"
-                    ? "secondary"
-                    : "destructive"
-              }
-            >
-              {health.status.toUpperCase()}
-            </Badge>
-          </div>
-        </div>
-      )}
 
       {/* Error banner */}
       {error && (
