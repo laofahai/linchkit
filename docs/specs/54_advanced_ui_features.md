@@ -1,12 +1,25 @@
 # Spec 54 — Advanced UI Features
 
+> This spec extends [Spec 13 — View & UI](./13_view_and_ui.md). Read that spec first for context.
+>
+> Spec 13 defines the view system, view types (`list`, `form`, `detail`, `kanban`, `dashboard`, `calendar`, `tree`), layout priority chain, Widget Registry, SearchBar architecture, and AI-native design principles. This spec does NOT redefine those concepts. Instead, it adds:
+> - **Field dependencies** (show/hide) — new `visibleWhen` property for conditional form rendering
+> - **Saved filters / custom views** — persistent named filter presets
+> - **Tree view enhancements** — inline actions, DnD, hybrid view (extending the `tree` type from spec 13 §6)
+> - **Dashboard builder** — user-customizable widget layout (extending the `dashboard` type from spec 13 §4.4)
+> - **Rich text editor** — Tiptap-based editor (implementing the `rich_text` field type referenced in spec 13 §7)
+> - **Print / PDF export** — client-side print CSS
+> - **Record templates** — pre-filled field value presets
+>
+> Also references: [Spec 14 — System Capabilities](./14_system_capabilities.md) §4.9 (`cap-dashboard`), [Spec 03 — Schema](./03_schema.md), [Spec 46 — Link Type](./46_link_type.md)
+
 > **Status:** Draft
 > **Milestone:** M3
 > **Dependencies:** Spec 13 (View & UI), Spec 03 (Schema), Spec 46 (Link Type)
 
 ## Overview
 
-This spec defines advanced UI features that build on top of the existing view system (spec 13) and schema-driven rendering in `cap-adapter-ui-react`. These features enhance form interactivity, list flexibility, data visualization, and content editing without changing the core meta-model.
+This spec defines advanced UI features that build on top of the existing view system ([Spec 13](./13_view_and_ui.md)) and schema-driven rendering in `cap-adapter-ui-react`. These features enhance form interactivity, list flexibility, data visualization, and content editing without changing the core meta-model.
 
 All features follow the existing architecture principle: **declarations live in `@linchkit/core` types, rendering lives in `cap-adapter-ui-react`**.
 
@@ -176,7 +189,9 @@ type Mutation {
 
 ---
 
-## 3. Tree View
+## 3. Tree View Enhancements
+
+> The `tree` view type is defined in [Spec 13](./13_view_and_ui.md) §6 (milestone M2). An `AutoTree` component already exists in `cap-adapter-ui-react`. This section defines enhancements to that existing implementation.
 
 ### Current State
 
@@ -246,6 +261,8 @@ Filter tree nodes by text search. Non-matching branches are hidden; matching nod
 ---
 
 ## 4. Dashboard Builder
+
+> The `dashboard` view type is defined in [Spec 13](./13_view_and_ui.md) §4.4 with a basic `widgets` array (stat, chart, list). [Spec 14](./14_system_capabilities.md) §4.9 defines `@linchkit/cap-dashboard` as a system capability providing a drag-and-drop dashboard builder. This section provides the detailed design for that capability's data model, widget types, and layout engine.
 
 ### Problem
 
@@ -317,6 +334,8 @@ export interface DashboardWidget {
 ---
 
 ## 5. Rich Text Editor
+
+> [Spec 13](./13_view_and_ui.md) §7 (layout override chain) references `rich_text` as a field type that can be applied via tenant overrides or bridges. This section provides the detailed implementation design for that field type.
 
 ### Problem
 
@@ -558,7 +577,8 @@ All new system tables follow the existing pattern:
 
 | Spec | Relationship |
 |------|-------------|
-| 13 — View & UI | Base view system this spec extends |
+| 13 — View & UI | Base view system this spec extends. Defines `dashboard` (§4.4), `tree` (§6), `rich_text` (§7) view/field types. This spec provides detailed implementation designs. |
+| 14 — System Capabilities | §4.9 defines `cap-dashboard` capability. This spec provides its data model and layout engine. |
 | 03 — Schema | Field types and `FieldUIHints` where `editor` config lives |
 | 16 — Command Layer & API | GraphQL CRUD patterns for new system tables |
 | 46 — Link Type | Tree view relates to self-referencing links |

@@ -1,8 +1,12 @@
 # Chatter & Collaboration
 
+> This spec extends [Spec 14 — System Capabilities](./14_system_capabilities.md) §4.7. Read that spec first for context.
+>
+> Spec 14 lists `@linchkit/cap-comment` as a "suggested install" system capability providing comment/activity features (Schema: `comment`, `activity`; Action: `add_comment`, `add_reply`; auto activity log). This spec provides the **detailed design** for that capability, renamed to `@linchkit/cap-chatter` to better reflect its broader scope (messaging + activity log + followers + attachments + notifications), superseding the brief outline in spec 14 §4.7.
+
 > Status: Draft | Date: 2026-03-26
 > Milestone: M3 (post-M2)
-> Capability: `@linchkit/cap-chatter`
+> Capability: `@linchkit/cap-chatter` (supersedes `@linchkit/cap-comment` from spec 14)
 
 ## 1. Problem
 
@@ -21,6 +25,11 @@ Without this, collaboration happens in external tools (email, Slack) and context
 ### 2.1 Capability, Not Core
 
 Chatter is a capability (`@linchkit/cap-chatter`), NOT part of `@linchkit/core`. Core remains minimal. The capability registers system tables, GraphQL types, and UI components via `extensions`.
+
+This follows the architecture from [Spec 14](./14_system_capabilities.md) §2 — system functionality is delivered as official Capability packages, not framework-hardcoded features. Chatter integrates with other system capabilities via weak dependencies (see spec 14 §5):
+- `cap-auth` — user resolution for @mentions and author display (optional; works with anonymous actor)
+- `cap-notification` — notification delivery (optional; in-app notifications built-in, cap-notification adds channels)
+- `cap-file-storage` — attachment storage backend (optional; chatter includes its own attachment storage)
 
 Rationale: Not every deployment needs collaboration (e.g., headless API, pure MCP agent). Installing `cap-chatter` opts in; uninstalling removes it cleanly.
 

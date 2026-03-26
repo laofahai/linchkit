@@ -17,6 +17,7 @@ export interface BreadcrumbItem {
 const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
   schemas: { i18nKey: "nav.schemas", linkable: false },
   admin: { i18nKey: "nav.administration", linkable: false },
+  approvals: { i18nKey: "approvals.title", linkable: true },
   executions: { i18nKey: "executionLog.title", linkable: true },
   health: { i18nKey: "health.title", linkable: true },
   new: { i18nKey: "common.create", linkable: true },

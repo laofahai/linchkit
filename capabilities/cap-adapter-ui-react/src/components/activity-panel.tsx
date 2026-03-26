@@ -9,6 +9,7 @@
 import { Badge, Button } from "@linchkit/ui-kit/components";
 import {
   ArrowRight,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   CircleDot,
@@ -17,6 +18,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  ShieldCheck,
   Trash2,
   User,
   XCircle,
@@ -35,9 +37,10 @@ interface ActivityPanelProps {
 
 // ── Action type detection ─────────────────────────────────
 
-type ActionKind = "create" | "update" | "delete" | "custom";
+type ActionKind = "create" | "update" | "delete" | "approval" | "custom";
 
-function detectActionKind(action: string): ActionKind {
+function detectActionKind(action: string, status?: string): ActionKind {
+  if (status === "pending_approval") return "approval";
   if (action.startsWith("create_")) return "create";
   if (action.startsWith("update_")) return "update";
   if (action.startsWith("delete_") || action.startsWith("soft_delete_")) return "delete";
@@ -48,6 +51,7 @@ const ACTION_KIND_ICON = {
   create: Plus,
   update: Edit,
   delete: Trash2,
+  approval: ShieldCheck,
   custom: CircleDot,
 } as const;
 
@@ -55,6 +59,7 @@ const ACTION_KIND_COLOR = {
   create: "text-green-600 dark:text-green-400",
   update: "text-blue-600 dark:text-blue-400",
   delete: "text-red-600 dark:text-red-400",
+  approval: "text-amber-600 dark:text-amber-400",
   custom: "text-purple-600 dark:text-purple-400",
 } as const;
 
@@ -62,6 +67,7 @@ const ACTION_KIND_DOT_BG = {
   create: "bg-green-100 dark:bg-green-950 border-green-300 dark:border-green-700",
   update: "bg-blue-100 dark:bg-blue-950 border-blue-300 dark:border-blue-700",
   delete: "bg-red-100 dark:bg-red-950 border-red-300 dark:border-red-700",
+  approval: "bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-700",
   custom: "bg-purple-100 dark:bg-purple-950 border-purple-300 dark:border-purple-700",
 } as const;
 
@@ -95,10 +101,11 @@ function formatRelativeTime(iso: string, t: (key: string, opts?: Record<string, 
   return new Date(iso).toLocaleDateString();
 }
 
-function formatActionLabel(action: string): string {
+function formatActionLabel(action: string, status?: string): string {
   // Strip schema prefix: "create_purchase_order" -> "create"
   // "update_purchase_order" -> "update"
-  const kind = detectActionKind(action);
+  const kind = detectActionKind(action, status);
+  if (kind === "approval") return "pending approval";
   if (kind !== "custom") return kind;
   // Custom actions: remove underscores, capitalize
   return action.replace(/_/g, " ");
@@ -142,7 +149,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
-  const kind = detectActionKind(entry.action);
+  const kind = detectActionKind(entry.action, entry.status);
   const KindIcon = ACTION_KIND_ICON[kind];
   const kindColor = ACTION_KIND_COLOR[kind];
   const dotBg = ACTION_KIND_DOT_BG[kind];
@@ -171,7 +178,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
             {/* Action label + status badge */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-sm font-medium capitalize ${kindColor}`}>
-                {t(`detail.actionKind.${kind}`, formatActionLabel(entry.action))}
+                {t(`detail.actionKind.${kind}`, formatActionLabel(entry.action, entry.status))}
               </span>
               {entry.status !== "succeeded" && (
                 <Badge variant={statusConfig.variant} className="text-[10px] px-1.5 py-0">

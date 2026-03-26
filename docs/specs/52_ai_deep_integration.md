@@ -1,10 +1,16 @@
 # AI Deep Integration — From Chat to Action
 
+> This spec extends [Spec 15 — AI Developer Experience](./15_ai_developer_experience.md) and [Spec 36 — AI Service](./36_ai_service.md). Read those specs first for context.
+>
+> - **Spec 15** covers *developer-facing* AI: MCP tools, Proposals, code scaffolding, CLAUDE.md/AGENTS.md auto-generation, AI Management UI (Proposal approval, Insights dashboard, Evolution timeline, AI assistant panel, AI search/auto-fill). This spec does NOT duplicate those features.
+> - **Spec 36** covers the AI service layer (`ctx.ai`, provider configuration, model aliases, rate limiting, cost control, tool calling). This spec uses `ctx.ai` as the underlying engine and does NOT redefine its API or configuration.
+> - **Spec 22** defines AI rule boundaries. **Spec 27** defines AI security hardening. Both apply here without modification.
+
 ## 1. Overview
 
-Current state: LinchKit has AI chat (text in → text out), AI auto-fill, and AI search. The AI can _talk about_ the system but cannot _do things_ within it.
+Spec 15 §8 defines the AI Management UI including AI assistant panel, AI search, and auto-fill. Spec 36 defines `ctx.ai` for AI calls within Action handlers and Flows. This spec builds on both to define how AI becomes an **active participant in the runtime UI** — executing actions via natural language, analyzing records contextually, detecting data quality issues, and proactively surfacing insights.
 
-This spec defines how AI becomes an active participant — executing actions, analyzing records, detecting data quality issues, navigating users to relevant data, and proactively surfacing insights. The core principle: **AI proposes, user confirms, CommandLayer executes.**
+The core principle: **AI proposes, user confirms, CommandLayer executes.**
 
 ### 1.1 Design Principles
 
@@ -19,12 +25,13 @@ This spec defines how AI becomes an active participant — executing actions, an
 
 ### 1.2 Relation to Existing Specs
 
-| Spec | Relationship |
-|------|-------------|
-| 15 — AI Developer Experience | Developer-facing AI (MCP tools, Proposals, code scaffolding). This spec is _user-facing_ AI. |
-| 22 — AI Rule Boundary | Hard boundary rules still apply. This spec operates within those boundaries. |
-| 36 — AI Service | `ctx.ai` is the underlying engine. This spec defines higher-level orchestration on top of it. |
-| 27 — AI Security | Prompt sanitization, output validation, PII redaction all apply to deep integration endpoints. |
+| Spec | Relationship | What this spec adds |
+|------|-------------|---------------------|
+| 15 — AI Developer Experience | Developer-facing AI + AI Management UI (§8). | User-facing runtime AI: intent resolution, action execution via NL, record analysis. |
+| 36 — AI Service | `ctx.ai` API, provider config, model aliases, tool calling. | Higher-level orchestration: intent resolver, record analyzer, suggestion engine on top of `ctx.ai`. |
+| 22 — AI Rule Boundary | Hard boundary rules. | Operates within those boundaries; no changes. |
+| 27 — AI Security | Prompt sanitization, output validation, PII redaction. | All apply to deep integration endpoints; no changes. |
+| 13 — View & UI | AI inline hints, Intent Preview mode (§2.3), AI assistant panel (§2.2). | Concrete implementations: ActionProposalCard, InsightPanel, RichMessage renderer, SuggestionBell. |
 
 ---
 

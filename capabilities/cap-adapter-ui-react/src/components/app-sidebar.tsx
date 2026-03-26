@@ -14,6 +14,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import {
   BrainCircuitIcon,
+  CheckSquareIcon,
   CircleDotIcon,
   DatabaseIcon,
   GitBranchIcon,
@@ -83,6 +84,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ],
       adminItems: [
         {
+          title: t("approvals.title"),
+          url: "/admin/approvals",
+          icon: <CheckSquareIcon />,
+          badgeCount: approvalCount,
+        },
+        {
           title: t("flows.title"),
           url: "/admin/flows",
           icon: <GitBranchIcon />,
@@ -114,7 +121,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         },
       ],
     };
-  }, [schemas, t, resolveLabel]);
+  }, [schemas, t, resolveLabel, approvalCount]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -183,6 +190,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <span>{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
+                {item.badgeCount != null && item.badgeCount > 0 && (
+                  <SidebarMenuBadge className="bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
+                    {item.badgeCount}
+                  </SidebarMenuBadge>
+                )}
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

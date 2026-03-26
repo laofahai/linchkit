@@ -202,13 +202,16 @@ Extension: UI 顶部全局搜索框
 实现: Postgres 内置全文搜索（M0-M2），可选 Meilisearch（M3+）
 ```
 
-### 4.7 @linchkit/cap-comment（评论/动态）
+### 4.7 @linchkit/cap-comment → cap-chatter（评论/动态）
+
+> Detailed design: [Spec 53 — Chatter & Collaboration](./53_chatter_and_collaboration.md). Capability renamed to `@linchkit/cap-chatter` to reflect broader scope.
 
 ```
-Schema: comment, activity
-Action: add_comment, add_reply
+Schema: messages, followers, attachments (system tables in _linchkit schema)
+Action: add_comment, add_reply, follow, unfollow
 View: 自动在所有 Schema 详情页显示评论区和操作动态
-Extension: 自动记录所有 Action 执行为动态条目
+Extension: 自动记录所有 Action 执行为动态条目（EventHandler）
+Extension: @mention notifications, follower model, file attachments
 类似 Odoo chatter
 ```
 
