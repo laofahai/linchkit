@@ -721,6 +721,81 @@ describe("SubscriptionManager", () => {
       expect(Number(id2)).toBeLessThan(Number(id3));
     });
   });
+
+  // ── Permission enforcement ─────────────────────────────────
+
+  describe("permission enforcement", () => {
+    test("blocks events when permission checker denies access", async () => {
+      const mock = createMockConnection();
+      manager.setPermissionChecker((actor, schemaName) => {
+        // Only allow reading "task" schema, deny "secret"
+        return schemaName === "task";
+      });
+
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { schemas: [] }, // subscribe to all
+        push: mock.push,
+        close: mock.close,
+      });
+
+      // Emit event for "secret" schema — should be blocked
+      await bus.emit(makeEventRecord({ schema: "secret" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mock.events.length).toBe(0);
+
+      // Emit event for "task" schema — should be delivered
+      await bus.emit(makeEventRecord({ schema: "task" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mock.events.length).toBe(1);
+    });
+
+    test("delivers events when no permission checker is set", async () => {
+      const mock = createMockConnection();
+      // No setPermissionChecker call
+
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { schemas: [] },
+        push: mock.push,
+        close: mock.close,
+      });
+
+      await bus.emit(makeEventRecord({ schema: "secret" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mock.events.length).toBe(1);
+    });
+  });
+
+  // ── Dead connection close ──────────────────────────────────
+
+  describe("dead connection cleanup", () => {
+    test("calls close() on connection when push returns false", async () => {
+      const mock = createMockConnection();
+      let pushCount = 0;
+      const failingPush = (_event: SubscriptionEvent | null): boolean => {
+        pushCount++;
+        return false; // Always fail
+      };
+
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { schemas: [] },
+        push: failingPush,
+        close: mock.close,
+      });
+
+      await bus.emit(makeEventRecord());
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Connection should be closed and removed
+      expect(mock.closed).toBe(true);
+      expect(manager.connectionCount).toBe(0);
+    });
+  });
 });
 
 // ── SSE endpoint integration (server-level) ──────────────────

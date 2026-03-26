@@ -270,6 +270,25 @@
   "widget": {
     "addTarget": "+ Add {{target}}"
   },
+  "ai": {
+    "title": "AI Assistant",
+    "context": "Context",
+    "welcomeMessage": "Ask me anything about your data. I can help you search, summarize records, and suggest actions.",
+    "quickPrompt1": "Summarize this record",
+    "quickPrompt2": "What actions can I take?",
+    "quickPrompt3": "Show recent changes",
+    "inputPlaceholder": "Ask AI assistant...",
+    "thinking": "Thinking...",
+    "noResponse": "No response received.",
+    "error": "Something went wrong. Please try again.",
+    "disclaimer": "AI responses may not always be accurate.",
+    "fill": "AI Fill",
+    "accept": "Accept",
+    "reject": "Reject",
+    "acceptAll": "Accept All",
+    "dismissAll": "Dismiss All",
+    "suggestionsAvailable": "{{count}} AI suggestion(s) available"
+  },
   "health": {
     "title": "System Health",
     "subtitle": "Real-time health monitoring for all system components.",
@@ -351,5 +370,50 @@
         "cancel": "Cancel Request"
       }
     }
+  },
+  "flows": {
+    "title": "Workflows",
+    "subtitle": "Registered flow definitions — multi-step business process orchestration.",
+    "allTriggers": "All Triggers",
+    "triggerEvent": "Event",
+    "triggerSchedule": "Schedule",
+    "triggerManual": "Manual",
+    "flowCount": "flows",
+    "noFlows": "No flows registered.",
+    "steps": "steps",
+    "diagram": "Flow Diagram",
+    "stepList": "Step List",
+    "stepName": "Name",
+    "stepType": "Type",
+    "stepDetails": "Details",
+    "stepAction": "Action",
+    "stepCondition": "Condition",
+    "stepPrompt": "Prompt",
+    "stepModel": "Model",
+    "stepApprovers": "Approvers",
+    "stepOnTimeout": "On Timeout",
+    "stepSignal": "Signal",
+    "stepParallelSteps": "Parallel",
+    "stepJoinType": "Join",
+    "onError": "On Error",
+    "notFound": "Flow \"{{name}}\" not found.",
+    "loadFailed": "Failed to load flow."
+  },
+  "stateMachines": {
+    "title": "State Machines",
+    "subtitle": "Registered state machine definitions — lifecycle state management.",
+    "allSchemas": "All Schemas",
+    "machineCount": "state machines",
+    "noMachines": "No state machines registered.",
+    "states": "states",
+    "transitions": "transitions",
+    "diagram": "State Diagram",
+    "transitionTable": "Transition Table",
+    "from": "From",
+    "to": "To",
+    "action": "Action",
+    "initial": "Initial",
+    "notFound": "State machine \"{{name}}\" not found.",
+    "loadFailed": "Failed to load state machine."
   }
 }

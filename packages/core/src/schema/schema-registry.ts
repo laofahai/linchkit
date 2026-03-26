@@ -136,7 +136,11 @@ export class SchemaRegistry {
 
     // Validate interface implementation
     if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
-      const errors = this._interfaceRegistry.validateImplementation(schema);
+      // Build resolved fields including inherited ones for interface validation
+      const resolvedFields = schema.extends
+        ? { ...this.collectInheritedFields(schema.extends), ...schema.fields }
+        : undefined;
+      const errors = this._interfaceRegistry.validateImplementation(schema, resolvedFields);
       if (errors.length > 0) {
         throw new Error(errors[0]);
       }

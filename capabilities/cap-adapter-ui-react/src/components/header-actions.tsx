@@ -16,13 +16,19 @@ import {
   TooltipTrigger,
 } from "@linchkit/ui-kit/components";
 import { useTheme } from "@linchkit/ui-kit/hooks";
-import { GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
+import { GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SparklesIcon, SunIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { changeLanguage, languageNames, type SupportedLanguage, supportedLanguages } from "@/i18n";
 import { NotificationCenter } from "./notification-center";
 import { TenantSwitcher } from "./tenant-switcher";
 
-export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?: () => void }) {
+export function HeaderActions({
+  onOpenCommandPalette,
+  onToggleAI,
+}: {
+  onOpenCommandPalette?: () => void;
+  onToggleAI?: () => void;
+}) {
   const { theme, setTheme } = useTheme();
   const { i18n, t } = useTranslation();
   const currentLang = i18n.language as SupportedLanguage;
@@ -60,6 +66,21 @@ export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?:
 
       {/* Notifications */}
       <NotificationCenter />
+
+      {/* AI Assistant toggle */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground"
+            onClick={onToggleAI}
+          >
+            <SparklesIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t("ai.title")}</TooltipContent>
+      </Tooltip>
 
       {/* Language switcher */}
       <DropdownMenu>

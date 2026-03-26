@@ -15,6 +15,10 @@ import { docsCommand } from "./commands/docs";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
+import { publishCommand } from "./commands/publish";
+import { searchCommand } from "./commands/search";
+import { uninstallCommand } from "./commands/uninstall";
+import { updateCommand } from "./commands/update";
 import { validateCommand } from "./commands/validate";
 
 export const VERSION = "0.0.1";
@@ -31,6 +35,10 @@ const main = defineCommand({
     db: dbCommand,
     create: createCommand,
     install: installCommand,
+    uninstall: uninstallCommand,
+    update: updateCommand,
+    search: searchCommand,
+    publish: publishCommand,
     info: infoCommand,
     docs: docsCommand,
     check: checkQualityCommand,

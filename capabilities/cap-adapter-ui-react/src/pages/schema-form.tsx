@@ -18,7 +18,7 @@ import type {
 } from "@linchkit/core/types";
 import { Button, Separator, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, Copy, Loader2, Pencil, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, Pencil, RefreshCw, ServerCrash, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityPanel } from "../components/activity-panel";
@@ -28,11 +28,12 @@ import { One2ManyField } from "../components/one2many-field";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { TransitionButtons } from "../components/transition-buttons";
+import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { pushNotification } from "../hooks/use-notifications";
-import { createRecord, deleteRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
+import { createRecord, deleteRecord, executeAction, isAiEnabled, queryRecord, updateRecord } from "../lib/api";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
 function deriveStatusSteps(
@@ -257,6 +258,20 @@ export function SchemaFormPage() {
   const [recordError, setRecordError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // AI auto-fill — always call hook (React rules), but only use when schema is loaded
+  const aiEnabled = isAiEnabled();
+  const formValuesRef = useRef<Record<string, unknown>>({});
+  const autoFormSetFieldRef = useRef<((fieldName: string, value: unknown) => void) | null>(null);
+  const dummySchema = useMemo(() => ({ name: "__dummy__", fields: {} }), []);
+  const aiAutoFill = useAiAutoFill(
+    (schema ?? dummySchema) as import("@linchkit/core/types").SchemaDefinition,
+    (fieldName, value) => {
+      // Apply value to AutoForm via the registered setter
+      autoFormSetFieldRef.current?.(fieldName, value);
+    },
+  );
+  const aiSuggestionCount = Object.keys(aiAutoFill.state.suggestions).length;
 
   /** Fields to strip when cloning a record — system-managed, not user data. */
   const CLONE_STRIP_FIELDS = useMemo(
@@ -730,6 +745,23 @@ export function SchemaFormPage() {
             )}
             {isEditing && (
               <>
+                {aiEnabled && schema && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    disabled={saving || aiAutoFill.state.loading}
+                    onClick={() => aiAutoFill.requestSuggestions(formValuesRef.current)}
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                  >
+                    {aiAutoFill.state.loading ? (
+                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-1.5 size-3.5" />
+                    )}
+                    {t("ai.fill", "AI Fill")}
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
                   {t("common.cancel", "Cancel")}
                 </Button>
@@ -754,6 +786,43 @@ export function SchemaFormPage() {
               )}
             </div>
 
+            {/* AI suggestions accept-all bar */}
+            {aiSuggestionCount > 0 && (
+              <div className="mb-3 flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-800 dark:bg-blue-950/50 animate-in fade-in duration-200">
+                <span className="text-blue-700 dark:text-blue-300">
+                  <Sparkles className="inline-block size-3.5 mr-1.5 -mt-0.5" />
+                  {t("ai.suggestionsAvailable", "{{count}} AI suggestion(s) available", { count: aiSuggestionCount })}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                    onClick={() => aiAutoFill.clearSuggestions()}
+                  >
+                    {t("ai.dismissAll", "Dismiss All")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => aiAutoFill.acceptAll()}
+                  >
+                    <Check className="mr-1 size-3" />
+                    {t("ai.acceptAll", "Accept All")}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* AI error display */}
+            {aiAutoFill.state.error && (
+              <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {aiAutoFill.state.error}
+              </div>
+            )}
+
             <AutoForm
               schema={schema}
               view={formView}
@@ -764,6 +833,11 @@ export function SchemaFormPage() {
               onCancel={handleCancel}
               onAction={(name) => handleAction(name)}
               hideFooter
+              aiSuggestions={aiAutoFill.state.suggestions}
+              onAiAccept={(fieldName) => aiAutoFill.acceptSuggestion(fieldName)}
+              onAiReject={(fieldName) => aiAutoFill.rejectSuggestion(fieldName)}
+              onValuesChange={(values) => { formValuesRef.current = values; }}
+              registerSetField={(setter) => { autoFormSetFieldRef.current = setter; }}
             />
 
             {/* One2Many inline tables — rendered inside the form card */}

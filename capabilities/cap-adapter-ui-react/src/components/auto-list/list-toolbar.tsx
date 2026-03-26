@@ -9,6 +9,7 @@ import {
 } from "@linchkit/ui-kit/components";
 import { ChevronDown, Columns3, Download, MoreHorizontal, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { AISearchState } from "../../hooks/use-ai-search";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import type {
   Column,
@@ -39,6 +40,12 @@ interface ListToolbarProps {
   onExportCsv?: () => void;
   /** Extra content rendered after the primary action button. */
   toolbarExtra?: React.ReactNode;
+  /** AI search state for the search bar chip */
+  aiSearchState?: AISearchState;
+  /** Callback to clear AI search filter */
+  onClearAISearch?: () => void;
+  /** Callback when search is submitted (Enter key) */
+  onSearchSubmit?: (query: string) => void;
 }
 
 /**
@@ -63,6 +70,9 @@ export function ListToolbar({
   onExportCsv,
   bazzaStrategy,
   toolbarExtra,
+  aiSearchState,
+  onClearAISearch,
+  onSearchSubmit,
 }: ListToolbarProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -82,6 +92,9 @@ export function ListToolbar({
         bazzaFilters={bazzaFilters}
         bazzaActions={bazzaActions}
         bazzaStrategy={bazzaStrategy}
+        aiSearchState={aiSearchState}
+        onClearAISearch={onClearAISearch}
+        onSubmit={onSearchSubmit}
         className="w-full max-w-md md:w-auto"
       />
 

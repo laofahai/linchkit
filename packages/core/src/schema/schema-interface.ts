@@ -141,8 +141,16 @@ export class InterfaceRegistry {
    * 4. Enum values compatibility (schema enum must be superset of interface enum)
    * 5. Required constraint: interface required=true cannot be weakened to false
    * 6. Cross-interface state machine conflicts
+   *
+   * @param schema - The schema definition to validate
+   * @param resolvedFields - Optional pre-resolved fields including inherited fields from parent schemas.
+   *   When provided, these are used instead of `schema.fields` for field compatibility checks,
+   *   ensuring that fields inherited via `extends` are considered during validation.
    */
-  validateImplementation(schema: SchemaDefinition): string[] {
+  validateImplementation(
+    schema: SchemaDefinition,
+    resolvedFields?: Record<string, FieldDefinition>,
+  ): string[] {
     const errors: string[] = [];
     const interfaceNames = schema.implements ?? [];
     if (interfaceNames.length === 0) return errors;
@@ -154,6 +162,7 @@ export class InterfaceRegistry {
     >();
 
     const resolvedInterfaces: InterfaceDefinition[] = [];
+    const effectiveFields: Record<string, FieldDefinition> = resolvedFields ?? schema.fields;
 
     for (const ifaceName of interfaceNames) {
       const iface = this.interfaces.get(ifaceName);
@@ -198,7 +207,8 @@ export class InterfaceRegistry {
         }
 
         // Check schema field type compatibility (if schema already defines the field)
-        const schemaField = schema.fields[fieldName] as FieldDefinition | undefined;
+        // Use effectiveFields which includes inherited fields when resolvedFields is provided
+        const schemaField = effectiveFields[fieldName] as FieldDefinition | undefined;
         if (schemaField) {
           // Type must match
           if (schemaField.type !== ifaceField.type) {
@@ -351,18 +361,25 @@ export class InterfaceRegistry {
    * Get the merged interface fields for a schema's declared interfaces.
    * Schema's own fields take priority (they can override defaults but not types).
    * Returns fields that should be injected (not already in schema).
+   *
+   * @param schema - The schema definition
+   * @param resolvedFields - Optional pre-resolved fields including inherited fields
    */
-  getInjectedFields(schema: SchemaDefinition): Record<string, FieldDefinition> {
+  getInjectedFields(
+    schema: SchemaDefinition,
+    resolvedFields?: Record<string, FieldDefinition>,
+  ): Record<string, FieldDefinition> {
     const interfaceNames = schema.implements ?? [];
     const injected: Record<string, FieldDefinition> = {};
+    const effectiveFields: Record<string, FieldDefinition> = resolvedFields ?? schema.fields;
 
     for (const ifaceName of interfaceNames) {
       const iface = this.interfaces.get(ifaceName);
       if (!iface) continue;
 
       for (const [fieldName, ifaceField] of Object.entries(iface.fields)) {
-        // Only inject if schema does not already define this field
-        if (!(fieldName in schema.fields)) {
+        // Only inject if schema does not already define this field (including inherited fields)
+        if (!(fieldName in effectiveFields)) {
           // Later interface wins if multiple define the same field (already validated compatible)
           injected[fieldName] = ifaceField;
         }

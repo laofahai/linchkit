@@ -1285,3 +1285,103 @@ describe("SchemaRegistry integration with enhanced validation", () => {
     expect(() => schemaRegistry.register(schema)).toThrow("conflicting initial");
   });
 });
+
+// ── Inherited fields in interface validation ──────────────────
+
+describe("validateImplementation with inherited fields", () => {
+  it("validates interface fields against resolvedFields (inherited)", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "auditable",
+      label: "Auditable",
+      fields: {
+        audit_note: { type: "text", required: false },
+      },
+    });
+
+    // Schema does NOT define audit_note directly
+    const schema: SchemaDefinition = {
+      name: "child_schema",
+      implements: ["auditable"],
+      fields: {
+        title: { type: "string" },
+      },
+    };
+
+    // Without resolvedFields, validation succeeds (field is just missing, gets injected)
+    const errors1 = registry.validateImplementation(schema);
+    expect(errors1).toEqual([]);
+
+    // With resolvedFields that include the inherited field, still valid
+    const resolvedFields = {
+      title: { type: "string" as const },
+      audit_note: { type: "text" as const, required: false },
+    };
+    const errors2 = registry.validateImplementation(schema, resolvedFields);
+    expect(errors2).toEqual([]);
+  });
+
+  it("detects type mismatch against inherited fields", () => {
+    const registry = createInterfaceRegistry();
+    registry.register({
+      name: "auditable",
+      label: "Auditable",
+      fields: {
+        audit_note: { type: "text", required: false },
+      },
+    });
+
+    const schema: SchemaDefinition = {
+      name: "child_schema",
+      implements: ["auditable"],
+      fields: {
+        title: { type: "string" },
+      },
+    };
+
+    // Parent defines audit_note as "number" — inherited type conflict
+    const resolvedFields = {
+      title: { type: "string" as const },
+      audit_note: { type: "number" as const, required: false },
+    };
+    const errors = registry.validateImplementation(schema, resolvedFields);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("number");
+    expect(errors[0]).toContain("text");
+  });
+
+  it("SchemaRegistry passes inherited fields to interface validation", () => {
+    const ifaceRegistry = createInterfaceRegistry();
+    ifaceRegistry.register({
+      name: "trackable",
+      label: "Trackable",
+      fields: {
+        tracking_id: { type: "string", required: true },
+      },
+    });
+
+    const schemaRegistry = createSchemaRegistry();
+    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+
+    // Register parent schema with the required field
+    schemaRegistry.register({
+      name: "parent",
+      fields: {
+        tracking_id: { type: "string", required: true },
+      },
+    });
+
+    // Child schema extends parent and implements interface, but doesn't define tracking_id itself
+    const childSchema: SchemaDefinition = {
+      name: "child",
+      extends: "parent",
+      implements: ["trackable"],
+      fields: {
+        extra_field: { type: "string" },
+      },
+    };
+
+    // Should NOT throw — tracking_id is inherited from parent
+    expect(() => schemaRegistry.register(childSchema)).not.toThrow();
+  });
+});

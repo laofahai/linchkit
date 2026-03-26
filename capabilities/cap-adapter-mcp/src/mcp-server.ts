@@ -12,6 +12,7 @@
 import type {
   ActionRegistry,
   Actor,
+  CapabilityDefinition,
   CommandLayer,
   OntologyRegistry,
   RuleDefinition,
@@ -20,6 +21,11 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import type { AIAuditLogger, AIBoundary } from "@linchkit/core/server";
+import {
+  createDocSearchIndex,
+  generateCapabilityDoc,
+  renderCapabilityDoc,
+} from "@linchkit/core/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { OperationTypeNode, parse } from "graphql";
 import { z } from "zod";
@@ -43,6 +49,8 @@ export interface McpAdapterOptions {
   tenantId?: string;
   /** Ontology registry for unified schema introspection (optional, backwards compatible) */
   ontologyRegistry?: OntologyRegistry;
+  /** Capability definitions for documentation tools (optional) */
+  capabilities?: CapabilityDefinition[];
   name?: string;
   version?: string;
   /** AI boundary engine for pre-flight safety checks (optional) */
@@ -97,6 +105,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     version = "1.0.0",
     bearerToken,
     ontologyRegistry,
+    capabilities = [],
     aiBoundary,
     aiAuditLogger,
   } = options;
@@ -157,6 +166,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     bearerToken,
     tenantId,
     ontologyRegistry,
+    capabilities,
   );
 
   // Register scaffold tools for AI code generation
@@ -275,6 +285,7 @@ function registerBuiltinTools(
   bearerToken?: string,
   tenantId?: string,
   ontologyRegistry?: OntologyRegistry,
+  capabilities: CapabilityDefinition[] = [],
 ): void {
   // list_schemas — returns schema summaries with field names
   server.tool(
@@ -741,6 +752,100 @@ function registerBuiltinTools(
         const serialized = results.map(serializeSchemaDescriptor);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(serialized, null, 2) }],
+        };
+      },
+    );
+  }
+
+  // ── Documentation tools (spec 25 §5/§6 M2) ──
+
+  if (capabilities.length > 0) {
+    // get_capability_docs — retrieve full auto-generated capability spec
+    const getCapDocsShape = {
+      capability: z.string().describe("Capability name to get documentation for"),
+      format: z
+        .enum(["markdown", "json"])
+        .describe("Output format: 'markdown' for readable, 'json' for structured")
+        .optional(),
+    };
+    server.tool(
+      "get_capability_docs",
+      "Get the auto-generated capability specification document, including schemas, actions, rules, state machines, views, dependencies, and relations.",
+      toMcpShape(getCapDocsShape),
+      async (args: { capability: string; format?: "markdown" | "json" }) => {
+        const cap = capabilities.find((c) => c.name === args.capability);
+        if (!cap) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  error: `Capability '${args.capability}' not found`,
+                  available: capabilities.map((c) => c.name),
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const doc = generateCapabilityDoc(cap);
+        const format = args.format ?? "markdown";
+
+        if (format === "markdown") {
+          return {
+            content: [{ type: "text" as const, text: renderCapabilityDoc(doc) }],
+          };
+        }
+
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(doc, null, 2) }],
+        };
+      },
+    );
+
+    // search_docs — search across all capability documentation
+    const searchDocsShape = {
+      query: z.string().describe("Search keyword"),
+      type: z
+        .enum(["capability", "schema", "action", "rule", "state_machine", "view", "relation"])
+        .describe("Filter results by element type")
+        .optional(),
+      capability: z.string().describe("Filter results by capability name").optional(),
+      limit: z.number().describe("Maximum number of results (default: 20)").optional(),
+    };
+    server.tool(
+      "search_docs",
+      "Search across all capability documentation by keyword. Returns matching schemas, actions, rules, views, and other elements with relevance scores.",
+      toMcpShape(searchDocsShape),
+      async (args: {
+        query: string;
+        type?: "capability" | "schema" | "action" | "rule" | "state_machine" | "view" | "relation";
+        capability?: string;
+        limit?: number;
+      }) => {
+        const index = createDocSearchIndex(capabilities);
+        const results = index.search(args.query, {
+          type: args.type,
+          capability: args.capability,
+          limit: args.limit,
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  query: args.query,
+                  count: results.length,
+                  results,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       },
     );

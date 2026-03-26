@@ -21,6 +21,7 @@ export type {
   AIPolicy,
   AIRateLimits,
   AIUsageRecord,
+  ModelPricing,
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
 export type { AutomationEngine, AutomationRegistry } from "./automation";
@@ -166,7 +167,16 @@ export type {
   RestateConfig,
   TriggerBinding,
 } from "./flow";
-export type { MetricSnapshot, MetricsCollector } from "./observability/metrics";
+export type {
+  AlertCondition,
+  AlertEffect,
+  AlertEvaluationResult,
+  AlertOperator,
+  AlertSeverity,
+  SystemAlertDefinition,
+} from "./observability/alert-engine";
+export type { MetricSnapshot, MetricsCollector, MetricsSummary } from "./observability/metrics";
+export type { LogLevel, LogSink, StructuredLogEntry, StructuredLoggerOptions } from "./observability/structured-logger";
 export type { TraceState } from "./observability/trace-context";
 export type {
   OntologyRegistry,

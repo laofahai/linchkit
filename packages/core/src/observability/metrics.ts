@@ -156,8 +156,8 @@ export class InMemoryMetricsCollector implements MetricsCollector {
 
     return {
       count,
-      min: sorted[0],
-      max: sorted[count - 1],
+      min: sorted[0]!,
+      max: sorted[count - 1]!,
       mean: sum / count,
       p50: percentile(sorted, 0.5),
       p90: percentile(sorted, 0.9),
@@ -234,7 +234,7 @@ export class InMemoryMetricsCollector implements MetricsCollector {
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const index = Math.ceil(p * sorted.length) - 1;
-  return sorted[Math.max(0, index)];
+  return sorted[Math.max(0, index)]!;
 }
 
 // ── MetricsSummary type ────────────────────────────────

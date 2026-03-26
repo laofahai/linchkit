@@ -191,14 +191,18 @@ export async function evaluateRules(
       rule: rule.name,
       effect: triggered ? rule.effect.type : "none",
     });
+    metrics.timing("rule.evaluation_duration_ms", duration, {
+      rule: rule.name,
+    });
 
     if (!triggered) continue;
 
     output.triggered = true;
     mergeEffect(output, rule.effect);
 
-    // Short-circuit: if we just got blocked, stop evaluating further rules
+    // Track block events separately for alert/dashboard convenience
     if (rule.effect.type === "block") {
+      metrics.increment("rule.block_count", { rule: rule.name });
       break;
     }
   }

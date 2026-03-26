@@ -160,14 +160,35 @@ export {
 
 // === Observability ===
 
+export {
+  AlertEngine,
+  type AlertCondition,
+  type AlertEffect,
+  type AlertEngineOptions,
+  type AlertEvaluationResult,
+  type AlertHandler,
+  type AlertOperator,
+  type AlertSeverity,
+  type SystemAlertDefinition,
+  defineSystemAlert,
+} from "./observability/alert-engine";
 export { consoleLogger } from "./observability/console-logger";
 export { InMemoryExecutionLogger } from "./observability/execution-logger";
 export {
   InMemoryMetricsCollector,
   type MetricSnapshot,
   type MetricsCollector,
+  type MetricsSummary,
   noopMetricsCollector,
 } from "./observability/metrics";
+export {
+  createStructuredLogger,
+  createTestLogSink,
+  type LogLevel,
+  type LogSink,
+  type StructuredLogEntry,
+  type StructuredLoggerOptions,
+} from "./observability/structured-logger";
 export {
   getCurrentTrace,
   getTraceDepth,
@@ -182,7 +203,17 @@ export {
   createNoopAIService,
   defaultAIConfig,
   resolveModel,
+  resolveModelRoute,
+  resolveTenantConfig,
 } from "./ai/ai-service";
+
+// === AI Cost Estimator (server-only) ===
+
+export { CostEstimator, defaultCostEstimator } from "./ai";
+
+// === AI Response Cache (server-only) ===
+
+export { AIResponseCache } from "./ai";
 
 // === AI Boundary (server-only — heavyweight runtime classes) ===
 
@@ -215,6 +246,44 @@ export {
   sanitizePII,
   sanitizePrompt,
   sanitizeRecordForAI,
+} from "./ai";
+
+// === AI Output Validator (server-only — output safety checks) ===
+
+export {
+  type OutputValidationResult,
+  type OutputValidationRule,
+  type OutputValidatorConfig,
+  type OutputViolation,
+  type OutputViolationSeverity,
+  type OutputViolationType,
+  sanitizeAIOutput,
+  validateAIOutput,
+} from "./ai";
+
+// === AI Proposal Validator (server-only — proposal security checks) ===
+
+export {
+  type ProposalChange,
+  type ProposalChangeType,
+  type ProposalCustomRule,
+  type ProposalRiskLevel,
+  type ProposalValidationResult,
+  type ProposalValidatorConfig,
+  type ProposalViolation,
+  createProposalValidator,
+  validateProposal as validateAIProposal,
+} from "./ai";
+
+// === AI Anomaly Detector (server-only — behavioral anomaly detection) ===
+
+export {
+  AnomalyDetector,
+  type AnomalyDetection,
+  type AnomalyDetectorConfig,
+  type AnomalySeverity,
+  type AnomalyType,
+  type UsageEvent,
 } from "./ai";
 
 // === Security: data masking (server-only — uses node:crypto) ===
@@ -371,15 +440,27 @@ export {
   validateSchemaDoc,
 } from "./governance";
 
-// === Documentation: API doc generation, Markdown, OpenAPI ===
+// === Documentation: API doc generation, Markdown, OpenAPI, Capability Spec, Search ===
 
 export {
   type ActionDoc,
   type ApiDocGeneratorOptions,
   actionToDoc,
+  type CapabilityActionDoc,
+  type CapabilityRelationDoc,
+  type CapabilityRuleDoc,
+  type CapabilitySchemaDoc,
+  type CapabilitySpecDoc,
+  type CapabilityStateMachineDoc,
+  type CapabilityViewDoc,
+  createDocSearchIndex,
+  DocSearchIndex,
+  type DocSearchOptions,
+  type DocSearchResult,
   type FieldDoc,
   fieldToDoc,
   generateApiDoc,
+  generateCapabilityDoc,
   generateOpenAPISpec,
   type MarkdownRenderOptions,
   type OpenAPIGeneratorOptions,
@@ -388,6 +469,7 @@ export {
   type OpenAPISchemaObject,
   type OpenAPISpec,
   renderActionDoc,
+  renderCapabilityDoc,
   renderSchemaDoc,
   renderSystemDoc,
   type SchemaDoc,

@@ -28,6 +28,7 @@ import { Button } from "@linchkit/ui-kit/components";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AiSuggestionBadge } from "../ai-suggestion-badge";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
@@ -45,6 +46,11 @@ export function AutoForm({
   hideFooter = false,
   serverErrors: externalServerErrors,
   formError: externalFormError,
+  aiSuggestions,
+  onAiAccept: externalAiAccept,
+  onAiReject,
+  onValuesChange,
+  registerSetField,
 }: AutoFormProps) {
   const { t } = useTranslation();
   const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
@@ -83,6 +89,15 @@ export function AutoForm({
       setFormError(externalFormError);
     }
   }, [externalFormError]);
+
+  // ── Register setter for external field value updates (e.g. AI Accept All) ──
+  useEffect(() => {
+    if (registerSetField) {
+      registerSetField((fieldName: string, value: unknown) => {
+        handleChange(fieldName, value);
+      });
+    }
+  }, [registerSetField]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── State-driven action buttons ──
 
@@ -211,7 +226,14 @@ export function AutoForm({
   // ── Handlers ──
 
   function handleChange(fieldName: string, value: unknown) {
-    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [fieldName]: value };
+      // Notify parent of value changes (deferred to avoid setState-during-render)
+      if (onValuesChange) {
+        queueMicrotask(() => onValuesChange(next));
+      }
+      return next;
+    });
 
     // Clear form-level error on any change
     if (formError) setFormError(null);
@@ -354,22 +376,36 @@ export function AutoForm({
 
     const required = !!fieldDef.required && !isViewMode;
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
+    const suggestion = aiSuggestions?.[node.field];
 
     return (
-      <FormFieldRow
-        key={node.field}
-        node={node}
-        fieldDef={fieldDef}
-        viewField={vf ?? { field: node.field }}
-        value={formData[node.field]}
-        isViewMode={isViewMode}
-        required={required}
-        readonly={readonly}
-        error={errors[node.field]}
-        isDirty={dirtyFields.has(node.field)}
-        onChange={(val) => handleChange(node.field, val)}
-        onBlur={() => handleBlur(node.field)}
-      />
+      <div key={node.field} className="contents">
+        <FormFieldRow
+          node={node}
+          fieldDef={fieldDef}
+          viewField={vf ?? { field: node.field }}
+          value={formData[node.field]}
+          isViewMode={isViewMode}
+          required={required}
+          readonly={readonly}
+          error={errors[node.field]}
+          isDirty={dirtyFields.has(node.field)}
+          onChange={(val) => handleChange(node.field, val)}
+          onBlur={() => handleBlur(node.field)}
+        />
+        {suggestion && !isViewMode && (
+          <div style={{ gridColumn: "1 / -1" }} className="px-1 -mt-1 mb-1">
+            <AiSuggestionBadge
+              suggestion={suggestion}
+              onAccept={() => {
+                // Delegate to parent — value application happens via the registered setter
+                externalAiAccept?.(node.field);
+              }}
+              onReject={() => onAiReject?.(node.field)}
+            />
+          </div>
+        )}
+      </div>
     );
   }
 

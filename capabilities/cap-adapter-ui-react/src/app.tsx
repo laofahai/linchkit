@@ -25,9 +25,12 @@ import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
 import { ExecutionLogsPage } from "./pages/execution-logs";
+import { FlowDetailPage } from "./pages/flow-detail";
+import { FlowsPage } from "./pages/flows";
 import { HealthMonitorPage } from "./pages/health-monitor";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
+import { StateMachineDetailPage, StateMachinesPage } from "./pages/state-machines";
 import { WorkspacePage } from "./pages/workspace";
 
 // ── Root route (no layout) ────────────────────────────────────────

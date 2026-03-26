@@ -270,6 +270,25 @@
   "widget": {
     "addTarget": "+ 添加{{target}}"
   },
+  "ai": {
+    "title": "AI 助手",
+    "context": "上下文",
+    "welcomeMessage": "随时向我提问。我可以帮你搜索数据、总结记录、推荐操作。",
+    "quickPrompt1": "总结这条记录",
+    "quickPrompt2": "我可以执行哪些操作？",
+    "quickPrompt3": "显示最近的变更",
+    "inputPlaceholder": "向 AI 助手提问...",
+    "thinking": "思考中...",
+    "noResponse": "未收到回复。",
+    "error": "出了点问题，请重试。",
+    "disclaimer": "AI 回复可能并不总是准确的。",
+    "fill": "AI 填充",
+    "accept": "采纳",
+    "reject": "拒绝",
+    "acceptAll": "全部采纳",
+    "dismissAll": "全部忽略",
+    "suggestionsAvailable": "{{count}} 条 AI 建议可用"
+  },
   "health": {
     "title": "系统健康",
     "subtitle": "实时监控所有系统组件的运行状态。",
@@ -351,5 +370,50 @@
         "cancel": "取消申请"
       }
     }
+  },
+  "flows": {
+    "title": "工作流",
+    "subtitle": "已注册的工作流定义 — 多步骤业务流程编排。",
+    "allTriggers": "全部触发方式",
+    "triggerEvent": "事件触发",
+    "triggerSchedule": "定时触发",
+    "triggerManual": "手动触发",
+    "flowCount": "个工作流",
+    "noFlows": "暂无已注册的工作流。",
+    "steps": "个步骤",
+    "diagram": "工作流图",
+    "stepList": "步骤列表",
+    "stepName": "名称",
+    "stepType": "类型",
+    "stepDetails": "详情",
+    "stepAction": "操作",
+    "stepCondition": "条件",
+    "stepPrompt": "提示词",
+    "stepModel": "模型",
+    "stepApprovers": "审批人",
+    "stepOnTimeout": "超时处理",
+    "stepSignal": "信号",
+    "stepParallelSteps": "并行步骤",
+    "stepJoinType": "汇聚方式",
+    "onError": "错误处理",
+    "notFound": "未找到工作流「{{name}}」。",
+    "loadFailed": "加载工作流失败。"
+  },
+  "stateMachines": {
+    "title": "状态机",
+    "subtitle": "已注册的状态机定义 — 业务对象生命周期管理。",
+    "allSchemas": "全部数据模型",
+    "machineCount": "个状态机",
+    "noMachines": "暂无已注册的状态机。",
+    "states": "个状态",
+    "transitions": "个转换",
+    "diagram": "状态图",
+    "transitionTable": "转换表",
+    "from": "源状态",
+    "to": "目标状态",
+    "action": "操作",
+    "initial": "初始状态",
+    "notFound": "未找到状态机「{{name}}」。",
+    "loadFailed": "加载状态机失败。"
   }
 }

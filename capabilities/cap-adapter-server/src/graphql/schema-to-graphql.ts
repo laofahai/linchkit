@@ -330,22 +330,30 @@ export function generateGraphQLObjectType(
 
           // Also generate a `{field}_i18n` field that returns the full JSONB locale map as JSON string.
           // After resolveTranslatableRow, the raw JSONB is stashed under I18N_RAW_KEY.
-          fields[`${fieldName}_i18n`] = {
-            type: GraphQLString,
-            description: `All translations for ${field.label ?? fieldName} (JSON-encoded locale map)`,
-            resolve: (obj: Record<string, unknown>) => {
-              // First check the stashed raw locale map (set by resolveTranslatableRow)
-              const rawMap = obj[I18N_RAW_KEY] as Record<string, unknown> | undefined;
-              if (rawMap && rawMap[name] !== undefined && rawMap[name] !== null) {
-                return JSON.stringify(rawMap[name]);
-              }
-              // Fallback: value might still be a JSONB object (not yet resolved)
-              const raw = obj[name];
-              if (raw === null || raw === undefined) return null;
-              if (typeof raw === "string") return null;
-              return JSON.stringify(raw);
-            },
-          };
+          // Skip if the schema already defines a field with this name to avoid collision.
+          const i18nFieldName = `${fieldName}_i18n`;
+          if (i18nFieldName in schema.fields) {
+            moduleLogger.warn(
+              `[schema-to-graphql] Schema "${schema.name}" already has field "${i18nFieldName}" — skipping auto-generated i18n field for "${fieldName}"`,
+            );
+          } else {
+            fields[i18nFieldName] = {
+              type: GraphQLString,
+              description: `All translations for ${field.label ?? fieldName} (JSON-encoded locale map)`,
+              resolve: (obj: Record<string, unknown>) => {
+                // First check the stashed raw locale map (set by resolveTranslatableRow)
+                const rawMap = obj[I18N_RAW_KEY] as Record<string, unknown> | undefined;
+                if (rawMap && rawMap[name] !== undefined && rawMap[name] !== null) {
+                  return JSON.stringify(rawMap[name]);
+                }
+                // Fallback: value might still be a JSONB object (not yet resolved)
+                const raw = obj[name];
+                if (raw === null || raw === undefined) return null;
+                if (typeof raw === "string") return null;
+                return JSON.stringify(raw);
+              },
+            };
+          }
         } else {
           fields[fieldName] = {
             type: graphqlType, // Always nullable in output to prevent resolver crashes

@@ -55,6 +55,7 @@ export interface SubscriptionFilter {
 interface SSEConnection {
   id: string;
   userId: string;
+  actor: Actor;
   filter: SubscriptionFilter;
   buffer: SubscriptionEvent[];
   /** Push an event to the SSE stream. Returns false if connection is closed. */
@@ -186,6 +187,7 @@ export class SubscriptionManager {
     const conn: SSEConnection = {
       id,
       userId: options.userId,
+      actor: options.actor,
       filter: options.filter,
       buffer: [],
       push: options.push,
@@ -298,6 +300,11 @@ export class SubscriptionManager {
   private matchesConnection(conn: SSEConnection, event: SubscriptionEvent): boolean {
     const filter = conn.filter;
 
+    // Permission check — if a checker is set, verify the actor can read this schema
+    if (this.canReadSchema && !this.canReadSchema(conn.actor, event.schema)) {
+      return false;
+    }
+
     // Tenant isolation — mandatory
     if (filter.tenantId && event.tenantId && filter.tenantId !== event.tenantId) {
       return false;
@@ -335,7 +342,8 @@ export class SubscriptionManager {
       const idx = conn.buffer.indexOf(event);
       if (idx >= 0) conn.buffer.splice(idx, 1);
     } else {
-      // Connection dead — remove it
+      // Connection dead — close and remove it
+      conn.close();
       this.connections.delete(conn.id);
     }
   }
@@ -349,6 +357,7 @@ export class SubscriptionManager {
         // Send heartbeat as null event (SSE comment)
         const ok = conn.push(null);
         if (!ok) {
+          conn.close();
           this.connections.delete(conn.id);
         }
       }

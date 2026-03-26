@@ -5,6 +5,8 @@
  *   generate  — Generate Markdown API documentation from the ontology
  *   openapi   — Generate OpenAPI 3.0 specification
  *   validate  — Validate documentation completeness
+ *   show      — Show capability spec documentation
+ *   search    — Search across all documentation
  */
 
 import { writeFileSync } from "node:fs";
@@ -21,10 +23,13 @@ import type {
 import {
   ActionRegistry,
   convertSchemaRelationshipFieldsToImplicitLinks,
+  createDocSearchIndex,
   createLinkRegistry,
   createOntologyRegistry,
   generateApiDoc,
+  generateCapabilityDoc,
   generateOpenAPISpec,
+  renderCapabilityDoc,
   renderSystemDoc,
   SchemaRegistry,
   validateActionDoc,
@@ -284,16 +289,132 @@ const validateCommand = defineCommand({
   },
 });
 
+const showCommand = defineCommand({
+  meta: {
+    name: "show",
+    description: "Show capability spec documentation",
+  },
+  args: {
+    name: {
+      type: "positional",
+      description: "Capability name",
+      required: true,
+    },
+    output: {
+      type: "string",
+      description: "Output file path (default: stdout)",
+    },
+    json: {
+      type: "boolean",
+      description: "Output as JSON instead of Markdown",
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const { capabilities } = await loadCapabilities();
+
+    const cap = capabilities.find((c) => c.name === args.name);
+    if (!cap) {
+      console.error(`[linch] Capability "${args.name}" not found.`);
+      console.error(
+        `[linch] Available capabilities: ${capabilities.map((c) => c.name).join(", ") || "(none)"}`,
+      );
+      process.exit(1);
+    }
+
+    const doc = generateCapabilityDoc(cap);
+
+    if (args.json) {
+      output(JSON.stringify(doc, null, 2), args.output as string | undefined);
+    } else {
+      const markdown = renderCapabilityDoc(doc);
+      output(markdown, args.output as string | undefined);
+    }
+  },
+});
+
+const searchCommand = defineCommand({
+  meta: {
+    name: "search",
+    description: "Search across all documentation by keyword",
+  },
+  args: {
+    query: {
+      type: "positional",
+      description: "Search query",
+      required: true,
+    },
+    type: {
+      type: "string",
+      description: "Filter by type (capability, schema, action, rule, state_machine, view, relation)",
+    },
+    capability: {
+      type: "string",
+      description: "Filter by capability name",
+    },
+    limit: {
+      type: "string",
+      description: "Maximum number of results",
+      default: "20",
+    },
+    json: {
+      type: "boolean",
+      description: "Output as JSON",
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const { capabilities } = await loadCapabilities();
+    const index = createDocSearchIndex(capabilities);
+
+    const results = index.search(args.query as string, {
+      type: args.type as DocSearchResult["type"] | undefined,
+      capability: args.capability as string | undefined,
+      limit: Number.parseInt(args.limit as string, 10) || 20,
+    });
+
+    if (args.json) {
+      console.log(JSON.stringify(results, null, 2));
+      return;
+    }
+
+    if (results.length === 0) {
+      console.log(`  No results found for "${args.query}".`);
+      return;
+    }
+
+    console.log("");
+    console.log(`  Search results for "${args.query}" (${results.length} found):`);
+    console.log("  " + "=".repeat(50));
+    console.log("");
+
+    for (const r of results) {
+      const typeTag = `[${r.type}]`.padEnd(16);
+      console.log(`  ${typeTag} ${r.name}`);
+      if (r.description) {
+        console.log(`                  ${r.description}`);
+      }
+      console.log(`                  capability: ${r.capability} | score: ${r.score}`);
+      console.log("");
+    }
+  },
+});
+
+// Import DocSearchResult type for the search command arg typing
+type DocSearchResult = import("@linchkit/core/server").DocSearchResult;
+
 // ── Main command ──────────────────────────────
 
 export const docsCommand = defineCommand({
   meta: {
     name: "docs",
-    description: "Generate and validate API documentation",
+    description: "Generate, view, and search API documentation",
   },
   subCommands: {
     generate: generateCommand,
     openapi: openapiCommand,
     validate: validateCommand,
+    show: showCommand,
+    search: searchCommand,
   },
 });

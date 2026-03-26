@@ -10,6 +10,7 @@ import type {
   CapabilityDefinition,
   LinkDefinition,
   MiddlewareRegistration,
+  RuleDefinition,
   SchemaDefinition,
   StateDefinition,
   ViewDefinition,
@@ -58,6 +59,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   states: StateDefinition[];
   views: ViewDefinition[];
   links: LinkDefinition[];
+  rules: RuleDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
 } {
@@ -66,6 +68,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   const states: StateDefinition[] = [];
   const views: ViewDefinition[] = [];
   const links: LinkDefinition[] = [];
+  const rules: RuleDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
 
@@ -75,6 +78,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     if (cap.states) states.push(...cap.states);
     if (cap.views) views.push(...cap.views);
     if (cap.links) links.push(...cap.links);
+    if (cap.rules) rules.push(...cap.rules);
 
     // Collect seed data from capabilities
     if (cap.seed) {
@@ -97,7 +101,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     }
   }
 
-  return { schemas, actions, states, views, links, middlewares, seed };
+  return { schemas, actions, states, views, links, rules, middlewares, seed };
 }
 
 const capContributions = extractCapabilities(config.capabilities);
@@ -158,6 +162,8 @@ const server = createServer(graphqlSchema, {
   schemaRegistry: runtime.schemaRegistry,
   views: runtime.views,
   capabilities: config.capabilities,
+  rules: capContributions.rules,
+  aiService: runtime.ai,
 });
 
 server.listen(port);

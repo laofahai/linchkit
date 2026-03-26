@@ -74,8 +74,9 @@ describe("evaluateExpression", () => {
     expect(evaluateExpression("-(3 + 2)", {})).toBe(-5);
   });
 
-  test("division by zero throws", () => {
-    expect(() => evaluateExpression("10 / 0", {})).toThrow("Division by zero");
+  test("division by zero returns 0", () => {
+    expect(evaluateExpression("10 / 0", {})).toBe(0);
+    expect(evaluateExpression("10 % 0", {})).toBe(0);
   });
 
   test("boolean field values", () => {

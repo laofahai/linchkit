@@ -20,7 +20,21 @@ export type {
   AIRateLimits,
   AIUsageRecord,
 } from "./ai-policy";
-export { createAIService, createNoopAIService, defaultAIConfig, resolveModel } from "./ai-service";
+export {
+  createAIService,
+  createNoopAIService,
+  defaultAIConfig,
+  resolveModel,
+  resolveModelRoute,
+  resolveTenantConfig,
+} from "./ai-service";
+
+// Cost Estimator
+export type { ModelPricing } from "./cost-estimator";
+export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
+
+// Response Cache
+export { AIResponseCache } from "./response-cache";
 
 // Prompt Sanitizer
 export type {
@@ -40,3 +54,56 @@ export {
   sanitizePrompt,
   sanitizeRecordForAI,
 } from "./prompt-sanitizer";
+
+// Output Validator
+export type {
+  OutputValidationResult,
+  OutputValidationRule,
+  OutputValidatorConfig,
+  OutputViolation,
+  OutputViolationSeverity,
+  OutputViolationType,
+} from "./output-validator";
+export { sanitizeAIOutput, validateAIOutput } from "./output-validator";
+
+// Proposal Validator
+export type {
+  ProposalChange,
+  ProposalChangeType,
+  ProposalCustomRule,
+  ProposalRiskLevel,
+  ProposalValidationResult,
+  ProposalValidatorConfig,
+  ProposalViolation,
+} from "./proposal-validator";
+export { createProposalValidator, validateProposal } from "./proposal-validator";
+
+// Anomaly Detector
+export type {
+  AnomalyDetection,
+  AnomalyDetectorConfig,
+  AnomalySeverity,
+  AnomalyType,
+  UsageEvent,
+} from "./anomaly-detector";
+export { AnomalyDetector } from "./anomaly-detector";
+
+// Pattern Detector
+export type {
+  PatternDetectorConfig,
+  PatternEvidence,
+  PatternInsight,
+  PatternType,
+} from "./pattern-detector";
+export { PatternDetector } from "./pattern-detector";
+
+// Proposal Engine
+export type {
+  AIProposalStatus,
+  Proposal,
+  ProposalDiff,
+  ProposalDraft,
+  ProposalEngineOptions,
+  ProposalType,
+} from "./proposal-engine";
+export { ProposalEngine } from "./proposal-engine";

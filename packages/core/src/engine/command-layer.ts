@@ -18,6 +18,7 @@ import { AuthorizationError, LinchKitError, SystemError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
+import { getCurrentTrace, withTrace } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
@@ -65,6 +66,8 @@ export interface CommandContext {
   action?: ActionDefinition;
   /** Action execution result (set after action runs, available in post-action) */
   result?: ActionResult;
+  /** Trace ID — set automatically by the pipeline for observability */
+  traceId?: string;
 }
 
 // ── Middleware types ────────────────────────────────────────
@@ -215,6 +218,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
   }
 
   async function execute(execOptions: CommandExecuteOptions): Promise<ActionResult> {
+    // Wrap entire pipeline in a trace context for observability.
+    // If already inside a trace (e.g. event handler re-entry), depth increments.
+    const pipelineStart = Date.now();
+    return (await withTrace(async () => {
+      return await executeInner(execOptions, pipelineStart);
+    })) as ActionResult;
+  }
+
+  async function executeInner(
+    execOptions: CommandExecuteOptions,
+    pipelineStart: number,
+  ): Promise<ActionResult> {
+    // Capture trace ID from the active trace context
+    const trace = getCurrentTrace();
+
     // Build context with copies to isolate from caller
     const ctx: CommandContext = {
       command: execOptions.command,
@@ -227,6 +245,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       locale: execOptions.locale,
       headers: execOptions.headers ? { ...execOptions.headers } : undefined,
       meta: { ...(execOptions.meta ?? {}) },
+      traceId: trace?.traceId,
     };
 
     // Resolve action definition for exposure check
@@ -341,6 +360,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       await run(ctx);
     } catch (err) {
       metrics.increment("command.processed", { command: ctx.command, status: "failed" });
+      metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+        command: ctx.command,
+      });
       if (err instanceof ExposureError) {
         return {
           success: false,
@@ -373,6 +395,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // If action didn't execute (middleware blocked by not calling next())
     if (!ctx.result) {
       metrics.increment("command.processed", { command: ctx.command, status: "blocked" });
+      metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+        command: ctx.command,
+      });
       return {
         success: false,
         data: { error: "Request blocked by pipeline" },
@@ -411,6 +436,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     }
 
     metrics.increment("command.processed", { command: ctx.command, status: "succeeded" });
+    metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+      command: ctx.command,
+    });
 
     return ctx.result;
   }

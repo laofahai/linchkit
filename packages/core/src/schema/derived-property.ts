@@ -326,11 +326,17 @@ class ExpressionParser {
       const right = this.parseUnary();
       if (op === "*") left *= right;
       else if (op === "/") {
-        if (right === 0) throw new Error("[derived-property] Division by zero");
-        left /= right;
+        if (right === 0) {
+          left = 0;
+        } else {
+          left /= right;
+        }
       } else {
-        if (right === 0) throw new Error("[derived-property] Modulo by zero");
-        left %= right;
+        if (right === 0) {
+          left = 0;
+        } else {
+          left %= right;
+        }
       }
       current = this.peek();
     }
@@ -1057,19 +1063,39 @@ export class DerivedPropertyEngine {
   /**
    * Cascade recalculate: when a child record is created, updated, or deleted,
    * find all affected parent records and recalculate their aggregate derived fields.
+   * Recursively cascades up the chain if the parent schema itself has cascade targets,
+   * up to `maxCascadeDepth` levels (default 5) to prevent infinite loops.
    *
    * @param childSchemaName - The schema of the record that changed
    * @param childRecord - The child record (for extracting FK values to find parent records)
    * @param dataProvider - Data provider for querying and updating parent records
+   * @param options - Optional settings: maxCascadeDepth (default 5)
    * @returns Map of "parentSchema.parentId" → updated field values
    */
   async cascadeRecalculate(
     childSchemaName: string,
     childRecord: Record<string, unknown>,
     dataProvider?: DataProvider,
+    options?: { maxCascadeDepth?: number },
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const maxDepth = options?.maxCascadeDepth ?? 5;
+    return this._cascadeRecalculateInternal(childSchemaName, childRecord, dataProvider, maxDepth, 0);
+  }
+
+  /**
+   * Internal recursive cascade implementation with depth tracking.
+   */
+  private async _cascadeRecalculateInternal(
+    childSchemaName: string,
+    childRecord: Record<string, unknown>,
+    dataProvider: DataProvider | undefined,
+    maxDepth: number,
+    currentDepth: number,
   ): Promise<Map<string, Record<string, unknown>>> {
     const dp = dataProvider ?? this.dataProvider;
     if (!dp) return new Map();
+
+    if (currentDepth >= maxDepth) return new Map();
 
     const targets = this.getCascadeTargets(childSchemaName);
     if (targets.length === 0) return new Map();
@@ -1119,6 +1145,27 @@ export class DerivedPropertyEngine {
             existing[sf.fieldName] = recomputed;
             updatedParent[sf.fieldName] = recomputed;
             await dp.update(target.parentSchema, parentId, { [sf.fieldName]: recomputed });
+          }
+        }
+      }
+
+      // Recursively cascade: if the parent schema itself has cascade targets,
+      // propagate the change upward
+      if (this.hasCascadeTargets(target.parentSchema)) {
+        const parentUpdates = await this._cascadeRecalculateInternal(
+          target.parentSchema,
+          updatedParent,
+          dp,
+          maxDepth,
+          currentDepth + 1,
+        );
+        // Merge recursive updates into our result
+        for (const [key, val] of parentUpdates) {
+          const existingVal = updates.get(key);
+          if (existingVal) {
+            Object.assign(existingVal, val);
+          } else {
+            updates.set(key, val);
           }
         }
       }

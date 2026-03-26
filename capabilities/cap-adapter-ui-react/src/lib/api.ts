@@ -252,6 +252,7 @@ export async function bulkDeleteRecords(
 /** Application config returned by GET /api/app-config */
 export interface AppConfig {
   authEnabled: boolean;
+  aiEnabled: boolean;
   capabilities: string[];
   pages: Array<{
     name: string;
@@ -278,10 +279,10 @@ export async function fetchAppConfig(): Promise<AppConfig> {
   try {
     const res = await fetch("/api/app-config");
     const json = await res.json();
-    cachedAppConfig = json.data ?? { authEnabled: false, capabilities: [], pages: [] };
+    cachedAppConfig = json.data ?? { authEnabled: false, aiEnabled: false, capabilities: [], pages: [] };
   } catch {
     // If server is unreachable, assume no auth (graceful degradation)
-    cachedAppConfig = { authEnabled: false, capabilities: [], pages: [] };
+    cachedAppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [] };
   }
   return cachedAppConfig as AppConfig;
 }
@@ -292,6 +293,49 @@ export async function fetchAppConfig(): Promise<AppConfig> {
  */
 export function isAuthEnabled(): boolean {
   return cachedAppConfig?.authEnabled ?? false;
+}
+
+/**
+ * Check whether AI service is enabled. Uses cached config when available,
+ * otherwise returns false (safe default for initial page load).
+ */
+export function isAiEnabled(): boolean {
+  return cachedAppConfig?.aiEnabled ?? false;
+}
+
+// ── AI Auto-Fill ────────────────────────────────────────
+
+/** Single AI suggestion for a field */
+export interface AiFieldSuggestion {
+  value: unknown;
+  confidence: number;
+  reason?: string;
+}
+
+/** Response from the AI auto-fill endpoint */
+export interface AiAutoFillResult {
+  suggestions: Record<string, AiFieldSuggestion>;
+}
+
+/**
+ * Request AI-powered auto-fill suggestions for empty form fields.
+ */
+export async function requestAiAutoFill(params: {
+  schema: string;
+  fields: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
+  currentValues: Record<string, unknown>;
+}): Promise<AiAutoFillResult> {
+  const res = await fetch("/api/ai/auto-fill", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(params),
+  });
+  handleUnauthorized(res);
+  const json = await res.json();
+  if (!json.success) {
+    throw new Error(json.error?.message ?? "AI auto-fill failed");
+  }
+  return json.data ?? { suggestions: {} };
 }
 
 // ── Schema metadata ─────────────────────────────────────
@@ -412,6 +456,37 @@ export async function transitionRecord<T = Record<string, unknown>>(
   const result = res.data?.[mutationName];
   if (result === undefined) throw new Error("No data returned");
   return result;
+}
+
+// ── AI Search ───────────────────────────────────────────
+
+export interface AISearchRequest {
+  query: string;
+  schema: string;
+  fields: Record<string, { label?: string; type?: string; options?: string[] }>;
+}
+
+export interface AISearchResult {
+  filter: Record<string, unknown>;
+  explanation: string;
+}
+
+/**
+ * Send a natural language query to the AI search endpoint.
+ * Returns a DeclarativeCondition filter or null if AI is not configured.
+ */
+export async function aiSearch(request: AISearchRequest): Promise<AISearchResult | null> {
+  const res = await fetch("/api/ai/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(request),
+  });
+  handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error("AI search request failed");
+  }
+  const json = await res.json();
+  return json.data ?? null;
 }
 
 // ── Execution Logs ──────────────────────────────────────

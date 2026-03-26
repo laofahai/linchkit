@@ -3,6 +3,7 @@
  */
 
 import type { SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { AiFieldSuggestion } from "../../lib/api";
 
 /** Field-level errors returned from server validation */
 export interface ServerFieldErrors {
@@ -37,4 +38,14 @@ export interface AutoFormProps {
   serverErrors?: ServerFieldErrors;
   /** External form-level error message */
   formError?: string;
+  /** AI suggestions keyed by field name */
+  aiSuggestions?: Record<string, AiFieldSuggestion>;
+  /** Callback when user accepts an AI suggestion for a field */
+  onAiAccept?: (fieldName: string) => void;
+  /** Callback when user rejects an AI suggestion for a field */
+  onAiReject?: (fieldName: string) => void;
+  /** Called whenever form values change — allows parent to track current values */
+  onValuesChange?: (values: Record<string, unknown>) => void;
+  /** Called once on mount — registers a setter so parent can programmatically set field values */
+  registerSetField?: (setter: (fieldName: string, value: unknown) => void) => void;
 }

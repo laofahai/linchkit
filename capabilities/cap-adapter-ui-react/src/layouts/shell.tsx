@@ -14,6 +14,7 @@ import {
 } from "@linchkit/ui-kit/components";
 import { Link, Outlet } from "@tanstack/react-router";
 import React, { useCallback, useState } from "react";
+import { AIAssistant } from "@/components/ai-assistant";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { HeaderActions } from "@/components/header-actions";
@@ -42,7 +43,9 @@ export function ShellLayout() {
 function ShellContent() {
   const breadcrumbItems = useBreadcrumb();
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const openCommandPalette = useCallback(() => setCmdkOpen(true), []);
+  const toggleAI = useCallback(() => setAiOpen((prev) => !prev), []);
   useKeyboardShortcuts({ onOpenCommandPalette: openCommandPalette });
 
   return (
@@ -79,7 +82,7 @@ function ShellContent() {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ml-auto">
-            <HeaderActions onOpenCommandPalette={openCommandPalette} />
+            <HeaderActions onOpenCommandPalette={openCommandPalette} onToggleAI={toggleAI} />
           </div>
         </header>
         <div className="flex flex-1 flex-col">
@@ -87,6 +90,7 @@ function ShellContent() {
         </div>
       </SidebarInset>
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
+      <AIAssistant open={aiOpen} onOpenChange={setAiOpen} />
       <Toaster richColors position="top-right" />
     </SidebarProvider>
   );

@@ -73,6 +73,9 @@ export const capAdapterServer = defineCapability({
             schemaMap.set(s.name, s);
           }
 
+          // Collect rule definitions from all capabilities for /api/rules endpoint
+          const allRules = (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []);
+
           // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {
             port,
@@ -86,6 +89,7 @@ export const capAdapterServer = defineCapability({
             healthCheckRegistry: ctx.healthCheckRegistry,
             permissionGroups: permGroups,
             schemaMap,
+            rules: allRules,
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
             // Never decode JWT directly — that bypasses signature verification.

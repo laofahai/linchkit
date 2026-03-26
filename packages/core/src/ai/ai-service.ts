@@ -5,19 +5,31 @@
  * 1. Model alias resolution (fast/standard/advanced → provider + model ID)
  * 2. Unified multi-provider interface
  * 3. Usage tracking and cost estimation
- * 4. Integration with ActionContext via ctx.ai
+ * 4. Multi-model fallback chain (resilience)
+ * 5. Response caching for identical prompts
+ * 6. Model routing by task type
+ * 7. Tenant-level config overrides (BYOK)
+ * 8. Integration with ActionContext via ctx.ai
  *
  * See spec 36_ai_service.md for full design.
  */
 
 import type {
+  AICacheConfig,
   AICompletionOptions,
   AICompletionResult,
+  AIFallbackConfig,
+  AIModelRoute,
+  AIProviderConfig,
   AIProviderType,
   AIService,
   AIServiceConfig,
+  AITaskType,
+  AITenantConfig,
   AIToolCall,
 } from "../types/ai";
+import { CostEstimator } from "./cost-estimator";
+import { AIResponseCache } from "./response-cache";
 
 /** Infer provider type from well-known provider names */
 function inferProviderType(name: string): AIProviderType | undefined {
@@ -60,8 +72,13 @@ export const defaultAIConfig: AIServiceConfig = {
 export function createAIService(config: AIServiceConfig): AIService {
   validateConfig(config);
 
+  const costEstimator = new CostEstimator();
+  const cache =
+    config.cache?.enabled ? new AIResponseCache(config.cache) : undefined;
+
   return {
-    complete: (options) => executeCompletion(config, options),
+    complete: (options) =>
+      executeWithFallback(config, options, costEstimator, cache),
   };
 }
 
@@ -142,6 +159,60 @@ export function resolveModel(
   return { provider, modelId: modelAlias };
 }
 
+// ── Model routing ────────────────────────────────────────────
+
+/**
+ * Resolve model and provider from task type routing rules.
+ * Returns undefined if no routing rule matches the task type.
+ */
+export function resolveModelRoute(
+  routes: AIModelRoute[] | undefined,
+  taskType: AITaskType,
+): { model: string; provider?: string } | undefined {
+  if (!routes) return undefined;
+  const route = routes.find((r) => r.taskType === taskType);
+  if (!route) return undefined;
+  return { model: route.model, provider: route.provider };
+}
+
+// ── Tenant config resolution ─────────────────────────────────
+
+/**
+ * Merge tenant-level AI config overrides with global config.
+ * Tenant config can override providers (BYOK), limits, and fallback.
+ */
+export function resolveTenantConfig(
+  globalConfig: AIServiceConfig,
+  tenantId: string,
+): AIServiceConfig {
+  const tenantOverride = globalConfig.tenants?.[tenantId];
+  if (!tenantOverride) return globalConfig;
+
+  return mergeTenantConfig(globalConfig, tenantOverride);
+}
+
+function mergeTenantConfig(
+  global: AIServiceConfig,
+  tenant: AITenantConfig,
+): AIServiceConfig {
+  // Merge provider configs: tenant overrides specific fields per provider
+  const mergedProviders = { ...global.providers };
+  if (tenant.providers) {
+    for (const [name, override] of Object.entries(tenant.providers)) {
+      if (mergedProviders[name]) {
+        mergedProviders[name] = { ...mergedProviders[name], ...override } as AIProviderConfig;
+      }
+    }
+  }
+
+  return {
+    ...global,
+    providers: mergedProviders,
+    limits: tenant.limits ?? global.limits,
+    fallback: tenant.fallback ?? global.fallback,
+  };
+}
+
 // ── Provider instantiation ──────────────────────────────────
 
 /**
@@ -211,11 +282,152 @@ async function getLanguageModel(
   }
 }
 
+// ── Fallback chain execution ─────────────────────────────────
+
+/**
+ * Execute completion with fallback chain support.
+ * Tries the primary provider first, then falls back through configured providers.
+ */
+async function executeWithFallback(
+  config: AIServiceConfig,
+  options: AICompletionOptions,
+  costEstimator: CostEstimator,
+  cache: AIResponseCache | undefined,
+): Promise<AICompletionResult> {
+  // Resolve tenant-specific config if tenantId is specified
+  const effectiveConfig = options.tenantId
+    ? resolveTenantConfig(config, options.tenantId)
+    : config;
+
+  // Apply model routing if taskType is specified and no explicit model
+  let resolvedOptions = options;
+  if (options.taskType && !options.model) {
+    const route = resolveModelRoute(effectiveConfig.routing, options.taskType);
+    if (route) {
+      resolvedOptions = {
+        ...options,
+        model: route.model,
+        provider: route.provider ?? options.provider,
+      };
+    }
+  }
+
+  // Check cache first
+  if (cache && resolvedOptions.cache !== false) {
+    const cached = cache.get(resolvedOptions);
+    if (cached) return cached;
+  }
+
+  const fallback = effectiveConfig.fallback;
+  if (!fallback || fallback.providers.length === 0) {
+    // No fallback chain — execute directly
+    const result = await executeCompletion(effectiveConfig, resolvedOptions, costEstimator);
+    cache?.set(resolvedOptions, result);
+    return result;
+  }
+
+  // Build provider attempt list: primary first, then fallback providers
+  const primaryProvider = resolvedOptions.provider ?? effectiveConfig.defaultProvider;
+  const providerChain = [
+    primaryProvider,
+    ...fallback.providers.filter((p) => p !== primaryProvider),
+  ];
+  const retriesPerProvider = fallback.retriesPerProvider ?? 1;
+  const retryDelay = fallback.retryDelay ?? 1000;
+
+  let lastError: Error | undefined;
+  let failedPrimary: string | undefined;
+
+  for (const providerName of providerChain) {
+    // Skip providers not in config
+    if (!effectiveConfig.providers[providerName]) continue;
+
+    for (let attempt = 0; attempt < retriesPerProvider; attempt++) {
+      try {
+        const attemptOptions = { ...resolvedOptions, provider: providerName };
+        const result = await executeCompletion(effectiveConfig, attemptOptions, costEstimator);
+
+        // Mark if fallback was used
+        if (failedPrimary) {
+          result.fallbackUsed = failedPrimary;
+        }
+
+        cache?.set(resolvedOptions, result);
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if this error type should trigger fallback
+        if (fallback.onErrors && !shouldFallback(lastError, fallback.onErrors)) {
+          throw lastError;
+        }
+
+        if (!failedPrimary) failedPrimary = providerName;
+
+        // Delay between retries (not before the very first attempt)
+        if (attempt < retriesPerProvider - 1 || providerChain.indexOf(providerName) < providerChain.length - 1) {
+          await sleep(retryDelay);
+        }
+      }
+    }
+  }
+
+  // All providers exhausted
+  throw new Error(
+    `All AI providers failed. Last error: ${lastError?.message ?? "unknown"}`,
+  );
+}
+
+/**
+ * Check if an error should trigger fallback based on error type filters.
+ */
+function shouldFallback(
+  error: Error,
+  onErrors: ("timeout" | "rate_limit" | "server_error" | "auth_error")[],
+): boolean {
+  const msg = error.message.toLowerCase();
+  const name = error.name.toLowerCase();
+
+  for (const errorType of onErrors) {
+    switch (errorType) {
+      case "timeout":
+        if (msg.includes("timeout") || msg.includes("timed out") || name.includes("abort")) {
+          return true;
+        }
+        break;
+      case "rate_limit":
+        if (msg.includes("rate limit") || msg.includes("429") || msg.includes("too many")) {
+          return true;
+        }
+        break;
+      case "server_error":
+        if (msg.includes("500") || msg.includes("502") || msg.includes("503") ||
+            msg.includes("internal server") || msg.includes("service unavailable")) {
+          return true;
+        }
+        break;
+      case "auth_error":
+        if (msg.includes("401") || msg.includes("403") || msg.includes("unauthorized") ||
+            msg.includes("forbidden") || msg.includes("invalid api key")) {
+          return true;
+        }
+        break;
+    }
+  }
+
+  return false;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ── Completion execution ────────────────────────────────────
 
 async function executeCompletion(
   config: AIServiceConfig,
   options: AICompletionOptions,
+  costEstimator: CostEstimator,
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
 
@@ -249,14 +461,17 @@ async function executeCompletion(
     });
 
     const duration = Date.now() - startTime;
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
 
     return {
       content: JSON.stringify(result.object),
       data: result.object,
       usage: {
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+        cost: costEstimator.estimateCost(resolved.modelId, inputTokens, outputTokens),
       },
       model: resolved.modelId,
       provider: resolved.provider,
@@ -302,13 +517,17 @@ async function executeCompletion(
     }));
   }
 
+  const inputTokens = result.usage?.inputTokens ?? 0;
+  const outputTokens = result.usage?.outputTokens ?? 0;
+
   return {
     content: result.text,
     toolCalls,
     usage: {
-      inputTokens: result.usage?.inputTokens ?? 0,
-      outputTokens: result.usage?.outputTokens ?? 0,
-      totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      cost: costEstimator.estimateCost(resolved.modelId, inputTokens, outputTokens),
     },
     model: resolved.modelId,
     provider: resolved.provider,

@@ -3,18 +3,22 @@
  *
  * Combines:
  * - Global fuzzy text search (free text input)
+ * - AI-powered natural language search (detects NL queries automatically)
  * - bazza DataTableFilter (field-level filtering with pills)
  * - All applied conditions as inline chips
- *
- * Future: Odoo-style faceted search with field autocomplete, predefined filters,
- * group by, and saved searches.
  */
 
 import type { SchemaDefinition } from "@linchkit/core/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { Search, X } from "lucide-react";
+import { Loader2, Search, Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { AISearchState } from "../../hooks/use-ai-search";
 import { ActiveFilters } from "../data-table-filter/components/active-filters";
 import { FilterSelector } from "../data-table-filter/components/filter-selector";
 import type {
@@ -36,6 +40,12 @@ export interface SearchBarProps {
   bazzaFilters?: FiltersState;
   bazzaActions?: DataTableFilterActions;
   bazzaStrategy?: FilterStrategy;
+  /** AI search state */
+  aiSearchState?: AISearchState;
+  /** Callback to clear AI search filter */
+  onClearAISearch?: () => void;
+  /** Callback when Enter is pressed (used for AI search trigger) */
+  onSubmit?: (query: string) => void;
   /** Additional class names */
   className?: string;
 }
@@ -48,6 +58,9 @@ export function SearchBar({
   bazzaFilters,
   bazzaActions,
   bazzaStrategy,
+  aiSearchState,
+  onClearAISearch,
+  onSubmit,
   className,
 }: SearchBarProps) {
   const { t } = useTranslation();
@@ -56,7 +69,9 @@ export function SearchBar({
 
   const hasFilters = (bazzaFilters?.length ?? 0) > 0;
   const hasText = globalFilter.length > 0;
-  const hasContent = hasText || hasFilters;
+  const hasAIFilter = !!aiSearchState?.result;
+  const isAILoading = !!aiSearchState?.loading;
+  const hasContent = hasText || hasFilters || hasAIFilter;
 
   const handleBarClick = (e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
@@ -69,11 +84,19 @@ export function SearchBar({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && globalFilter.trim()) {
+      e.preventDefault();
+      onSubmit?.(globalFilter.trim());
+    }
+  };
+
   return (
     <search
       className={cn(
         "flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-2 transition-colors",
         focused && "ring-1 ring-ring",
+        hasAIFilter && "border-violet-400 dark:border-violet-600",
         className,
       )}
       onClick={handleBarClick}
@@ -81,7 +104,35 @@ export function SearchBar({
         if (e.key === "Enter" || e.key === " ") handleBarClick(e);
       }}
     >
-      <Search className="size-3.5 shrink-0 text-muted-foreground" />
+      {/* Search icon or loading spinner */}
+      {isAILoading ? (
+        <Loader2 className="size-3.5 shrink-0 animate-spin text-violet-500" />
+      ) : (
+        <Search className="size-3.5 shrink-0 text-muted-foreground" />
+      )}
+
+      {/* AI filter chip */}
+      {hasAIFilter && aiSearchState?.result && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearAISearch?.();
+              }}
+            >
+              <Sparkles className="size-3" />
+              {t("aiSearch.chipLabel", "AI Filter")}
+              <X className="size-3 ml-0.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[300px]">
+            <p className="text-xs">{aiSearchState.result.explanation}</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {/* bazza filter pills (inline) */}
       {bazzaColumns && bazzaFilters && bazzaActions && bazzaStrategy && hasFilters && (
@@ -103,7 +154,12 @@ export function SearchBar({
         onChange={(e) => onGlobalFilterChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder={hasFilters ? "" : `${t("common.search")}...`}
+        onKeyDown={handleKeyDown}
+        placeholder={
+          hasFilters || hasAIFilter
+            ? ""
+            : `${t("common.search")}... ${t("aiSearch.hint", "(Enter for AI search)")}`
+        }
         className="h-8 min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
 
@@ -120,13 +176,14 @@ export function SearchBar({
       )}
 
       {/* Clear all */}
-      {hasContent && onClearAll && (
+      {hasContent && (onClearAll || onClearAISearch) && (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onGlobalFilterChange("");
-            onClearAll();
+            onClearAll?.();
+            onClearAISearch?.();
             inputRef.current?.focus();
           }}
           className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"

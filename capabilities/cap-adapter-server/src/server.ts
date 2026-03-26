@@ -10,25 +10,30 @@ import type {
   ActionExecutor,
   ActionResult,
   Actor,
+  AIService,
   CapabilityDefinition,
   CommandLayer,
   DataProvider,
   EventBus,
   ExecutionLogger,
   ExecutionStatus,
+  FlowDefinition,
   PermissionGroupDefinition,
+  RuleDefinition,
   SchemaDefinition,
   SchemaRegistry,
+  StateDefinition,
   SubscriptionConfig,
   ViewDefinition,
 } from "@linchkit/core";
 import { createTenantAwareDataProvider } from "@linchkit/core/server";
-import type { HealthCheckRegistry } from "@linchkit/core/server";
+import type { HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
 import { generateDefaultViews } from "./default-views";
 import { createLinkDataLoaders } from "./graphql/link-dataloader";
+import { mountProposalAPI } from "./proposal-api";
 import {
   SubscriptionManager,
   formatSSEEvent,
@@ -91,6 +96,16 @@ export interface ServerOptions {
   eventBus?: EventBus;
   /** Subscription configuration (heartbeat, limits, etc.) */
   subscriptionConfig?: SubscriptionConfig;
+  /** Rule definitions for /api/rules endpoints */
+  rules?: RuleDefinition[];
+  /** AI service for auto-fill and other AI-powered endpoints */
+  aiService?: AIService;
+  /** Metrics collector — when provided, /health includes metrics summary */
+  metricsCollector?: InMemoryMetricsCollector;
+  /** Flow definitions — used by /api/flows endpoints */
+  flows?: FlowDefinition[];
+  /** State definitions — used by /api/states endpoints */
+  states?: StateDefinition[];
 }
 
 /** Default anonymous actor for unauthenticated requests. */
@@ -228,6 +243,9 @@ export function createServer(
   const permissionGroups = options?.permissionGroups ?? [];
   const schemaMap = options?.schemaMap;
   const tenants = options?.tenants ?? [];
+  const rules = options?.rules ?? [];
+  const aiService = options?.aiService;
+  const metricsCollector = options?.metricsCollector;
 
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
@@ -301,14 +319,27 @@ export function createServer(
         system,
       };
     })
+    // Metrics summary endpoint — returns aggregated metrics from the collector
+    .get("/api/metrics", () => {
+      if (!metricsCollector) {
+        return { success: false, error: "No metrics collector configured" };
+      }
+      return {
+        success: true,
+        data: metricsCollector.getSummary(),
+        timestamp: new Date().toISOString(),
+      };
+    })
     // App config — tells the UI which capabilities are loaded and their pages
     .get("/api/app-config", () => {
       const authEnabled = capabilities.some((c) => c.name === "cap-auth");
+      const aiEnabled = !!aiService;
       const pages = capabilities.flatMap((c) => c.pages ?? []);
       return {
         success: true,
         data: {
           authEnabled,
+          aiEnabled,
           capabilities: capabilities.map((c) => c.name),
           pages,
         },
@@ -317,6 +348,64 @@ export function createServer(
     // Tenant list — consumed by TenantSwitcher UI component
     .get("/api/tenants", () => {
       return { success: true, data: tenants };
+    })
+    // Rule definition endpoints — consumed by Rules management UI
+    .get("/api/rules", ({ query }) => {
+      let filtered = rules;
+      if (query.schema && typeof query.schema === "string") {
+        const schemaFilter = query.schema;
+        filtered = filtered.filter((r) => {
+          const trigger = r.trigger;
+          if ("stateChange" in trigger) return trigger.stateChange.schema === schemaFilter;
+          if ("fieldChange" in trigger) return trigger.fieldChange.schema === schemaFilter;
+          if ("action" in trigger) {
+            const actions = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
+            return actions.some((a) => a.includes(schemaFilter));
+          }
+          return false;
+        });
+      }
+      if (query.triggerType && typeof query.triggerType === "string") {
+        const tt = query.triggerType;
+        filtered = filtered.filter((r) => {
+          const trigger = r.trigger;
+          if (tt === "action") return "action" in trigger;
+          if (tt === "stateChange") return "stateChange" in trigger;
+          if (tt === "fieldChange") return "fieldChange" in trigger;
+          if (tt === "event") return "event" in trigger;
+          if (tt === "schedule") return "schedule" in trigger;
+          return true;
+        });
+      }
+      const serialized = filtered.map((r) => ({
+        name: r.name,
+        label: r.label,
+        description: r.description,
+        priority: r.priority ?? 0,
+        trigger: r.trigger,
+        condition: typeof r.condition === "function" ? { type: "code" } : r.condition,
+        effect: r.effect,
+      }));
+      return { success: true, data: serialized };
+    })
+    .get("/api/rules/:name", ({ params, set }) => {
+      const rule = rules.find((r) => r.name === params.name);
+      if (!rule) {
+        set.status = 404;
+        return { success: false, error: { message: `Rule "${params.name}" not found.` } };
+      }
+      return {
+        success: true,
+        data: {
+          name: rule.name,
+          label: rule.label,
+          description: rule.description,
+          priority: rule.priority ?? 0,
+          trigger: rule.trigger,
+          condition: typeof rule.condition === "function" ? { type: "code" } : rule.condition,
+          effect: rule.effect,
+        },
+      };
     })
     // Schema metadata endpoints
     .get("/api/schemas", () => {
@@ -522,11 +611,265 @@ export function createServer(
       }
       return { success: true, data: entry };
     })
+    // ── AI Auto-Fill endpoint ────────────────────────────
+    .post("/api/ai/auto-fill", async ({ body, set }) => {
+      if (!aiService) {
+        return { success: true, data: { suggestions: {} } };
+      }
+
+      const { schema: schemaName, fields, currentValues } = (body ?? {}) as {
+        schema?: string;
+        fields?: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
+        currentValues?: Record<string, unknown>;
+      };
+
+      if (!schemaName || !fields) {
+        set.status = 400;
+        return { success: false, error: { message: "Missing 'schema' or 'fields' in request body." } };
+      }
+
+      try {
+        // Build field descriptions for the prompt
+        const fieldDescriptions = Object.entries(fields).map(([name, def]) => {
+          const parts = [`- ${name}`];
+          if (def.label) parts.push(`(label: "${def.label}")`);
+          if (def.type) parts.push(`[type: ${def.type}]`);
+          if (def.required) parts.push("(required)");
+          if (def.options?.length) parts.push(`options: [${def.options.join(", ")}]`);
+          if (def.description) parts.push(`— ${def.description}`);
+          return parts.join(" ");
+        }).join("\n");
+
+        // Identify which fields already have values
+        const filledFields = currentValues
+          ? Object.entries(currentValues)
+              .filter(([, v]) => v !== null && v !== undefined && v !== "")
+              .map(([k, v]) => `- ${k}: ${JSON.stringify(v)}`)
+              .join("\n")
+          : "None";
+
+        // Identify empty fields that need suggestions
+        const emptyFieldNames = Object.keys(fields).filter((name) => {
+          const val = currentValues?.[name];
+          return val === null || val === undefined || val === "";
+        });
+
+        if (emptyFieldNames.length === 0) {
+          return { success: true, data: { suggestions: {} } };
+        }
+
+        const prompt = `You are a form auto-fill assistant for a "${schemaName}" record.
+
+Given the schema fields and any already-filled values, suggest realistic values for the empty fields.
+
+Schema fields:
+${fieldDescriptions}
+
+Already filled:
+${filledFields}
+
+Empty fields that need suggestions: ${emptyFieldNames.join(", ")}
+
+Respond with a JSON object where each key is a field name and the value is an object with:
+- "value": the suggested value (matching the field type)
+- "confidence": a number 0-1 indicating how confident you are
+- "reason": a brief explanation of why you suggested this value
+
+Only suggest values for the empty fields listed above. For enum/state fields, only use values from the provided options. For number fields, provide a number. For boolean fields, provide true/false. For date fields, provide an ISO date string.`;
+
+        const result = await aiService.complete({
+          model: "fast",
+          messages: [
+            { role: "system", content: "You are a helpful assistant that fills form fields with realistic, contextually appropriate values. Always respond with valid JSON only, no markdown formatting." },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.3,
+          maxTokens: 2000,
+          timeout: 30000,
+        });
+
+        // Parse AI response
+        let suggestions: Record<string, { value: unknown; confidence: number; reason?: string }> = {};
+        try {
+          // Strip markdown code fences if present
+          let content = result.content.trim();
+          if (content.startsWith("```")) {
+            content = content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+          }
+          suggestions = JSON.parse(content);
+        } catch {
+          // If parsing fails, return empty suggestions
+          return { success: true, data: { suggestions: {} } };
+        }
+
+        return { success: true, data: { suggestions } };
+      } catch (err) {
+        const message = process.env.NODE_ENV === "production"
+          ? "AI auto-fill failed."
+          : err instanceof Error ? err.message : String(err);
+        set.status = 500;
+        return { success: false, error: { message } };
+      }
+    })
+    // ── AI Chat endpoint ──────────────────────────────────
+    .post("/api/ai/chat", async ({ body, set }) => {
+      const { message, context } = (body ?? {}) as {
+        message?: string;
+        context?: { schema?: string; recordId?: string };
+      };
+
+      if (!message || typeof message !== "string") {
+        set.status = 400;
+        return { success: false, error: { message: "message is required" } };
+      }
+
+      if (!aiService) {
+        return {
+          success: true,
+          data: {
+            reply:
+              "AI service is not configured. Add an `ai` section to your LinchKit config to enable AI features.",
+            suggestions: [],
+          },
+        };
+      }
+
+      // Build system prompt with schema context
+      let systemPrompt =
+        "You are LinchKit AI Assistant. Help users understand their data, suggest actions, " +
+        "and answer questions. Be concise and helpful. " +
+        "When you want to suggest actions the user can take, include them in your response as " +
+        'a JSON block at the very end: <!-- suggestions:[{"action":"action_name","label":"Button Label"}] -->';
+
+      if (context?.schema && schemaRegistry) {
+        const schema = schemaRegistry.get(context.schema);
+        if (schema) {
+          systemPrompt += `\n\nCurrent schema context: ${schema.name}`;
+          if (schema.label) systemPrompt += ` (${schema.label})`;
+          systemPrompt += `\nFields: ${Object.keys(schema.fields).join(", ")}`;
+          if (context.recordId) {
+            systemPrompt += `\nViewing record ID: ${context.recordId}`;
+          }
+        }
+      }
+
+      try {
+        const result = await aiService.complete({
+          model: "fast",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+          temperature: 0.3,
+          maxTokens: 1024,
+          timeout: 30_000,
+        });
+
+        // Extract suggestions from the response if present
+        let reply = result.content;
+        let suggestions: Array<{ action: string; label: string }> = [];
+        const suggestionsMatch = reply.match(
+          /<!-- suggestions:(\[.*?\]) -->/s,
+        );
+        if (suggestionsMatch?.[1]) {
+          try {
+            suggestions = JSON.parse(suggestionsMatch[1]);
+          } catch {
+            // Ignore parse errors for suggestions
+          }
+          reply = reply.replace(/<!-- suggestions:\[.*?\] -->/s, "").trim();
+        }
+
+        return {
+          success: true,
+          data: { reply, suggestions },
+        };
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "AI request failed";
+        set.status = 500;
+        return {
+          success: false,
+          error: { message: errorMessage },
+        };
+      }
+    })
     // Mount graphql-yoga — handle all methods on the graphql path
     .all(graphqlPath, async ({ request }) => {
       const response = await yoga.handle(request);
       return response;
+    })
+    // ── Flow REST endpoints ──────────────────────────────────
+    .get("/api/flows", () => {
+      // Collect flows from options or capabilities
+      const allFlows: FlowDefinition[] = options?.flows ?? [];
+      if (!allFlows.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.flows) allFlows.push(...cap.flows);
+        }
+      }
+      const summary = allFlows.map((f) => ({
+        name: f.name,
+        label: f.label,
+        description: f.description,
+        version: f.version,
+        trigger: f.trigger,
+        stepCount: f.steps.length,
+        steps: f.steps.map((s) => ({ id: s.id, name: s.name, type: s.type })),
+      }));
+      return { success: true, data: summary };
+    })
+    .get("/api/flows/:name", ({ params, set }) => {
+      const allFlows: FlowDefinition[] = options?.flows ?? [];
+      if (!allFlows.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.flows) allFlows.push(...cap.flows);
+        }
+      }
+      const flow = allFlows.find((f) => f.name === params.name);
+      if (!flow) {
+        set.status = 404;
+        return { success: false, error: { message: `Flow "${params.name}" not found.` } };
+      }
+      return { success: true, data: flow };
+    })
+    // ── State Machine REST endpoints ─────────────────────────
+    .get("/api/states", () => {
+      const allStates: StateDefinition[] = options?.states ?? [];
+      if (!allStates.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.states) allStates.push(...cap.states);
+        }
+      }
+      const summary = allStates.map((s) => ({
+        name: s.name,
+        schema: s.schema,
+        field: s.field,
+        initial: s.initial,
+        stateCount: s.states.length,
+        transitionCount: s.transitions.length,
+        states: s.states,
+        meta: s.meta,
+      }));
+      return { success: true, data: summary };
+    })
+    .get("/api/states/:name", ({ params, set }) => {
+      const allStates: StateDefinition[] = options?.states ?? [];
+      if (!allStates.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.states) allStates.push(...cap.states);
+        }
+      }
+      const state = allStates.find((s) => s.name === params.name);
+      if (!state) {
+        set.status = 404;
+        return { success: false, error: { message: `State machine "${params.name}" not found.` } };
+      }
+      return { success: true, data: state };
     });
+
+  // ── Proposal / Evolution / AI Insights endpoints ──────────
+  mountProposalAPI(app);
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────
   const eventBus = options?.eventBus;

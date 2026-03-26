@@ -175,7 +175,7 @@ const BUILTIN_RULES: OutputValidationRule[] = [
     name: "shell_command",
     type: "shell_injection",
     severity: "critical",
-    pattern: /\b(?:rm\s+-rf\s+\/|sudo\s+|chmod\s+777|curl\s+.*\|\s*(?:ba)?sh)\b/i,
+    pattern: /\b(?:rm\s+-rf\s+\/|sudo\s+\S|chmod\s+777|curl\s+.*\|\s*(?:ba)?sh)/i,
     description: "Dangerous shell command in AI output",
     action: "block",
   },

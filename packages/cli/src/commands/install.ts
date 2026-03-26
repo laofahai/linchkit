@@ -13,9 +13,10 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { CapabilityMetadata } from "@linchkit/core";
-import { validateCapabilityMetadata } from "@linchkit/core";
+import type { CapabilityMetadata, TrustLevel } from "@linchkit/core";
+import { VERSION, checkTrustPermissions, satisfiesVersionRange, validateCapabilityMetadata } from "@linchkit/core";
 import { defineCommand } from "citty";
+import { registerCapability } from "../utils/local-registry-io";
 
 /**
  * Resolve the path to a package's capability.json.
@@ -144,6 +145,15 @@ export function validateTypeCompatibility(
   }
 
   return { errors, warnings };
+}
+
+/**
+ * Infer trust level from package name convention.
+ */
+export function inferTrustLevel(packageName: string): TrustLevel {
+  if (packageName.startsWith("@linchkit/")) return "official";
+  if (packageName.startsWith("linchkit-cap-")) return "community";
+  return "unverified";
 }
 
 export const installCommand = defineCommand({
@@ -359,18 +369,56 @@ export const installCommand = defineCommand({
       }
     }
 
-    // Step 7: Print success message
+    // Step 7: Trust level check
+    const trustLevel = inferTrustLevel(packageName);
+    if (trustLevel === "unverified") {
+      console.warn("");
+      console.warn("[linch] Trust level: unverified");
+      console.warn("  This capability is not in the LinchKit registry.");
+    } else if (trustLevel === "community") {
+      console.log("");
+      console.log("[linch] Trust level: community");
+      console.log("  This capability has passed automated checks but has not been manually reviewed.");
+    }
+
+    // Step 8: Check system permission compatibility with trust level
+    const capExt = metadata.extensions as Record<string, unknown> | undefined;
+    const systemPerms = (capExt?.systemPermissions as string[] | undefined) ?? [];
+    if (systemPerms.length > 0) {
+      const permCheck = checkTrustPermissions(trustLevel, systemPerms);
+      if (!permCheck.allowed) {
+        console.warn("");
+        console.warn(
+          `[linch] Trust level "${trustLevel}" does not allow system permissions: ${permCheck.denied.join(", ")}`,
+        );
+      }
+    }
+
+    // Step 9: Core version compatibility check
+    const minCoreVersion = metadata.linchkit?.minVersion;
+    if (minCoreVersion) {
+      const compatible = satisfiesVersionRange(VERSION, minCoreVersion);
+      if (!compatible) {
+        console.warn("");
+        console.warn(
+          `[linch] Version warning: ${metadata.name} requires @linchkit/core ${minCoreVersion}, you have ${VERSION}`,
+        );
+      }
+    }
+
+    // Step 10: Print success message
     console.log("");
     console.log(`[linch] Capability installed: ${metadata.label}`);
     console.log(`  Name:       ${metadata.name}`);
     console.log(`  Version:    ${metadata.version}`);
     console.log(`  Type:       ${metadata.type}`);
     console.log(`  Category:   ${metadata.category}`);
+    console.log(`  Trust:      ${trustLevel}`);
     if (metadata.description) {
       console.log(`  Description: ${metadata.description}`);
     }
     console.log(
-      `  Extensions: ${summarizeExtensions(metadata.extensions as Record<string, unknown> | undefined)}`,
+      `  Extensions: ${summarizeExtensions(capExt)}`,
     );
 
     if (missingDeps.length > 0) {
@@ -380,5 +428,21 @@ export const installCommand = defineCommand({
         console.warn(`  - ${dep} (install with: linch install ${dep})`);
       }
     }
+
+    // Step 11: Register to local capability registry
+    registerCapability(process.cwd(), {
+      name: metadata.name,
+      version: metadata.version,
+      type: metadata.type,
+      category: metadata.category,
+      label: metadata.label,
+      description: metadata.description,
+      trustLevel,
+      author: metadata.author,
+      repository: metadata.repository,
+      dependencies: metadata.dependencies,
+      minCoreVersion,
+      installedAt: new Date().toISOString(),
+    });
   },
 });
