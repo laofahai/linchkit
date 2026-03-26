@@ -431,7 +431,25 @@ function getLayoutedElements(
     };
   });
 
-  return { nodes: layoutedNodes, edges };
+  // Post-layout: assign edge handles based on actual node positions
+  const posMap = new Map<string, { x: number; y: number }>();
+  for (const n of layoutedNodes) posMap.set(n.id, n.position);
+
+  const routedEdges = edges.map((edge) => {
+    const sp = posMap.get(edge.source);
+    const tp = posMap.get(edge.target);
+    if (!sp || !tp || edge.source === edge.target) return edge;
+
+    // Reverse edge: source is to the right of target → route via bottom
+    const isReverse = sp.x > tp.x;
+    return {
+      ...edge,
+      sourceHandle: isReverse ? "bottom-source" : "right",
+      targetHandle: isReverse ? "bottom-target" : "left",
+    };
+  });
+
+  return { nodes: layoutedNodes, edges: routedEdges };
 }
 
 // ── Build graph from StateMachineDetail ──────────────────
@@ -519,22 +537,12 @@ function buildStateGraph(
       continue;
     }
 
-    // Check dagre positions to determine if this is a reverse (right-to-left) edge
-    const sourceIdx = machine.states.indexOf(from);
-    const targetIdx = machine.states.indexOf(to);
-    const isReverse = sourceIdx > targetIdx;
-
-    // Forward: right→left (default flow), Reverse: bottom→bottom (goes around below)
-    const sourceHandle = isReverse ? "bottom-source" : "right";
-    const targetHandle = isReverse ? "bottom-target" : "left";
-
+    // Handles will be assigned post-layout by getLayoutedElements based on actual positions
     edges.push({
       id: `tr-${edgeIdx++}`,
       source: from,
       target: to,
       type: "smoothstep",
-      sourceHandle,
-      targetHandle,
       label: actionLabel,
       labelStyle: { fontSize: 11, fill: "#4b5563", fontWeight: 500 },
       labelBgStyle: { fill: "#ffffff", fillOpacity: 0.9 },
