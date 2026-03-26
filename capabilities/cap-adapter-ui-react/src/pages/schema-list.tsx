@@ -238,9 +238,19 @@ export function SchemaListPage() {
   const calendarDateFieldRef = useRef(calendarDateField);
   calendarDateFieldRef.current = calendarDateField;
 
+  // Reset data when navigating to a different schema to avoid stale results
+  useEffect(() => {
+    setData([]);
+    setDataError(null);
+  }, [schemaName]);
+
   const fetchData = useCallback(async () => {
     const currentListView = listViewRef.current;
     if (!currentListView || !schemaName) return;
+    // Guard: ensure the listView belongs to the current schema to prevent
+    // querying with stale fields from a previously visited schema (e.g.
+    // purchase_item fields being sent in a department query).
+    if (currentListView.schema !== schemaName) return;
     setLoading(true);
     setDataError(null);
     try {
