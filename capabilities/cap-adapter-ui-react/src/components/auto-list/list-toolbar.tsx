@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
-import { ChevronDown, Columns3, Download, MoreHorizontal, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronDown, Columns3, Download, MoreHorizontal, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -38,6 +38,8 @@ interface ListToolbarProps {
   bazzaStrategy?: FilterStrategy | undefined;
   /** Callback to export all visible data as CSV. */
   onExportCsv?: () => void;
+  /** Callback to open the data import dialog. */
+  onImport?: () => void;
   /** Extra content rendered after the primary action button. */
   toolbarExtra?: React.ReactNode;
   /** AI search state for the search bar chip */
@@ -72,6 +74,7 @@ export function ListToolbar({
   bazzaFilters,
   bazzaActions,
   onExportCsv,
+  onImport,
   bazzaStrategy,
   toolbarExtra,
   aiSearchState,
@@ -195,6 +198,10 @@ export function ListToolbar({
             <DropdownMenuItem onClick={onExportCsv}>
               <Download className="mr-2 size-3.5" />
               {t("common.export", "Export")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onImport}>
+              <Upload className="mr-2 size-3.5" />
+              {t("import.title", "Import")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

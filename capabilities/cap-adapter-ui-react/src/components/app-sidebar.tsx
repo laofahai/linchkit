@@ -21,6 +21,7 @@ import {
   HistoryIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   ZapIcon,
 } from "lucide-react";
@@ -31,12 +32,14 @@ import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import { useSchemas } from "@/hooks/use-schemas";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 import { fetchPendingCount } from "@/lib/proposal-api";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
   const { schemas } = useSchemas();
+  const { resolveLabel } = useSchemaLabel();
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const schemaItems = schemas.map((s) => {
       const Icon = getLucideIcon(s.icon);
       return {
-        title: s.label ?? s.name,
+        title: resolveLabel(s.label, s.name),
         url: `/schemas/${s.name}`,
         icon: Icon ? <Icon className="size-4" /> : undefined,
       };
@@ -99,9 +102,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/admin/health",
           icon: <HeartPulseIcon />,
         },
+        {
+          title: t("settings.title"),
+          url: "/admin/settings",
+          icon: <SettingsIcon />,
+        },
       ],
     };
-  }, [schemas, t]);
+  }, [schemas, t, resolveLabel]);
 
   return (
     <Sidebar collapsible="icon" {...props}>

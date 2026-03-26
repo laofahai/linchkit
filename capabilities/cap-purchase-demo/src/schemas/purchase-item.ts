@@ -10,7 +10,7 @@ import type { SchemaDefinition } from "@linchkit/core";
 
 export const purchaseItemSchema: SchemaDefinition = {
   name: "purchase_item",
-  label: "Purchase Item",
+  label: "t:schemas.purchase_item._label",
   presentation: {
     titleField: "name",
     summaryFields: ["quantity", "unit_price", "line_total"],
@@ -19,33 +19,33 @@ export const purchaseItemSchema: SchemaDefinition = {
     name: {
       type: "string",
       required: true,
-      label: "Item Name",
+      label: "t:schemas.purchase_item.fields.name",
       ui: { importance: "primary" },
     },
     quantity: {
       type: "number",
       required: true,
-      label: "Quantity",
+      label: "t:schemas.purchase_item.fields.quantity",
       min: 1,
       ui: { importance: "primary", width: 3 },
     },
     unit_price: {
       type: "number",
       required: true,
-      label: "Unit Price",
+      label: "t:schemas.purchase_item.fields.unit_price",
       min: 0,
       ui: { importance: "primary", format: "currency", width: 4 },
     },
     specification: {
       type: "text",
-      label: "Specification",
+      label: "t:schemas.purchase_item.fields.specification",
       ui: { importance: "secondary" },
     },
 
     // Derived: line total = quantity * unit_price
     line_total: {
       type: "number",
-      label: "Line Total",
+      label: "t:schemas.purchase_item.fields.line_total",
       description: "Computed: quantity * unit_price",
       ui: { importance: "primary", format: "currency", width: 4 },
       derived: {

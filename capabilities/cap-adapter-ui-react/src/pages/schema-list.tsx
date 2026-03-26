@@ -12,11 +12,13 @@ import {
   Skeleton,
   toast,
 } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Calendar, List, RefreshCw, ServerCrash } from "lucide-react";
+import { Calendar, Kanban, List, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
+import { AutoKanban } from "../components/auto-kanban";
 import { AutoList } from "../components/auto-list";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { EmptyState } from "../components/empty-state";
@@ -24,9 +26,10 @@ import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { pushNotification } from "../hooks/use-notifications";
+import { useSchemaLabel } from "../i18n/use-schema-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
-type ActiveView = "list" | "calendar";
+type ActiveView = "list" | "calendar" | "kanban";
 
 /** Relationship field types that require subfield selection in GraphQL. */
 const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
@@ -184,6 +187,7 @@ function findDateField(
 export function SchemaListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
   const params = useParams({ strict: false }) as { name?: string };
   const schemaName = params.name;
   // Fetch schema bundle from API
@@ -230,6 +234,13 @@ export function SchemaListPage() {
   );
   const hasCalendarOption = calendarDateField !== null;
 
+  // Detect if kanban view is available (schema has state definitions)
+  const primaryStateDef = useMemo(
+    () => (bundle?.states && bundle.states.length > 0 ? bundle.states[0] : null),
+    [bundle?.states],
+  );
+  const hasKanbanOption = primaryStateDef !== null;
+
   // Use refs for values needed inside fetchData to keep its identity stable.
   // This prevents the useCallback from changing on every render, which would
   // cascade into the useEffect and subscription handler causing infinite loops.
@@ -241,6 +252,10 @@ export function SchemaListPage() {
   bundleLinksRef.current = bundle?.links;
   const calendarDateFieldRef = useRef(calendarDateField);
   calendarDateFieldRef.current = calendarDateField;
+  const primaryStateDefRef = useRef(primaryStateDef);
+  primaryStateDefRef.current = primaryStateDef;
+  const schemaPresentationRef = useRef(schema?.presentation);
+  schemaPresentationRef.current = schema?.presentation;
 
   // Reset data when navigating to a different schema to avoid stale results
   useEffect(() => {
@@ -271,6 +286,20 @@ export function SchemaListPage() {
       if (dateField && !fields.some((f) => f === dateField)) {
         fields.push(dateField);
       }
+      // Ensure state field + presentation fields are included for kanban view
+      const stateDef = primaryStateDefRef.current;
+      if (stateDef) {
+        if (!fields.includes(stateDef.field)) fields.push(stateDef.field);
+      }
+      const pres = schemaPresentationRef.current;
+      if (pres) {
+        if (pres.titleField && !fields.includes(pres.titleField)) fields.push(pres.titleField);
+        if (pres.badgeField && !fields.includes(pres.badgeField)) fields.push(pres.badgeField);
+        for (const sf of pres.summaryFields ?? []) {
+          if (!fields.includes(sf)) fields.push(sf);
+        }
+      }
+      if (!fields.includes("created_at")) fields.push("created_at");
       const result = await queryList({
         schema: schemaName,
         fields,
@@ -531,33 +560,53 @@ export function SchemaListPage() {
       <div className="p-4">
         <EmptyState
           schemaName={schemaName}
-          schemaLabel={schema.label ?? schemaName}
+          schemaLabel={resolveLabel(schema.label, schemaName)}
         />
       </div>
     );
   }
 
-  // View toggle buttons (icon-only, shown when calendar is available)
-  const viewToggle = hasCalendarOption ? (
+  // View toggle buttons (icon-only, shown when calendar or kanban is available)
+  const hasViewToggle = hasCalendarOption || hasKanbanOption;
+  const viewToggle = hasViewToggle ? (
     <div className="flex items-center rounded-md border border-border">
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
         size="icon-sm"
-        className="rounded-r-none"
+        className={cn(
+          !hasKanbanOption && !hasCalendarOption ? "" : "rounded-r-none",
+        )}
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
         <List className="size-4" />
       </Button>
-      <Button
-        variant={activeView === "calendar" ? "default" : "ghost"}
-        size="icon-sm"
-        className="rounded-l-none border-l border-border"
-        onClick={() => setActiveView("calendar")}
-        title={t("calendar.calendarView", "Calendar view")}
-      >
-        <Calendar className="size-4" />
-      </Button>
+      {hasKanbanOption && (
+        <Button
+          variant={activeView === "kanban" ? "default" : "ghost"}
+          size="icon-sm"
+          className={cn(
+            "border-l border-border",
+            !hasCalendarOption && "rounded-l-none",
+            hasCalendarOption && "rounded-none",
+          )}
+          onClick={() => setActiveView("kanban")}
+          title={t("kanban.kanbanView", "Kanban view")}
+        >
+          <Kanban className="size-4" />
+        </Button>
+      )}
+      {hasCalendarOption && (
+        <Button
+          variant={activeView === "calendar" ? "default" : "ghost"}
+          size="icon-sm"
+          className="rounded-l-none border-l border-border"
+          onClick={() => setActiveView("calendar")}
+          title={t("calendar.calendarView", "Calendar view")}
+        >
+          <Calendar className="size-4" />
+        </Button>
+      )}
     </div>
   ) : null;
 
@@ -594,6 +643,41 @@ export function SchemaListPage() {
           onRefresh={handleRefresh}
           refreshing={refreshing}
         />
+      ) : activeView === "kanban" && primaryStateDef ? (
+        <div className="space-y-4">
+          {/* Toolbar for kanban view */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1" />
+            <div className="flex shrink-0 items-center gap-2">
+              {(() => {
+                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
+                if (!primary) return null;
+                return (
+                  <Button
+                    size="sm"
+                    variant={primary.variant === "destructive" ? "destructive" : "default"}
+                    onClick={() => handleAction(primary.action, "")}
+                  >
+                    {primary.label
+                      ? t(primary.label, primary.label)
+                      : t(`actions.${primary.action}`, primary.action)}
+                  </Button>
+                );
+              })()}
+              {refreshIndicator}
+              {viewToggle}
+            </div>
+          </div>
+          <AutoKanban
+            schema={schema}
+            stateDefinition={primaryStateDef}
+            data={data}
+            loading={loading}
+            onRecordClick={handleRowClick}
+            onTransitioned={handleRefresh}
+            queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
+          />
+        </div>
       ) : (
         <div className="space-y-4">
           {/* Unified toolbar for calendar view */}

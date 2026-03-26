@@ -164,6 +164,9 @@ const server = createServer(graphqlSchema, {
   capabilities: config.capabilities,
   rules: capContributions.rules,
   aiService: runtime.ai,
+  linchKitConfig: config,
+  states: capContributions.states,
+  flows: [],
 });
 
 server.listen(port);

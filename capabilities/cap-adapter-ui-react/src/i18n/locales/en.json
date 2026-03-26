@@ -198,6 +198,11 @@
       "sat": "Sat"
     }
   },
+  "kanban": {
+    "kanbanView": "Kanban view",
+    "noRecords": "No records",
+    "invalidTransition": "Cannot move to \"{{state}}\" from current state"
+  },
   "tree": {
     "noRecords": "No records found",
     "expandAll": "Expand all",
@@ -360,17 +365,23 @@
   "schemas": {
     "purchase_request": {
       "_label": "Purchase Request",
+      "_labelPlural": "Purchase Requests",
       "fields": {
         "title": "Title",
         "description": "Description",
         "amount": "Amount",
         "department": "Department",
         "requester": "Requester",
+        "requester_email": "Requester Email",
         "status": "Status",
         "priority": "Priority",
-        "requested_at": "Requested At",
-        "approved": "Approved",
-        "notes": "Notes"
+        "notes": "Notes",
+        "audit_notes": "Audit Notes",
+        "submitted_at": "Submitted At",
+        "approved_at": "Approved At",
+        "approved_by": "Approved By",
+        "total_amount": "Total Amount",
+        "display_title": "Display Title"
       },
       "enums": {
         "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }
@@ -387,6 +398,33 @@
         "approve": "Approve",
         "reject": "Reject",
         "cancel": "Cancel Request"
+      },
+      "tabs": {
+        "audit_trail": "Audit Trail"
+      }
+    },
+    "department": {
+      "_label": "Department",
+      "_labelPlural": "Departments",
+      "fields": {
+        "name": "Name",
+        "code": "Code",
+        "manager": "Manager",
+        "budget_limit": "Budget Limit"
+      },
+      "actions": {
+        "create": "New Department"
+      }
+    },
+    "purchase_item": {
+      "_label": "Purchase Item",
+      "_labelPlural": "Purchase Items",
+      "fields": {
+        "name": "Item Name",
+        "quantity": "Quantity",
+        "unit_price": "Unit Price",
+        "specification": "Specification",
+        "line_total": "Line Total"
       }
     }
   },
@@ -503,6 +541,58 @@
     "dataPoints": "{{count}} data points",
     "viewMore": "{{count}} more insight(s)"
   },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Current system configuration — read-only overview.",
+    "fetchError": "Failed to load settings",
+    "readOnlyNotice": "Configuration is defined in linchkit.config.ts. Changes require a server restart.",
+    "systemInfo": "System Information",
+    "systemInfoDesc": "Core runtime metrics and registry counts.",
+    "version": "Version",
+    "uptime": "Uptime",
+    "schemas": "Registered Schemas",
+    "actions": "Registered Actions",
+    "rules": "Registered Rules",
+    "flows": "Registered Flows",
+    "stateMachines": "Registered State Machines",
+    "database": "Database",
+    "databaseDesc": "Data persistence layer configuration.",
+    "connectionStatus": "Connection",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "provider": "Provider",
+    "poolSize": "Pool Size",
+    "debugMode": "Debug Mode",
+    "aiService": "AI Service",
+    "aiServiceDesc": "AI provider configuration for intelligent features.",
+    "configured": "Configured",
+    "defaultProvider": "Default Provider",
+    "providers": "Providers",
+    "authentication": "Authentication",
+    "authenticationDesc": "User authentication and session management.",
+    "enabled": "Enabled",
+    "authProvider": "Auth Provider",
+    "tenancy": "Tenancy",
+    "tenancyDesc": "Multi-tenant isolation configuration.",
+    "tenancyMode": "Mode",
+    "tenantCount": "Tenant Count",
+    "server": "Server",
+    "serverDesc": "HTTP server bind configuration.",
+    "host": "Host",
+    "port": "Port",
+    "subscriptions": "Subscriptions",
+    "subscriptionsDesc": "SSE-based real-time event push configuration.",
+    "maxConnections": "Max Connections / User",
+    "heartbeat": "Heartbeat Interval",
+    "idleTimeout": "Idle Timeout",
+    "bufferSize": "Buffer Size",
+    "flowEngine": "Flow Engine",
+    "flowEngineDesc": "Workflow execution engine configuration.",
+    "engine": "Engine",
+    "capabilities": "Loaded Capabilities",
+    "capabilitiesDesc": "Installed capability modules in this runtime.",
+    "noCapabilities": "No capabilities loaded."
+  },
   "rules": {
     "title": "Rules",
     "subtitle": "Business rule definitions — event-driven adjudicators that validate, block, enrich, or require approval.",
@@ -534,5 +624,26 @@
       "enrich": "Enrich Data",
       "execute_action": "Execute Action"
     }
+  },
+  "import": {
+    "title": "Import",
+    "description": "Upload a CSV or JSON file to create records in bulk.",
+    "dropzone": "Drag and drop a file here, or click to browse",
+    "acceptedFormats": "Accepted formats: CSV, JSON",
+    "downloadTemplate": "Download CSV template",
+    "parseError": "Could not parse the file. Please check the format.",
+    "rows": "rows",
+    "columnMapping": "Column Mapping",
+    "columnMappingDesc": "Map file columns to schema fields. Unmapped columns will be skipped.",
+    "skip": "— Skip —",
+    "preview": "Preview",
+    "importButton": "Import {{count}} rows",
+    "importing": "Importing records...",
+    "summaryImported": "{{count}} record(s) imported successfully",
+    "summaryFailed": "{{count}} row(s) failed",
+    "errorDetails": "Error details",
+    "errorRow": "Row",
+    "errorMessage": "Error",
+    "noMappedData": "No data to import. Please map at least one column."
   }
 }

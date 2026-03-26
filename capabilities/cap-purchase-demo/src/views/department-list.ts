@@ -8,7 +8,7 @@ export const departmentListView: ViewDefinition = {
   name: "department_list",
   schema: "department",
   type: "list",
-  label: "Departments",
+  label: "t:schemas.department._labelPlural",
   fields: [
     { field: "name", sortable: true },
     { field: "code", sortable: true, width: 120 },
@@ -18,14 +18,14 @@ export const departmentListView: ViewDefinition = {
   defaultSort: { field: "name", order: "asc" },
   pageSize: 10,
   actions: [
-    { action: "create", label: "New Department", position: "toolbar", variant: "default" },
-    { action: "edit", label: "Edit", position: "row" },
+    { action: "create", label: "t:schemas.department.actions.create", position: "toolbar", variant: "default" },
+    { action: "edit", label: "t:common.edit", position: "row" },
     {
       action: "delete",
-      label: "Delete",
+      label: "t:common.delete",
       position: "row",
       variant: "destructive",
-      confirm: "Are you sure you want to delete this department?",
+      confirm: "t:confirm.deleteDescription",
     },
   ],
 };

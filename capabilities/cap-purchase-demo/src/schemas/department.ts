@@ -10,7 +10,7 @@ import type { SchemaDefinition } from "@linchkit/core";
 
 export const departmentSchema: SchemaDefinition = {
   name: "department",
-  label: "Department",
+  label: "t:schemas.department._label",
   description: "Organizational department that owns purchase requests",
   presentation: {
     titleField: "name",
@@ -22,25 +22,25 @@ export const departmentSchema: SchemaDefinition = {
     name: {
       type: "string",
       required: true,
-      label: "Name",
+      label: "t:schemas.department.fields.name",
       unique: true,
       ui: { importance: "primary" },
     },
     code: {
       type: "string",
       required: true,
-      label: "Code",
+      label: "t:schemas.department.fields.code",
       unique: true,
       ui: { importance: "primary", width: 3 },
     },
     manager: {
       type: "string",
-      label: "Manager",
+      label: "t:schemas.department.fields.manager",
       ui: { importance: "primary" },
     },
     budget_limit: {
       type: "number",
-      label: "Budget Limit",
+      label: "t:schemas.department.fields.budget_limit",
       description: "Maximum single purchase amount for this department",
       min: 0,
       ui: { format: "currency", importance: "secondary" },

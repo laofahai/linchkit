@@ -198,6 +198,11 @@
       "sat": "六"
     }
   },
+  "kanban": {
+    "kanbanView": "看板视图",
+    "noRecords": "暂无记录",
+    "invalidTransition": "无法从当前状态移动到\"{{state}}\""
+  },
   "tree": {
     "noRecords": "暂无记录",
     "expandAll": "全部展开",
@@ -360,17 +365,23 @@
   "schemas": {
     "purchase_request": {
       "_label": "采购申请",
+      "_labelPlural": "采购申请",
       "fields": {
         "title": "标题",
         "description": "描述",
         "amount": "金额",
         "department": "部门",
         "requester": "申请人",
+        "requester_email": "申请人邮箱",
         "status": "状态",
         "priority": "优先级",
-        "requested_at": "申请日期",
-        "approved": "已批准",
-        "notes": "备注"
+        "notes": "备注",
+        "audit_notes": "审核备注",
+        "submitted_at": "提交时间",
+        "approved_at": "审批时间",
+        "approved_by": "审批人",
+        "total_amount": "总金额",
+        "display_title": "显示标题"
       },
       "enums": {
         "priority": { "low": "低", "medium": "中", "high": "高", "urgent": "紧急" }
@@ -387,6 +398,33 @@
         "approve": "批准",
         "reject": "拒绝",
         "cancel": "取消申请"
+      },
+      "tabs": {
+        "audit_trail": "审批记录"
+      }
+    },
+    "department": {
+      "_label": "部门",
+      "_labelPlural": "部门",
+      "fields": {
+        "name": "名称",
+        "code": "编码",
+        "manager": "负责人",
+        "budget_limit": "预算上限"
+      },
+      "actions": {
+        "create": "新建部门"
+      }
+    },
+    "purchase_item": {
+      "_label": "采购明细",
+      "_labelPlural": "采购明细",
+      "fields": {
+        "name": "物料名称",
+        "quantity": "数量",
+        "unit_price": "单价",
+        "specification": "规格",
+        "line_total": "行合计"
       }
     }
   },
@@ -503,6 +541,58 @@
     "dataPoints": "{{count}} 个数据点",
     "viewMore": "还有 {{count}} 项洞察"
   },
+  "settings": {
+    "title": "设置",
+    "subtitle": "当前系统配置 — 只读概览。",
+    "fetchError": "加载设置失败",
+    "readOnlyNotice": "配置定义在 linchkit.config.ts 中，修改后需要重启服务器。",
+    "systemInfo": "系统信息",
+    "systemInfoDesc": "核心运行时指标和注册表计数。",
+    "version": "版本",
+    "uptime": "运行时间",
+    "schemas": "已注册模型",
+    "actions": "已注册操作",
+    "rules": "已注册规则",
+    "flows": "已注册工作流",
+    "stateMachines": "已注册状态机",
+    "database": "数据库",
+    "databaseDesc": "数据持久化层配置。",
+    "connectionStatus": "连接状态",
+    "connected": "已连接",
+    "notConnected": "未连接",
+    "provider": "提供者",
+    "poolSize": "连接池大小",
+    "debugMode": "调试模式",
+    "aiService": "AI 服务",
+    "aiServiceDesc": "智能功能的 AI 提供者配置。",
+    "configured": "已配置",
+    "defaultProvider": "默认提供者",
+    "providers": "提供者列表",
+    "authentication": "认证",
+    "authenticationDesc": "用户认证和会话管理。",
+    "enabled": "已启用",
+    "authProvider": "认证提供者",
+    "tenancy": "租户",
+    "tenancyDesc": "多租户隔离配置。",
+    "tenancyMode": "模式",
+    "tenantCount": "租户数量",
+    "server": "服务器",
+    "serverDesc": "HTTP 服务器绑定配置。",
+    "host": "主机",
+    "port": "端口",
+    "subscriptions": "订阅推送",
+    "subscriptionsDesc": "基于 SSE 的实时事件推送配置。",
+    "maxConnections": "每用户最大连接数",
+    "heartbeat": "心跳间隔",
+    "idleTimeout": "空闲超时",
+    "bufferSize": "缓冲区大小",
+    "flowEngine": "流程引擎",
+    "flowEngineDesc": "工作流执行引擎配置。",
+    "engine": "引擎",
+    "capabilities": "已加载能力模块",
+    "capabilitiesDesc": "当前运行时已安装的能力模块。",
+    "noCapabilities": "未加载任何能力模块。"
+  },
   "rules": {
     "title": "规则",
     "subtitle": "业务规则定义 — 事件驱动的裁决器，用于验证、拦截、数据补充或要求审批。",
@@ -534,5 +624,26 @@
       "enrich": "数据补充",
       "execute_action": "执行操作"
     }
+  },
+  "import": {
+    "title": "导入",
+    "description": "上传 CSV 或 JSON 文件以批量创建记录。",
+    "dropzone": "拖放文件到此处，或点击浏览",
+    "acceptedFormats": "支持格式：CSV、JSON",
+    "downloadTemplate": "下载 CSV 模板",
+    "parseError": "无法解析文件，请检查文件格式。",
+    "rows": "行",
+    "columnMapping": "列映射",
+    "columnMappingDesc": "将文件列映射到模型字段。未映射的列将被跳过。",
+    "skip": "— 跳过 —",
+    "preview": "预览",
+    "importButton": "导入 {{count}} 行",
+    "importing": "正在导入记录...",
+    "summaryImported": "成功导入 {{count}} 条记录",
+    "summaryFailed": "{{count}} 行失败",
+    "errorDetails": "错误详情",
+    "errorRow": "行",
+    "errorMessage": "错误",
+    "noMappedData": "没有可导入的数据，请至少映射一个列。"
   }
 }

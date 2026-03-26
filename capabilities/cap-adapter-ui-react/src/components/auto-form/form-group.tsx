@@ -8,6 +8,7 @@
 
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
 
 interface FormGroupProps {
   node: FormGroupNode;
@@ -17,15 +18,17 @@ interface FormGroupProps {
 
 export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
   const columns = node.columns ?? (depth === 0 ? 2 : 1);
+  const { resolveLabel } = useSchemaLabel();
+  const title = node.title ? resolveLabel(node.title, node.title) : undefined;
 
   if (depth > 0) {
     // Inner group: label-value grid where all labels auto-align
     return (
       <div className={cn(node.className)}>
-        {node.title && (
+        {title && (
           <div className="py-3 border-b border-border/50">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {node.title}
+              {title}
             </h3>
           </div>
         )}
@@ -46,10 +49,10 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
   // Top-level group: equal columns, each containing an inner group
   return (
     <div className={cn(node.className)}>
-      {node.title && (
+      {title && (
         <div className="py-3 border-b border-border/50">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {node.title}
+            {title}
           </h3>
         </div>
       )}

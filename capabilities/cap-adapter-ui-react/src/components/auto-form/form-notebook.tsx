@@ -7,6 +7,7 @@
 
 import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useSchemaLabel } from "../../i18n/use-schema-label";
 
 interface FormNotebookProps {
   node: FormNotebookNode;
@@ -17,6 +18,7 @@ interface FormNotebookProps {
 
 export function FormNotebook({ node, activeTab, onTabChange, renderNode }: FormNotebookProps) {
   const currentTab = activeTab;
+  const { resolveLabel } = useSchemaLabel();
 
   return (
     <div className={cn("mt-4", node.className)}>
@@ -33,7 +35,7 @@ export function FormNotebook({ node, activeTab, onTabChange, renderNode }: FormN
             )}
             onClick={() => onTabChange(i)}
           >
-            {page.title}
+            {resolveLabel(page.title, page.title)}
           </button>
         ))}
       </div>

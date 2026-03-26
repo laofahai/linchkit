@@ -12,7 +12,7 @@ export const purchaseRequestListView: ViewDefinition = {
   name: "purchase_request_list",
   schema: "purchase_request",
   type: "list",
-  label: "Purchase Requests",
+  label: "t:schemas.purchase_request._labelPlural",
   fields: [
     { field: "title", sortable: true },
     { field: "requester", sortable: true, width: 140 },
@@ -25,14 +25,14 @@ export const purchaseRequestListView: ViewDefinition = {
   defaultSort: { field: "title", order: "asc" },
   pageSize: 10,
   actions: [
-    { action: "create", label: "New Request", position: "toolbar", variant: "default" },
-    { action: "edit", label: "Edit", position: "row" },
+    { action: "create", label: "t:schemas.purchase_request.actions.create_request", position: "toolbar", variant: "default" },
+    { action: "edit", label: "t:common.edit", position: "row" },
     {
       action: "delete",
-      label: "Delete",
+      label: "t:common.delete",
       position: "row",
       variant: "destructive",
-      confirm: "Are you sure you want to delete this request?",
+      confirm: "t:confirm.deleteDescription",
     },
   ],
 };

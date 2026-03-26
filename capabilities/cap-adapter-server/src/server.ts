@@ -292,6 +292,8 @@ export function createServer(
   const rules = options?.rules ?? [];
   const aiService = options?.aiService;
   const metricsCollector = options?.metricsCollector;
+  const linchKitConfig = options?.linchKitConfig;
+  const serverStartedAt = Date.now();
 
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
@@ -394,6 +396,68 @@ export function createServer(
     // Tenant list — consumed by TenantSwitcher UI component
     .get("/api/tenants", () => {
       return { success: true, data: tenants };
+    })
+    // Settings — sanitized system configuration for admin UI
+    .get("/api/settings", () => {
+      const cfg = linchKitConfig;
+      const uptimeMs = Date.now() - serverStartedAt;
+      const actionCount = capabilities.reduce(
+        (sum, c) => sum + (c.actions?.length ?? 0),
+        0,
+      );
+
+      // Sanitize: never expose secrets, tokens, passwords, connection URLs
+      const settings = {
+        general: {
+          version: "0.2.0",
+          uptime: uptimeMs,
+          registeredSchemas: schemaRegistry?.getAll().length ?? 0,
+          registeredActions: actionCount,
+          registeredRules: rules.length,
+          registeredFlows: options?.flows?.length ?? 0,
+          registeredStates: options?.states?.length ?? 0,
+          capabilityCount: capabilities.length,
+          capabilities: capabilities.map((c) => c.name),
+        },
+        database: {
+          configured: !!cfg?.database?.url,
+          provider: cfg?.database?.url ? "postgresql" : "in-memory",
+          poolSize: cfg?.database?.poolSize ?? 10,
+          debug: cfg?.database?.debug ?? false,
+        },
+        ai: {
+          configured: !!aiService?.configured,
+          defaultProvider: cfg?.ai?.defaultProvider ?? null,
+          providers: cfg?.ai?.providers
+            ? Object.keys(cfg.ai.providers)
+            : [],
+        },
+        auth: {
+          enabled: capabilities.some((c) => c.name === "cap-auth"),
+          provider: capabilities.find((c) => c.name.startsWith("cap-auth-"))?.name ?? null,
+        },
+        tenancy: {
+          mode: tenants.length > 0 ? "multi" : "standalone",
+          tenantCount: tenants.length,
+        },
+        server: {
+          port: cfg?.server?.port ?? 3001,
+          host: cfg?.server?.host ?? "localhost",
+        },
+        subscription: {
+          enabled: cfg?.subscription?.enabled ?? true,
+          maxConnectionsPerUser: cfg?.subscription?.maxConnectionsPerUser ?? 3,
+          heartbeatInterval: cfg?.subscription?.heartbeatInterval ?? 30000,
+          idleTimeout: cfg?.subscription?.idleTimeout ?? 300000,
+          maxBufferSize: cfg?.subscription?.maxBufferSize ?? 100,
+        },
+        flow: {
+          configured: !!cfg?.flow,
+          engine: cfg?.flow?.restate ? "restate" : "sync",
+        },
+      };
+
+      return { success: true, data: settings };
     })
     // Rule definition endpoints — consumed by Rules management UI
     .get("/api/rules", ({ query }) => {
@@ -582,6 +646,126 @@ export function createServer(
         },
         meta: { executionId: result.executionId },
       };
+    })
+    // ── Data Import endpoint ────────────────────────────────
+    // Accepts multipart form data with a JSON/CSV file, creates records via CommandLayer
+    .post("/api/schemas/:name/import", async ({ params, request, set }) => {
+      if (!commandLayer && !executor) {
+        set.status = 500;
+        return { success: false, error: { message: "Action executor not configured." } };
+      }
+
+      if (!schemaRegistry) {
+        set.status = 500;
+        return { success: false, error: { message: "Schema registry not configured." } };
+      }
+
+      const schema = schemaRegistry.get(params.name);
+      if (!schema) {
+        set.status = 404;
+        return { success: false, error: { message: `Schema "${params.name}" not found.` } };
+      }
+
+      // Resolve actor
+      const actor = resolveRequestActor
+        ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
+        : ANONYMOUS_ACTOR;
+      const locale = resolveRequestLocale(request);
+
+      try {
+        // Parse multipart form data
+        const formData = await request.formData();
+        const file = formData.get("file") as File | null;
+        const format = (formData.get("format") as string) ?? "json";
+
+        if (!file) {
+          set.status = 400;
+          return { success: false, error: { message: "No file provided." } };
+        }
+
+        const content = await file.text();
+        let records: Record<string, unknown>[];
+
+        if (format === "csv") {
+          // Parse CSV
+          const lines = content.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+          if (lines.length < 2) {
+            set.status = 400;
+            return { success: false, error: { message: "CSV file must have a header row and at least one data row." } };
+          }
+          const headerLine = lines[0]!;
+          const headers = headerLine.split(",").map((h: string) => h.trim());
+          records = [];
+          for (let i = 1; i < lines.length; i++) {
+            const values = lines[i]!.split(",");
+            const record: Record<string, unknown> = {};
+            for (let j = 0; j < headers.length; j++) {
+              record[headers[j]!] = values[j]?.trim() ?? "";
+            }
+            records.push(record);
+          }
+        } else {
+          // Parse JSON
+          const parsed = JSON.parse(content);
+          records = Array.isArray(parsed) ? parsed : [parsed];
+        }
+
+        // Import records one by one through the action pipeline
+        let imported = 0;
+        const errors: Array<{ row: number; error: string }> = [];
+        const createActionName = `create_${params.name}`;
+
+        for (let i = 0; i < records.length; i++) {
+          try {
+            const input = records[i]!;
+            if (commandLayer) {
+              const result = await commandLayer.execute({
+                command: createActionName,
+                input,
+                actor,
+                channel: "http",
+                locale,
+              });
+              if (!result.success) {
+                const errData = result.data as Record<string, unknown> | undefined;
+                const msg = (errData?.error as string) ?? "Import failed";
+                errors.push({ row: i + 1, error: msg });
+                continue;
+              }
+            } else if (executor) {
+              const result = await executor.execute(createActionName, input, actor, {
+                channel: "http",
+                locale,
+              });
+              if (!result.success) {
+                const errData = result.data as Record<string, unknown> | undefined;
+                const msg = (errData?.error as string) ?? "Import failed";
+                errors.push({ row: i + 1, error: msg });
+                continue;
+              }
+            }
+            imported++;
+          } catch (err) {
+            errors.push({
+              row: i + 1,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        return {
+          success: true,
+          data: { imported, errors },
+        };
+      } catch (err) {
+        set.status = 400;
+        return {
+          success: false,
+          error: {
+            message: err instanceof Error ? err.message : "Failed to process import file.",
+          },
+        };
+      }
     })
     // ── Execution Log REST endpoints ────────────────────────
     .get("/api/executions", async ({ query, set }) => {

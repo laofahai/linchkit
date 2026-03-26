@@ -34,6 +34,7 @@ import type { FiltersState } from "../data-table-filter/core/types";
 import { buildColumns, buildSelectionColumn } from "./columns";
 import { exportCsv } from "./csv-export";
 import { buildFilterColumns } from "./filter-columns";
+import { ImportDialog } from "./import-dialog";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
 import type { AutoListProps, AutoListViewDefinition } from "./types";
@@ -348,6 +349,7 @@ function AutoListSchema({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [importOpen, setImportOpen] = useState(false);
 
   // AI search hook
   const {
@@ -605,6 +607,7 @@ function AutoListSchema({
         onAction={onAction}
         selectedCount={selectedIds.length}
         onExportCsv={handleExportCsv}
+        onImport={() => setImportOpen(true)}
         onBulkAction={handleBulkAction}
         onClearSelection={() => setRowSelection({})}
         bazzaColumns={bazzaColumns}
@@ -624,6 +627,13 @@ function AutoListSchema({
         columns={columns}
         onRowClick={onRowClick}
         hasActiveFilters={hasActiveFilters}
+      />
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        schema={schema}
+        onImported={onRefresh}
       />
     </div>
   );

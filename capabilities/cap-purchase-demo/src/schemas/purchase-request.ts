@@ -88,13 +88,13 @@ export const purchaseRequestSchema: SchemaDefinition = {
     },
     approved_at: {
       type: "datetime",
-      label: "Approved At",
+      label: "t:schemas.purchase_request.fields.approved_at",
       immutable: true,
       ui: { importance: "detail" },
     },
     approved_by: {
       type: "string",
-      label: "Approved By",
+      label: "t:schemas.purchase_request.fields.approved_by",
       immutable: true,
       ui: { importance: "detail" },
     },
@@ -102,7 +102,7 @@ export const purchaseRequestSchema: SchemaDefinition = {
     // Derived properties — computed, not user-input
     total_amount: {
       type: "number",
-      label: "Total Amount",
+      label: "t:schemas.purchase_request.fields.total_amount",
       description: "Sum of all line item amounts (quantity * unit_price)",
       ui: { importance: "primary", format: "currency" },
       derived: {
@@ -116,7 +116,7 @@ export const purchaseRequestSchema: SchemaDefinition = {
     },
     display_title: {
       type: "string",
-      label: "Display Title",
+      label: "t:schemas.purchase_request.fields.display_title",
       description: "Concatenation of requester name and description",
       derived: {
         type: "concat",
