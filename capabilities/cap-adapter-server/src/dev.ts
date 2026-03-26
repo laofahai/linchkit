@@ -11,22 +11,51 @@ import type {
   LinkDefinition,
   MiddlewareRegistration,
   SchemaDefinition,
+  StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext } from "./runtime-context";
 import { createServer } from "./server";
 
+// ── Resolve project root ────────────────────────────────
+// When run via `bun run --filter` in a workspace, CWD is the package
+// directory (e.g. capabilities/cap-adapter-server/), not the project
+// root. Walk up from this file's directory to find the workspace root
+// that contains the config/ folder.
+
+function findProjectRoot(startDir: string): string {
+  let dir = startDir;
+  for (let i = 0; i < 10; i++) {
+    // Check for config/linchkit.config.ts or linchkit.config.ts
+    if (
+      existsSync(resolve(dir, "config", "linchkit.config.ts")) ||
+      existsSync(resolve(dir, "linchkit.config.ts"))
+    ) {
+      return dir;
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+  return startDir; // fallback to original dir
+}
+
+const projectRoot = findProjectRoot(resolve(import.meta.dir, "../../.."));
+
 // ── Load configuration ──────────────────────────────────
 
-const config = await loadConfig();
+const config = await loadConfig({ root: projectRoot });
 
 // ── Extract capability contributions ────────────────────
 
 function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   schemas: SchemaDefinition[];
   actions: ActionDefinition[];
+  states: StateDefinition[];
   views: ViewDefinition[];
   links: LinkDefinition[];
   middlewares: MiddlewareRegistration[];
@@ -34,6 +63,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
 } {
   const schemas: SchemaDefinition[] = [];
   const actions: ActionDefinition[] = [];
+  const states: StateDefinition[] = [];
   const views: ViewDefinition[] = [];
   const links: LinkDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
@@ -42,6 +72,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   for (const cap of capabilities) {
     if (cap.schemas) schemas.push(...cap.schemas);
     if (cap.actions) actions.push(...cap.actions);
+    if (cap.states) states.push(...cap.states);
     if (cap.views) views.push(...cap.views);
     if (cap.links) links.push(...cap.links);
 
@@ -66,7 +97,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     }
   }
 
-  return { schemas, actions, views, links, middlewares, seed };
+  return { schemas, actions, states, views, links, middlewares, seed };
 }
 
 const capContributions = extractCapabilities(config.capabilities);
@@ -88,6 +119,7 @@ const allActions: ActionDefinition[] = [...crudActions, ...capContributions.acti
 const runtime = createRuntimeContext({
   schemas: allSchemas,
   actions: allActions,
+  states: capContributions.states,
   views: capContributions.views,
   middlewares: capContributions.middlewares,
   ai: config.ai,
@@ -111,6 +143,7 @@ const graphqlSchema = buildGraphQLSchema(allSchemas, {
   actions: customActions,
   executionLogger: runtime.executionLogger,
   links: capContributions.links,
+  stateDefinitions: capContributions.states,
 });
 
 const port = config.server?.port ?? 3001;
