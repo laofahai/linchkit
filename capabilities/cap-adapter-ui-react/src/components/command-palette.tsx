@@ -4,6 +4,7 @@
  * Features:
  * - Navigate to pages (Workspace, Executions, Settings, etc.)
  * - Search and jump to any registered schema
+ * - AI Search mode: type natural language queries to filter schema data
  * - Theme switching (light / dark / system)
  * - Global keyboard shortcut: Cmd+K / Ctrl+K to toggle
  *
@@ -24,14 +25,18 @@ import {
   DatabaseIcon,
   HeartPulseIcon,
   LayoutDashboardIcon,
+  Loader2Icon,
   MonitorIcon,
   MoonIcon,
   ScrollTextIcon,
+  SparklesIcon,
   SunIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
 import { useSchemas } from "@/hooks/use-schemas";
+import { aiSearch } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 interface CommandPaletteProps {
@@ -46,10 +51,24 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const { schemas } = useSchemas();
   const { theme, setTheme } = useTheme();
 
+  // AI search state within the palette
+  const [aiMode, setAiMode] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [aiQuery, setAiQuery] = useState("");
+  const inputValueRef = useRef("");
+
   const setOpen = useCallback(
     (value: boolean) => {
       setInternalOpen(value);
       onOpenChange?.(value);
+      if (!value) {
+        // Reset AI mode when closing
+        setAiMode(false);
+        setAiLoading(false);
+        setAiResult(null);
+        setAiQuery("");
+      }
     },
     [onOpenChange],
   );
@@ -73,12 +92,41 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
 
   const navigate = (href: string) => {
     runCommand(() => {
-      // Use history.pushState + popstate to trigger TanStack Router navigation
-      // without needing router context (avoids portal context issues)
       window.history.pushState({}, "", href);
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
   };
+
+  // Handle AI search execution from the palette
+  const handleAISearch = useCallback(
+    async (query: string, schemaName: string) => {
+      setAiLoading(true);
+      setAiResult(null);
+      setAiQuery(query);
+      try {
+        const result = await aiSearch({
+          query,
+          schema: schemaName,
+          fields: {},
+        });
+        if (result) {
+          setAiResult(result.explanation);
+          // Navigate to the schema page — the AI filter will be applied via URL or state
+          // For now, navigate and show the explanation
+          setTimeout(() => {
+            navigate(`/schemas/${schemaName}`);
+          }, 1500);
+        } else {
+          setAiResult(t("aiSearch.notConfigured", "AI service is not configured."));
+        }
+      } catch {
+        setAiResult(t("aiSearch.error", "AI search failed. Please try again."));
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [t],
+  );
 
   return (
     <CommandDialog
@@ -87,70 +135,148 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
       title={t("commandPalette.title")}
       description={t("commandPalette.description")}
     >
-      <CommandInput placeholder={t("commandPalette.placeholder")} />
+      <CommandInput
+        placeholder={
+          aiMode
+            ? t("aiSearch.palettePlaceholder", "Describe what you're looking for...")
+            : t("commandPalette.placeholder")
+        }
+        onValueChange={(v) => {
+          inputValueRef.current = v;
+        }}
+      />
       <CommandList>
         <CommandEmpty>{t("commandPalette.noResults")}</CommandEmpty>
 
-        {/* Navigation commands — only items with working routes */}
-        <CommandGroup heading={t("commandPalette.navigation")}>
-          <CommandItem onSelect={() => navigate("/")}>
-            <LayoutDashboardIcon />
-            <span>{t("nav.workspace")}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => navigate("/admin/executions")}>
-            <ScrollTextIcon />
-            <span>{t("executionLog.title")}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => navigate("/admin/health")}>
-            <HeartPulseIcon />
-            <span>{t("health.title")}</span>
-          </CommandItem>
-        </CommandGroup>
-
-        {/* Dynamic schema list — shows all registered schemas */}
-        {schemas.length > 0 && (
+        {/* AI Search mode items */}
+        {aiMode ? (
           <>
+            {aiLoading && (
+              <CommandGroup heading={t("aiSearch.processing", "Processing...")}>
+                <CommandItem disabled>
+                  <Loader2Icon className="animate-spin" />
+                  <span>{t("aiSearch.analyzing", "Analyzing your query...")}</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {aiResult && (
+              <CommandGroup heading={t("aiSearch.resultTitle", "AI Search Result")}>
+                <CommandItem disabled>
+                  <SparklesIcon />
+                  <span>{aiResult}</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {!aiLoading && !aiResult && (
+              <CommandGroup heading={t("aiSearch.selectSchema", "Select a schema to search")}>
+                {schemas.map((schema) => {
+                  const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
+                  return (
+                    <CommandItem
+                      key={schema.name}
+                      onSelect={() => {
+                        const query = inputValueRef.current || aiQuery;
+                        if (query) {
+                          handleAISearch(query, schema.name);
+                        }
+                      }}
+                    >
+                      <Icon />
+                      <span>
+                        {t("aiSearch.searchIn", "Search in {{schema}}", {
+                          schema: schema.label ?? schema.name,
+                        })}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+          </>
+        ) : (
+          <>
+            {/* AI Search entry point */}
+            <CommandGroup heading={t("aiSearch.title", "AI Search")}>
+              <CommandItem
+                onSelect={() => {
+                  const currentValue = inputValueRef.current;
+                  if (currentValue && isNaturalLanguageQuery(currentValue)) {
+                    setAiMode(true);
+                    setAiQuery(currentValue);
+                  } else {
+                    setAiMode(true);
+                  }
+                }}
+              >
+                <SparklesIcon />
+                <span>{t("aiSearch.paletteAction", "AI Search — natural language filter")}</span>
+              </CommandItem>
+            </CommandGroup>
+
             <CommandSeparator />
-            <CommandGroup heading={t("commandPalette.schemas")}>
-              {schemas.map((schema) => {
-                const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
-                return (
-                  <CommandItem
-                    key={schema.name}
-                    onSelect={() => navigate(`/schemas/${schema.name}`)}
-                  >
-                    <Icon />
-                    <span>{schema.label ?? schema.name}</span>
-                  </CommandItem>
-                );
-              })}
+
+            {/* Navigation commands */}
+            <CommandGroup heading={t("commandPalette.navigation")}>
+              <CommandItem onSelect={() => navigate("/")}>
+                <LayoutDashboardIcon />
+                <span>{t("nav.workspace")}</span>
+              </CommandItem>
+              <CommandItem onSelect={() => navigate("/admin/executions")}>
+                <ScrollTextIcon />
+                <span>{t("executionLog.title")}</span>
+              </CommandItem>
+              <CommandItem onSelect={() => navigate("/admin/health")}>
+                <HeartPulseIcon />
+                <span>{t("health.title")}</span>
+              </CommandItem>
+            </CommandGroup>
+
+            {/* Dynamic schema list */}
+            {schemas.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("commandPalette.schemas")}>
+                  {schemas.map((schema) => {
+                    const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
+                    return (
+                      <CommandItem
+                        key={schema.name}
+                        onSelect={() => navigate(`/schemas/${schema.name}`)}
+                      >
+                        <Icon />
+                        <span>{schema.label ?? schema.name}</span>
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </>
+            )}
+
+            <CommandSeparator />
+
+            {/* Theme preferences */}
+            <CommandGroup heading={t("commandPalette.preferences")}>
+              {theme !== "light" && (
+                <CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
+                  <SunIcon />
+                  <span>{t("commandPalette.switchToLight")}</span>
+                </CommandItem>
+              )}
+              {theme !== "dark" && (
+                <CommandItem onSelect={() => runCommand(() => setTheme("dark"))}>
+                  <MoonIcon />
+                  <span>{t("commandPalette.switchToDark")}</span>
+                </CommandItem>
+              )}
+              {theme !== "system" && (
+                <CommandItem onSelect={() => runCommand(() => setTheme("system"))}>
+                  <MonitorIcon />
+                  <span>{t("commandPalette.switchToSystem")}</span>
+                </CommandItem>
+              )}
             </CommandGroup>
           </>
         )}
-
-        <CommandSeparator />
-
-        {/* Theme preferences */}
-        <CommandGroup heading={t("commandPalette.preferences")}>
-          {theme !== "light" && (
-            <CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
-              <SunIcon />
-              <span>{t("commandPalette.switchToLight")}</span>
-            </CommandItem>
-          )}
-          {theme !== "dark" && (
-            <CommandItem onSelect={() => runCommand(() => setTheme("dark"))}>
-              <MoonIcon />
-              <span>{t("commandPalette.switchToDark")}</span>
-            </CommandItem>
-          )}
-          {theme !== "system" && (
-            <CommandItem onSelect={() => runCommand(() => setTheme("system"))}>
-              <MonitorIcon />
-              <span>{t("commandPalette.switchToSystem")}</span>
-            </CommandItem>
-          )}
-        </CommandGroup>
       </CommandList>
     </CommandDialog>
   );

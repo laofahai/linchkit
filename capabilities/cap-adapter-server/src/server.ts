@@ -794,6 +794,96 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         };
       }
     })
+    // ── AI Search endpoint — natural language to DeclarativeCondition ──
+    .post("/api/ai/search", async ({ body, set }) => {
+      const { query, schema: targetSchema, fields } = (body ?? {}) as {
+        query?: string;
+        schema?: string;
+        fields?: Record<string, { label?: string; type?: string; options?: string[] }>;
+      };
+
+      if (!query || !targetSchema) {
+        set.status = 400;
+        return { success: false, error: { message: "Missing 'query' or 'schema' in request body." } };
+      }
+
+      if (!aiService) {
+        return { success: true, data: null };
+      }
+
+      try {
+        const fieldDescs = Object.entries(fields ?? {}).map(([name, def]) => {
+          const parts = [`- ${name}`];
+          if (def.label) parts.push(`(label: "${def.label}")`);
+          if (def.type) parts.push(`[type: ${def.type}]`);
+          if (def.options?.length) parts.push(`options: [${def.options.join(", ")}]`);
+          return parts.join(" ");
+        }).join("\n");
+
+        const prompt = [
+          `You are a search filter parser for a "${targetSchema}" data model.`,
+          "",
+          "Convert the following natural language search query into a structured filter condition.",
+          "",
+          "Available fields:",
+          fieldDescs,
+          "",
+          "Available operators: eq, neq, gt, gte, lt, lte, in, not_in, contains, between, startsWith, endsWith, is_null, not_null",
+          "",
+          `Query: "${query}"`,
+          "",
+          'Respond with valid JSON only (no markdown, no code fences). The response must have this exact shape:',
+          '{ "filter": <condition>, "explanation": "<brief explanation>" }',
+          "",
+          "Filter condition formats:",
+          '- Simple: { "field": "fieldName", "operator": "eq", "value": "someValue" }',
+          '- Composite: { "operator": "and", "conditions": [<condition>, ...] }',
+          '- For "between": { "field": "fieldName", "operator": "between", "value": [low, high] }',
+          '- For "in": { "field": "fieldName", "operator": "in", "value": ["a", "b"] }',
+          "",
+          "Rules:",
+          "- Match field names exactly from the available fields list",
+          "- For enum/state fields, use the option values from the list",
+          "- For number comparisons, use numeric values (not strings)",
+          "- For date fields, use ISO date strings",
+          "- If the query references a field label (Chinese or English), map it to the field name",
+          '- If the query cannot be parsed into a filter, return { "filter": null, "explanation": "..." }',
+        ].join("\n");
+
+        const result = await aiService.complete({
+          model: "fast",
+          messages: [
+            { role: "system", content: "You are a precise query parser. Only output valid JSON. No markdown formatting." },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0,
+          maxTokens: 1024,
+          timeout: 15000,
+        });
+
+        let aiContent = result.content.trim();
+        if (aiContent.startsWith("```")) {
+          aiContent = aiContent.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+        }
+
+        const parsed = JSON.parse(aiContent) as { filter: unknown; explanation: string };
+
+        if (!parsed.filter) {
+          return { success: true, data: null };
+        }
+
+        return {
+          success: true,
+          data: { filter: parsed.filter, explanation: parsed.explanation ?? "" },
+        };
+      } catch (err) {
+        const errMsg = process.env.NODE_ENV === "production"
+          ? "AI search parsing failed."
+          : err instanceof Error ? err.message : String(err);
+        set.status = 500;
+        return { success: false, error: { message: errMsg } };
+      }
+    })
     // Mount graphql-yoga — handle all methods on the graphql path
     .all(graphqlPath, async ({ request }) => {
       const response = await yoga.handle(request);

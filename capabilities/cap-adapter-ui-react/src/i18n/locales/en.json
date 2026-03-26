@@ -42,7 +42,8 @@
     "events": "Events",
     "settings": "Settings",
     "teams": "Teams",
-    "addTeam": "Add team"
+    "addTeam": "Add team",
+    "aiEvolution": "AI Evolution"
   },
   "workspace": {
     "title": "Workspace",
@@ -415,5 +416,73 @@
     "initial": "Initial",
     "notFound": "State machine \"{{name}}\" not found.",
     "loadFailed": "Failed to load state machine."
+  },
+  "aiSearch": {
+    "title": "AI Search",
+    "chipLabel": "AI Filter",
+    "hint": "(Enter for AI search)",
+    "processing": "Processing...",
+    "analyzing": "Analyzing your query...",
+    "resultTitle": "AI Search Result",
+    "selectSchema": "Select a schema to search",
+    "searchIn": "Search in {{schema}}",
+    "paletteAction": "AI Search — natural language filter",
+    "palettePlaceholder": "Describe what you're looking for...",
+    "notConfigured": "AI service is not configured.",
+    "error": "AI search failed. Please try again."
+  },
+  "proposals": {
+    "title": "AI Proposals",
+    "navLabel": "Proposals",
+    "subtitle": "AI-generated system change proposals — review, approve or reject.",
+    "noProposals": "No proposals yet.",
+    "pendingBanner": "{{count}} proposal(s) pending review",
+    "changes": "Changes",
+    "changeCount": "change(s)",
+    "impact": "Impact Analysis",
+    "schemasAffected": "Schemas affected",
+    "actionsAffected": "Actions affected",
+    "rulesAffected": "Rules affected",
+    "migrationRequired": "Migration required",
+    "validation": "Validation Result",
+    "rejectionReason": "Rejection Reason",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveSuccess": "Proposal approved",
+    "approveFailed": "Approval failed",
+    "rejectSuccess": "Proposal rejected",
+    "rejectFailed": "Rejection failed",
+    "filter": {
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "status": {
+      "draft": "Pending",
+      "validating": "Validating",
+      "validated": "Validated",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "committed": "Committed",
+      "deployed": "Deployed"
+    }
+  },
+  "evolution": {
+    "title": "Evolution History",
+    "navLabel": "Evolution",
+    "subtitle": "Timeline of all AI-driven changes that were approved and applied.",
+    "noHistory": "No evolution history yet.",
+    "approvedBy": "Approved by",
+    "reasoning": "AI Reasoning",
+    "revert": "Revert",
+    "showChanges": "Show {{count}} change(s)"
+  },
+  "insights": {
+    "title": "AI Insights",
+    "subtitle": "AI-detected patterns and suggestions",
+    "reviewProposal": "Review Proposal",
+    "dataPoints": "{{count}} data points",
+    "viewMore": "{{count}} more insight(s)"
   }
 }

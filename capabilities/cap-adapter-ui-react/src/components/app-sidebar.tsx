@@ -9,28 +9,41 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarMenuBadge,
 } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
 import {
+  BrainCircuitIcon,
   CircleDotIcon,
   DatabaseIcon,
   GitBranchIcon,
   HeartPulseIcon,
+  HistoryIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
+  ShieldCheckIcon,
+  ZapIcon,
 } from "lucide-react";
 import type * as React from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import { useSchemas } from "@/hooks/use-schemas";
 import { getLucideIcon } from "@/lib/dynamic-icon";
+import { fetchPendingCount } from "@/lib/proposal-api";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
   const { schemas } = useSchemas();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    fetchPendingCount()
+      .then(setPendingCount)
+      .catch(() => setPendingCount(0));
+  }, []);
 
   const data = useMemo(() => {
     // Build schema sub-items from API data with dynamic icons
@@ -72,6 +85,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           icon: <CircleDotIcon />,
         },
         {
+          title: t("rules.title"),
+          url: "/admin/rules",
+          icon: <ShieldCheckIcon />,
+        },
+        {
           title: t("executionLog.title"),
           url: "/admin/executions",
           icon: <ScrollTextIcon />,
@@ -108,6 +126,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {/* Schema models section — dynamically generated from API */}
         <NavMain items={data.navMain} />
+
+        {/* AI Evolution section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <BrainCircuitIcon className="mr-1 h-3 w-3" />
+            {t("nav.aiEvolution")}
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip={t("proposals.title")}>
+                <Link to="/admin/proposals">
+                  <ZapIcon />
+                  <span>{t("proposals.navLabel")}</span>
+                </Link>
+              </SidebarMenuButton>
+              {pendingCount > 0 && (
+                <SidebarMenuBadge className="bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
+                  {pendingCount}
+                </SidebarMenuBadge>
+              )}
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip={t("evolution.title")}>
+                <Link to="/admin/evolution">
+                  <HistoryIcon />
+                  <span>{t("evolution.navLabel")}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
 
         {/* Administration section — only items with working routes */}
         <SidebarGroup>

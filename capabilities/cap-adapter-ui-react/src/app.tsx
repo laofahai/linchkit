@@ -33,6 +33,8 @@ import { SchemaListPage } from "./pages/schema-list";
 import { StateMachineDetailPage, StateMachinesPage } from "./pages/state-machines";
 import { EvolutionPage } from "./pages/evolution";
 import { ProposalsPage } from "./pages/proposals";
+import { RuleDetailPage } from "./pages/rule-detail";
+import { RulesListPage } from "./pages/rules-list";
 import { WorkspacePage } from "./pages/workspace";
 
 // ── Root route (no layout) ────────────────────────────────────────
@@ -216,6 +218,20 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const rulesRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/rules",
+    component: RulesListPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
+  const ruleDetailRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/rules/$name",
+    component: RuleDetailPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -231,6 +247,10 @@ function buildRouter(appConfig: AppConfig) {
       flowDetailRoute,
       stateMachinesRoute,
       stateMachineDetailRoute,
+      proposalsRoute,
+      evolutionRoute,
+      rulesRoute,
+      ruleDetailRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),

@@ -42,7 +42,8 @@
     "events": "事件",
     "settings": "设置",
     "teams": "团队",
-    "addTeam": "添加团队"
+    "addTeam": "添加团队",
+    "aiEvolution": "AI 进化"
   },
   "workspace": {
     "title": "工作台",
@@ -415,5 +416,73 @@
     "initial": "初始状态",
     "notFound": "未找到状态机「{{name}}」。",
     "loadFailed": "加载状态机失败。"
+  },
+  "aiSearch": {
+    "title": "AI 搜索",
+    "chipLabel": "AI 筛选",
+    "hint": "(回车启动 AI 搜索)",
+    "processing": "处理中...",
+    "analyzing": "正在分析您的查询...",
+    "resultTitle": "AI 搜索结果",
+    "selectSchema": "选择要搜索的数据模型",
+    "searchIn": "在 {{schema}} 中搜索",
+    "paletteAction": "AI 搜索 — 自然语言筛选",
+    "palettePlaceholder": "描述您要查找的内容...",
+    "notConfigured": "AI 服务未配置。",
+    "error": "AI 搜索失败，请重试。"
+  },
+  "proposals": {
+    "title": "AI 提案",
+    "navLabel": "提案",
+    "subtitle": "AI 生成的系统变更提案 — 审查、批准或拒绝。",
+    "noProposals": "暂无提案。",
+    "pendingBanner": "{{count}} 个提案待审核",
+    "changes": "变更内容",
+    "changeCount": "项变更",
+    "impact": "影响分析",
+    "schemasAffected": "影响的 Schema",
+    "actionsAffected": "影响的 Action",
+    "rulesAffected": "影响的 Rule",
+    "migrationRequired": "需要数据库迁移",
+    "validation": "验证结果",
+    "rejectionReason": "拒绝原因",
+    "approve": "批准",
+    "reject": "拒绝",
+    "approveSuccess": "提案已批准",
+    "approveFailed": "批准失败",
+    "rejectSuccess": "提案已拒绝",
+    "rejectFailed": "拒绝失败",
+    "filter": {
+      "all": "全部",
+      "pending": "待审核",
+      "approved": "已批准",
+      "rejected": "已拒绝"
+    },
+    "status": {
+      "draft": "待审核",
+      "validating": "验证中",
+      "validated": "已验证",
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "committed": "已提交",
+      "deployed": "已部署"
+    }
+  },
+  "evolution": {
+    "title": "进化历史",
+    "navLabel": "进化历史",
+    "subtitle": "所有 AI 驱动的变更记录 — 时间线视图。",
+    "noHistory": "暂无进化历史记录。",
+    "approvedBy": "审批人",
+    "reasoning": "AI 推理依据",
+    "revert": "回滚",
+    "showChanges": "查看 {{count}} 项变更"
+  },
+  "insights": {
+    "title": "AI 洞察",
+    "subtitle": "AI 检测到的模式和建议",
+    "reviewProposal": "查看提案",
+    "dataPoints": "{{count}} 个数据点",
+    "viewMore": "还有 {{count}} 项洞察"
   }
 }

@@ -126,6 +126,18 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
     expect(json.data.suggestions.description.value).toBe("Write the weekly status report");
   });
 
+  test("returns 400 when schema is missing from request body", async () => {
+    const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentValues: {} }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+  });
+
   test("returns empty suggestions when all fields are filled", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
       method: "POST",
