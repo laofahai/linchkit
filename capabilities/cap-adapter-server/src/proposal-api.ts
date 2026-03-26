@@ -59,6 +59,8 @@ let cachedInsights: AIInsight[] = [];
 let insightsLastScanned = 0;
 /** Minimum interval between insight scans (5 minutes) */
 const INSIGHT_SCAN_INTERVAL_MS = 5 * 60 * 1000;
+/** Flag to prevent concurrent scans */
+let scanning = false;
 
 /**
  * Map PatternInsight from core to the AIInsight REST type.
@@ -93,6 +95,12 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
     return cachedInsights;
   }
 
+  // Prevent concurrent scans — return cached results if another scan is in progress
+  if (scanning) {
+    return cachedInsights;
+  }
+  scanning = true;
+
   try {
     const patterns = await patternDetector.analyze(executionLogger);
     cachedInsights = patterns.map(mapPatternInsightToAIInsight);
@@ -102,8 +110,12 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
     for (const pattern of patterns) {
       if (pattern.confidence >= 0.8) {
         const existing = proposalEngine.listProposals({});
+        // Deduplicate by pattern type + schema via change name (pattern.id encodes type+schema),
+        // instead of fragile exact title string matching
         const alreadyProposed = existing.some(
-          (p) => p.title === pattern.suggestedAction.description,
+          (p) =>
+            p.capability === pattern.schema &&
+            p.changes.some((c) => c.name === pattern.id),
         );
         if (!alreadyProposed) {
           proposalEngine.createProposal({
@@ -128,6 +140,8 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
     // If analysis fails (e.g. no logs), return empty
     cachedInsights = [];
     insightsLastScanned = now;
+  } finally {
+    scanning = false;
   }
 
   return cachedInsights;

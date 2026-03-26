@@ -860,9 +860,10 @@ export function SchemaFormPage() {
               <TabsList variant="line">
                 {/* One_to_many relationship tabs */}
                 {one2manyLinks.map((link) => {
-                  const tabLabel =
+                  const rawLabel =
                     (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
                     link.to;
+                  const tabLabel = resolveLabel(rawLabel, link.to);
                   return (
                     <TabsTrigger key={`link-${link.name}`} value={`link-${link.name}`}>
                       {tabLabel}

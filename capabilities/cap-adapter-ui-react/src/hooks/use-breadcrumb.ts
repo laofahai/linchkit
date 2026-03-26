@@ -134,7 +134,14 @@ function resolveSegmentLabel(
     return { label: `#${segment.slice(0, 8)}`, linkable: true };
   }
 
-  // 4. Fallback
+  // 4. Try i18n nav key before falling back to title-case
+  const navKey = `nav.${segment}`;
+  const navTranslation = t(navKey, { defaultValue: "" });
+  if (navTranslation) {
+    return { label: navTranslation, linkable: true };
+  }
+
+  // 5. Fallback: title-case English
   return { label: formatSegment(segment), linkable: true };
 }
 
