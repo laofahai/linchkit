@@ -505,6 +505,66 @@ export function SchemaListPage() {
     }
   }
 
+  // ── Saved view: filter data when a saved view is active ──────
+  // (hooks must be called before any early returns to satisfy React rules)
+  const viewFilteredData = useMemo(() => {
+    if (!activeSavedView || activeSavedView.filters.length === 0) return data;
+    return data.filter((row) =>
+      activeSavedView.filters.every((f) => {
+        const val = row[f.field];
+        const fv = f.values;
+        if (fv.length === 0) return true;
+        switch (f.operator) {
+          case "eq":
+          case "in":
+            return fv.includes(val as string);
+          case "neq":
+          case "not_in":
+            return !fv.includes(val as string);
+          case "contains":
+            return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
+          case "gt":
+            return Number(val) > Number(fv[0]);
+          case "gte":
+            return Number(val) >= Number(fv[0]);
+          case "lt":
+            return Number(val) < Number(fv[0]);
+          case "lte":
+            return Number(val) <= Number(fv[0]);
+          case "between":
+            return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
+          default:
+            return true;
+        }
+      }),
+    );
+  }, [data, activeSavedView]);
+
+  // Determine the effective view with saved view sort override
+  const effectiveListView = useMemo(() => {
+    if (!listView) return listView;
+    if (!activeSavedView?.sort) return listView;
+    return { ...listView, defaultSort: activeSavedView.sort };
+  }, [listView, activeSavedView]);
+
+  const handleCreateSavedView = useCallback(
+    (name: string) => {
+      const newView = createView(name, currentBazzaFilters);
+      handleSelectSavedView(newView.id);
+    },
+    [createView, currentBazzaFilters, handleSelectSavedView],
+  );
+
+  const handleDeleteSavedView = useCallback(
+    (viewId: string) => {
+      deleteView(viewId);
+      if (activeSavedViewId === viewId) {
+        handleSelectSavedView(null);
+      }
+    },
+    [deleteView, activeSavedViewId, handleSelectSavedView],
+  );
+
   // Missing schema name in route
   if (!schemaName) {
     return (
@@ -662,65 +722,6 @@ export function SchemaListPage() {
       {refreshIndicator}
       {viewToggle}
     </div>
-  );
-
-  // ── Saved view: filter data when a saved view is active ──────
-  const viewFilteredData = useMemo(() => {
-    if (!activeSavedView || activeSavedView.filters.length === 0) return data;
-    return data.filter((row) =>
-      activeSavedView.filters.every((f) => {
-        const val = row[f.field];
-        const fv = f.values;
-        if (fv.length === 0) return true;
-        switch (f.operator) {
-          case "eq":
-          case "in":
-            return fv.includes(val as string);
-          case "neq":
-          case "not_in":
-            return !fv.includes(val as string);
-          case "contains":
-            return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
-          case "gt":
-            return Number(val) > Number(fv[0]);
-          case "gte":
-            return Number(val) >= Number(fv[0]);
-          case "lt":
-            return Number(val) < Number(fv[0]);
-          case "lte":
-            return Number(val) <= Number(fv[0]);
-          case "between":
-            return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
-          default:
-            return true;
-        }
-      }),
-    );
-  }, [data, activeSavedView]);
-
-  // Determine the effective view with saved view sort override
-  const effectiveListView = useMemo(() => {
-    if (!listView) return listView;
-    if (!activeSavedView?.sort) return listView;
-    return { ...listView, defaultSort: activeSavedView.sort };
-  }, [listView, activeSavedView]);
-
-  const handleCreateSavedView = useCallback(
-    (name: string) => {
-      const newView = createView(name, currentBazzaFilters);
-      handleSelectSavedView(newView.id);
-    },
-    [createView, currentBazzaFilters, handleSelectSavedView],
-  );
-
-  const handleDeleteSavedView = useCallback(
-    (viewId: string) => {
-      deleteView(viewId);
-      if (activeSavedViewId === viewId) {
-        handleSelectSavedView(null);
-      }
-    },
-    [deleteView, activeSavedViewId, handleSelectSavedView],
   );
 
   return (
