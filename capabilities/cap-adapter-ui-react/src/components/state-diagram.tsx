@@ -199,7 +199,8 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
           top: 0,
           bottom: 0,
           width: 4,
-          backgroundColor: muteColor(color),
+          backgroundColor: color,
+          opacity: 0.3,
           borderRadius: "6px 0 0 6px",
         }}
       />
@@ -420,8 +421,8 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "LR",
-    nodesep: 80,
-    ranksep: 200,
+    nodesep: 100,
+    ranksep: 250,
     marginx: 40,
     marginy: 40,
   });
@@ -624,7 +625,7 @@ export function StateDiagram({
     <div
       style={{
         width: "100%",
-        height: 350,
+        height: 420,
         background: "#f8fafc",
         border: "1px solid #e2e8f0",
         borderRadius: 8,
@@ -644,7 +645,7 @@ export function StateDiagram({
         nodesConnectable={false}
         elementsSelectable={false}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={{ padding: 0.3 }}
         minZoom={0.5}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
