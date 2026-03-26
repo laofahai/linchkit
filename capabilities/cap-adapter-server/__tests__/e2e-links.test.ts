@@ -2,7 +2,7 @@
  * E2E Test: Link / relationship integrity
  *
  * Validates bidirectional link resolution through GraphQL:
- * - Create a department and a purchase_request with department_id
+ * - Create a department and a purchase_request with department_ref
  * - Query purchase_request, verify department is resolved
  * - Query department's related purchase_requests
  * - Delete department, verify FK behavior
@@ -33,7 +33,7 @@ const purchaseRequestSchema: SchemaDefinition = {
   fields: {
     title: { type: "string", required: true, label: "Title" },
     amount: { type: "number", required: true, label: "Amount" },
-    department_id: { type: "ref", ref: "department", label: "Department" },
+    department_ref: { type: "ref", ref: "department", label: "Department" },
   },
 };
 
@@ -122,22 +122,22 @@ describe("E2E link / relationship integrity", () => {
     const deptId = dept.id as string;
     expect(dept.name).toBe("Engineering");
 
-    // Create purchase_request with department_id
+    // Create purchase_request with department_ref
     const prResult = await gql(`
       mutation {
         createPurchaseRequest(input: {
           title: "New Laptops",
           amount: 15000,
-          department_id: "${deptId}"
+          department_ref: "${deptId}"
         }) {
-          id title amount department_id
+          id title amount department_ref
         }
       }
     `);
     expect(prResult.errors).toBeUndefined();
     const pr = prResult.data.createPurchaseRequest as Record<string, unknown>;
     expect(pr.title).toBe("New Laptops");
-    expect(pr.department_id).toBe(deptId);
+    expect(pr.department_ref).toBe(deptId);
   });
 
   test("2. Query purchase_request with linked department resolved", async () => {
@@ -147,7 +147,7 @@ describe("E2E link / relationship integrity", () => {
       id: "pr_1",
       title: "CRM License",
       amount: 3000,
-      department_id: "dept_1",
+      department_ref: "dept_1",
     });
 
     // Query purchase_request — the link resolver should resolve department
@@ -157,7 +157,7 @@ describe("E2E link / relationship integrity", () => {
           id
           title
           amount
-          department_id
+          department_ref
           department {
             id
             name
@@ -170,7 +170,7 @@ describe("E2E link / relationship integrity", () => {
     expect(result.errors).toBeUndefined();
     const pr = result.data.purchaseRequest as Record<string, unknown>;
     expect(pr.title).toBe("CRM License");
-    expect(pr.department_id).toBe("dept_1");
+    expect(pr.department_ref).toBe("dept_1");
 
     // Verify linked department resolved
     const dept = pr.department as Record<string, unknown>;
@@ -187,13 +187,13 @@ describe("E2E link / relationship integrity", () => {
       id: "pr_2",
       title: "Ad Campaign",
       amount: 10000,
-      department_id: "dept_2",
+      department_ref: "dept_2",
     });
     await store.create("purchase_request", {
       id: "pr_3",
       title: "Event Booth",
       amount: 5000,
-      department_id: "dept_2",
+      department_ref: "dept_2",
     });
 
     // Query department with its purchase_requests
@@ -223,12 +223,12 @@ describe("E2E link / relationship integrity", () => {
     expect(titles).toEqual(["Ad Campaign", "Event Booth"]);
   });
 
-  test("4. Purchase request with non-existent department_id returns null for department", async () => {
+  test("4. Purchase request with non-existent department_ref returns null for department", async () => {
     await store.create("purchase_request", {
       id: "pr_orphan",
       title: "Orphan PR",
       amount: 100,
-      department_id: "nonexistent_dept",
+      department_ref: "nonexistent_dept",
     });
 
     const result = await gql(`
@@ -236,7 +236,7 @@ describe("E2E link / relationship integrity", () => {
         purchaseRequest(id: "pr_orphan") {
           id
           title
-          department_id
+          department_ref
           department {
             id
             name
@@ -247,7 +247,7 @@ describe("E2E link / relationship integrity", () => {
 
     expect(result.errors).toBeUndefined();
     const pr = result.data.purchaseRequest as Record<string, unknown>;
-    expect(pr.department_id).toBe("nonexistent_dept");
+    expect(pr.department_ref).toBe("nonexistent_dept");
     expect(pr.department).toBeNull();
   });
 
@@ -264,7 +264,7 @@ describe("E2E link / relationship integrity", () => {
     for (const title of ["Servers", "Cables", "Switches"]) {
       await gql(`
         mutation {
-          createPurchaseRequest(input: { title: "${title}", amount: 1000, department_id: "${deptId}" }) { id }
+          createPurchaseRequest(input: { title: "${title}", amount: 1000, department_ref: "${deptId}" }) { id }
         }
       `);
     }
@@ -315,7 +315,7 @@ describe("E2E link / relationship integrity", () => {
       id: "pr_del",
       title: "Last Purchase",
       amount: 500,
-      department_id: "dept_del",
+      department_ref: "dept_del",
     });
 
     // Delete department (soft delete)
@@ -329,7 +329,7 @@ describe("E2E link / relationship integrity", () => {
     const prResult = await gql(`
       query {
         purchaseRequest(id: "pr_del") {
-          id title department_id
+          id title department_ref
           department {
             id name
           }
@@ -340,7 +340,7 @@ describe("E2E link / relationship integrity", () => {
     expect(prResult.errors).toBeUndefined();
     const pr = prResult.data.purchaseRequest as Record<string, unknown>;
     expect(pr.title).toBe("Last Purchase");
-    expect(pr.department_id).toBe("dept_del");
+    expect(pr.department_ref).toBe("dept_del");
     // Department is soft-deleted, so link resolver returns null
     expect(pr.department).toBeNull();
   });
@@ -353,13 +353,13 @@ describe("E2E link / relationship integrity", () => {
       id: "pr_a1",
       title: "PR for A",
       amount: 100,
-      department_id: "dept_a",
+      department_ref: "dept_a",
     });
     await store.create("purchase_request", {
       id: "pr_b1",
       title: "PR for B",
       amount: 200,
-      department_id: "dept_b",
+      department_ref: "dept_b",
     });
 
     // List purchase requests with department resolved

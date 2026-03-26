@@ -79,24 +79,19 @@ const submitPurchaseAction: ActionDefinition = {
     const record = await ctx.get("purchase", id);
 
     // Evaluate rules against the record
-    const ruleResults = evaluateRules(rules, {
+    const evalOutput = await evaluateRules(rules, {
       target: record,
       actor: { type: "human", id: "user-1", groups: ["employee"] },
       context: {},
     });
 
     // Check for block rules
-    const blocked = ruleResults.filter(
-      (r) => r.triggered && r.effect?.type === "block",
-    );
-    if (blocked.length > 0) {
-      throw new Error(blocked[0].effect!.message);
+    if (evalOutput.blocked) {
+      throw new Error(evalOutput.blockReasons[0]);
     }
 
     // Collect warnings
-    const warnings = ruleResults
-      .filter((r) => r.triggered && r.effect?.type === "warn")
-      .map((r) => r.effect!.message);
+    const warnings = evalOutput.warnings.map((w) => w.message);
 
     const updated = await ctx.update("purchase", id, { status: "submitted" });
     return { ...updated, warnings };

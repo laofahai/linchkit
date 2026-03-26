@@ -141,10 +141,10 @@ describe("E2E CRUD lifecycle", () => {
     const created = createResult.data.createDepartment as Record<string, unknown>;
     const id = created.id as string;
 
-    // Update
+    // Update — include all fields to ensure full update semantics
     const updateResult = await gql(`
       mutation {
-        updateDepartment(id: "${id}", input: { name: "Marketing & PR", budget: 150000 }, _version: 1) {
+        updateDepartment(id: "${id}", input: { name: "Marketing & PR", code: "MKT", budget: 150000 }, _version: 1) {
           id name code budget _version
         }
       }
@@ -153,7 +153,7 @@ describe("E2E CRUD lifecycle", () => {
     expect(updateResult.errors).toBeUndefined();
     const updated = updateResult.data.updateDepartment as Record<string, unknown>;
     expect(updated.name).toBe("Marketing & PR");
-    expect(updated.code).toBe("MKT"); // unchanged
+    expect(updated.code).toBe("MKT");
     expect(updated.budget).toBe(150000);
     expect(updated._version).toBe(2);
   });
@@ -171,7 +171,7 @@ describe("E2E CRUD lifecycle", () => {
 
     await gql(`
       mutation {
-        updateDepartment(id: "${id}", input: { head: "Charlie" }, _version: 1) {
+        updateDepartment(id: "${id}", input: { name: "HR", code: "HR", head: "Charlie" }, _version: 1) {
           id
         }
       }
@@ -332,10 +332,10 @@ describe("E2E CRUD lifecycle", () => {
     `);
     expect((getResult.data.department as Record<string, unknown>).name).toBe("QA");
 
-    // Update
+    // Update — include all required fields
     const updateResult = await gql(`
       mutation {
-        updateDepartment(id: "${id}", input: { name: "Quality Assurance", budget: 90000 }, _version: 1) {
+        updateDepartment(id: "${id}", input: { name: "Quality Assurance", code: "QA", head: "Diana", budget: 90000 }, _version: 1) {
           id name budget _version
         }
       }

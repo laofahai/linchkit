@@ -258,7 +258,7 @@ describe("E2E state machine transitions", () => {
     // Try invalid transition via updateMutation (approved → draft)
     const result = await gql(`
       mutation {
-        updatePurchaseRequest(id: "${id}", input: { status: "draft" }) {
+        updatePurchaseRequest(id: "${id}", input: { title: "Desk", amount: 800, status: "draft" }) {
           id status
         }
       }
