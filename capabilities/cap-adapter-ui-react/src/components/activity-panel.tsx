@@ -103,13 +103,13 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
           {t("detail.activity", "Activity")}
         </h2>
         <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loading}>
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       ) : entries.length === 0 ? (
         <div className="py-6 text-center text-sm text-muted-foreground">
@@ -134,7 +134,7 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
                 >
                   {/* Timeline dot */}
                   <div className={`absolute left-1 top-3.5 ${config.color}`}>
-                    <StatusIcon className="h-4 w-4" />
+                    <StatusIcon className="size-4" />
                   </div>
 
                   {/* Content */}
@@ -163,9 +163,9 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
                     <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                       <span>{formatRelativeTime(entry.startedAt)}</span>
                       {isExpanded ? (
-                        <ChevronUp className="h-3 w-3" />
+                        <ChevronUp className="size-3" />
                       ) : (
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="size-3" />
                       )}
                     </div>
                   </div>

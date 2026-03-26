@@ -95,9 +95,9 @@ export function TransitionButtons({
           onClick={() => handleTransition(tr.to)}
         >
           {transitioning === tr.to ? (
-            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
           ) : (
-            <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+            <ArrowRight className="mr-1.5 size-3.5" />
           )}
           <Badge variant="secondary" className="mr-1.5 text-[10px]">
             {resolveStateLabel(tr.to)}

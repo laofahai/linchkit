@@ -21,7 +21,7 @@ export function LanguageSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton size="sm" tooltip={t("language.label")}>
-          <GlobeIcon className="h-4 w-4" />
+          <GlobeIcon className="size-4" />
           <span>{languageNames[currentLang] ?? currentLang}</span>
         </SidebarMenuButton>
       </DropdownMenuTrigger>

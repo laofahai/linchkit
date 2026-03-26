@@ -213,7 +213,7 @@ export function SchemaFormPage() {
   if (!schemaName) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="h-10 w-10" />
+        <ServerCrash className="size-10" />
         <p className="text-sm">
           {t("errors.missingSchemaName", "No schema specified in the URL.")}
         </p>
@@ -234,7 +234,7 @@ export function SchemaFormPage() {
   if (bundleError || !schema || !formView) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="h-10 w-10" />
+        <ServerCrash className="size-10" />
         <p className="text-sm font-medium">
           {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
         </p>
@@ -245,7 +245,7 @@ export function SchemaFormPage() {
           )}
         </p>
         <Button variant="outline" size="sm" onClick={reloadBundle}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          <RefreshCw className="mr-1.5 size-3.5" />
           {t("common.retry", "Retry")}
         </Button>
       </div>
@@ -257,18 +257,18 @@ export function SchemaFormPage() {
     return (
       <div className="bg-muted/30 min-h-full">
         <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ArrowLeft className="size-4" />
           </Button>
         </div>
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-          <ServerCrash className="h-10 w-10" />
+          <ServerCrash className="size-10" />
           <p className="text-sm font-medium">
             {t("errors.recordLoadFailed", "Failed to load record.")}
           </p>
           <p className="text-xs text-destructive">{recordError}</p>
           <Button variant="outline" size="sm" onClick={fetchRecord}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            <RefreshCw className="mr-1.5 size-3.5" />
             {t("common.retry", "Retry")}
           </Button>
         </div>
@@ -292,8 +292,8 @@ export function SchemaFormPage() {
       {/* Sticky control panel */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ArrowLeft className="size-4" />
           </Button>
 
           <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ export function SchemaFormPage() {
 
             {!isCreate && !isEditing && (
               <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
-                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                <Pencil className="mr-1.5 size-3.5" />
                 {t("common.edit", "Edit")}
               </Button>
             )}
@@ -348,7 +348,7 @@ export function SchemaFormPage() {
                   {t("common.cancel", "Cancel")}
                 </Button>
                 <Button size="sm" type="submit" form="auto-form" disabled={saving}>
-                  {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                  {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
                   {t("common.save", "Save")}
                 </Button>
               </>

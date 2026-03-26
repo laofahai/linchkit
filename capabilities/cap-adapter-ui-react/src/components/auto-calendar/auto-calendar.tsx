@@ -158,14 +158,14 @@ export function AutoCalendar({
           <Button variant="outline" size="sm" onClick={handleToday}>
             {t("calendar.today", "Today")}
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-            <ChevronLeft className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
+            <ChevronLeft className="size-4" />
           </Button>
           <span className="min-w-[140px] text-center text-sm font-medium">
             {format(currentMonth, "MMMM yyyy")}
           </span>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-            <ChevronRight className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={handleNextMonth}>
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
@@ -270,11 +270,10 @@ export function AutoCalendar({
               </CardTitle>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-6 w-6"
+                size="icon-xs"
                 onClick={() => setSelectedDay(null)}
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="size-3.5" />
               </Button>
             </div>
           </CardHeader>

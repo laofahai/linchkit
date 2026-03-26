@@ -66,7 +66,7 @@ export function AutoTree({
   if (records.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <Inbox className="h-10 w-10 mb-2" />
+        <Inbox className="mb-2 size-10" />
         <p className="text-sm">{t("tree.noRecords")}</p>
       </div>
     );
@@ -146,7 +146,7 @@ function TreeNodeRow({
         }}
         tabIndex={0}
       >
-        <File className="h-4 w-4 text-muted-foreground shrink-0" />
+        <File className="size-4 text-muted-foreground shrink-0" />
         <span className="truncate">{label}</span>
       </div>
     );
@@ -168,16 +168,16 @@ function TreeNodeRow({
             aria-label={isOpen ? "collapse" : "expand"}
           >
             {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="size-4" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="size-4" />
             )}
           </button>
         </CollapsibleTrigger>
         {isOpen ? (
-          <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+          <FolderOpen className="size-4 text-muted-foreground shrink-0" />
         ) : (
-          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Folder className="size-4 text-muted-foreground shrink-0" />
         )}
         <span
           className="truncate cursor-pointer hover:underline"
