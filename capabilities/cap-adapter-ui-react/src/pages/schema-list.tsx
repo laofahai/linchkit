@@ -274,7 +274,7 @@ export function SchemaListPage() {
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
         size="sm"
-        className="size-9 p-0 rounded-r-none"
+        className="h-7 w-7 p-0 rounded-r-none"
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
@@ -283,7 +283,7 @@ export function SchemaListPage() {
       <Button
         variant={activeView === "calendar" ? "default" : "ghost"}
         size="sm"
-        className="size-9 p-0 rounded-l-none border-l border-border"
+        className="h-7 w-7 p-0 rounded-l-none border-l border-border"
         onClick={() => setActiveView("calendar")}
         title={t("calendar.calendarView", "Calendar view")}
       >
