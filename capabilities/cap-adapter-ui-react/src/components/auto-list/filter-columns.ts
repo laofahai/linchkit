@@ -203,8 +203,8 @@ function extractOptions(
   }
   if (fieldDef.type === "boolean") {
     return [
-      { value: "true", label: "Yes" },
-      { value: "false", label: "No" },
+      { value: "true", label: resolve("t:common.yes", "Yes") },
+      { value: "false", label: resolve("t:common.no", "No") },
     ];
   }
   return [];

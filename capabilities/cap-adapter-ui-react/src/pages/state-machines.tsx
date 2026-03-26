@@ -1,5 +1,5 @@
 /**
- * StateMachinesPage — Lists all registered state machines with visualization.
+ * StateMachinesPage — Lists all registered state machines using AutoList.
  *
  * Route: /admin/states
  * Fetches from /api/states REST endpoint (falls back to demo data).
@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Select,
@@ -19,16 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@linchkit/ui-kit/components";
-import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CircleDotIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "@tanstack/react-router";
+import { AutoList, SortableHeader } from "@/components/auto-list";
 import {
   StateDiagram,
   type StateMachineDetail,
@@ -161,6 +162,7 @@ function getStateLabel(
 
 export function StateMachinesPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [machines, setMachines] = useState<StateMachineSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [schemaFilter, setSchemaFilter] = useState<string>("all");
@@ -191,6 +193,85 @@ export function StateMachinesPage() {
     ? machines
     : machines.filter((m) => m.schema === schemaFilter);
 
+  // Build AutoList column definitions
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.columns.name", { defaultValue: "Name" })} />,
+      cell: ({ row }) => {
+        const machine = row.original as unknown as StateMachineSummary;
+        return (
+          <div>
+            <div className="font-medium text-sm">{machine.name}</div>
+            <div className="text-xs text-muted-foreground font-mono">
+              {machine.schema}.{machine.field}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "schema",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.columns.schema", { defaultValue: "Schema" })} />,
+      cell: ({ row }) => (
+        <span className="text-xs font-mono">{row.getValue("schema") as string}</span>
+      ),
+      size: 140,
+    },
+    {
+      id: "states",
+      header: t("stateMachines.columns.states", { defaultValue: "States" }),
+      cell: ({ row }) => {
+        const machine = row.original as unknown as StateMachineSummary;
+        return (
+          <div className="flex items-center gap-1 flex-wrap">
+            {machine.states.map((s) => (
+              <Badge
+                key={s}
+                variant="outline"
+                className="text-[10px]"
+                style={{
+                  borderColor: getStateColor(s, machine.meta),
+                  color: getStateColor(s, machine.meta),
+                }}
+              >
+                {s === machine.initial && <CircleDotIcon className="size-2.5 mr-0.5" />}
+                {getStateLabel(s, machine.meta, t)}
+              </Badge>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "stateCount",
+      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.states", { defaultValue: "States" })} />,
+      cell: ({ row }) => {
+        const machine = row.original as unknown as StateMachineSummary;
+        return (
+          <span className="text-xs text-muted-foreground">
+            {machine.stateCount} / {machine.transitionCount}
+          </span>
+        );
+      },
+      size: 100,
+    },
+    {
+      id: "navigate",
+      header: "",
+      size: 40,
+      cell: () => (
+        <ArrowRightIcon className="size-4 text-muted-foreground" />
+      ),
+    },
+  ], [t]);
+
+  // Convert to DataRow for AutoList
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => filtered.map((m) => ({ ...m, id: m.name }) as Record<string, unknown>),
+    [filtered],
+  );
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -198,82 +279,40 @@ export function StateMachinesPage() {
           <h1 className="text-lg font-semibold">{t("stateMachines.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("stateMachines.subtitle")}</p>
         </div>
-        <Button variant="outline" size="icon-sm" onClick={fetchMachines} disabled={loading} title={t("executionLog.refresh")}>
-          <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
-        </Button>
       </div>
 
-      {allSchemas.length > 1 && (
-        <div className="flex items-center gap-2">
-          <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-            <SelectTrigger className="w-48 h-7 text-[0.8rem]">
-              <SelectValue placeholder={t("stateMachines.allSchemas")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("stateMachines.allSchemas")}</SelectItem>
-              {allSchemas.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">
-            {filtered.length} {t("stateMachines.machineCount")}
-          </span>
-        </div>
-      )}
-
-      {filtered.length === 0 ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <CircleDotIcon className="size-8 mr-3 opacity-50" />
-          <span>{loading ? t("common.loading") : t("stateMachines.noMachines")}</span>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {filtered.map((machine) => (
-            <Link
-              key={machine.name}
-              to={"/admin/states/$name" as "/"}
-              params={{ name: machine.name }}
-              className="block"
-            >
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{machine.name}</CardTitle>
-                      <CardDescription className="text-xs">
-                        {machine.schema}.{machine.field}
-                      </CardDescription>
-                    </div>
-                    <ArrowRightIcon className="size-4 text-muted-foreground shrink-0 mt-1" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {machine.states.map((s) => (
-                      <Badge
-                        key={s}
-                        variant="outline"
-                        className="text-[10px]"
-                        style={{
-                          borderColor: getStateColor(s, machine.meta),
-                          color: getStateColor(s, machine.meta),
-                        }}
-                      >
-                        {s === machine.initial && <CircleDotIcon className="size-2.5 mr-0.5" />}
-                        {getStateLabel(s, machine.meta, t)}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    {machine.stateCount} {t("stateMachines.states")} / {machine.transitionCount} {t("stateMachines.transitions")}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <AutoList
+        externalColumns={columns}
+        data={tableData}
+        pageSize={20}
+        loading={loading}
+        onRowClick={(id) => {
+          navigate({ to: "/admin/states/$name" as string, params: { name: id } } as Parameters<typeof navigate>[0]);
+        }}
+        toolbarExtra={
+          <>
+            {allSchemas.length > 1 && (
+              <Select value={schemaFilter} onValueChange={setSchemaFilter}>
+                <SelectTrigger className="w-48 h-7 text-[0.8rem]">
+                  <SelectValue placeholder={t("stateMachines.allSchemas")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("stateMachines.allSchemas")}</SelectItem>
+                  {allSchemas.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <span className="text-sm text-muted-foreground">
+              {filtered.length} {t("stateMachines.machineCount")}
+            </span>
+            <Button variant="outline" size="icon-sm" onClick={fetchMachines} disabled={loading} title={t("executionLog.refresh")}>
+              <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }
@@ -378,54 +417,7 @@ export function StateMachineDetailPage() {
           <CardTitle className="text-base">{t("stateMachines.transitionTable")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="p-2 text-left font-medium">{t("stateMachines.from")}</th>
-                  <th className="p-2 text-center font-medium">{t("stateMachines.action")}</th>
-                  <th className="p-2 text-left font-medium">{t("stateMachines.to")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {machine.transitions.map((tr, i) => {
-                  const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
-                  return froms.map((fromState) => (
-                    <tr key={`${fromState}-${tr.to}-${i}`} className="border-b">
-                      <td className="p-2">
-                        <Badge
-                          variant="outline"
-                          style={{
-                            borderColor: getStateColor(fromState, machine.meta),
-                            color: getStateColor(fromState, machine.meta),
-                          }}
-                        >
-                          {getStateLabel(fromState, machine.meta, t)}
-                        </Badge>
-                      </td>
-                      <td className="p-2 text-center">
-                        <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
-                          <ArrowRightIcon className="size-3" />
-                          {tr.action}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        <Badge
-                          variant="outline"
-                          style={{
-                            borderColor: getStateColor(tr.to, machine.meta),
-                            color: getStateColor(tr.to, machine.meta),
-                          }}
-                        >
-                          {getStateLabel(tr.to, machine.meta, t)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ));
-                })}
-              </tbody>
-            </table>
-          </div>
+          <TransitionsAutoList machine={machine} />
         </CardContent>
       </Card>
     </div>

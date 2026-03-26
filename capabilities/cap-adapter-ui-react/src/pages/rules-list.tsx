@@ -325,15 +325,7 @@ export function RulesListPage() {
   );
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">{t("rules.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("rules.subtitle")}</p>
-        </div>
-      </div>
-
+    <div className="p-4">
       <AutoList
         externalColumns={columns}
         data={tableData}

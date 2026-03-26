@@ -274,6 +274,7 @@ function SchemaSummaryCards({
   loading: boolean;
 }) {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
 
   if (loading) {
     return (
@@ -309,10 +310,7 @@ function SchemaSummaryCards({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {schemas.map((schema) => {
-        const label =
-          t(`schemas.${schema.name}._label`, { defaultValue: "" }) ||
-          schema.label ||
-          schema.name;
+        const label = resolveLabel(schema.label, schema.name);
         const summary = summaries[schema.name];
         const total = summary?.total ?? 0;
         const recentCount = summary?.recentCount ?? 0;
@@ -365,16 +363,14 @@ function SchemaSummaryCards({
 
 function QuickActions({ schemas }: { schemas: SchemaInfo[] }) {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
 
   if (schemas.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2">
       {schemas.map((schema) => {
-        const label =
-          t(`schemas.${schema.name}._label`, { defaultValue: "" }) ||
-          schema.label ||
-          schema.name;
+        const label = resolveLabel(schema.label, schema.name);
         return (
           <Link key={schema.name} to="/schemas/$name/new" params={{ name: schema.name }}>
             <Badge
