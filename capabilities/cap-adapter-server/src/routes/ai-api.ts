@@ -186,7 +186,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
       }
 
       try {
-        const { streamText, stepCountIs } = await import("ai");
+        const { streamText, stepCountIs, convertToModelMessages } = await import("ai");
         const { resolveLanguageModel } = await import("@linchkit/core/server");
         const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
         const { buildSystemPrompt } = await import("../ai/system-prompt");
@@ -239,11 +239,15 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           actor,
         });
 
+        // Convert UIMessage[] (from @ai-sdk/react useChat) to ModelMessage[] (for streamText)
+        // useChat sends messages in UI format (with parts array), but streamText expects model format
+        const modelMessages = convertToModelMessages(messages);
+
         // Use Vercel AI SDK streamText with tools and multi-step support
         const result = streamText({
           model,
           system: systemPrompt,
-          messages,
+          messages: modelMessages,
           tools,
           stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
           temperature: assistantConfig?.temperature ?? 0.3,

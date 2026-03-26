@@ -21,6 +21,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
@@ -139,27 +142,33 @@ export function SavedViewTabs({
           </div>
         ))}
 
-        {/* Save current view button */}
-        <button
-          type="button"
-          className={cn(
-            "shrink-0 flex items-center gap-1 px-2 py-1.5 text-sm border-b-2 border-transparent transition-colors",
-            hasActiveFilters
-              ? "text-muted-foreground hover:text-foreground"
-              : "text-muted-foreground/40 cursor-not-allowed",
-          )}
-          disabled={!hasActiveFilters}
-          onClick={() => {
-            if (hasActiveFilters) {
-              setViewName("");
-              setSaveDialogOpen(true);
-            }
-          }}
-          title={hasActiveFilters ? t("viewTabs.saveView") : t("viewTabs.noFilters")}
-        >
-          <Plus className="size-3.5" />
-          <span className="hidden sm:inline">{t("viewTabs.newView", "New View")}</span>
-        </button>
+        {/* Save current view button — no `disabled` attr so Tooltip works on hover */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-disabled={!hasActiveFilters}
+              className={cn(
+                "shrink-0 flex items-center gap-1 px-2 py-1.5 text-sm border-b-2 border-transparent transition-colors",
+                hasActiveFilters
+                  ? "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground/40 cursor-not-allowed opacity-50",
+              )}
+              onClick={() => {
+                if (hasActiveFilters) {
+                  setViewName("");
+                  setSaveDialogOpen(true);
+                }
+              }}
+            >
+              <Plus className="size-3.5" />
+              <span className="hidden sm:inline">{t("viewTabs.newView", "New View")}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{hasActiveFilters ? t("viewTabs.saveView", "Save current filters as view") : t("viewTabs.noFilters", "Apply filters first to save a view")}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Save dialog */}
