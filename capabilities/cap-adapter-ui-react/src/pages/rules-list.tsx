@@ -173,7 +173,7 @@ export function RulesListPage() {
         clearRules();
       }
     } catch {
-      applyDemoFilters();
+      clearRules();
     } finally {
       setLoading(false);
     }

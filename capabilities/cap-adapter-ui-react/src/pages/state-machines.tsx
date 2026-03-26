@@ -101,7 +101,7 @@ export function StateMachinesPage() {
         setMachines([]);
       }
     } catch {
-      setMachines(DEMO_STATES);
+      setMachines([]);
     } finally {
       setLoading(false);
     }
