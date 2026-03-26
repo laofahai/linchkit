@@ -7,6 +7,7 @@
 
 import type { SchemaDefinition } from "@linchkit/core/types";
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { AiFieldSuggestion } from "../lib/api";
 import { requestAiAutoFill } from "../lib/api";
 
@@ -91,6 +92,7 @@ export function useAiAutoFill(
   schema: SchemaDefinition,
   onAccept: (fieldName: string, value: unknown) => void,
 ): UseAiAutoFillReturn {
+  const { i18n } = useTranslation();
   const [state, setState] = useState<AiSuggestionState>({
     suggestions: {},
     loading: false,
@@ -107,6 +109,7 @@ export function useAiAutoFill(
           schema: schema.name,
           fields,
           currentValues,
+          locale: i18n.language,
         });
 
         setState({
@@ -122,7 +125,7 @@ export function useAiAutoFill(
         });
       }
     },
-    [schema],
+    [schema, i18n.language],
   );
 
   const acceptSuggestion = useCallback(

@@ -7,6 +7,7 @@
 
 import type { SchemaDefinition } from "@linchkit/core/types";
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { type AISearchResult, aiSearch } from "../lib/api";
 
 /** AI search state exposed to consumers */
@@ -96,6 +97,7 @@ function buildFieldMeta(
 }
 
 export function useAISearch(schema: SchemaDefinition | undefined): UseAISearchReturn {
+  const { i18n } = useTranslation();
   const [state, setState] = useState<AISearchState>({
     loading: false,
     result: null,
@@ -123,6 +125,7 @@ export function useAISearch(schema: SchemaDefinition | undefined): UseAISearchRe
           query,
           schema: schema.name,
           fields,
+          locale: i18n.language,
         });
 
         // Check if aborted while waiting
@@ -143,7 +146,7 @@ export function useAISearch(schema: SchemaDefinition | undefined): UseAISearchRe
         });
       }
     },
-    [schema],
+    [schema, i18n.language],
   );
 
   const clearAISearch = useCallback(() => {

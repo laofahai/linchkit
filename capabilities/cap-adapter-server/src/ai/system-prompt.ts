@@ -21,6 +21,46 @@ export interface SystemPromptContext {
   recordId?: string;
   /** Current record data (if available) */
   recordData?: Record<string, unknown>;
+  /** User locale (e.g. "zh-CN", "en") for language-aware responses */
+  locale?: string;
+}
+
+/**
+ * Map a locale string to a language instruction for AI system prompts.
+ * Returns undefined if locale maps to the default (English).
+ */
+export function getLanguageInstruction(locale: string): string | undefined {
+  const lang = locale.toLowerCase();
+  if (lang.startsWith("zh")) {
+    return "You MUST respond in Chinese (简体中文). All field labels, descriptions, suggestions, explanations, and reasoning should be in Chinese.";
+  }
+  if (lang.startsWith("ja")) {
+    return "You MUST respond in Japanese (日本語). All field labels, descriptions, suggestions, explanations, and reasoning should be in Japanese.";
+  }
+  if (lang.startsWith("ko")) {
+    return "You MUST respond in Korean (한국어). All field labels, descriptions, suggestions, explanations, and reasoning should be in Korean.";
+  }
+  if (lang.startsWith("en")) {
+    return undefined; // English is the default
+  }
+  // For other locales, provide a generic instruction
+  return `You MUST respond in the language identified by locale "${locale}". All field labels, descriptions, suggestions, explanations, and reasoning should be in that language.`;
+}
+
+/**
+ * Extract locale from request: prefer body.locale, fall back to Accept-Language header.
+ */
+export function extractLocale(
+  bodyLocale: string | undefined,
+  request?: Request,
+): string | undefined {
+  if (bodyLocale) return bodyLocale;
+  if (!request) return undefined;
+  const acceptLang = request.headers.get("Accept-Language");
+  if (!acceptLang) return undefined;
+  // Parse first language tag (e.g. "zh-CN,zh;q=0.9,en;q=0.8" → "zh-CN")
+  const first = acceptLang.split(",")[0]?.trim().split(";")[0]?.trim();
+  return first || undefined;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are LinchKit AI Assistant, an intelligent business operations helper.
@@ -44,6 +84,15 @@ export function buildSystemPrompt(options: {
 
   // 1. Base system prompt (custom or default)
   parts.push(assistantConfig?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT);
+
+  // 1b. Language instruction based on user locale
+  if (context?.locale) {
+    const locale = context.locale;
+    const languageInstruction = getLanguageInstruction(locale);
+    if (languageInstruction) {
+      parts.push(`\n## Language Requirement\n${languageInstruction}`);
+    }
+  }
 
   // 2. System overview — list available schemas
   if (ontologyRegistry) {

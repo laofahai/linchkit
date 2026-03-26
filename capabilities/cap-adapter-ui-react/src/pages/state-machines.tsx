@@ -415,10 +415,7 @@ export function StateMachineDetailPage() {
 
       {/* Transitions table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("stateMachines.transitionTable")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <TransitionsAutoList machine={machine} />
         </CardContent>
       </Card>

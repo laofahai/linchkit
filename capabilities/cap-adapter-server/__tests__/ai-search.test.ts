@@ -294,8 +294,11 @@ describe("POST /api/ai/search — filter validation", () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      // tenant_id is a sensitive field and should be stripped, leaving null
-      expect(json.data).toBeNull();
+      // tenant_id is a sensitive field and should be stripped
+      // The filter is validated server-side: stripped field → null filter
+      // But the endpoint wraps it in { filter, explanation }, so data.filter is null
+      expect(json.success).toBe(true);
+      expect(json.data.filter).toBeNull();
     } finally {
       srv.stop?.();
     }

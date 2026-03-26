@@ -40,12 +40,12 @@ export function AIAssistant({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Create transport with context-aware body (schema + record info sent with each request)
+  // Create transport with context-aware body (schema + record info + locale sent with each request)
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -54,10 +54,11 @@ export function AIAssistant({
           context: {
             schema: params.name,
             recordId: params.id,
+            locale: i18n.language,
           },
         }),
       }),
-    [params.name, params.id],
+    [params.name, params.id, i18n.language],
   );
 
   // Vercel AI SDK useChat — manages conversation history, streaming, and tool calls

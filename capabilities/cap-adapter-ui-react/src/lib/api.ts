@@ -324,6 +324,7 @@ export async function requestAiAutoFill(params: {
   schema: string;
   fields: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
   currentValues: Record<string, unknown>;
+  locale?: string;
 }): Promise<AiAutoFillResult> {
   const res = await fetch("/api/ai/auto-fill", {
     method: "POST",
@@ -464,6 +465,7 @@ export interface AISearchRequest {
   query: string;
   schema: string;
   fields: Record<string, { label?: string; type?: string; options?: string[] }>;
+  locale?: string;
 }
 
 export interface AISearchResult {

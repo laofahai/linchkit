@@ -8,6 +8,7 @@
  */
 
 import type { Elysia } from "elysia";
+import { extractLocale, getLanguageInstruction } from "../ai/system-prompt";
 import type { ServerOptions } from "../server";
 
 /**
@@ -63,11 +64,12 @@ export function mountAIRoutes(
 
   app
     // ── AI Auto-Fill endpoint ────────────────────────────
-    .post("/api/ai/auto-fill", async ({ body, set }) => {
-      const { schema: schemaName, fields, currentValues } = (body ?? {}) as {
+    .post("/api/ai/auto-fill", async ({ body, set, request }) => {
+      const { schema: schemaName, fields, currentValues, locale: bodyLocale } = (body ?? {}) as {
         schema?: string;
         fields?: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
         currentValues?: Record<string, unknown>;
+        locale?: string;
       };
 
       // Always validate required fields first, before checking AI availability
@@ -76,66 +78,275 @@ export function mountAIRoutes(
         return { success: false, error: { message: "Missing 'schema' or 'fields' in request body." } };
       }
 
-      if (!aiService?.configured) {
+      // Identify empty fields that need suggestions
+      const emptyFieldNames = Object.keys(fields).filter((name) => {
+        const val = currentValues?.[name];
+        return val === null || val === undefined || val === "";
+      });
+
+      if (emptyFieldNames.length === 0) {
         return { success: true, data: { suggestions: {} } };
       }
 
-      try {
-        // Build field descriptions for the prompt
-        const fieldDescriptions = Object.entries(fields).map(([name, def]) => {
-          const parts = [`- ${name}`];
-          if (def.label) parts.push(`(label: "${def.label}")`);
-          if (def.type) parts.push(`[type: ${def.type}]`);
-          if (def.required) parts.push("(required)");
-          if (def.options?.length) parts.push(`options: [${def.options.join(", ")}]`);
-          if (def.description) parts.push(`— ${def.description}`);
-          return parts.join(" ");
-        }).join("\n");
+      // ── Step 1: Gather data context from recent records ──
+      const dataProvider = options.dataProvider;
+      const schemaDef = schemaRegistry?.get(schemaName);
 
-        // Identify which fields already have values
+      let recentRecords: Array<Record<string, unknown>> = [];
+      if (dataProvider) {
+        try {
+          recentRecords = await dataProvider.query(
+            schemaName,
+            { sortField: "created_at", sortOrder: "desc", limit: 10 },
+          );
+        } catch {
+          // Data provider may not have this schema table yet — ignore
+        }
+      }
+
+      // Build per-field statistics from recent records
+      const fieldStats: Record<string, {
+        mostCommon?: { value: unknown; count: number; total: number };
+        recentValues: unknown[];
+        uniqueValues: unknown[];
+      }> = {};
+
+      for (const fieldName of emptyFieldNames) {
+        const values = recentRecords
+          .map((r) => r[fieldName])
+          .filter((v) => v !== null && v !== undefined && v !== "");
+
+        if (values.length === 0) {
+          fieldStats[fieldName] = { recentValues: [], uniqueValues: [] };
+          continue;
+        }
+
+        // Count value frequencies
+        const freq = new Map<string, { value: unknown; count: number }>();
+        for (const v of values) {
+          const key = JSON.stringify(v);
+          const existing = freq.get(key);
+          if (existing) {
+            existing.count++;
+          } else {
+            freq.set(key, { value: v, count: 1 });
+          }
+        }
+
+        // Find most common value
+        let mostCommon: { value: unknown; count: number; total: number } | undefined;
+        for (const entry of freq.values()) {
+          if (!mostCommon || entry.count > mostCommon.count) {
+            mostCommon = { value: entry.value, count: entry.count, total: values.length };
+          }
+        }
+
+        const uniqueValues = [...freq.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10)
+          .map((e) => e.value);
+
+        fieldStats[fieldName] = { mostCommon, recentValues: values.slice(0, 5), uniqueValues };
+      }
+
+      // ── Step 2: Resolve related record context ──────────
+      const relatedContext: Record<string, Record<string, unknown>> = {};
+      if (dataProvider && schemaDef && currentValues) {
+        for (const [fieldName, value] of Object.entries(currentValues)) {
+          if (!value || value === "") continue;
+          const fieldDef = schemaDef.fields[fieldName];
+          if (fieldDef?.type === "ref" && "target" in fieldDef && typeof value === "string") {
+            try {
+              const related = await dataProvider.get(fieldDef.target, value);
+              if (related) {
+                relatedContext[fieldName] = related;
+              }
+            } catch {
+              // Related record not found — skip
+            }
+          }
+        }
+      }
+
+      // ── Step 3: Enrich field definitions with server-side knowledge ──
+      const enrichedFields: Record<string, {
+        label?: string;
+        type?: string;
+        required?: boolean;
+        options?: string[];
+        description?: string;
+        constraints?: Record<string, unknown>;
+        stats?: (typeof fieldStats)[string];
+      }> = {};
+
+      for (const [name, clientDef] of Object.entries(fields)) {
+        const serverField = schemaDef?.fields[name];
+        const merged: (typeof enrichedFields)[string] = { ...clientDef };
+
+        if (serverField) {
+          if (!merged.label && serverField.label) merged.label = serverField.label;
+          if (!merged.description && serverField.description) merged.description = serverField.description;
+          if (!merged.type) merged.type = serverField.type;
+          if (serverField.required) merged.required = true;
+
+          // Extract enum options from server definition
+          if (serverField.type === "enum" && "options" in serverField && !merged.options?.length) {
+            merged.options = (serverField as { options: Array<{ value: string; label?: string }> }).options.map(
+              (o) => o.label ? `${o.value} (${o.label})` : o.value,
+            );
+          }
+
+          // Extract state machine options
+          if (serverField.type === "state" && "machine" in serverField && options.states) {
+            const stateDef = options.states.find(
+              (s) => s.name === (serverField as { machine: string }).machine,
+            );
+            if (stateDef && !merged.options?.length) {
+              merged.options = stateDef.states;
+            }
+          }
+
+          // Gather numeric/format constraints
+          const constraints: Record<string, unknown> = {};
+          if (serverField.min !== undefined) constraints.min = serverField.min;
+          if (serverField.max !== undefined) constraints.max = serverField.max;
+          if ("format" in serverField && serverField.format) constraints.format = serverField.format;
+          if ("pattern" in serverField && serverField.pattern) constraints.pattern = serverField.pattern;
+          if (serverField.default !== undefined) constraints.default = serverField.default;
+          if (Object.keys(constraints).length > 0) merged.constraints = constraints;
+        }
+
+        if (fieldStats[name]) merged.stats = fieldStats[name];
+        enrichedFields[name] = merged;
+      }
+
+      // ── Step 4: No AI service — statistical fallback ───
+      if (!aiService?.configured) {
+        const suggestions: Record<string, { value: unknown; confidence: number; reason: string }> = {};
+
+        for (const fieldName of emptyFieldNames) {
+          const stats = fieldStats[fieldName];
+          if (stats?.mostCommon) {
+            const { value, count, total } = stats.mostCommon;
+            const frequency = count / total;
+            // Only suggest if value appears in >30% of recent records
+            if (frequency >= 0.3) {
+              suggestions[fieldName] = {
+                value,
+                confidence: Math.round(frequency * 100) / 100,
+                reason: `Most common value in recent records (${count}/${total})`,
+              };
+              continue;
+            }
+          }
+          // Fall back to schema default if available
+          const fieldDef = schemaDef?.fields[fieldName];
+          if (fieldDef?.default !== undefined) {
+            suggestions[fieldName] = {
+              value: fieldDef.default,
+              confidence: 0.9,
+              reason: "Schema default value",
+            };
+          }
+        }
+
+        return { success: true, data: { suggestions } };
+      }
+
+      // ── Step 5: Build data-informed AI prompt ──────────
+      try {
+        const fieldDescriptions = Object.entries(enrichedFields)
+          .filter(([name]) => emptyFieldNames.includes(name))
+          .map(([name, def]) => {
+            const parts = [`- ${name}`];
+            if (def.label) parts.push(`(label: "${def.label}")`);
+            if (def.type) parts.push(`[type: ${def.type}]`);
+            if (def.required) parts.push("(REQUIRED)");
+            if (def.options?.length) parts.push(`MUST be one of: [${def.options.join(", ")}]`);
+            if (def.description) parts.push(`— ${def.description}`);
+            if (def.constraints) {
+              const c = def.constraints;
+              if (c.min !== undefined) parts.push(`min: ${c.min}`);
+              if (c.max !== undefined) parts.push(`max: ${c.max}`);
+              if (c.format) parts.push(`format: ${c.format}`);
+              if (c.pattern) parts.push(`pattern: ${c.pattern}`);
+            }
+            if (def.stats?.mostCommon) {
+              const mc = def.stats.mostCommon;
+              parts.push(`(most common: ${JSON.stringify(mc.value)}, freq: ${mc.count}/${mc.total})`);
+            }
+            if (def.stats && def.stats.uniqueValues.length > 0) {
+              parts.push(`recent values: [${def.stats.uniqueValues.map((v) => JSON.stringify(v)).join(", ")}]`);
+            }
+            return parts.join(" ");
+          }).join("\n");
+
+        // Build already-filled context with related record enrichment
         const filledFields = currentValues
           ? Object.entries(currentValues)
               .filter(([, v]) => v !== null && v !== undefined && v !== "")
-              .map(([k, v]) => `- ${k}: ${JSON.stringify(v)}`)
+              .map(([k, v]) => {
+                const label = enrichedFields[k]?.label ?? k;
+                let line = `- ${k} (${label}): ${JSON.stringify(v)}`;
+                if (relatedContext[k]) {
+                  const related = relatedContext[k];
+                  const summary = Object.entries(related)
+                    .filter(([rk]) => !rk.startsWith("_") && rk !== "id" && rk !== "tenant_id")
+                    .slice(0, 5)
+                    .map(([rk, rv]) => `${rk}=${JSON.stringify(rv)}`)
+                    .join(", ");
+                  if (summary) line += ` → related: {${summary}}`;
+                }
+                return line;
+              })
               .join("\n")
           : "None";
 
-        // Identify empty fields that need suggestions
-        const emptyFieldNames = Object.keys(fields).filter((name) => {
-          const val = currentValues?.[name];
-          return val === null || val === undefined || val === "";
-        });
-
-        if (emptyFieldNames.length === 0) {
-          return { success: true, data: { suggestions: {} } };
+        let schemaContext = "";
+        if (schemaDef) {
+          schemaContext = `\nSchema: "${schemaDef.name}"`;
+          if (schemaDef.label) schemaContext += ` (${schemaDef.label})`;
+          if (schemaDef.description) schemaContext += `\nDescription: ${schemaDef.description}`;
         }
 
-        const prompt = `You are a form auto-fill assistant for a "${schemaName}" record.
+        const locale = extractLocale(bodyLocale, request);
+        const langInstruction = locale ? getLanguageInstruction(locale) : undefined;
 
-Given the schema fields and any already-filled values, suggest realistic values for the empty fields.
+        const hasData = recentRecords.length > 0;
 
-Schema fields:
+        const prompt = `You are a form auto-fill assistant for a "${schemaName}" record.${schemaContext}
+${langInstruction ? `\n${langInstruction}\n` : ""}
+${hasData ? `There are ${recentRecords.length} recent records providing data context.` : "This is a NEW system with NO existing data. Only suggest values when field constraints make the answer obvious (e.g., enum default, schema default). Otherwise, do NOT suggest — return an empty object rather than guessing."}
+
+Fields that need suggestions (with data context):
 ${fieldDescriptions}
 
-Already filled:
+Already filled by user:
 ${filledFields}
 
-Empty fields that need suggestions: ${emptyFieldNames.join(", ")}
+RULES:
+- For enum/state fields, ONLY use values from the provided options list. Never invent options.
+- For number fields, stay within min/max constraints if provided.
+- For string fields with format constraints (email, url, phone), match that format.
+- Use "most common" and "recent values" data to prefer values matching existing patterns.
+- Use related record data to infer contextually appropriate values.
+- Set confidence based on data support:
+  - 0.9+: clear default or dominant pattern (>70% frequency)
+  - 0.7-0.9: strong data pattern (>40% frequency) or logically inferred from filled fields
+  - 0.4-0.7: reasonable guess from partial patterns
+  - Below 0.4: do NOT suggest — omit the field
+- ${hasData ? "" : "With no existing data, be extremely conservative. Only suggest for fields with obvious defaults."}
 
-Respond with a JSON object where each key is a field name and the value is an object with:
-- "value": the suggested value (matching the field type)
-- "confidence": a number 0-1 indicating how confident you are
-- "reason": a brief explanation of why you suggested this value
-
-Only suggest values for the empty fields listed above. For enum/state fields, only use values from the provided options. For number fields, provide a number. For boolean fields, provide true/false. For date fields, provide an ISO date string.`;
+Respond with JSON: { "<field>": { "value": <val>, "confidence": <0-1>, "reason": "<why>"${langInstruction ? " (in user's language)" : ""} }, ... }
+Only include fields where you have genuine confidence. Omit fields where you would be guessing.`;
 
         const result = await aiService.complete({
           model: "fast",
           messages: [
-            { role: "system", content: "You are a helpful assistant that fills form fields with realistic, contextually appropriate values. Always respond with valid JSON only, no markdown formatting." },
+            { role: "system", content: "You are a data-aware form assistant. You suggest values based on real data patterns, field constraints, and contextual clues. Never guess randomly. Always respond with valid JSON only, no markdown formatting." },
             { role: "user", content: prompt },
           ],
-          temperature: 0.3,
+          temperature: 0.1,
           maxTokens: 2000,
           timeout: 30000,
         });
@@ -143,18 +354,43 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         // Parse AI response
         let suggestions: Record<string, { value: unknown; confidence: number; reason?: string }> = {};
         try {
-          // Strip markdown code fences if present
           let content = result.content.trim();
           if (content.startsWith("```")) {
             content = content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
           }
           suggestions = JSON.parse(content);
         } catch {
-          // If parsing fails, return empty suggestions
           return { success: true, data: { suggestions: {} } };
         }
 
-        return { success: true, data: { suggestions } };
+        // Post-process: validate suggestions against field constraints
+        const validated: Record<string, { value: unknown; confidence: number; reason?: string }> = {};
+        for (const [fieldName, suggestion] of Object.entries(suggestions)) {
+          if (!emptyFieldNames.includes(fieldName)) continue;
+          if (typeof suggestion?.confidence !== "number" || suggestion.confidence < 0.4) continue;
+
+          const fieldDef = enrichedFields[fieldName];
+          if (!fieldDef) continue;
+
+          // Validate enum/state values against known options
+          if (fieldDef.options?.length) {
+            const optionValues = fieldDef.options.map((o) => {
+              const match = o.match(/^([^ (]+)/);
+              return match ? match[1] : o;
+            });
+            if (!optionValues.includes(String(suggestion.value))) continue;
+          }
+
+          // Validate number constraints
+          if (fieldDef.type === "number" && typeof suggestion.value === "number") {
+            if (fieldDef.constraints?.min !== undefined && suggestion.value < (fieldDef.constraints.min as number)) continue;
+            if (fieldDef.constraints?.max !== undefined && suggestion.value > (fieldDef.constraints.max as number)) continue;
+          }
+
+          validated[fieldName] = suggestion;
+        }
+
+        return { success: true, data: { suggestions: validated } };
       } catch (err) {
         const message = process.env.NODE_ENV === "production"
           ? "AI auto-fill failed."
@@ -218,6 +454,9 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           ? createTenantAwareDataProvider(dataProvider, tenantId)
           : dataProvider;
 
+        // Resolve locale from request body or Accept-Language header
+        const locale = extractLocale(context?.locale, request);
+
         // Build dynamic system prompt with schema context from OntologyRegistry
         const systemPrompt = buildSystemPrompt({
           assistantConfig,
@@ -227,6 +466,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
             schema: context?.schema,
             recordId: context?.recordId,
             recordData: context?.recordData,
+            locale,
           },
         });
 
@@ -268,10 +508,11 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
       }
     })
     // ── AI Intent Resolution endpoint — natural language to action proposal ──
-    .post("/api/ai/resolve-intent", async ({ body, set }) => {
-      const { message, context } = (body ?? {}) as {
+    .post("/api/ai/resolve-intent", async ({ body, set, request }) => {
+      const { message, context, locale: bodyLocale } = (body ?? {}) as {
         message?: string;
         context?: { schema?: string; recordId?: string };
+        locale?: string;
       };
 
       if (!message || typeof message !== "string") {
@@ -327,8 +568,11 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
         }
       }
 
-      const systemPrompt = `You are LinchKit AI Intent Resolver. Given a user's natural language request, determine which action to execute and extract the input parameters.
+      const locale = extractLocale(bodyLocale, request);
+      const langInstruction = locale ? getLanguageInstruction(locale) : undefined;
 
+      const systemPrompt = `You are LinchKit AI Intent Resolver. Given a user's natural language request, determine which action to execute and extract the input parameters.
+${langInstruction ? `\n${langInstruction}\n` : ""}
 Available actions:
 ${JSON.stringify(actionCatalog, null, 2)}
 ${schemaContext}
@@ -346,9 +590,10 @@ Respond with a JSON object (and nothing else) in this exact format:
 Rules:
 - Only match actions from the available list above.
 - Extract parameter values from the user message. Convert types appropriately (strings to numbers, etc.).
+- The user may write in any language (including Chinese like "创建采购请求"). Match intent regardless of input language.
 - If you cannot determine a good match, set action to null and confidence to 0.
 - If some required fields are missing from the user message, list them in missingFields.
-- The explanation should be concise and user-friendly.`;
+- The explanation should be concise, user-friendly${langInstruction ? ", and written in the user's language" : ""}.`;
 
       try {
         const result = await aiService.complete({
@@ -424,11 +669,12 @@ Rules:
       }
     })
     // ── AI Search endpoint — natural language to DeclarativeCondition ──
-    .post("/api/ai/search", async ({ body, set }) => {
-      const { query: rawQuery, schema: targetSchema, fields } = (body ?? {}) as {
+    .post("/api/ai/search", async ({ body, set, request }) => {
+      const { query: rawQuery, schema: targetSchema, fields, locale: bodyLocale } = (body ?? {}) as {
         query?: string;
         schema?: string;
         fields?: Record<string, { label?: string; type?: string; options?: string[] }>;
+        locale?: string;
       };
 
       if (!rawQuery || !targetSchema) {
@@ -463,8 +709,12 @@ Rules:
           return parts.join(" ");
         }).join("\n");
 
+        const locale = extractLocale(bodyLocale, request);
+        const langInstruction = locale ? getLanguageInstruction(locale) : undefined;
+
         const prompt = [
           `You are a search filter parser for a "${targetSchema}" data model.`,
+          ...(langInstruction ? ["", langInstruction] : []),
           "",
           "Convert the following natural language search query into a structured filter condition.",
           "",
@@ -476,7 +726,7 @@ Rules:
           `Query: "${sanitizedQuery}"`,
           "",
           'Respond with valid JSON only (no markdown, no code fences). The response must have this exact shape:',
-          '{ "filter": <condition>, "explanation": "<brief explanation>" }',
+          `{ "filter": <condition>, "explanation": "<brief explanation${langInstruction ? " in the user's language" : ""}>" }`,
           "",
           "Filter condition formats:",
           '- Simple: { "field": "fieldName", "operator": "eq", "value": "someValue" }',
