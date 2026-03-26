@@ -335,7 +335,7 @@ export function FlowDetailPage() {
           <CardTitle className="text-base">{t("flows.diagram")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <FlowDiagram steps={flow.steps} />
+          <FlowDiagram steps={flow.steps} resolveLabel={resolveLabel} />
         </CardContent>
       </Card>
 
@@ -363,7 +363,7 @@ export function FlowDetailPage() {
                     <tr key={step.id} className="border-b">
                       <td className="p-2 text-muted-foreground">{i + 1}</td>
                       <td className="p-2 font-mono text-xs">{step.id}</td>
-                      <td className="p-2 font-medium">{step.name}</td>
+                      <td className="p-2 font-medium">{resolveLabel(step.name, step.name)}</td>
                       <td className="p-2">
                         <div className="flex items-center gap-1.5" style={{ color: config.color }}>
                           {config.icon}

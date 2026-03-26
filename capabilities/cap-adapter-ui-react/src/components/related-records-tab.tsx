@@ -6,10 +6,10 @@
  * that navigates to create form with FK pre-filled.
  */
 
-import type { LinkDefinition, SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { LinkDefinition, SchemaDefinition } from "@linchkit/core/types";
 import { Button, Skeleton } from "@linchkit/ui-kit/components";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";

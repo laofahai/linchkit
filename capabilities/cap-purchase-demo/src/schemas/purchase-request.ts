@@ -13,7 +13,7 @@ import type { SchemaDefinition } from "@linchkit/core";
 
 export const purchaseRequestSchema: SchemaDefinition = {
   name: "purchase_request",
-  label: "Purchase Request",
+  label: "t:schemas.purchase_request._label",
   description: "A purchase request submitted for approval",
 
   implements: ["auditable"],
@@ -30,7 +30,7 @@ export const purchaseRequestSchema: SchemaDefinition = {
     title: {
       type: "string",
       required: true,
-      label: "Title",
+      label: "t:schemas.purchase_request.fields.title",
       ui: { importance: "primary" },
     },
     description: { type: "text", label: "Description" },
