@@ -242,7 +242,7 @@ export function RichTextInput({
     const currentHtml = editor.getHTML();
     const newValue = value != null ? String(value) : "";
     if (currentHtml !== newValue && !(currentHtml === "<p></p>" && newValue === "")) {
-      editor.commands.setContent(newValue, false);
+      editor.commands.setContent(newValue, { emitUpdate: false });
     }
   }, [value, editor]);
 
