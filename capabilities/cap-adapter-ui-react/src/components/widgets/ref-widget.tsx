@@ -7,6 +7,7 @@ import {
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
@@ -61,6 +62,7 @@ export function RefInput({
   dirty,
   fieldDef,
 }: WidgetInputProps) {
+  const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
 
   // Fetch target schema bundle to resolve titleField
@@ -107,15 +109,15 @@ export function RefInput({
           )}
           onBlur={onBlur}
         >
-          <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
+          <SelectValue placeholder={isLoading ? t("common.loading", "Loading...") : t("common.select", "Select...")} />
         </SelectTrigger>
         <SelectContent>
           {queryError && (
-            <div className="px-2 py-1 text-xs text-destructive">Failed to load options</div>
+            <div className="px-2 py-1 text-xs text-destructive">{t("common.loadFailed", "Failed to load options")}</div>
           )}
           {options.length === 0 && !isLoading && !queryError && (
             <SelectItem value="__empty" disabled>
-              No options available
+              {t("common.noOptions", "No options available")}
             </SelectItem>
           )}
           {options.map((opt) => (

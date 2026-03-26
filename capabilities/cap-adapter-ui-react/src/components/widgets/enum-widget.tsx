@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useTranslation } from "react-i18next";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { requiredBg } from "./utils";
@@ -31,6 +32,7 @@ export function EnumInput({
   dirty,
   required,
 }: WidgetInputProps) {
+  const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
   const enumDef = fieldDef as EnumField;
   return (
@@ -48,7 +50,7 @@ export function EnumInput({
           )}
           onBlur={onBlur}
         >
-          <SelectValue placeholder="Select..." />
+          <SelectValue placeholder={t("common.select", "Select...")} />
         </SelectTrigger>
         <SelectContent>
           {enumDef.options?.map((opt) => (

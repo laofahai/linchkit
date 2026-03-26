@@ -41,4 +41,8 @@ export interface AutoListProps {
   selectable?: boolean;
   /** Extra content rendered after the primary action button in the toolbar. */
   toolbarExtra?: React.ReactNode;
+  /** Called after a successful inline edit save. Receives the record id and updated record data. */
+  onInlineEditSaved?: (recordId: string, updatedRecord: Record<string, unknown>) => void;
+  /** Called when an inline edit save fails. */
+  onInlineEditError?: (error: Error) => void;
 }

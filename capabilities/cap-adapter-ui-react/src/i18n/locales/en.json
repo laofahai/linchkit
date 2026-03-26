@@ -20,7 +20,18 @@
     "no": "No",
     "export": "Export",
     "duplicate": "Duplicate",
-    "new": "New"
+    "new": "New",
+    "retry": "Retry",
+    "view": "View",
+    "add": "Add",
+    "none": "None",
+    "select": "Select...",
+    "selectTarget": "Select {{target}}...",
+    "noOptions": "No options available",
+    "loadFailed": "Failed to load options",
+    "item": "{{count}} item",
+    "item_other": "{{count}} items",
+    "noRelatedRecords": "No related records"
   },
   "nav": {
     "home": "Home",
@@ -97,7 +108,12 @@
     "showLess": "Show less",
     "quickFilters": "Filters",
     "inlineEditSaved": "Field updated successfully",
-    "inlineEditFailed": "Failed to update field: {{message}}"
+    "inlineEditFailed": "Failed to update field: {{message}}",
+    "columns": "Columns",
+    "refreshing": "Refreshing...",
+    "selectAll": "Select all",
+    "selectRow": "Select row",
+    "doubleClickToEdit": "Double-click to edit"
   },
   "commandPalette": {
     "title": "Command Palette",
@@ -189,7 +205,17 @@
   "detail": {
     "relatedRecords": "Related Records",
     "activity": "Activity",
-    "noActivity": "No activity recorded yet."
+    "noActivity": "No activity recorded yet.",
+    "recordCount": "{{count}} record",
+    "recordCount_other": "{{count}} records",
+    "field": "Field",
+    "value": "Value",
+    "actionKind": {
+      "create": "Created",
+      "update": "Updated",
+      "delete": "Deleted",
+      "custom": "Action"
+    }
   },
   "masking": {
     "tooltip": "This field is masked for privacy"
@@ -204,6 +230,32 @@
     "label": "Language",
     "en": "English",
     "zhCN": "中文"
+  },
+  "errors": {
+    "missingSchemaName": "No schema specified in the URL.",
+    "schemaLoadFailed": "Failed to load schema \"{{name}}\".",
+    "checkServer": "Check that the server is running and the schema is registered.",
+    "dataLoadFailed": "Failed to load records.",
+    "recordNotFound": "Record \"{{id}}\" not found.",
+    "recordLoadFailed": "Failed to load record.",
+    "failedToLoadData": "Failed to load data"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "one2many": {
+    "addLine": "Add a line"
+  },
+  "widget": {
+    "addTarget": "+ Add {{target}}"
   },
   "health": {
     "title": "System Health",
@@ -226,6 +278,11 @@
       "unhealthy": "System issues detected"
     }
   },
+  "emptyState": {
+    "title": "No {{label}} yet",
+    "description": "Create your first {{label}} to get started.",
+    "createButton": "Create {{label}}"
+  },
   "toast": {
     "recordCreated": "Record created successfully",
     "recordUpdated": "Record updated successfully",
@@ -239,6 +296,10 @@
     "bulkDeleteFailed": "Failed to delete records",
     "transitionFailed": "Status change failed",
     "actionFailed": "Action failed"
+  },
+  "confirm": {
+    "deleteTitle": "Delete record",
+    "deleteDescription": "Are you sure you want to delete this record? This action cannot be undone."
   },
   "bulk": {
     "deleteTitle": "Delete records",

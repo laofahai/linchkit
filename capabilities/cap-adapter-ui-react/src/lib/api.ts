@@ -301,6 +301,8 @@ export interface SchemaInfo {
   name: string;
   label?: string;
   description?: string;
+  /** Lucide icon name from schema presentation config */
+  icon?: string;
 }
 
 import type { LinkDefinition, StateDefinition } from "@linchkit/core/types";
@@ -420,8 +422,8 @@ export interface ExecutionLogEntry {
   schema?: string;
   recordId?: string;
   actor: { type: string; id: string };
-  input: Record<string, unknown>;
-  output?: unknown;
+  input?: string;
+  output?: string;
   status: "succeeded" | "failed" | "blocked" | "pending_approval";
   error?: { code?: string; message: string };
   stateTransition?: { from: string; to: string };
@@ -451,6 +453,7 @@ export async function queryExecutionLogs(
         items {
           id action schema recordId
           actor { type id }
+          input
           status duration startedAt completedAt
           error { code message }
           stateTransition { from to }

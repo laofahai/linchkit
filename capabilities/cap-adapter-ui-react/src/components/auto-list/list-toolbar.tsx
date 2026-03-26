@@ -35,6 +35,8 @@ interface ListToolbarProps {
   bazzaFilters?: FiltersState | undefined;
   bazzaActions?: DataTableFilterActions | undefined;
   bazzaStrategy?: FilterStrategy | undefined;
+  /** Callback to export all visible data as CSV. */
+  onExportCsv?: () => void;
   /** Extra content rendered after the primary action button. */
   toolbarExtra?: React.ReactNode;
 }
@@ -58,6 +60,7 @@ export function ListToolbar({
   bazzaColumns,
   bazzaFilters,
   bazzaActions,
+  onExportCsv,
   bazzaStrategy,
   toolbarExtra,
 }: ListToolbarProps) {
@@ -157,7 +160,7 @@ export function ListToolbar({
               <Columns3 className="mr-2 size-3.5" />
               {t("list.columns", "Columns")}
             </DropdownMenuItem>
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onClick={onExportCsv}>
               <Download className="mr-2 size-3.5" />
               {t("common.export", "Export")}
             </DropdownMenuItem>

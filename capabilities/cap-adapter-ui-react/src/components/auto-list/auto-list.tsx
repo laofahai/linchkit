@@ -21,10 +21,12 @@ import {
 import { Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useInlineEdit } from "../../hooks/use-inline-edit";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { useDataTableFilters } from "../data-table-filter";
 import type { FiltersState } from "../data-table-filter/core/types";
 import { buildColumns, buildSelectionColumn } from "./columns";
+import { exportCsv } from "./csv-export";
 import { buildFilterColumns } from "./filter-columns";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
@@ -45,6 +47,8 @@ export function AutoList({
   onRowClick,
   selectable = false,
   toolbarExtra,
+  onInlineEditSaved,
+  onInlineEditError,
 }: AutoListProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -95,6 +99,31 @@ export function AutoList({
     [view.actions],
   );
 
+  // Determine if any field has inline editing enabled
+  const hasEditableFields = useMemo(
+    () => view.fields.some((f) => f.editable),
+    [view.fields],
+  );
+
+  // Query fields for refetching after inline edit
+  const queryFields = useMemo(
+    () => ["id", ...view.fields.map((f) => f.field)],
+    [view.fields],
+  );
+
+  // Inline edit hook
+  const {
+    editingCell,
+    startEditing,
+    cancelEditing,
+    saveEdit,
+  } = useInlineEdit({
+    schemaName: schema.name,
+    queryFields,
+    onSaved: onInlineEditSaved,
+    onError: onInlineEditError,
+  });
+
   // Pre-filter data using bazza filter logic before passing to TanStack Table
   const filteredData = useMemo(() => {
     if (bazzaFilterState.length === 0) return data;
@@ -139,10 +168,19 @@ export function AutoList({
       onAction,
       stateMeta,
       resolveLabel,
+      ...(hasEditableFields
+        ? {
+            editingCell,
+            onStartEditing: startEditing,
+            onSaveEdit: saveEdit,
+            onCancelEdit: cancelEditing,
+          }
+        : {}),
     });
     if (selectable) cols.unshift(buildSelectionColumn());
     return cols;
-  }, [view.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel, hasEditableFields, editingCell, startEditing, saveEdit, cancelEditing]);
 
   const table = useReactTable({
     data: filteredData,
@@ -174,12 +212,55 @@ export function AutoList({
     setGlobalFilter("");
   }, []);
 
+  // CSV export: all filtered rows
+  const handleExportCsv = useCallback(() => {
+    const rows = table.getFilteredRowModel().rows.map((r) => r.original);
+    exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
+  }, [table, view.fields, schema.name, resolveLabel]);
+
+  // CSV export: selected rows only
+  const handleExportSelected = useCallback(() => {
+    const rows = selectedRows.map((r) => r.original);
+    exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
+  }, [selectedRows, view.fields, schema.name, resolveLabel]);
+
+  // Intercept bulk actions to handle export internally
+  const handleBulkAction = useCallback(
+    (actionName: string) => {
+      if (actionName === "export") {
+        handleExportSelected();
+        return;
+      }
+      onBulkAction?.(actionName, selectedIds);
+    },
+    [handleExportSelected, onBulkAction, selectedIds],
+  );
+
   if (loading) {
     return (
-      <div className="space-y-3">
-        {SKELETON_KEYS.map((key) => (
-          <Skeleton key={key} className="h-10 w-full" />
-        ))}
+      <div className="space-y-4">
+        {/* Toolbar skeleton */}
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+        {/* Table skeleton with header + rows */}
+        <div className="rounded border border-border">
+          <div className="flex items-center gap-4 border-b border-border bg-muted/50 px-3 py-2.5">
+            {selectable && <Skeleton className="h-4 w-4" />}
+            {view.fields.slice(0, 5).map((f, i) => (
+              <Skeleton key={f.field} className="h-4" style={{ width: `${80 + i * 16}px` }} />
+            ))}
+          </div>
+          {SKELETON_KEYS.map((key) => (
+            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+              {selectable && <Skeleton className="h-4 w-4" />}
+              {view.fields.slice(0, 5).map((f, i) => (
+                <Skeleton key={f.field} className="h-4" style={{ width: `${60 + i * 20}px` }} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -195,7 +276,8 @@ export function AutoList({
         toolbarActions={toolbarActions}
         onAction={onAction}
         selectedCount={selectedIds.length}
-        onBulkAction={(actionName) => onBulkAction?.(actionName, selectedIds)}
+        onExportCsv={handleExportCsv}
+        onBulkAction={handleBulkAction}
         onClearSelection={() => setRowSelection({})}
         bazzaColumns={bazzaColumns}
         bazzaFilters={bazzaFilterState}

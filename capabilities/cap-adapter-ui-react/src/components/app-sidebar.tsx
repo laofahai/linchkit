@@ -12,14 +12,10 @@ import {
 } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
 import {
-  ActivityIcon,
-  BlocksIcon,
-  BoxIcon,
   DatabaseIcon,
   HeartPulseIcon,
   LayoutDashboardIcon,
   ScrollTextIcon,
-  Settings2Icon,
 } from "lucide-react";
 import type * as React from "react";
 import { useMemo } from "react";
@@ -28,35 +24,32 @@ import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import { useSchemas } from "@/hooks/use-schemas";
+import { getLucideIcon } from "@/lib/dynamic-icon";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
   const { schemas } = useSchemas();
 
   const data = useMemo(() => {
-    // Build schema sub-items from API data
-    const schemaItems = schemas.map((s) => ({
-      title: s.label ?? s.name,
-      url: `/schemas/${s.name}`,
-    }));
-
-    // No hardcoded fallback — sidebar reflects actual server state
+    // Build schema sub-items from API data with dynamic icons
+    const schemaItems = schemas.map((s) => {
+      const Icon = getLucideIcon(s.icon);
+      return {
+        title: s.label ?? s.name,
+        url: `/schemas/${s.name}`,
+        icon: Icon ? <Icon className="size-4" /> : undefined,
+      };
+    });
 
     return {
       teams: [
         {
           name: "LinchKit",
-          logo: <BoxIcon />,
+          logo: <DatabaseIcon />,
           plan: t("nav.workspace"),
         },
       ],
       navMain: [
-        {
-          title: t("nav.capabilities"),
-          url: "/modules",
-          icon: <BlocksIcon />,
-          items: [],
-        },
         {
           title: t("nav.schemas"),
           url: "#",
@@ -64,29 +57,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           isActive: true,
           items: schemaItems,
         },
-        {
-          title: t("nav.events"),
-          url: "/admin/events",
-          icon: <ActivityIcon />,
-          items: [],
-        },
+      ],
+      adminItems: [
         {
           title: t("executionLog.title"),
           url: "/admin/executions",
           icon: <ScrollTextIcon />,
-          items: [],
         },
         {
           title: t("health.title"),
           url: "/admin/health",
           icon: <HeartPulseIcon />,
-          items: [],
-        },
-        {
-          title: t("nav.settings"),
-          url: "/admin/settings",
-          icon: <Settings2Icon />,
-          items: [],
         },
       ],
     };
@@ -113,8 +94,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Administration section */}
+        {/* Schema models section — dynamically generated from API */}
         <NavMain items={data.navMain} />
+
+        {/* Administration section — only items with working routes */}
+        <SidebarGroup>
+          <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
+          <SidebarMenu>
+            {data.adminItems.map((item) => (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <Link to={item.url as "/"}>
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

@@ -106,6 +106,7 @@ export {
   SelectValue,
 } from "./select";
 export { Separator } from "./separator";
+export { Toaster, toast } from "./sonner";
 export {
   Sheet,
   SheetClose,

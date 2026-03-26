@@ -142,6 +142,9 @@ function buildRouter(appConfig: AppConfig) {
     getParentRoute: () => shellRoute,
     path: "/schemas/$name/new",
     component: SchemaFormPage,
+    validateSearch: (search: Record<string, unknown>) => ({
+      clone: (search.clone as string) || undefined,
+    }),
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 

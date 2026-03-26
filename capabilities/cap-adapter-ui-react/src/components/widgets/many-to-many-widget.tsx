@@ -22,12 +22,14 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 
 export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
+  const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
@@ -60,7 +62,7 @@ export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   if (typeof value === "number") {
     return (
       <Badge variant="secondary" className="text-xs">
-        {value} {value === 1 ? "item" : "items"}
+        {t("common.item", { count: value })}
       </Badge>
     );
   }
@@ -68,6 +70,7 @@ export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   // No data available
   return <span className="text-muted-foreground">--</span>;
 }
+
 
 export function ManyToManyInput({
   value,
@@ -78,6 +81,7 @@ export function ManyToManyInput({
   dirty,
   fieldDef,
 }: WidgetInputProps) {
+  const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
@@ -144,7 +148,7 @@ export function ManyToManyInput({
     return (
       <div className="space-y-1">
         {selectedRecords.length === 0 ? (
-          <span className="text-sm text-muted-foreground">None</span>
+          <span className="text-sm text-muted-foreground">{t("common.none", "None")}</span>
         ) : (
           <div className="flex flex-wrap gap-1">
             {selectedRecords.map((record, i) => (
@@ -192,14 +196,14 @@ export function ManyToManyInput({
             )}
             onBlur={onBlur}
           >
-            {isLoading ? "Loading..." : `Select ${targetBundle?.schema.label ?? targetSchema}...`}
+            {isLoading ? t("common.loading", "Loading...") : t("common.selectTarget", "Select {{target}}...", { target: targetBundle?.schema.label ?? targetSchema })}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
           <Command>
-            <CommandInput placeholder="Search..." />
+            <CommandInput placeholder={t("common.search", "Search") + "..."} />
             <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty>{t("commandPalette.noResults", "No results found.")}</CommandEmpty>
               <CommandGroup>
                 {(allRecords ?? []).map((record) => {
                   const isSelected = selectedIds.includes(record.id);

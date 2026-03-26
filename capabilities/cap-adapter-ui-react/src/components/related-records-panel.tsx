@@ -278,7 +278,7 @@ function RelatedRecordsList({
       </table>
       {records.length > 0 && (
         <div className="mt-2 text-xs text-muted-foreground">
-          {records.length} {records.length === 1 ? "record" : "records"}
+          {t("detail.recordCount", { count: records.length })}
         </div>
       )}
     </div>
@@ -301,7 +301,13 @@ function getColumnHeaders(record: Record<string, unknown>): string[] {
 /** Format a cell value for display */
 function formatCellValue(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>;
-  if (typeof value === "boolean") return <Badge variant="outline">{value ? "Yes" : "No"}</Badge>;
+  if (typeof value === "boolean") return <BooleanCell value={value} />;
   if (typeof value === "object") return <span className="font-mono text-xs">{JSON.stringify(value)}</span>;
   return String(value);
+}
+
+/** Boolean cell with i18n */
+function BooleanCell({ value }: { value: boolean }) {
+  const { t } = useTranslation();
+  return <Badge variant="outline">{value ? t("common.yes", "Yes") : t("common.no", "No")}</Badge>;
 }

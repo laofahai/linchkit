@@ -21,7 +21,10 @@ import {
 } from "@linchkit/ui-kit/components";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from "lucide-react";
+import i18next from "i18next";
+import { isFieldTypeEditable, type EditingCell } from "../../hooks/use-inline-edit";
 import { FieldDisplay } from "../field-renderer";
+import { InlineEditCell } from "./inline-edit-cell";
 import { StatusBadge } from "./status-badge";
 
 type DataRow = Record<string, unknown>;
@@ -34,15 +37,44 @@ export interface BuildColumnsOptions {
   stateMeta?: Partial<Record<string, StateMeta>>;
   /** Resolve labels that may use the `t:` i18n prefix convention. */
   resolveLabel?: (label: string | undefined, fallback: string) => string;
+  /** Currently editing cell (for inline edit support) */
+  editingCell?: EditingCell | null;
+  /** Start editing a cell */
+  onStartEditing?: (rowId: string, field: string) => void;
+  /** Save inline edit */
+  onSaveEdit?: (rowId: string, field: string, value: unknown) => void;
+  /** Cancel inline edit */
+  onCancelEdit?: () => void;
 }
 
 export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
-  const { fields, schema, rowActions, onAction, stateMeta, resolveLabel } = opts;
+  const {
+    fields,
+    schema,
+    rowActions,
+    onAction,
+    stateMeta,
+    resolveLabel,
+    editingCell,
+    onStartEditing,
+    onSaveEdit,
+    onCancelEdit,
+  } = opts;
   const resolve = resolveLabel ?? ((l: string | undefined, fb: string) => l ?? fb);
   const cols: ColumnDef<DataRow>[] = fields.map((vf) => {
     const fieldDef = schema.fields[vf.field];
     const rawLabel = vf.label ?? fieldDef?.label ?? vf.field;
     const label = resolve(rawLabel, vf.field);
+
+    // Determine if this field supports inline editing
+    const canInlineEdit =
+      vf.editable === true &&
+      !vf.readonly &&
+      fieldDef &&
+      isFieldTypeEditable(fieldDef.type) &&
+      onStartEditing &&
+      onSaveEdit &&
+      onCancelEdit;
 
     return {
       accessorKey: vf.field,
@@ -68,8 +100,30 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
           </button>
         );
       },
-      cell: ({ getValue }) => {
+      cell: ({ getValue, row }) => {
         const value = getValue();
+        const rowId = String(row.original.id ?? "");
+
+        // Inline editable cell
+        if (canInlineEdit && rowId) {
+          const isEditing =
+            editingCell?.rowId === rowId && editingCell?.field === vf.field;
+          return (
+            <InlineEditCell
+              field={vf}
+              fieldDef={fieldDef}
+              value={value}
+              rowId={rowId}
+              isEditing={isEditing}
+              stateMeta={stateMeta}
+              onDoubleClick={() => onStartEditing(rowId, vf.field)}
+              onSave={(newValue) => onSaveEdit(rowId, vf.field, newValue)}
+              onCancel={onCancelEdit}
+            />
+          );
+        }
+
+        // Standard display
         if (fieldDef?.type === "state" && typeof value === "string") {
           return <StatusBadge value={value} meta={stateMeta} />;
         }

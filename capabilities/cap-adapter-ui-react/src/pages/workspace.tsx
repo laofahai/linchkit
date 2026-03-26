@@ -114,17 +114,17 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
 
 // ── Time formatting ─────────────────────────────────────
 
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t("time.justNow", { defaultValue: "just now" });
+  if (diffMin < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: diffMin });
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: diffHr });
   const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}d ago`;
+  return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: diffDay });
 }
 
 // ── Schema Stats Cards ──────────────────────────────────
@@ -296,7 +296,7 @@ function RecentActivity({
               <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {formatRelativeTime(log.startedAt)}
+                  {formatRelativeTime(log.startedAt, t)}
                 </span>
                 {log.actor?.id && (
                   <span>

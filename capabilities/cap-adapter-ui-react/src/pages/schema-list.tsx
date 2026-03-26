@@ -8,14 +8,6 @@
 
 import type { ViewDefinition } from "@linchkit/core/types";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
   Button,
   Skeleton,
   toast,
@@ -26,6 +18,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
 import { AutoList } from "../components/auto-list";
+import { ConfirmDialog } from "../components/confirm-dialog";
+import { EmptyState } from "../components/empty-state";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
@@ -214,6 +208,11 @@ export function SchemaListPage() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("list");
 
+  // Single delete confirmation dialog state
+  const [singleDeleteOpen, setSingleDeleteOpen] = useState(false);
+  const [singleDeleting, setSingleDeleting] = useState(false);
+  const pendingSingleDeleteId = useRef<string>("");
+
   // Bulk delete confirmation dialog state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -242,15 +241,22 @@ export function SchemaListPage() {
   useEffect(() => {
     setData([]);
     setDataError(null);
+    setLoading(true);
   }, [schemaName]);
 
   const fetchData = useCallback(async () => {
     const currentListView = listViewRef.current;
-    if (!currentListView || !schemaName) return;
+    if (!currentListView || !schemaName) {
+      setLoading(false);
+      return;
+    }
     // Guard: ensure the listView belongs to the current schema to prevent
     // querying with stale fields from a previously visited schema (e.g.
     // purchase_item fields being sent in a department query).
-    if (currentListView.schema !== schemaName) return;
+    if (currentListView.schema !== schemaName) {
+      // Don't clear loading — the correct listView will arrive and re-trigger fetch
+      return;
+    }
     setLoading(true);
     setDataError(null);
     try {
@@ -340,13 +346,8 @@ export function SchemaListPage() {
         });
         break;
       case "delete":
-        try {
-          await deleteRecord(schemaName, recordId);
-          toast.success(t("toast.recordDeleted", "Record deleted successfully"));
-          await fetchData();
-        } catch (err) {
-          toast.error(t("toast.deleteFailed", "Failed to delete record"));
-        }
+        pendingSingleDeleteId.current = recordId;
+        setSingleDeleteOpen(true);
         break;
       default:
         console.log(`Action: ${actionName}, Record: ${recordId}`);
@@ -367,6 +368,22 @@ export function SchemaListPage() {
         break;
       default:
         console.log(`Bulk ${action}:`, ids);
+    }
+  }
+
+  async function executeSingleDelete() {
+    if (!schemaName || !pendingSingleDeleteId.current) return;
+    setSingleDeleting(true);
+    try {
+      await deleteRecord(schemaName, pendingSingleDeleteId.current);
+      toast.success(t("toast.recordDeleted", "Record deleted successfully"));
+      await fetchData();
+    } catch (err) {
+      toast.error(t("toast.deleteFailed", "Failed to delete record"));
+    } finally {
+      setSingleDeleting(false);
+      setSingleDeleteOpen(false);
+      pendingSingleDeleteId.current = "";
     }
   }
 
@@ -474,6 +491,18 @@ export function SchemaListPage() {
     );
   }
 
+  // Empty state — no records and not loading
+  if (!loading && data.length === 0 && !dataError) {
+    return (
+      <div className="p-4">
+        <EmptyState
+          schemaName={schemaName}
+          schemaLabel={schema.label ?? schemaName}
+        />
+      </div>
+    );
+  }
+
   // View toggle buttons (icon-only, shown when calendar is available)
   const viewToggle = hasCalendarOption ? (
     <div className="flex items-center rounded-md border border-border">
@@ -566,29 +595,25 @@ export function SchemaListPage() {
         </div>
       )}
 
-      {/* Bulk delete confirmation dialog */}
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("bulk.deleteTitle", "Delete records")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkDeleting}>
-              {t("common.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={executeBulkDelete}
-              disabled={bulkDeleting}
-            >
-              {bulkDeleting ? t("common.loading") : t("common.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Single record delete confirmation */}
+      <ConfirmDialog
+        open={singleDeleteOpen}
+        onOpenChange={setSingleDeleteOpen}
+        title={t("confirm.deleteTitle", "Delete record")}
+        description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
+        onConfirm={executeSingleDelete}
+        loading={singleDeleting}
+      />
+
+      {/* Bulk delete confirmation */}
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={t("bulk.deleteTitle", "Delete records")}
+        description={t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
+        onConfirm={executeBulkDelete}
+        loading={bulkDeleting}
+      />
     </div>
   );
 }

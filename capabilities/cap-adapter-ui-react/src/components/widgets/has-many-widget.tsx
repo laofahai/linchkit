@@ -7,11 +7,13 @@
 
 import { Badge, Button } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 
 export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
+  const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
@@ -44,7 +46,7 @@ export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   if (typeof value === "number") {
     return (
       <Badge variant="secondary" className="text-xs">
-        {value} {value === 1 ? "item" : "items"}
+        {t("common.item", { count: value })}
       </Badge>
     );
   }
@@ -54,6 +56,7 @@ export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
 }
 
 export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
+  const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
@@ -64,7 +67,7 @@ export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
   return (
     <div className="space-y-2">
       {records.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No related records</p>
+        <p className="text-sm text-muted-foreground">{t("common.noRelatedRecords", "No related records")}</p>
       ) : (
         <div className="space-y-1">
           {records.map((record, i) => (
@@ -78,7 +81,7 @@ export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
                 params={{ name: targetSchema, id: record.id }}
                 className="text-xs text-muted-foreground hover:text-primary"
               >
-                View
+                {t("common.view", "View")}
               </Link>
             </div>
           ))}
@@ -87,7 +90,7 @@ export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
       {!readonly && targetSchema && (
         <Link to="/schemas/$name/new" params={{ name: targetSchema }}>
           <Button type="button" variant="outline" size="sm">
-            + Add {targetBundle?.schema.label ?? targetSchema}
+            {t("widget.addTarget", "+ Add {{target}}", { target: targetBundle?.schema.label ?? targetSchema })}
           </Button>
         </Link>
       )}

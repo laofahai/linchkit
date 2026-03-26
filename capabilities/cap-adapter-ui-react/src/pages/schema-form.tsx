@@ -18,18 +18,20 @@ import type {
 } from "@linchkit/core/types";
 import { Button, Separator, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityPanel } from "../components/activity-panel";
 import { AutoForm } from "../components/auto-form";
+import { ConfirmDialog } from "../components/confirm-dialog";
+import { One2ManyField } from "../components/one2many-field";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { TransitionButtons } from "../components/transition-buttons";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
-import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
+import { createRecord, deleteRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
 function deriveStatusSteps(
@@ -234,6 +236,8 @@ export function SchemaFormPage() {
   const [loading, setLoading] = useState(!isCreate || !!cloneId);
   const [saving, setSaving] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   /** Fields to strip when cloning a record — system-managed, not user data. */
   const CLONE_STRIP_FIELDS = useMemo(
@@ -417,6 +421,21 @@ export function SchemaFormPage() {
     }
   }
 
+  async function executeDelete() {
+    if (!schemaName || !params.id) return;
+    setDeleting(true);
+    try {
+      await deleteRecord(schemaName, params.id);
+      toast.success(t("toast.recordDeleted", "Record deleted successfully"));
+      navigate({ to: "/schemas/$name", params: { name: schemaName } });
+    } catch (err) {
+      toast.error(t("toast.deleteFailed", "Failed to delete record"));
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
+
   function handleBack() {
     if (!schemaName) return;
     navigate({ to: "/schemas/$name", params: { name: schemaName } });
@@ -525,8 +544,17 @@ export function SchemaFormPage() {
 
   // Whether schema has state machine
   const hasStateMachine = statusSteps !== null && statusSteps.length > 0;
-  // Whether schema has links
-  const hasLinks = (bundle?.links ?? []).length > 0;
+  // Separate one2many links (inline in form) from other links (RelatedRecordsPanel)
+  const allLinks = bundle?.links ?? [];
+  const one2manyLinks = allLinks.filter(
+    (l) =>
+      (l.cardinality === "one_to_many" && l.from === schemaName) ||
+      (l.cardinality === "many_to_one" && l.to === schemaName),
+  );
+  const otherLinks = allLinks.filter(
+    (l) => !one2manyLinks.includes(l),
+  );
+  const hasOtherLinks = otherLinks.length > 0;
 
   return (
     <div className="bg-muted/30 min-h-full">
@@ -578,10 +606,21 @@ export function SchemaFormPage() {
             )}
 
             {!isCreate && !isEditing && (
-              <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
-                <Pencil className="mr-1.5 size-3.5" />
-                {t("common.edit", "Edit")}
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
+                  <Pencil className="mr-1.5 size-3.5" />
+                  {t("common.edit", "Edit")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  {t("common.delete", "Delete")}
+                </Button>
+              </>
             )}
             {isEditing && (
               <>
@@ -620,14 +659,25 @@ export function SchemaFormPage() {
               onAction={(name) => handleAction(name)}
               hideFooter
             />
+
+            {/* One2Many inline tables — rendered inside the form card */}
+            {!isCreate && params.id && one2manyLinks.map((link) => (
+              <One2ManyField
+                key={link.name}
+                parentSchema={schemaName}
+                parentId={params.id!}
+                link={link}
+                readonly={!isEditing}
+              />
+            ))}
           </div>
 
-          {/* Related records panel — only in view/edit mode with links */}
-          {!isCreate && hasLinks && params.id && (
+          {/* Related records panel — only for non-one2many links */}
+          {!isCreate && hasOtherLinks && params.id && (
             <RelatedRecordsPanel
               schemaName={schemaName}
               recordId={params.id}
-              links={bundle!.links!}
+              links={otherLinks}
             />
           )}
 
@@ -640,6 +690,16 @@ export function SchemaFormPage() {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("confirm.deleteTitle", "Delete record")}
+        description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
+        onConfirm={executeDelete}
+        loading={deleting}
+      />
     </div>
   );
 }

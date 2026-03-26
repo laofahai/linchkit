@@ -18,24 +18,21 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@linchkit/ui-kit/components";
 import { useTheme } from "@linchkit/ui-kit/hooks";
 import {
-  ActivityIcon,
-  BlocksIcon,
   DatabaseIcon,
   HeartPulseIcon,
   LayoutDashboardIcon,
   MonitorIcon,
   MoonIcon,
   ScrollTextIcon,
-  Settings2Icon,
   SunIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemas } from "@/hooks/use-schemas";
+import { getLucideIcon } from "@/lib/dynamic-icon";
 
 interface CommandPaletteProps {
   open?: boolean;
@@ -94,19 +91,11 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
       <CommandList>
         <CommandEmpty>{t("commandPalette.noResults")}</CommandEmpty>
 
-        {/* Navigation commands */}
+        {/* Navigation commands — only items with working routes */}
         <CommandGroup heading={t("commandPalette.navigation")}>
           <CommandItem onSelect={() => navigate("/")}>
             <LayoutDashboardIcon />
             <span>{t("nav.workspace")}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => navigate("/modules")}>
-            <BlocksIcon />
-            <span>{t("nav.capabilities")}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => navigate("/admin/events")}>
-            <ActivityIcon />
-            <span>{t("nav.events")}</span>
           </CommandItem>
           <CommandItem onSelect={() => navigate("/admin/executions")}>
             <ScrollTextIcon />
@@ -116,11 +105,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             <HeartPulseIcon />
             <span>{t("health.title")}</span>
           </CommandItem>
-          <CommandItem onSelect={() => navigate("/admin/settings")}>
-            <Settings2Icon />
-            <span>{t("nav.settings")}</span>
-            <CommandShortcut>{t("commandPalette.shortcutSettings")}</CommandShortcut>
-          </CommandItem>
         </CommandGroup>
 
         {/* Dynamic schema list — shows all registered schemas */}
@@ -128,15 +112,18 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
           <>
             <CommandSeparator />
             <CommandGroup heading={t("commandPalette.schemas")}>
-              {schemas.map((schema) => (
-                <CommandItem
-                  key={schema.name}
-                  onSelect={() => navigate(`/schemas/${schema.name}`)}
-                >
-                  <DatabaseIcon />
-                  <span>{schema.label ?? schema.name}</span>
-                </CommandItem>
-              ))}
+              {schemas.map((schema) => {
+                const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
+                return (
+                  <CommandItem
+                    key={schema.name}
+                    onSelect={() => navigate(`/schemas/${schema.name}`)}
+                  >
+                    <Icon />
+                    <span>{schema.label ?? schema.name}</span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </>
         )}

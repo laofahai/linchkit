@@ -312,11 +312,12 @@ export function createServer(
       if (!schemaRegistry) {
         return { success: true, data: [] };
       }
-      // Lightweight list — only name/label/description for navigation
+      // Lightweight list — name/label/description/icon for navigation
       const schemas = schemaRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
+        icon: s.presentation?.icon,
       }));
       return { success: true, data: schemas };
     })

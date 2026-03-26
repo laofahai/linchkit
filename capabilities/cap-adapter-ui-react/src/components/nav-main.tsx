@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -20,7 +19,6 @@ import {
 } from "@linchkit/ui-kit/components";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
-import { useTranslation } from "react-i18next";
 
 export function NavMain({
   items,
@@ -33,16 +31,15 @@ export function NavMain({
     items?: {
       title: string;
       url: string;
+      icon?: React.ReactNode;
     }[];
   }[];
 }) {
-  const { t } = useTranslation();
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{t("nav.administration")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
           const hasChildren = item.items && item.items.length > 0;
@@ -77,7 +74,10 @@ export function NavMain({
                     <DropdownMenuSeparator />
                     {item.items?.map((subItem) => (
                       <DropdownMenuItem key={subItem.title} asChild>
-                        <Link to={subItem.url as LinkProps["to"]}>{subItem.title}</Link>
+                        <Link to={subItem.url as LinkProps["to"]}>
+                          {subItem.icon}
+                          {subItem.title}
+                        </Link>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -108,6 +108,7 @@ export function NavMain({
                       <SidebarMenuSubItem key={subItem.title}>
                         <SidebarMenuSubButton asChild>
                           <Link to={subItem.url as LinkProps["to"]}>
+                            {subItem.icon}
                             <span>{subItem.title}</span>
                           </Link>
                         </SidebarMenuSubButton>

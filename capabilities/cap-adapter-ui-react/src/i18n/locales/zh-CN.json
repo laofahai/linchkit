@@ -20,7 +20,18 @@
     "no": "否",
     "export": "导出",
     "duplicate": "复制",
-    "new": "新建"
+    "new": "新建",
+    "retry": "重试",
+    "view": "查看",
+    "add": "添加",
+    "none": "无",
+    "select": "请选择...",
+    "selectTarget": "选择{{target}}...",
+    "noOptions": "暂无可选项",
+    "loadFailed": "加载选项失败",
+    "item": "{{count}} 项",
+    "item_other": "{{count}} 项",
+    "noRelatedRecords": "暂无关联记录"
   },
   "nav": {
     "home": "首页",
@@ -97,7 +108,12 @@
     "showLess": "收起",
     "quickFilters": "快速筛选",
     "inlineEditSaved": "字段更新成功",
-    "inlineEditFailed": "字段更新失败：{{message}}"
+    "inlineEditFailed": "字段更新失败：{{message}}",
+    "columns": "列设置",
+    "refreshing": "刷新中...",
+    "selectAll": "全选",
+    "selectRow": "选择此行",
+    "doubleClickToEdit": "双击编辑"
   },
   "commandPalette": {
     "title": "命令面板",
@@ -189,7 +205,17 @@
   "detail": {
     "relatedRecords": "关联记录",
     "activity": "操作记录",
-    "noActivity": "暂无操作记录。"
+    "noActivity": "暂无操作记录。",
+    "recordCount": "{{count}} 条记录",
+    "recordCount_other": "{{count}} 条记录",
+    "field": "字段",
+    "value": "值",
+    "actionKind": {
+      "create": "已创建",
+      "update": "已更新",
+      "delete": "已删除",
+      "custom": "操作"
+    }
   },
   "masking": {
     "tooltip": "此字段已遮罩，数据受隐私保护"
@@ -204,6 +230,32 @@
     "label": "语言",
     "en": "English",
     "zhCN": "中文"
+  },
+  "errors": {
+    "missingSchemaName": "URL 中未指定数据模型。",
+    "schemaLoadFailed": "加载数据模型「{{name}}」失败。",
+    "checkServer": "请检查服务器是否运行以及数据模型是否已注册。",
+    "dataLoadFailed": "加载数据失败。",
+    "recordNotFound": "未找到记录「{{id}}」。",
+    "recordLoadFailed": "加载记录失败。",
+    "failedToLoadData": "数据加载失败"
+  },
+  "theme": {
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}}分钟前",
+    "hoursAgo": "{{count}}小时前",
+    "daysAgo": "{{count}}天前"
+  },
+  "one2many": {
+    "addLine": "添加明细行"
+  },
+  "widget": {
+    "addTarget": "+ 添加{{target}}"
   },
   "health": {
     "title": "系统健康",
@@ -226,6 +278,11 @@
       "unhealthy": "检测到系统问题"
     }
   },
+  "emptyState": {
+    "title": "暂无{{label}}",
+    "description": "创建第一条{{label}}记录以开始使用。",
+    "createButton": "新建{{label}}"
+  },
   "toast": {
     "recordCreated": "记录创建成功",
     "recordUpdated": "记录更新成功",
@@ -240,8 +297,12 @@
     "transitionFailed": "状态变更失败",
     "actionFailed": "操作执行失败"
   },
-  "bulk": {
+  "confirm": {
     "deleteTitle": "删除记录",
+    "deleteDescription": "确定要删除这条记录吗？此操作无法撤销。"
+  },
+  "bulk": {
+    "deleteTitle": "批量删除记录",
     "deleteConfirm": "确定要删除 {{count}} 条记录吗？此操作无法撤销。"
   },
   "schemas": {
