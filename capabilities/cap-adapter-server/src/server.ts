@@ -25,6 +25,7 @@ import type { HealthCheckRegistry } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
+import { generateDefaultViews } from "./default-views";
 import { createLinkDataLoaders } from "./graphql/link-dataloader";
 
 export interface ServerOptions {
@@ -334,6 +335,13 @@ export function createServer(
       const viewsMap: Record<string, unknown> = {};
       for (const v of schemaViews) {
         viewsMap[v.name] = v;
+      }
+      // Generate default views when none are explicitly defined
+      if (Object.keys(viewsMap).length === 0) {
+        const defaults = generateDefaultViews(schema);
+        for (const [k, v] of Object.entries(defaults)) {
+          viewsMap[k] = v;
+        }
       }
       // Collect all state machines that belong to this schema from all capabilities
       const schemaStates = capabilities.flatMap((cap) =>

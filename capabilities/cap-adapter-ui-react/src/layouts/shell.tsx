@@ -9,6 +9,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  Toaster,
   TooltipProvider,
 } from "@linchkit/ui-kit/components";
 import { Link, Outlet } from "@tanstack/react-router";
@@ -17,7 +18,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { HeaderActions } from "@/components/header-actions";
 import { useBreadcrumb } from "@/hooks/use-breadcrumb";
-import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
+import { BreadcrumbTitleProvider } from "@/hooks/use-breadcrumb-title";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { SchemaBundleCacheProvider } from "@/hooks/use-schema-bundle";
 import { SchemasProvider } from "@/hooks/use-schemas";
 
@@ -26,9 +28,11 @@ export function ShellLayout() {
   return (
     <SchemasProvider>
       <SchemaBundleCacheProvider>
-        <TooltipProvider delayDuration={0}>
-          <ShellContent />
-        </TooltipProvider>
+        <BreadcrumbTitleProvider>
+          <TooltipProvider delayDuration={0}>
+            <ShellContent />
+          </TooltipProvider>
+        </BreadcrumbTitleProvider>
       </SchemaBundleCacheProvider>
     </SchemasProvider>
   );
@@ -38,9 +42,8 @@ export function ShellLayout() {
 function ShellContent() {
   const breadcrumbItems = useBreadcrumb();
   const [cmdkOpen, setCmdkOpen] = useState(false);
-  useGlobalShortcuts();
-
   const openCommandPalette = useCallback(() => setCmdkOpen(true), []);
+  useKeyboardShortcuts({ onOpenCommandPalette: openCommandPalette });
 
   return (
     <SidebarProvider>
@@ -84,6 +87,7 @@ function ShellContent() {
         </div>
       </SidebarInset>
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />
+      <Toaster richColors position="top-right" />
     </SidebarProvider>
   );
 }

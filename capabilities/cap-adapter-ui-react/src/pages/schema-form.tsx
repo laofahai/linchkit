@@ -16,8 +16,8 @@ import type {
   ViewAction,
   ViewDefinition,
 } from "@linchkit/core/types";
-import { Button, Separator } from "@linchkit/ui-kit/components";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { Button, Separator, Skeleton, toast } from "@linchkit/ui-kit/components";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,6 +26,7 @@ import { AutoForm } from "../components/auto-form";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { TransitionButtons } from "../components/transition-buttons";
+import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { createRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
@@ -61,6 +62,36 @@ function deriveStatusSteps(
   return steps.length > 0 ? steps : null;
 }
 
+/**
+ * Get the set of action names that are valid transitions from the current state.
+ * Lightweight client-side computation — no server round-trip needed.
+ */
+function getTransitionActionNames(
+  schema: SchemaDefinition,
+  states: StateDefinition[] | undefined,
+  currentState: string,
+): Set<string> | null {
+  const stateFieldEntry = Object.entries(schema.fields).find(([, f]) => f.type === "state");
+  if (!stateFieldEntry) return null;
+
+  const [, stateField] = stateFieldEntry;
+  if (!("machine" in stateField)) return null;
+
+  const machine = (states ?? []).find(
+    (s) => s.name === stateField.machine && s.schema === schema.name,
+  );
+  if (!machine) return null;
+
+  const actionNames = new Set<string>();
+  for (const t of machine.transitions) {
+    const sources: string[] = Array.isArray(t.from) ? t.from : [t.from];
+    if (sources.includes(currentState)) {
+      actionNames.add(t.action);
+    }
+  }
+  return actionNames;
+}
+
 /** Extract GraphQL field names from view fields */
 function getRecordFields(view: ViewDefinition): string[] {
   const fields = new Set<string>(["id"]);
@@ -79,12 +110,101 @@ function getPrimaryView<TView extends { type: string }>(
   return Object.values(views ?? {}).find((view) => view.type === type);
 }
 
+/** System-managed fields to exclude from auto-generated form views. */
+const SYSTEM_FIELDS = new Set([
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+]);
+
+/** Field types that benefit from full-width display (single column). */
+const WIDE_FIELD_TYPES = new Set(["text", "json", "html", "richtext"]);
+
+/** Generate a minimal form view from schema fields when no explicit form view is defined.
+ *
+ * Produces an Odoo-style two-column layout:
+ * - Short fields (string, number, boolean, enum, state, date, ref) split into left/right groups
+ * - Wide fields (text, json, html) placed full-width below the columns
+ */
+function generateFallbackFormView(
+  schema: { name: string; label?: string; fields: Record<string, { label?: string; type?: string }> },
+): ViewDefinition {
+  const fieldNames = Object.keys(schema.fields).filter((f) => !SYSTEM_FIELDS.has(f));
+
+  const fields = fieldNames.map((field) => ({
+    field,
+    label: schema.fields[field]?.label,
+  }));
+
+  // Partition fields into short (two-column) and wide (full-width)
+  const shortFields: string[] = [];
+  const wideFields: string[] = [];
+  for (const name of fieldNames) {
+    const fieldType = schema.fields[name]?.type;
+    if (fieldType && WIDE_FIELD_TYPES.has(fieldType)) {
+      wideFields.push(name);
+    } else {
+      shortFields.push(name);
+    }
+  }
+
+  // Split short fields evenly into left and right columns
+  const mid = Math.ceil(shortFields.length / 2);
+  const leftFields = shortFields.slice(0, mid);
+  const rightFields = shortFields.slice(mid);
+
+  const layoutNodes: import("@linchkit/core/types").FormLayoutNode[] = [];
+
+  // Top-level group with two inner groups for the two-column layout
+  if (shortFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      children: [
+        {
+          type: "group",
+          children: leftFields.map((f) => ({ type: "field" as const, field: f })),
+        },
+        {
+          type: "group",
+          children: rightFields.map((f) => ({ type: "field" as const, field: f })),
+        },
+      ],
+    });
+  }
+
+  // Wide fields in a single-column group below
+  if (wideFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      columns: 1,
+      children: wideFields.map((f) => ({ type: "field" as const, field: f })),
+    });
+  }
+
+  return {
+    name: `${schema.name}_form_auto`,
+    schema: schema.name,
+    type: "form",
+    label: schema.label ?? schema.name,
+    fields,
+    layout: layoutNodes.length > 0 ? { nodes: layoutNodes } : undefined,
+    actions: [],
+  };
+}
+
 export function SchemaFormPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
+  const searchParams = useSearch({ strict: false }) as { clone?: string };
+  const cloneId = searchParams.clone;
   const schemaName = params.name;
   const { resolveLabel } = useSchemaLabel();
+  const { setBreadcrumbTitle } = useBreadcrumbTitle();
 
   // Fetch schema bundle from API
   const {
@@ -95,7 +215,7 @@ export function SchemaFormPage() {
   } = useSchemaBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
-  const formView = getPrimaryView(bundle?.views, "form");
+  const formView = getPrimaryView(bundle?.views, "form") ?? (schema ? generateFallbackFormView(schema) : undefined);
 
   // Status bar steps derived from schema
   const statusSteps = useMemo((): StatusBarStep[] | null => {
@@ -108,9 +228,15 @@ export function SchemaFormPage() {
     isCreate ? "create" : "view",
   );
   const [record, setRecord] = useState<Record<string, unknown> | undefined>(undefined);
-  const [loading, setLoading] = useState(!isCreate);
+  const [loading, setLoading] = useState(!isCreate || !!cloneId);
   const [saving, setSaving] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+
+  /** Fields to strip when cloning a record — system-managed, not user data. */
+  const CLONE_STRIP_FIELDS = useMemo(
+    () => new Set(["id", "created_at", "updated_at", "created_by", "updated_by", "_version", "tenant_id"]),
+    [],
+  );
 
   const recordFields = useMemo(() => (formView ? getRecordFields(formView) : []), [formView]);
 
@@ -133,27 +259,100 @@ export function SchemaFormPage() {
     }
   }, [isCreate, params.id, schemaName, recordFields, formView, t]);
 
+  // Fetch source record for cloning
+  const fetchCloneSource = useCallback(async () => {
+    if (!cloneId || !schemaName || !formView) return;
+    setLoading(true);
+    setRecordError(null);
+    try {
+      const result = await queryRecord(schemaName, cloneId, recordFields);
+      if (result) {
+        // Strip system fields from cloned data
+        const cloned = { ...(result as Record<string, unknown>) };
+        for (const field of CLONE_STRIP_FIELDS) {
+          delete cloned[field];
+        }
+        setRecord(cloned);
+      } else {
+        // Clone source not found — proceed with empty form
+        console.warn(`Clone source record "${cloneId}" not found, starting with empty form.`);
+      }
+    } catch (err) {
+      console.warn("Failed to load clone source:", err);
+      // Non-fatal — user can still fill the form manually
+    } finally {
+      setLoading(false);
+    }
+  }, [cloneId, schemaName, recordFields, formView, CLONE_STRIP_FIELDS]);
+
   useEffect(() => {
     if (!bundleLoading && bundle) {
-      fetchRecord();
+      if (isCreate && cloneId) {
+        fetchCloneSource();
+      } else {
+        fetchRecord();
+      }
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchRecord, bundleLoading, bundle]);
+  }, [fetchRecord, fetchCloneSource, bundleLoading, bundle, isCreate, cloneId]);
 
-  // Resolve business actions from view's stateActions mapping
+  // Update breadcrumb title with the record's display name
+  useEffect(() => {
+    if (isCreate) {
+      setBreadcrumbTitle(null);
+      return;
+    }
+    if (record && schema) {
+      const titleFld = schema.presentation?.titleField as string | undefined;
+      const title = String(
+        (titleFld && record[titleFld]) ?? record.title ?? record.name ?? params.id ?? "",
+      );
+      setBreadcrumbTitle(title || null);
+    }
+    return () => setBreadcrumbTitle(null);
+  }, [record, schema, isCreate, params.id, setBreadcrumbTitle]);
+
+  // Resolve business actions from view's stateActions mapping or state machine transitions
   const recordStatus = record ? String(record.status ?? "") : undefined;
   const businessActions = useMemo(() => {
     if (!formView) return [];
     const allActions = formView.actions ?? [];
     const headerActions = allActions.filter((a: ViewAction) => a.position === "form-header");
 
+    // In create mode, hide all business actions — the form already provides Save/Cancel
+    if (isCreate) {
+      return [];
+    }
+
+    // Case 1: Explicit stateActions mapping on the view — use it
     if (formView.stateActions && recordStatus && recordStatus in formView.stateActions) {
       const available = formView.stateActions[recordStatus] ?? [];
       return headerActions.filter((a) => available.includes(a.action));
     }
+
+    // Case 2: No stateActions but schema has state machine — derive from transitions
+    if (!formView.stateActions && schema && recordStatus) {
+      const validActions = getTransitionActionNames(schema, bundle?.states, recordStatus);
+      if (validActions !== null) {
+        // Keep actions that are either valid transitions or non-transition actions (e.g. create/update)
+        const allTransitionActions = new Set<string>();
+        for (const machine of bundle?.states ?? []) {
+          if (machine.schema === schema.name) {
+            for (const t of machine.transitions) {
+              allTransitionActions.add(t.action);
+            }
+          }
+        }
+        return headerActions.filter(
+          (a) => !allTransitionActions.has(a.action) || validActions.has(a.action),
+        );
+      }
+    }
+
+    // Case 3: No state machine — show all header actions
     return headerActions;
-  }, [formView, recordStatus]);
+  }, [formView, recordStatus, isCreate, schema, bundle?.states]);
 
   const isEditing = formMode === "edit" || formMode === "create";
 
@@ -163,13 +362,19 @@ export function SchemaFormPage() {
     try {
       if (isCreate) {
         await createRecord(schemaName, data, recordFields);
+        toast.success(t("toast.recordCreated", "Record created successfully"));
         navigate({ to: "/schemas/$name", params: { name: schemaName } });
       } else if (params.id) {
         await updateRecord(schemaName, params.id, data, recordFields);
+        toast.success(t("toast.recordUpdated", "Record updated successfully"));
         await fetchRecord();
         setFormMode("view");
       }
     } catch (err) {
+      const msg = isCreate
+        ? t("toast.createFailed", "Failed to create record")
+        : t("toast.updateFailed", "Failed to update record");
+      toast.error(msg);
       // Re-throw so AutoForm's built-in server error parser handles display
       throw err;
     } finally {
@@ -192,13 +397,14 @@ export function SchemaFormPage() {
       if (params.id) {
         const result = await executeAction(actionName, { id: params.id });
         if (result.success) {
+          toast.success(t("toast.actionSuccess", "Action executed successfully"));
           await fetchRecord();
         } else {
-          console.error("Action failed:", result.error);
+          toast.error(t("toast.actionFailed", "Action failed"));
         }
       }
     } catch (err) {
-      console.error("Action failed:", err);
+      toast.error(t("toast.actionFailed", "Action failed"));
     } finally {
       setSaving(false);
     }
@@ -221,11 +427,39 @@ export function SchemaFormPage() {
     );
   }
 
-  // Loading bundle or record
+  // Loading bundle or record — show form skeleton matching final layout
   if (bundleLoading || loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="bg-muted/30 min-h-full">
+        {/* Sticky control panel skeleton */}
+        <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-8 rounded" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-16" />
+            </div>
+          </div>
+        </div>
+        {/* Sheet card skeleton */}
+        <div className="flex gap-6 my-4 px-4">
+          <div className="flex-1 min-w-0 space-y-4">
+            <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4 space-y-6">
+              {/* Title + status bar */}
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-5 w-64" />
+              </div>
+              {/* Form field rows */}
+              {Array.from({ length: 5 }, (_, i) => `skel-field-${i}`).map((key) => (
+                <div key={key} className="space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

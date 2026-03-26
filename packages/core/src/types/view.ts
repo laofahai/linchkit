@@ -19,6 +19,8 @@ export interface ViewFieldConfig {
   width?: number | string;
   sortable?: boolean;
   filterable?: boolean;
+  /** Enable inline editing in list views. Only effective for simple field types (string, number, enum). */
+  editable?: boolean;
   /** Widget override for this field in this view. Takes highest priority. */
   widget?: string;
 }

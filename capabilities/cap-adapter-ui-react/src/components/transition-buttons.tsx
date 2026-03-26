@@ -6,7 +6,7 @@
  */
 
 import type { StateDefinition, StateMeta } from "@linchkit/core/types";
-import { Badge, Button } from "@linchkit/ui-kit/components";
+import { Badge, Button, toast } from "@linchkit/ui-kit/components";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -72,11 +72,12 @@ export function TransitionButtons({
     setTransitioning(to);
     try {
       const updated = await transitionRecord(schemaName, recordId, to, recordFields);
+      toast.success(t("toast.transitionSuccess", "Status changed successfully"));
       onTransitioned?.(updated as Record<string, unknown>);
       // Refresh available transitions after successful transition
       await fetchTransitions();
     } catch (err) {
-      console.error("Transition failed:", err);
+      toast.error(t("toast.transitionFailed", "Status change failed"));
     } finally {
       setTransitioning(null);
     }

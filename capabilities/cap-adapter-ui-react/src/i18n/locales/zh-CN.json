@@ -18,7 +18,9 @@
     "ok": "确定",
     "yes": "是",
     "no": "否",
-    "export": "导出"
+    "export": "导出",
+    "duplicate": "复制",
+    "new": "新建"
   },
   "nav": {
     "home": "首页",
@@ -93,7 +95,9 @@
     "filteredBy": "已筛选 ({{count}})",
     "clearAll": "清除全部",
     "showLess": "收起",
-    "quickFilters": "快速筛选"
+    "quickFilters": "快速筛选",
+    "inlineEditSaved": "字段更新成功",
+    "inlineEditFailed": "字段更新失败：{{message}}"
   },
   "commandPalette": {
     "title": "命令面板",
@@ -221,6 +225,20 @@
       "degraded": "部分系统性能下降",
       "unhealthy": "检测到系统问题"
     }
+  },
+  "toast": {
+    "recordCreated": "记录创建成功",
+    "recordUpdated": "记录更新成功",
+    "recordDeleted": "记录删除成功",
+    "bulkDeleted": "已成功删除 {{count}} 条记录",
+    "transitionSuccess": "状态变更成功",
+    "actionSuccess": "操作执行成功",
+    "createFailed": "创建记录失败",
+    "updateFailed": "更新记录失败",
+    "deleteFailed": "删除记录失败",
+    "bulkDeleteFailed": "批量删除失败",
+    "transitionFailed": "状态变更失败",
+    "actionFailed": "操作执行失败"
   },
   "bulk": {
     "deleteTitle": "删除记录",

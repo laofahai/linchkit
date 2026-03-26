@@ -18,7 +18,9 @@
     "ok": "OK",
     "yes": "Yes",
     "no": "No",
-    "export": "Export"
+    "export": "Export",
+    "duplicate": "Duplicate",
+    "new": "New"
   },
   "nav": {
     "home": "Home",
@@ -93,7 +95,9 @@
     "filteredBy": "Filtered by ({{count}})",
     "clearAll": "Clear all",
     "showLess": "Show less",
-    "quickFilters": "Filters"
+    "quickFilters": "Filters",
+    "inlineEditSaved": "Field updated successfully",
+    "inlineEditFailed": "Failed to update field: {{message}}"
   },
   "commandPalette": {
     "title": "Command Palette",
@@ -221,6 +225,20 @@
       "degraded": "Some systems are degraded",
       "unhealthy": "System issues detected"
     }
+  },
+  "toast": {
+    "recordCreated": "Record created successfully",
+    "recordUpdated": "Record updated successfully",
+    "recordDeleted": "Record deleted successfully",
+    "bulkDeleted": "{{count}} record(s) deleted successfully",
+    "transitionSuccess": "Status changed successfully",
+    "actionSuccess": "Action executed successfully",
+    "createFailed": "Failed to create record",
+    "updateFailed": "Failed to update record",
+    "deleteFailed": "Failed to delete record",
+    "bulkDeleteFailed": "Failed to delete records",
+    "transitionFailed": "Status change failed",
+    "actionFailed": "Action failed"
   },
   "bulk": {
     "deleteTitle": "Delete records",

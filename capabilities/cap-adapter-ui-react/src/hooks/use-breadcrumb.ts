@@ -1,5 +1,7 @@
 import { useMatches } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useSchemaLabel } from "../i18n/use-schema-label";
+import { useBreadcrumbTitle } from "./use-breadcrumb-title";
 import { useSchemas } from "./use-schemas";
 
 export interface BreadcrumbItem {
@@ -27,15 +29,17 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
  * there is only one leaf match — not one per segment. We decompose
  * the pathname into cumulative segments and resolve each label via:
  *
- *   1. Well-known segment → i18n key
- *   2. Schema name → schema label (SchemasContext / i18n)
- *   3. UUID-like ID → truncated hash
+ *   1. Well-known segment -> i18n key
+ *   2. Schema name -> schema label (via useSchemaLabel resolver)
+ *   3. Record ID -> custom title from BreadcrumbTitleContext, or truncated hash
  *   4. Fallback: capitalize raw segment
  */
 export function useBreadcrumb(): BreadcrumbItem[] {
   const matches = useMatches();
   const { t } = useTranslation();
   const { schemas } = useSchemas();
+  const { resolveLabel } = useSchemaLabel();
+  const { title: customTitle } = useBreadcrumbTitle();
 
   // Find the deepest non-layout match to get the full pathname
   const leafMatch = matches[matches.length - 1];
@@ -58,7 +62,15 @@ export function useBreadcrumb(): BreadcrumbItem[] {
     const isLast = i === segments.length - 1;
     const parentSegment = i > 0 ? segments[i - 1] : undefined;
 
-    const resolved = resolveSegmentLabel(segment, parentSegment, t, schemas);
+    const resolved = resolveSegmentLabel(
+      segment,
+      parentSegment,
+      isLast,
+      t,
+      schemas,
+      resolveLabel,
+      customTitle,
+    );
 
     items.push({
       label: resolved.label,
@@ -81,8 +93,11 @@ interface ResolvedSegment {
 function resolveSegmentLabel(
   segment: string,
   parentSegment: string | undefined,
+  isLast: boolean,
   t: (key: string, opts?: Record<string, unknown>) => string,
   schemas: Array<{ name: string; label?: string }>,
+  resolveLabel: (label: string | undefined, fallback: string) => string,
+  customTitle: string | null,
 ): ResolvedSegment {
   // 1. Well-known segment
   const known = KNOWN_SEGMENTS[segment];
@@ -94,12 +109,7 @@ function resolveSegmentLabel(
   if (parentSegment === "schemas") {
     const schemaInfo = schemas.find((s) => s.name === segment);
     if (schemaInfo?.label) {
-      // Support t: prefix convention
-      if (schemaInfo.label.startsWith("t:")) {
-        const key = schemaInfo.label.slice(2);
-        return { label: t(key, { defaultValue: formatSegment(segment) }), linkable: true };
-      }
-      return { label: schemaInfo.label, linkable: true };
+      return { label: resolveLabel(schemaInfo.label, formatSegment(segment)), linkable: true };
     }
     // Try i18n key: schemas.<name>._label
     const schemaI18nLabel = t(`schemas.${segment}._label`, { defaultValue: "" });
@@ -109,8 +119,11 @@ function resolveSegmentLabel(
     return { label: formatSegment(segment), linkable: true };
   }
 
-  // 3. UUID-like IDs — truncate with hash prefix
+  // 3. Record IDs — use custom title from page context when available
   if (/^[a-f0-9-]{8,}$/.test(segment)) {
+    if (isLast && customTitle) {
+      return { label: customTitle, linkable: true };
+    }
     return { label: `#${segment.slice(0, 8)}`, linkable: true };
   }
 

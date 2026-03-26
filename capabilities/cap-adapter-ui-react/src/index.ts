@@ -29,6 +29,7 @@ export { ThemeToggle } from "./components/theme-toggle";
 export { capAdapterUiReactConfig } from "./config";
 // Hooks
 export { useBreadcrumb } from "./hooks/use-breadcrumb";
+export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcrumb-title";
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
