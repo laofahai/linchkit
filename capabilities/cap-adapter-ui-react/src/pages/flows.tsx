@@ -259,6 +259,10 @@ export function FlowsPage() {
         data={tableData}
         pageSize={20}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.flows.title"),
+          description: t("emptyState.flows.description"),
+        }}
         onRowClick={(id) => {
           navigate({ to: "/admin/flows/$name" as "/", params: { name: id } });
         }}

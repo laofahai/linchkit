@@ -1,11 +1,12 @@
 /**
- * AutoList — Universal list view powered by TanStack Table.
+ * AutoList — Unified list view powered by TanStack Table.
  *
- * Two modes:
- * 1. Schema-driven: pass `schema` + `view` to auto-build columns, filters, AI search, inline edit.
- * 2. External-columns: pass `externalColumns` (raw ColumnDef[]) for admin/non-schema pages.
+ * Single component that handles both schema-driven and manual-column modes:
+ * - Schema-driven: pass `schema` + `view` to auto-build columns, filters, AI search, inline edit.
+ * - Manual columns: pass `columns` (raw ColumnDef[]) for admin/non-schema pages.
+ * - Hybrid: pass `schema` + `view` + `columns` for schema features with custom columns.
  *
- * Both modes share identical table rendering, sorting, global filtering, pagination, and toolbar.
+ * All modes share identical table rendering, sorting, global filtering, pagination, and toolbar.
  */
 
 import { Skeleton } from "@linchkit/ui-kit/components";
@@ -25,7 +26,6 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { SchemaDefinition, StateMeta } from "@linchkit/core/types";
 import { useAISearch, isNaturalLanguageQuery } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -38,8 +38,8 @@ import { BulkEditDialog } from "./bulk-edit-dialog";
 import { ImportDialog } from "./import-dialog";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
-import type { AutoListProps, AutoListViewDefinition, EmptyStateConfig } from "./types";
 import { EmptyState } from "../empty-state";
+import type { AutoListProps } from "./types";
 
 /** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
 const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
@@ -157,7 +157,7 @@ interface TableShellProps {
   hasActiveFilters: boolean;
 }
 
-/** Shared table + pagination rendering used by both modes. */
+/** Shared table + pagination rendering. */
 function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShellProps) {
   const { t } = useTranslation();
   return (
@@ -222,149 +222,45 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
   );
 }
 
-// ── External-columns mode ───────────────────────────────────────────────────
+// ── Unified AutoList ────────────────────────────────────────────────────────
 
-function AutoListExternal({
-  externalColumns,
-  data,
-  loading = false,
-  onRowClick,
-  toolbarExtra,
-  pageSize = 20,
-  defaultSorting,
-  onRefresh,
-  refreshing = false,
-  emptyState,
-}: {
-  externalColumns: ColumnDef<Record<string, unknown>, unknown>[];
-  data: Record<string, unknown>[];
-  loading?: boolean;
-  onRowClick?: (recordId: string) => void;
-  toolbarExtra?: React.ReactNode;
-  pageSize?: number;
-  defaultSorting?: SortingState;
-  onRefresh?: () => void;
-  refreshing?: boolean;
-  emptyState?: EmptyStateConfig;
-}) {
-  const [sorting, setSorting] = useState<SortingState>(defaultSorting ?? []);
-  const [globalFilter, setGlobalFilter] = useState("");
-
-  const table = useReactTable({
-    data,
-    columns: externalColumns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize } },
-  });
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton className="h-9 w-72" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-        <div className="rounded border border-border">
-          {SKELETON_KEYS.map((key) => (
-            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const hasActiveFilters = globalFilter !== "";
-
-  // Show empty state when no data and not filtering
-  if (data.length === 0 && !hasActiveFilters && emptyState) {
-    return (
-      <EmptyState
-        title={emptyState.title}
-        description={emptyState.description}
-        icon={emptyState.icon}
-        hideAction
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <ListToolbar
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
-        hasActiveFilters={hasActiveFilters}
-        onClearFilters={() => setGlobalFilter("")}
-        toolbarActions={[]}
-        toolbarExtra={toolbarExtra}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-      />
-
-      <TableShell
-        table={table}
-        columns={externalColumns}
-        onRowClick={onRowClick}
-        hasActiveFilters={hasActiveFilters}
-      />
-    </div>
-  );
-}
-
-// ── Schema-driven mode ──────────────────────────────────────────────────────
-
-function AutoListSchema({
-  schema,
-  view,
+export function AutoList({
   data,
   loading = false,
   title: _title,
+  onRowClick,
+  toolbarExtra,
+  onRefresh,
+  refreshing = false,
+  emptyState,
+  // Schema-driven props
+  schema,
+  view,
   stateMeta,
   onAction,
   onBulkAction,
-  onRowClick,
   selectable = false,
-  toolbarExtra,
   onInlineEditSaved,
   onInlineEditError,
   onFiltersChange,
-  onRefresh,
-  refreshing = false,
-}: {
-  schema: SchemaDefinition;
-  view: AutoListViewDefinition;
-  data: Record<string, unknown>[];
-  loading?: boolean;
-  title?: string;
-  stateMeta?: Partial<Record<string, StateMeta>>;
-  onAction?: (actionName: string, recordId: string) => void;
-  onBulkAction?: (actionName: string, recordIds: string[]) => void;
-  onRowClick?: (recordId: string) => void;
-  selectable?: boolean;
-  toolbarExtra?: React.ReactNode;
-  onInlineEditSaved?: (recordId: string, updatedRecord: Record<string, unknown>) => void;
-  onInlineEditError?: (error: Error) => void;
-  onFiltersChange?: (filters: Array<{ field: string; operator: string; values: unknown[] }>) => void;
-  onRefresh?: () => void;
-  refreshing?: boolean;
-}) {
+  // Column override / simple mode props
+  columns: columnsProp,
+  pageSize: pageSizeProp,
+  defaultSorting,
+}: AutoListProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
 
+  // Whether schema-driven features are active
+  const isSchemaMode = !!(schema && view);
+
+  // ── Sorting ─────────────────────────────────────────────────────────────
+
   const [sorting, setSorting] = useState<SortingState>(() => {
-    if (view.defaultSort) {
+    if (view?.defaultSort) {
       return [{ id: view.defaultSort.field, desc: view.defaultSort.order === "desc" }];
     }
-    return [];
+    return defaultSorting ?? [];
   });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -372,42 +268,37 @@ function AutoListSchema({
   const [importOpen, setImportOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
 
-  // AI search hook
+  // ── AI search (schema mode only) ────────────────────────────────────────
+
   const {
     aiSearch: aiSearchState,
     triggerAISearch,
     clearAISearch,
-  } = useAISearch(schema);
+  } = useAISearch(schema ?? null);
 
-  // Handle search submission (Enter key)
   const handleSearchSubmit = useCallback(
     (query: string) => {
-      if (isNaturalLanguageQuery(query)) {
+      if (isSchemaMode && isNaturalLanguageQuery(query)) {
         triggerAISearch(query);
       }
     },
-    [triggerAISearch],
+    [isSchemaMode, triggerAISearch],
   );
 
-  // Clear AI search when global filter text changes (user is typing)
   const handleGlobalFilterChange = useCallback(
     (value: string) => {
       setGlobalFilter(value);
-      // Don't auto-clear AI filter on every keystroke; only when text is cleared
-      if (!value && aiSearchState.result) {
-        // Keep AI filter active — user can explicitly clear via chip
-      }
     },
-    [aiSearchState.result],
+    [],
   );
 
-  // Bazza filter column configs from schema
+  // ── Bazza filters (schema mode only) ──────────────────────────────────
+
   const filterColumnsConfig = useMemo(
-    () => buildFilterColumns(schema, data, stateMeta, resolveLabel),
-    [schema, data, stateMeta, resolveLabel],
+    () => (isSchemaMode ? buildFilterColumns(schema, data, stateMeta, resolveLabel) : []),
+    [isSchemaMode, schema, data, stateMeta, resolveLabel],
   );
 
-  // Bazza filter state
   const [bazzaFilters, setBazzaFilters] = useState<FiltersState>([]);
   const {
     columns: bazzaColumns,
@@ -439,45 +330,47 @@ function AutoListSchema({
     );
   }, [bazzaFilterState, onFiltersChange]);
 
+  // ── Actions (schema mode only) ────────────────────────────────────────
+
   const toolbarActions = useMemo(
-    () => (view.actions ?? []).filter((a) => a.position === "toolbar"),
-    [view.actions],
+    () => (view?.actions ?? []).filter((a) => a.position === "toolbar"),
+    [view?.actions],
   );
   const rowActions = useMemo(
-    () => (view.actions ?? []).filter((a) => a.position === "row"),
-    [view.actions],
+    () => (view?.actions ?? []).filter((a) => a.position === "row"),
+    [view?.actions],
   );
 
-  // Determine if any field has inline editing enabled
+  // ── Inline edit (schema mode only) ────────────────────────────────────
+
   const hasEditableFields = useMemo(
-    () => view.fields.some((f) => f.editable),
-    [view.fields],
+    () => view?.fields.some((f) => f.editable) ?? false,
+    [view?.fields],
   );
 
-  // Query fields for refetching after inline edit
   const queryFields = useMemo(
-    () => ["id", ...view.fields.map((f) => f.field)],
-    [view.fields],
+    () => (view ? ["id", ...view.fields.map((f) => f.field)] : []),
+    [view],
   );
 
-  // Inline edit hook
   const {
     editingCell,
     startEditing,
     cancelEditing,
     saveEdit,
   } = useInlineEdit({
-    schemaName: schema.name,
+    schemaName: schema?.name ?? "",
     queryFields,
     onSaved: onInlineEditSaved,
     onError: onInlineEditError,
   });
 
-  // Pre-filter data using bazza filter logic + AI filter before passing to TanStack Table
+  // ── Pre-filter data (bazza + AI) ──────────────────────────────────────
+
   const filteredData = useMemo(() => {
     let result = data;
 
-    // Apply bazza filters
+    // Apply bazza filters (schema mode only)
     if (bazzaFilterState.length > 0) {
       result = result.filter((row) =>
         bazzaFilterState.every((f) => {
@@ -521,10 +414,20 @@ function AutoListSchema({
     return result;
   }, [data, bazzaFilterState, aiSearchState.result]);
 
+  // ── Columns ───────────────────────────────────────────────────────────
+
   const columns = useMemo(() => {
+    // If caller provided explicit columns, use those
+    if (columnsProp) {
+      const cols = [...columnsProp];
+      if (selectable && isSchemaMode) cols.unshift(buildSelectionColumn());
+      return cols;
+    }
+    // Otherwise, build from schema + view (schema mode required)
+    if (!isSchemaMode) return [];
     const cols = buildColumns({
       fields: view.fields,
-      schema,
+      schema: schema,
       rowActions,
       onAction,
       stateMeta,
@@ -541,7 +444,11 @@ function AutoListSchema({
     if (selectable) cols.unshift(buildSelectionColumn());
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel, hasEditableFields, editingCell, startEditing, saveEdit, cancelEditing]);
+  }, [columnsProp, isSchemaMode, view?.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel, hasEditableFields, editingCell, startEditing, saveEdit, cancelEditing]);
+
+  // ── Table ─────────────────────────────────────────────────────────────
+
+  const effectivePageSize = pageSizeProp ?? view?.pageSize ?? 20;
 
   const table = useReactTable({
     data: filteredData,
@@ -551,12 +458,12 @@ function AutoListSchema({
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onRowSelectionChange: setRowSelection,
-    enableRowSelection: selectable,
+    enableRowSelection: selectable && isSchemaMode,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: view.pageSize ?? 10 } },
+    initialState: { pagination: { pageSize: effectivePageSize } },
   });
 
   const hasActiveFilters = globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
@@ -574,19 +481,20 @@ function AutoListSchema({
     clearAISearch();
   }, [clearAISearch]);
 
-  // CSV export: all filtered rows
+  // ── CSV export (schema mode only) ─────────────────────────────────────
+
   const handleExportCsv = useCallback(() => {
+    if (!isSchemaMode) return;
     const rows = table.getFilteredRowModel().rows.map((r) => r.original);
     exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
-  }, [table, view.fields, schema.name, resolveLabel]);
+  }, [isSchemaMode, table, view?.fields, schema?.name, resolveLabel]);
 
-  // CSV export: selected rows only
   const handleExportSelected = useCallback(() => {
+    if (!isSchemaMode) return;
     const rows = selectedRows.map((r) => r.original);
     exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
-  }, [selectedRows, view.fields, schema.name, resolveLabel]);
+  }, [isSchemaMode, selectedRows, view?.fields, schema?.name, resolveLabel]);
 
-  // Intercept bulk actions to handle export and edit internally
   const handleBulkAction = useCallback(
     (actionName: string) => {
       if (actionName === "export") {
@@ -602,28 +510,38 @@ function AutoListSchema({
     [handleExportSelected, onBulkAction, selectedIds],
   );
 
+  // ── Loading skeleton ──────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="space-y-4">
-        {/* Toolbar skeleton */}
         <div className="flex items-center justify-between gap-3">
           <Skeleton className="h-9 w-72" />
           <Skeleton className="h-9 w-20" />
         </div>
-        {/* Table skeleton with header + rows */}
         <div className="rounded border border-border">
-          <div className="flex items-center gap-4 border-b border-border bg-muted/50 px-3 py-2.5">
-            {selectable && <Skeleton className="h-4 w-4" />}
-            {view.fields.slice(0, 5).map((f, i) => (
-              <Skeleton key={f.field} className="h-4" style={{ width: `${80 + i * 16}px` }} />
-            ))}
-          </div>
-          {SKELETON_KEYS.map((key) => (
-            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+          {isSchemaMode && (
+            <div className="flex items-center gap-4 border-b border-border bg-muted/50 px-3 py-2.5">
               {selectable && <Skeleton className="h-4 w-4" />}
               {view.fields.slice(0, 5).map((f, i) => (
-                <Skeleton key={f.field} className="h-4" style={{ width: `${60 + i * 20}px` }} />
+                <Skeleton key={f.field} className="h-4" style={{ width: `${80 + i * 16}px` }} />
               ))}
+            </div>
+          )}
+          {SKELETON_KEYS.map((key) => (
+            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+              {isSchemaMode && selectable && <Skeleton className="h-4 w-4" />}
+              {isSchemaMode ? (
+                view.fields.slice(0, 5).map((f, i) => (
+                  <Skeleton key={f.field} className="h-4" style={{ width: `${60 + i * 20}px` }} />
+                ))
+              ) : (
+                <>
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -631,29 +549,44 @@ function AutoListSchema({
     );
   }
 
+  // ── Empty state (when configured) ─────────────────────────────────────
+
+  if (data.length === 0 && !hasActiveFilters && emptyState) {
+    return (
+      <EmptyState
+        title={emptyState.title}
+        description={emptyState.description}
+        icon={emptyState.icon}
+        hideAction
+      />
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4">
       <ListToolbar
-        schema={schema}
+        schema={isSchemaMode ? schema : undefined}
         globalFilter={globalFilter}
-        onGlobalFilterChange={handleGlobalFilterChange}
+        onGlobalFilterChange={isSchemaMode ? handleGlobalFilterChange : setGlobalFilter}
         hasActiveFilters={hasActiveFilters}
-        onClearFilters={handleClearAllFilters}
+        onClearFilters={isSchemaMode ? handleClearAllFilters : () => setGlobalFilter("")}
         toolbarActions={toolbarActions}
-        onAction={onAction}
-        selectedCount={selectedIds.length}
-        onExportCsv={handleExportCsv}
-        onImport={() => setImportOpen(true)}
-        onBulkAction={handleBulkAction}
-        onClearSelection={() => setRowSelection({})}
-        bazzaColumns={bazzaColumns}
-        bazzaFilters={bazzaFilterState}
-        bazzaActions={bazzaActions}
-        bazzaStrategy={bazzaStrategy}
+        onAction={isSchemaMode ? onAction : undefined}
+        selectedCount={isSchemaMode ? selectedIds.length : undefined}
+        onExportCsv={isSchemaMode ? handleExportCsv : undefined}
+        onImport={isSchemaMode ? () => setImportOpen(true) : undefined}
+        onBulkAction={isSchemaMode ? handleBulkAction : undefined}
+        onClearSelection={isSchemaMode ? () => setRowSelection({}) : undefined}
+        bazzaColumns={isSchemaMode ? bazzaColumns : undefined}
+        bazzaFilters={isSchemaMode ? bazzaFilterState : undefined}
+        bazzaActions={isSchemaMode ? bazzaActions : undefined}
+        bazzaStrategy={isSchemaMode ? bazzaStrategy : undefined}
         toolbarExtra={toolbarExtra}
-        aiSearchState={aiSearchState}
-        onClearAISearch={clearAISearch}
-        onSearchSubmit={handleSearchSubmit}
+        aiSearchState={isSchemaMode ? aiSearchState : undefined}
+        onClearAISearch={isSchemaMode ? clearAISearch : undefined}
+        onSearchSubmit={isSchemaMode ? handleSearchSubmit : undefined}
         onRefresh={onRefresh}
         refreshing={refreshing}
       />
@@ -665,68 +598,29 @@ function AutoListSchema({
         hasActiveFilters={hasActiveFilters}
       />
 
-      <ImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        schema={schema}
-        onImported={onRefresh}
-      />
+      {isSchemaMode && (
+        <>
+          <ImportDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            schema={schema}
+            onImported={onRefresh}
+          />
 
-      <BulkEditDialog
-        open={bulkEditOpen}
-        onOpenChange={setBulkEditOpen}
-        schema={schema}
-        selectedIds={selectedIds}
-        queryFields={queryFields}
-        onCompleted={() => {
-          setRowSelection({});
-          onRefresh?.();
-        }}
-      />
+          <BulkEditDialog
+            open={bulkEditOpen}
+            onOpenChange={setBulkEditOpen}
+            schema={schema}
+            selectedIds={selectedIds}
+            queryFields={queryFields}
+            onCompleted={() => {
+              setRowSelection({});
+              onRefresh?.();
+            }}
+          />
+        </>
+      )}
     </div>
-  );
-}
-
-// ── Public API ──────────────────────────────────────────────────────────────
-
-export function AutoList(props: AutoListProps) {
-  if (props.externalColumns) {
-    return (
-      <AutoListExternal
-        externalColumns={props.externalColumns}
-        data={props.data}
-        loading={props.loading}
-        onRowClick={props.onRowClick}
-        toolbarExtra={props.toolbarExtra}
-        pageSize={props.pageSize}
-        defaultSorting={props.defaultSorting}
-        onRefresh={props.onRefresh}
-        refreshing={props.refreshing}
-        emptyState={props.emptyState}
-      />
-    );
-  }
-
-  // Schema-driven mode — schema and view are guaranteed present by the discriminated union
-  return (
-    <AutoListSchema
-      schema={props.schema}
-      view={props.view}
-      data={props.data}
-      loading={props.loading}
-      title={props.title}
-      stateMeta={props.stateMeta}
-      onAction={props.onAction}
-      onBulkAction={props.onBulkAction}
-      onRowClick={props.onRowClick}
-      selectable={props.selectable}
-      toolbarExtra={props.toolbarExtra}
-      onInlineEditSaved={props.onInlineEditSaved}
-      onInlineEditError={props.onInlineEditError}
-      onFiltersChange={props.onFiltersChange}
-      onRefresh={props.onRefresh}
-      refreshing={props.refreshing}
-    />
   );
 }
 

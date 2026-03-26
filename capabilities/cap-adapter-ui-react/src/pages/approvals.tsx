@@ -425,6 +425,10 @@ export function ApprovalsPage() {
         pageSize={20}
         defaultSorting={[{ id: "createdAt", desc: true }]}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.approvals.title"),
+          description: t("emptyState.approvals.description"),
+        }}
         onRowClick={(id) => {
           const approval = approvals.find((a) => a.id === id);
           if (approval?.status === "pending") {

@@ -435,6 +435,10 @@ export function ProposalsPage() {
         pageSize={20}
         defaultSorting={[{ id: "createdAt", desc: true }]}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.proposals.title"),
+          description: t("emptyState.proposals.description"),
+        }}
         onRowClick={(id) => {
           const p = proposals.find((p) => p.id === id);
           if (p) {

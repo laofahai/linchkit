@@ -39,15 +39,6 @@ interface ChatMessage {
   streaming?: boolean;
 }
 
-interface AIChatResponse {
-  success: boolean;
-  data?: {
-    reply: string;
-    suggestions?: Array<{ action: string; label: string }>;
-  };
-  error?: { message: string };
-}
-
 // ── API ──────────────────────────────────────────────────
 
 /**

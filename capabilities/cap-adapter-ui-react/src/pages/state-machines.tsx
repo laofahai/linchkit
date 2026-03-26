@@ -202,6 +202,10 @@ export function StateMachinesPage() {
         data={tableData}
         pageSize={20}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.stateMachines.title"),
+          description: t("emptyState.stateMachines.description"),
+        }}
         onRowClick={(id) => {
           navigate({ to: "/admin/states/$name" as string, params: { name: id } } as Parameters<typeof navigate>[0]);
         }}

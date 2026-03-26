@@ -281,6 +281,10 @@ export function RulesListPage() {
         data={tableData}
         pageSize={20}
         loading={loading}
+        emptyState={{
+          title: t("emptyState.rules.title"),
+          description: t("emptyState.rules.description"),
+        }}
         onRowClick={(id) => {
           navigate({ to: "/admin/rules/$name", params: { name: id } });
         }}
