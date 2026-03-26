@@ -145,15 +145,15 @@ function generateFallbackListView(
     defaultSort: fieldNames[0] ? { field: fieldNames[0], order: "asc" as const } : undefined,
     pageSize: 20,
     actions: [
-      { action: "create", label: "New", position: "toolbar" as const, variant: "default" as const },
-      { action: "edit", label: "Edit", position: "row" as const },
+      { action: "create", label: "t:common.new", position: "toolbar" as const, variant: "default" as const },
+      { action: "edit", label: "t:common.edit", position: "row" as const },
       { action: "duplicate", label: "t:common.duplicate", position: "row" as const },
       {
         action: "delete",
-        label: "Delete",
+        label: "t:common.delete",
         position: "row" as const,
         variant: "destructive" as const,
-        confirm: "Are you sure you want to delete this record?",
+        confirm: "t:confirm.deleteDescription",
       },
     ],
   };
@@ -273,7 +273,7 @@ export function SchemaListPage() {
       });
       setData(result.items);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load data";
+      const message = err instanceof Error ? err.message : t("errors.failedToLoadData", "Failed to load data");
       setDataError(message);
       setData([]);
     } finally {
@@ -319,15 +319,18 @@ export function SchemaListPage() {
     onData: handleSubscriptionData,
   });
 
-  // Initial data fetch — only depends on schemaName and bundle readiness
+  // Initial data fetch — depends on schemaName, bundle readiness, and bundle identity.
+  // bundleSchemaName ensures re-fetch when navigating between cached schemas
+  // (bundleReady stays true→true but the bundle itself changes).
   const bundleReady = !bundleLoading && !!bundle;
+  const bundleSchemaName = bundle?.schema?.name;
   useEffect(() => {
     if (bundleReady) {
       fetchData();
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchData, bundleReady]);
+  }, [fetchData, bundleReady, bundleSchemaName]);
 
   async function handleAction(actionName: string, recordId: string) {
     if (!schemaName) return;
