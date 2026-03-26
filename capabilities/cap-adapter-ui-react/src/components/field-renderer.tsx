@@ -111,6 +111,7 @@ export function FieldInput({
         onBlur={onBlur}
         disabled={readonly}
         aria-invalid={!!error}
+        className={error ? "border-destructive focus-visible:ring-destructive" : undefined}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
