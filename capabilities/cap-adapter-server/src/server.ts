@@ -218,6 +218,49 @@ function resolveRequestLocale(request: Request): string | undefined {
 }
 
 /**
+ * Validate an AI-generated filter: only allow fields that exist in the schema.
+ * Recursively walks composite conditions (and/or/not) and strips invalid or sensitive fields.
+ * Returns null if the filter is completely invalid after stripping.
+ */
+function validateAIFilter(
+  filter: unknown,
+  allowedFields: Set<string>,
+  sensitiveFields: Set<string>,
+): unknown {
+  if (!filter || typeof filter !== "object") return null;
+
+  const f = filter as Record<string, unknown>;
+  const operator = f.operator as string | undefined;
+
+  // Composite: and / or
+  if (operator === "and" || operator === "or") {
+    const conditions = f.conditions;
+    if (!Array.isArray(conditions)) return null;
+    const validated = conditions
+      .map((c) => validateAIFilter(c, allowedFields, sensitiveFields))
+      .filter((c) => c !== null);
+    if (validated.length === 0) return null;
+    if (validated.length === 1) return validated[0];
+    return { ...f, conditions: validated };
+  }
+
+  // Not
+  if (operator === "not") {
+    const inner = validateAIFilter(f.condition, allowedFields, sensitiveFields);
+    if (!inner) return null;
+    return { ...f, condition: inner };
+  }
+
+  // Simple condition — validate field name
+  const field = f.field as string | undefined;
+  if (!field) return null;
+  if (sensitiveFields.has(field)) return null;
+  if (!allowedFields.has(field)) return null;
+
+  return f;
+}
+
+/**
  * Create an Elysia server with GraphQL, health check, and REST action endpoints.
  *
  * @param graphqlSchema - A GraphQL schema built via buildGraphQLSchema()

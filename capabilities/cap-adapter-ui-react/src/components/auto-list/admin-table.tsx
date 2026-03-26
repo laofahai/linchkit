@@ -19,10 +19,40 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Inbox, SearchIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ListPagination } from "./list-pagination";
+
+/**
+ * Sortable column header — reusable across admin table column defs.
+ * Usage: `header: ({ column }) => <SortableHeader column={column} label="Name" />`
+ */
+export function SortableHeader({
+  column,
+  label,
+}: {
+  column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void };
+  label: string;
+}) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 text-xs font-medium hover:text-foreground"
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {label}
+      {sorted === "asc" ? (
+        <ArrowUp className="size-3.5" />
+      ) : sorted === "desc" ? (
+        <ArrowDown className="size-3.5" />
+      ) : (
+        <ArrowUpDown className="size-3.5 opacity-30" />
+      )}
+    </button>
+  );
+}
 
 type DataRow = Record<string, unknown>;
 
