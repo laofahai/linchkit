@@ -4,7 +4,7 @@
 
 AI-Native Software Capability Runtime. **Milestone:** M2 — Link Type + OntologyRegistry + GraphQL Subscriptions.
 
-Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow**
+Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link**
 
 ## Principles
 
@@ -92,7 +92,7 @@ bun ./packages/cli/src/index.ts db studio
 ## Key Architecture
 
 - **CommandLayer**: 7-slot middleware pipeline (`pre → auth → exposure → permission → tenant → pre-action → post-action`)
-- **REST**: `/api/schemas`, `/api/actions/:name`, `/api/executions`
+- **REST**: `/api/schemas`, `/api/actions/:name`, `/api/executions`, `/api/tenants`
 - **GraphQL**: `/graphql` — CRUD per schema + custom action mutations + execution logs
 - **UI Data**: `lib/api.ts` (plain fetch), `hooks/use-schemas.tsx`, Vite proxy, demo data fallback
 - **Widget Registry**: `lib/widget-registry.ts` — register/resolve/override field widgets. Each field type has a default display+input pair in `components/widgets/`. Override via `ViewFieldConfig.widget` or `widgetRegistry.overrideDisplay/overrideInput()`. State colors via `lib/state-colors.ts`.
@@ -115,6 +115,15 @@ bun ./packages/cli/src/index.ts db studio
 - **GraphQL Subscriptions**: SSE-based pub/sub via graphql-yoga. Supports real-time event streaming for schema record changes. Integrated with PersistentEventBus.
 - **MCP Tools**: `list_schemas`, `describe_schema` (full SchemaDescriptor via Ontology), `ontology_overview` (high-level system summary), `search_ontology` (keyword search across schemas/actions/rules), `list_actions` (with filter support), `execute_action`, `create_proposal`, `query` (GraphQL proxy). Registered via `extensions.transports` in cap-adapter-mcp.
 - **Link Type**: `defineLink()` declares relationships as first-class citizens (spec 46). `LinkRegistry` provides bidirectional navigation (`linksFor`, `outgoingLinks`, `incomingLinks`). Drizzle schema generation handles FK columns (many_to_one, one_to_many) and junction tables (many_to_many with properties). GraphQL resolvers auto-generated for all cardinalities. Schema field `ref`/`has_many`/`many_to_many` auto-promoted to implicit Links.
+- **DataLoader Integration**: GraphQL link resolvers use `dataloader` for N+1 query optimization. Per-request DataLoader instances created in GraphQL context, batching related-entity fetches across resolver calls.
+- **Schema Interface**: `defineSchemaInterface()` declares reusable field contracts (spec 47). `InterfaceRegistry` validates that implementing schemas include all required fields. Wired into runtime context at startup.
+- **Schema Inheritance**: Single-parent inheritance via `extends` field in `SchemaDefinition`. Child schemas inherit parent fields, actions, rules, states. `SchemaRegistry` resolves inheritance chain.
+- **Derived Properties**: Computed fields defined via `derived` config in schema fields. Evaluated at query time from other field values. Supported in GraphQL resolvers and CRUD actions.
+- **Reactive Automation**: `AutomationEngine` + `TriggerBinding` (spec 45). Event-driven automation rules that bind triggers (action completion, state transition, schedule) to automated action sequences.
+- **Soft Delete**: Records marked with `is_deleted` flag instead of physical deletion. GraphQL queries filter soft-deleted records by default. Restore and purge operations available.
+- **Tenant API & Switcher**: `/api/tenants` REST endpoint serves static tenant list for UI. `TenantSwitcher` component in UI header allows switching active tenant. JWT tenant extraction reads from actor context, not direct token decode.
+- **Data Masking**: Field-level masking rules (spec 41b). `MaskedValue` UI component renders masked fields. Server-side masking applied in GraphQL resolvers based on field config and actor permissions.
+- **ApprovalEngine Permission Integration**: Approval decisions respect CommandLayer permission slot. Approvers validated against permission model before approve/reject.
 - **Deployment**: Spec 12 — deployment strategies, environment configuration, production readiness checks.
 - **Documentation**: Spec 25 — auto-generated API docs, schema documentation, capability documentation.
 - **Documentation Governance**: Spec 37 — documentation standards, review process, versioned doc lifecycle.
@@ -126,7 +135,7 @@ bun ./packages/cli/src/index.ts db studio
 
 ## Test Coverage
 
-- ~1874 tests, 0 failures
+- ~2091 tests, 0 failures
 
 ## UI Routes
 
@@ -159,5 +168,5 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 
 ## Specs
 
-Full specs in project: `docs/specs/` (47 files, 00–50).
-Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`.
+Full specs in project: `docs/specs/` (54 files, 00–50).
+Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`.
