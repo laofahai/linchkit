@@ -267,13 +267,14 @@ export function SchemaListPage() {
     );
   }
 
-  // View toggle buttons for toolbar (icon-only, shown when calendar is available)
+  // View toggle buttons (icon-only, shown when calendar is available)
+  // Uses size="sm" with fixed dimensions to match the primary action button height
   const viewToggle = hasCalendarOption ? (
     <div className="flex items-center rounded-md border border-border">
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
-        size="icon"
-        className="h-8 w-8 rounded-r-none"
+        size="sm"
+        className="h-8 w-8 p-0 rounded-r-none"
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
@@ -281,8 +282,8 @@ export function SchemaListPage() {
       </Button>
       <Button
         variant={activeView === "calendar" ? "default" : "ghost"}
-        size="icon"
-        className="h-8 w-8 rounded-l-none border-l border-border"
+        size="sm"
+        className="h-8 w-8 p-0 rounded-l-none border-l border-border"
         onClick={() => setActiveView("calendar")}
         title={t("calendar.calendarView", "Calendar view")}
       >
@@ -307,15 +308,40 @@ export function SchemaListPage() {
           toolbarExtra={viewToggle}
         />
       ) : (
-        <AutoCalendar
-          schema={schema}
-          dateField={calendarDateField!}
-          titleField={calendarViewDef?.titleField}
-          colorField={calendarViewDef?.colorField}
-          data={data}
-          onRecordClick={handleRowClick}
-          loading={loading}
-        />
+        <div className="space-y-4">
+          {/* Unified toolbar for calendar view */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1" />
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Primary action button — mirrors list toolbar */}
+              {(() => {
+                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
+                if (!primary) return null;
+                return (
+                  <Button
+                    size="sm"
+                    variant={primary.variant === "destructive" ? "destructive" : "default"}
+                    onClick={() => handleAction(primary.action, "")}
+                  >
+                    {primary.label
+                      ? t(primary.label, primary.label)
+                      : t(`actions.${primary.action}`, primary.action)}
+                  </Button>
+                );
+              })()}
+              {viewToggle}
+            </div>
+          </div>
+          <AutoCalendar
+            schema={schema}
+            dateField={calendarDateField!}
+            titleField={calendarViewDef?.titleField}
+            colorField={calendarViewDef?.colorField}
+            data={data}
+            onRecordClick={handleRowClick}
+            loading={loading}
+          />
+        </div>
       )}
 
       {/* Bulk delete confirmation dialog */}
