@@ -241,7 +241,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
 
         // Convert UIMessage[] (from @ai-sdk/react useChat) to ModelMessage[] (for streamText)
         // useChat sends messages in UI format (with parts array), but streamText expects model format
-        const modelMessages = convertToModelMessages(messages);
+        const modelMessages = await convertToModelMessages(messages, { tools });
 
         // Use Vercel AI SDK streamText with tools and multi-step support
         const result = streamText({
