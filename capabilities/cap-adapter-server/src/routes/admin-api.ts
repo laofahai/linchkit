@@ -1,0 +1,375 @@
+/**
+ * Admin / metadata REST endpoints.
+ *
+ * - GET /health
+ * - GET /api/metrics
+ * - GET /api/app-config
+ * - GET /api/tenants
+ * - GET /api/settings
+ * - GET /api/rules, GET /api/rules/:name
+ * - GET /api/flows, GET /api/flows/:name
+ * - GET /api/states, GET /api/states/:name
+ * - GET /api/executions, GET /api/executions/:id
+ */
+
+import type { ExecutionStatus, FlowDefinition, StateDefinition } from "@linchkit/core";
+import { DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
+import type { Elysia } from "elysia";
+import type { ServerOptions } from "../server";
+
+export function mountAdminRoutes(
+  app: Elysia,
+  options: ServerOptions,
+  serverStartedAt: number,
+): void {
+  const schemaRegistry = options.schemaRegistry;
+  const capabilities = options.capabilities ?? [];
+  const healthCheckRegistry = options.healthCheckRegistry;
+  const metricsCollector = options.metricsCollector;
+  const aiService = options.aiService;
+  const tenants = options.tenants ?? [];
+  const rules = options.rules ?? [];
+  const linchKitConfig = options.linchKitConfig;
+  const dataProvider = options.dataProvider;
+  const executionLogger = options.executionLogger;
+
+  app
+    // Health check — runs all registered probes when HealthCheckRegistry is provided
+    .get("/health", async ({ set }) => {
+      const system = {
+        version: "0.2.0",
+        uptime: process.uptime(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        schemaCount: schemaRegistry?.getAll().length ?? 0,
+        capabilityCount: capabilities.length,
+      };
+      if (healthCheckRegistry) {
+        const result = await healthCheckRegistry.runAll();
+        // Return 503 when any check is unhealthy so load balancers can route away
+        if (result.status === "unhealthy") {
+          set.status = 503;
+        }
+        return {
+          status: result.status,
+          checks: result.checks,
+          timestamp: result.timestamp,
+          system,
+        };
+      }
+      // Fallback: basic liveness response when no registry is configured
+      return {
+        status: "healthy",
+        checks: [],
+        timestamp: new Date().toISOString(),
+        system,
+      };
+    })
+    // Metrics summary endpoint — returns aggregated metrics from the collector
+    .get("/api/metrics", () => {
+      if (!metricsCollector) {
+        return { success: false, error: "No metrics collector configured" };
+      }
+      return {
+        success: true,
+        data: metricsCollector.getSummary(),
+        timestamp: new Date().toISOString(),
+      };
+    })
+    // App config — tells the UI which capabilities are loaded and their pages
+    .get("/api/app-config", () => {
+      const authEnabled = capabilities.some((c) => c.name === "cap-auth");
+      const aiEnabled = !!aiService?.configured;
+      const pages = capabilities.flatMap((c) => c.pages ?? []);
+      return {
+        success: true,
+        data: {
+          authEnabled,
+          aiEnabled,
+          capabilities: capabilities.map((c) => c.name),
+          pages,
+        },
+      };
+    })
+    // Tenant list — consumed by TenantSwitcher UI component
+    .get("/api/tenants", () => {
+      return { success: true, data: tenants };
+    })
+    // Settings — sanitized system configuration for admin UI
+    .get("/api/settings", async () => {
+      const cfg = linchKitConfig;
+      const dp = options.dataProvider;
+      const uptimeMs = Date.now() - serverStartedAt;
+      const actionCount = capabilities.reduce(
+        (sum, c) => sum + (c.actions?.length ?? 0),
+        0,
+      );
+
+      // Determine real database status from the actual DataProvider instance
+      let dbConnected = false;
+      let dbProvider: string = "none";
+      if (dp instanceof DrizzleDataProvider) {
+        dbProvider = "postgresql";
+        dbConnected = await dp.ping();
+      } else if (dp instanceof InMemoryStore) {
+        dbProvider = "in-memory";
+        dbConnected = true;
+      } else if (dp) {
+        dbProvider = "custom";
+        dbConnected = true;
+      }
+
+      // Sanitize: never expose secrets, tokens, passwords, connection URLs
+      const settings = {
+        general: {
+          version: "0.2.0",
+          uptime: uptimeMs,
+          registeredSchemas: schemaRegistry?.getAll().length ?? 0,
+          registeredActions: actionCount,
+          registeredRules: rules.length,
+          registeredFlows: options.flows?.length ?? 0,
+          registeredStates: options.states?.length ?? 0,
+          capabilityCount: capabilities.length,
+          capabilities: capabilities.map((c) => c.name),
+        },
+        database: {
+          configured: dbConnected,
+          provider: dbProvider,
+          poolSize: cfg?.database?.poolSize ?? (dbProvider === "postgresql" ? 10 : null),
+          debug: cfg?.database?.debug ?? false,
+        },
+        ai: {
+          configured: !!aiService?.configured,
+          defaultProvider: cfg?.ai?.defaultProvider ?? null,
+          providers: cfg?.ai?.providers
+            ? Object.keys(cfg.ai.providers)
+            : [],
+        },
+        auth: {
+          enabled: capabilities.some((c) => c.name === "cap-auth"),
+          provider: capabilities.find((c) => c.name.startsWith("cap-auth-"))?.name ?? null,
+        },
+        tenancy: {
+          mode: tenants.length > 0 ? "multi" : "standalone",
+          tenantCount: tenants.length,
+        },
+        server: {
+          port: cfg?.server?.port ?? 3001,
+          host: cfg?.server?.host ?? "localhost",
+        },
+        subscription: {
+          enabled: cfg?.subscription?.enabled ?? true,
+          maxConnectionsPerUser: cfg?.subscription?.maxConnectionsPerUser ?? 3,
+          heartbeatInterval: cfg?.subscription?.heartbeatInterval ?? 30000,
+          idleTimeout: cfg?.subscription?.idleTimeout ?? 300000,
+          maxBufferSize: cfg?.subscription?.maxBufferSize ?? 100,
+        },
+        flow: {
+          configured: !!cfg?.flow,
+          engine: cfg?.flow?.restate ? "restate" : "sync",
+        },
+      };
+
+      return { success: true, data: settings };
+    })
+    // Rule definition endpoints — consumed by Rules management UI
+    .get("/api/rules", ({ query }) => {
+      let filtered = rules;
+      if (query.schema && typeof query.schema === "string") {
+        const schemaFilter = query.schema;
+        filtered = filtered.filter((r) => {
+          const trigger = r.trigger;
+          if ("stateChange" in trigger) return trigger.stateChange.schema === schemaFilter;
+          if ("fieldChange" in trigger) return trigger.fieldChange.schema === schemaFilter;
+          if ("action" in trigger) {
+            const actions = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
+            return actions.some((a) => a.includes(schemaFilter));
+          }
+          return false;
+        });
+      }
+      if (query.triggerType && typeof query.triggerType === "string") {
+        const tt = query.triggerType;
+        filtered = filtered.filter((r) => {
+          const trigger = r.trigger;
+          if (tt === "action") return "action" in trigger;
+          if (tt === "stateChange") return "stateChange" in trigger;
+          if (tt === "fieldChange") return "fieldChange" in trigger;
+          if (tt === "event") return "event" in trigger;
+          if (tt === "schedule") return "schedule" in trigger;
+          return true;
+        });
+      }
+      const serialized = filtered.map((r) => ({
+        name: r.name,
+        label: r.label,
+        description: r.description,
+        priority: r.priority ?? 0,
+        trigger: r.trigger,
+        condition: typeof r.condition === "function" ? { type: "code" } : r.condition,
+        effect: r.effect,
+      }));
+      return { success: true, data: serialized };
+    })
+    .get("/api/rules/:name", ({ params, set }) => {
+      const rule = rules.find((r) => r.name === params.name);
+      if (!rule) {
+        set.status = 404;
+        return { success: false, error: { message: `Rule "${params.name}" not found.` } };
+      }
+      return {
+        success: true,
+        data: {
+          name: rule.name,
+          label: rule.label,
+          description: rule.description,
+          priority: rule.priority ?? 0,
+          trigger: rule.trigger,
+          condition: typeof rule.condition === "function" ? { type: "code" } : rule.condition,
+          effect: rule.effect,
+        },
+      };
+    })
+    // ── Execution Log REST endpoints ────────────────────────
+    .get("/api/executions", async ({ query, set }) => {
+      if (!executionLogger) {
+        set.status = 500;
+        return { success: false, error: { message: "Execution logger not configured." } };
+      }
+
+      // Validate date parameters
+      const ISO_DATE_RE =
+        /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+      if (query.since && !ISO_DATE_RE.test(query.since as string)) {
+        set.status = 400;
+        return { success: false, error: { message: "Invalid 'since' date format." } };
+      }
+      if (query.until && !ISO_DATE_RE.test(query.until as string)) {
+        set.status = 400;
+        return { success: false, error: { message: "Invalid 'until' date format." } };
+      }
+
+      // Validate and clamp pagination
+      let page = query.page ? Number(query.page) : undefined;
+      let pageSize = query.pageSize ? Number(query.pageSize) : undefined;
+      if (page !== undefined) {
+        if (Number.isNaN(page)) {
+          set.status = 400;
+          return { success: false, error: { message: "Invalid 'page' parameter." } };
+        }
+        page = Math.max(1, Math.floor(page));
+      }
+      if (pageSize !== undefined) {
+        if (Number.isNaN(pageSize)) {
+          set.status = 400;
+          return { success: false, error: { message: "Invalid 'pageSize' parameter." } };
+        }
+        pageSize = Math.max(1, Math.min(100, Math.floor(pageSize)));
+      }
+
+      try {
+        const result = await executionLogger.findMany({
+          action: query.action as string | undefined,
+          schema: query.schema as string | undefined,
+          status: query.status as ExecutionStatus | undefined,
+          actorId: query.actorId as string | undefined,
+          since: query.since as string | undefined,
+          until: query.until as string | undefined,
+          page,
+          pageSize,
+          sortField: query.sortField as "startedAt" | "duration" | "action" | undefined,
+          sortOrder: query.sortOrder as "asc" | "desc" | undefined,
+        });
+        return { success: true, data: result };
+      } catch (err) {
+        set.status = 500;
+        const message =
+          process.env.NODE_ENV === "production"
+            ? "Failed to query execution logs."
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        return { success: false, error: { message } };
+      }
+    })
+    .get("/api/executions/:id", async ({ params, set }) => {
+      if (!executionLogger) {
+        set.status = 500;
+        return { success: false, error: { message: "Execution logger not configured." } };
+      }
+      const entry = await executionLogger.getById(params.id);
+      if (!entry) {
+        set.status = 404;
+        return { success: false, error: { message: `Execution ${params.id} not found.` } };
+      }
+      return { success: true, data: entry };
+    })
+    // ── Flow REST endpoints ──────────────────────────────────
+    .get("/api/flows", () => {
+      // Collect flows from options or capabilities
+      const allFlows: FlowDefinition[] = options.flows ?? [];
+      if (!allFlows.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.flows) allFlows.push(...cap.flows);
+        }
+      }
+      const summary = allFlows.map((f) => ({
+        name: f.name,
+        label: f.label,
+        description: f.description,
+        version: f.version,
+        trigger: f.trigger,
+        stepCount: f.steps.length,
+        steps: f.steps.map((s) => ({ id: s.id, name: s.name, type: s.type })),
+      }));
+      return { success: true, data: summary };
+    })
+    .get("/api/flows/:name", ({ params, set }) => {
+      const allFlows: FlowDefinition[] = options.flows ?? [];
+      if (!allFlows.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.flows) allFlows.push(...cap.flows);
+        }
+      }
+      const flow = allFlows.find((f) => f.name === params.name);
+      if (!flow) {
+        set.status = 404;
+        return { success: false, error: { message: `Flow "${params.name}" not found.` } };
+      }
+      return { success: true, data: flow };
+    })
+    // ── State Machine REST endpoints ─────────────────────────
+    .get("/api/states", () => {
+      const allStates: StateDefinition[] = options.states ?? [];
+      if (!allStates.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.states) allStates.push(...cap.states);
+        }
+      }
+      const summary = allStates.map((s) => ({
+        name: s.name,
+        schema: s.schema,
+        field: s.field,
+        initial: s.initial,
+        stateCount: s.states.length,
+        transitionCount: s.transitions.length,
+        states: s.states,
+        meta: s.meta,
+      }));
+      return { success: true, data: summary };
+    })
+    .get("/api/states/:name", ({ params, set }) => {
+      const allStates: StateDefinition[] = options.states ?? [];
+      if (!allStates.length && capabilities.length > 0) {
+        for (const cap of capabilities) {
+          if (cap.states) allStates.push(...cap.states);
+        }
+      }
+      const state = allStates.find((s) => s.name === params.name);
+      if (!state) {
+        set.status = 404;
+        return { success: false, error: { message: `State machine "${params.name}" not found.` } };
+      }
+      return { success: true, data: state };
+    });
+}

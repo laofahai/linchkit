@@ -121,6 +121,20 @@ export interface AIServiceConfig {
   cache?: AICacheConfig;
   /** Per-tenant AI config overrides (BYOK) */
   tenants?: Record<string, AITenantConfig>;
+  /** AI Assistant configuration for the chat UI */
+  assistant?: AIAssistantConfig;
+}
+
+/** Configuration for the AI chat assistant */
+export interface AIAssistantConfig {
+  /** Custom system prompt prepended to the dynamic context */
+  systemPrompt?: string;
+  /** Model alias or ID to use for chat (default: "fast") */
+  model?: string;
+  /** Maximum tool call steps per message (default: 5) */
+  maxSteps?: number;
+  /** Temperature for chat responses (default: 0.3) */
+  temperature?: number;
 }
 
 // ── Completion options ──────────────────────────────────────

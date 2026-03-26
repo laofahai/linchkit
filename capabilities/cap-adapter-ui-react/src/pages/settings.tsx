@@ -46,7 +46,7 @@ interface SettingsData {
   database: {
     configured: boolean;
     provider: string;
-    poolSize: number;
+    poolSize: number | null;
     debug: boolean;
   };
   ai: {
@@ -250,7 +250,7 @@ export function SettingsPage() {
               label={t("settings.provider")}
               value={<Badge variant="secondary">{settings.database.provider}</Badge>}
             />
-            <SettingRow label={t("settings.poolSize")} value={settings.database.poolSize} mono />
+            <SettingRow label={t("settings.poolSize")} value={settings.database.poolSize ?? "N/A"} mono />
             <SettingRow
               label={t("settings.debugMode")}
               value={settings.database.debug ? t("common.yes") : t("common.no")}

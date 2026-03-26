@@ -14,12 +14,13 @@ import {
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { Calendar, Kanban, List, RefreshCw, ServerCrash } from "lucide-react";
+import { Calendar, Kanban, List, ListTree, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
 import { AutoList } from "../components/auto-list";
+import { AutoTree } from "../components/auto-tree";
 import { SavedViewTabs } from "../components/auto-list/saved-view-tabs";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { EmptyState } from "../components/empty-state";
@@ -32,7 +33,7 @@ import { pushNotification } from "../hooks/use-notifications";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
-type ActiveView = "list" | "calendar" | "kanban";
+type ActiveView = "list" | "calendar" | "kanban" | "tree";
 
 /** Relationship field types that require subfield selection in GraphQL. */
 const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
@@ -187,6 +188,22 @@ function findDateField(
   return dateFieldNames[0] ?? null;
 }
 
+/**
+ * Find a self-referencing ref field in the schema (e.g. parent_id pointing to same schema).
+ * Returns the field name if found, or null.
+ */
+function findSelfRefField(
+  schemaName: string,
+  schemaFields: Record<string, { type?: string; target?: string }>,
+): string | null {
+  for (const [fieldName, def] of Object.entries(schemaFields)) {
+    if (def.type === "ref" && def.target === schemaName) {
+      return fieldName;
+    }
+  }
+  return null;
+}
+
 export function SchemaListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -277,6 +294,32 @@ export function SchemaListPage() {
   );
   const hasKanbanOption = primaryStateDef !== null;
 
+  // Detect if tree view is available (schema has self-referencing ref field)
+  const selfRefField = useMemo(
+    () => (schema ? findSelfRefField(schema.name, schema.fields as Record<string, { type?: string; target?: string }>) : null),
+    [schema],
+  );
+  const hasTreeOption = selfRefField !== null;
+
+  // Resolve tree label field from presentation or first string field
+  const treeLabelField = useMemo(() => {
+    if (!schema) return "name";
+    const pres = schema.presentation as { titleField?: string } | undefined;
+    if (pres?.titleField) return pres.titleField;
+    // Fallback: find first string field
+    for (const [fieldName, def] of Object.entries(schema.fields)) {
+      if ((def as { type?: string }).type === "string") return fieldName;
+    }
+    return "name";
+  }, [schema]);
+
+  // Resolve tree summary fields from presentation
+  const treeSummaryFields = useMemo(() => {
+    if (!schema) return undefined;
+    const pres = schema.presentation as { summaryFields?: string[] } | undefined;
+    return pres?.summaryFields?.slice(0, 2);
+  }, [schema]);
+
   // Use refs for values needed inside fetchData to keep its identity stable.
   // This prevents the useCallback from changing on every render, which would
   // cascade into the useEffect and subscription handler causing infinite loops.
@@ -292,6 +335,12 @@ export function SchemaListPage() {
   primaryStateDefRef.current = primaryStateDef;
   const schemaPresentationRef = useRef(schema?.presentation);
   schemaPresentationRef.current = schema?.presentation;
+  const selfRefFieldRef = useRef(selfRefField);
+  selfRefFieldRef.current = selfRefField;
+  const treeLabelFieldRef = useRef(treeLabelField);
+  treeLabelFieldRef.current = treeLabelField;
+  const treeSummaryFieldsRef = useRef(treeSummaryFields);
+  treeSummaryFieldsRef.current = treeSummaryFields;
 
   // Reset data when navigating to a different schema to avoid stale results
   useEffect(() => {
@@ -338,6 +387,15 @@ export function SchemaListPage() {
         }
       }
       if (!fields.includes("created_at")) fields.push("created_at");
+      // Ensure self-referencing parent field is included for tree view
+      const srf = selfRefFieldRef.current;
+      if (srf && !fields.includes(srf)) fields.push(srf);
+      // Ensure tree label + summary fields are included
+      const tlf = treeLabelFieldRef.current;
+      if (tlf && !fields.includes(tlf)) fields.push(tlf);
+      for (const sf of treeSummaryFieldsRef.current ?? []) {
+        if (!fields.includes(sf)) fields.push(sf);
+      }
       const result = await queryList({
         schema: schemaName,
         fields,
@@ -664,47 +722,43 @@ export function SchemaListPage() {
     );
   }
 
-  // View toggle buttons (icon-only, shown when calendar or kanban is available)
-  const hasViewToggle = hasCalendarOption || hasKanbanOption;
+  // View toggle buttons (icon-only, shown when alternative views are available)
+  const hasViewToggle = hasCalendarOption || hasKanbanOption || hasTreeOption;
+  // Collect optional view buttons to determine border radius
+  const optionalViews: { key: ActiveView; icon: React.ReactNode; title: string; available: boolean }[] = [
+    { key: "tree", icon: <ListTree className="size-4" />, title: t("tree.treeView", "Tree view"), available: hasTreeOption },
+    { key: "kanban", icon: <Kanban className="size-4" />, title: t("kanban.kanbanView", "Kanban view"), available: hasKanbanOption },
+    { key: "calendar", icon: <Calendar className="size-4" />, title: t("calendar.calendarView", "Calendar view"), available: hasCalendarOption },
+  ];
+  const activeOptionalViews = optionalViews.filter((v) => v.available);
+
   const viewToggle = hasViewToggle ? (
     <div className="flex items-center rounded-md border border-border">
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
         size="icon-sm"
-        className={cn(
-          !hasKanbanOption && !hasCalendarOption ? "" : "rounded-r-none",
-        )}
+        className={cn(activeOptionalViews.length > 0 && "rounded-r-none")}
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
         <List className="size-4" />
       </Button>
-      {hasKanbanOption && (
+      {activeOptionalViews.map((view, index) => (
         <Button
-          variant={activeView === "kanban" ? "default" : "ghost"}
+          key={view.key}
+          variant={activeView === view.key ? "default" : "ghost"}
           size="icon-sm"
           className={cn(
             "border-l border-border",
-            !hasCalendarOption && "rounded-l-none",
-            hasCalendarOption && "rounded-none",
+            index === activeOptionalViews.length - 1 ? "rounded-l-none" : "rounded-none",
+            index === 0 && "rounded-l-none",
           )}
-          onClick={() => setActiveView("kanban")}
-          title={t("kanban.kanbanView", "Kanban view")}
+          onClick={() => setActiveView(view.key)}
+          title={view.title}
         >
-          <Kanban className="size-4" />
+          {view.icon}
         </Button>
-      )}
-      {hasCalendarOption && (
-        <Button
-          variant={activeView === "calendar" ? "default" : "ghost"}
-          size="icon-sm"
-          className="rounded-l-none border-l border-border"
-          onClick={() => setActiveView("calendar")}
-          title={t("calendar.calendarView", "Calendar view")}
-        >
-          <Calendar className="size-4" />
-        </Button>
-      )}
+      ))}
     </div>
   ) : null;
 
@@ -788,6 +842,36 @@ export function SchemaListPage() {
             queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
           />
         </div>
+      ) : activeView === "tree" && selfRefField ? (
+        <AutoTree
+          schemaName={schemaName}
+          parentField={selfRefField}
+          records={data}
+          labelField={treeLabelField}
+          summaryFields={treeSummaryFields}
+          onRecordClick={handleRowClick}
+          toolbarExtra={
+            <div className="flex items-center gap-2">
+              {(() => {
+                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
+                if (!primary) return null;
+                return (
+                  <Button
+                    size="sm"
+                    variant={primary.variant === "destructive" ? "destructive" : "default"}
+                    onClick={() => handleAction(primary.action, "")}
+                  >
+                    {primary.label
+                      ? t(primary.label, primary.label)
+                      : t(`actions.${primary.action}`, primary.action)}
+                  </Button>
+                );
+              })()}
+              {refreshIndicator}
+              {viewToggle}
+            </div>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {/* Unified toolbar for calendar view */}

@@ -8,7 +8,7 @@
 
 import type { AIAuditLogger } from "../ai/ai-audit";
 import type { AIBoundary } from "../ai/ai-boundary";
-import type { AIService } from "./ai";
+import type { AIService, AIServiceConfig } from "./ai";
 import type { AutomationEngine } from "../automation/automation-engine";
 import type { CacheManager } from "../cache/cache-manager";
 import type { ConfigRegistry } from "../config/config-registry";
@@ -80,6 +80,8 @@ export interface TransportContext {
   aiAuditLogger?: AIAuditLogger;
   /** AI service — provides LLM completion and streaming capabilities */
   aiService?: AIService;
+  /** AI service config — raw config for resolving language models directly */
+  aiConfig?: AIServiceConfig;
 }
 
 /** Lifecycle handle returned by transport factory */

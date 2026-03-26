@@ -481,6 +481,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     aiBoundary,
     aiAuditLogger,
     aiService,
+    aiConfig: config.ai,
   };
 
   return {

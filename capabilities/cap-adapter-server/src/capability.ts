@@ -91,6 +91,8 @@ export const capAdapterServer = defineCapability({
             schemaMap,
             rules: allRules,
             aiService: ctx.aiService,
+            aiConfig: ctx.aiConfig,
+            ontologyRegistry: ctx.ontologyRegistry,
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
             // Never decode JWT directly — that bypasses signature verification.

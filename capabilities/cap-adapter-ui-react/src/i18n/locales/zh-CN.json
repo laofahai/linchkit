@@ -214,7 +214,8 @@
     "rootNodes": "{{count}} 个根节点",
     "rootNodes_other": "{{count}} 个根节点",
     "childCount": "{{count}} 个子节点",
-    "childCount_other": "{{count}} 个子节点"
+    "childCount_other": "{{count}} 个子节点",
+    "treeView": "树形视图"
   },
   "detail": {
     "relatedRecords": "关联记录",

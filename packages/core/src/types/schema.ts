@@ -158,6 +158,8 @@ export interface FieldUIHints {
   format?: "currency" | "percentage" | "filesize" | "duration";
   /** Display form hint: badge, progress, avatar, color, rating */
   display?: "badge" | "progress" | "avatar" | "color" | "rating";
+  /** Editor variant hint: e.g. "rich" for rich-text editor on text fields */
+  editor?: "rich";
   /** Semantic group name — fields with same group are placed together in auto-layout */
   group?: string;
   /** Form grid width hint (based on 12 columns), overrides type-inferred default */

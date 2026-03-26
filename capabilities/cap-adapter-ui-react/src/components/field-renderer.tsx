@@ -31,10 +31,15 @@ export function FieldDisplay({ field: viewField, value, fieldDef }: FieldDisplay
     return <MaskedValue value={String(value)} />;
   }
 
+  // Derive widget override: explicit widget > editor hint > none
+  const displayOverride =
+    viewField.widget ??
+    (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,
     mode: "display",
-    widgetOverride: viewField.widget,
+    widgetOverride: displayOverride,
     format: fieldDef.ui?.format,
   });
 
@@ -77,10 +82,15 @@ export function FieldInput({
     return <MaskedValue value={String(value)} />;
   }
 
+  // Derive widget override: explicit widget > editor hint > none
+  const inputOverride =
+    viewField.widget ??
+    (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,
     mode: "input",
-    widgetOverride: viewField.widget,
+    widgetOverride: inputOverride,
     format: fieldDef.ui?.format,
   });
 

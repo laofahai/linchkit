@@ -16,6 +16,7 @@ import { JsonDisplay, JsonInput } from "./json-widget";
 import { ManyToManyDisplay, ManyToManyInput } from "./many-to-many-widget";
 import { NumberDisplay, NumberInput } from "./number-widget";
 import { RefDisplay, RefInput } from "./ref-widget";
+import { RichTextDisplay, RichTextInput } from "./rich-text-widget";
 import { StateDisplay, StateInput } from "./state-widget";
 import { StringDisplay, StringInput } from "./string-widget";
 import { TextDisplay, TextInput } from "./text-widget";
@@ -36,6 +37,17 @@ export function registerDefaultWidgets() {
     definition: { id: "text", fieldTypes: "text", modes: ["display", "input"], isDefault: true },
     display: TextDisplay,
     input: TextInput,
+  });
+
+  // Rich text editor for text fields with ui.editor: "rich"
+  widgetRegistry.register({
+    definition: {
+      id: "text-rich",
+      fieldTypes: "text",
+      modes: ["display", "input"],
+    },
+    display: RichTextDisplay,
+    input: RichTextInput,
   });
 
   widgetRegistry.register({

@@ -12,7 +12,8 @@
     "./config": "./src/config/index.ts",
     "./utils/env": "./src/utils/env.ts",
     "./methodology": "./src/methodology/index.ts",
-    "./governance": "./src/governance/index.ts"
+    "./governance": "./src/governance/index.ts",
+    "./system-schemas": "./src/system-schemas/index.ts"
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun",

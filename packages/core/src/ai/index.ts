@@ -24,6 +24,7 @@ export {
   createAIService,
   createNoopAIService,
   defaultAIConfig,
+  resolveLanguageModel,
   resolveModel,
   resolveModelRoute,
   resolveTenantConfig,

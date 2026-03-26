@@ -51,6 +51,19 @@ export class DrizzleDataProvider implements DataProvider {
     }
   }
 
+  /**
+   * Lightweight connectivity check — runs `SELECT 1` against the database.
+   * Returns true if the database is reachable, false otherwise.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      await this.db.execute(sql`SELECT 1`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Register or update schema definitions (e.g., when capabilities load after construction). */
   registerSchemaDefinitions(schemas: SchemaDefinition[]): void {
     for (const sd of schemas) {

@@ -287,6 +287,22 @@ async function getLanguageModel(
   }
 }
 
+/**
+ * Resolve a Vercel AI SDK LanguageModel from config + model alias.
+ *
+ * Public wrapper around getLanguageModel for direct use with streamText/generateText
+ * in transport adapters (e.g., the chat endpoint).
+ */
+export async function resolveLanguageModel(
+  config: AIServiceConfig,
+  modelAlias?: string,
+  providerName?: string,
+  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK LanguageModel is generic
+): Promise<any> {
+  const resolved = resolveModel(config, providerName, modelAlias);
+  return getLanguageModel(config, resolved);
+}
+
 // ── Fallback chain execution ─────────────────────────────────
 
 /**
