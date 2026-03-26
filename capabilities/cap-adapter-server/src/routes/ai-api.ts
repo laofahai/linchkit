@@ -186,7 +186,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
       }
 
       try {
-        const { streamText } = await import("ai");
+        const { streamText, stepCountIs } = await import("ai");
         const { resolveLanguageModel } = await import("@linchkit/core/server");
         const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
         const { buildSystemPrompt } = await import("../ai/system-prompt");
@@ -245,7 +245,7 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
           system: systemPrompt,
           messages,
           tools,
-          maxSteps: assistantConfig?.maxSteps ?? 5,
+          stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
           temperature: assistantConfig?.temperature ?? 0.3,
           abortSignal: request.signal,
         });

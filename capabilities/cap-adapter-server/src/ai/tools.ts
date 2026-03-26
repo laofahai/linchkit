@@ -58,8 +58,9 @@ export function buildTools(ctx: ToolContext) {
       execute: async (input: { schema: string; limit?: number }) => {
         try {
           const effectiveLimit = Math.min(input.limit ?? 10, 50);
-          const records = await dp.query(input.schema, {}, { limit: effectiveLimit });
-          const total = await dp.count(input.schema);
+          const allRecords = await dp.query(input.schema, {});
+          const total = allRecords.length;
+          const records = allRecords.slice(0, effectiveLimit);
           return {
             schema: input.schema,
             records,
@@ -109,7 +110,7 @@ export function buildTools(ctx: ToolContext) {
       inputSchema: z.object({
         action: z.string().describe("The action name to execute (e.g. 'create_product', 'approve_order')"),
         input: z
-          .record(z.unknown())
+          .record(z.string(), z.unknown())
           .describe("The action input data as key-value pairs"),
       }),
       execute: async (params: { action: string; input: Record<string, unknown> }) => {
