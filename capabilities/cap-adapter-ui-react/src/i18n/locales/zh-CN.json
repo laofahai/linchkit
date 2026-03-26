@@ -254,6 +254,16 @@
     "hoursAgo": "{{count}}小时前",
     "daysAgo": "{{count}}天前"
   },
+  "notifications": {
+    "title": "通知",
+    "markAllRead": "全部已读",
+    "empty": "暂无通知",
+    "recordCreated": "{{schema}} 记录已创建",
+    "recordUpdated": "{{schema}} 记录已更新",
+    "recordDeleted": "{{schema}} 记录已删除",
+    "actionSucceeded": "操作 \"{{action}}\" 执行成功",
+    "actionFailed": "操作 \"{{action}}\" 执行失败"
+  },
   "one2many": {
     "addLine": "添加明细行"
   },
@@ -298,7 +308,8 @@
     "deleteFailed": "删除记录失败",
     "bulkDeleteFailed": "批量删除失败",
     "transitionFailed": "状态变更失败",
-    "actionFailed": "操作执行失败"
+    "actionFailed": "操作执行失败",
+    "cloneSourceFailed": "加载克隆源记录失败，您可以手动填写表单。"
   },
   "confirm": {
     "deleteTitle": "删除记录",

@@ -254,6 +254,16 @@
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago"
   },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "empty": "No notifications yet",
+    "recordCreated": "{{schema}} record created",
+    "recordUpdated": "{{schema}} record updated",
+    "recordDeleted": "{{schema}} record deleted",
+    "actionSucceeded": "Action \"{{action}}\" succeeded",
+    "actionFailed": "Action \"{{action}}\" failed"
+  },
   "one2many": {
     "addLine": "Add a line"
   },
@@ -298,7 +308,8 @@
     "deleteFailed": "Failed to delete record",
     "bulkDeleteFailed": "Failed to delete records",
     "transitionFailed": "Status change failed",
-    "actionFailed": "Action failed"
+    "actionFailed": "Action failed",
+    "cloneSourceFailed": "Failed to load clone source. You can fill the form manually."
   },
   "confirm": {
     "deleteTitle": "Delete record",

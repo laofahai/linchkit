@@ -16,9 +16,10 @@ import {
   TooltipTrigger,
 } from "@linchkit/ui-kit/components";
 import { useTheme } from "@linchkit/ui-kit/hooks";
-import { BellIcon, GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
+import { GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { changeLanguage, languageNames, type SupportedLanguage, supportedLanguages } from "@/i18n";
+import { NotificationCenter } from "./notification-center";
 import { TenantSwitcher } from "./tenant-switcher";
 
 export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?: () => void }) {
@@ -58,14 +59,7 @@ export function HeaderActions({ onOpenCommandPalette }: { onOpenCommandPalette?:
       </Tooltip>
 
       {/* Notifications */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-            <BellIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{t("auth.notifications")}</TooltipContent>
-      </Tooltip>
+      <NotificationCenter />
 
       {/* Language switcher */}
       <DropdownMenu>

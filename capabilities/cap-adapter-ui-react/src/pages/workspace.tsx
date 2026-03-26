@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import {
@@ -17,19 +17,38 @@ import {
   Clock,
   Database,
   Plus,
+  TrendingUp,
   XCircle,
   AlertTriangle,
   Hourglass,
 } from "lucide-react";
 import { useSchemas } from "@/hooks/use-schemas";
 import {
+  fetchSchemaBundle,
   graphql,
   queryExecutionLogs,
   type ExecutionLogEntry,
   type SchemaInfo,
 } from "@/lib/api";
+import { getLucideIcon } from "@/lib/dynamic-icon";
+import { getStateBadgeClass } from "@/lib/state-colors";
+import type { StateDefinition, StateMeta } from "@linchkit/core/types";
 
-// ── Schema record counts ────────────────────────────────
+// ── Types ────────────────────────────────────────────────
+
+/** State breakdown: count per state value */
+type StateBreakdown = Record<string, number>;
+
+/** Aggregated summary data for a schema */
+interface SchemaSummary {
+  total: number;
+  stateBreakdown: StateBreakdown;
+  recentCount: number;
+  stateFieldName?: string;
+  stateMeta?: Partial<Record<string, StateMeta>>;
+}
+
+// ── Helpers ──────────────────────────────────────────────
 
 /** Convert snake_case to camelCase for GraphQL query names */
 function toCamelCase(name: string): string {
@@ -43,37 +62,115 @@ function toCamelCase(name: string): string {
   );
 }
 
+// ── Data fetching ────────────────────────────────────────
+
 /**
- * Fetch record counts for all schemas in a single batched GraphQL query.
- * Uses pageSize=1 to minimize payload — we only need the `total` field.
+ * Fetch record counts + state breakdown for all schemas.
+ * Uses batched GraphQL queries to minimize round-trips.
  */
-async function fetchSchemaCounts(
+async function fetchSchemaSummaries(
   schemas: SchemaInfo[],
-): Promise<Record<string, number>> {
+  logs: ExecutionLogEntry[],
+): Promise<Record<string, SchemaSummary>> {
   if (schemas.length === 0) return {};
 
-  // Build a batched query: one field per schema
-  const fields = schemas
-    .map((s) => {
-      const alias = toCamelCase(s.name);
-      return `${alias}: ${alias}List(pageSize: 1) { total }`;
-    })
-    .join("\n    ");
+  // Step 1: Detect which schemas have state fields by fetching bundles
+  const stateFields = new Map<string, { fieldName: string; states?: StateDefinition[] }>();
+  const bundlePromises = schemas.map(async (s) => {
+    try {
+      const bundle = await fetchSchemaBundle(s.name);
+      if (!bundle) return;
+      const fields = bundle.fields as Record<string, { type?: string; machine?: string }>;
+      for (const [fieldName, fieldDef] of Object.entries(fields)) {
+        if (fieldDef.type === "state") {
+          stateFields.set(s.name, { fieldName, states: bundle.states });
+          break;
+        }
+      }
+    } catch {
+      // Ignore — schema will have no state breakdown
+    }
+  });
+  await Promise.all(bundlePromises);
 
-  const query = `query { ${fields} }`;
+  // Step 2: Batched query for totals (all schemas) + state values (schemas with state fields)
+  const queryParts: string[] = [];
+  for (const s of schemas) {
+    const alias = toCamelCase(s.name);
+    const stateInfo = stateFields.get(s.name);
+    if (stateInfo) {
+      // Fetch all records' state field values (pageSize=0 means all)
+      queryParts.push(
+        `${alias}: ${alias}List(pageSize: 0) { total items { ${stateInfo.fieldName} } }`,
+      );
+    } else {
+      queryParts.push(`${alias}: ${alias}List(pageSize: 1) { total }`);
+    }
+  }
 
+  const query = `query { ${queryParts.join("\n    ")} }`;
+
+  // Step 3: Count recent activity per schema from execution logs (last 24h)
+  const recentCounts: Record<string, number> = {};
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const log of logs) {
+    if (!log.schema) continue;
+    const logTime = new Date(log.startedAt).getTime();
+    if (logTime >= cutoff) {
+      recentCounts[log.schema] = (recentCounts[log.schema] ?? 0) + 1;
+    }
+  }
+
+  // Step 4: Execute query and build summaries
+  const summaries: Record<string, SchemaSummary> = {};
   try {
-    const res = await graphql<Record<string, { total: number }>>(query);
-    if (res.errors) return {};
-    const counts: Record<string, number> = {};
+    const res = await graphql<
+      Record<string, { total: number; items?: Record<string, string>[] }>
+    >(query);
+    if (res.errors) {
+      // Fallback: return empty summaries
+      for (const s of schemas) {
+        summaries[s.name] = { total: 0, stateBreakdown: {}, recentCount: recentCounts[s.name] ?? 0 };
+      }
+      return summaries;
+    }
+
     for (const s of schemas) {
       const alias = toCamelCase(s.name);
-      counts[s.name] = res.data?.[alias]?.total ?? 0;
+      const data = res.data?.[alias];
+      const total = data?.total ?? 0;
+      const stateInfo = stateFields.get(s.name);
+
+      // Build state breakdown by counting occurrences
+      const stateBreakdown: StateBreakdown = {};
+      if (stateInfo && data?.items) {
+        for (const item of data.items) {
+          const stateValue = item[stateInfo.fieldName] ?? "unknown";
+          stateBreakdown[stateValue] = (stateBreakdown[stateValue] ?? 0) + 1;
+        }
+      }
+
+      // Extract state meta for color resolution
+      let stateMeta: Partial<Record<string, StateMeta>> | undefined;
+      if (stateInfo?.states?.[0]?.meta) {
+        stateMeta = stateInfo.states[0].meta;
+      }
+
+      summaries[s.name] = {
+        total,
+        stateBreakdown,
+        recentCount: recentCounts[s.name] ?? 0,
+        stateFieldName: stateInfo?.fieldName,
+        stateMeta,
+      };
     }
-    return counts;
   } catch {
-    return {};
+    for (const s of schemas) {
+      summaries[s.name] = { total: 0, stateBreakdown: {}, recentCount: recentCounts[s.name] ?? 0 };
+    }
   }
+
+  return summaries;
 }
 
 // ── Status badge helper ─────────────────────────────────
@@ -127,29 +224,74 @@ function formatRelativeTime(dateStr: string, t: (key: string, opts?: Record<stri
   return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: diffDay });
 }
 
-// ── Schema Stats Cards ──────────────────────────────────
+// ── State Breakdown Badges ──────────────────────────────
 
-function SchemaStatsCards({
+function StateBreakdownBadges({
+  breakdown,
+  stateMeta,
+}: {
+  breakdown: StateBreakdown;
+  stateMeta?: Partial<Record<string, StateMeta>>;
+}) {
+  const { t } = useTranslation();
+  const entries = Object.entries(breakdown);
+  if (entries.length === 0) return null;
+
+  // Sort by count descending, show top 3
+  const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const remaining = entries.length - sorted.length;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-2">
+      {sorted.map(([state, count]) => {
+        const colorClass = getStateBadgeClass(stateMeta?.[state]?.color);
+        const stateLabel = stateMeta?.[state]?.label
+          ?? t(`states.${state}`, { defaultValue: state });
+        return (
+          <span
+            key={state}
+            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${colorClass}`}
+          >
+            {count} {stateLabel}
+          </span>
+        );
+      })}
+      {remaining > 0 && (
+        <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted">
+          +{remaining}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Schema Summary Cards ─────────────────────────────────
+
+function SchemaSummaryCards({
   schemas,
-  counts,
+  summaries,
   loading,
 }: {
   schemas: SchemaInfo[];
-  counts: Record<string, number>;
+  summaries: Record<string, SchemaSummary>;
   loading: boolean;
 }) {
   const { t } = useTranslation();
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-16 mb-2" />
+              <div className="flex gap-1">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-16" />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -168,28 +310,51 @@ function SchemaStatsCards({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {schemas.map((schema) => {
         const label =
           t(`schemas.${schema.name}._label`, { defaultValue: "" }) ||
           schema.label ||
           schema.name;
-        const count = counts[schema.name] ?? 0;
+        const summary = summaries[schema.name];
+        const total = summary?.total ?? 0;
+        const recentCount = summary?.recentCount ?? 0;
+        const stateBreakdown = summary?.stateBreakdown ?? {};
+        const hasStates = Object.keys(stateBreakdown).length > 0;
+
+        // Resolve schema icon
+        const SchemaIcon = getLucideIcon(schema.icon) ?? Database;
 
         return (
           <Link key={schema.name} to="/schemas/$name" params={{ name: schema.name }}>
-            <Card className="transition-colors hover:bg-accent/50 cursor-pointer">
+            <Card className="transition-colors hover:bg-accent/50 cursor-pointer h-full">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">{label}</CardTitle>
-                <Database className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <SchemaIcon className="h-4 w-4 text-primary" />
+                  </div>
+                  <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                </div>
+                {recentCount > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground" title={t("workspace.recentActivityCount", { defaultValue: "{{count}} actions in last 24h", count: recentCount })}>
+                    <TrendingUp className="h-3 w-3" />
+                    {recentCount}
+                  </span>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold">{count}</span>
+                  <span className="text-2xl font-bold">{total}</span>
                   <span className="text-xs text-muted-foreground">
-                    {t("list.recordCount", { count })}
+                    {t("list.recordCount", { count: total })}
                   </span>
                 </div>
+                {hasStates && (
+                  <StateBreakdownBadges
+                    breakdown={stateBreakdown}
+                    stateMeta={summary?.stateMeta}
+                  />
+                )}
               </CardContent>
             </Card>
           </Link>
@@ -329,21 +494,14 @@ export function WorkspacePage() {
   const { t } = useTranslation();
   const { schemas, loading: schemasLoading } = useSchemas();
 
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [countsLoading, setCountsLoading] = useState(true);
+  const [summaries, setSummaries] = useState<Record<string, SchemaSummary>>({});
+  const [summariesLoading, setSummariesLoading] = useState(true);
 
   const [logs, setLogs] = useState<ExecutionLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
 
-  // Fetch schema counts when schemas are available
-  useEffect(() => {
-    if (schemasLoading) return;
-    setCountsLoading(true);
-    fetchSchemaCounts(schemas).then((c) => {
-      setCounts(c);
-      setCountsLoading(false);
-    });
-  }, [schemas, schemasLoading]);
+  // Track whether summaries have been fetched to avoid re-fetching
+  const summariesFetchedRef = useRef(false);
 
   // Fetch recent execution logs
   useEffect(() => {
@@ -353,6 +511,19 @@ export function WorkspacePage() {
       .catch(() => setLogs([]))
       .finally(() => setLogsLoading(false));
   }, []);
+
+  // Fetch schema summaries (counts + state breakdown + recent activity)
+  // Depends on both schemas and logs being ready
+  useEffect(() => {
+    if (schemasLoading || logsLoading) return;
+    if (summariesFetchedRef.current) return;
+    summariesFetchedRef.current = true;
+
+    setSummariesLoading(true);
+    fetchSchemaSummaries(schemas, logs)
+      .then(setSummaries)
+      .finally(() => setSummariesLoading(false));
+  }, [schemas, schemasLoading, logs, logsLoading]);
 
   return (
     <div className="space-y-6 p-4">
@@ -366,15 +537,15 @@ export function WorkspacePage() {
         </p>
       </div>
 
-      {/* Schema stats */}
+      {/* Schema summary cards */}
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
           {t("workspace.dataOverview")}
         </h2>
-        <SchemaStatsCards
+        <SchemaSummaryCards
           schemas={schemas}
-          counts={counts}
-          loading={schemasLoading || countsLoading}
+          summaries={summaries}
+          loading={schemasLoading || summariesLoading}
         />
       </section>
 

@@ -23,6 +23,7 @@ import { EmptyState } from "../components/empty-state";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
+import { pushNotification } from "../hooks/use-notifications";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
 type ActiveView = "list" | "calendar";
@@ -292,17 +293,33 @@ export function SchemaListPage() {
   // Debounced refresh on subscription events to avoid rapid-fire fetches
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSubscriptionData = useCallback(() => {
-    // Debounce: wait 500ms before refreshing, merge multiple events
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    setHasNewData(true);
-    debounceTimerRef.current = setTimeout(() => {
-      debounceTimerRef.current = null;
-      fetchData().then(() => setHasNewData(false));
-    }, 500);
-  }, [fetchData]);
+  const handleSubscriptionData = useCallback(
+    (data: unknown) => {
+      // Push notification for the SSE event
+      if (schemaName && data && typeof data === "object") {
+        const d = data as Record<string, unknown>;
+        const label = bundle?.schema?.label ?? schemaName;
+        if (d.created) {
+          pushNotification({ type: "created", message: `${label} record created`, schema: schemaName });
+        } else if (d.updated) {
+          pushNotification({ type: "updated", message: `${label} record updated`, schema: schemaName });
+        } else if (d.deleted) {
+          pushNotification({ type: "deleted", message: `${label} record deleted`, schema: schemaName });
+        }
+      }
+
+      // Debounce: wait 500ms before refreshing, merge multiple events
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      setHasNewData(true);
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        fetchData().then(() => setHasNewData(false));
+      }, 500);
+    },
+    [fetchData, schemaName, bundle?.schema?.label],
+  );
 
   // Cleanup debounce timer on unmount
   useEffect(() => {

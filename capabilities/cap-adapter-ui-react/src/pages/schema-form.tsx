@@ -18,7 +18,7 @@ import type {
 } from "@linchkit/core/types";
 import { Button, Separator, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Pencil, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityPanel } from "../components/activity-panel";
@@ -31,6 +31,7 @@ import { TransitionButtons } from "../components/transition-buttons";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useSchemaLabel } from "../i18n/use-schema-label";
+import { pushNotification } from "../hooks/use-notifications";
 import { createRecord, deleteRecord, executeAction, queryRecord, updateRecord } from "../lib/api";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
@@ -291,6 +292,19 @@ export function SchemaFormPage() {
         for (const field of CLONE_STRIP_FIELDS) {
           delete cloned[field];
         }
+        // Reset state fields to initial value (first state in the machine)
+        if (schema) {
+          for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+            if (fieldDef.type === "state" && "machine" in fieldDef) {
+              const machine = (bundle?.states ?? []).find(
+                (s) => s.name === fieldDef.machine && s.schema === schema.name,
+              );
+              if (machine && machine.states.length > 0) {
+                cloned[fieldName] = machine.initial ?? machine.states[0];
+              }
+            }
+          }
+        }
         setRecord(cloned);
       } else {
         // Clone source not found — proceed with empty form
@@ -303,7 +317,7 @@ export function SchemaFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [cloneId, schemaName, formView, CLONE_STRIP_FIELDS]);
+  }, [cloneId, schemaName, formView, CLONE_STRIP_FIELDS, schema, bundle?.states]);
 
   // Sync form mode when navigating between create/edit via URL changes
   useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
@@ -427,13 +441,30 @@ export function SchemaFormPage() {
         const result = await executeAction(actionName, { id: params.id });
         if (result.success) {
           toast.success(t("toast.actionSuccess", "Action executed successfully"));
+          pushNotification({
+            type: "action_success",
+            message: t("notifications.actionSucceeded", { action: actionName }),
+            schema: schemaName,
+            recordId: params.id,
+          });
           await fetchRecord();
         } else {
           toast.error(t("toast.actionFailed", "Action failed"));
+          pushNotification({
+            type: "action_failure",
+            message: t("notifications.actionFailed", { action: actionName }),
+            schema: schemaName,
+            recordId: params.id,
+          });
         }
       }
     } catch (err) {
       toast.error(t("toast.actionFailed", "Action failed"));
+      pushNotification({
+        type: "action_failure",
+        message: t("notifications.actionFailed", { action: actionName }),
+        schema: schemaName,
+      });
     } finally {
       setSaving(false);
     }
@@ -628,6 +659,20 @@ export function SchemaFormPage() {
                 <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
                   <Pencil className="mr-1.5 size-3.5" />
                   {t("common.edit", "Edit")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate({
+                      to: "/schemas/$name/new",
+                      params: { name: schemaName },
+                      search: { clone: params.id },
+                    })
+                  }
+                >
+                  <Copy className="mr-1.5 size-3.5" />
+                  {t("common.duplicate", "Duplicate")}
                 </Button>
                 <Button
                   size="sm"
