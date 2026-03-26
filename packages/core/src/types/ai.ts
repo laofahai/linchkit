@@ -195,6 +195,18 @@ export interface AICompletionResult {
   fallbackUsed?: string;
 }
 
+// ── Streaming result ─────────────────────────────────────────
+
+/** A streaming completion result — yields text chunks via async iterator */
+export interface AIStreamResult {
+  /** Async iterator of text chunks */
+  textStream: AsyncIterable<string>;
+  /** Actual model ID used */
+  model: string;
+  /** Provider name used */
+  provider: string;
+}
+
 // ── AI Service interface ────────────────────────────────────
 
 /** The ctx.ai interface available in Action handlers */
@@ -203,4 +215,6 @@ export interface AIService {
   configured: boolean;
   /** Single completion request */
   complete(options: AICompletionOptions): Promise<AICompletionResult>;
+  /** Streaming completion request — returns an async iterable of text chunks */
+  completeStream?(options: AICompletionOptions): Promise<AIStreamResult>;
 }

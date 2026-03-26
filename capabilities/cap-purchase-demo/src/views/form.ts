@@ -24,7 +24,10 @@ export const purchaseRequestFormView: ViewDefinition = {
     { field: "priority" },
     { field: "status", readonly: true },
     { field: "description" },
-    { field: "notes" },
+    {
+      field: "notes",
+      visibleWhen: { field: "priority", operator: "in", value: ["high", "urgent"] },
+    },
     { field: "requester" },
     { field: "requester_email" },
     { field: "submitted_at", readonly: true },

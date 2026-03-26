@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { FilterIcon, Loader2, Search, Sparkles, X } from "lucide-react";
+import { Loader2, Search, Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
@@ -164,7 +164,7 @@ export function SearchBar({
       />
 
       {/* bazza filter selector (add filter button) */}
-      {bazzaColumns && bazzaFilters && bazzaActions && bazzaStrategy ? (
+      {bazzaColumns && bazzaFilters && bazzaActions && bazzaStrategy && (
         <div className="shrink-0">
           <FilterSelector
             columns={bazzaColumns}
@@ -173,15 +173,6 @@ export function SearchBar({
             strategy={bazzaStrategy}
           />
         </div>
-      ) : (
-        <button
-          type="button"
-          className="shrink-0 rounded-sm p-1 text-muted-foreground/50 cursor-default"
-          disabled
-          aria-label="No filters available"
-        >
-          <FilterIcon className="size-3.5" />
-        </button>
       )}
 
       {/* Clear all */}

@@ -13,16 +13,19 @@ import {
   toast,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Calendar, Kanban, List, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
 import { AutoList } from "../components/auto-list";
+import { SavedViewTabs } from "../components/auto-list/saved-view-tabs";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { EmptyState } from "../components/empty-state";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
+import { useSavedViews } from "../hooks/use-saved-views";
+import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { pushNotification } from "../hooks/use-notifications";
@@ -216,6 +219,39 @@ export function SchemaListPage() {
   // Track whether at least one successful fetch has been completed, to distinguish
   // "no records exist" from "data not yet loaded" for the empty state message.
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+  // ── Saved views (localStorage-backed) ──────────────────────────
+  const { views: savedViews, createView, renameView, deleteView } = useSavedViews(schemaName ?? "");
+  const searchParams = useSearch({ strict: false }) as { view?: string };
+  const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(
+    () => searchParams.view ?? null,
+  );
+
+  // Sync URL when saved view changes
+  const handleSelectSavedView = useCallback(
+    (viewId: string | null) => {
+      setActiveSavedViewId(viewId);
+      // Update URL query param without full navigation
+      const url = new URL(window.location.href);
+      if (viewId) {
+        url.searchParams.set("view", viewId);
+      } else {
+        url.searchParams.delete("view");
+      }
+      window.history.replaceState({}, "", url.toString());
+    },
+    [],
+  );
+
+  // Resolve the currently active saved view object
+  const activeSavedView = useMemo(
+    () => (activeSavedViewId ? savedViews.find((v) => v.id === activeSavedViewId) ?? null : null),
+    [activeSavedViewId, savedViews],
+  );
+
+  // Track bazza filter state from AutoList for save-view functionality
+  const [currentBazzaFilters, setCurrentBazzaFilters] = useState<SavedViewFilter[]>([]);
+  const hasActiveListFilters = currentBazzaFilters.length > 0;
 
   // Single delete confirmation dialog state
   const [singleDeleteOpen, setSingleDeleteOpen] = useState(false);
@@ -626,14 +662,84 @@ export function SchemaListPage() {
     </div>
   );
 
+  // ── Saved view: filter data when a saved view is active ──────
+  const viewFilteredData = useMemo(() => {
+    if (!activeSavedView || activeSavedView.filters.length === 0) return data;
+    return data.filter((row) =>
+      activeSavedView.filters.every((f) => {
+        const val = row[f.field];
+        const fv = f.values;
+        if (fv.length === 0) return true;
+        switch (f.operator) {
+          case "eq":
+          case "in":
+            return fv.includes(val as string);
+          case "neq":
+          case "not_in":
+            return !fv.includes(val as string);
+          case "contains":
+            return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
+          case "gt":
+            return Number(val) > Number(fv[0]);
+          case "gte":
+            return Number(val) >= Number(fv[0]);
+          case "lt":
+            return Number(val) < Number(fv[0]);
+          case "lte":
+            return Number(val) <= Number(fv[0]);
+          case "between":
+            return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
+          default:
+            return true;
+        }
+      }),
+    );
+  }, [data, activeSavedView]);
+
+  // Determine the effective view with saved view sort override
+  const effectiveListView = useMemo(() => {
+    if (!listView) return listView;
+    if (!activeSavedView?.sort) return listView;
+    return { ...listView, defaultSort: activeSavedView.sort };
+  }, [listView, activeSavedView]);
+
+  const handleCreateSavedView = useCallback(
+    (name: string) => {
+      const newView = createView(name, currentBazzaFilters);
+      handleSelectSavedView(newView.id);
+    },
+    [createView, currentBazzaFilters, handleSelectSavedView],
+  );
+
+  const handleDeleteSavedView = useCallback(
+    (viewId: string) => {
+      deleteView(viewId);
+      if (activeSavedViewId === viewId) {
+        handleSelectSavedView(null);
+      }
+    },
+    [deleteView, activeSavedViewId, handleSelectSavedView],
+  );
+
   return (
-    <div className="p-4">
+    <div className="p-4 space-y-3">
+      {/* Saved view tabs */}
+      <SavedViewTabs
+        views={savedViews}
+        activeViewId={activeSavedViewId}
+        onSelectView={handleSelectSavedView}
+        onCreateView={handleCreateSavedView}
+        onRenameView={renameView}
+        onDeleteView={handleDeleteSavedView}
+        hasActiveFilters={hasActiveListFilters}
+      />
+
       {/* Active view content */}
       {activeView === "list" ? (
         <AutoList
           schema={schema}
-          view={listView}
-          data={data}
+          view={effectiveListView!}
+          data={viewFilteredData}
           loading={loading}
           selectable
           onAction={handleAction}

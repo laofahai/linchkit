@@ -9,6 +9,18 @@
 
 export type ViewType = "list" | "form" | "kanban" | "calendar" | "dashboard" | "workspace" | "tree";
 
+// ── Field visibility condition ───────────────────────────────────
+
+/** Condition for dynamic field visibility in forms */
+export interface FieldVisibilityCondition {
+  /** Name of the field to watch */
+  field: string;
+  /** Comparison operator */
+  operator: "eq" | "neq" | "in" | "not_in" | "is_set" | "is_empty";
+  /** Value(s) to compare against. Not required for is_set / is_empty. */
+  value?: unknown;
+}
+
 // ── View field configuration ───────────────────────────────────
 
 export interface ViewFieldConfig {
@@ -23,6 +35,8 @@ export interface ViewFieldConfig {
   editable?: boolean;
   /** Widget override for this field in this view. Takes highest priority. */
   widget?: string;
+  /** When set, field is only visible if the condition is met (form views) */
+  visibleWhen?: FieldVisibilityCondition;
 }
 
 // ── View Action buttons ────────────────────────────────
@@ -124,6 +138,8 @@ export interface FormFieldNode {
   nolabel?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** When set, field is only visible if the condition is met */
+  visibleWhen?: FieldVisibilityCondition;
 }
 
 /** A group container — default 2 columns, nestable */

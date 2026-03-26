@@ -15,7 +15,7 @@ import type {
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
@@ -46,6 +46,26 @@ function findProjectRoot(startDir: string): string {
 }
 
 const projectRoot = findProjectRoot(resolve(import.meta.dir, "../../.."));
+
+// ── Load .env file if present ────────────────────────────
+// Must happen BEFORE loadConfig() so that $env.VAR_NAME placeholders
+// in linchkit.config.ts can resolve to actual environment variable values.
+const envPath = resolve(projectRoot, ".env");
+if (existsSync(envPath)) {
+  const envContent = readFileSync(envPath, "utf-8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+  console.log("[linchkit] Loaded .env file");
+}
 
 // ── Load configuration ──────────────────────────────────
 

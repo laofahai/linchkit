@@ -16,7 +16,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Separator,
   Skeleton,
 } from "@linchkit/ui-kit/components";
 import {
@@ -204,21 +203,10 @@ export function EvolutionPage() {
   }, []);
 
   return (
-    <div className="space-y-6 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <HistoryIcon className="h-5 w-5 text-blue-500" />
-            {t("evolution.title")}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("evolution.subtitle")}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadHistory}>
-          <RefreshCwIcon className="h-4 w-4 mr-1" />
-          {t("executionLog.refresh")}
+    <div className="p-4 space-y-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="icon-sm" onClick={loadHistory}>
+          <RefreshCwIcon className="h-4 w-4" />
         </Button>
       </div>
 

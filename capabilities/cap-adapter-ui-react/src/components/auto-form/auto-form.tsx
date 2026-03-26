@@ -17,6 +17,7 @@
 import { generateZodSchema } from "@linchkit/core/define";
 import type {
   FieldDefinition,
+  FieldVisibilityCondition,
   FormFieldNode,
   FormGroupNode,
   FormLayoutNode,
@@ -28,6 +29,7 @@ import { Button } from "@linchkit/ui-kit/components";
 import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { evaluateVisibility } from "../../lib/field-visibility";
 import { AiSuggestionBadge } from "../ai-suggestion-badge";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
@@ -325,9 +327,35 @@ export function AutoForm({
       return;
     }
 
+    // Exclude hidden fields (visibleWhen condition not met) from submission
+    const submitData = { ...formData };
+    for (const vf of view.fields) {
+      const condition = vf.visibleWhen;
+      if (condition && !evaluateVisibility(condition, formData)) {
+        delete submitData[vf.field];
+      }
+    }
+    // Also check layout nodes for visibleWhen on FormFieldNodes
+    function collectHiddenLayoutFields(nodes: FormLayoutNode[]) {
+      for (const node of nodes) {
+        if (node.type === "field" && node.visibleWhen) {
+          if (!evaluateVisibility(node.visibleWhen, formData)) {
+            delete submitData[node.field];
+          }
+        } else if (node.type === "group" || node.type === "page") {
+          collectHiddenLayoutFields(node.children);
+        } else if (node.type === "notebook") {
+          collectHiddenLayoutFields(node.children);
+        }
+      }
+    }
+    if (view.layout?.nodes) {
+      collectHiddenLayoutFields(view.layout.nodes);
+    }
+
     setSubmitting(true);
     try {
-      const result = await onSubmit?.(formData);
+      const result = await onSubmit?.(submitData);
 
       // Handle server-side errors returned by onSubmit
       if (result) {
@@ -367,6 +395,20 @@ export function AutoForm({
     return false;
   }
 
+  // ── Field visibility ──
+
+  /** Resolve visibleWhen condition from FormFieldNode or ViewFieldConfig */
+  function getVisibleWhen(node: FormFieldNode): FieldVisibilityCondition | undefined {
+    if (node.visibleWhen) return node.visibleWhen;
+    const vf = view.fields.find((f) => f.field === node.field);
+    return vf?.visibleWhen;
+  }
+
+  /** Check if a field is currently visible based on its visibleWhen condition */
+  function isFieldVisible(node: FormFieldNode): boolean {
+    return evaluateVisibility(getVisibleWhen(node), formData);
+  }
+
   // ── Layout rendering ──
 
   function renderField(node: FormFieldNode) {
@@ -374,12 +416,19 @@ export function AutoForm({
     const vf = view.fields.find((f) => f.field === node.field);
     if (!fieldDef) return null;
 
+    const visible = isFieldVisible(node);
+
     const required = !!fieldDef.required && !isViewMode;
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
 
     return (
-      <div key={node.field} className="contents">
+      <div
+        key={node.field}
+        className="contents"
+        style={visible ? undefined : { display: "none" }}
+        data-field-visible={visible}
+      >
         <FormFieldRow
           node={node}
           fieldDef={fieldDef}

@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from "@linchkit/ui-kit/components";
 import {
-  ActivityIcon,
   CheckCircleIcon,
   AlertTriangleIcon,
   XCircleIcon,
@@ -164,26 +163,17 @@ export function HealthMonitorPage() {
 
   return (
     <div className="w-full p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <ActivityIcon className="size-5" />
-            {t("health.title")}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t("health.subtitle")}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {lastRefresh && (
-            <span className="text-xs text-muted-foreground">
-              {t("health.lastRefresh")}: {lastRefresh.toLocaleTimeString()}
-            </span>
-          )}
-          <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
-            <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            {t("executionLog.refresh")}
-          </Button>
-        </div>
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-3">
+        {lastRefresh && (
+          <span className="text-xs text-muted-foreground">
+            {t("health.lastRefresh")}: {lastRefresh.toLocaleTimeString()}
+          </span>
+        )}
+        <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
+          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+          {t("executionLog.refresh")}
+        </Button>
       </div>
 
       {/* Overall status banner */}

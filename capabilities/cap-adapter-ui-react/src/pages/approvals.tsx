@@ -419,11 +419,6 @@ export function ApprovalsPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold">{t("approvals.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("approvals.subtitle")}</p>
-      </div>
-
       <AutoList
         externalColumns={columns}
         data={tableData}
