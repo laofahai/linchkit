@@ -17,6 +17,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { HeaderActions } from "@/components/header-actions";
 import { useBreadcrumb } from "@/hooks/use-breadcrumb";
+import { useGlobalShortcuts } from "@/hooks/use-global-shortcuts";
 import { SchemaBundleCacheProvider } from "@/hooks/use-schema-bundle";
 import { SchemasProvider } from "@/hooks/use-schemas";
 
@@ -37,6 +38,7 @@ export function ShellLayout() {
 function ShellContent() {
   const breadcrumbItems = useBreadcrumb();
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  useGlobalShortcuts();
 
   const openCommandPalette = useCallback(() => setCmdkOpen(true), []);
 

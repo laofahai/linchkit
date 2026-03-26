@@ -26,29 +26,91 @@ import { AutoCalendar } from "../components/auto-calendar";
 import { AutoList } from "../components/auto-list";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
+import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
-import { TOOLBAR_ICON_BTN } from "../lib/constants";
 
 type ActiveView = "list" | "calendar";
+
+/** Relationship field types that require subfield selection in GraphQL. */
+const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
+
+/**
+ * Build a set of GraphQL field names that are link-generated resolvers
+ * and therefore require subfield selection `{ id }`.
+ *
+ * Link resolver naming convention (see link-resolvers.ts):
+ * - many_to_one from-side:   fieldName = link.to          (singular)
+ * - many_to_one to-side:     fieldName = `${link.from}s`  (plural)
+ * - one_to_many from-side:   fieldName = `${link.to}s`    (plural)
+ * - one_to_many to-side:     fieldName = link.from         (singular)
+ * - one_to_one:              fieldName = link.to / link.from
+ * - many_to_many:            fieldName = `${otherSchema}s` (plural)
+ */
+function buildLinkFieldNames(
+  links: Array<{ from: string; to: string; cardinality: string }>,
+  schemaName?: string,
+): Set<string> {
+  const names = new Set<string>();
+  for (const link of links) {
+    const isFrom = link.from === schemaName;
+    const isTo = link.to === schemaName;
+
+    switch (link.cardinality) {
+      case "many_to_one":
+        if (isFrom) names.add(link.to);             // singular
+        if (isTo) names.add(`${link.from}s`);        // plural
+        break;
+      case "one_to_many":
+        if (isFrom) names.add(`${link.to}s`);        // plural
+        if (isTo) names.add(link.from);               // singular
+        break;
+      case "one_to_one":
+        if (isFrom) names.add(link.to);
+        if (isTo) names.add(link.from);
+        break;
+      case "many_to_many":
+        if (isFrom) names.add(`${link.to}s`);
+        if (isTo) names.add(`${link.from}s`);
+        break;
+      default:
+        // Fallback: add both sides
+        names.add(link.to);
+        names.add(link.from);
+        names.add(`${link.to}s`);
+        names.add(`${link.from}s`);
+    }
+  }
+  return names;
+}
 
 /** Extract GraphQL field names from the view definition. */
 function getQueryFields(
   view: AutoListViewDefinition,
   schemaFields?: Record<string, { type?: string; target?: string }>,
+  links?: Array<{ from: string; to: string; cardinality: string }>,
+  schemaName?: string,
 ): string[] {
   const fields = new Set<string>(["id"]);
+
+  // Build a set of field names that are link-generated resolvers
+  const linkFieldNames = links ? buildLinkFieldNames(links, schemaName) : new Set<string>();
+
   for (const f of view.fields) {
     if (f.field.includes(".")) continue;
 
-    // Use view field name directly - GraphQL generates resolver using Link target name
     const fieldDef = schemaFields?.[f.field];
-    // If field is a ref type in schema OR view field matches a ref target, expand
-    const isRef =
-      fieldDef?.type === "ref" ||
-      Object.values(schemaFields ?? {}).some((def) => def.type === "ref" && def.target === f.field);
 
-    if (isRef) {
-      // Only query id for refs - display logic will handle label
+    // Determine if this field is a relationship that needs subfield selection:
+    // 1. Schema field with relationship type (ref, has_many, many_to_many)
+    // 2. Field name matches a link-generated resolver name
+    // 3. Field not in schema AND not a system field (likely a link resolver)
+    const isRelation =
+      (fieldDef && RELATION_FIELD_TYPES.has(fieldDef.type ?? "")) ||
+      linkFieldNames.has(f.field) ||
+      (!fieldDef && !SYSTEM_FIELDS.has(f.field));
+
+    if (isRelation) {
+      // Request id subfield for object/list types
       fields.add(`${f.field} { id }`);
     } else {
       fields.add(f.field);
@@ -57,11 +119,47 @@ function getQueryFields(
   return Array.from(fields);
 }
 
+/** System fields that are always scalar — never need subfield selection. */
+const SYSTEM_FIELDS = new Set([
+  "id", "tenant_id", "created_at", "updated_at",
+  "created_by", "updated_by", "_version",
+]);
+
 function getPrimaryView<TView extends { type: string }>(
   views: Record<string, TView> | undefined,
   type: TView["type"],
 ): TView | undefined {
   return Object.values(views ?? {}).find((view) => view.type === type);
+}
+
+/**
+ * Generate a fallback list view from schema fields when no explicit list view is defined.
+ * Shows up to 6 fields in definition order with basic CRUD actions.
+ */
+function generateFallbackListView(
+  schema: { name: string; label?: string; fields: Record<string, unknown> },
+): AutoListViewDefinition {
+  const fieldNames = Object.keys(schema.fields).slice(0, 6);
+  return {
+    name: `${schema.name}_list_auto`,
+    schema: schema.name,
+    type: "list",
+    label: schema.label ?? schema.name,
+    fields: fieldNames.map((field) => ({ field, sortable: true })),
+    defaultSort: fieldNames[0] ? { field: fieldNames[0], order: "asc" as const } : undefined,
+    pageSize: 20,
+    actions: [
+      { action: "create", label: "New", position: "toolbar" as const, variant: "default" as const },
+      { action: "edit", label: "Edit", position: "row" as const },
+      {
+        action: "delete",
+        label: "Delete",
+        position: "row" as const,
+        variant: "destructive" as const,
+        confirm: "Are you sure you want to delete this record?",
+      },
+    ],
+  };
 }
 
 /** Find the first date/datetime field in schema for calendar view fallback. */
@@ -99,7 +197,9 @@ export function SchemaListPage() {
   } = useSchemaBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
-  const listView = getPrimaryView(bundle?.views, "list") as AutoListViewDefinition | undefined;
+  const explicitListView = getPrimaryView(bundle?.views, "list") as AutoListViewDefinition | undefined;
+  // Fallback: auto-generate a list view from schema fields when none is defined
+  const listView = explicitListView ?? (schema ? generateFallbackListView(schema) : undefined);
   const calendarViewDef = getPrimaryView(bundle?.views, "calendar") as ViewDefinition | undefined;
 
   const [data, setData] = useState<Record<string, unknown>[]>([]);
@@ -124,7 +224,7 @@ export function SchemaListPage() {
     setLoading(true);
     setDataError(null);
     try {
-      const fields = getQueryFields(listView, schema?.fields);
+      const fields = getQueryFields(listView, schema?.fields, bundle?.links, schemaName);
       // Ensure the date field is included in the query for calendar view
       if (calendarDateField && !fields.some((f) => f === calendarDateField)) {
         fields.push(calendarDateField);
@@ -143,6 +243,26 @@ export function SchemaListPage() {
       setLoading(false);
     }
   }, [schemaName, listView, schema?.fields, calendarDateField]);
+
+  // ── Real-time subscription via SSE ──────────────────────
+  const [hasNewData, setHasNewData] = useState(false);
+
+  const subscriptionQuery = useMemo(
+    () => (schemaName ? buildSchemaSubscriptionQuery(schemaName) : ""),
+    [schemaName],
+  );
+
+  const handleSubscriptionData = useCallback(() => {
+    // Mark that new data is available — auto-refresh the list
+    setHasNewData(true);
+    fetchData().then(() => setHasNewData(false));
+  }, [fetchData]);
+
+  useSubscription({
+    query: subscriptionQuery,
+    enabled: !!schemaName && !bundleLoading && !!bundle,
+    onData: handleSubscriptionData,
+  });
 
   useEffect(() => {
     if (!bundleLoading && bundle) {
@@ -210,7 +330,7 @@ export function SchemaListPage() {
   if (!schemaName) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="h-10 w-10" />
+        <ServerCrash className="size-10" />
         <p className="text-sm">
           {t("errors.missingSchemaName", "No schema specified in the URL.")}
         </p>
@@ -222,7 +342,7 @@ export function SchemaListPage() {
   if (bundleLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -231,7 +351,7 @@ export function SchemaListPage() {
   if (bundleError || !schema || !listView) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="h-10 w-10" />
+        <ServerCrash className="size-10" />
         <p className="text-sm font-medium">
           {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
         </p>
@@ -242,7 +362,7 @@ export function SchemaListPage() {
           )}
         </p>
         <Button variant="outline" size="sm" onClick={reloadBundle}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          <RefreshCw className="mr-1.5 size-3.5" />
           {t("common.retry", "Retry")}
         </Button>
       </div>
@@ -254,13 +374,13 @@ export function SchemaListPage() {
     return (
       <div className="p-4">
         <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-          <ServerCrash className="h-10 w-10" />
+          <ServerCrash className="size-10" />
           <p className="text-sm font-medium">
             {t("errors.dataLoadFailed", "Failed to load records.")}
           </p>
           <p className="text-xs text-destructive">{dataError}</p>
           <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            <RefreshCw className="mr-1.5 size-3.5" />
             {t("common.retry", "Retry")}
           </Button>
         </div>
@@ -269,29 +389,44 @@ export function SchemaListPage() {
   }
 
   // View toggle buttons (icon-only, shown when calendar is available)
-  // Uses size="sm" with fixed dimensions to match the primary action button height
   const viewToggle = hasCalendarOption ? (
     <div className="flex items-center rounded-md border border-border">
       <Button
         variant={activeView === "list" ? "default" : "ghost"}
-        size="sm"
-        className={`${TOOLBAR_ICON_BTN} rounded-r-none`}
+        size="icon-sm"
+        className="rounded-r-none"
         onClick={() => setActiveView("list")}
         title={t("calendar.listView", "List view")}
       >
-        <List className="h-4 w-4" />
+        <List className="size-4" />
       </Button>
       <Button
         variant={activeView === "calendar" ? "default" : "ghost"}
-        size="sm"
-        className={`${TOOLBAR_ICON_BTN} rounded-l-none border-l border-border`}
+        size="icon-sm"
+        className="rounded-l-none border-l border-border"
         onClick={() => setActiveView("calendar")}
         title={t("calendar.calendarView", "Calendar view")}
       >
-        <Calendar className="h-4 w-4" />
+        <Calendar className="size-4" />
       </Button>
     </div>
   ) : null;
+
+  // Real-time refresh indicator shown briefly when subscription triggers a reload
+  const refreshIndicator = hasNewData ? (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground animate-pulse">
+      <RefreshCw className="size-3 animate-spin" />
+      {t("list.refreshing", "Refreshing...")}
+    </span>
+  ) : null;
+
+  // Combine view toggle and refresh indicator
+  const toolbarExtraContent = (
+    <div className="flex items-center gap-2">
+      {refreshIndicator}
+      {viewToggle}
+    </div>
+  );
 
   return (
     <div className="p-4">
@@ -306,7 +441,7 @@ export function SchemaListPage() {
           onAction={handleAction}
           onBulkAction={handleBulkAction}
           onRowClick={handleRowClick}
-          toolbarExtra={viewToggle}
+          toolbarExtra={toolbarExtraContent}
         />
       ) : (
         <div className="space-y-4">
