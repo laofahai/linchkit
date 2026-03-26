@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  createCacheCheck,
   createDatabaseCheck,
+  createEventBusCheck,
   createSchemaCheck,
   detectEnvironment,
   GracefulShutdownManager,
@@ -191,6 +193,37 @@ describe("createSchemaCheck", () => {
     const result = check();
     expect(result.status).toBe("degraded");
     expect(result.message).toContain("No schemas");
+  });
+});
+
+describe("createEventBusCheck", () => {
+  it("returns healthy when listeners are active", () => {
+    const check = createEventBusCheck(() => 3);
+    const result = check();
+    expect(result.status).toBe("healthy");
+    expect(result.name).toBe("eventbus");
+    expect(result.metadata?.listenerCount).toBe(3);
+    expect(result.message).toContain("3 listener(s) active");
+  });
+
+  it("returns degraded when no listeners", () => {
+    const check = createEventBusCheck(() => 0);
+    const result = check();
+    expect(result.status).toBe("degraded");
+    expect(result.message).toContain("No event listeners");
+  });
+});
+
+describe("createCacheCheck", () => {
+  it("returns healthy with cache stats", () => {
+    const check = createCacheCheck(() => ({ hits: 42, misses: 8, size: 15 }));
+    const result = check();
+    expect(result.status).toBe("healthy");
+    expect(result.name).toBe("cache");
+    expect(result.metadata?.hits).toBe(42);
+    expect(result.metadata?.misses).toBe(8);
+    expect(result.metadata?.size).toBe(15);
+    expect(result.message).toContain("15 entries");
   });
 });
 

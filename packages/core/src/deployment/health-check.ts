@@ -187,6 +187,42 @@ export function createSchemaCheck(getSchemaCount: () => number): HealthCheckFn {
   };
 }
 
+/**
+ * Create an EventBus readiness check.
+ *
+ * @param getListenerCount - Returns the total number of registered event listeners.
+ */
+export function createEventBusCheck(getListenerCount: () => number): HealthCheckFn {
+  return (): HealthCheckResult => {
+    const count = getListenerCount();
+    return {
+      name: "eventbus",
+      status: count > 0 ? "healthy" : "degraded",
+      message: count > 0 ? `${count} listener(s) active` : "No event listeners registered",
+      durationMs: 0,
+      metadata: { listenerCount: count },
+    };
+  };
+}
+
+/**
+ * Create a cache readiness check.
+ *
+ * @param getStats - Returns cache statistics (hits, misses, size).
+ */
+export function createCacheCheck(getStats: () => { hits: number; misses: number; size: number }): HealthCheckFn {
+  return (): HealthCheckResult => {
+    const stats = getStats();
+    return {
+      name: "cache",
+      status: "healthy",
+      message: `${stats.size} entries, ${stats.hits} hits, ${stats.misses} misses`,
+      durationMs: 0,
+      metadata: stats,
+    };
+  };
+}
+
 // ── Helpers ──────────────────────────────────────────────
 
 function aggregateStatus(results: HealthCheckResult[]): HealthStatus {

@@ -260,6 +260,14 @@ export function createServer(
     )
     // Health check — runs all registered probes when HealthCheckRegistry is provided
     .get("/health", async ({ set }) => {
+      const system = {
+        version: "0.2.0",
+        uptime: process.uptime(),
+        nodeVersion: process.version,
+        platform: process.platform,
+        schemaCount: schemaRegistry?.getAll().length ?? 0,
+        capabilityCount: capabilities.length,
+      };
       if (healthCheckRegistry) {
         const result = await healthCheckRegistry.runAll();
         // Return 503 when any check is unhealthy so load balancers can route away
@@ -270,6 +278,7 @@ export function createServer(
           status: result.status,
           checks: result.checks,
           timestamp: result.timestamp,
+          system,
         };
       }
       // Fallback: basic liveness response when no registry is configured
@@ -277,6 +286,7 @@ export function createServer(
         status: "healthy",
         checks: [],
         timestamp: new Date().toISOString(),
+        system,
       };
     })
     // App config — tells the UI which capabilities are loaded and their pages

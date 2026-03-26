@@ -290,7 +290,9 @@ export {
 
 export {
   type AggregatedHealthStatus,
+  createCacheCheck,
   createDatabaseCheck,
+  createEventBusCheck,
   createSchemaCheck,
   detectEnvironment,
   type EnvironmentConfig,

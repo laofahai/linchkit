@@ -35,8 +35,10 @@ import {
   createAutomationEngine,
   createAutomationRegistry,
   createCommandLayer,
+  createCacheCheck,
   createDatabaseCheck,
   createEventBus,
+  createEventBusCheck,
   createFlowRegistry,
   createFlowStepContext,
   createLinkRegistry,
@@ -424,8 +426,9 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     "schemas",
     createSchemaCheck(() => schemaRegistry.getAll().length),
   );
-  console.log(
-    `[linch] HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
+  healthCheckRegistry.register(
+    "eventbus",
+    createEventBusCheck(() => eventHandlerRegistry?.getAll().length ?? 0),
   );
 
   // ── Cache manager with event-driven invalidation ──
@@ -434,6 +437,17 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     defaultTtl: environment.isDevelopment ? 30_000 : 300_000, // 30s dev, 5min prod
   });
   console.log("[linch] CacheManager created (event-driven invalidation enabled)");
+
+  healthCheckRegistry.register(
+    "cache",
+    createCacheCheck(() => {
+      const s = cacheManager.stats();
+      return { hits: s.l1.hits, misses: s.l1.misses, size: s.l1.size };
+    }),
+  );
+  console.log(
+    `[linch] HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
+  );
 
   const transportCtx: TransportContext = {
     commandLayer,

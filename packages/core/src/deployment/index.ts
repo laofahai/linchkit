@@ -21,7 +21,9 @@ export {
 } from "./graceful-shutdown";
 export {
   type AggregatedHealthStatus,
+  createCacheCheck,
   createDatabaseCheck,
+  createEventBusCheck,
   createSchemaCheck,
   type HealthCheckFn,
   HealthCheckRegistry,
