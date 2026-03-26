@@ -86,7 +86,8 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
 
 function InsightItem({ insight }: { insight: AIInsight }) {
   const { t } = useTranslation();
-  const cfg = CATEGORY_CONFIG[insight.category] ?? CATEGORY_CONFIG.rule_suggestion;
+  const defaultCfg = { icon: LightbulbIcon, color: "text-blue-600 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-950" };
+  const cfg = CATEGORY_CONFIG[insight.category] ?? defaultCfg;
   const Icon = cfg.icon;
 
   return (

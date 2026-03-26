@@ -76,7 +76,7 @@ function buildFieldMeta(
   for (const [name, field] of Object.entries(schema.fields)) {
     const meta: { label?: string; type?: string; options?: string[] } = {};
     if (typeof field === "object" && field !== null) {
-      const f = field as Record<string, unknown>;
+      const f = field as unknown as Record<string, unknown>;
       if (typeof f.label === "string") meta.label = f.label;
       if (typeof f.type === "string") meta.type = f.type;
       if (Array.isArray(f.options)) {
