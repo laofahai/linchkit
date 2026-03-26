@@ -1,5 +1,5 @@
 /**
- * RulesListPage — Lists all registered business rules with filtering.
+ * RulesListPage — Lists all registered business rules using AdminTable.
  *
  * Fetches from /api/rules REST endpoint (with demo data fallback).
  * Spec ref: 05_rule.md
@@ -8,26 +8,22 @@
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@linchkit/ui-kit/components";
-import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  ChevronRightIcon,
   FilterIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AdminTable, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -107,7 +103,6 @@ function getSchemaFromTrigger(trigger: RuleTrigger): string | undefined {
   if ("fieldChange" in trigger && trigger.fieldChange) return trigger.fieldChange.schema;
   if ("action" in trigger && trigger.action) {
     const actions = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
-    // Extract schema from action name (convention: schema_action)
     const first = actions[0];
     if (first) {
       const parts = first.split("_");
@@ -115,18 +110,6 @@ function getSchemaFromTrigger(trigger: RuleTrigger): string | undefined {
     }
   }
   return undefined;
-}
-
-function getConditionSummary(condition: SerializedCondition): string {
-  if (condition.type === "code") return "Code condition";
-  if (condition.field && condition.operator) {
-    const val = condition.value !== undefined ? ` ${JSON.stringify(condition.value)}` : "";
-    return `${condition.field} ${condition.operator}${val}`;
-  }
-  if (condition.operator && condition.conditions) {
-    return `${condition.operator.toUpperCase()} (${condition.conditions.length} conditions)`;
-  }
-  return "N/A";
 }
 
 // ── Effect badge ────────────────────────────────────────
@@ -141,6 +124,24 @@ const EFFECT_VARIANTS: Record<string, "default" | "destructive" | "outline" | "s
 
 function EffectBadge({ type }: { type: string }) {
   return <Badge variant={EFFECT_VARIANTS[type] ?? "outline"}>{type}</Badge>;
+}
+
+// ── Trigger type badge ──────────────────────────────────
+
+const TRIGGER_COLORS: Record<string, string> = {
+  action: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  stateChange: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  fieldChange: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  event: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+  schedule: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
+};
+
+function TriggerTypeBadge({ type }: { type: string }) {
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${TRIGGER_COLORS[type] ?? "bg-muted text-muted-foreground"}`}>
+      {type}
+    </span>
+  );
 }
 
 // ── Demo data ────────────────────────────────────────────
@@ -189,32 +190,11 @@ const DEMO_RULES: RuleListItem[] = [
 
 export function RulesListPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [rules, setRules] = useState<RuleListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [schemaFilter, setSchemaFilter] = useState<string>("all");
   const [triggerFilter, setTriggerFilter] = useState<string>("all");
-
-  const fetchRules = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (schemaFilter !== "all") params.set("schema", schemaFilter);
-      if (triggerFilter !== "all") params.set("triggerType", triggerFilter);
-
-      const res = await fetch(`/api/rules?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        setRules(json.data ?? []);
-      } else {
-        // Fallback to demo data
-        applyDemoFilters();
-      }
-    } catch {
-      applyDemoFilters();
-    } finally {
-      setLoading(false);
-    }
-  }, [schemaFilter, triggerFilter]);
 
   const applyDemoFilters = useCallback(() => {
     let filtered = DEMO_RULES;
@@ -230,12 +210,121 @@ export function RulesListPage() {
     setRules(filtered);
   }, [schemaFilter, triggerFilter]);
 
+  const fetchRules = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (schemaFilter !== "all") params.set("schema", schemaFilter);
+      if (triggerFilter !== "all") params.set("triggerType", triggerFilter);
+
+      const res = await fetch(`/api/rules?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setRules(json.data ?? []);
+      } else {
+        applyDemoFilters();
+      }
+    } catch {
+      applyDemoFilters();
+    } finally {
+      setLoading(false);
+    }
+  }, [schemaFilter, triggerFilter, applyDemoFilters]);
+
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
 
   // Collect unique schemas from rules for filter dropdown
   const schemas = [...new Set(rules.map((r) => getSchemaFromTrigger(r.trigger)).filter(Boolean))] as string[];
+
+  // Build AdminTable column definitions
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "label",
+      header: ({ column }) => <SortableHeader column={column} label={t("rules.columns.name", { defaultValue: "Name" })} />,
+      cell: ({ row }) => {
+        const rule = row.original as unknown as RuleListItem;
+        return (
+          <div>
+            <div className="font-medium text-sm">{rule.label}</div>
+            <div className="text-xs text-muted-foreground font-mono">{rule.name}</div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "schema",
+      header: t("rules.columns.schema", { defaultValue: "Schema" }),
+      cell: ({ row }) => {
+        const rule = row.original as unknown as RuleListItem;
+        const schema = getSchemaFromTrigger(rule.trigger);
+        return schema ? (
+          <span className="text-xs font-mono">{schema}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      },
+      accessorFn: (row) => {
+        const rule = row as unknown as RuleListItem;
+        return getSchemaFromTrigger(rule.trigger) ?? "";
+      },
+      size: 140,
+    },
+    {
+      id: "triggerType",
+      header: t("rules.columns.triggerType", { defaultValue: "Trigger" }),
+      cell: ({ row }) => {
+        const rule = row.original as unknown as RuleListItem;
+        const type = getTriggerType(rule.trigger);
+        return (
+          <div className="space-y-1">
+            <TriggerTypeBadge type={type} />
+            <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+              {getTriggerSummary(rule.trigger, t)}
+            </div>
+          </div>
+        );
+      },
+      accessorFn: (row) => {
+        const rule = row as unknown as RuleListItem;
+        return getTriggerType(rule.trigger);
+      },
+      size: 220,
+    },
+    {
+      id: "effectType",
+      header: t("rules.columns.effect", { defaultValue: "Effect" }),
+      cell: ({ row }) => {
+        const rule = row.original as unknown as RuleListItem;
+        return <EffectBadge type={rule.effect.type} />;
+      },
+      accessorFn: (row) => {
+        const rule = row as unknown as RuleListItem;
+        return rule.effect.type;
+      },
+      size: 130,
+    },
+    {
+      accessorKey: "priority",
+      header: ({ column }) => <SortableHeader column={column} label={t("rules.columns.priority", { defaultValue: "Priority" })} />,
+      cell: ({ row }) => {
+        const priority = row.getValue("priority") as number;
+        return priority > 0 ? (
+          <Badge variant="outline" className="text-[10px]">P{priority}</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">P0</span>
+        );
+      },
+      size: 80,
+    },
+  ], [t]);
+
+  // Convert rules to DataRow for AdminTable
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => rules.map((r) => ({ ...r }) as Record<string, unknown>),
+    [rules],
+  );
 
   return (
     <div className="p-4 space-y-4">
@@ -245,104 +334,57 @@ export function RulesListPage() {
           <h1 className="text-lg font-semibold">{t("rules.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("rules.subtitle")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchRules} disabled={loading}>
-          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          {t("executionLog.refresh")}
-        </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <FilterIcon className="size-4 text-muted-foreground" />
-        <Select
-          value={triggerFilter}
-          onValueChange={(v) => setTriggerFilter(v)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder={t("rules.allTriggers")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("rules.allTriggers")}</SelectItem>
-            <SelectItem value="action">{t("rules.triggerTypes.action")}</SelectItem>
-            <SelectItem value="stateChange">{t("rules.triggerTypes.stateChange")}</SelectItem>
-            <SelectItem value="fieldChange">{t("rules.triggerTypes.fieldChange")}</SelectItem>
-            <SelectItem value="event">{t("rules.triggerTypes.event")}</SelectItem>
-            <SelectItem value="schedule">{t("rules.triggerTypes.schedule")}</SelectItem>
-          </SelectContent>
-        </Select>
-        {schemas.length > 0 && (
-          <Select
-            value={schemaFilter}
-            onValueChange={(v) => setSchemaFilter(v)}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder={t("rules.allSchemas")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("rules.allSchemas")}</SelectItem>
-              {schemas.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <span className="text-sm text-muted-foreground ml-2">
-          {rules.length} {t("rules.rulesCount")}
-        </span>
-      </div>
-
-      {/* Rules Grid */}
-      {rules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <ShieldCheckIcon className="size-12 mb-4 opacity-50" />
-          <p className="text-sm">{loading ? t("common.loading") : t("rules.noRules")}</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {rules.map((rule) => (
-            <Link
-              key={rule.name}
-              to="/admin/rules/$name"
-              params={{ name: rule.name }}
-              className="block"
-            >
-              <Card className="hover:bg-muted/30 transition-colors cursor-pointer">
-                <CardHeader className="py-3 px-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-sm font-medium">{rule.label}</CardTitle>
-                      <EffectBadge type={rule.effect.type} />
-                      {rule.priority > 0 && (
-                        <Badge variant="outline" className="text-[10px]">
-                          P{rule.priority}
-                        </Badge>
-                      )}
-                    </div>
-                    <ChevronRightIcon className="size-4 text-muted-foreground" />
-                  </div>
-                  <CardDescription className="text-xs font-mono">{rule.name}</CardDescription>
-                </CardHeader>
-                <CardContent className="py-2 px-4 pb-3">
-                  <div className="grid grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <span className="text-muted-foreground">{t("rules.trigger")}:</span>{" "}
-                      <span>{getTriggerSummary(rule.trigger, t)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">{t("rules.condition")}:</span>{" "}
-                      <span className="font-mono">{getConditionSummary(rule.condition)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">{t("rules.effectLabel")}:</span>{" "}
-                      <span>{rule.effect.message ?? rule.effect.type}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <AdminTable
+        columns={columns}
+        data={tableData}
+        pageSize={20}
+        emptyMessage={loading ? t("common.loading") : t("rules.noRules")}
+        emptyIcon={<ShieldCheckIcon className="mx-auto mb-2 size-8 opacity-40" />}
+        onRowClick={(row) => {
+          const rule = row as unknown as RuleListItem;
+          navigate({ to: "/admin/rules/$name", params: { name: rule.name } });
+        }}
+        toolbarExtra={
+          <>
+            <FilterIcon className="size-4 text-muted-foreground" />
+            <Select value={triggerFilter} onValueChange={setTriggerFilter}>
+              <SelectTrigger className="w-44 h-9">
+                <SelectValue placeholder={t("rules.allTriggers")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("rules.allTriggers")}</SelectItem>
+                <SelectItem value="action">{t("rules.triggerTypes.action")}</SelectItem>
+                <SelectItem value="stateChange">{t("rules.triggerTypes.stateChange")}</SelectItem>
+                <SelectItem value="fieldChange">{t("rules.triggerTypes.fieldChange")}</SelectItem>
+                <SelectItem value="event">{t("rules.triggerTypes.event")}</SelectItem>
+                <SelectItem value="schedule">{t("rules.triggerTypes.schedule")}</SelectItem>
+              </SelectContent>
+            </Select>
+            {schemas.length > 0 && (
+              <Select value={schemaFilter} onValueChange={setSchemaFilter}>
+                <SelectTrigger className="w-44 h-9">
+                  <SelectValue placeholder={t("rules.allSchemas")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("rules.allSchemas")}</SelectItem>
+                  {schemas.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <span className="text-sm text-muted-foreground">
+              {rules.length} {t("rules.rulesCount")}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchRules} disabled={loading}>
+              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+              {t("executionLog.refresh")}
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * FlowsPage — Lists all registered flows with summary info.
+ * FlowsPage — Lists all registered flows using AdminTable.
  *
  * Route: /admin/flows
  * Fetches from /api/flows REST endpoint (falls back to demo data).
@@ -8,20 +8,15 @@
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@linchkit/ui-kit/components";
-import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  ArrowRightIcon,
   CalendarIcon,
   GitBranchIcon,
   MousePointerClickIcon,
@@ -29,8 +24,9 @@ import {
   RefreshCwIcon,
   ZapIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AdminTable, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -98,7 +94,7 @@ const DEMO_FLOWS: FlowSummary[] = [
   },
 ];
 
-// ── Trigger icon ─────────────────────────────────────────
+// ── Trigger badge ────────────────────────────────────────
 
 function TriggerBadge({ trigger }: { trigger: FlowSummary["trigger"] }) {
   const { t } = useTranslation();
@@ -129,7 +125,7 @@ function TriggerBadge({ trigger }: { trigger: FlowSummary["trigger"] }) {
   }
 }
 
-// ── Step type badge colors ───────────────────────────────
+// ── Step type badge colors ──────────────────────────────
 
 const STEP_TYPE_COLORS: Record<string, string> = {
   action: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
@@ -148,10 +144,27 @@ function StepTypeBadge({ type }: { type: string }) {
   );
 }
 
+/** Mini step pipeline rendered inline in a table cell */
+function StepPipeline({ steps }: { steps: FlowStepSummary[] }) {
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {steps.map((step, i) => (
+        <div key={step.id} className="flex items-center gap-1">
+          <StepTypeBadge type={step.type} />
+          {i < steps.length - 1 && (
+            <PlayIcon className="size-2.5 text-muted-foreground rotate-0" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function FlowsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [triggerFilter, setTriggerFilter] = useState<string>("all");
@@ -181,6 +194,79 @@ export function FlowsPage() {
     ? flows
     : flows.filter((f) => f.trigger.type === triggerFilter);
 
+  // Build AdminTable column definitions
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "label",
+      header: ({ column }) => <SortableHeader column={column} label={t("flows.columns.name", { defaultValue: "Name" })} />,
+      cell: ({ row }) => {
+        const flow = row.original as unknown as FlowSummary;
+        return (
+          <div>
+            <div className="font-medium text-sm">{flow.label ?? flow.name}</div>
+            {flow.description && (
+              <div className="text-xs text-muted-foreground line-clamp-1">{flow.description}</div>
+            )}
+          </div>
+        );
+      },
+      // Use label for global filter, fall back to name
+      accessorFn: (row) => {
+        const flow = row as unknown as FlowSummary;
+        return flow.label ?? flow.name;
+      },
+    },
+    {
+      id: "trigger",
+      header: t("flows.columns.trigger", { defaultValue: "Trigger" }),
+      cell: ({ row }) => {
+        const flow = row.original as unknown as FlowSummary;
+        return <TriggerBadge trigger={flow.trigger} />;
+      },
+      accessorFn: (row) => {
+        const flow = row as unknown as FlowSummary;
+        return flow.trigger.type;
+      },
+      size: 150,
+    },
+    {
+      id: "steps",
+      header: t("flows.columns.steps", { defaultValue: "Steps" }),
+      cell: ({ row }) => {
+        const flow = row.original as unknown as FlowSummary;
+        return <StepPipeline steps={flow.steps} />;
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: "stepCount",
+      header: ({ column }) => <SortableHeader column={column} label={t("flows.columns.stepCount", { defaultValue: "Count" })} />,
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {row.getValue("stepCount") as number} {t("flows.steps")}
+        </span>
+      ),
+      size: 80,
+    },
+    {
+      id: "version",
+      header: t("flows.columns.version", { defaultValue: "Version" }),
+      cell: ({ row }) => {
+        const flow = row.original as unknown as FlowSummary;
+        return flow.version ? (
+          <Badge variant="secondary" className="text-[10px]">v{flow.version}</Badge>
+        ) : null;
+      },
+      size: 80,
+    },
+  ], [t]);
+
+  // Convert flows to DataRow for AdminTable
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => filtered.map((f) => ({ ...f }) as Record<string, unknown>),
+    [filtered],
+  );
+
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
@@ -189,90 +275,41 @@ export function FlowsPage() {
           <h1 className="text-lg font-semibold">{t("flows.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("flows.subtitle")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchFlows} disabled={loading}>
-          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          {t("executionLog.refresh")}
-        </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <Select value={triggerFilter} onValueChange={setTriggerFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder={t("flows.allTriggers")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("flows.allTriggers")}</SelectItem>
-            <SelectItem value="event">{t("flows.triggerEvent")}</SelectItem>
-            <SelectItem value="schedule">{t("flows.triggerSchedule")}</SelectItem>
-            <SelectItem value="manual">{t("flows.triggerManual")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-muted-foreground ml-2">
-          {filtered.length} {t("flows.flowCount")}
-        </span>
-      </div>
-
-      {/* Flow cards */}
-      {filtered.length === 0 ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <GitBranchIcon className="size-8 mr-3 opacity-50" />
-          <span>{loading ? t("common.loading") : t("flows.noFlows")}</span>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((flow) => (
-            <Link
-              key={flow.name}
-              to={"/admin/flows/$name" as "/"}
-              params={{ name: flow.name }}
-              className="block"
-            >
-              <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-base">{flow.label ?? flow.name}</CardTitle>
-                      {flow.description && (
-                        <CardDescription className="text-xs line-clamp-2">
-                          {flow.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <ArrowRightIcon className="size-4 text-muted-foreground shrink-0 mt-1" />
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <TriggerBadge trigger={flow.trigger} />
-                    {flow.version && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        v{flow.version}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Mini step pipeline */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {flow.steps.map((step, i) => (
-                      <div key={step.id} className="flex items-center gap-1">
-                        <StepTypeBadge type={step.type} />
-                        {i < flow.steps.length - 1 && (
-                          <PlayIcon className="size-2.5 text-muted-foreground rotate-0" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="text-xs text-muted-foreground">
-                    {flow.stepCount} {t("flows.steps")}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <AdminTable
+        columns={columns}
+        data={tableData}
+        pageSize={20}
+        emptyMessage={loading ? t("common.loading") : t("flows.noFlows")}
+        emptyIcon={<GitBranchIcon className="mx-auto mb-2 size-8 opacity-40" />}
+        onRowClick={(row) => {
+          const flow = row as unknown as FlowSummary;
+          navigate({ to: "/admin/flows/$name" as "/", params: { name: flow.name } });
+        }}
+        toolbarExtra={
+          <>
+            <Select value={triggerFilter} onValueChange={setTriggerFilter}>
+              <SelectTrigger className="w-40 h-9">
+                <SelectValue placeholder={t("flows.allTriggers")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("flows.allTriggers")}</SelectItem>
+                <SelectItem value="event">{t("flows.triggerEvent")}</SelectItem>
+                <SelectItem value="schedule">{t("flows.triggerSchedule")}</SelectItem>
+                <SelectItem value="manual">{t("flows.triggerManual")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              {filtered.length} {t("flows.flowCount")}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchFlows} disabled={loading}>
+              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+              {t("executionLog.refresh")}
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }

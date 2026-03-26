@@ -1,41 +1,37 @@
 /**
  * AI Proposals Page — /admin/proposals
  *
- * Lists all AI-generated proposals with status filtering, approval/rejection actions,
- * and detail view for each proposal showing changes, impact, and validation results.
+ * Lists all AI-generated proposals using AdminTable with status filtering,
+ * approval/rejection actions, and detail view for each proposal.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Badge,
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Separator,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   toast,
 } from "@linchkit/ui-kit/components";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   BotIcon,
   CheckCircle2,
-  ChevronRight,
   ClockIcon,
   CodeIcon,
-  FileTextIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
   UserIcon,
@@ -48,6 +44,7 @@ import {
   fetchProposals,
   rejectProposal,
 } from "@/lib/proposal-api";
+import { AdminTable, SortableHeader } from "@/components/auto-list";
 
 // ── Status badge ─────────────────────────────────────────
 
@@ -275,91 +272,6 @@ function ProposalDetailDialog({
   );
 }
 
-// ── Proposal list item ───────────────────────────────────
-
-function ProposalItem({
-  proposal,
-  onClick,
-  onApprove,
-  onReject,
-}: {
-  proposal: Proposal;
-  onClick: () => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-}) {
-  const { t } = useTranslation();
-  const isPending = proposal.status === "draft" || proposal.status === "validated";
-
-  return (
-    <div
-      className="flex items-start gap-4 rounded-lg border p-4 transition-colors hover:bg-accent/50 cursor-pointer"
-      onClick={onClick}
-      onKeyDown={(e) => e.key === "Enter" && onClick()}
-      tabIndex={0}
-      role="button"
-    >
-      {/* Icon */}
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
-        {proposal.author.type === "ai" ? (
-          <BotIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-        ) : (
-          <UserIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
-          <span className="font-medium text-sm">{proposal.title}</span>
-          <ProposalStatusBadge status={proposal.status} />
-          <ChangeTypeBadge changeType={proposal.changeType} />
-        </div>
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-          {proposal.description}
-        </p>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <CodeIcon className="h-3 w-3" />
-            {proposal.capability}
-          </span>
-          <span className="flex items-center gap-1">
-            <ClockIcon className="h-3 w-3" />
-            {new Date(proposal.createdAt).toLocaleDateString()}
-          </span>
-          <span>
-            {proposal.changes.length} {t("proposals.changeCount")}
-          </span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-        {isPending && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs text-red-600 hover:text-red-700"
-              onClick={() => onReject(proposal.id)}
-            >
-              {t("proposals.reject")}
-            </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onApprove(proposal.id)}
-            >
-              {t("proposals.approve")}
-            </Button>
-          </>
-        )}
-        <ChevronRight className="h-4 w-4 text-muted-foreground ml-1" />
-      </div>
-    </div>
-  );
-}
-
 // ── Main Page ────────────────────────────────────────────
 
 export function ProposalsPage() {
@@ -413,6 +325,111 @@ export function ProposalsPage() {
     (p) => p.status === "draft" || p.status === "validated",
   ).length;
 
+  // Build AdminTable column defs
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "title",
+      header: ({ column }) => <SortableHeader column={column} label={t("proposals.columns.title", { defaultValue: "Title" })} />,
+      cell: ({ row }) => {
+        const p = row.original as unknown as Proposal;
+        return (
+          <div className="flex items-center gap-2">
+            {p.author.type === "ai" ? (
+              <BotIcon className="h-4 w-4 text-purple-500 shrink-0" />
+            ) : (
+              <UserIcon className="h-4 w-4 text-blue-500 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className="font-medium text-sm truncate">{p.title}</div>
+              <div className="text-xs text-muted-foreground truncate">{p.description}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <SortableHeader column={column} label={t("proposals.columns.status", { defaultValue: "Status" })} />,
+      cell: ({ row }) => <ProposalStatusBadge status={row.getValue("status") as string} />,
+      size: 130,
+    },
+    {
+      accessorKey: "changeType",
+      header: t("proposals.columns.changeType", { defaultValue: "Type" }),
+      cell: ({ row }) => <ChangeTypeBadge changeType={row.getValue("changeType") as string} />,
+      size: 80,
+    },
+    {
+      accessorKey: "capability",
+      header: ({ column }) => <SortableHeader column={column} label={t("proposals.columns.capability", { defaultValue: "Capability" })} />,
+      cell: ({ row }) => (
+        <Badge variant="outline" className="gap-1 text-xs">
+          <CodeIcon className="h-3 w-3" />
+          {row.getValue("capability") as string}
+        </Badge>
+      ),
+      size: 160,
+    },
+    {
+      accessorKey: "author",
+      header: t("proposals.columns.author", { defaultValue: "Author" }),
+      cell: ({ row }) => {
+        const p = row.original as unknown as Proposal;
+        return <span className="text-xs text-muted-foreground">{p.author.name ?? p.author.id}</span>;
+      },
+      accessorFn: (row) => {
+        const p = row as unknown as Proposal;
+        return p.author.name ?? p.author.id;
+      },
+      size: 120,
+    },
+    {
+      accessorKey: "createdAt",
+      header: ({ column }) => <SortableHeader column={column} label={t("proposals.columns.date", { defaultValue: "Date" })} />,
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.getValue("createdAt") as string).toLocaleDateString()}
+        </span>
+      ),
+      size: 100,
+    },
+    {
+      id: "actions",
+      header: "",
+      size: 160,
+      cell: ({ row }) => {
+        const p = row.original as unknown as Proposal;
+        const isPending = p.status === "draft" || p.status === "validated";
+        if (!isPending) return null;
+        return (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs text-red-600 hover:text-red-700"
+              onClick={() => handleReject(p.id)}
+            >
+              {t("proposals.reject")}
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => handleApprove(p.id)}
+            >
+              {t("proposals.approve")}
+            </Button>
+          </div>
+        );
+      },
+    },
+  ], [t]);
+
+  // Convert proposals to DataRow for AdminTable
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => proposals.map((p) => ({ ...p }) as Record<string, unknown>),
+    [proposals],
+  );
+
   return (
     <div className="space-y-6 p-4">
       {/* Header */}
@@ -426,10 +443,6 @@ export function ProposalsPage() {
             {t("proposals.subtitle")}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadProposals}>
-          <RefreshCwIcon className="h-4 w-4 mr-1" />
-          {t("executionLog.refresh")}
-        </Button>
       </div>
 
       {/* Pending count banner */}
@@ -444,53 +457,37 @@ export function ProposalsPage() {
         </Card>
       )}
 
-      {/* Status filter tabs */}
-      <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-        <TabsList>
-          <TabsTrigger value="all">{t("proposals.filter.all")}</TabsTrigger>
-          <TabsTrigger value="draft">{t("proposals.filter.pending")}</TabsTrigger>
-          <TabsTrigger value="approved">{t("proposals.filter.approved")}</TabsTrigger>
-          <TabsTrigger value="rejected">{t("proposals.filter.rejected")}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={statusFilter} className="mt-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-lg border p-4">
-                  <Skeleton className="h-5 w-64 mb-2" />
-                  <Skeleton className="h-4 w-96 mb-2" />
-                  <Skeleton className="h-3 w-48" />
-                </div>
-              ))}
-            </div>
-          ) : proposals.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-sm text-muted-foreground">
-                  {t("proposals.noProposals")}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {proposals.map((proposal) => (
-                <ProposalItem
-                  key={proposal.id}
-                  proposal={proposal}
-                  onClick={() => {
-                    setSelectedProposal(proposal);
-                    setDialogOpen(true);
-                  }}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      <AdminTable
+        columns={columns}
+        data={tableData}
+        pageSize={20}
+        defaultSorting={[{ id: "createdAt", desc: true }]}
+        emptyMessage={loading ? t("common.loading") : t("proposals.noProposals")}
+        onRowClick={(row) => {
+          const p = row as unknown as Proposal;
+          setSelectedProposal(p);
+          setDialogOpen(true);
+        }}
+        toolbarExtra={
+          <>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder={t("proposals.filter.all")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("proposals.filter.all")}</SelectItem>
+                <SelectItem value="draft">{t("proposals.filter.pending")}</SelectItem>
+                <SelectItem value="approved">{t("proposals.filter.approved")}</SelectItem>
+                <SelectItem value="rejected">{t("proposals.filter.rejected")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={loadProposals}>
+              <RefreshCwIcon className="h-4 w-4 mr-1" />
+              {t("executionLog.refresh")}
+            </Button>
+          </>
+        }
+      />
 
       {/* Detail dialog */}
       <ProposalDetailDialog

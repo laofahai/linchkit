@@ -86,17 +86,21 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
     return () => document.removeEventListener("keydown", down);
   }, [open, setOpen]);
 
-  const runCommand = (cb: () => void) => {
+  const runCommand = useCallback((cb: () => void) => {
     setOpen(false);
     cb();
-  };
+  }, [setOpen]);
 
-  const navigate = (href: string) => {
+  const navigate = useCallback((href: string) => {
     runCommand(() => {
       window.history.pushState({}, "", href);
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
-  };
+  }, [runCommand]);
+
+  // Stable ref for navigate to avoid stale closure in handleAISearch
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   // Handle AI search execution from the palette
   const handleAISearch = useCallback(
@@ -115,7 +119,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
           // Navigate to the schema page — the AI filter will be applied via URL or state
           // For now, navigate and show the explanation
           setTimeout(() => {
-            navigate(`/schemas/${schemaName}`);
+            navigateRef.current(`/schemas/${schemaName}`);
           }, 1500);
         } else {
           setAiResult(t("aiSearch.notConfigured", "AI service is not configured."));

@@ -1,5 +1,5 @@
 /**
- * ExecutionLogsPage — Displays execution log entries with filtering and pagination.
+ * ExecutionLogsPage — Displays execution log entries using AdminTable.
  *
  * Fetches from /api/executions REST endpoint (or uses demo data in dev mode).
  * Spec ref: 11_execution_log.md, 39_execution_contract.md
@@ -14,9 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@linchkit/ui-kit/components";
-import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ChevronDownIcon, ClockIcon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AdminTable, SortableHeader } from "@/components/auto-list";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -147,218 +149,12 @@ const DEMO_ENTRIES: ExecutionLogEntry[] = [
   },
 ];
 
-// ── Component ───────────────────────────────────────────
-
-export function ExecutionLogsPage() {
-  const { t } = useTranslation();
-  const [entries, setEntries] = useState<ExecutionLogEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const applyDemoData = useCallback(() => {
-    let filtered: ExecutionLogEntry[] = DEMO_ENTRIES;
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((e) => e.status === statusFilter);
-    }
-    setTotal(filtered.length);
-    const offset = (page - 1) * pageSize;
-    setEntries(filtered.slice(offset, offset + pageSize));
-  }, [statusFilter, page, pageSize]);
-
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("pageSize", String(pageSize));
-      if (statusFilter !== "all") params.set("status", statusFilter);
-
-      const res = await fetch(`/api/executions?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        const result = json.data as ExecutionLogListResult;
-        setEntries(result.items);
-        setTotal(result.total);
-      } else {
-        // Fallback to demo data
-        applyDemoData();
-      }
-    } catch {
-      // API not available — use demo data
-      applyDemoData();
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, statusFilter, applyDemoData]);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  return (
-    <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">{t("executionLog.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("executionLog.subtitle")}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
-          <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          {t("executionLog.refresh")}
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder={t("executionLog.allStatuses")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("executionLog.allStatuses")}</SelectItem>
-            <SelectItem value="succeeded">{t("executionLog.succeeded")}</SelectItem>
-            <SelectItem value="failed">{t("executionLog.failed")}</SelectItem>
-            <SelectItem value="blocked">{t("executionLog.blocked")}</SelectItem>
-            <SelectItem value="pending_approval">{t("executionLog.pendingApproval")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-muted-foreground ml-2">
-          {total} {t("executionLog.entries")}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-md border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="p-2 text-left font-medium">{t("executionLog.time")}</th>
-              <th className="p-2 text-left font-medium">{t("executionLog.action")}</th>
-              <th className="p-2 text-left font-medium">{t("executionLog.actor")}</th>
-              <th className="p-2 text-left font-medium">{t("executionLog.status")}</th>
-              <th className="p-2 text-right font-medium">{t("executionLog.duration")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                  {loading ? t("common.loading") : t("executionLog.noEntries")}
-                </td>
-              </tr>
-            ) : (
-              entries.map((entry) => (
-                <LogRow
-                  key={entry.id}
-                  entry={entry}
-                  expanded={expanded === entry.id}
-                  onToggle={() => setExpanded(expanded === entry.id ? null : entry.id)}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-end gap-2">
-          <span className="text-sm text-muted-foreground">
-            {t("list.page", { current: page, total: totalPages })}
-          </span>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Log row with expandable detail ──────────────────────
-
-function LogRow({
-  entry,
-  expanded,
-  onToggle,
-}: {
-  entry: ExecutionLogEntry;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr
-        className="border-b cursor-pointer hover:bg-muted/30 transition-colors"
-        onClick={onToggle}
-      >
-        <td className="p-2">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <ClockIcon className="size-3" />
-            <span>{formatDate(entry.startedAt)}</span>
-            <span>{formatTime(entry.startedAt)}</span>
-          </div>
-        </td>
-        <td className="p-2">
-          <div className="font-mono text-xs">{entry.action}</div>
-          {entry.recordId && (
-            <div className="text-xs text-muted-foreground">
-              {entry.schema}/{entry.recordId}
-            </div>
-          )}
-        </td>
-        <td className="p-2">
-          <span className="text-xs">{entry.actor.id}</span>
-          <span className="text-xs text-muted-foreground ml-1">({entry.actor.type})</span>
-        </td>
-        <td className="p-2">
-          <StatusBadge status={entry.status} />
-        </td>
-        <td className="p-2 text-right font-mono text-xs">{formatDuration(entry.duration)}</td>
-      </tr>
-      {expanded && (
-        <tr className="border-b bg-muted/20">
-          <td colSpan={5} className="p-4">
-            <LogDetail entry={entry} />
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
 // ── Expanded detail view ────────────────────────────────
 
 function LogDetail({ entry }: { entry: ExecutionLogEntry }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-2 gap-4 text-sm">
+    <div className="grid grid-cols-2 gap-4 text-sm p-4 bg-muted/20">
       <div>
         <h4 className="font-medium mb-1">{t("executionLog.input")}</h4>
         <pre className="bg-muted rounded p-2 text-xs overflow-auto max-h-40">
@@ -412,6 +208,210 @@ function LogDetail({ entry }: { entry: ExecutionLogEntry }) {
         </div>
       )}
       <div className="col-span-2 text-xs text-muted-foreground">ID: {entry.id}</div>
+    </div>
+  );
+}
+
+// ── Component ───────────────────────────────────────────
+
+export function ExecutionLogsPage() {
+  const { t } = useTranslation();
+  const [entries, setEntries] = useState<ExecutionLogEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const applyDemoData = useCallback(() => {
+    let filtered: ExecutionLogEntry[] = DEMO_ENTRIES;
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((e) => e.status === statusFilter);
+    }
+    setTotal(filtered.length);
+    setEntries(filtered);
+  }, [statusFilter]);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/executions?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        const result = json.data as ExecutionLogListResult;
+        setEntries(result.items);
+        setTotal(result.total);
+      } else {
+        applyDemoData();
+      }
+    } catch {
+      applyDemoData();
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, applyDemoData]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  // Build column definitions for AdminTable
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
+    {
+      accessorKey: "startedAt",
+      header: ({ column }) => <SortableHeader column={column} label={t("executionLog.time")} />,
+      cell: ({ row }) => {
+        const entry = row.original as unknown as ExecutionLogEntry;
+        return (
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <ClockIcon className="size-3" />
+            <span>{formatDate(entry.startedAt)}</span>
+            <span>{formatTime(entry.startedAt)}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "action",
+      header: ({ column }) => <SortableHeader column={column} label={t("executionLog.action")} />,
+      cell: ({ row }) => {
+        const entry = row.original as unknown as ExecutionLogEntry;
+        return (
+          <div>
+            <div className="font-mono text-xs">{entry.action}</div>
+            {entry.recordId && (
+              <div className="text-xs text-muted-foreground">
+                {entry.schema}/{entry.recordId}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "actor",
+      header: t("executionLog.actor"),
+      cell: ({ row }) => {
+        const entry = row.original as unknown as ExecutionLogEntry;
+        return (
+          <span className="text-xs">
+            {entry.actor.id}
+            <span className="text-muted-foreground ml-1">({entry.actor.type})</span>
+          </span>
+        );
+      },
+      // Enable global filter to match actor id
+      accessorFn: (row) => {
+        const entry = row as unknown as ExecutionLogEntry;
+        return entry.actor.id;
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <SortableHeader column={column} label={t("executionLog.status")} />,
+      cell: ({ row }) => <StatusBadge status={row.getValue("status") as string} />,
+    },
+    {
+      accessorKey: "duration",
+      header: ({ column }) => <SortableHeader column={column} label={t("executionLog.duration")} />,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">
+          {formatDuration(row.getValue("duration") as number)}
+        </span>
+      ),
+      meta: { align: "right" },
+    },
+    {
+      id: "expand",
+      header: "",
+      size: 40,
+      cell: ({ row }) => {
+        const entry = row.original as unknown as ExecutionLogEntry;
+        const isExpanded = expandedId === entry.id;
+        return (
+          <button
+            type="button"
+            className="p-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedId(isExpanded ? null : entry.id);
+            }}
+          >
+            <ChevronDownIcon
+              className={`size-3.5 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+        );
+      },
+    },
+  ], [t, expandedId]);
+
+  // Convert entries to DataRow format for AdminTable
+  const tableData = useMemo<Record<string, unknown>[]>(
+    () => entries.map((e) => ({ ...e }) as Record<string, unknown>),
+    [entries],
+  );
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">{t("executionLog.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("executionLog.subtitle")}</p>
+        </div>
+      </div>
+
+      <AdminTable
+        columns={columns}
+        data={tableData}
+        pageSize={20}
+        searchPlaceholder={t("executionLog.search", { defaultValue: t("list.search") })}
+        defaultSorting={[{ id: "startedAt", desc: true }]}
+        emptyMessage={loading ? t("common.loading") : t("executionLog.noEntries")}
+        onRowClick={(row) => {
+          const entry = row as unknown as ExecutionLogEntry;
+          setExpandedId(expandedId === entry.id ? null : entry.id);
+        }}
+        toolbarExtra={
+          <>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v)}
+            >
+              <SelectTrigger className="w-40 h-9">
+                <SelectValue placeholder={t("executionLog.allStatuses")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("executionLog.allStatuses")}</SelectItem>
+                <SelectItem value="succeeded">{t("executionLog.succeeded")}</SelectItem>
+                <SelectItem value="failed">{t("executionLog.failed")}</SelectItem>
+                <SelectItem value="blocked">{t("executionLog.blocked")}</SelectItem>
+                <SelectItem value="pending_approval">{t("executionLog.pendingApproval")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">
+              {total} {t("executionLog.entries")}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
+              <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+              {t("executionLog.refresh")}
+            </Button>
+          </>
+        }
+      />
+
+      {/* Expanded detail panel (rendered below the table for the selected row) */}
+      {expandedId && (
+        <div className="rounded border border-border">
+          {(() => {
+            const entry = entries.find((e) => e.id === expandedId);
+            return entry ? <LogDetail entry={entry} /> : null;
+          })()}
+        </div>
+      )}
     </div>
   );
 }

@@ -38,6 +38,21 @@ import type { AutoListProps } from "./types";
 const SKELETON_KEYS = ["skel-1", "skel-2", "skel-3", "skel-4", "skel-5"] as const;
 
 /**
+ * Coerce a value to a number. If Number() returns NaN, try Date.parse() as fallback.
+ * Returns null if the value cannot be coerced to a meaningful number.
+ */
+function coerceNumericOrDate(val: unknown): number | null {
+  const n = Number(val);
+  if (!Number.isNaN(n)) return n;
+  // Fallback: try parsing as date
+  if (typeof val === "string") {
+    const d = Date.parse(val);
+    if (!Number.isNaN(d)) return d;
+  }
+  return null;
+}
+
+/**
  * Apply a DeclarativeCondition filter to a single row (client-side evaluation).
  * Supports simple conditions, composite (and/or), and not.
  */
@@ -74,14 +89,26 @@ function evaluateCondition(
       return rowVal === value || String(rowVal) === String(value);
     case "neq":
       return rowVal !== value && String(rowVal) !== String(value);
-    case "gt":
-      return Number(rowVal) > Number(value);
-    case "gte":
-      return Number(rowVal) >= Number(value);
-    case "lt":
-      return Number(rowVal) < Number(value);
-    case "lte":
-      return Number(rowVal) <= Number(value);
+    case "gt": {
+      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      if (a === null || b === null) return false;
+      return a > b;
+    }
+    case "gte": {
+      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      if (a === null || b === null) return false;
+      return a >= b;
+    }
+    case "lt": {
+      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      if (a === null || b === null) return false;
+      return a < b;
+    }
+    case "lte": {
+      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      if (a === null || b === null) return false;
+      return a <= b;
+    }
     case "contains":
       return String(rowVal ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
     case "startsWith":
@@ -99,8 +126,11 @@ function evaluateCondition(
     case "between": {
       const arr = Array.isArray(value) ? value : [];
       if (arr.length < 2) return true;
-      const n = Number(rowVal);
-      return n >= Number(arr[0]) && n <= Number(arr[1]);
+      const n = coerceNumericOrDate(rowVal);
+      const lo = coerceNumericOrDate(arr[0]);
+      const hi = coerceNumericOrDate(arr[1]);
+      if (n === null || lo === null || hi === null) return false;
+      return n >= lo && n <= hi;
     }
     case "is_null":
       return rowVal === null || rowVal === undefined;

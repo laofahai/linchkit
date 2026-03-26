@@ -57,18 +57,18 @@ describe("POST /api/ai/auto-fill — no AI service", () => {
     expect(json.data.suggestions).toEqual({});
   });
 
-  test("returns empty suggestions when schema is missing (no AI = graceful return)", async () => {
+  test("returns 400 when schema is missing (required field validation before AI check)", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentValues: {} }),
     });
 
-    // When AI is not configured, always returns empty suggestions (graceful degradation)
-    expect(res.status).toBe(200);
+    // Required fields are validated before checking AI availability
+    expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.suggestions).toEqual({});
+    expect(json.success).toBe(false);
+    expect(json.error.message).toContain("Missing");
   });
 });
 

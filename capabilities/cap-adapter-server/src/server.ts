@@ -656,19 +656,20 @@ export function createServer(
     })
     // ── AI Auto-Fill endpoint ────────────────────────────
     .post("/api/ai/auto-fill", async ({ body, set }) => {
-      if (!aiService) {
-        return { success: true, data: { suggestions: {} } };
-      }
-
       const { schema: schemaName, fields, currentValues } = (body ?? {}) as {
         schema?: string;
         fields?: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
         currentValues?: Record<string, unknown>;
       };
 
+      // Always validate required fields first, before checking AI availability
       if (!schemaName || !fields) {
         set.status = 400;
         return { success: false, error: { message: "Missing 'schema' or 'fields' in request body." } };
+      }
+
+      if (!aiService) {
+        return { success: true, data: { suggestions: {} } };
       }
 
       try {
@@ -1031,11 +1032,29 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     // Wire permission checker: verify the actor can read the schema before delivering events.
     // Check schema exposure config — if GraphQL is explicitly disabled, deny SSE events too.
     if (schemaRegistry) {
-      subManager.setPermissionChecker((_actor, schemaName) => {
+      const permGroups = options?.permissionGroups;
+      subManager.setPermissionChecker((actor, schemaName) => {
         const schemaDef = schemaRegistry.get(schemaName);
         if (!schemaDef) return false; // Unknown schema — deny
         // If exposure is configured and graphql is explicitly false, deny
         if (schemaDef.exposure?.graphql === false) return false;
+        // Basic RBAC: if permission groups are configured, check actor has read access
+        if (permGroups && actor && actor.type !== "system") {
+          const actorGroups = new Set(actor.groups ?? []);
+          // Find if any permission group grants read access to this schema for the actor's groups.
+          // Permission structure: permissions[capabilityName][schemaName].data.read
+          const hasReadPermission = permGroups.some((pg) => {
+            if (!actorGroups.has(pg.name)) return false;
+            // Search across all capabilities for this schema
+            for (const capPerms of Object.values(pg.permissions ?? {})) {
+              const schemaPerms = capPerms[schemaName];
+              if (schemaPerms?.data?.read && schemaPerms.data.read !== "none") return true;
+            }
+            return false;
+          });
+          // If permission groups exist but none grant read, deny (unless actor has no groups — allow for backward compat)
+          if (actorGroups.size > 0 && !hasReadPermission) return false;
+        }
         return true;
       });
     }
@@ -1134,12 +1153,9 @@ Only suggest values for the empty fields listed above. For enum/state fields, on
     // biome-ignore lint/suspicious/noExplicitAny: attaching to Elysia instance for lifecycle management
     (app as any).__subscriptionManager = subManager;
 
-    // Register shutdown handler to stop heartbeat/idle timers
-    const stopManager = () => subManager.stop();
-    process.once("SIGINT", stopManager);
-    process.once("SIGTERM", stopManager);
-    // Also hook into Elysia's onStop lifecycle
-    app.onStop(stopManager);
+    // Register shutdown handler to stop heartbeat/idle timers via Elysia lifecycle only.
+    // Avoid process-level signal handlers — they leak when multiple server instances are created.
+    app.onStop(() => subManager.stop());
   }
 
   return app;
