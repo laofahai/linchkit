@@ -19,7 +19,7 @@ import type {
 import { Button, Separator, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Pencil, RefreshCw, ServerCrash } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityPanel } from "../components/activity-panel";
 import { AutoForm } from "../components/auto-form";
@@ -215,7 +215,10 @@ export function SchemaFormPage() {
   } = useSchemaBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
-  const formView = getPrimaryView(bundle?.views, "form") ?? (schema ? generateFallbackFormView(schema) : undefined);
+  const formView = useMemo(
+    () => getPrimaryView(bundle?.views, "form") ?? (schema ? generateFallbackFormView(schema) : undefined),
+    [bundle?.views, schema],
+  );
 
   // Status bar steps derived from schema
   const statusSteps = useMemo((): StatusBarStep[] | null => {
@@ -240,12 +243,16 @@ export function SchemaFormPage() {
 
   const recordFields = useMemo(() => (formView ? getRecordFields(formView) : []), [formView]);
 
+  // Stabilize recordFields via ref so fetchRecord doesn't get recreated on every render
+  const recordFieldsRef = useRef(recordFields);
+  recordFieldsRef.current = recordFields;
+
   const fetchRecord = useCallback(async () => {
     if (isCreate || !params.id || !schemaName || !formView) return;
     setLoading(true);
     setRecordError(null);
     try {
-      const result = await queryRecord(schemaName, params.id, recordFields);
+      const result = await queryRecord(schemaName, params.id, recordFieldsRef.current);
       if (result) {
         setRecord(result as Record<string, unknown>);
       } else {
@@ -257,7 +264,7 @@ export function SchemaFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [isCreate, params.id, schemaName, recordFields, formView, t]);
+  }, [isCreate, params.id, schemaName, formView, t]);
 
   // Fetch source record for cloning
   const fetchCloneSource = useCallback(async () => {
@@ -265,7 +272,7 @@ export function SchemaFormPage() {
     setLoading(true);
     setRecordError(null);
     try {
-      const result = await queryRecord(schemaName, cloneId, recordFields);
+      const result = await queryRecord(schemaName, cloneId, recordFieldsRef.current);
       if (result) {
         // Strip system fields from cloned data
         const cloned = { ...(result as Record<string, unknown>) };
@@ -283,7 +290,7 @@ export function SchemaFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [cloneId, schemaName, recordFields, formView, CLONE_STRIP_FIELDS]);
+  }, [cloneId, schemaName, formView, CLONE_STRIP_FIELDS]);
 
   useEffect(() => {
     if (!bundleLoading && bundle) {
