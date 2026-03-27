@@ -23,12 +23,12 @@ export function mountSchemaRoutes(
         return { success: true, data: [] };
       }
       // Lightweight list — name/label/description/icon for navigation
-      // Filter out system schemas (prefixed with "_") — they have dedicated admin pages
-      const schemas = schemaRegistry.getAll().filter((s) => !s.name.startsWith("_")).map((s) => ({
+      const schemas = schemaRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
         icon: s.presentation?.icon,
+        internal: schemaRegistry.isInternal(s.name) || undefined,
       }));
       return { success: true, data: schemas };
     })
@@ -63,6 +63,7 @@ export function mountSchemaRoutes(
       const schemaLinks = capabilities.flatMap((cap) =>
         (cap.links ?? []).filter((l) => l.from === params.name || l.to === params.name),
       );
-      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks } };
+      const internal = schemaRegistry.isInternal(params.name) || undefined;
+      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks, internal } };
     });
 }

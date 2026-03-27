@@ -1,0 +1,22 @@
+/**
+ * Reject purchase request action (declarative)
+ */
+
+import type { ActionDefinition } from "@linchkit/core";
+
+export const rejectAction: ActionDefinition = {
+  name: "reject_purchase_request",
+  schema: "purchase_request",
+  label: "t:schemas.purchase_request.actions.reject",
+  description: "Reject a pending purchase request",
+  input: {
+    reason: { type: "text", label: "Rejection Reason", required: true },
+  },
+  permissions: { groups: ["admin", "manager"] },
+  policy: { mode: "sync", transaction: true },
+  exposure: "all",
+  stateTransition: { from: "pending", to: "rejected" },
+  setFields: {
+    audit_notes: "$input.reason",
+  },
+};

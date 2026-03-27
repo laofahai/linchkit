@@ -14,8 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { queryList } from "../lib/api";
-import { AutoList } from "./auto-list";
 import type { AutoListViewDefinition } from "./auto-list/types";
+import { ListView } from "./list-view";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -239,15 +239,14 @@ export function RelatedRecordsTab({
   }
 
   return (
-    <div className="py-2">
-      <AutoList
-        schema={childSchema}
-        view={listView}
-        data={data}
-        loading={loading}
-        onRowClick={handleRowClick}
-        toolbarExtra={newButton}
-      />
-    </div>
+    <ListView
+      className="py-2"
+      schema={childSchema}
+      view={listView}
+      data={data}
+      loading={loading}
+      onRowClick={handleRowClick}
+      toolbarExtra={newButton}
+    />
   );
 }

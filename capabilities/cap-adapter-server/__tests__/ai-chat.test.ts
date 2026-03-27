@@ -91,6 +91,8 @@ describe("POST /api/ai/chat — AI service but no aiConfig", () => {
 
   const mockAiService: AIService = {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: async () => ({
       content: "Hello!",
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },

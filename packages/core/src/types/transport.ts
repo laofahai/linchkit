@@ -19,7 +19,7 @@ import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { PermissionRegistry } from "../engine/permission-engine";
 import type { EventBus } from "../event/event-bus";
-import type { FlowRegistry } from "../flow/types";
+import type { FlowEngine, FlowRegistry } from "../flow/types";
 import type { OntologyRegistry } from "../ontology";
 import type { DerivedPropertyEngine } from "../schema/derived-property";
 import type { LinkRegistry } from "../schema/link-registry";
@@ -62,6 +62,8 @@ export interface TransportContext {
   capabilities?: CapabilityDefinition[];
   /** Flow registry with all registered flows */
   flowRegistry?: FlowRegistry;
+  /** Flow engine — used for starting, querying, and cancelling flow instances */
+  flowEngine?: FlowEngine;
   /** Ontology registry — unified semantic facade over all registries */
   ontologyRegistry?: OntologyRegistry;
   /** Cache manager — multi-layer cache with event-driven invalidation */

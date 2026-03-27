@@ -5,6 +5,7 @@
  * the parent border using -mb-px.
  */
 
+import { Fragment } from "react";
 import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -44,7 +45,7 @@ export function FormNotebook({ node, activeTab, onTabChange, renderNode }: FormN
       {node.children[currentTab] && (
         <div className="py-3">
           {node.children[currentTab].children.map((child, i) => (
-            <div key={getNodeKey(child, i)}>{renderNode(child, 1)}</div>
+            <Fragment key={getNodeKey(child, i)}>{renderNode(child, 1)}</Fragment>
           ))}
         </div>
       )}

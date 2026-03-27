@@ -24,18 +24,13 @@ import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
-import { ApprovalsPage } from "./pages/approvals";
-import { ExecutionLogsPage } from "./pages/execution-logs";
 import { FlowDetailPage } from "./pages/flow-detail";
-import { FlowsPage } from "./pages/flows";
 import { HealthMonitorPage } from "./pages/health-monitor";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
-import { StateMachineDetailPage, StateMachinesPage } from "./pages/state-machines";
+import { StateMachineDetailPage } from "./pages/state-machines";
 import { EvolutionPage } from "./pages/evolution";
-import { ProposalsPage } from "./pages/proposals";
 import { RuleDetailPage } from "./pages/rule-detail";
-import { RulesListPage } from "./pages/rules-list";
 import { SettingsPage } from "./pages/settings";
 import { WorkspacePage } from "./pages/workspace";
 
@@ -164,31 +159,10 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
-  const approvalsRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/approvals",
-    component: ApprovalsPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
-  const executionLogsRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/executions",
-    component: ExecutionLogsPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
   const healthMonitorRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/admin/health",
     component: HealthMonitorPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
-  const flowsRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/flows",
-    component: FlowsPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
@@ -199,13 +173,6 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
-  const stateMachinesRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/states",
-    component: StateMachinesPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
   const stateMachineDetailRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/admin/states/$name",
@@ -213,24 +180,10 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
-  const proposalsRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/proposals",
-    component: ProposalsPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
   const evolutionRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/admin/evolution",
     component: EvolutionPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
-
-  const rulesRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/rules",
-    component: RulesListPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
@@ -257,16 +210,10 @@ function buildRouter(appConfig: AppConfig) {
       schemaListRoute,
       schemaFormNewRoute,
       schemaFormEditRoute,
-      approvalsRoute,
-      executionLogsRoute,
       healthMonitorRoute,
-      flowsRoute,
       flowDetailRoute,
-      stateMachinesRoute,
       stateMachineDetailRoute,
-      proposalsRoute,
       evolutionRoute,
-      rulesRoute,
       ruleDetailRoute,
       settingsRoute,
       ...pageRegistrations

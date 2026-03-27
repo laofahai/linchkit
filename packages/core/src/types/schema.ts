@@ -311,6 +311,8 @@ export interface ResolvedSchema {
   label?: string;
   /** Whether this schema is abstract (cannot be instantiated) */
   abstract?: boolean;
+  /** Whether this schema is system-internal (read-only, managed by core) */
+  internal?: boolean;
   /** Parent schema name, if this schema extends another */
   parent?: string;
   /** Child schema names that extend this schema */

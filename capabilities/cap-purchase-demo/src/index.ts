@@ -7,6 +7,7 @@
  */
 
 export { approveAction } from "./actions/approve";
+export { rejectAction } from "./actions/reject";
 export { submitAction } from "./actions/submit";
 export {
   autoSetApprovedFields,
@@ -14,6 +15,7 @@ export {
   notifyHighPrioritySubmission,
 } from "./automations/purchase-status";
 export { capPurchaseDemo } from "./capability";
+export { purchaseApprovalFlow } from "./flows/purchase-approval";
 export { auditableInterface } from "./interfaces/auditable";
 export { requestToDepartment, requestToItems } from "./links";
 export { departmentSchema } from "./schemas/department";

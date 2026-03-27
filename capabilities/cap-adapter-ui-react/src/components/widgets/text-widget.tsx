@@ -1,14 +1,38 @@
 import { Textarea } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { useEffect, useRef, useState } from "react";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 
 export function TextDisplay({ value }: WidgetDisplayProps) {
-  if (value == null) return <span className="text-muted-foreground">&mdash;</span>;
+  if (value == null) return <span className="text-muted-foreground leading-9">&mdash;</span>;
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setClamped(el.scrollHeight > el.clientHeight);
+  }, [value]);
+
   return (
-    <span className="truncate max-w-xs block" title={String(value)}>
-      {String(value)}
-    </span>
+    <div>
+      <div
+        ref={ref}
+        className={cn("whitespace-pre-wrap", !expanded && "line-clamp-3")}
+      >
+        {String(value)}
+      </div>
+      {(clamped || expanded) && (
+        <button
+          type="button"
+          className="text-xs text-primary hover:underline mt-1"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "收起" : "展开"}
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -2,12 +2,13 @@
  * TransitionButtons — Renders available state transition buttons for a record.
  *
  * Fetches available transitions from the GraphQL API and displays them
- * as action buttons. Clicking a button triggers the transition mutation.
+ * as action buttons. Buttons are disabled with tooltip when the actor
+ * lacks permission. Clicking an allowed button triggers the transition mutation.
  */
 
 import type { StateDefinition, StateMeta } from "@linchkit/core/types";
-import { Badge, Button, toast } from "@linchkit/ui-kit/components";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, toast } from "@linchkit/ui-kit/components";
+import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -98,25 +99,46 @@ export function TransitionButtons({
   if (loading || transitions.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2">
-      {transitions.map((tr) => (
-        <Button
-          key={tr.to}
-          size="sm"
-          variant="outline"
-          disabled={transitioning !== null}
-          onClick={() => handleTransition(tr.to)}
-        >
-          {transitioning === tr.to ? (
-            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-          ) : (
-            <ArrowRight className="mr-1.5 size-3.5" />
-          )}
-          <Badge variant="secondary" className="mr-1.5 text-[10px]">
-            {resolveStateLabel(tr.to)}
-          </Badge>
-        </Button>
-      ))}
-    </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-2">
+        {transitions.map((tr) => {
+          const isDisabled = !tr.allowed || transitioning !== null;
+          const button = (
+            <Button
+              key={tr.to}
+              size="sm"
+              variant="outline"
+              disabled={isDisabled}
+              onClick={() => handleTransition(tr.to)}
+            >
+              {transitioning === tr.to ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : !tr.allowed ? (
+                <Lock className="mr-1.5 size-3.5" />
+              ) : (
+                <ArrowRight className="mr-1.5 size-3.5" />
+              )}
+              <Badge variant="secondary" className="mr-1.5 text-[10px]">
+                {resolveStateLabel(tr.to)}
+              </Badge>
+            </Button>
+          );
+
+          if (!tr.allowed && tr.reason) {
+            return (
+              <Tooltip key={tr.to}>
+                <TooltipTrigger asChild>
+                  {/* Wrap in span so tooltip works on disabled button */}
+                  <span className="inline-flex">{button}</span>
+                </TooltipTrigger>
+                <TooltipContent>{tr.reason}</TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return button;
+        })}
+      </div>
+    </TooltipProvider>
   );
 }

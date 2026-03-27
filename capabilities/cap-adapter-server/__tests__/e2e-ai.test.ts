@@ -55,6 +55,8 @@ const graphqlSchema = buildGraphQLSchema([taskSchema]);
 
 const mockAiService: AIService = {
   configured: true,
+  defaultProvider: "mock",
+  providerNames: ["mock"],
   complete: async (options) => {
     // Concatenate all message contents for routing
     const allText = options.messages.map((m) => m.content).join(" ");
@@ -411,6 +413,8 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
 
   const lowConfService: AIService = {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: async () => ({
       content: JSON.stringify({
         action: null,

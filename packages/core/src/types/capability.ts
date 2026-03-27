@@ -25,6 +25,26 @@ import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";
 
+// ── Menu item registration ──────────────────────────────
+
+/** Menu item contributed by a capability for sidebar navigation */
+export interface MenuItemRegistration {
+  /** Unique identifier */
+  id: string;
+  /** Display label (supports i18n via "t:" prefix, e.g. "t:health.title") */
+  label: string;
+  /** URL path (e.g., "/admin/health") */
+  path: string;
+  /** Lucide icon name (PascalCase, e.g. "HeartPulse") */
+  icon?: string;
+  /** Menu section: "main" (schemas area), "admin" (administration area) */
+  section?: "main" | "admin";
+  /** Sort order within section (lower = earlier) */
+  order?: number;
+  /** Auth requirement */
+  auth?: "required" | "anonymous" | "optional";
+}
+
 // ── Auth provider extension ─────────────────────────────
 
 /**
@@ -136,6 +156,8 @@ export interface CapabilityExtensions {
   authProvider?: AuthProviderRegistration;
   /** Permission groups declared by this capability (auto-registered at startup) */
   permissionGroups?: PermissionGroupDefinition[];
+  /** Menu items for sidebar navigation */
+  menuItems?: MenuItemRegistration[];
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

@@ -21,6 +21,7 @@ import type {
 } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import type { EventBus } from "../event/event-bus";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
 
@@ -170,6 +171,40 @@ export interface ActionExecutor {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
+
+/**
+ * Resolve a `$`-prefixed expression in declarative `setFields`.
+ *
+ * Supported:
+ * - `$actor.id`, `$actor.name`, `$actor.type` — current actor fields
+ * - `$input.<field>` — action input fields
+ * - `$now` — current ISO timestamp
+ * - `$now.date` — current ISO date (YYYY-MM-DD)
+ * - Plain values pass through unchanged.
+ */
+function resolveFieldExpression(
+  value: unknown,
+  input: Record<string, unknown>,
+  actor: Actor,
+): unknown {
+  if (typeof value !== "string" || !value.startsWith("$")) return value;
+
+  if (value === "$now") return new Date().toISOString();
+  if (value === "$now.date") return new Date().toISOString().slice(0, 10);
+
+  if (value.startsWith("$actor.")) {
+    const field = value.slice("$actor.".length);
+    return (actor as Record<string, unknown>)[field];
+  }
+
+  if (value.startsWith("$input.")) {
+    const field = value.slice("$input.".length);
+    return input[field];
+  }
+
+  // Unknown expression — return as-is
+  return value;
+}
 
 function generateExecutionId(): string {
   return `exec_${crypto.randomUUID()}`;
@@ -331,6 +366,8 @@ export interface ActionExecutorOptions {
   configRegistry?: ConfigRegistry;
   /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
   metrics?: MetricsCollector;
+  /** Event bus for emitting action lifecycle events (action.succeeded, action.failed) */
+  eventBus?: EventBus;
 }
 
 /**
@@ -356,6 +393,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     aiService,
     configRegistry,
     metrics = noopMetricsCollector,
+    eventBus,
   } = options;
 
   /** Helper: build and log an execution entry */
@@ -513,6 +551,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const pendingEvents: PendingEvent[] = [];
     const noopAi: AIService = {
       configured: false,
+      defaultProvider: null,
+      providerNames: [],
       complete: () => {
         throw new Error(
           "AI service is not configured. Add an 'ai' section to your LinchKit config.",
@@ -688,14 +728,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (action.handler) {
           resultData = await action.handler(ctx);
         } else {
-          // Declarative action
+          // Declarative action — no handler needed
           const recordId = input.id as string | undefined;
 
           if (recordId) {
             const updates: Record<string, unknown> = {};
 
             if (action.setFields) {
-              Object.assign(updates, action.setFields);
+              for (const [key, value] of Object.entries(action.setFields)) {
+                updates[key] = resolveFieldExpression(value, input, actor);
+              }
             }
 
             if (action.stateTransition) {
@@ -704,6 +746,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
             if (Object.keys(updates).length > 0) {
               record = await dp.update(action.schema, recordId, updates, queryOptions);
+              resultData = record;
             }
           }
         }
@@ -762,6 +805,31 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         startedAt,
       });
 
+      // Emit action.succeeded event to EventBus (non-blocking — must not affect action result)
+      if (eventBus) {
+        try {
+          await eventBus.emit({
+            id: crypto.randomUUID(),
+            type: "action.succeeded",
+            category: "runtime",
+            timestamp: new Date(),
+            actor: { type: actor.type, id: actor.id },
+            schema: action.schema,
+            action: actionName,
+            executionId,
+            tenantId: execOptions?.tenantId,
+            payload: {
+              action: actionName,
+              ...((typeof resultData === "object" && resultData !== null)
+                ? (resultData as Record<string, unknown>)
+                : { result: resultData }),
+            },
+          });
+        } catch {
+          // Don't fail the action if event emission fails
+        }
+      }
+
       return {
         success: true,
         data: resultData as T,
@@ -793,6 +861,30 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         startedAt,
       });
+
+      // Emit action.failed event to EventBus (non-blocking — must not affect action result)
+      if (eventBus) {
+        try {
+          await eventBus.emit({
+            id: crypto.randomUUID(),
+            type: "action.failed",
+            category: "runtime",
+            timestamp: new Date(),
+            actor: { type: actor.type, id: actor.id },
+            schema: action.schema,
+            action: actionName,
+            executionId,
+            tenantId: execOptions?.tenantId,
+            payload: {
+              action: actionName,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        } catch {
+          // Don't fail the action if event emission fails
+        }
+      }
+
       return {
         success: false,
         data: {

@@ -5,7 +5,7 @@
  * and other helpers used across multiple route files.
  */
 
-import type { ActionResult, Actor } from "@linchkit/core";
+import type { ActionResult, Actor, CapabilityDefinition } from "@linchkit/core";
 
 /** Default anonymous actor for unauthenticated requests. */
 export const ANONYMOUS_ACTOR: Actor = {
@@ -114,6 +114,53 @@ export function resolveRequestLocale(request: Request): string | undefined {
   const queryLocale = url.searchParams.get("locale");
   if (queryLocale) return queryLocale;
   return parseAcceptLanguage(request.headers.get("accept-language"));
+}
+
+// ── Error response helpers ───────────────────────────────────────────
+
+/** Return a 503 (or custom status) "service unavailable" error envelope. */
+export function serviceUnavailable(set: { status: number }, message: string, status = 503) {
+  set.status = status;
+  return { success: false as const, error: { message } };
+}
+
+/** Return a 404 "not found" error envelope. */
+export function notFound(set: { status: number }, message: string) {
+  set.status = 404;
+  return { success: false as const, error: { message } };
+}
+
+/** Return a 400 "bad request" error envelope. */
+export function badRequest(set: { status: number }, message: string) {
+  set.status = 400;
+  return { success: false as const, error: { message } };
+}
+
+/** Return a 500 "server error" error envelope. */
+export function serverError(set: { status: number }, message: string) {
+  set.status = 500;
+  return { success: false as const, error: { message } };
+}
+
+// ── Collection helper ────────────────────────────────────────────────
+
+/**
+ * Collect items from direct options or, when empty, aggregate from capabilities.
+ * Replaces the repeated "allFlows/allStates" collection pattern.
+ */
+export function collectFromCapabilities<T>(
+  direct: T[] | undefined,
+  capabilities: CapabilityDefinition[],
+  field: keyof CapabilityDefinition,
+): T[] {
+  const items: T[] = [...(direct ?? [])];
+  if (!items.length && capabilities.length > 0) {
+    for (const cap of capabilities) {
+      const capItems = cap[field] as T[] | undefined;
+      if (capItems) items.push(...capItems);
+    }
+  }
+  return items;
 }
 
 /**

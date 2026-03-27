@@ -66,6 +66,21 @@ export interface ViewDefinition {
   defaultSort?: { field: string; order: "asc" | "desc" };
   defaultFilter?: Record<string, unknown>;
   pageSize?: number;
+  /**
+   * What happens when a row is clicked in list view.
+   * - "navigate" (default): navigate to /schemas/:name/:id (edit/detail form)
+   * - "dialog": show record details in a modal dialog
+   * - "expand": expand row inline to show detail panel
+   * - "none": no action on row click
+   */
+  rowAction?: "navigate" | "dialog" | "expand" | "none";
+  /**
+   * Custom route template for rowAction="navigate".
+   * Supports `{id}` and `{name}` placeholders.
+   * Example: "/admin/rules/{id}" navigates to the rule detail page.
+   * When omitted, defaults to "/schemas/{name}/{id}".
+   */
+  rowActionRoute?: string;
 
   // Kanban-specific
   groupBy?: string;

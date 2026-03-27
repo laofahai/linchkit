@@ -39,14 +39,14 @@ function sanitizeHtml(html: string): string {
 
 export function RichTextDisplay({ value }: WidgetDisplayProps) {
   if (value == null || value === "") {
-    return <span className="text-muted-foreground">&mdash;</span>;
+    return <span className="text-muted-foreground leading-9">&mdash;</span>;
   }
 
   const html = sanitizeHtml(String(value));
 
   return (
     <div
-      className="prose prose-sm dark:prose-invert max-w-none line-clamp-3"
+      className="prose prose-sm dark:prose-invert max-w-none"
       // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized above
       dangerouslySetInnerHTML={{ __html: html }}
     />

@@ -227,6 +227,10 @@ export interface AIStreamResult {
 export interface AIService {
   /** Whether a real AI provider is configured (false for noop) */
   configured: boolean;
+  /** Default provider name (null when not configured) */
+  defaultProvider: string | null;
+  /** List of configured provider names (empty when not configured) */
+  providerNames: string[];
   /** Single completion request */
   complete(options: AICompletionOptions): Promise<AICompletionResult>;
   /** Streaming completion request — returns an async iterable of text chunks */

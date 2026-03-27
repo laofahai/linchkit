@@ -249,6 +249,17 @@ export async function bulkDeleteRecords(
 
 // ── App config ──────────────────────────────────────────
 
+/** Menu item registered by a capability */
+export interface MenuItemConfig {
+  id: string;
+  label: string;
+  path: string;
+  icon?: string;
+  section?: "main" | "admin";
+  order?: number;
+  auth?: "required" | "anonymous" | "optional";
+}
+
 /** Application config returned by GET /api/app-config */
 export interface AppConfig {
   authEnabled: boolean;
@@ -266,6 +277,7 @@ export interface AppConfig {
     order?: number;
     showInNav?: boolean;
   }>;
+  menuItems?: MenuItemConfig[];
 }
 
 let cachedAppConfig: AppConfig | null = null;
@@ -279,10 +291,10 @@ export async function fetchAppConfig(): Promise<AppConfig> {
   try {
     const res = await fetch("/api/app-config");
     const json = await res.json();
-    cachedAppConfig = json.data ?? { authEnabled: false, aiEnabled: false, capabilities: [], pages: [] };
+    cachedAppConfig = json.data ?? { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
   } catch {
     // If server is unreachable, assume no auth (graceful degradation)
-    cachedAppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [] };
+    cachedAppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
   }
   return cachedAppConfig as AppConfig;
 }
@@ -301,6 +313,14 @@ export function isAuthEnabled(): boolean {
  */
 export function isAiEnabled(): boolean {
   return cachedAppConfig?.aiEnabled ?? false;
+}
+
+/**
+ * Get registered menu items from cached app config.
+ * Returns empty array before config is fetched.
+ */
+export function getMenuItems(): MenuItemConfig[] {
+  return cachedAppConfig?.menuItems ?? [];
 }
 
 // ── AI Auto-Fill ────────────────────────────────────────
@@ -348,6 +368,8 @@ export interface SchemaInfo {
   description?: string;
   /** Lucide icon name from schema presentation config */
   icon?: string;
+  /** True for system-internal schemas (read-only, managed by core) */
+  internal?: boolean;
 }
 
 import type { LinkDefinition, StateDefinition } from "@linchkit/core/types";
@@ -362,6 +384,8 @@ export interface SchemaBundle {
   views: Record<string, unknown>;
   states?: StateDefinition[];
   links?: LinkDefinition[];
+  /** True for system-internal schemas (read-only, managed by core) */
+  internal?: boolean;
 }
 
 /**
@@ -416,6 +440,8 @@ export interface AvailableTransition {
   from: string;
   to: string;
   action: string;
+  allowed: boolean;
+  reason?: string | null;
 }
 
 /**
@@ -428,7 +454,7 @@ export async function queryAvailableTransitions(
   const queryName = `${toCamelCase(schema)}AvailableTransitions`;
   const query = `
     query ($id: ID!) {
-      ${queryName}(id: $id) { from to action }
+      ${queryName}(id: $id) { from to action allowed reason }
     }
   `;
   const res = await graphql<Record<string, AvailableTransition[]>>(query, { id });

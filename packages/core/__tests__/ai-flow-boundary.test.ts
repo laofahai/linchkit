@@ -34,6 +34,8 @@ function createMockAIService(result?: Partial<AICompletionResult>): AIService {
 
   return {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: mock(() => Promise.resolve(defaultResult)),
   };
 }

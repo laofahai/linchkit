@@ -95,6 +95,8 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
 
   const mockAiService: AIService = {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: async () => ({
       content: JSON.stringify({
         action: "create_purchase_request",
@@ -173,6 +175,8 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     // Override mock to return low confidence
     const lowConfService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           action: null,

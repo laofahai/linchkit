@@ -60,10 +60,11 @@ export const purchaseRequestFormView: ViewDefinition = {
           },
         ],
       },
+      { type: "separator" },
       {
         type: "group",
         columns: 1,
-        children: [{ type: "field", field: "description" }],
+        children: [{ type: "field", field: "description", nolabel: true }],
       },
       {
         type: "notebook",

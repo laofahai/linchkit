@@ -59,6 +59,8 @@ function createRegistries() {
 
 const noopAIService = {
   configured: true,
+  defaultProvider: "mock",
+  providerNames: ["mock"],
   complete: async () => ({
     content: "ok",
     model: "test",

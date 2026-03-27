@@ -91,6 +91,8 @@ describe("POST /api/ai/search — with AI service", () => {
 
   const mockAiService: AIService = {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: async () => ({
       content: JSON.stringify({
         filter: {
@@ -146,6 +148,8 @@ describe("POST /api/ai/search — with AI service", () => {
   test("returns composite AND filter", async () => {
     const compositeAiService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           filter: {
@@ -203,6 +207,8 @@ describe("POST /api/ai/search — filter validation", () => {
     const PORT = 31933;
     const badFieldAiService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           filter: {
@@ -257,6 +263,8 @@ describe("POST /api/ai/search — filter validation", () => {
     const PORT = 31934;
     const sensitiveFieldAiService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           filter: {
@@ -308,6 +316,8 @@ describe("POST /api/ai/search — filter validation", () => {
     const PORT = 31935;
     const nullFilterAi: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           filter: null,
@@ -352,6 +362,8 @@ describe("POST /api/ai/search — query sanitization", () => {
     let capturedPrompt = "";
     const spyAiService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async (opts) => {
         // Capture the user message to verify sanitization
         capturedPrompt = opts.messages.find((m) => m.role === "user")?.content ?? "";
@@ -394,6 +406,8 @@ describe("POST /api/ai/search — query sanitization", () => {
     let capturedPrompt = "";
     const spyAiService: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async (opts) => {
         capturedPrompt = opts.messages.find((m) => m.role === "user")?.content ?? "";
         return {

@@ -193,6 +193,8 @@ export function mockAIService(
 
   return {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     calls,
     get callCount() {
       return calls.length;

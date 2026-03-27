@@ -11,7 +11,7 @@
 import type { ApprovalStatus } from "@linchkit/core";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
-import { resolveActor } from "./shared";
+import { badRequest, notFound, resolveActor, serviceUnavailable } from "./shared";
 
 export function mountApprovalRoutes(
   app: Elysia,
@@ -24,8 +24,7 @@ export function mountApprovalRoutes(
   app
     .get("/api/approvals", async ({ request, query, set }) => {
       if (!approvalEngine) {
-        set.status = 501;
-        return { success: false, error: { message: "Approval engine not configured." } };
+        return serviceUnavailable(set, "Approval engine not configured.", 501);
       }
       const actor = await resolveActor(request, resolveRequestActor);
 
@@ -53,20 +52,17 @@ export function mountApprovalRoutes(
     })
     .get("/api/approvals/:id", async ({ params, set }) => {
       if (!approvalEngine) {
-        set.status = 501;
-        return { success: false, error: { message: "Approval engine not configured." } };
+        return serviceUnavailable(set, "Approval engine not configured.", 501);
       }
       const request = await approvalEngine.store.getById(params.id);
       if (!request) {
-        set.status = 404;
-        return { success: false, error: { message: `Approval ${params.id} not found.` } };
+        return notFound(set, `Approval ${params.id} not found.`);
       }
       return { success: true, data: request };
     })
     .post("/api/approvals/:id/approve", async ({ params, body, request, set }) => {
       if (!approvalEngine) {
-        set.status = 501;
-        return { success: false, error: { message: "Approval engine not configured." } };
+        return serviceUnavailable(set, "Approval engine not configured.", 501);
       }
       const actor = await resolveActor(request, resolveRequestActor);
       const { note } = (body ?? {}) as { note?: string };
@@ -86,14 +82,12 @@ export function mountApprovalRoutes(
     })
     .post("/api/approvals/:id/reject", async ({ params, body, request, set }) => {
       if (!approvalEngine) {
-        set.status = 501;
-        return { success: false, error: { message: "Approval engine not configured." } };
+        return serviceUnavailable(set, "Approval engine not configured.", 501);
       }
       const actor = await resolveActor(request, resolveRequestActor);
       const { note } = (body ?? {}) as { note?: string };
       if (!note || note.trim() === "") {
-        set.status = 400;
-        return { success: false, error: { message: "Rejection note is required." } };
+        return badRequest(set, "Rejection note is required.");
       }
       try {
         const result = await approvalEngine.reject(

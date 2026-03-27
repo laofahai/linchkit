@@ -23,6 +23,8 @@ function createMockAIService(result?: Partial<AICompletionResult>): AIService {
 
   return {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: mock(() => Promise.resolve(defaultResult)),
   };
 }
@@ -723,6 +725,8 @@ describe("AIBoundary", () => {
       let resolveCall: () => void;
       const slowService: AIService = {
         configured: true,
+        defaultProvider: "mock",
+        providerNames: ["mock"],
         complete: () =>
           new Promise<AICompletionResult>((resolve) => {
             resolveCall = () =>
@@ -961,6 +965,8 @@ describe("AIBoundary", () => {
     it("handles AI service errors without leaking concurrent count", async () => {
       const failingService: AIService = {
         configured: true,
+        defaultProvider: "mock",
+        providerNames: ["mock"],
         complete: () => Promise.reject(new Error("API error")),
       };
 

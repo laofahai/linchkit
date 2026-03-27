@@ -209,6 +209,8 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
 
   const mockAiService: AIService = {
     configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     complete: async ({ messages }) => {
       // Capture the prompt for inspection
       lastPrompt = messages.map((m) => m.content).join("\n");
@@ -326,6 +328,8 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
     const PORT2 = 31906;
     const lowConfAi: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           title: { value: "Guess", confidence: 0.2, reason: "random" },
@@ -375,6 +379,8 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
     const PORT2 = 31907;
     const badEnumAi: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: JSON.stringify({
           priority: { value: "critical", confidence: 0.9, reason: "invented option" },
@@ -468,6 +474,8 @@ describe("GET /api/app-config — aiEnabled flag", () => {
     const PORT = 31903;
     const mockAi: AIService = {
       configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
       complete: async () => ({
         content: "",
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },

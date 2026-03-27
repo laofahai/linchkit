@@ -51,7 +51,7 @@ export const purchaseItemSchema: SchemaDefinition = {
       derived: {
         type: "expression",
         strategy: "compute",
-        expression: "quantity * unit_price",
+        expr: "quantity * unit_price",
         deps: ["quantity", "unit_price"],
       },
     },

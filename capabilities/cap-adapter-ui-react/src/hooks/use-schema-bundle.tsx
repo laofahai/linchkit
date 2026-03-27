@@ -14,6 +14,8 @@ export interface ResolvedSchemaBundle {
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
   links?: LinkDefinition[];
+  /** True for system-internal schemas (read-only, managed by core) */
+  internal?: boolean;
 }
 
 function normalizeViews(rawViews: unknown): Record<string, ViewDefinition> {
@@ -79,6 +81,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
       views: normalizeViews(raw.views),
       states: raw.states,
       links: raw.links,
+      internal: raw.internal,
     };
 
     cacheRef.current.set(name, bundle);

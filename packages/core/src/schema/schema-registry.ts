@@ -65,6 +65,8 @@ export class SchemaRegistry {
   private extensions = new Map<string, SchemaExtension[]>();
   private overrides = new Map<string, SchemaOverride[]>();
   private _interfaceRegistry: InterfaceRegistry | null = null;
+  /** Schema names registered via registerInternal() — system-managed, read-only in UI */
+  private _internalSchemas = new Set<string>();
 
   /** Set the InterfaceRegistry for interface validation and field injection */
   setInterfaceRegistry(registry: InterfaceRegistry): void {
@@ -149,6 +151,40 @@ export class SchemaRegistry {
     }
 
     this.schemas.set(schema.name, schema);
+  }
+
+  /**
+   * Register a system-internal schema (e.g. execution_log, approval).
+   *
+   * Only the core system should call this — capability authors use `register()`.
+   * Internal schemas:
+   * - Use system tables or in-memory registries as data source
+   * - Are read-only in the UI (no create/update/delete)
+   * - Skip inheritance and interface validation (they are standalone)
+   * - Do NOT get standard system fields injected (they define their own)
+   */
+  registerInternal(schema: SchemaDefinition): void {
+    if (!schema.name) {
+      throw new Error("Schema must have a name");
+    }
+    if (!schema.fields || Object.keys(schema.fields).length === 0) {
+      throw new Error(`Schema "${schema.name}" must have at least one field`);
+    }
+    if (this.schemas.has(schema.name)) {
+      throw new Error(`Schema "${schema.name}" is already registered`);
+    }
+    this.schemas.set(schema.name, schema);
+    this._internalSchemas.add(schema.name);
+  }
+
+  /** Check if a schema was registered as internal (system-managed) */
+  isInternal(name: string): boolean {
+    return this._internalSchemas.has(name);
+  }
+
+  /** Get all internal schema names */
+  getInternalNames(): string[] {
+    return Array.from(this._internalSchemas);
   }
 
   /**
@@ -244,10 +280,15 @@ export class SchemaRegistry {
       throw new Error(`Schema "${name}" is not registered`);
     }
 
-    // Start with system fields
     const fields: Record<string, ResolvedField> = {};
-    for (const [fname, fdef] of Object.entries(SYSTEM_FIELDS)) {
-      fields[fname] = resolveField(fname, fdef);
+    const isInternal = this._internalSchemas.has(name);
+
+    // Internal schemas define their own fields — skip system field injection
+    if (!isInternal) {
+      // Start with system fields
+      for (const [fname, fdef] of Object.entries(SYSTEM_FIELDS)) {
+        fields[fname] = resolveField(fname, fdef);
+      }
     }
 
     // Inject interface fields (before inherited + own fields, so they can be overridden)
@@ -314,6 +355,7 @@ export class SchemaRegistry {
       name: schema.name,
       label: schema.label,
       abstract: schema.abstract,
+      internal: isInternal || undefined,
       parent: schema.extends,
       children: this.getChildren(name),
       implements: schema.implements,

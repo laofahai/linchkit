@@ -27,7 +27,7 @@ import type {
 } from "@linchkit/core/types";
 import { Button } from "@linchkit/ui-kit/components";
 import { AlertCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { AiSuggestionBadge } from "../ai-suggestion-badge";
@@ -422,14 +422,12 @@ export function AutoForm({
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
 
+    if (!visible) return null;
+
     return (
-      <div
-        key={node.field}
-        className="contents"
-        style={visible ? undefined : { display: "none" }}
-        data-field-visible={visible}
-      >
+      <>
         <FormFieldRow
+          key={node.field}
           node={node}
           fieldDef={fieldDef}
           viewField={vf ?? { field: node.field }}
@@ -454,7 +452,7 @@ export function AutoForm({
             />
           </div>
         )}
-      </div>
+      </>
     );
   }
 
@@ -549,7 +547,7 @@ export function AutoForm({
 
       {/* Layout nodes */}
       {layoutNodes.map((node, i) => (
-        <div key={getNodeKey(node, i)}>{renderNode(node, 0)}</div>
+        <Fragment key={getNodeKey(node, i)}>{renderNode(node, 0)}</Fragment>
       ))}
 
       {/* Footer */}

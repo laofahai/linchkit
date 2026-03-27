@@ -12,12 +12,14 @@
 
 import { defineCapability } from "@linchkit/core";
 import { approveAction } from "./actions/approve";
+import { rejectAction } from "./actions/reject";
 import { submitAction } from "./actions/submit";
 import {
   autoSetApprovedFields,
   autoSetSubmittedAt,
   notifyHighPrioritySubmission,
 } from "./automations/purchase-status";
+import { purchaseApprovalFlow } from "./flows/purchase-approval";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./links";
 import { departmentSchema } from "./schemas/department";
@@ -41,10 +43,11 @@ export const capPurchaseDemo = defineCapability({
 
   interfaces: [auditableInterface],
   schemas: [purchaseRequestSchema, departmentSchema, purchaseItemSchema],
-  actions: [submitAction, approveAction],
+  actions: [submitAction, approveAction, rejectAction],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
   links: [requestToDepartment, requestToItems],
+  flows: [purchaseApprovalFlow],
   automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
   extensions: {

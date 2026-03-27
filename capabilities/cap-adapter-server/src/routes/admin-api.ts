@@ -8,6 +8,8 @@
  * - GET /api/settings
  * - GET /api/rules, GET /api/rules/:name
  * - GET /api/flows, GET /api/flows/:name
+ * - POST /api/flows/:name/start — manually trigger a flow
+ * - GET /api/flows/:name/status/:instanceId — query flow instance status
  * - GET /api/states, GET /api/states/:name
  * - GET /api/executions, GET /api/executions/:id
  */
@@ -16,6 +18,13 @@ import type { ExecutionStatus, FlowDefinition, StateDefinition } from "@linchkit
 import { DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
+import {
+  badRequest,
+  collectFromCapabilities,
+  notFound,
+  serverError,
+  serviceUnavailable,
+} from "./shared";
 
 export function mountAdminRoutes(
   app: Elysia,
@@ -76,11 +85,12 @@ export function mountAdminRoutes(
         timestamp: new Date().toISOString(),
       };
     })
-    // App config — tells the UI which capabilities are loaded and their pages
+    // App config — tells the UI which capabilities are loaded and their pages/menus
     .get("/api/app-config", () => {
       const authEnabled = capabilities.some((c) => c.name === "cap-auth");
       const aiEnabled = !!aiService?.configured;
       const pages = capabilities.flatMap((c) => c.pages ?? []);
+      const menuItems = capabilities.flatMap((c) => c.extensions?.menuItems ?? []);
       return {
         success: true,
         data: {
@@ -88,6 +98,7 @@ export function mountAdminRoutes(
           aiEnabled,
           capabilities: capabilities.map((c) => c.name),
           pages,
+          menuItems,
         },
       };
     })
@@ -127,8 +138,10 @@ export function mountAdminRoutes(
           registeredSchemas: schemaRegistry?.getAll().length ?? 0,
           registeredActions: actionCount,
           registeredRules: rules.length,
-          registeredFlows: options.flows?.length ?? 0,
-          registeredStates: options.states?.length ?? 0,
+          registeredFlows: options.flows?.length ??
+            capabilities.reduce((sum, c) => sum + (c.flows?.length ?? 0), 0),
+          registeredStates: options.states?.length ??
+            capabilities.reduce((sum, c) => sum + (c.states?.length ?? 0), 0),
           capabilityCount: capabilities.length,
           capabilities: capabilities.map((c) => c.name),
         },
@@ -140,10 +153,8 @@ export function mountAdminRoutes(
         },
         ai: {
           configured: !!aiService?.configured,
-          defaultProvider: cfg?.ai?.defaultProvider ?? null,
-          providers: cfg?.ai?.providers
-            ? Object.keys(cfg.ai.providers)
-            : [],
+          defaultProvider: aiService?.defaultProvider ?? null,
+          providers: aiService?.providerNames ?? [],
         },
         auth: {
           enabled: capabilities.some((c) => c.name === "cap-auth"),
@@ -214,8 +225,7 @@ export function mountAdminRoutes(
     .get("/api/rules/:name", ({ params, set }) => {
       const rule = rules.find((r) => r.name === params.name);
       if (!rule) {
-        set.status = 404;
-        return { success: false, error: { message: `Rule "${params.name}" not found.` } };
+        return notFound(set, `Rule "${params.name}" not found.`);
       }
       return {
         success: true,
@@ -233,20 +243,17 @@ export function mountAdminRoutes(
     // ── Execution Log REST endpoints ────────────────────────
     .get("/api/executions", async ({ query, set }) => {
       if (!executionLogger) {
-        set.status = 500;
-        return { success: false, error: { message: "Execution logger not configured." } };
+        return serverError(set, "Execution logger not configured.");
       }
 
       // Validate date parameters
       const ISO_DATE_RE =
         /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
       if (query.since && !ISO_DATE_RE.test(query.since as string)) {
-        set.status = 400;
-        return { success: false, error: { message: "Invalid 'since' date format." } };
+        return badRequest(set, "Invalid 'since' date format.");
       }
       if (query.until && !ISO_DATE_RE.test(query.until as string)) {
-        set.status = 400;
-        return { success: false, error: { message: "Invalid 'until' date format." } };
+        return badRequest(set, "Invalid 'until' date format.");
       }
 
       // Validate and clamp pagination
@@ -254,15 +261,13 @@ export function mountAdminRoutes(
       let pageSize = query.pageSize ? Number(query.pageSize) : undefined;
       if (page !== undefined) {
         if (Number.isNaN(page)) {
-          set.status = 400;
-          return { success: false, error: { message: "Invalid 'page' parameter." } };
+          return badRequest(set, "Invalid 'page' parameter.");
         }
         page = Math.max(1, Math.floor(page));
       }
       if (pageSize !== undefined) {
         if (Number.isNaN(pageSize)) {
-          set.status = 400;
-          return { success: false, error: { message: "Invalid 'pageSize' parameter." } };
+          return badRequest(set, "Invalid 'pageSize' parameter.");
         }
         pageSize = Math.max(1, Math.min(100, Math.floor(pageSize)));
       }
@@ -282,37 +287,28 @@ export function mountAdminRoutes(
         });
         return { success: true, data: result };
       } catch (err) {
-        set.status = 500;
         const message =
           process.env.NODE_ENV === "production"
             ? "Failed to query execution logs."
             : err instanceof Error
               ? err.message
               : String(err);
-        return { success: false, error: { message } };
+        return serverError(set, message);
       }
     })
     .get("/api/executions/:id", async ({ params, set }) => {
       if (!executionLogger) {
-        set.status = 500;
-        return { success: false, error: { message: "Execution logger not configured." } };
+        return serverError(set, "Execution logger not configured.");
       }
       const entry = await executionLogger.getById(params.id);
       if (!entry) {
-        set.status = 404;
-        return { success: false, error: { message: `Execution ${params.id} not found.` } };
+        return notFound(set, `Execution ${params.id} not found.`);
       }
       return { success: true, data: entry };
     })
     // ── Flow REST endpoints ──────────────────────────────────
     .get("/api/flows", () => {
-      // Collect flows from options or capabilities
-      const allFlows: FlowDefinition[] = options.flows ?? [];
-      if (!allFlows.length && capabilities.length > 0) {
-        for (const cap of capabilities) {
-          if (cap.flows) allFlows.push(...cap.flows);
-        }
-      }
+      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
       const summary = allFlows.map((f) => ({
         name: f.name,
         label: f.label,
@@ -325,27 +321,50 @@ export function mountAdminRoutes(
       return { success: true, data: summary };
     })
     .get("/api/flows/:name", ({ params, set }) => {
-      const allFlows: FlowDefinition[] = options.flows ?? [];
-      if (!allFlows.length && capabilities.length > 0) {
-        for (const cap of capabilities) {
-          if (cap.flows) allFlows.push(...cap.flows);
-        }
-      }
+      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
       const flow = allFlows.find((f) => f.name === params.name);
       if (!flow) {
-        set.status = 404;
-        return { success: false, error: { message: `Flow "${params.name}" not found.` } };
+        return notFound(set, `Flow "${params.name}" not found.`);
       }
       return { success: true, data: flow };
     })
+    // ── Flow execution endpoints ────────────────────────────
+    .post("/api/flows/:name/start", async ({ params, body, set }) => {
+      const flowEngine = options.flowEngine;
+      if (!flowEngine) {
+        return serviceUnavailable(set, "Flow engine not available");
+      }
+
+      // Verify flow exists
+      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
+      const flow = allFlows.find((f) => f.name === params.name);
+      if (!flow) {
+        return notFound(set, `Flow "${params.name}" not found.`);
+      }
+
+      try {
+        const input = (body as Record<string, unknown>) ?? {};
+        const instance = await flowEngine.startFlow(params.name, input);
+        return { success: true, data: instance };
+      } catch (err) {
+        return serverError(set, err instanceof Error ? err.message : String(err));
+      }
+    })
+    .get("/api/flows/:name/status/:instanceId", async ({ params, set }) => {
+      const flowEngine = options.flowEngine;
+      if (!flowEngine) {
+        return serviceUnavailable(set, "Flow engine not available");
+      }
+
+      const instance = await flowEngine.getFlowStatus(params.instanceId);
+      if (!instance) {
+        return notFound(set, `Flow instance "${params.instanceId}" not found.`);
+      }
+      return { success: true, data: instance };
+    })
     // ── State Machine REST endpoints ─────────────────────────
     .get("/api/states", () => {
-      const allStates: StateDefinition[] = options.states ?? [];
-      if (!allStates.length && capabilities.length > 0) {
-        for (const cap of capabilities) {
-          if (cap.states) allStates.push(...cap.states);
-        }
-      }
+      const allStates = collectFromCapabilities<StateDefinition>(options.states, capabilities, "states");
       const summary = allStates.map((s) => ({
         name: s.name,
         schema: s.schema,
@@ -359,16 +378,10 @@ export function mountAdminRoutes(
       return { success: true, data: summary };
     })
     .get("/api/states/:name", ({ params, set }) => {
-      const allStates: StateDefinition[] = options.states ?? [];
-      if (!allStates.length && capabilities.length > 0) {
-        for (const cap of capabilities) {
-          if (cap.states) allStates.push(...cap.states);
-        }
-      }
+      const allStates = collectFromCapabilities<StateDefinition>(options.states, capabilities, "states");
       const state = allStates.find((s) => s.name === params.name);
       if (!state) {
-        set.status = 404;
-        return { success: false, error: { message: `State machine "${params.name}" not found.` } };
+        return notFound(set, `State machine "${params.name}" not found.`);
       }
       return { success: true, data: state };
     });

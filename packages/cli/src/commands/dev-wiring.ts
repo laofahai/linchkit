@@ -159,11 +159,18 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     console.log("[linch] Using DrizzleTransactionManager (Transactional Outbox)");
   }
 
+  // Create event bus — use PersistentEventBus when database is available
+  // (must be created before executor, which depends on it)
+  const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
+    ? createPersistentEventBus(dbInstance)
+    : createEventBus();
+
   const executor = createActionExecutor({
     dataProvider,
     transactionManager,
     executionLogger,
     configRegistry: registry,
+    eventBus,
   });
   for (const action of actionRegistry.getAll()) {
     executor.registry.register(action);
@@ -182,11 +189,6 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       `[linch] Registered ${middlewares.length} middleware(s) on CommandLayer: ${middlewares.map((m) => `${m.name}[${m.slot}]`).join(", ")}`,
     );
   }
-
-  // Create event bus — use PersistentEventBus when database is available
-  const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
-    ? createPersistentEventBus(dbInstance)
-    : createEventBus();
 
   // Start OutboxWorker for reliable event retry when DB is available
   let outboxWorker: OutboxWorker | undefined;
@@ -277,6 +279,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
 
   // Wire flow engine — dual-mode: Restate (durable) or Sync (fallback)
   let restateEndpoint: Awaited<ReturnType<typeof setupRestateEndpoint>> | undefined;
+  let flowEngine: FlowEngine | undefined;
 
   if (flowCount > 0) {
     // Create step context for flow execution
@@ -300,7 +303,6 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     });
 
     // Determine which flow engine to use
-    let flowEngine: FlowEngine;
     const restateConfig = config.flow?.restate;
 
     if (restateConfig) {
@@ -471,6 +473,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     approvalEngine,
     permissionRegistry,
     flowRegistry,
+    flowEngine,
     capabilities,
     ontologyRegistry,
     cacheManager,

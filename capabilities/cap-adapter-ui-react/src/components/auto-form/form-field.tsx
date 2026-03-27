@@ -59,18 +59,16 @@ export function FormFieldRow({
   if (node.nolabel) {
     return (
       <div
-        className={cn("py-2 text-sm leading-9 min-h-[36px]", node.className)}
+        className={cn("py-2 text-sm min-h-[36px]", node.className)}
         style={{ gridColumn: `span ${colspan * 2}` }}
         data-field={node.field}
       >
         {isViewMode || readonly ? (
-          <div className="text-foreground leading-9">
-            <FieldDisplay
-              field={viewField ?? { field: node.field }}
-              value={value}
-              fieldDef={fieldDef}
-            />
-          </div>
+          <FieldDisplay
+            field={viewField ?? { field: node.field }}
+            value={value}
+            fieldDef={fieldDef}
+          />
         ) : (
           <FieldInput
             field={viewField ?? { field: node.field }}
@@ -106,18 +104,16 @@ export function FormFieldRow({
 
       {/* Value cell */}
       <div
-        className={cn("text-sm leading-9 min-h-[36px] min-w-0", "py-1", "max-md:pt-0")}
+        className={cn("text-sm min-h-[36px] min-w-0", "py-1", "max-md:pt-0")}
         style={colspan > 1 ? { gridColumn: `span ${colspan * 2 - 1}` } : undefined}
         data-field={node.field}
       >
         {isViewMode || readonly ? (
-          <div className="text-foreground leading-9">
-            <FieldDisplay
-              field={viewField ?? { field: node.field }}
-              value={value}
-              fieldDef={fieldDef}
-            />
-          </div>
+          <FieldDisplay
+            field={viewField ?? { field: node.field }}
+            value={value}
+            fieldDef={fieldDef}
+          />
         ) : (
           <FieldInput
             field={viewField ?? { field: node.field }}

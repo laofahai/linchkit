@@ -18,6 +18,7 @@ import type {
   EventBus,
   ExecutionLogger,
   FlowDefinition,
+  FlowEngine,
   LinchKitConfig,
   OntologyRegistry,
   PermissionGroupDefinition,
@@ -112,6 +113,8 @@ export interface ServerOptions {
   metricsCollector?: InMemoryMetricsCollector;
   /** Flow definitions — used by /api/flows endpoints */
   flows?: FlowDefinition[];
+  /** Flow engine — used for starting and querying flow instances */
+  flowEngine?: FlowEngine;
   /** State definitions — used by /api/states endpoints */
   states?: StateDefinition[];
   /** LinchKit project config — used by /api/settings (sanitized, no secrets) */

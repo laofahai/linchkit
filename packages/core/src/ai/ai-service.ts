@@ -79,6 +79,8 @@ export function createAIService(config: AIServiceConfig): AIService {
 
   return {
     configured: true,
+    defaultProvider: config.defaultProvider,
+    providerNames: Object.keys(config.providers),
     complete: (options) =>
       executeWithFallback(config, options, costEstimator, cache),
     completeStream: (options) =>
@@ -93,6 +95,8 @@ export function createAIService(config: AIServiceConfig): AIService {
 export function createNoopAIService(): AIService {
   return {
     configured: false,
+    defaultProvider: null,
+    providerNames: [],
     complete: () => {
       throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
     },
