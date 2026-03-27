@@ -25,8 +25,31 @@ export const capAdapterServer = defineCapability({
             "./graphql/build-schema"
           );
           const { createServer } = await import("./server");
+          const { SystemDataProvider } = await import("./system-data-provider");
+          const { systemSchemas, systemViews, INTERNAL_SCHEMA_NAMES } = await import("./system-schemas");
 
-          // Generate CRUD actions for each schema, register into executor (skip duplicates)
+          // Register system schemas as internal (read-only, system-managed)
+          for (const schema of systemSchemas) {
+            if (!ctx.schemaRegistry.has(schema.name)) {
+              ctx.schemaRegistry.registerInternal(schema);
+            }
+          }
+
+          // Merge system schemas + views into context arrays
+          const allSchemas = [...ctx.schemas, ...systemSchemas];
+          const allViews = [...ctx.views, ...systemViews];
+
+          // Wrap DataProvider to handle internal schema queries
+          const systemDataProvider = ctx.dataProvider
+            ? new SystemDataProvider(ctx.dataProvider, {
+                db: (ctx.dataProvider as { db?: unknown }).db as import("drizzle-orm/postgres-js").PostgresJsDatabase | undefined,
+                rules: (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []),
+                flows: ctx.flowRegistry?.getAll() ?? [],
+                states: ctx.states ?? [],
+              })
+            : undefined;
+
+          // Generate CRUD actions for each business schema (skip internal)
           const crudOpts = ctx.derivedPropertyEngine
             ? { derivedPropertyEngine: ctx.derivedPropertyEngine }
             : undefined;
@@ -39,9 +62,9 @@ export const capAdapterServer = defineCapability({
             }
           }
 
-          // Build views map from flat array
+          // Build views map from flat array (including system views)
           const viewsMap = new Map<string, import("@linchkit/core/types").ViewDefinition[]>();
-          for (const view of ctx.views) {
+          for (const view of allViews) {
             const list = viewsMap.get(view.schema) ?? [];
             list.push(view);
             viewsMap.set(view.schema, list);
@@ -50,16 +73,17 @@ export const capAdapterServer = defineCapability({
           // Collect permission groups for data masking in GraphQL resolvers
           const permGroups = ctx.permissionRegistry?.getAll() ?? [];
 
-          // Build GraphQL schema using the shared executor + data provider from CLI
-          const graphqlSchema = buildGraphQLSchema(ctx.schemas, {
+          // Build GraphQL schema — uses composite data provider for all schemas
+          const graphqlSchema = buildGraphQLSchema(allSchemas, {
             executor: ctx.executor,
-            dataProvider: ctx.dataProvider,
+            dataProvider: systemDataProvider ?? ctx.dataProvider,
             executionLogger: ctx.executionLogger,
             links: ctx.links,
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,
             derivedPropertyEngine: ctx.derivedPropertyEngine,
             cacheManager: ctx.cacheManager,
+            internalSchemas: INTERNAL_SCHEMA_NAMES,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
@@ -90,6 +114,9 @@ export const capAdapterServer = defineCapability({
             permissionGroups: permGroups,
             schemaMap,
             rules: allRules,
+            states: ctx.states,
+            flows: ctx.flowRegistry?.getAll() ?? [],
+            flowEngine: ctx.flowEngine,
             aiService: ctx.aiService,
             aiConfig: ctx.aiConfig,
             ontologyRegistry: ctx.ontologyRegistry,
@@ -131,6 +158,11 @@ export const capAdapterServer = defineCapability({
         },
         // port/host come from system:server config — no transport-level config needed
       },
+    ],
+    menuItems: [
+      { id: "evolution", label: "t:evolution.navLabel", path: "/admin/evolution", icon: "History", section: "admin", order: 80 },
+      { id: "health", label: "t:health.title", path: "/admin/health", icon: "HeartPulse", section: "admin", order: 90 },
+      { id: "settings", label: "t:settings.title", path: "/admin/settings", icon: "Settings", section: "admin", order: 100 },
     ],
     commands: [
       {

@@ -45,7 +45,8 @@
     "settings": "Settings",
     "teams": "Teams",
     "addTeam": "Add team",
-    "aiEvolution": "AI Evolution"
+    "aiEvolution": "AI Evolution",
+    "system": "System"
   },
   "workspace": {
     "title": "Workspace",
@@ -331,6 +332,7 @@
   "emptyState": {
     "title": "No {{label}} yet",
     "description": "Create your first {{label}} to get started.",
+    "descriptionReadOnly": "No {{label}} records found.",
     "createButton": "Create {{label}}",
     "rules": {
       "title": "No rules defined",

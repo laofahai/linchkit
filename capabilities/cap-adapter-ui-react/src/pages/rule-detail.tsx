@@ -32,8 +32,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { RuleListItem } from "./rules-list";
-
 // ── Types ────────────────────────────────────────────────
 
 interface SerializedCondition {
@@ -43,6 +41,34 @@ interface SerializedCondition {
   value?: unknown;
   conditions?: SerializedCondition[];
   condition?: SerializedCondition;
+}
+
+interface RuleTrigger {
+  action?: string | string[];
+  stateChange?: { schema: string; from?: string; to?: string };
+  fieldChange?: { schema: string; field: string };
+  event?: string;
+  schedule?: string;
+}
+
+interface RuleEffect {
+  type: "block" | "warn" | "require_approval" | "enrich" | "execute_action";
+  message?: string;
+  reason?: string;
+  level?: string;
+  action?: string;
+  setFields?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+}
+
+export interface RuleListItem {
+  name: string;
+  label: string;
+  description?: string;
+  priority: number;
+  trigger: RuleTrigger;
+  condition: SerializedCondition;
+  effect: RuleEffect;
 }
 
 // ── Trigger display ────────────────────────────────────────
@@ -280,7 +306,7 @@ export function RuleDetailPage() {
     return (
       <div className="p-4 space-y-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/admin/rules">
+          <Link to={"/schemas/rule" as "/"}>
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
           </Link>
@@ -298,7 +324,7 @@ export function RuleDetailPage() {
       {/* Back + Header */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/admin/rules">
+          <Link to={"/schemas/rule" as "/"}>
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
           </Link>

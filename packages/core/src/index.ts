@@ -270,21 +270,3 @@ export {
   VersionRegistry,
   validateUpgrade,
 } from "./versioning";
-// System schemas — virtual read-only schemas for admin resources
-export {
-  approvalListView,
-  approvalSchema,
-  executionLogListView,
-  executionLogSchema,
-  flowListView,
-  flowSchema,
-  isSystemSchema,
-  proposalListView,
-  proposalSchema,
-  ruleListView,
-  ruleSchema,
-  stateMachineListView,
-  stateMachineSchema,
-  SYSTEM_SCHEMAS,
-  SYSTEM_VIEWS,
-} from "./system-schemas";

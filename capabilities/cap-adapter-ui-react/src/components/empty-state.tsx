@@ -46,7 +46,9 @@ export function EmptyState({
 
   const displayDescription = description
     ?? (schemaLabel
-      ? t("emptyState.description", "Create your first {{label}} to get started.", { label: schemaLabel })
+      ? (hideAction
+        ? t("emptyState.descriptionReadOnly", "No {{label}} records found.", { label: schemaLabel })
+        : t("emptyState.description", "Create your first {{label}} to get started.", { label: schemaLabel }))
       : undefined);
 
   const showCreateButton = !hideAction && schemaName && schemaLabel;

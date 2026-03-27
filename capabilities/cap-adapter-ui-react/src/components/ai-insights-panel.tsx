@@ -115,7 +115,7 @@ function InsightItem({ insight }: { insight: AIInsight }) {
           )}
         </div>
         <div className="mt-2">
-          <Link to="/admin/proposals">
+          <Link to={"/schemas/proposal" as "/"}>
             <Button variant="outline" size="sm" className="h-6 text-[11px] gap-1">
               <ZapIcon className="h-3 w-3" />
               {t("insights.reviewProposal")}
@@ -158,7 +158,7 @@ export function AIInsightsPanel() {
             </div>
           </div>
           <Link
-            to="/admin/proposals"
+            to={"/schemas/proposal" as "/"}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {t("workspace.viewAll")}
@@ -186,7 +186,7 @@ export function AIInsightsPanel() {
             ))}
             {insights.length > 4 && (
               <Link
-                to="/admin/proposals"
+                to={"/schemas/proposal" as "/"}
                 className="block text-center text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
               >
                 {t("insights.viewMore", { count: insights.length - 4 })}

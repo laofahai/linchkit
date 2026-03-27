@@ -571,7 +571,7 @@ export function WorkspacePage() {
                 </CardDescription>
               </div>
               <Link
-                to="/admin/executions"
+                to={"/schemas/execution_log" as "/"}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {t("workspace.viewAll")}

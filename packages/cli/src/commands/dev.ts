@@ -227,20 +227,6 @@ export const devCommand = defineCommand({
       schemaRegistry.register(schema);
     }
 
-    // Register system schemas (virtual, read-only — no DB tables generated).
-    // These are registered in the schemaRegistry for view/ontology discovery
-    // but excluded from the `schemas` array used for Drizzle table generation.
-    const { SYSTEM_SCHEMAS, SYSTEM_VIEWS } = await import("@linchkit/core/system-schemas");
-    for (const sysSchema of SYSTEM_SCHEMAS) {
-      if (!schemaRegistry.has(sysSchema.name)) {
-        schemaRegistry.register(sysSchema);
-      }
-    }
-    for (const sysView of SYSTEM_VIEWS) {
-      views.push(sysView);
-    }
-    console.log(`[linch] Registered ${SYSTEM_SCHEMAS.length} system schema(s) for admin views`);
-
     // Register all links (explicit + implicit) in LinkRegistry
     const linkRegistry = createLinkRegistry();
     for (const link of links) {

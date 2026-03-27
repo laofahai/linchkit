@@ -175,7 +175,7 @@ const ExecutionErrorType = new GraphQLObjectType({
 });
 
 const ExecutionLogEntryType = new GraphQLObjectType({
-  name: "ExecutionLogEntry",
+  name: "ExecutionLogQueryEntry",
   fields: {
     id: { type: new GraphQLNonNull(GraphQLID) },
     action: { type: new GraphQLNonNull(GraphQLString) },
@@ -217,7 +217,7 @@ const ExecutionLogEntryType = new GraphQLObjectType({
 });
 
 const ExecutionLogListResultType = new GraphQLObjectType({
-  name: "ExecutionLogListResult",
+  name: "ExecutionLogQueryResult",
   fields: {
     items: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExecutionLogEntryType))) },
     total: { type: new GraphQLNonNull(GraphQLInt) },
@@ -247,6 +247,8 @@ export interface BuildGraphQLSchemaOptions {
   derivedPropertyEngine?: DerivedPropertyEngine;
   /** State definitions for generating transition queries/mutations and validating state changes */
   stateDefinitions?: StateDefinition[];
+  /** Schema names that are internal (read-only) — skip mutation generation for these */
+  internalSchemas?: Set<string>;
 }
 
 /**
@@ -272,6 +274,7 @@ export function buildGraphQLSchema(
   const derivedEngine = options?.derivedPropertyEngine;
   const stateDefinitions = options?.stateDefinitions ?? [];
   const cacheManager = options?.cacheManager;
+  const internalSchemas = options?.internalSchemas ?? new Set<string>();
 
   /** Default TTL for GraphQL query cache entries (30s) */
   const GQL_CACHE_TTL = 30_000;
@@ -355,10 +358,17 @@ export function buildGraphQLSchema(
   const queryFields: Record<string, unknown> = {};
   const mutationFields: Record<string, unknown> = {};
 
+  // Schemas with manually-defined GraphQL types must be excluded from auto-generation
+  // to avoid type name collisions (e.g. execution_log has custom ExecutionLogListResult).
+  const schemasWithCustomTypes = new Set<string>();
+  // execution_log is now auto-generated; manual queries use renamed types to avoid collision
+
+  const autoSchemas = schemas.filter((s) => !schemasWithCustomTypes.has(s.name));
+
   // Pre-generate object types to reuse for both CRUD and custom action return types.
   // Pass the typeMap and links so that relation fields can reference other types lazily.
   const schemaObjectTypes = new Map<string, GraphQLObjectType>();
-  for (const schema of schemas) {
+  for (const schema of autoSchemas) {
     schemaObjectTypes.set(
       schema.name,
       generateGraphQLObjectType(
@@ -370,7 +380,7 @@ export function buildGraphQLSchema(
     );
   }
 
-  for (const schema of schemas) {
+  for (const schema of autoSchemas) {
     const objectType = schemaObjectTypes.get(schema.name);
     if (!objectType) continue;
     const inputType = generateGraphQLInputType(schema, undefined, links);
@@ -527,6 +537,11 @@ export function buildGraphQLSchema(
           }
         : () => ({ items: [], total: 0, pageInfo: { limit: 20, offset: 0, hasMore: false } }),
     };
+
+    // Internal schemas are read-only — skip mutation generation
+    if (internalSchemas.has(schemaName)) {
+      continue;
+    }
 
     // ── Mutation: create ──────────────────────────────────
     mutationFields[`create${pascalName}`] = {
@@ -685,6 +700,8 @@ export function buildGraphQLSchema(
           from: { type: new GraphQLNonNull(GraphQLString) },
           to: { type: new GraphQLNonNull(GraphQLString) },
           action: { type: new GraphQLNonNull(GraphQLString) },
+          allowed: { type: new GraphQLNonNull(GraphQLBoolean) },
+          reason: { type: GraphQLString },
         },
       });
 
@@ -703,7 +720,28 @@ export function buildGraphQLSchema(
                 const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
                 if (!record) return [];
                 const currentState = (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
-                return getAvailableTransitions(machine, currentState);
+                const transitions = getAvailableTransitions(machine, currentState);
+                // Enrich each transition with permission pre-check from action definitions
+                return transitions.map((tr) => {
+                  const actor = ctx.actor;
+                  // Check both transition action and update action permissions
+                  const actionNames = [tr.action, `update_${schemaName}`];
+                  for (const name of actionNames) {
+                    const actionDef = executor?.registry.get(name);
+                    const perms = actionDef?.permissions;
+                    if (!perms) continue;
+                    if (perms.actorTypes?.length && !perms.actorTypes.includes(actor.type)) {
+                      return { ...tr, allowed: false, reason: `Actor type "${actor.type}" is not allowed` };
+                    }
+                    if (perms.groups?.length) {
+                      const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
+                      if (!hasGroup) {
+                        return { ...tr, allowed: false, reason: `Requires group: ${perms.groups.join(", ")}` };
+                      }
+                    }
+                  }
+                  return { ...tr, allowed: true, reason: null };
+                });
               } catch {
                 return [];
               }
@@ -839,6 +877,8 @@ export function buildGraphQLSchema(
         return entry;
       },
     };
+
+    // executionLogList is now auto-generated with standard filter/sort/limit/offset arguments
   }
 
   // ── Custom action typed mutations ────────────────────────

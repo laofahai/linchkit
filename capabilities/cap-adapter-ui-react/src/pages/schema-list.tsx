@@ -12,16 +12,15 @@ import {
   Skeleton,
   toast,
 } from "@linchkit/ui-kit/components";
-import { cn } from "@linchkit/ui-kit/lib/utils";
+
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Calendar, Kanban, List, ListTree, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
-import { AutoList } from "../components/auto-list";
 import { AutoTree } from "../components/auto-tree";
-import { SavedViewTabs } from "../components/auto-list/saved-view-tabs";
+import { ListView, ViewToggle } from "../components/list-view";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { EmptyState } from "../components/empty-state";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
@@ -494,9 +493,18 @@ export function SchemaListPage() {
       case "create":
         navigate({ to: "/schemas/$name/new", params: { name: schemaName } });
         break;
-      case "edit":
-        navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+      case "edit": {
+        const editRoute = listView?.rowActionRoute;
+        if (editRoute) {
+          const url = editRoute
+            .replace("{id}", recordId)
+            .replace("{name}", schemaName);
+          navigate({ to: url as "/" });
+        } else {
+          navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+        }
         break;
+      }
       case "duplicate":
         navigate({
           to: "/schemas/$name/new",
@@ -515,7 +523,16 @@ export function SchemaListPage() {
 
   function handleRowClick(recordId: string) {
     if (!schemaName) return;
-    navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+    // Check if list view has custom detail route
+    const customRoute = listView?.rowActionRoute;
+    if (customRoute) {
+      const url = customRoute
+        .replace("{id}", recordId)
+        .replace("{name}", schemaName);
+      navigate({ to: url as "/" });
+    } else {
+      navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+    }
   }
 
   function handleBulkAction(action: string, ids: string[]) {
@@ -717,50 +734,20 @@ export function SchemaListPage() {
         <EmptyState
           schemaName={schemaName}
           schemaLabel={resolveLabel(schema.label, schemaName)}
+          hideAction={!!bundle?.internal}
         />
       </div>
     );
   }
 
-  // View toggle buttons (icon-only, shown when alternative views are available)
+  // View toggle options
   const hasViewToggle = hasCalendarOption || hasKanbanOption || hasTreeOption;
-  // Collect optional view buttons to determine border radius
-  const optionalViews: { key: ActiveView; icon: React.ReactNode; title: string; available: boolean }[] = [
-    { key: "tree", icon: <ListTree className="size-4" />, title: t("tree.treeView", "Tree view"), available: hasTreeOption },
-    { key: "kanban", icon: <Kanban className="size-4" />, title: t("kanban.kanbanView", "Kanban view"), available: hasKanbanOption },
-    { key: "calendar", icon: <Calendar className="size-4" />, title: t("calendar.calendarView", "Calendar view"), available: hasCalendarOption },
+  const viewToggleOptions = [
+    { key: "list", icon: <List className="size-3.5" />, label: t("calendar.listView", "List view") },
+    ...(hasTreeOption ? [{ key: "tree", icon: <ListTree className="size-3.5" />, label: t("tree.treeView", "Tree view") }] : []),
+    ...(hasKanbanOption ? [{ key: "kanban", icon: <Kanban className="size-3.5" />, label: t("kanban.kanbanView", "Kanban view") }] : []),
+    ...(hasCalendarOption ? [{ key: "calendar", icon: <Calendar className="size-3.5" />, label: t("calendar.calendarView", "Calendar view") }] : []),
   ];
-  const activeOptionalViews = optionalViews.filter((v) => v.available);
-
-  const viewToggle = hasViewToggle ? (
-    <div className="flex items-center rounded-md border border-border">
-      <Button
-        variant={activeView === "list" ? "default" : "ghost"}
-        size="icon-sm"
-        className={cn(activeOptionalViews.length > 0 && "rounded-r-none")}
-        onClick={() => setActiveView("list")}
-        title={t("calendar.listView", "List view")}
-      >
-        <List className="size-4" />
-      </Button>
-      {activeOptionalViews.map((view, index) => (
-        <Button
-          key={view.key}
-          variant={activeView === view.key ? "default" : "ghost"}
-          size="icon-sm"
-          className={cn(
-            "border-l border-border",
-            index === activeOptionalViews.length - 1 ? "rounded-l-none" : "rounded-none",
-            index === 0 && "rounded-l-none",
-          )}
-          onClick={() => setActiveView(view.key)}
-          title={view.title}
-        >
-          {view.icon}
-        </Button>
-      ))}
-    </div>
-  ) : null;
 
   // Real-time refresh indicator shown briefly when subscription triggers a reload
   const refreshIndicator = hasNewData ? (
@@ -770,66 +757,37 @@ export function SchemaListPage() {
     </span>
   ) : null;
 
-  // Combine view toggle and refresh indicator
-  const toolbarExtraContent = (
-    <div className="flex items-center gap-2">
-      {refreshIndicator}
-      {viewToggle}
-    </div>
-  );
+  // Primary action button for non-list views (hidden for internal/system schemas)
+  const primaryActionButton = (() => {
+    if (bundle?.internal) return null;
+    const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
+    if (!primary) return null;
+    return (
+      <Button
+        size="sm"
+        variant={primary.variant === "destructive" ? "destructive" : "default"}
+        onClick={() => handleAction(primary.action, "")}
+      >
+        {primary.label
+          ? t(primary.label, primary.label)
+          : t(`actions.${primary.action}`, primary.action)}
+      </Button>
+    );
+  })();
 
-  return (
-    <div className="p-4 space-y-3">
-      {/* Saved view tabs */}
-      <SavedViewTabs
-        views={savedViews}
-        activeViewId={activeSavedViewId}
-        onSelectView={handleSelectSavedView}
-        onCreateView={handleCreateSavedView}
-        onRenameView={renameView}
-        onDeleteView={handleDeleteSavedView}
-        hasActiveFilters={hasActiveListFilters}
-      />
+  // Alternate view content (kanban, tree, calendar)
+  const alternateViewContent = activeView !== "list" ? (() => {
+    const viewToggleConfig = hasViewToggle ? { options: viewToggleOptions, activeView, onViewChange: setActiveView as (v: string) => void } : undefined;
 
-      {/* Active view content */}
-      {activeView === "list" ? (
-        <AutoList
-          schema={schema}
-          view={effectiveListView!}
-          data={viewFilteredData}
-          loading={loading}
-          selectable
-          onAction={handleAction}
-          onBulkAction={handleBulkAction}
-          onRowClick={handleRowClick}
-          toolbarExtra={toolbarExtraContent}
-          onFiltersChange={setCurrentBazzaFilters}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-        />
-      ) : activeView === "kanban" && primaryStateDef ? (
+    if (activeView === "kanban" && primaryStateDef) {
+      return (
         <div className="space-y-4">
-          {/* Toolbar for kanban view */}
           <div className="flex items-center gap-3">
             <div className="flex-1" />
             <div className="flex shrink-0 items-center gap-2">
-              {(() => {
-                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
-                if (!primary) return null;
-                return (
-                  <Button
-                    size="sm"
-                    variant={primary.variant === "destructive" ? "destructive" : "default"}
-                    onClick={() => handleAction(primary.action, "")}
-                  >
-                    {primary.label
-                      ? t(primary.label, primary.label)
-                      : t(`actions.${primary.action}`, primary.action)}
-                  </Button>
-                );
-              })()}
+              {primaryActionButton}
               {refreshIndicator}
-              {viewToggle}
+              {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
             </div>
           </div>
           <AutoKanban
@@ -842,7 +800,11 @@ export function SchemaListPage() {
             queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
           />
         </div>
-      ) : activeView === "tree" && selfRefField ? (
+      );
+    }
+
+    if (activeView === "tree" && selfRefField) {
+      return (
         <AutoTree
           schemaName={schemaName}
           parentField={selfRefField}
@@ -852,82 +814,87 @@ export function SchemaListPage() {
           onRecordClick={handleRowClick}
           toolbarExtra={
             <div className="flex items-center gap-2">
-              {(() => {
-                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
-                if (!primary) return null;
-                return (
-                  <Button
-                    size="sm"
-                    variant={primary.variant === "destructive" ? "destructive" : "default"}
-                    onClick={() => handleAction(primary.action, "")}
-                  >
-                    {primary.label
-                      ? t(primary.label, primary.label)
-                      : t(`actions.${primary.action}`, primary.action)}
-                  </Button>
-                );
-              })()}
+              {primaryActionButton}
               {refreshIndicator}
-              {viewToggle}
+              {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
             </div>
           }
         />
-      ) : (
-        <div className="space-y-4">
-          {/* Unified toolbar for calendar view */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1" />
-            <div className="flex shrink-0 items-center gap-2">
-              {/* Primary action button — mirrors list toolbar */}
-              {(() => {
-                const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");
-                if (!primary) return null;
-                return (
-                  <Button
-                    size="sm"
-                    variant={primary.variant === "destructive" ? "destructive" : "default"}
-                    onClick={() => handleAction(primary.action, "")}
-                  >
-                    {primary.label
-                      ? t(primary.label, primary.label)
-                      : t(`actions.${primary.action}`, primary.action)}
-                  </Button>
-                );
-              })()}
-              {viewToggle}
-            </div>
+      );
+    }
+
+    // Calendar view (fallback)
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1" />
+          <div className="flex shrink-0 items-center gap-2">
+            {primaryActionButton}
+            {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
           </div>
-          <AutoCalendar
-            schema={schema}
-            dateField={calendarDateField!}
-            titleField={calendarViewDef?.titleField}
-            colorField={calendarViewDef?.colorField}
-            data={data}
-            onRecordClick={handleRowClick}
-            loading={loading}
-          />
         </div>
-      )}
+        <AutoCalendar
+          schema={schema}
+          dateField={calendarDateField!}
+          titleField={calendarViewDef?.titleField}
+          colorField={calendarViewDef?.colorField}
+          data={data}
+          onRecordClick={handleRowClick}
+          loading={loading}
+        />
+      </div>
+    );
+  })() : undefined;
 
-      {/* Single record delete confirmation */}
-      <ConfirmDialog
-        open={singleDeleteOpen}
-        onOpenChange={setSingleDeleteOpen}
-        title={t("confirm.deleteTitle", "Delete record")}
-        description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
-        onConfirm={executeSingleDelete}
-        loading={singleDeleting}
-      />
-
-      {/* Bulk delete confirmation */}
-      <ConfirmDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        title={t("bulk.deleteTitle", "Delete records")}
-        description={t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
-        onConfirm={executeBulkDelete}
-        loading={bulkDeleting}
-      />
-    </div>
+  return (
+    <ListView
+      schema={schema}
+      view={effectiveListView!}
+      data={viewFilteredData}
+      loading={loading}
+      selectable={!bundle?.internal}
+      onAction={bundle?.internal ? undefined : handleAction}
+      onBulkAction={bundle?.internal ? undefined : handleBulkAction}
+      onRowClick={handleRowClick}
+      onFiltersChange={setCurrentBazzaFilters}
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      savedViews={{
+        views: savedViews,
+        activeViewId: activeSavedViewId,
+        onSelectView: handleSelectSavedView,
+        onCreateView: handleCreateSavedView,
+        onRenameView: renameView,
+        onDeleteView: handleDeleteSavedView,
+        hasActiveFilters: hasActiveListFilters,
+      }}
+      viewToggle={hasViewToggle ? {
+        options: viewToggleOptions,
+        activeView,
+        onViewChange: setActiveView as (v: string) => void,
+      } : undefined}
+      refreshIndicator={refreshIndicator}
+      alternateViewContent={alternateViewContent}
+      afterContent={
+        <>
+          <ConfirmDialog
+            open={singleDeleteOpen}
+            onOpenChange={setSingleDeleteOpen}
+            title={t("confirm.deleteTitle", "Delete record")}
+            description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
+            onConfirm={executeSingleDelete}
+            loading={singleDeleting}
+          />
+          <ConfirmDialog
+            open={bulkDeleteOpen}
+            onOpenChange={setBulkDeleteOpen}
+            title={t("bulk.deleteTitle", "Delete records")}
+            description={t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
+            onConfirm={executeBulkDelete}
+            loading={bulkDeleting}
+          />
+        </>
+      }
+    />
   );
 }

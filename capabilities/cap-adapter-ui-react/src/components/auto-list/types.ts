@@ -27,6 +27,8 @@ export interface AutoListViewDefinition {
 	actions?: ViewAction[];
 	defaultSort?: { field: string; order: "asc" | "desc" };
 	pageSize?: number;
+	/** Custom route for row click navigation. Supports {id} and {name} placeholders. */
+	rowActionRoute?: string;
 }
 
 /** Serializable filter entry used by saved views. */

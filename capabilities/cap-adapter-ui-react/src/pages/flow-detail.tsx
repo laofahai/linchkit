@@ -239,7 +239,7 @@ export function FlowDetailPage() {
   if (error || !flow) {
     return (
       <div className="p-4 space-y-4">
-        <Link to={"/admin/flows" as "/"}>
+        <Link to={"/schemas/flow" as "/"}>
           <Button variant="ghost" size="sm">
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
@@ -256,7 +256,7 @@ export function FlowDetailPage() {
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to={"/admin/flows" as "/"}>
+        <Link to={"/schemas/flow" as "/"}>
           <Button variant="ghost" size="icon-sm">
             <ArrowLeftIcon className="size-4" />
           </Button>

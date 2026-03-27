@@ -1,8 +1,8 @@
 /**
- * StateMachinesPage — Lists all registered state machines using AutoList.
+ * StateMachineDetailPage — Detail view for a single state machine.
  *
- * Route: /admin/states
- * Fetches from /api/states REST endpoint (falls back to demo data).
+ * Route: /admin/states/$name
+ * Shows state diagram and transitions table.
  */
 
 import {
@@ -12,19 +12,13 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@linchkit/ui-kit/components";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CircleDotIcon,
-  RefreshCwIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -80,158 +74,6 @@ function getStateLabel(
     return t(key, { defaultValue: stateName });
   }
   return raw;
-}
-
-// ── State machines list page ─────────────────────────────
-
-export function StateMachinesPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [machines, setMachines] = useState<StateMachineSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [schemaFilter, setSchemaFilter] = useState<string>("all");
-
-  const fetchMachines = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/states");
-      if (res.ok) {
-        const json = await res.json();
-        setMachines(json.data ?? []);
-      } else {
-        setMachines([]);
-      }
-    } catch {
-      setMachines([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchMachines();
-  }, [fetchMachines]);
-
-  const allSchemas = [...new Set(machines.map((m) => m.schema))];
-  const filtered = schemaFilter === "all"
-    ? machines
-    : machines.filter((m) => m.schema === schemaFilter);
-
-  // Build AutoList column definitions
-  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
-    {
-      accessorKey: "name",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.columns.name", { defaultValue: "Name" })} />,
-      cell: ({ row }) => {
-        const machine = row.original as unknown as StateMachineSummary;
-        return (
-          <div>
-            <div className="font-medium text-sm">{machine.name}</div>
-            <div className="text-xs text-muted-foreground font-mono">
-              {machine.schema}.{machine.field}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "schema",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.columns.schema", { defaultValue: "Schema" })} />,
-      cell: ({ row }) => (
-        <span className="text-xs font-mono">{row.getValue("schema") as string}</span>
-      ),
-      size: 140,
-    },
-    {
-      id: "states",
-      header: t("stateMachines.columns.states", { defaultValue: "States" }),
-      cell: ({ row }) => {
-        const machine = row.original as unknown as StateMachineSummary;
-        return (
-          <div className="flex items-center gap-1 flex-wrap">
-            {machine.states.map((s) => (
-              <Badge
-                key={s}
-                variant="outline"
-                className={`text-[10px] ${getStateBadgeClass(getStateColor(s, machine.meta))}`}
-              >
-                {s === machine.initial && <CircleDotIcon className="size-2.5 mr-0.5" />}
-                {getStateLabel(s, machine.meta, t)}
-              </Badge>
-            ))}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "stateCount",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.states", { defaultValue: "States" })} />,
-      cell: ({ row }) => {
-        const machine = row.original as unknown as StateMachineSummary;
-        return (
-          <span className="text-xs text-muted-foreground">
-            {machine.stateCount} / {machine.transitionCount}
-          </span>
-        );
-      },
-      size: 100,
-    },
-    {
-      id: "navigate",
-      header: "",
-      size: 40,
-      cell: () => (
-        <ArrowRightIcon className="size-4 text-muted-foreground" />
-      ),
-    },
-  ], [t]);
-
-  // Convert to DataRow for AutoList
-  const tableData = useMemo<Record<string, unknown>[]>(
-    () => filtered.map((m) => ({ ...m, id: m.name }) as Record<string, unknown>),
-    [filtered],
-  );
-
-  return (
-    <div className="p-4">
-      <AutoList
-        columns={columns}
-        data={tableData}
-        pageSize={20}
-        loading={loading}
-        emptyState={{
-          title: t("emptyState.stateMachines.title"),
-          description: t("emptyState.stateMachines.description"),
-        }}
-        onRowClick={(id) => {
-          navigate({ to: "/admin/states/$name" as string, params: { name: id } } as Parameters<typeof navigate>[0]);
-        }}
-        toolbarExtra={
-          <>
-            {allSchemas.length > 1 && (
-              <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-                <SelectTrigger className="w-48 h-7 text-[0.8rem]">
-                  <SelectValue placeholder={t("stateMachines.allSchemas")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("stateMachines.allSchemas")}</SelectItem>
-                  {allSchemas.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <span className="text-sm text-muted-foreground">
-              {filtered.length} {t("stateMachines.machineCount")}
-            </span>
-            <Button variant="outline" size="icon-sm" onClick={fetchMachines} disabled={loading} title={t("executionLog.refresh")}>
-              <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
-            </Button>
-          </>
-        }
-      />
-    </div>
-  );
 }
 
 // ── Transitions AutoList sub-component ───────────────────
@@ -364,7 +206,7 @@ export function StateMachineDetailPage() {
   if (error || !machine) {
     return (
       <div className="p-4 space-y-4">
-        <Link to={"/admin/states" as "/"}>
+        <Link to={"/schemas/state_machine" as "/"}>
           <Button variant="ghost" size="sm">
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
@@ -381,7 +223,7 @@ export function StateMachineDetailPage() {
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to={"/admin/states" as "/"}>
+        <Link to={"/schemas/state_machine" as "/"}>
           <Button variant="ghost" size="icon-sm">
             <ArrowLeftIcon className="size-4" />
           </Button>

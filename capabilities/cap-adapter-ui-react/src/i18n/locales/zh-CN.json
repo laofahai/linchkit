@@ -45,7 +45,8 @@
     "settings": "设置",
     "teams": "团队",
     "addTeam": "添加团队",
-    "aiEvolution": "AI 进化"
+    "aiEvolution": "AI 进化",
+    "system": "系统"
   },
   "workspace": {
     "title": "工作台",
@@ -331,6 +332,7 @@
   "emptyState": {
     "title": "暂无{{label}}",
     "description": "创建第一条{{label}}记录以开始使用。",
+    "descriptionReadOnly": "暂无{{label}}记录。",
     "createButton": "新建{{label}}",
     "rules": {
       "title": "暂无规则",

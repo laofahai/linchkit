@@ -228,7 +228,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <LayoutDashboardIcon />
                 <span>{t("nav.workspace")}</span>
               </CommandItem>
-              <CommandItem onSelect={() => navigate("/admin/executions")}>
+              <CommandItem onSelect={() => navigate("/schemas/execution_log")}>
                 <ScrollTextIcon />
                 <span>{t("executionLog.title")}</span>
               </CommandItem>
@@ -236,7 +236,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <HeartPulseIcon />
                 <span>{t("health.title")}</span>
               </CommandItem>
-              <CommandItem onSelect={() => navigate("/admin/rules")}>
+              <CommandItem onSelect={() => navigate("/schemas/rule")}>
                 <ShieldCheckIcon />
                 <span>{t("rules.title")}</span>
               </CommandItem>
