@@ -101,6 +101,19 @@ export interface CapabilityDefinition {
 
   dependencies?: string[];
 
+  /**
+   * Bridge loading priority (higher number = later execution = outer layer in onion model).
+   * Primarily used for bridge capabilities to control initialization order.
+   * @default 0
+   */
+  priority?: number;
+
+  /**
+   * For bridge capabilities, declares which capabilities this bridge connects.
+   * Each entry references a capability by name.
+   */
+  bridges?: Array<{ capability: string }>;
+
   interfaces?: InterfaceDefinition[];
   schemas?: SchemaDefinition[];
   actions?: ActionDefinition[];

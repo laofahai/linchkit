@@ -165,12 +165,16 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     ? createPersistentEventBus(dbInstance)
     : createEventBus();
 
+  // Build capability name set for ctx.hasCapability() weak dependency checks
+  const capabilityNames = new Set(capabilities.map((c) => c.name));
+
   const executor = createActionExecutor({
     dataProvider,
     transactionManager,
     executionLogger,
     configRegistry: registry,
     eventBus,
+    capabilityNames,
   });
   for (const action of actionRegistry.getAll()) {
     executor.registry.register(action);

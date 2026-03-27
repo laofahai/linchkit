@@ -5,7 +5,6 @@ export {
   type AutomationFlowStarter,
   type AutomationNotifier,
   createAutomationEngine,
-  parseCronToInterval,
 } from "./automation-engine";
 export {
   type AutomationRegistry,

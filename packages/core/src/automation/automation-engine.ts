@@ -9,6 +9,7 @@
  * - Schedule: basic interval support (parsed from cron "seconds" field or fixed interval)
  */
 
+import { Cron } from "croner";
 import { type ConditionContext, evaluateCondition } from "../engine/condition-evaluator";
 import type {
   AutomationAction,
@@ -77,7 +78,7 @@ class AutomationEngineImpl implements AutomationEngine {
   private notifier?: AutomationNotifier;
 
   private unsubscribers: Array<() => void> = [];
-  private intervals: Array<ReturnType<typeof setInterval>> = [];
+  private cronJobs: Cron[] = [];
   private started = false;
 
   constructor(options: AutomationEngineOptions) {
@@ -114,10 +115,10 @@ class AutomationEngineImpl implements AutomationEngine {
     }
     this.unsubscribers = [];
 
-    for (const interval of this.intervals) {
-      clearInterval(interval);
+    for (const job of this.cronJobs) {
+      job.stop();
     }
-    this.intervals = [];
+    this.cronJobs = [];
 
     this.started = false;
     this.logger.info?.("[AutomationEngine] Stopped");
@@ -297,29 +298,25 @@ class AutomationEngineImpl implements AutomationEngine {
     const trigger = automation.trigger;
     if (trigger.type !== "schedule") return;
 
-    // Basic interval: parse simple cron or use a fixed interval
-    const intervalMs = parseCronToInterval(trigger.cron);
-    if (intervalMs === null) {
-      this.logger.warn?.(
-        `[AutomationEngine] Cannot parse cron "${trigger.cron}" for automation "${automation.name}". ` +
-          'Only basic patterns supported: "*/N * * * *" (every N minutes) or "0 */N * * *" (every N hours).',
-      );
-      return;
-    }
+    try {
+      const job = new Cron(trigger.cron, async () => {
+        const current = this.registry.get(automation.name);
+        if (!current?.enabled) return;
 
-    const interval = setInterval(async () => {
-      const current = this.registry.get(automation.name);
-      if (!current?.enabled) return;
-
-      const result = await this.executeAutomation(automation, {
-        _triggeredAt: new Date().toISOString(),
+        const result = await this.executeAutomation(automation, {
+          _triggeredAt: new Date().toISOString(),
+        });
+        if (!result.success) {
+          this.logger.warn?.(`[AutomationEngine] Scheduled automation "${automation.name}" failed`);
+        }
       });
-      if (!result.success) {
-        this.logger.warn?.(`[AutomationEngine] Scheduled automation "${automation.name}" failed`);
-      }
-    }, intervalMs);
 
-    this.intervals.push(interval);
+      this.cronJobs.push(job);
+    } catch (err) {
+      this.logger.warn?.(
+        `[AutomationEngine] Invalid cron "${trigger.cron}" for automation "${automation.name}": ${err}`,
+      );
+    }
   }
 
   private bindFlowCompletedTrigger(automation: AutomationDefinition): void {
@@ -423,59 +420,6 @@ class AutomationEngineImpl implements AutomationEngine {
         throw new Error(`Unknown automation action type: ${(action as AutomationAction).type}`);
     }
   }
-}
-
-// ── Cron parser (basic interval extraction) ────────────
-
-/**
- * Parse basic cron patterns into millisecond intervals.
- * Supports:
- *   "* /N * * * *" → every N minutes (spaces added to avoid comment issue)
- *   "0 * /N * * *" → every N hours
- *   "* * * * *"    → every minute
- * Returns null for unsupported patterns.
- */
-export function parseCronToInterval(cron: string): number | null {
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return null;
-
-  const minute = parts[0] as string;
-  const hour = parts[1] as string;
-  const dayOfMonth = parts[2] as string;
-  const month = parts[3] as string;
-  const dayOfWeek = parts[4] as string;
-
-  // Only support patterns where day-of-month, month, and day-of-week are all wildcards
-  if (dayOfMonth !== "*" || month !== "*" || dayOfWeek !== "*") {
-    return null;
-  }
-
-  // Every minute: "* * * * *"
-  if (minute === "*" && hour === "*") {
-    return 60 * 1000;
-  }
-
-  // Every N minutes: "*/N * * * *"
-  if (minute.startsWith("*/") && hour === "*") {
-    const n = Number.parseInt(minute.slice(2), 10);
-    if (Number.isNaN(n) || n <= 0) return null;
-    return n * 60 * 1000;
-  }
-
-  // Every N hours: "0 */N * * *"
-  if (minute === "0" && hour.startsWith("*/")) {
-    const n = Number.parseInt(hour.slice(2), 10);
-    if (Number.isNaN(n) || n <= 0) return null;
-    return n * 60 * 60 * 1000;
-  }
-
-  // Single hour: "0 N * * *" → every 24 hours (run at hour N, approximated)
-  if (minute === "0" && /^\d+$/.test(hour)) {
-    // Not a true interval — approximate to 24 hours
-    return 24 * 60 * 60 * 1000;
-  }
-
-  return null;
 }
 
 // ── Factory ────────────────────────────────────────────

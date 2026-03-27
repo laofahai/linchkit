@@ -5,7 +5,6 @@ import {
   type AutomationFlowStarter,
   type AutomationNotifier,
   createAutomationEngine,
-  parseCronToInterval,
 } from "../src/automation/automation-engine";
 import {
   type AutomationRegistry,
@@ -627,28 +626,77 @@ describe("AutomationEngine — event payload merging", () => {
   });
 });
 
-describe("parseCronToInterval", () => {
-  it("parses every-minute cron", () => {
-    expect(parseCronToInterval("* * * * *")).toBe(60_000);
+describe("AutomationEngine — schedule triggers", () => {
+  it("binds a valid cron schedule without error", () => {
+    const registry = createAutomationRegistry();
+    const bus = createMockEventBus();
+
+    const scheduleAutomation: AutomationDefinition = {
+      name: "scheduled-cleanup",
+      trigger: { type: "schedule", cron: "* * * * *" },
+      actions: [{ type: "execute_action", action: "cleanup", input: {} }],
+      enabled: true,
+    };
+
+    registry.register(scheduleAutomation);
+    const engine = createAutomationEngine({ registry, eventBus: bus });
+
+    // Should not throw
+    engine.start();
+    engine.stop();
   });
 
-  it("parses every-N-minutes cron", () => {
-    expect(parseCronToInterval("*/5 * * * *")).toBe(5 * 60_000);
-    expect(parseCronToInterval("*/30 * * * *")).toBe(30 * 60_000);
+  it("logs warning for invalid cron expression without crashing", () => {
+    const registry = createAutomationRegistry();
+    const bus = createMockEventBus();
+    const warnings: string[] = [];
+
+    const badSchedule: AutomationDefinition = {
+      name: "bad-schedule",
+      trigger: { type: "schedule", cron: "not-a-cron" },
+      actions: [{ type: "execute_action", action: "test", input: {} }],
+      enabled: true,
+    };
+
+    registry.register(badSchedule);
+    const engine = createAutomationEngine({
+      registry,
+      eventBus: bus,
+      logger: {
+        debug() {},
+        info() {},
+        warn(msg: string) {
+          warnings.push(msg);
+        },
+        error() {},
+      },
+    });
+
+    // Should not throw
+    engine.start();
+    expect(warnings.some((w) => w.includes("Invalid cron"))).toBe(true);
+    engine.stop();
   });
 
-  it("parses every-N-hours cron", () => {
-    expect(parseCronToInterval("0 */2 * * *")).toBe(2 * 60 * 60_000);
-  });
+  it("stop() cleans up cron jobs without lingering timers", () => {
+    const registry = createAutomationRegistry();
+    const bus = createMockEventBus();
 
-  it("parses daily cron as 24h interval", () => {
-    expect(parseCronToInterval("0 9 * * *")).toBe(24 * 60 * 60_000);
-  });
+    const scheduleAutomation: AutomationDefinition = {
+      name: "periodic-task",
+      trigger: { type: "schedule", cron: "*/5 * * * *" },
+      actions: [{ type: "execute_action", action: "ping", input: {} }],
+      enabled: true,
+    };
 
-  it("returns null for unsupported patterns", () => {
-    expect(parseCronToInterval("0 9 * * MON")).toBe(null);
-    expect(parseCronToInterval("invalid")).toBe(null);
-    expect(parseCronToInterval("")).toBe(null);
+    registry.register(scheduleAutomation);
+    const engine = createAutomationEngine({ registry, eventBus: bus });
+
+    engine.start();
+    // Stopping should clean up — no errors, no lingering timers
+    engine.stop();
+    // A second stop should be safe (idempotent)
+    engine.stop();
   });
 });
 

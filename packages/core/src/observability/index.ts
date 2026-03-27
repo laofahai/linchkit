@@ -27,6 +27,7 @@ export {
   type StructuredLoggerOptions,
   createTestLogSink,
 } from "./structured-logger";
+export { createPinoLogger, type PinoLoggerOptions } from "./pino-logger";
 export {
   getCurrentTrace,
   getTraceDepth,

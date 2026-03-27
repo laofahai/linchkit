@@ -110,6 +110,9 @@ export interface ActionContext {
   /** Config registry — type-safe access to all validated config */
   config: ConfigRegistry;
 
+  /** Check whether a capability is installed (weak dependency degradation) */
+  hasCapability(name: string): boolean;
+
   // Current execution info
   executionId: string;
   timestamp: Date;

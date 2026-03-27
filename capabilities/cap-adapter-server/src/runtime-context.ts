@@ -64,6 +64,8 @@ export interface RuntimeContextOptions {
   dataProvider?: DataProvider;
   /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */
   eventBus?: EventBus;
+  /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
+  capabilityNames?: ReadonlySet<string>;
 }
 
 /**
@@ -112,6 +114,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     stateMachine,
     executionLogger,
     aiService: ai,
+    capabilityNames: options?.capabilityNames,
   });
 
   // Register actions

@@ -62,6 +62,8 @@ export interface BaseFieldDefinition extends FieldConstraints {
   translatable?: boolean;
   /** Declarative UI hints for auto-layout and rendering */
   ui?: FieldUIHints;
+  /** Capability required for this field. Field is hidden when capability is absent. */
+  requiresCapability?: string;
   /** Derived field configuration (spec 48). When set, field value is computed, not user-input. */
   derived?: {
     /** Derivation type */

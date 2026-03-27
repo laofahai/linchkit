@@ -4,6 +4,7 @@ import { createTriggerBinding } from "../src/flow/trigger-binding";
 import type { FlowEngine } from "../src/flow/types";
 import type { EventRecord } from "../src/types/event";
 import type { FlowDefinition, FlowInstance } from "../src/types/flow";
+import type { Logger } from "../src/types/logger";
 
 // ── Mock factories ──────────────────────────────────────
 
@@ -248,5 +249,63 @@ describe("TriggerBinding", () => {
     // Both flows should start (eventFlow matches filter, unfilteredEventFlow has no filter)
     expect(engine.started).toHaveLength(2);
     expect(engine.started.map((s) => s.flowName).sort()).toEqual(["audit-log", "on-submit"]);
+  });
+});
+
+// ── Schedule trigger tests ──────────────────────────────
+
+describe("TriggerBinding — schedule triggers", () => {
+  const scheduleFlow: FlowDefinition = {
+    name: "daily-cleanup",
+    trigger: { type: "schedule", cron: "* * * * *" },
+    steps: [{ id: "s1", name: "Cleanup", type: "action", actionName: "cleanup.run" }],
+  };
+
+  it("binds a valid cron schedule without error", () => {
+    const bus = createMockEventBus();
+    const engine = createMockFlowEngine();
+    const binding = createTriggerBinding(bus);
+
+    // Should not throw
+    binding.bindAll([scheduleFlow], engine);
+    binding.unbindAll();
+  });
+
+  it("logs warning for invalid cron expression without crashing", () => {
+    const bus = createMockEventBus();
+    const engine = createMockFlowEngine();
+    const warnings: string[] = [];
+    const logger: Logger = {
+      debug() {},
+      info() {},
+      warn(msg: string) {
+        warnings.push(msg);
+      },
+      error() {},
+    };
+    const binding = createTriggerBinding(bus, logger);
+
+    const badFlow: FlowDefinition = {
+      name: "bad-cron",
+      trigger: { type: "schedule", cron: "not-valid-cron" },
+      steps: [{ id: "s1", name: "Step", type: "action", actionName: "test" }],
+    };
+
+    // Should not throw
+    binding.bindAll([badFlow], engine);
+    expect(warnings.some((w) => w.includes("Invalid cron"))).toBe(true);
+    binding.unbindAll();
+  });
+
+  it("unbindAll stops cron jobs", () => {
+    const bus = createMockEventBus();
+    const engine = createMockFlowEngine();
+    const binding = createTriggerBinding(bus);
+
+    binding.bindAll([scheduleFlow], engine);
+    // Should not throw, cleans up cron jobs
+    binding.unbindAll();
+    // Second unbindAll should be safe (idempotent)
+    binding.unbindAll();
   });
 });

@@ -52,6 +52,19 @@ export {
   createCapabilityHub,
   satisfiesVersionRange,
 } from "./capability";
+// Capability extension resolver — bridge override resolution
+export type {
+  ActionOverrideEntry,
+  ExtensionResolver,
+  ResolutionConflict,
+  RuleOverrideEntry,
+  SchemaExtensionEntry,
+  SchemaOverrideEntry,
+} from "./capability";
+export {
+  buildActionChain,
+  createExtensionResolver,
+} from "./capability";
 // Capability local registry — file-based capability tracking
 export type {
   RegistryEntry,
@@ -62,6 +75,7 @@ export {
   LocalCapabilityRegistry,
   checkTrustPermissions,
   createLocalRegistry,
+  filterSchemaByCapabilities,
 } from "./capability";
 // Config center
 export type { ConfigSchemaRef } from "./config";

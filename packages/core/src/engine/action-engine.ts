@@ -368,6 +368,8 @@ export interface ActionExecutorOptions {
   metrics?: MetricsCollector;
   /** Event bus for emitting action lifecycle events (action.succeeded, action.failed) */
   eventBus?: EventBus;
+  /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
+  capabilityNames?: ReadonlySet<string>;
 }
 
 /**
@@ -394,6 +396,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     configRegistry,
     metrics = noopMetricsCollector,
     eventBus,
+    capabilityNames = new Set<string>(),
   } = options;
 
   /** Helper: build and log an execution entry */
@@ -597,6 +600,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
       },
+      hasCapability: (name: string) => capabilityNames.has(name),
       emit: (eventType, payload) => {
         const trace = getCurrentTrace();
         pendingEvents.push({

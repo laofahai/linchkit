@@ -3,5 +3,21 @@
     "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun *)",
+      "Bash(bunx *)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(tail *)",
+      "Bash(head *)",
+      "Bash(rm *)",
+      "Bash(mkdir *)",
+      "Read(**)",
+      "Write(**)",
+      "Edit(**)"
+    ]
   }
 }

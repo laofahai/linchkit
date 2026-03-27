@@ -140,6 +140,9 @@ const allActions: ActionDefinition[] = [...crudActions, ...capContributions.acti
 
 // ── Initialize runtime context ──────────────────────────
 
+// Build capability name set for ctx.hasCapability() weak dependency checks
+const capabilityNames = new Set((config.capabilities ?? []).map((c) => c.name));
+
 const runtime = createRuntimeContext({
   schemas: allSchemas,
   actions: allActions,
@@ -147,6 +150,7 @@ const runtime = createRuntimeContext({
   views: capContributions.views,
   middlewares: capContributions.middlewares,
   ai: config.ai,
+  capabilityNames,
 });
 
 // Seed dev data from capabilities (only works with InMemoryStore)

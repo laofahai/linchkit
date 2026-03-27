@@ -23,6 +23,18 @@ export type {
   CapabilityRequires,
 } from "./capability-manifest";
 export type {
+  ActionOverrideEntry,
+  ExtensionResolver,
+  ResolutionConflict,
+  RuleOverrideEntry,
+  SchemaExtensionEntry,
+  SchemaOverrideEntry,
+} from "./extension-resolver";
+export {
+  buildActionChain,
+  createExtensionResolver,
+} from "./extension-resolver";
+export type {
   RegistryEntry,
   RegistrySearchOptions,
   TrustLevel,
@@ -32,3 +44,4 @@ export {
   checkTrustPermissions,
   createLocalRegistry,
 } from "./local-registry";
+export { filterSchemaByCapabilities } from "./filter-schema";

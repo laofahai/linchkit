@@ -18,7 +18,6 @@ export {
   type AutomationRegistry,
   createAutomationEngine,
   createAutomationRegistry,
-  parseCronToInterval,
 } from "./automation";
 
 // === Watcher engine (data-condition automation, spec 45) ===

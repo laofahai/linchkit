@@ -70,20 +70,19 @@ UI ───────┘         │
 | 后端框架 | Elysia | HTTP + WebSocket + 插件体系 |
 | 状态机 | **自研实现**（纯 TS，200-400 行，XState 作为可选升级路径） | State Machine 定义、迁移、guard、元信息 |
 | Schema → 产物 | Zod（校验）、Drizzle（DB）、GraphQL types（查询） | 一个 Schema 定义自动生成多种产物 |
-| 事件总线(进程内) | mitt / EventEmitter3 | 进程内事件分发 |
+| 事件总线(进程内) | **自研 EventBus** | 进程内事件分发（优先级排序、payload filter、sync/async 双模式、与持久化层集成） |
 | 数据库迁移 | Drizzle Kit | Schema 变更自动生成迁移 |
 | GraphQL | **graphql-yoga + graphql-js** | 读操作，code-first schema builder（NOT Pothos），通过 graphql-yoga 集成到 Elysia |
 | CLI | citty (UnJS) | 命令行工具 |
 | MCP | @modelcontextprotocol/sdk | AI 能力暴露，复用 Command Layer |
-| 日志 | pino | 结构化日志 |
-| ID 生成 | cuid2 / nanoid | 分布式安全 ID |
-| 配置管理 | c12 (UnJS) | 多环境配置加载与合并 |
+| 日志 | pino（通过 Logger 接口适配） | 结构化日志，trace context 自动注入 |
+| ID 生成 | crypto.randomUUID() | 原生 API，零依赖 |
+| 配置管理 | **自研 ConfigRegistry + Zod** | Capability 级 schema 声明、环境变量解析、Zod 校验（详见 spec 42） |
 | 定时任务 | croner | 轻量 cron 调度 |
 | 前端 | React + Vite + TanStack Router | SPA 管理界面 |
 | UI | Shadcn UI + Lucide + Tailwind | 组件 + 图标 + 样式 |
 | i18n | i18next（或类似方案） | 多语言 |
 | 认证 | **better-auth** | OAuth2/OIDC、Session、Organization plugin、API Key 管理。Elysia 原生集成。详见 [10a_authentication.md](10a_authentication.md) |
-| 前端权限 | **CASL.js** | 客户端权限能力对象，基于服务端返回的权限组构建 ability。详见 [10_actor_permission.md](10_actor_permission.md) §7.5 |
 
 ### 4.2 M1 集成
 
@@ -111,6 +110,8 @@ UI ───────┘         │
 | View 渲染引擎（headless）| Schema → 自动 UI 的核心 |
 | Schema → 多产物生成 | Zod/Drizzle/GraphQL/TS type 自动生成 |
 | 多租户 | 架构级关注 |
+| 事件总线 | 需要优先级、filter、async 模式、与持久化/Outbox 深度集成 |
+| 配置中心 | c12 不支持 Capability 级 schema 声明和作用域级联（详见 spec 42） |
 
 ## 5. Monorepo 包结构
 
