@@ -50,6 +50,7 @@ try {
   const ALS = hooks.AsyncLocalStorage;
   traceStorage = ALS ? new ALS() : new SimpleStore<TraceState>();
 } catch {
+  // AsyncLocalStorage unavailable (e.g. browser/Vite env) — fall back to simple store
   traceStorage = new SimpleStore<TraceState>();
 }
 

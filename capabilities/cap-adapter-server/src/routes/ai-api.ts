@@ -360,6 +360,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           }
           suggestions = JSON.parse(content);
         } catch {
+          // AI response was not valid JSON — return empty suggestions gracefully
           return { success: true, data: { suggestions: {} } };
         }
 

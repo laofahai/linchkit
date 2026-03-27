@@ -85,6 +85,7 @@ export function mountSubscriptionRoutes(
             controller.enqueue(encoder.encode(text));
             return true;
           } catch {
+            // Stream closed by client — signal that push failed
             return false;
           }
         };

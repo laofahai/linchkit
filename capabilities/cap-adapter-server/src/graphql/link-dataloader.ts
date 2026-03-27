@@ -139,6 +139,7 @@ export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoade
               { tenantId: k.tenantId },
             )) as Record<string, unknown>[];
           } catch {
+            // Related schema table may not exist yet — return empty result set
             return [] as Record<string, unknown>[];
           }
         }),

@@ -86,6 +86,7 @@ class DrizzleAuthProvider implements AuthProvider {
       const { payload } = await jwtVerify(token, this.secret, { issuer: "linchkit" });
       return payload as unknown as JWTPayload;
     } catch {
+      // Invalid or expired token — treat as unauthenticated
       return null;
     }
   }
@@ -201,6 +202,7 @@ class DrizzleAuthProvider implements AuthProvider {
           throw new Error("Session has been revoked");
         }
       } catch {
+        // Session lookup failed (not found, DB error, or revoked) — reject the refresh
         throw new Error("Session not found or revoked");
       }
     }
@@ -367,6 +369,7 @@ class DrizzleAuthProvider implements AuthProvider {
             metadata: { api_key_id: apiKey.id, scopes: apiKey.scopes },
           };
         } catch {
+          // User lookup failed for API key owner — treat as invalid key
           return null;
         }
       }
@@ -393,6 +396,7 @@ class DrizzleAuthProvider implements AuthProvider {
         groups: (user.groups as string[]) ?? [],
       };
     } catch {
+      // Session or user lookup failed — treat as unresolvable
       return null;
     }
   }

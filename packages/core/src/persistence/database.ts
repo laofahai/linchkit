@@ -31,6 +31,7 @@ function safeConnectionInfo(url: string): string {
     const db = parsed.pathname?.replace(/^\//, "") || "(unknown)";
     return `${host}:${port}/${db}`;
   } catch {
+    // URL constructor threw — return safe fallback instead of leaking the raw URL
     return "(unparseable URL)";
   }
 }

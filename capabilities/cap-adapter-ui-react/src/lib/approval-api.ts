@@ -81,6 +81,7 @@ export async function fetchApprovalCount(): Promise<number> {
     const json = await res.json();
     return json.data?.count ?? 0;
   } catch {
+    // Server unreachable or endpoint not available — show zero pending approvals
     return 0;
   }
 }

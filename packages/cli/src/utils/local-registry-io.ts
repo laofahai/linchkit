@@ -35,6 +35,7 @@ export function loadLocalRegistry(projectRoot: string): LocalCapabilityRegistry 
     const data = JSON.parse(content);
     return LocalCapabilityRegistry.fromJSON(data);
   } catch {
+    // Corrupted or unreadable registry file — start fresh with empty registry
     return new LocalCapabilityRegistry();
   }
 }

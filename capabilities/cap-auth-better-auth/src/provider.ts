@@ -443,6 +443,7 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
           groups: extractGroups(result.user),
         };
       } catch {
+        // Token verification or session lookup failed — treat as unauthenticated
         return null;
       }
     },
@@ -488,6 +489,7 @@ export function createBetterAuthProvider(options: BetterAuthProviderOptions): Au
           groups: extractGroups(result.user),
         };
       } catch {
+        // Session lookup failed or expired — treat as unresolvable
         return null;
       }
     },

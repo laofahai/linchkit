@@ -197,6 +197,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
       const proposal = proposalEngine.getProposal(params.id);
       return { success: true, data: serializeProposal(proposal) };
     } catch {
+      // Proposal not found or engine error — return 404
       set.status = 404;
       return { success: false, error: { message: `Proposal "${params.id}" not found.` } };
     }

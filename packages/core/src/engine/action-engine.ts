@@ -7,24 +7,28 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import type { EventBus } from "../event/event-bus";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace } from "../observability/trace-context";
 import { createTenantAwareDataProvider } from "../security/tenant-isolation";
-import type {
-  ActionContext,
-  ActionDefinition,
-  ActionExposure,
-  ActionResult,
-  Actor,
-  ValidationResult,
-} from "../types/action";
+import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { Logger } from "../types/logger";
-import type { EventBus } from "../event/event-bus";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
+
+export { ActionRegistry } from "./action-registry";
+import {
+  checkPermissions,
+  generateExecutionId,
+  isExposed,
+  resolveFieldExpression,
+  runPreValidation,
+  validateInput,
+} from "./action-helpers";
+import { ActionRegistry } from "./action-registry";
 
 // ── DataProvider interface ──────────────────────────────────
 
@@ -96,68 +100,6 @@ export interface ExecuteOptions {
   _parentPendingEvents?: PendingEvent[];
 }
 
-// ── ActionRegistry ──────────────────────────────────────────
-
-export class ActionRegistry {
-  private actions = new Map<string, ActionDefinition>();
-
-  /** Register an action definition. Throws on duplicate name unless overwrite is set. */
-  register(action: ActionDefinition, opts?: { overwrite?: boolean }): void {
-    if (!action.name) {
-      throw new Error("Action must have a name");
-    }
-    if (this.actions.has(action.name) && !opts?.overwrite) {
-      throw new Error(`Action "${action.name}" is already registered`);
-    }
-    this.actions.set(action.name, action);
-  }
-
-  /** Get an action by name, or undefined if not found */
-  get(name: string): ActionDefinition | undefined {
-    return this.actions.get(name);
-  }
-
-  /** Get all registered actions */
-  getAll(): ActionDefinition[] {
-    return Array.from(this.actions.values());
-  }
-
-  /** Get all actions for a given schema (own only, no inheritance) */
-  getBySchema(schema: string): ActionDefinition[] {
-    return this.getAll().filter((a) => a.schema === schema);
-  }
-
-  /**
-   * Get all actions for a schema including actions inherited from ancestor schemas.
-   * Child actions override parent actions of the same name.
-   * @param schema - The schema name
-   * @param inheritanceChain - Ordered from root ancestor to self (e.g., ['party', 'customer'])
-   */
-  getBySchemaWithInheritance(schema: string, inheritanceChain: string[]): ActionDefinition[] {
-    const ownActions = this.getBySchema(schema);
-    const ownNames = new Set(ownActions.map((a) => a.name));
-
-    // Collect inherited actions from ancestors (excluding self, which is last in chain)
-    const inherited: ActionDefinition[] = [];
-    for (let i = 0; i < inheritanceChain.length - 1; i++) {
-      // biome-ignore lint/style/noNonNullAssertion: index is within bounds
-      for (const action of this.getBySchema(inheritanceChain[i]!)) {
-        // Only include if not overridden by a closer descendant or self
-        if (!ownNames.has(action.name) && !inherited.some((a) => a.name === action.name)) {
-          inherited.push(action);
-        }
-      }
-    }
-
-    return [...inherited, ...ownActions];
-  }
-
-  /** Check if an action is registered */
-  has(name: string): boolean {
-    return this.actions.has(name);
-  }
-}
-
 // ── ActionExecutor ──────────────────────────────────────────
 
 export interface ActionExecutor {
@@ -169,151 +111,6 @@ export interface ActionExecutor {
     actor: Actor,
     options?: ExecuteOptions,
   ): Promise<ActionResult<T>>;
-}
-
-// ── Helpers ─────────────────────────────────────────────────
-
-/**
- * Resolve a `$`-prefixed expression in declarative `setFields`.
- *
- * Supported:
- * - `$actor.id`, `$actor.name`, `$actor.type` — current actor fields
- * - `$input.<field>` — action input fields
- * - `$now` — current ISO timestamp
- * - `$now.date` — current ISO date (YYYY-MM-DD)
- * - Plain values pass through unchanged.
- */
-function resolveFieldExpression(
-  value: unknown,
-  input: Record<string, unknown>,
-  actor: Actor,
-): unknown {
-  if (typeof value !== "string" || !value.startsWith("$")) return value;
-
-  if (value === "$now") return new Date().toISOString();
-  if (value === "$now.date") return new Date().toISOString().slice(0, 10);
-
-  if (value.startsWith("$actor.")) {
-    const field = value.slice("$actor.".length);
-    return (actor as Record<string, unknown>)[field];
-  }
-
-  if (value.startsWith("$input.")) {
-    const field = value.slice("$input.".length);
-    return input[field];
-  }
-
-  // Unknown expression — return as-is
-  return value;
-}
-
-function generateExecutionId(): string {
-  return `exec_${crypto.randomUUID()}`;
-}
-
-/** Check if the action is exposed for the given channel */
-function isExposed(
-  exposure: ActionExposure | "all" | undefined,
-  channel: ExecutionChannel,
-): boolean {
-  // Default: all channels allowed
-  if (exposure === undefined || exposure === "all") {
-    return true;
-  }
-
-  const mapping: Record<ExecutionChannel, keyof ActionExposure> = {
-    http: "http",
-    mcp: "mcp",
-    cli: "cli",
-    ui: "ui",
-    internal: "internal",
-  };
-
-  const key = mapping[channel];
-  // If not explicitly set, default to true
-  return exposure[key] !== false;
-}
-
-/** Check if the actor has permission to execute the action */
-function checkPermissions(action: ActionDefinition, actor: Actor): string | null {
-  const perms = action.permissions;
-  if (!perms) {
-    return null; // No restrictions
-  }
-
-  // Check actor type
-  if (perms.actorTypes && perms.actorTypes.length > 0) {
-    if (!perms.actorTypes.includes(actor.type)) {
-      return `Actor type "${actor.type}" is not allowed for action "${action.name}"`;
-    }
-  }
-
-  // Check permission groups
-  if (perms.groups && perms.groups.length > 0) {
-    const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
-    if (!hasGroup) {
-      return `Actor does not belong to any of the required groups: ${perms.groups.join(", ")}`;
-    }
-  }
-
-  return null;
-}
-
-/** Validate required input fields */
-function validateInput(action: ActionDefinition, input: Record<string, unknown>): ValidationResult {
-  // Check required fields from input definition
-  if (action.input) {
-    const errors: Array<{ field: string; message: string }> = [];
-    for (const [fieldName, fieldDef] of Object.entries(action.input)) {
-      if (fieldDef.required && (input[fieldName] === undefined || input[fieldName] === null)) {
-        errors.push({ field: fieldName, message: `Field "${fieldName}" is required` });
-      }
-    }
-    if (errors.length > 0) {
-      return { valid: false, errors };
-    }
-  }
-
-  return { valid: true };
-}
-
-/** Run pre-validation (validate.required on the record, validate.custom) */
-function runPreValidation(action: ActionDefinition, ctx: ActionContext): ValidationResult {
-  if (!action.validate) {
-    return { valid: true };
-  }
-
-  // validate.required checks fields on the input
-  if (action.validate.required && action.validate.required.length > 0) {
-    const errors: Array<{ field: string; message: string }> = [];
-    for (const field of action.validate.required) {
-      if (ctx.input[field] === undefined || ctx.input[field] === null || ctx.input[field] === "") {
-        errors.push({ field, message: `Field "${field}" is required` });
-      }
-    }
-    if (errors.length > 0) {
-      return { valid: false, errors };
-    }
-  }
-
-  // validate.custom — wrap in try/catch so exceptions don't escape
-  if (action.validate.custom) {
-    try {
-      return action.validate.custom(ctx);
-    } catch (err) {
-      return {
-        valid: false,
-        errors: [
-          {
-            field: "_custom",
-            message: err instanceof Error ? err.message : String(err),
-          },
-        ],
-      };
-    }
-  }
-
-  return { valid: true };
 }
 
 // ── Transactional event collection ──────────────────────────

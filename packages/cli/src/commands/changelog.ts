@@ -198,6 +198,7 @@ async function getLatestTag(): Promise<string | undefined> {
     }
     return undefined;
   } catch {
+    // git describe failed (no tags or not a git repo) — no previous version available
     return undefined;
   }
 }

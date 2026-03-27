@@ -44,6 +44,7 @@ export function loadCapabilityMetadata(capJsonPath: string): CapabilityMetadata 
     if (result.success) return result.data;
     return null;
   } catch {
+    // File missing, unreadable, or invalid JSON — treat as no metadata
     return null;
   }
 }

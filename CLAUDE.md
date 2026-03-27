@@ -4,7 +4,7 @@
 
 AI-Native Software Capability Runtime. **Milestone:** M2 — Link Type + OntologyRegistry + GraphQL Subscriptions.
 
-Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link**
+Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link** | Life system: **Sense + Memory + Awareness + Insight + Proposal** (Spec 55)
 
 ## Principles
 

@@ -101,7 +101,9 @@ export function createRestateFlowEngine(config: RestateConfig = {}): FlowEngine 
             };
             return instance;
           }
-        } catch {}
+        } catch {
+          // Flow name mismatch or Restate unreachable — try next flow definition
+        }
       }
 
       return null;
@@ -123,7 +125,9 @@ export function createRestateFlowEngine(config: RestateConfig = {}): FlowEngine 
           if (response.ok) {
             return;
           }
-        } catch {}
+        } catch {
+          // Signal delivery failed for this flow — try next flow definition
+        }
       }
 
       throw new Error(
@@ -146,7 +150,9 @@ export function createRestateFlowEngine(config: RestateConfig = {}): FlowEngine 
           if (response.ok) {
             return;
           }
-        } catch {}
+        } catch {
+          // Cancel request failed for this flow — try next flow definition
+        }
       }
 
       // Best-effort: if we can't cancel via Restate, log a warning

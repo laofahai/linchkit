@@ -10,6 +10,7 @@ export function formatDate(value: unknown): string {
     const d = value instanceof Date ? value : new Date(String(value));
     return d.toLocaleDateString();
   } catch {
+    // Invalid date value — fall back to raw string representation
     return String(value);
   }
 }
@@ -19,6 +20,7 @@ export function formatDateTime(value: unknown): string {
     const d = value instanceof Date ? value : new Date(String(value));
     return d.toLocaleString();
   } catch {
+    // Invalid date value — fall back to raw string representation
     return String(value);
   }
 }
@@ -35,6 +37,7 @@ export function toDateInputValue(value: unknown): string {
     const d = value instanceof Date ? value : new Date(String(value));
     return d.toISOString().split("T")[0] ?? "";
   } catch {
+    // Invalid date value — fall back to raw string for the input field
     return String(value);
   }
 }
@@ -44,6 +47,7 @@ export function toDateTimeInputValue(value: unknown): string {
     const d = value instanceof Date ? value : new Date(String(value));
     return d.toISOString().slice(0, 16);
   } catch {
+    // Invalid date value — fall back to raw string for the input field
     return String(value);
   }
 }

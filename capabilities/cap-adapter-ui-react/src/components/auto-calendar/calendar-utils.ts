@@ -13,6 +13,7 @@ export function parseDateValue(value: unknown): Date | null {
     try {
       return parseISO(value);
     } catch {
+      // Malformed ISO string — cannot parse as a valid date
       return null;
     }
   }

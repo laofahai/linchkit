@@ -108,6 +108,7 @@ export async function checkRestateHealth(adminUrl?: string): Promise<boolean> {
     });
     return response.ok;
   } catch {
+    // Network error or timeout — Restate server is not reachable
     return false;
   }
 }

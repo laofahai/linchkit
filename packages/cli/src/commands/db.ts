@@ -32,6 +32,7 @@ async function loadSchemasAndLinks(): Promise<{
     const result = await loadConfig();
     config = result.config;
   } catch {
+    // Config file missing or invalid — cannot proceed without database configuration
     console.error("[linch] Failed to load config. Run from project root with linchkit.config.ts.");
     process.exit(1);
   }

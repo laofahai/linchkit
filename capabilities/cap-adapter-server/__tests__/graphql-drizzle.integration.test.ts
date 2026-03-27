@@ -61,6 +61,7 @@ async function canConnect(): Promise<boolean> {
     await closeDatabase();
     return true;
   } catch {
+    // Database not available — skip integration tests
     return false;
   }
 }

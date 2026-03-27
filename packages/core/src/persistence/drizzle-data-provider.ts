@@ -60,6 +60,7 @@ export class DrizzleDataProvider implements DataProvider {
       await this.db.execute(sql`SELECT 1`);
       return true;
     } catch {
+      // Database unreachable or query failed — report as not connected
       return false;
     }
   }

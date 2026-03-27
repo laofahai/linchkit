@@ -111,6 +111,7 @@ function safeParseJSON(value: string, argName: string): Record<string, unknown> 
   try {
     parsed = JSON.parse(value);
   } catch {
+    // JSON.parse failed — convert to a user-facing GraphQL error
     throw new GraphQLError(`Argument "${argName}" contains invalid JSON`);
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -743,6 +744,7 @@ export function buildGraphQLSchema(
                   return { ...tr, allowed: true, reason: null };
                 });
               } catch {
+                // State definition lookup failed — return empty transitions list
                 return [];
               }
             }
@@ -773,6 +775,7 @@ export function buildGraphQLSchema(
               try {
                 record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
               } catch {
+                // DataProvider.get threw (record missing or DB error) — surface as GraphQL error
                 throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
               }
               if (!record) {

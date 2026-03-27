@@ -93,6 +93,7 @@ export const infoCommand = defineCommand({
           dbDisplay = maskDbUrl(dbUrl);
         }
       } catch {
+        // URL parsing or env var resolution failed — show safe fallback
         dbDisplay = "Configured (URL parse error)";
       }
     }
@@ -189,6 +190,7 @@ function maskDbUrl(url: string): string {
     }
     return parsed.toString();
   } catch {
+    // URL constructor threw — return generic label to avoid leaking credentials
     return "Configured";
   }
 }
