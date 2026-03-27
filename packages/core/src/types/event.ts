@@ -36,6 +36,8 @@ export interface EventRecord {
   schema?: string;
   recordId?: string;
   action?: string;
+  /** Source capability that produced this event */
+  capability?: string;
 
   // Causal chain
   executionId: string;
@@ -74,6 +76,31 @@ export interface EventHandlerContext {
   emit(eventType: string, payload: Record<string, unknown>): void;
   get(schema: string, id: string): Promise<Record<string, unknown>>;
   query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+}
+
+// ── Subscription event (SSE push to client) ────────────────
+
+export type SubscriptionEventType =
+  | "record.created"
+  | "record.updated"
+  | "record.deleted"
+  | "state.changed"
+  | "approval.resolved"
+  | "schema.changed";
+
+/** SSE event pushed to subscribed clients (spec 44) */
+export interface SubscriptionEvent {
+  type: SubscriptionEventType;
+  schema: string;
+  recordId: string;
+  tenantId: string;
+  /** Partial data — only changed fields, not the full record */
+  changes?: Record<string, unknown>;
+  /** State transition info (only for state.changed) */
+  state?: { from: string; to: string; action: string };
+  actor: { id: string; type: string };
+  timestamp: string;
+  executionId?: string;
 }
 
 // ── EventBusLike interface ───────────────────────────────────

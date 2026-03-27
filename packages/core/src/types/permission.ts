@@ -80,6 +80,9 @@ export interface PermissionGroupDefinition {
    */
   permissions: Record<string, Record<string, SchemaPermissions>>;
 
+  /** Shorthand for system_admin level */
+  systemLevel?: "admin";
+
   /** AI agent constraints (optional) */
   constraints?: PermissionConstraints;
 }

@@ -7,6 +7,7 @@
  */
 
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -139,3 +140,45 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// ── Override target type enum ───────────────────────────
+
+export const overrideTargetTypeEnum = linchkitSchema.enum("override_target_type", [
+  "rule",
+  "action",
+  "schema",
+  "view",
+  "flow",
+]);
+
+// ── Tenant overrides table (Layer 2 runtime overrides) ──
+
+export const tenantOverridesTable = linchkitSchema.table(
+  "tenant_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: varchar("tenant_id", { length: 255 }).notNull(),
+    /** Override target type (rule, action, schema, view, flow) */
+    targetType: overrideTargetTypeEnum("target_type").notNull(),
+    /** Name of the definition being overridden */
+    targetName: varchar("target_name", { length: 255 }).notNull(),
+    /** Partial definition to deep-merge onto the Layer 0 definition */
+    definition: jsonb("definition").notNull(),
+    /** Whether this override is currently active */
+    enabled: boolean("enabled").notNull().default(true),
+    /** Who created this override */
+    createdBy: varchar("created_by", { length: 255 }),
+    /** Who last updated this override */
+    updatedBy: varchar("updated_by", { length: 255 }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_tenant_overrides_unique").on(
+      table.tenantId,
+      table.targetType,
+      table.targetName,
+    ),
+    index("idx_tenant_overrides_tenant").on(table.tenantId),
+  ],
+);

@@ -7,6 +7,7 @@
 
 import type { ConfigRegistry } from "../config/config-registry";
 import type { AIService } from "./ai";
+import type { Logger } from "./logger";
 import type { FieldDefinition } from "./schema";
 
 // ── Actor types ──────────────────────────────────────
@@ -33,6 +34,15 @@ export interface ActionPolicy {
     maxRetries: number;
     backoff: "fixed" | "exponential";
   };
+}
+
+// ── Tenant context ───────────────────────────────────────
+
+/** Tenant execution context for multi-tenant scoping (spec 30) */
+export interface TenantContext {
+  tenantId: string;
+  /** Tenant-specific config overrides (loaded from tenant_overrides) */
+  overrides?: Record<string, unknown>;
 }
 
 // ── Action resource limits ────────────────────────────────
@@ -86,6 +96,15 @@ export interface ValidationResult {
 export interface ActionContext {
   input: Record<string, unknown>;
   actor: Actor;
+
+  /** Current tenant ID from execution context */
+  tenantId?: string;
+
+  /** Logger instance for action handlers */
+  logger: Logger;
+
+  /** AbortSignal for cancellation/timeout support */
+  signal?: AbortSignal;
 
   /** AI service — optional, throws if not configured */
   ai: AIService;

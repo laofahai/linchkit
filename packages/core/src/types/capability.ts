@@ -171,6 +171,32 @@ export interface CapabilityExtensions {
   permissionGroups?: PermissionGroupDefinition[];
   /** Menu items for sidebar navigation */
   menuItems?: MenuItemRegistration[];
+  /** Custom field type registrations */
+  fieldTypes?: Array<{
+    name: string;
+    label?: string;
+    drizzleType?: string;
+    graphqlType?: string;
+  }>;
+  /** Custom view type registrations */
+  viewTypes?: Array<{ name: string; label?: string; component?: string }>;
+  /** Custom rule effect type registrations */
+  ruleEffects?: Array<{
+    name: string;
+    label?: string;
+    handler: (
+      effect: Record<string, unknown>,
+      ctx: Record<string, unknown>,
+    ) => Promise<void> | void;
+  }>;
+  /** Service registrations (singleton services available via DI) */
+  services?: Array<{ name: string; factory: (...args: unknown[]) => unknown }>;
+  /** Lifecycle hooks */
+  hooks?: Array<{
+    event: string;
+    handler: (...args: unknown[]) => Promise<void> | void;
+    priority?: number;
+  }>;
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

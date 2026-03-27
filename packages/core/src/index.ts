@@ -148,6 +148,14 @@ export {
   evaluateCondition,
   resolveField,
 } from "./engine/condition-evaluator";
+// Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
+export {
+  type Overridable,
+  applyOverride,
+  deepMerge,
+  resolveOverrides,
+  resolveRuleOverride,
+} from "./runtime/override-resolver";
 export type { PermissionRegistry } from "./engine/permission-engine";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";

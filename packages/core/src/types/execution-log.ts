@@ -70,6 +70,22 @@ export interface ExecutionLogEntry {
   // Transport channel (e.g. "rest", "graphql", "mcp")
   channel?: string;
 
+  // Data change snapshots for audit trail
+  changes?: Array<{
+    schema: string;
+    recordId: string;
+    type: "create" | "update" | "delete";
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+    changedFields?: string[];
+  }>;
+
+  // IDs of events emitted during execution
+  eventsEmitted?: string[];
+
+  // Capability version used during execution
+  capabilityVersion?: string;
+
   // Performance
   duration: number;
 

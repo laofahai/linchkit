@@ -349,7 +349,14 @@ export {
   executionStatusEnum,
   executionsTable,
   linchkitSchema,
+  overrideTargetTypeEnum,
+  tenantOverridesTable,
 } from "./persistence/system-tables";
+export {
+  TenantOverrideStore,
+  type OverrideTargetType,
+  type TenantOverride,
+} from "./persistence/tenant-override-store";
 export { type FindManyOptions, InMemoryStore } from "./persistence/in-memory-store";
 export { TableRegistry } from "./persistence/table-registry";
 

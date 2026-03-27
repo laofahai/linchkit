@@ -21,6 +21,7 @@ import type {
 } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import type { Logger } from "../types/logger";
 import type { EventBus } from "../event/event-bus";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
@@ -366,6 +367,9 @@ export interface ActionExecutorOptions {
   configRegistry?: ConfigRegistry;
   /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
   metrics?: MetricsCollector;
+  /** Logger instance — injected into ActionContext for handler-level logging.
+   *  Falls back to a silent noop logger when omitted. */
+  logger?: Logger;
   /** Event bus for emitting action lifecycle events (action.succeeded, action.failed) */
   eventBus?: EventBus;
   /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
@@ -395,9 +399,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     aiService,
     configRegistry,
     metrics = noopMetricsCollector,
+    logger: injectedLogger,
     eventBus,
     capabilityNames = new Set<string>(),
   } = options;
+
+  /** Silent noop logger — used when no logger is injected */
+  const noopFn = () => {};
+  const noopLogger: Logger = { debug: noopFn, info: noopFn, warn: noopFn, error: noopFn };
+  const logger: Logger = injectedLogger ?? noopLogger;
 
   /** Helper: build and log an execution entry */
   async function logExecution(
@@ -581,6 +591,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const ctx: ActionContext = {
       input,
       actor,
+      tenantId: execOptions?.tenantId,
+      logger,
+      signal: undefined,
       ai: aiService ?? noopAi,
       config: configRegistry ?? ConfigRegistry.empty(),
       executionId,

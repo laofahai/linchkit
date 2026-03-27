@@ -11,6 +11,8 @@ export interface StateMeta {
   label: string;
   color?: string;
   description?: string;
+  /** Hide this state from the State Ribbon in list views (e.g. archived states) */
+  ribbonHidden?: boolean;
 }
 
 // ── State transitions ────────────────────────────────────────

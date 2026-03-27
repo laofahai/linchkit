@@ -56,6 +56,8 @@ export interface BaseFieldDefinition extends FieldConstraints {
   description?: string;
   sensitive?: boolean;
   secret?: boolean;
+  /** Field is read-only (cannot be modified after creation) */
+  readonly?: boolean;
   /** Data masking configuration. When set, field values are masked based on strategy unless actor has unmask permission. */
   masking?: MaskingConfig;
   /** Whether this field stores translatable content (i18n). When true, values are stored as JSONB { locale: value }. */
@@ -166,6 +168,8 @@ export interface FieldUIHints {
   group?: string;
   /** Form grid width hint (based on 12 columns), overrides type-inferred default */
   width?: 3 | 4 | 6 | 8 | 12;
+  /** Show as State Ribbon primary in list views */
+  ribbonPrimary?: boolean;
 }
 
 // ── Schema presentation ──────────────────────────────────
@@ -182,6 +186,11 @@ export interface SchemaPresentation {
   summaryFields?: string[];
   /** Lucide icon name (used in navigation, search results) */
   icon?: string;
+  /** State Ribbon config for list views (spec 03 section 5b) */
+  stateRibbon?: {
+    enabled: boolean;
+    field: string;
+  };
 }
 
 // ── Exposure control ──────────────────────────────────────
