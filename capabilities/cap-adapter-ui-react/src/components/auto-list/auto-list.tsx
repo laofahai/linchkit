@@ -184,8 +184,8 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
       {/* Scrollable table container — fixed height based on viewport */}
       <div className="rounded border border-border overflow-auto max-h-[calc(100vh-220px)]">
         <table
-          className="text-sm min-w-[600px]"
-          style={{ width: table.getTotalSize(), tableLayout: "fixed" }}
+          className="text-sm"
+          style={{ width: "100%", minWidth: table.getTotalSize(), tableLayout: "fixed" }}
         >
           <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -193,20 +193,22 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="relative px-3 py-2 text-left font-medium text-muted-foreground overflow-hidden"
+                    className="relative px-3 py-2 text-left font-medium text-muted-foreground"
                     style={{ width: header.getSize() }}
                   >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                    <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
                     {header.column.getCanResize() && (
                       // biome-ignore lint/a11y/noStaticElementInteractions: column resize handle uses mouse/touch events
                       <div
                         onMouseDown={header.getResizeHandler()}
                         onTouchStart={header.getResizeHandler()}
                         className={cn(
-                          "absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none",
-                          "opacity-0 hover:opacity-100 bg-border",
+                          "absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none touch-none z-10",
+                          "opacity-0 hover:opacity-100 bg-border hover:bg-primary/60",
                           header.column.getIsResizing() && "opacity-100 bg-primary",
                         )}
                       />
@@ -539,7 +541,7 @@ export function AutoList({
     onColumnSizingChange: handleColumnSizingChange,
     enableRowSelection: selectable && isSchemaMode,
     enableColumnResizing: true,
-    columnResizeMode: "onEnd",
+    columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
