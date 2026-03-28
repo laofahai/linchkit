@@ -251,7 +251,8 @@ Review is a quality investment. For complex, multi-file changes, spawn a reviewe
     1. Read the builder's diff: `git diff main..<builder-branch>`
     2. Check the diff matches the spec
     3. Run quality gates: {{QUALITY_GATE_INLINE}}
-    4. If everything passes, send merge_ready directly
+    4. Run the multi-agent review gate: `bash .overstory/scripts/multi-review.sh <base-branch> <builder-branch>`. Include the review report in the merge_ready mail body. If the pipeline verdict is FAIL, treat it the same as a reviewer FAIL — forward feedback to the builder.
+    5. If everything passes, send merge_ready directly
 
     **Reviewer verification (complex tasks):**
     Spawn a reviewer agent as before. Required when:
@@ -271,7 +272,8 @@ Review is a quality investment. For complex, multi-file changes, spawn a reviewe
     ```
     The reviewer validates against the builder's spec and runs the project's quality gates ({{QUALITY_GATE_INLINE}}).
 13. **Handle review results:**
-    - **PASS:** Either the reviewer sends a `result` mail with "PASS" in the subject, or self-verification confirms the diff matches the spec and quality gates pass. Immediately signal `merge_ready` for that builder's branch -- do not wait for other builders to finish:
+    - Before sending `merge_ready`, run the multi-agent review gate: `bash .overstory/scripts/multi-review.sh <base-branch> <builder-branch>`. Include the review report in the merge_ready mail body. If the pipeline verdict is FAIL, treat it the same as a reviewer FAIL — forward feedback to the builder for revision.
+    - **PASS:** Either the reviewer sends a `result` mail with "PASS" in the subject, or self-verification confirms the diff matches the spec and quality gates pass, AND the multi-agent review pipeline verdict is PASS. Immediately signal `merge_ready` for that builder's branch -- do not wait for other builders to finish:
       ```bash
       ov mail send --to coordinator --subject "merge_ready: <builder-task>" \
         --body "Review-verified. Branch: <builder-branch>. Files modified: <list>." \
@@ -301,9 +303,50 @@ Good decomposition follows these principles:
 - **Right-sized:** Not so large that a builder gets overwhelmed, not so small that the overhead outweighs the work.
 - **Typed boundaries:** Define interfaces/types first (or reference existing ones) so builders work against stable contracts.
 
+## multi-agent-review-gate
+
+Before sending `merge_ready` to the coordinator, run the automated multi-agent review gate to get independent AI reviewer feedback on the diff.
+
+### When to use
+Run before every `merge_ready` signal, regardless of whether a human reviewer was spawned.
+
+### How to invoke
+```bash
+bash .overstory/scripts/multi-review.sh <base-branch> <builder-branch> [--large]
+```
+
+- **Small changes** (≤5 files AND ≤200 lines): dual review — Gemini CLI only (lead provides its own review).
+- **Large changes** (>5 files OR >200 lines): triple review — Gemini CLI + Codex CLI. The script auto-detects this; pass `--large` to force triple mode manually.
+
+### Size auto-detection
+The script counts changed files and diff lines automatically. Pass `--large` to override and force triple mode.
+
+### Including results in merge_ready mail
+Capture the script output and include it in the `merge_ready` mail body:
+```bash
+REVIEW_REPORT="$(bash .overstory/scripts/multi-review.sh main <builder-branch>)"
+ov mail send --to coordinator --subject "merge_ready: <task>" \
+  --body "Review-verified. Branch: <builder-branch>. Files: <list>.
+
+Multi-agent review:
+${REVIEW_REPORT}" \
+  --type merge_ready
+```
+
+### Failure handling
+If the pipeline exits with code 1 (VERDICT: FAIL), treat it as a reviewer FAIL:
+- Do NOT send `merge_ready`.
+- Forward the review report to the builder as revision feedback:
+  ```bash
+  ov mail send --to <builder-name> --subject "Revision needed: multi-review FAIL" \
+    --body "<paste review report with ISSUES section>" --type status
+  ```
+- After the builder revises and sends `worker_done`, re-run the review gate on the updated branch.
+- Cap revision cycles at 3. Escalate to coordinator with `--type error` if still failing after 3 cycles.
+
 ## completion-protocol
 
-1. **Verify review coverage:** For each builder, confirm either (a) a reviewer PASS was received, or (b) you self-verified by reading the diff and confirming quality gates pass.
+1. **Verify review coverage:** For each builder, confirm either (a) a reviewer PASS was received, or (b) you self-verified by reading the diff and confirming quality gates pass. In all cases, the multi-agent review gate must have returned PASS before `merge_ready` was sent.
 2. Verify all subtask {{TRACKER_NAME}} issues are closed AND each builder's `merge_ready` has been sent (check via `{{TRACKER_CLI}} show <id>` for each).
 3. Run integration tests if applicable: {{QUALITY_GATE_INLINE}}.
 4. **Record mulch learnings** -- review your orchestration work for insights (decomposition strategies, worker coordination patterns, failures encountered, decisions made) and record them:
