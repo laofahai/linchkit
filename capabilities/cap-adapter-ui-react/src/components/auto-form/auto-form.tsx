@@ -35,6 +35,7 @@ import { AiSuggestionBadge } from "../ai-suggestion-badge";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
+import { TemplateSelector } from "./template-selector";
 import type { AutoFormProps, SubmitResult } from "./types";
 
 export function AutoForm({
@@ -54,6 +55,7 @@ export function AutoForm({
   onAiReject,
   onValuesChange,
   registerSetField,
+  templates,
 }: AutoFormProps) {
   const { t } = useTranslation();
   const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
@@ -79,6 +81,9 @@ export function AutoForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isViewMode = mode === "view";
+
+  // ── Record template state ──
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | undefined>(undefined);
 
   // Merge external server errors into local errors
   useEffect(() => {
@@ -293,6 +298,30 @@ export function AutoForm({
       }
       return next;
     });
+  }
+
+  function handleApplyTemplate(template: import("@linchkit/core/types").RecordTemplate) {
+    // Merge template values into form data — existing defaults remain for fields not in template
+    setFormData((prev) => ({ ...prev, ...template.values }));
+    setAppliedTemplateId(template.id);
+    // Clear any existing errors when applying a template
+    setErrors({});
+    setTouchedFields(new Set());
+  }
+
+  function handleClearTemplate() {
+    // Reset to initial defaults
+    const defaultData: Record<string, unknown> = {};
+    for (const vf of view.fields) {
+      if (vf.visible === false) continue;
+      const fieldDef = schema.fields[vf.field];
+      if (!fieldDef) continue;
+      defaultData[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
+    }
+    setFormData(defaultData);
+    setAppliedTemplateId(undefined);
+    setErrors({});
+    setTouchedFields(new Set());
   }
 
   /** Scroll the first error field into view after validation failure.
@@ -564,6 +593,16 @@ export function AutoForm({
 
   return (
     <form id="auto-form" ref={formRef} onSubmit={handleSubmit} noValidate>
+      {/* Template selector — create mode only */}
+      {mode === "create" && templates && templates.length > 0 && (
+        <TemplateSelector
+          templates={templates}
+          onSelect={handleApplyTemplate}
+          onClear={handleClearTemplate}
+          selectedId={appliedTemplateId}
+        />
+      )}
+
       {/* Form-level error banner */}
       {formError && !isViewMode && (
         <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
