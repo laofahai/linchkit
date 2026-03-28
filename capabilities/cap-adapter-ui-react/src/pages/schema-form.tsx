@@ -12,7 +12,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, Check, Copy, Loader2, MoreHorizontal, Pencil, RefreshCw, ServerCrash, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityPanel } from "../components/activity-panel";
+import { ChatterPanel } from "../components/chatter-panel";
 import { AutoForm } from "../components/auto-form";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
@@ -708,7 +708,7 @@ export function SchemaFormPage() {
 
           {/* Bottom tabs: relation tabs + other panels */}
           {!isCreate && params.id && (
-            <Tabs defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]!.name}` : "audit-trail"}>
+            <Tabs defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]!.name}` : "chatter"}>
               <TabsList variant="line">
                 {/* One_to_many relationship tabs */}
                 {one2manyLinks.map((link) => {
@@ -732,9 +732,9 @@ export function SchemaFormPage() {
                 <TabsTrigger value="version-history">
                   {t("versionHistory.title", "Version History")}
                 </TabsTrigger>
-                {/* Audit trail tab */}
-                <TabsTrigger value="audit-trail">
-                  {t("detail.auditTrail", "Audit Trail")}
+                {/* Chatter tab */}
+                <TabsTrigger value="chatter">
+                  {t("chatter.title", "Chatter")}
                 </TabsTrigger>
               </TabsList>
 
@@ -776,9 +776,9 @@ export function SchemaFormPage() {
                 />
               </TabsContent>
 
-              {/* Audit trail tab content */}
-              <TabsContent value="audit-trail">
-                <ActivityPanel
+              {/* Chatter tab content */}
+              <TabsContent value="chatter">
+                <ChatterPanel
                   schemaName={schemaName}
                   recordId={params.id!}
                 />
