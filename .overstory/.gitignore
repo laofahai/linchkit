@@ -8,4 +8,6 @@
 !groups.json
 !agent-defs/
 !agent-defs/**
+!scripts/
+!scripts/**
 !README.md
