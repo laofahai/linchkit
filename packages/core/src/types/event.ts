@@ -72,10 +72,7 @@ export interface EventHandlerDefinition {
 // ── EventHandler Context ────────────────────────────
 
 export interface EventHandlerContext {
-  execute(actionName: string, input: Record<string, unknown>): Promise<unknown>;
   emit(eventType: string, payload: Record<string, unknown>): void;
-  get(schema: string, id: string): Promise<Record<string, unknown>>;
-  query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
 }
 
 // ── Subscription event (SSE push to client) ────────────────
