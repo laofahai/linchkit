@@ -17,9 +17,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.63",
-    "@ai-sdk/openai": "^3.0.47",
-    "ai": "^6.0.134",
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.1",
     "pino": "^10.3.1",

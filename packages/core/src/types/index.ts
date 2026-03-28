@@ -42,3 +42,4 @@ export type * from "./version";
 export type * from "./view";
 export type * from "./watcher";
 export type * from "./widget";
+export type * from "./life-system";
