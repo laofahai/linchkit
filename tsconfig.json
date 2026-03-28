@@ -41,6 +41,9 @@
       "@linchkit/ui-kit/hooks": ["./capabilities/cap-adapter-ui-react/ui-kit/src/hooks"],
       "@linchkit/ui-kit/lib/utils": ["./capabilities/cap-adapter-ui-react/ui-kit/src/lib/utils"],
       "@linchkit/cap-purchase-demo": ["./capabilities/cap-purchase-demo/src"],
+      "@linchkit/cap-chatter": ["./capabilities/cap-chatter/src"],
+      "@linchkit/cap-chatter/capability": ["./capabilities/cap-chatter/src/capability.ts"],
+      "@linchkit/cap-chatter/graphql": ["./capabilities/cap-chatter/src/graphql.ts"],
       "@/*": ["./capabilities/cap-adapter-ui-react/src/*"]
     }
   },
