@@ -53,8 +53,15 @@ export function createSignalBus(options: SignalBusOptions = {}): SignalBus {
     });
 
   async function emit(signal: SensorSignal): Promise<void> {
+    const promises: Promise<void>[] = [];
     for (const handler of subscribers) {
-      await handler(signal);
+      const result = handler(signal);
+      if (result instanceof Promise) {
+        promises.push(result);
+      }
+    }
+    if (promises.length > 0) {
+      await Promise.all(promises);
     }
   }
 
