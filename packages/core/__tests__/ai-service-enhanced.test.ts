@@ -1,14 +1,15 @@
 import { describe, expect, it, beforeEach, mock } from "bun:test";
 import {
   createAIService,
-  createNoopAIService,
   defaultAIConfig,
   resolveModel,
   resolveModelRoute,
   resolveTenantConfig,
-} from "../src/ai/ai-service";
-import { CostEstimator, defaultCostEstimator } from "../src/ai/cost-estimator";
-import { AIResponseCache } from "../src/ai/response-cache";
+  CostEstimator,
+  defaultCostEstimator,
+  AIResponseCache,
+} from "@linchkit/cap-ai-provider";
+import { createNoopAIService } from "../src/ai/ai-service";
 import type {
   AICacheConfig,
   AICompletionOptions,

@@ -2,6 +2,7 @@ version: '1'
 domains:
   - testing
   - core
+  - architecture
 governance:
   max_entries: 100
   warn_entries: 150

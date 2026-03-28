@@ -21,11 +21,11 @@ import type {
   ViewDefinition,
 } from "@linchkit/core";
 import { ConfigRegistry, createDerivedPropertyEngine } from "@linchkit/core";
+import { createAIService } from "@linchkit/cap-ai-provider";
 import {
   ActionRegistry,
   AIAuditLogger,
   AIBoundary,
-  createAIService,
   createNoopAIService,
   CacheManager,
   checkConnection,
