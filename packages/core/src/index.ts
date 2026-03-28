@@ -179,14 +179,10 @@ export {
 } from "./errors";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
 export type {
-  CompiledFlow,
-  FlowCompiler,
   FlowEngine,
-  FlowEngineConfig,
   FlowRegistry,
   FlowStepContext,
   FlowStepContextDeps,
-  RestateConfig,
   TriggerBinding,
 } from "./flow";
 export type {
@@ -262,33 +258,3 @@ export type { PermissionGroupDefinition } from "./types/permission";
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
 export { validateIdentifier } from "./utils/identifier";
-export type {
-  BreakingChange,
-  CompatibilityCheckResult,
-  MigrationResult,
-  MigrationTransform,
-  ReleaseCompatibilityResult,
-  ReleaseType,
-  RollbackMode,
-  SchemaMigration,
-  SemVer,
-  TenantOverrideImpact,
-  VersionEntry,
-  VersionedEntityType,
-  VersionQuery,
-} from "./versioning";
-// Versioning — release compatibility, migration, version tracking (spec 38)
-export {
-  analyzeCompatibility,
-  applyMigration,
-  classifyRelease,
-  compareSemVer,
-  createVersionRegistry,
-  formatSemVer,
-  getBreakingChanges,
-  isCompatible,
-  MigrationRegistry,
-  parseSemVer,
-  VersionRegistry,
-  validateUpgrade,
-} from "./versioning";

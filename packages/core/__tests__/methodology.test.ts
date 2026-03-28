@@ -14,7 +14,7 @@ import {
   validateExportPatterns,
   validateNamingConventions,
   validateProjectStructure,
-} from "../src/methodology";
+} from "@linchkit/devtools/methodology";
 
 // ── validateNamingConventions ───────────────────────────
 

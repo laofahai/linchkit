@@ -3,9 +3,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { actionToDoc, fieldToDoc, generateApiDoc } from "../src/documentation/api-doc-generator";
-import { renderActionDoc, renderSystemDoc } from "../src/documentation/markdown-renderer";
-import { generateOpenAPISpec } from "../src/documentation/openapi-generator";
+import { actionToDoc, fieldToDoc, generateApiDoc } from "@linchkit/devtools/documentation";
+import { renderActionDoc, renderSystemDoc } from "@linchkit/devtools/documentation";
+import { generateOpenAPISpec } from "@linchkit/devtools/documentation";
 import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 import type { ActionDefinition } from "../src/types/action";
 import type { LinkDefinition } from "../src/types/link";

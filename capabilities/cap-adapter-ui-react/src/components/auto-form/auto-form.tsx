@@ -30,6 +30,7 @@ import { AlertCircle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { evaluateVisibility } from "../../lib/field-visibility";
+import { isMaskedValue } from "../../lib/masking";
 import { AiSuggestionBadge } from "../ai-suggestion-badge";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
@@ -189,6 +190,8 @@ export function AutoForm({
 
   const validateField = useCallback(
     (fieldName: string, value: unknown): string | undefined => {
+      // Skip validation for masked values — they are read-only placeholders
+      if (isMaskedValue(value)) return undefined;
       const fieldShape = zodSchema.shape[fieldName];
       if (!fieldShape) return undefined;
       const result = fieldShape.safeParse(value);
@@ -205,7 +208,17 @@ export function AutoForm({
   );
 
   const validateAll = useCallback((): boolean => {
-    const result = zodSchema.safeParse(formData);
+    // Strip masked values before validation — masked fields are read-only
+    // and their server-side values are preserved; validating the masked
+    // placeholder (e.g. "****e.com") against format rules (email) would
+    // produce false negatives.
+    const dataToValidate = { ...formData };
+    for (const [key, value] of Object.entries(dataToValidate)) {
+      if (isMaskedValue(value)) {
+        delete dataToValidate[key];
+      }
+    }
+    const result = zodSchema.safeParse(dataToValidate);
     if (result.success) {
       setErrors({});
       return true;
@@ -327,8 +340,14 @@ export function AutoForm({
       return;
     }
 
-    // Exclude hidden fields (visibleWhen condition not met) from submission
+    // Exclude hidden fields (visibleWhen condition not met) and masked
+    // fields (read-only server placeholders) from submission
     const submitData = { ...formData };
+    for (const [key, value] of Object.entries(submitData)) {
+      if (isMaskedValue(value)) {
+        delete submitData[key];
+      }
+    }
     for (const vf of view.fields) {
       const condition = vf.visibleWhen;
       if (condition && !evaluateVisibility(condition, formData)) {

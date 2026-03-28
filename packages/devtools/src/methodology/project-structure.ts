@@ -7,7 +7,7 @@
 
 import { buildReport, type QualityIssue, type QualityReport } from "./code-quality";
 
-// ── Types ───────────────────────────────────────────────
+// -- Types ---------------------------------------------------------------
 
 export interface DirectoryEntry {
   /** Relative path from root (e.g., "src/types") */
@@ -25,7 +25,7 @@ export interface StructureExpectation {
   description?: string;
 }
 
-// ── Default expectations ────────────────────────────────
+// -- Default expectations ------------------------------------------------
 
 const DEFAULT_PACKAGE_DIRS: StructureExpectation[] = [
   { path: "src", required: true, description: "Source code directory" },
@@ -41,7 +41,7 @@ const CAPABILITY_REQUIRED_DIRS: StructureExpectation[] = [
 
 const CAPABILITY_EXPECTED_FILES = [{ pattern: "src/index.ts", description: "Main entry point" }];
 
-// ── Project structure validation ────────────────────────
+// -- Project structure validation ----------------------------------------
 
 /**
  * Validate that a package directory has the expected structure.
@@ -76,7 +76,7 @@ export function validateProjectStructure(
   return buildReport(issues);
 }
 
-// ── Capability structure validation ─────────────────────
+// -- Capability structure validation -------------------------------------
 
 /**
  * Validate that a capability directory follows conventions.
@@ -142,7 +142,7 @@ export function validateCapabilityStructure(
   return buildReport(issues);
 }
 
-// ── File naming validation ──────────────────────────────
+// -- File naming validation ----------------------------------------------
 
 const KEBAB_CASE_FILE_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 

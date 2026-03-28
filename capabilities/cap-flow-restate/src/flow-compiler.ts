@@ -16,8 +16,9 @@ import type {
   FlowStep,
   ParallelFlowStep,
   WaitFlowStep,
-} from "../types/flow";
-import type { CompiledFlow, FlowStepContext } from "./types";
+} from "@linchkit/core";
+import type { FlowStepContext } from "@linchkit/core/server";
+import type { CompiledFlow } from "./types";
 
 // ── Expression resolution ────────────────────────────────
 

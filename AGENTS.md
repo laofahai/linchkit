@@ -47,6 +47,12 @@ capabilities/ (pluggable):
 - `ui` MUST NOT import from `server` (communicates via HTTP/GraphQL only)
 - No circular dependencies between packages
 
+**Core boundary rules** (see CLAUDE.md "Core Boundary Rules" for full details):
+- Core = engines + types + pipeline + life-system engines. NOT just CRUD.
+- When reviewing PRs that add code to `@linchkit/core`, verify the new code cannot live in a capability instead.
+- External dependencies follow the "interface in core, implementation in capability" pattern (e.g. Flow interface in core, RestateFlowEngine in cap-flow-restate; AI provider interface in core, SDK bindings in cap-ai-provider).
+- Decision test: "Without this, is a zero-capability LinchKit still AI-Native?" If yes → capability. If no → core.
+
 ## Capability System
 
 **Types:** `standard` (business modules) | `adapter` (protocol: MCP, A2A, AG-UI) | `bridge` (cross-module connectors)

@@ -1,15 +1,19 @@
 /**
  * GraphQL Execution Log query tests
  *
- * Validates the executionLogs and executionLog queries, including
- * filtering, pagination, sorting, single-entry lookup, and tenant isolation.
+ * Validates the auto-generated executionLogList and executionLog queries
+ * (from the system schema "execution_log"), including filtering, pagination,
+ * sorting, single-entry lookup, and tenant isolation.
+ *
+ * Data is seeded directly into InMemoryStore under the "execution_log" schema
+ * because the auto-generated GraphQL resolvers read from DataProvider.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
 import { createActionExecutor } from "@linchkit/core/server";
 import { InMemoryStore } from "@linchkit/core/server";
-import { InMemoryExecutionLogger } from "@linchkit/core/server";
+import { executionLogSchema } from "../src/system-schemas";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -24,21 +28,20 @@ const taskSchema: SchemaDefinition = {
 };
 
 const store = new InMemoryStore();
-const executionLogger = new InMemoryExecutionLogger();
 const executor = createActionExecutor({
   dataProvider: store,
-  executionLogger,
 });
 
-// Register CRUD actions
+// Register CRUD actions for the task schema
 for (const action of generateCrudActions(taskSchema)) {
   executor.registry.register(action);
 }
 
-const graphqlSchema = buildGraphQLSchema([taskSchema], {
+// Build GraphQL schema including the system execution_log schema
+const graphqlSchema = buildGraphQLSchema([taskSchema, executionLogSchema], {
   executor,
   dataProvider: store,
-  executionLogger,
+  internalSchemas: new Set(["execution_log"]),
 });
 const app = createServer(graphqlSchema);
 const port = 3993;
@@ -52,7 +55,6 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  executionLogger.clear();
   store.clear();
 });
 
@@ -67,41 +69,68 @@ async function gql(query: string, variables?: Record<string, unknown>) {
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 
+/** Seed an execution log entry into the InMemoryStore */
+async function seedLog(overrides: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+  const now = new Date().toISOString();
+  const defaults: Record<string, unknown> = {
+    action_name: "create_task",
+    schema_name: "task",
+    actor_id: "user-1",
+    actor_type: "human",
+    status: "succeeded",
+    duration_ms: 5,
+    started_at: now,
+    completed_at: now,
+    input: JSON.stringify({}),
+    channel: "rest",
+  };
+  return store.create("execution_log", { ...defaults, ...overrides });
+}
+
 // ── Tests ─────────────────────────────────────────────────
 
-describe("GraphQL executionLogs query", () => {
+describe("GraphQL executionLogList query", () => {
   test("returns empty list when no executions", async () => {
     const result = await gql(`
       query {
-        executionLogs {
-          items { id action status }
+        executionLogList {
+          items { id action_name status }
           total
+          pageInfo { limit offset hasMore }
         }
       }
     `);
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: unknown[]; total: number };
+    const logs = result.data.executionLogList as { items: unknown[]; total: number };
     expect(logs.items).toHaveLength(0);
     expect(logs.total).toBe(0);
   });
 
-  test("returns execution entries after action execution", async () => {
-    // Execute an action to generate a log entry
-    await executor.execute("create_task", { title: "Test Task" }, { type: "human", id: "user-1" });
+  test("returns execution entries with correct field names", async () => {
+    await seedLog({
+      action_name: "create_task",
+      schema_name: "task",
+      actor_id: "user-1",
+      actor_type: "human",
+      status: "succeeded",
+      duration_ms: 42,
+      input: JSON.stringify({ title: "Test Task" }),
+    });
 
     const result = await gql(`
       query {
-        executionLogs {
+        executionLogList {
           items {
             id
-            action
-            schema
+            action_name
+            schema_name
             status
-            duration
-            startedAt
-            completedAt
-            actor { type id }
+            duration_ms
+            started_at
+            completed_at
+            actor_id
+            actor_type
             input
           }
           total
@@ -110,7 +139,7 @@ describe("GraphQL executionLogs query", () => {
     `);
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as {
+    const logs = result.data.executionLogList as {
       items: Array<Record<string, unknown>>;
       total: number;
     };
@@ -118,178 +147,173 @@ describe("GraphQL executionLogs query", () => {
     expect(logs.items).toHaveLength(1);
 
     const entry = logs.items[0];
-    expect(entry.action).toBe("create_task");
-    expect(entry.schema).toBe("task");
+    expect(entry.action_name).toBe("create_task");
+    expect(entry.schema_name).toBe("task");
     expect(entry.status).toBe("succeeded");
-    expect(entry.duration).toBeGreaterThanOrEqual(0);
-    expect(entry.startedAt).toBeDefined();
-    expect(entry.actor).toEqual({ type: "human", id: "user-1" });
+    expect(entry.duration_ms).toBe(42);
+    expect(entry.started_at).toBeDefined();
+    expect(entry.actor_id).toBe("user-1");
+    expect(entry.actor_type).toBe("human");
     expect(entry.input).toBeDefined();
     // input should be JSON-encoded string
     const parsedInput = JSON.parse(entry.input as string);
     expect(parsedInput.title).toBe("Test Task");
   });
 
-  test("filters by action name", async () => {
-    await executor.execute("create_task", { title: "A" }, { type: "human", id: "user-1" });
-    await executor.execute("create_task", { title: "B" }, { type: "human", id: "user-1" });
-    // Generate a failed entry for a different action (nonexistent)
-    await executor.execute("delete_task", { id: "nonexistent" }, { type: "human", id: "user-1" });
+  test("filters by action_name using filter arg", async () => {
+    await seedLog({ action_name: "create_task" });
+    await seedLog({ action_name: "create_task" });
+    await seedLog({ action_name: "delete_task", status: "failed" });
 
     const result = await gql(`
-      query {
-        executionLogs(action: "create_task") {
-          items { action }
+      query($filter: String) {
+        executionLogList(filter: $filter) {
+          items { action_name }
           total
         }
       }
-    `);
+    `, { filter: JSON.stringify({ action_name: "create_task" }) });
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
     expect(logs.total).toBe(2);
     for (const item of logs.items) {
-      expect(item.action).toBe("create_task");
+      expect(item.action_name).toBe("create_task");
     }
   });
 
-  test("filters by status", async () => {
-    await executor.execute("create_task", { title: "Good" }, { type: "human", id: "user-1" });
-    // Trigger a failure (missing required field)
-    await executor.execute("create_task", {}, { type: "human", id: "user-1" });
+  test("filters by status using filter arg", async () => {
+    await seedLog({ status: "succeeded" });
+    await seedLog({ status: "failed", error_message: "missing field" });
 
     const result = await gql(`
-      query {
-        executionLogs(status: "succeeded") {
+      query($filter: String) {
+        executionLogList(filter: $filter) {
           items { status }
           total
         }
       }
-    `);
+    `, { filter: JSON.stringify({ status: "succeeded" }) });
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
-    expect(logs.total).toBeGreaterThanOrEqual(1);
+    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    expect(logs.total).toBe(1);
     for (const item of logs.items) {
       expect(item.status).toBe("succeeded");
     }
   });
 
-  test("filters by schema name", async () => {
-    await executor.execute("create_task", { title: "T1" }, { type: "human", id: "user-1" });
+  test("filters by schema_name using filter arg", async () => {
+    await seedLog({ schema_name: "task" });
+    await seedLog({ schema_name: "order" });
 
     const result = await gql(`
-      query {
-        executionLogs(schema: "task") {
-          items { schema }
+      query($filter: String) {
+        executionLogList(filter: $filter) {
+          items { schema_name }
           total
         }
       }
-    `);
+    `, { filter: JSON.stringify({ schema_name: "task" }) });
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
     expect(logs.total).toBe(1);
-    expect(logs.items[0].schema).toBe("task");
+    expect(logs.items[0].schema_name).toBe("task");
   });
 
   test("supports pagination with page/pageSize", async () => {
     // Create 3 entries
     for (let i = 0; i < 3; i++) {
-      await executor.execute("create_task", { title: `Task ${i}` }, { type: "human", id: "user-1" });
+      await seedLog({ action_name: `action_${i}` });
     }
 
     const result = await gql(`
       query {
-        executionLogs(page: 1, pageSize: 2) {
+        executionLogList(page: 1, pageSize: 2) {
           items { id }
           total
+          pageInfo { limit offset hasMore }
         }
       }
     `);
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+      pageInfo: { limit: number; offset: number; hasMore: boolean };
+    };
     expect(logs.items).toHaveLength(2);
     expect(logs.total).toBe(3);
+    expect(logs.pageInfo.hasMore).toBe(true);
   });
 
-  test("supports sorting by startedAt", async () => {
-    await executor.execute("create_task", { title: "First" }, { type: "human", id: "user-1" });
-    await executor.execute("create_task", { title: "Second" }, { type: "human", id: "user-1" });
+  test("supports sorting by started_at", async () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const future = new Date(Date.now() + 60_000).toISOString();
 
-    // Default sort is startedAt desc
-    const descResult = await gql(`
+    await seedLog({ started_at: past, action_name: "first" });
+    await seedLog({ started_at: future, action_name: "second" });
+
+    // Ascending order
+    const ascResult = await gql(`
       query {
-        executionLogs(sortField: "startedAt", sortOrder: "asc") {
-          items { startedAt }
+        executionLogList(sortField: "started_at", sortOrder: "asc") {
+          items { started_at }
           total
         }
       }
     `);
 
-    expect(descResult.errors).toBeUndefined();
-    const logs = descResult.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
+    expect(ascResult.errors).toBeUndefined();
+    const logs = ascResult.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
     expect(logs.total).toBe(2);
-    // Ascending order: first entry should have earlier startedAt
-    const t0 = new Date(logs.items[0].startedAt as string).getTime();
-    const t1 = new Date(logs.items[1].startedAt as string).getTime();
+    const t0 = new Date(logs.items[0].started_at as string).getTime();
+    const t1 = new Date(logs.items[1].started_at as string).getTime();
     expect(t0).toBeLessThanOrEqual(t1);
   });
 
-  test("includes error field for failed executions", async () => {
-    // Execute nonexistent action to get a failed entry
-    await executor.execute("nonexistent_action", {}, { type: "human", id: "user-1" });
+  test("includes error fields for failed executions", async () => {
+    await seedLog({
+      status: "failed",
+      error_code: "NOT_FOUND",
+      error_message: "Action not found",
+    });
 
     const result = await gql(`
-      query {
-        executionLogs(status: "failed") {
+      query($filter: String) {
+        executionLogList(filter: $filter) {
           items {
             status
-            error { code message }
+            error_code
+            error_message
           }
           total
         }
       }
-    `);
+    `, { filter: JSON.stringify({ status: "failed" }) });
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
-    expect(logs.total).toBeGreaterThanOrEqual(1);
+    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    expect(logs.total).toBe(1);
     const failedEntry = logs.items[0];
     expect(failedEntry.status).toBe("failed");
-    expect(failedEntry.error).toBeDefined();
-    const error = failedEntry.error as Record<string, string>;
-    expect(error.message).toBeDefined();
+    expect(failedEntry.error_code).toBe("NOT_FOUND");
+    expect(failedEntry.error_message).toBe("Action not found");
   });
 
-  test("exposes channel and tracing fields", async () => {
-    // Manually log an entry with extra fields to test GraphQL exposure
-    executionLogger.log({
-      id: "trace-test-1",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
-      status: "succeeded",
-      duration: 5,
-      startedAt: new Date(),
-      completedAt: new Date(),
+  test("exposes channel field", async () => {
+    await seedLog({
       channel: "graphql",
-      parentExecutionId: "parent-123",
-      childExecutionIds: ["child-a", "child-b"],
-      idempotencyKey: "idem-key-1",
     });
 
     const result = await gql(`
       query {
-        executionLogs {
+        executionLogList {
           items {
             id
             channel
-            parentExecutionId
-            childExecutionIds
-            idempotencyKey
           }
           total
         }
@@ -297,33 +321,31 @@ describe("GraphQL executionLogs query", () => {
     `);
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
     expect(logs.total).toBe(1);
     const entry = logs.items[0];
-    expect(entry.id).toBe("trace-test-1");
     expect(entry.channel).toBe("graphql");
-    expect(entry.parentExecutionId).toBe("parent-123");
-    expect(entry.childExecutionIds).toEqual(["child-a", "child-b"]);
-    expect(entry.idempotencyKey).toBe("idem-key-1");
   });
 });
 
 describe("GraphQL executionLog single entry query", () => {
   test("returns entry by id", async () => {
-    await executor.execute("create_task", { title: "Lookup" }, { type: "human", id: "user-1" });
-
-    // Get the entry id from the logger
-    const entries = executionLogger.getAll();
-    expect(entries).toHaveLength(1);
-    const entryId = entries[0].id;
+    const created = await seedLog({
+      action_name: "create_task",
+      status: "succeeded",
+      actor_id: "user-1",
+      actor_type: "human",
+    });
+    const entryId = created.id as string;
 
     const result = await gql(`
       query($id: ID!) {
         executionLog(id: $id) {
           id
-          action
+          action_name
           status
-          actor { type id }
+          actor_id
+          actor_type
         }
       }
     `, { id: entryId });
@@ -332,7 +354,7 @@ describe("GraphQL executionLog single entry query", () => {
     const entry = result.data.executionLog as Record<string, unknown>;
     expect(entry).not.toBeNull();
     expect(entry.id).toBe(entryId);
-    expect(entry.action).toBe("create_task");
+    expect(entry.action_name).toBe("create_task");
     expect(entry.status).toBe("succeeded");
   });
 
@@ -350,124 +372,25 @@ describe("GraphQL executionLog single entry query", () => {
   });
 
   test("enforces tenant isolation", async () => {
-    // Manually log an entry with a specific tenantId
-    executionLogger.log({
-      id: "tenant-entry-1",
-      tenantId: "tenant-A",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
+    const created = await seedLog({
+      tenant_id: "tenant-A",
+      action_name: "create_task",
       status: "succeeded",
-      duration: 5,
-      startedAt: new Date(),
-      completedAt: new Date(),
     });
+    const entryId = created.id as string;
 
     // Query without tenant context should return the entry (no tenant filtering)
     const result = await gql(`
-      query {
-        executionLog(id: "tenant-entry-1") {
+      query($id: ID!) {
+        executionLog(id: $id) {
           id
         }
       }
-    `);
+    `, { id: entryId });
 
     expect(result.errors).toBeUndefined();
     // Without tenant context in the GraphQL context, tenant isolation check
     // passes because ctx.tenantId is undefined
     expect(result.data.executionLog).not.toBeNull();
-  });
-});
-
-describe("GraphQL executionLogs date range filtering", () => {
-  test("filters by since parameter", async () => {
-    const now = new Date();
-    const past = new Date(now.getTime() - 60_000); // 1 minute ago
-    const future = new Date(now.getTime() + 60_000); // 1 minute from now
-
-    executionLogger.log({
-      id: "old-entry",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
-      status: "succeeded",
-      duration: 5,
-      startedAt: past,
-      completedAt: past,
-    });
-
-    executionLogger.log({
-      id: "new-entry",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
-      status: "succeeded",
-      duration: 5,
-      startedAt: future,
-      completedAt: future,
-    });
-
-    // Filter entries since now — should only get the future entry
-    const result = await gql(`
-      query($since: String) {
-        executionLogs(since: $since) {
-          items { id }
-          total
-        }
-      }
-    `, { since: now.toISOString() });
-
-    expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
-    expect(logs.total).toBe(1);
-    expect(logs.items[0].id).toBe("new-entry");
-  });
-
-  test("filters by until parameter", async () => {
-    const now = new Date();
-    const past = new Date(now.getTime() - 60_000);
-    const future = new Date(now.getTime() + 60_000);
-
-    executionLogger.log({
-      id: "old-entry",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
-      status: "succeeded",
-      duration: 5,
-      startedAt: past,
-      completedAt: past,
-    });
-
-    executionLogger.log({
-      id: "new-entry",
-      action: "create_task",
-      schema: "task",
-      actor: { type: "human", id: "user-1" },
-      input: {},
-      status: "succeeded",
-      duration: 5,
-      startedAt: future,
-      completedAt: future,
-    });
-
-    // Filter entries until now — should only get the past entry
-    const result = await gql(`
-      query($until: String) {
-        executionLogs(until: $until) {
-          items { id }
-          total
-        }
-      }
-    `, { until: now.toISOString() });
-
-    expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogs as { items: Array<Record<string, unknown>>; total: number };
-    expect(logs.total).toBe(1);
-    expect(logs.items[0].id).toBe("old-entry");
   });
 });

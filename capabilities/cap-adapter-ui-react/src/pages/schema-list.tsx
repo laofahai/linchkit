@@ -14,16 +14,21 @@ import {
 } from "@linchkit/ui-kit/components";
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { startOfMonth } from "date-fns";
 import { Calendar, Kanban, List, ListTree, RefreshCw, ServerCrash } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AutoCalendar } from "../components/auto-calendar";
+import { AutoCalendar, CalendarNavControls } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
 import { AutoTree } from "../components/auto-tree";
-import { ListView, ViewToggle } from "../components/list-view";
+import { ListView } from "../components/list-view";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { EmptyState } from "../components/empty-state";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
+import { buildFilterColumns } from "../components/auto-list/filter-columns";
+import { useDataTableFilters } from "../components/data-table-filter";
+import type { FiltersState } from "../components/data-table-filter/core/types";
+import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
 import { useSavedViews } from "../hooks/use-saved-views";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
@@ -232,6 +237,7 @@ export function SchemaListPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("list");
+  const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
   // Track whether at least one successful fetch has been completed, to distinguish
   // "no records exist" from "data not yet loaded" for the empty state message.
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -268,6 +274,22 @@ export function SchemaListPage() {
   // Track bazza filter state from AutoList for save-view functionality
   const [currentBazzaFilters, setCurrentBazzaFilters] = useState<SavedViewFilter[]>([]);
   const hasActiveListFilters = currentBazzaFilters.length > 0;
+
+  // ── Page-level filter state (shared between list and alternate views) ──
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [bazzaFilters, setBazzaFilters] = useState<FiltersState>([]);
+
+  // AI search (schema mode)
+  const { aiSearch: aiSearchState, triggerAISearch, clearAISearch } = useAISearch(schema);
+
+  const handleSearchSubmit = useCallback(
+    (query: string) => {
+      if (schema && isNaturalLanguageQuery(query)) {
+        triggerAISearch(query);
+      }
+    },
+    [schema, triggerAISearch],
+  );
 
   // Single delete confirmation dialog state
   const [singleDeleteOpen, setSingleDeleteOpen] = useState(false);
@@ -319,6 +341,118 @@ export function SchemaListPage() {
     return pres?.summaryFields?.slice(0, 2);
   }, [schema]);
 
+  // ── Bazza filter columns + hook (page-level, shared across views) ──────
+  const filterColumnsConfig = useMemo(
+    () => (schema ? buildFilterColumns(schema, data, undefined, resolveLabel) : []),
+    [schema, data, resolveLabel],
+  );
+
+  const {
+    columns: bazzaColumns,
+    filters: bazzaFilterState,
+    actions: bazzaActions,
+    strategy: bazzaStrategy,
+  } = useDataTableFilters({
+    strategy: "client",
+    data,
+    columnsConfig: filterColumnsConfig,
+    filters: bazzaFilters,
+    onFiltersChange: setBazzaFilters,
+  });
+
+  const hasPageLevelFilters =
+    globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
+
+  const handleClearAllFilters = useCallback(() => {
+    setBazzaFilters([]);
+    setGlobalFilter("");
+    clearAISearch();
+  }, [clearAISearch]);
+
+  /**
+   * Apply page-level filters (text search + bazza + AI) to data.
+   * Used by alternate views (calendar, kanban, tree) that don't have AutoList's
+   * built-in filtering. The list view passes this state to AutoList as controlled props.
+   */
+  const pageFilteredData = useMemo(() => {
+    let result = data;
+
+    // Global text filter
+    if (globalFilter) {
+      const lower = globalFilter.toLowerCase();
+      result = result.filter((row) =>
+        Object.values(row).some((v) =>
+          String(v ?? "").toLowerCase().includes(lower),
+        ),
+      );
+    }
+
+    // Bazza filters
+    if (bazzaFilterState.length > 0) {
+      result = result.filter((row) =>
+        bazzaFilterState.every((f) => {
+          const val = row[f.field];
+          const fv = f.values;
+          if (fv.length === 0) return true;
+          switch (f.operator) {
+            case "eq":
+            case "in":
+              return fv.includes(val as string);
+            case "neq":
+            case "not_in":
+              return !fv.includes(val as string);
+            case "contains":
+              return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
+            case "gt":
+              return Number(val) > Number(fv[0]);
+            case "gte":
+              return Number(val) >= Number(fv[0]);
+            case "lt":
+              return Number(val) < Number(fv[0]);
+            case "lte":
+              return Number(val) <= Number(fv[0]);
+            case "between":
+              return Number(val) >= Number(fv[0]) && Number(val) <= Number(fv[1]);
+            default:
+              return true;
+          }
+        }),
+      );
+    }
+
+    // AI search filter
+    if (aiSearchState.result?.filter) {
+      const aiFilter = aiSearchState.result.filter as Record<string, unknown>;
+      const op = (aiFilter.operator as string) ?? "";
+      // Simple condition evaluation for AI filter
+      if (op === "contains" || op === "eq" || op === "neq" || op === "in" || op === "not_in") {
+        const field = aiFilter.field as string;
+        const value = aiFilter.value;
+        if (field) {
+          result = result.filter((row) => {
+            const rv = row[field];
+            switch (op) {
+              case "contains":
+                return String(rv ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
+              case "eq":
+                return rv === value || String(rv) === String(value);
+              case "neq":
+                return rv !== value && String(rv) !== String(value);
+              case "in":
+                return Array.isArray(value) ? value.some((v: unknown) => String(rv) === String(v)) : false;
+              case "not_in":
+                return Array.isArray(value) ? !value.some((v: unknown) => String(rv) === String(v)) : true;
+              default:
+                return true;
+            }
+          });
+        }
+      }
+    }
+
+    return result;
+  }, [data, globalFilter, bazzaFilterState, aiSearchState.result]);
+
   // Use refs for values needed inside fetchData to keep its identity stable.
   // This prevents the useCallback from changing on every render, which would
   // cascade into the useEffect and subscription handler causing infinite loops.
@@ -348,9 +482,17 @@ export function SchemaListPage() {
     setLoading(true);
     setActiveSavedViewId(null);
     setCurrentBazzaFilters([]);
-  }, [schemaName]);
+    // Reset page-level filters
+    setGlobalFilter("");
+    setBazzaFilters([]);
+    clearAISearch();
+    // Reset view type and calendar position so a previously selected calendar
+    // view does not persist when navigating to a different schema.
+    setActiveView("list");
+    setCalendarMonth(startOfMonth(new Date()));
+  }, [schemaName, clearAISearch]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options?: { background?: boolean }) => {
     const currentListView = listViewRef.current;
     if (!currentListView || !schemaName) {
       setLoading(false);
@@ -363,7 +505,11 @@ export function SchemaListPage() {
       // Don't clear loading — the correct listView will arrive and re-trigger fetch
       return;
     }
-    setLoading(true);
+    // Only show full loading skeleton for initial loads, not background refreshes.
+    // Background refreshes keep existing data visible while fetching.
+    if (!options?.background) {
+      setLoading(true);
+    }
     setDataError(null);
     try {
       const fields = getQueryFields(currentListView, schemaFieldsRef.current, bundleLinksRef.current, schemaName);
@@ -404,8 +550,13 @@ export function SchemaListPage() {
       setHasLoadedOnce(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : t("errors.failedToLoadData", "Failed to load data");
-      setDataError(message);
-      setData([]);
+      if (options?.background) {
+        // Background refresh: keep existing data visible, show toast instead
+        toast.error(message);
+      } else {
+        setDataError(message);
+        setData([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -444,7 +595,7 @@ export function SchemaListPage() {
       setHasNewData(true);
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
-        fetchData().then(() => setHasNewData(false));
+        fetchData({ background: true }).then(() => setHasNewData(false));
       }, 500);
     },
     [fetchData, schemaName, bundle?.schema?.label],
@@ -481,7 +632,7 @@ export function SchemaListPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchData();
+      await fetchData({ background: true });
     } finally {
       setRefreshing(false);
     }
@@ -553,7 +704,7 @@ export function SchemaListPage() {
     try {
       await deleteRecord(schemaName, pendingSingleDeleteId.current);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
-      await fetchData();
+      await fetchData({ background: true });
     } catch (err) {
       toast.error(t("toast.deleteFailed", "Failed to delete record"));
     } finally {
@@ -570,7 +721,7 @@ export function SchemaListPage() {
     try {
       await bulkDeleteRecords(schemaName, pendingBulkIds.current);
       toast.success(t("toast.bulkDeleted", "{{count}} record(s) deleted successfully", { count }));
-      await fetchData();
+      await fetchData({ background: true });
     } catch (err) {
       toast.error(t("toast.bulkDeleteFailed", "Failed to delete records"));
     } finally {
@@ -742,6 +893,9 @@ export function SchemaListPage() {
 
   // View toggle options
   const hasViewToggle = hasCalendarOption || hasKanbanOption || hasTreeOption;
+  const viewToggleExtraControls = activeView === "calendar" ? (
+    <CalendarNavControls currentMonth={calendarMonth} onMonthChange={setCalendarMonth} />
+  ) : undefined;
   const viewToggleOptions = [
     { key: "list", icon: <List className="size-3.5" />, label: t("calendar.listView", "List view") },
     ...(hasTreeOption ? [{ key: "tree", icon: <ListTree className="size-3.5" />, label: t("tree.treeView", "Tree view") }] : []),
@@ -768,38 +922,27 @@ export function SchemaListPage() {
         variant={primary.variant === "destructive" ? "destructive" : "default"}
         onClick={() => handleAction(primary.action, "")}
       >
-        {primary.label
-          ? t(primary.label, primary.label)
-          : t(`actions.${primary.action}`, primary.action)}
+        {resolveLabel(primary.label, primary.action)}
       </Button>
     );
   })();
 
   // Alternate view content (kanban, tree, calendar)
+  // The toolbar (primary action + SearchBar + refresh indicator + ViewToggle)
+  // is rendered by ListView, so alternate views only provide their content.
+  // Uses pageFilteredData so that search/filter state applies to all views.
   const alternateViewContent = activeView !== "list" ? (() => {
-    const viewToggleConfig = hasViewToggle ? { options: viewToggleOptions, activeView, onViewChange: setActiveView as (v: string) => void } : undefined;
-
     if (activeView === "kanban" && primaryStateDef) {
       return (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-1" />
-            <div className="flex shrink-0 items-center gap-2">
-              {primaryActionButton}
-              {refreshIndicator}
-              {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
-            </div>
-          </div>
-          <AutoKanban
-            schema={schema}
-            stateDefinition={primaryStateDef}
-            data={data}
-            loading={loading}
-            onRecordClick={handleRowClick}
-            onTransitioned={handleRefresh}
-            queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
-          />
-        </div>
+        <AutoKanban
+          schema={schema}
+          stateDefinition={primaryStateDef}
+          data={pageFilteredData}
+          loading={loading}
+          onRecordClick={handleRowClick}
+          onTransitioned={handleRefresh}
+          queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
+        />
       );
     }
 
@@ -808,43 +951,44 @@ export function SchemaListPage() {
         <AutoTree
           schemaName={schemaName}
           parentField={selfRefField}
-          records={data}
+          records={pageFilteredData}
           labelField={treeLabelField}
           summaryFields={treeSummaryFields}
           onRecordClick={handleRowClick}
-          toolbarExtra={
-            <div className="flex items-center gap-2">
-              {primaryActionButton}
-              {refreshIndicator}
-              {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
-            </div>
-          }
         />
       );
     }
 
     // Calendar view (fallback)
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-1" />
-          <div className="flex shrink-0 items-center gap-2">
-            {primaryActionButton}
-            {viewToggleConfig && <ViewToggle {...viewToggleConfig} />}
-          </div>
-        </div>
-        <AutoCalendar
-          schema={schema}
-          dateField={calendarDateField!}
-          titleField={calendarViewDef?.titleField}
-          colorField={calendarViewDef?.colorField}
-          data={data}
-          onRecordClick={handleRowClick}
-          loading={loading}
-        />
-      </div>
+      <AutoCalendar
+        schema={schema}
+        dateField={calendarDateField!}
+        titleField={calendarViewDef?.titleField}
+        colorField={calendarViewDef?.colorField}
+        data={pageFilteredData}
+        onRecordClick={handleRowClick}
+        loading={loading}
+        currentMonth={calendarMonth}
+        onMonthChange={setCalendarMonth}
+      />
     );
   })() : undefined;
+
+  // SearchBar props for alternate views (calendar/kanban/tree)
+  const searchBarPropsForAlternate = alternateViewContent ? {
+    schema,
+    globalFilter,
+    onGlobalFilterChange: setGlobalFilter,
+    onClearAll: hasPageLevelFilters ? handleClearAllFilters : undefined,
+    bazzaColumns,
+    bazzaFilters: bazzaFilterState,
+    bazzaActions,
+    bazzaStrategy,
+    aiSearchState,
+    onClearAISearch: clearAISearch,
+    onSubmit: handleSearchSubmit,
+  } : undefined;
 
   return (
     <ListView
@@ -859,6 +1003,8 @@ export function SchemaListPage() {
       onFiltersChange={setCurrentBazzaFilters}
       onRefresh={handleRefresh}
       refreshing={refreshing}
+      globalFilter={globalFilter}
+      onGlobalFilterChange={setGlobalFilter}
       savedViews={{
         views: savedViews,
         activeViewId: activeSavedViewId,
@@ -872,9 +1018,12 @@ export function SchemaListPage() {
         options: viewToggleOptions,
         activeView,
         onViewChange: setActiveView as (v: string) => void,
+        extraControls: viewToggleExtraControls,
       } : undefined}
       refreshIndicator={refreshIndicator}
+      primaryActionSlot={alternateViewContent ? primaryActionButton : undefined}
       alternateViewContent={alternateViewContent}
+      searchBarProps={searchBarPropsForAlternate}
       afterContent={
         <>
           <ConfirmDialog

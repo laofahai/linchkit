@@ -305,29 +305,19 @@ export {
 // === Flow engine ===
 
 export {
-  type CompiledFlow,
-  checkRestateHealth,
-  compileFlow,
   createFlowRegistry,
   createFlowStepContext,
-  createRestateEndpoint,
-  createRestateFlowEngine,
   createSyncFlowEngine,
   createTriggerBinding,
-  type FlowCompiler,
   type FlowEngine,
-  type FlowEngineConfig,
   type FlowRegistry,
   FlowRegistryImpl,
   type FlowStepContext,
   type FlowStepContextDeps,
-  type RestateConfig,
-  registerDeployment,
-  setupRestateEndpoint,
   type TriggerBinding,
 } from "./flow";
 
-// === Persistence: database, Drizzle ORM, migrations, system tables ===
+// === Persistence: database, Drizzle ORM, system tables ===
 
 export {
   checkConnection,
@@ -340,7 +330,6 @@ export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzl
 export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
 export * as drizzleSchema from "./persistence/drizzle-schema";
 export { DrizzleTransactionManager } from "./persistence/drizzle-transaction-manager";
-export { type MigrateOptions, runMigrations } from "./persistence/migrate";
 export {
   approvalStatusEnum,
   approvalsTable,
@@ -405,110 +394,3 @@ export {
   type ShutdownStatus,
   validateRequiredEnvVars,
 } from "./deployment";
-
-// === Legacy migration utilities ===
-
-export {
-  CSVImportSource,
-  type CSVImportSourceOptions,
-  DataImporter,
-  type DataImporterOptions,
-  type ErrorMode,
-  type FieldMapping,
-  type ImportProgress,
-  type ImportRecordError,
-  type ImportResult,
-  type ImportSource,
-  JSONImportSource,
-  type JSONImportSourceOptions,
-  type MappedRecord,
-  type MappingValidationResult,
-  type MigrationPlan,
-  type MigrationResult,
-  MigrationResumeTracker,
-  MigrationRunner,
-  type MigrationRunnerOptions,
-  SchemaMapper,
-} from "./migration";
-
-// === Governance: documentation validation, spec tracking, changelog ===
-
-export {
-  type ChangelogOptions,
-  type ConventionalCommit,
-  type DocCompleteness,
-  type DocIssue,
-  generateChangelog,
-  generateSpecReport,
-  generateVersionedChangelog,
-  parseConventionalCommit,
-  type SpecProgressReport,
-  type SpecStatus,
-  type SpecStatusValue,
-  SpecTracker,
-  type VersionGroup,
-  validateActionDoc,
-  validateCapabilityDoc,
-  validateSchemaDoc,
-} from "./governance";
-
-// === Documentation: API doc generation, Markdown, OpenAPI, Capability Spec, Search ===
-
-export {
-  type ActionDoc,
-  type ApiDocGeneratorOptions,
-  actionToDoc,
-  type CapabilityActionDoc,
-  type CapabilityRelationDoc,
-  type CapabilityRuleDoc,
-  type CapabilitySchemaDoc,
-  type CapabilitySpecDoc,
-  type CapabilityStateMachineDoc,
-  type CapabilityViewDoc,
-  createDocSearchIndex,
-  DocSearchIndex,
-  type DocSearchOptions,
-  type DocSearchResult,
-  type FieldDoc,
-  fieldToDoc,
-  generateApiDoc,
-  generateCapabilityDoc,
-  generateOpenAPISpec,
-  type MarkdownRenderOptions,
-  type OpenAPIGeneratorOptions,
-  type OpenAPIOperation,
-  type OpenAPIPathItem,
-  type OpenAPISchemaObject,
-  type OpenAPISpec,
-  renderActionDoc,
-  renderCapabilityDoc,
-  renderSchemaDoc,
-  renderSystemDoc,
-  type SchemaDoc,
-  type SystemDoc,
-  schemaToDoc,
-} from "./documentation";
-
-// === Methodology: code quality, project structure, convention checking ===
-
-export {
-  type ActionInfo,
-  type CommitInfo,
-  checkActionDefinitions,
-  checkCommitMessages,
-  checkFileNaming,
-  checkImportPatterns,
-  checkSchemaDefinitions,
-  type DirectoryEntry,
-  type ExportBoundaryConfig,
-  type FileContent,
-  type QualityIssue,
-  type QualityReport,
-  type SchemaInfo,
-  type Severity,
-  type StructureExpectation,
-  validateCapabilityStructure,
-  validateExportPatterns,
-  validateNamingConventions,
-  validateProjectStructure,
-} from "./methodology";

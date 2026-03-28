@@ -5,8 +5,8 @@
  * a Markdown changelog using the governance module (spec 37).
  */
 
-import type { ConventionalCommit } from "@linchkit/core/governance";
-import { generateChangelog, parseConventionalCommit } from "@linchkit/core/governance";
+import type { ConventionalCommit } from "@linchkit/devtools/governance";
+import { generateChangelog, parseConventionalCommit } from "@linchkit/devtools/governance";
 import { defineCommand } from "citty";
 import consola from "consola";
 

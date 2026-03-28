@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AutoList } from "../auto-list";
 import type { AutoListProps } from "../auto-list/types";
 import { SavedViewTabs, type SavedViewTabsProps } from "../auto-list/saved-view-tabs";
+import { SearchBar, type SearchBarProps } from "../auto-list/search-bar";
 import { ViewToggle, type ViewToggleConfig } from "./view-toggle";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 
@@ -23,14 +24,23 @@ export interface ListViewProps extends AutoListProps {
 
 	/** Content rendered after the list (dialogs, expanded panels, etc.). */
 	afterContent?: ReactNode;
+
+	/** Primary action button rendered consistently across all view modes. */
+	primaryActionSlot?: ReactNode;
+
+	/** Search bar props for alternate views (calendar/kanban/tree). When provided,
+	 *  a SearchBar is rendered above the alternate view content. */
+	searchBarProps?: SearchBarProps;
 }
 
 /**
  * ListView — Unified wrapper for all list pages.
  *
  * Composes: page wrapper + optional SavedViewTabs + optional ViewToggle + AutoList.
- * Admin pages pass only basic AutoList props for minimal usage.
- * Schema pages pass full config for saved views, view toggle, and alternate views.
+ * When an alternate view (calendar/kanban/tree) is active, a consistent mini-toolbar
+ * with the primary action button, refresh indicator and view toggle is shown above
+ * the alternate content. The ViewToggle stays in the same position regardless of
+ * active view mode.
  */
 export function ListView({
 	className,
@@ -40,6 +50,8 @@ export function ListView({
 	refreshIndicator,
 	afterContent,
 	toolbarExtra,
+	primaryActionSlot,
+	searchBarProps,
 	...autoListProps
 }: ListViewProps) {
 	// Compose toolbar extra: caller's extra + refresh indicator + view toggle
@@ -56,7 +68,30 @@ export function ListView({
 		<div className={cn("p-4", savedViews && "space-y-3", className)}>
 			{savedViews && <SavedViewTabs {...savedViews} />}
 
-			{alternateViewContent || (
+			{alternateViewContent ? (
+				<div className="space-y-4">
+					{/* Toolbar for alternate views: SearchBar + actions */}
+					<div className="flex flex-wrap items-center gap-3">
+						{/* Left: SearchBar (same filtering as list view) */}
+						{searchBarProps && (
+							<SearchBar
+								{...searchBarProps}
+								className="w-full max-w-md md:w-auto"
+							/>
+						)}
+
+						<div className="hidden flex-1 md:block" />
+
+						{/* Right: actions + view toggle */}
+						<div className="flex shrink-0 items-center gap-2">
+							{primaryActionSlot}
+							{refreshIndicator}
+							{viewToggle && <ViewToggle {...viewToggle} />}
+						</div>
+					</div>
+					{alternateViewContent}
+				</div>
+			) : (
 				<AutoList {...autoListProps} toolbarExtra={composedToolbarExtra} />
 			)}
 

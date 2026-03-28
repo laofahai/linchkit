@@ -7,7 +7,7 @@
 
 import type { ActionDoc, FieldDoc, SchemaDoc, SystemDoc } from "./api-doc-generator";
 
-// ── OpenAPI types (subset of OpenAPI 3.0) ──────────────────────────────────
+// -- OpenAPI types (subset of OpenAPI 3.0) -------------------------------------------------
 
 export interface OpenAPISpec {
   openapi: "3.0.3";
@@ -77,7 +77,7 @@ export interface OpenAPISchemaObject {
   additionalProperties?: boolean | OpenAPISchemaRef;
 }
 
-// ── Field type mapping ──────────────────────────────────
+// -- Field type mapping -------------------------------------------------
 
 /** Map LinchKit field types to OpenAPI type + format */
 function fieldTypeToOpenAPI(field: FieldDoc): OpenAPISchemaRef {
@@ -124,7 +124,7 @@ function fieldTypeToOpenAPI(field: FieldDoc): OpenAPISchemaRef {
   }
 }
 
-// ── Schema generation ──────────────────────────────────
+// -- Schema generation -------------------------------------------------
 
 /** Generate an OpenAPI component schema from a SchemaDoc */
 function schemaDocToOpenAPISchema(schema: SchemaDoc): OpenAPISchemaObject {
@@ -193,7 +193,7 @@ function actionInputSchema(action: ActionDoc): OpenAPISchemaObject {
   };
 }
 
-// ── Path generation ──────────────────────────────────
+// -- Path generation -------------------------------------------------
 
 /** Generate CRUD paths for a schema */
 function generateCRUDPaths(schema: SchemaDoc): Record<string, OpenAPIPathItem> {
@@ -348,7 +348,7 @@ function generateActionPath(action: ActionDoc): Record<string, OpenAPIPathItem> 
   };
 }
 
-// ── Public API ──────────────────────────────────
+// -- Public API -------------------------------------------------
 
 export interface OpenAPIGeneratorOptions {
   /** API version string. Default: "1.0.0" */

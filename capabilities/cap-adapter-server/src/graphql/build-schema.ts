@@ -14,8 +14,6 @@ import type {
   DataQueryOptions,
   DerivedPropertyEngine,
   EventBus,
-  ExecutionLogger,
-  ExecutionStatus,
   LinkDefinition,
   MaskRecordOptions,
   PermissionGroupDefinition,
@@ -140,91 +138,6 @@ const ActionResultType = new GraphQLObjectType({
   },
 });
 
-// ── ExecutionLog GraphQL types ───────────────────────────────
-
-const ExecutionActorType = new GraphQLObjectType({
-  name: "ExecutionActor",
-  fields: {
-    type: { type: new GraphQLNonNull(GraphQLString) },
-    id: { type: new GraphQLNonNull(GraphQLString) },
-  },
-});
-
-const ExecutionRuleResultType = new GraphQLObjectType({
-  name: "ExecutionRuleResult",
-  fields: {
-    rule: { type: new GraphQLNonNull(GraphQLString) },
-    result: { type: new GraphQLNonNull(GraphQLString) },
-    message: { type: GraphQLString },
-  },
-});
-
-const ExecutionStateTransitionType = new GraphQLObjectType({
-  name: "ExecutionStateTransition",
-  fields: {
-    from: { type: new GraphQLNonNull(GraphQLString) },
-    to: { type: new GraphQLNonNull(GraphQLString) },
-  },
-});
-
-const ExecutionErrorType = new GraphQLObjectType({
-  name: "ExecutionError",
-  fields: {
-    code: { type: GraphQLString },
-    message: { type: new GraphQLNonNull(GraphQLString) },
-  },
-});
-
-const ExecutionLogEntryType = new GraphQLObjectType({
-  name: "ExecutionLogQueryEntry",
-  fields: {
-    id: { type: new GraphQLNonNull(GraphQLID) },
-    action: { type: new GraphQLNonNull(GraphQLString) },
-    capability: { type: GraphQLString },
-    schema: { type: GraphQLString },
-    recordId: { type: GraphQLString },
-    actor: { type: new GraphQLNonNull(ExecutionActorType) },
-    input: {
-      type: GraphQLString,
-      description: "JSON-encoded input",
-      resolve: (e: Record<string, unknown>) => JSON.stringify(e.input),
-    },
-    output: {
-      type: GraphQLString,
-      description: "JSON-encoded output",
-      resolve: (e: Record<string, unknown>) => (e.output ? JSON.stringify(e.output) : null),
-    },
-    status: { type: new GraphQLNonNull(GraphQLString) },
-    error: { type: ExecutionErrorType },
-    rulesEvaluated: { type: new GraphQLList(new GraphQLNonNull(ExecutionRuleResultType)) },
-    stateTransition: { type: ExecutionStateTransitionType },
-    parentExecutionId: { type: GraphQLString },
-    childExecutionIds: {
-      type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
-    },
-    idempotencyKey: { type: GraphQLString },
-    channel: { type: GraphQLString },
-    duration: { type: new GraphQLNonNull(GraphQLInt) },
-    startedAt: {
-      type: new GraphQLNonNull(GraphQLString),
-      resolve: (e: Record<string, unknown>) => (e.startedAt as Date).toISOString(),
-    },
-    completedAt: {
-      type: GraphQLString,
-      resolve: (e: Record<string, unknown>) =>
-        e.completedAt ? (e.completedAt as Date).toISOString() : null,
-    },
-  },
-});
-
-const ExecutionLogListResultType = new GraphQLObjectType({
-  name: "ExecutionLogQueryResult",
-  fields: {
-    items: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExecutionLogEntryType))) },
-    total: { type: new GraphQLNonNull(GraphQLInt) },
-  },
-});
-
 // ── Schema builder options ──────────────────────────────────
 
 export interface BuildGraphQLSchemaOptions {
@@ -234,8 +147,6 @@ export interface BuildGraphQLSchemaOptions {
   dataProvider?: DataProvider;
   /** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
   actions?: ActionDefinition[];
-  /** Execution logger for log query endpoints */
-  executionLogger?: ExecutionLogger;
   /** Link definitions for generating bidirectional relation resolver fields */
   links?: LinkDefinition[];
   /** Cache manager for caching query results (optional — queries go direct when absent) */
@@ -268,7 +179,6 @@ export function buildGraphQLSchema(
 ): GraphQLSchema {
   const executor = options?.executor;
   const dataProvider = options?.dataProvider;
-  const executionLogger = options?.executionLogger;
   const links = options?.links ?? [];
   const eventBus = options?.eventBus;
   const permissionGroups = options?.permissionGroups ?? [];
@@ -818,70 +728,6 @@ export function buildGraphQLSchema(
             },
       };
     }
-  }
-
-  // ── Execution Log queries ────────────────────────────────
-  if (executionLogger) {
-    queryFields.executionLogs = {
-      type: new GraphQLNonNull(ExecutionLogListResultType),
-      args: {
-        action: { type: GraphQLString },
-        schema: { type: GraphQLString },
-        status: { type: GraphQLString },
-        actorId: { type: GraphQLString },
-        since: { type: GraphQLString },
-        until: { type: GraphQLString },
-        page: { type: GraphQLInt },
-        pageSize: { type: GraphQLInt },
-        sortField: { type: GraphQLString },
-        sortOrder: { type: GraphQLString },
-      },
-      resolve: (
-        _root: unknown,
-        args: {
-          action?: string;
-          schema?: string;
-          status?: string;
-          actorId?: string;
-          since?: string;
-          until?: string;
-          page?: number;
-          pageSize?: number;
-          sortField?: string;
-          sortOrder?: string;
-        },
-        ctx: GraphQLContext,
-      ) =>
-        executionLogger.findMany({
-          tenantId: ctx.tenantId,
-          action: args.action,
-          schema: args.schema,
-          status: args.status as ExecutionStatus | undefined,
-          actorId: args.actorId,
-          since: args.since,
-          until: args.until,
-          page: args.page,
-          pageSize: args.pageSize,
-          sortField: args.sortField as "startedAt" | "duration" | "action" | undefined,
-          sortOrder: args.sortOrder as "asc" | "desc" | undefined,
-        }),
-    };
-
-    queryFields.executionLog = {
-      type: ExecutionLogEntryType,
-      args: {
-        id: { type: new GraphQLNonNull(GraphQLID) },
-      },
-      resolve: async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
-        const entry = await executionLogger.getById(args.id);
-        if (!entry) return null;
-        // Tenant isolation: reject if entry belongs to a different tenant
-        if (ctx.tenantId && entry.tenantId !== ctx.tenantId) return null;
-        return entry;
-      },
-    };
-
-    // executionLogList is now auto-generated with standard filter/sort/limit/offset arguments
   }
 
   // ── Custom action typed mutations ────────────────────────

@@ -18,6 +18,5 @@ export {
   executionsTable,
 } from "./drizzle-schema";
 export { DrizzleTransactionManager } from "./drizzle-transaction-manager";
-export { type MigrateOptions, runMigrations } from "./migrate";
 export { type FindManyOptions, InMemoryStore } from "./in-memory-store";
 export { TableRegistry } from "./table-registry";

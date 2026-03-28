@@ -1,53 +1,138 @@
-# Chatter & Collaboration
+# Chatter — 统一记录时间线
 
-> This spec extends [Spec 14 — System Capabilities](./14_system_capabilities.md) §4.7. Read that spec first for context.
+> 本 spec 扩展 [Spec 14 — System Capabilities](./14_system_capabilities.md) 4.7。请先阅读该 spec。
 >
-> Spec 14 lists `@linchkit/cap-comment` as a "suggested install" system capability providing comment/activity features (Schema: `comment`, `activity`; Action: `add_comment`, `add_reply`; auto activity log). This spec provides the **detailed design** for that capability, renamed to `@linchkit/cap-chatter` to better reflect its broader scope (messaging + activity log + followers + attachments + notifications), superseding the brief outline in spec 14 §4.7.
+> Spec 14 列出 `@linchkit/cap-comment` 作为"建议安装"的系统 Capability，提供评论/活动功能。本 spec 提供 `@linchkit/cap-chatter` 的**完整设计**，定位从"聊天+活动日志"升级为**统一记录级时间线**，涵盖字段级变更审计、执行日志、人工评论、AI 对话、状态流转和可观测性数据。
 
-> Status: Draft | Date: 2026-03-26
+> Status: Draft | Date: 2026-03-27
 > Milestone: M3 (post-M2)
 > Capability: `@linchkit/cap-chatter` (supersedes `@linchkit/cap-comment` from spec 14)
 
-## 1. Problem
+## 1. 问题
 
-Business applications need contextual collaboration on records. Users need to:
+业务应用需要在记录级别进行上下文协作和审计。用户需要：
 
-- Discuss a purchase request directly on its form page
-- See an audit trail of what changed, when, and by whom
-- @mention colleagues to draw attention
-- Attach files to discussions
-- Get notified when records they follow are updated
+- 在采购申请表单页面上直接讨论
+- 查看审计追踪：谁在何时修改了哪些字段、从什么值改为什么值
+- 查看该记录的 Action 执行历史
+- @提及同事以引起关注
+- 附加文件到讨论中
+- 在关注的记录更新时收到通知
+- 查看 AI 对话和洞察（依赖 `cap-ai`）
+- 查看状态流转历史
+- 关联该记录的可观测性数据（traces、metrics）
 
-Without this, collaboration happens in external tools (email, Slack) and context is lost. The audit trail becomes invisible.
+没有统一时间线，这些信息分散在多个面板和外部工具中，上下文丢失，审计追踪不可见。
 
-## 2. Design Principles
+### 1.1 与现有组件的关系
 
-### 2.1 Capability, Not Core
+| 现有组件 | 关系 |
+|---------|------|
+| **ActivityPanel** | 被 ChatterPanel **替代**（ChatterPanel 是其功能超集） |
+| **VersionHistoryPanel** | **保持独立**（版本快照 + 恢复是不同关注点） |
+| **ExecutionLogger** | 作为 Chatter auto-log 条目的**数据来源** |
+| **Observability (Spec 28)** | Metrics/traces 可选择性地注入到 Chatter 时间线 |
 
-Chatter is a capability (`@linchkit/cap-chatter`), NOT part of `@linchkit/core`. Core remains minimal. The capability registers system tables, GraphQL types, and UI components via `extensions`.
+## 2. 设计原则
 
-This follows the architecture from [Spec 14](./14_system_capabilities.md) §2 — system functionality is delivered as official Capability packages, not framework-hardcoded features. Chatter integrates with other system capabilities via weak dependencies (see spec 14 §5):
-- `cap-auth` — user resolution for @mentions and author display (optional; works with anonymous actor)
-- `cap-notification` — notification delivery (optional; in-app notifications built-in, cap-notification adds channels)
-- `cap-file-storage` — attachment storage backend (optional; chatter includes its own attachment storage)
+### 2.1 统一记录时间线（Unified Record Timeline）
 
-Rationale: Not every deployment needs collaboration (e.g., headless API, pure MCP agent). Installing `cap-chatter` opts in; uninstalling removes it cleanly.
+Chatter **不仅仅是聊天功能**。它是统一的记录级时间线，整合以下数据流：
 
-### 2.2 Inspiration
+1. **字段级变更审计** — 谁修改了哪个字段、何时、从什么值改为什么值
+2. **执行日志** — 该记录的 Action 执行历史
+3. **人工评论和备注** — 用户讨论和内部备注
+4. **AI 对话和洞察** — AI 分析结果和对话记录（依赖 `cap-ai`）
+5. **状态流转** — 状态机迁移历史
+6. **可观测性数据** — 关联的 traces、metrics（可选，来自 Spec 28）
 
-| System | Key Ideas Borrowed |
-|--------|-------------------|
-| **Odoo Chatter** | Unified message feed on every record; log notes vs. comments; follower model; auto-log on state change |
-| **Salesforce Chatter** | Feed items with typed payloads; @mentions resolve to users; rich text body |
-| **GitHub Issues/PRs** | Timeline model (comments + events interleaved); reactions; threaded replies |
+所有这些在一条时间线上按时间顺序呈现，支持按类型筛选。
 
-### 2.3 Single Table, All Schemas
+### 2.2 Capability，不是 Core
 
-Messages are stored in one central table (`_linchkit_messages`), not per-schema tables. This keeps the data model simple, enables cross-schema search, and avoids DDL changes when new schemas are added.
+Chatter 是 Capability（`@linchkit/cap-chatter`），**不是** `@linchkit/core` 的一部分。Core 保持最小化。Capability 通过 `extensions` 注册系统表、GraphQL 类型和 UI 组件。
 
-## 3. Data Model
+唯一的 Core 前置变更：确保 EventBus 的 `record.updated` 事件携带字段 diff 数据（见 3.1 节）。
 
-### 3.1 Messages Table
+这遵循 [Spec 14](./14_system_capabilities.md) 2 的架构 — 系统功能作为官方 Capability 包交付，而非框架硬编码。Chatter 通过弱依赖与其他系统 Capability 集成（见 spec 14 5）：
+- `cap-auth` — 用户解析用于 @提及和作者显示（可选；无 auth 时使用匿名 actor）
+- `cap-ai` — AI 对话和洞察功能（可选；无 AI 时隐藏 AI 相关功能）
+- `cap-notification` — 通知投递（可选；内置 in-app 通知，cap-notification 添加更多渠道）
+- `cap-file-storage` — 附件存储后端（可选；chatter 自带附件存储）
+
+其他 Capability 不需要感知 Chatter 的存在 — Chatter 通过 EventBus 订阅事件，完全解耦。
+
+**设计理由：** 不是所有部署都需要协作功能（如 headless API、纯 MCP agent）。安装 `cap-chatter` 即启用；卸载即干净移除。
+
+### 2.3 与 Core 边界审计的交叉引用
+
+以下功能目前在 core 中，应迁移为 Capability：
+
+| 功能 | 目标 Capability | Chatter 关系 |
+|------|----------------|-------------|
+| AI 功能 | `cap-ai` | Chatter 的 AI 对话依赖此 Capability |
+| Automation | `cap-automation` | Chatter auto-log 使用 EventBus，不使用 automation engine |
+| Flow | `cap-flow` | 无直接关系 |
+| Approval | `cap-approval` | 审批事件可产生 Chatter log 条目 |
+
+这进一步验证了 Chatter 作为 Capability 的正确性。
+
+### 2.4 灵感来源
+
+| 系统 | 借鉴的关键思路 |
+|------|--------------|
+| **Odoo Chatter** | 每条记录上的统一消息流；日志 vs. 评论；关注者模型；状态变更自动记录 |
+| **Salesforce Chatter** | 带类型化载荷的 Feed Item；@提及解析到用户；富文本内容 |
+| **GitHub Issues/PRs** | 时间线模型（评论 + 事件交错）；Reactions；线程回复 |
+
+### 2.5 单表，全 Schema
+
+消息存储在一张中心表（`_linchkit_messages`）中，而非每个 Schema 一张表。这保持数据模型简洁，支持跨 Schema 搜索，避免新增 Schema 时的 DDL 变更。
+
+## 3. Core 前置条件：EventBus 增强
+
+### 3.1 `record.updated` 事件需携带字段 diff
+
+**现状问题：** `record.updated` 事件当前不携带字段 diff 数据。`ExecutionLogEntry` 有 `changes[]`（包含 `before`/`after`/`changedFields`），但这些数据不流入 EventBus 事件的 payload。
+
+**需要的 Core 变更：**
+
+```typescript
+// EventBus record.updated event payload — 增强后
+interface RecordUpdatedEventPayload {
+  schema: string;
+  recordId: string;
+  // 新增字段 diff 数据
+  changedFields: string[];        // 实际变更的字段名列表
+  before: Record<string, unknown>; // 变更前的值（仅变更字段）
+  after: Record<string, unknown>;  // 变更后的值（仅变更字段）
+}
+```
+
+这是 Chatter 字段级变更审计的前提。此变更属于 Core，应在 M2 或 M3 初期完成。
+
+### 3.2 `formPanels` 扩展类型
+
+`CapabilityExtensions` 需要新增 `formPanels` 扩展类型，允许 Capability 向表单页面注入 UI 面板：
+
+```typescript
+interface CapabilityExtensions {
+  // ... existing extensions ...
+  formPanels?: FormPanelExtension[];
+}
+
+interface FormPanelExtension {
+  name: string;
+  label: string;
+  position: "below" | "side" | "tab";
+  component: string;               // Component name registered in UI
+  props?: (context: FormContext) => Record<string, unknown>;
+}
+```
+
+## 4. 数据模型
+
+### 4.1 Messages 表
 
 ```sql
 -- In _linchkit PostgreSQL schema (same as other system tables)
@@ -64,6 +149,7 @@ CREATE TABLE _linchkit.messages (
   -- 'comment'  = user-visible discussion
   -- 'note'     = internal note (team-only, not visible to external parties)
   -- 'log'      = auto-generated system log entry
+  -- 'ai'       = AI conversation / insight (requires cap-ai)
 
   -- Content
   body          TEXT NOT NULL,           -- Markdown (rendered as rich text in UI)
@@ -94,7 +180,7 @@ CREATE TABLE _linchkit.messages (
 
   -- Reactions (lightweight inline storage)
   reactions     JSONB NOT NULL DEFAULT '{}',
-  -- e.g. { "👍": ["u_001", "u_002"], "🎉": ["u_003"] }
+  -- e.g. { "thumbsup": ["u_001", "u_002"], "tada": ["u_003"] }
 
   -- Soft delete
   is_deleted    BOOLEAN NOT NULL DEFAULT FALSE,
@@ -113,7 +199,7 @@ CREATE TABLE _linchkit.messages (
 );
 ```
 
-Drizzle definition:
+Drizzle 定义：
 
 ```typescript
 import { linchkitSchema } from "@linchkit/core/persistence/system-tables";
@@ -154,9 +240,9 @@ export const messagesTable = linchkitSchema.table(
 );
 ```
 
-### 3.2 Followers Table
+### 4.2 Followers 表
 
-Followers define who gets notified about activity on a record.
+关注者定义谁会收到记录活动的通知。
 
 ```sql
 CREATE TABLE _linchkit.followers (
@@ -181,9 +267,9 @@ CREATE TABLE _linchkit.followers (
 );
 ```
 
-### 3.3 Attachments Table
+### 4.3 Attachments 表
 
-File attachments with pluggable storage backend.
+文件附件，支持可插拔的存储后端。
 
 ```sql
 CREATE TABLE _linchkit.attachments (
@@ -209,25 +295,55 @@ CREATE TABLE _linchkit.attachments (
 
   -- Soft delete
   is_deleted    BOOLEAN NOT NULL DEFAULT FALSE,
-  deleted_at    TIMESTAMP,
+  deleted_at    TIMESTAMP
 );
 ```
 
-### 3.4 Message Types in Detail
+### 4.4 消息类型详解
 
-| Type | Generated By | Visible To | Example |
-|------|-------------|------------|---------|
-| `comment` | User manually | All record viewers | "Can we negotiate better pricing with this vendor?" |
-| `note` | User manually | Internal team only (respects permission groups) | "Finance flagged this amount — check budget" |
-| `log` | System auto | All record viewers | "State changed: draft → submitted by Alice" |
+| 类型 | 生成方式 | 可见范围 | 示例 |
+|------|---------|---------|------|
+| `comment` | 用户手动 | 所有记录查看者 | "能否和这个供应商谈更好的价格？" |
+| `note` | 用户手动 | 仅内部团队（尊重权限组） | "财务标记了这个金额 — 检查预算" |
+| `log` | 系统自动 | 所有记录查看者 | "状态变更：草稿 -> 已提交（by Alice）" |
+| `ai` | AI 系统 | 取决于配置 | "基于历史数据分析，该供应商的平均交付时间为 7 天" |
 
-Log entries are auto-generated by an EventHandler that listens to framework runtime events (`record.created`, `record.updated`, `state.transition`, `action.succeeded`) and writes message records.
+Log 条目由 EventHandler 自动生成，监听框架运行时事件（`record.created`、`record.updated`、`state.transition`、`action.succeeded`）并写入消息记录。
 
-## 4. Auto-Logging via EventHandler
+## 5. 自动记录（Auto-Logging）via EventHandler
 
-The capability registers EventHandlers that listen to runtime events and create `log` type messages automatically.
+Capability 注册 EventHandler，监听运行时事件并自动创建 `log` 类型消息。
+
+### 5.1 字段变更审计规则
+
+**关键设计决策：** 不同事件类型的记录策略不同，以避免噪音：
+
+| 事件 | 记录策略 | 理由 |
+|------|---------|------|
+| `record.created` | 仅记录 "Created this record"，**不记录各字段值** | 创建时所有字段都是"新的"，逐一列出只是噪音 |
+| `record.updated` | 仅记录**实际变更**的字段（比较 before/after） | 精确审计，排除无意义的变更 |
+| `state.transition` | 记录 "Status: Draft -> Approved" | 状态迁移是独立事件，单独记录 |
+| `record.deleted` | 记录 "Deleted this record" | 简洁明了 |
+
+**`record.updated` 排除的系统字段：**
+
+以下字段即使发生变更也**不记录**在 log 中（避免噪音）：
+- `updated_at`
+- `_version`
+- `created_at`
+- `created_by`
+- `updated_by`
+- `is_deleted`
+
+### 5.2 EventHandler 实现
 
 ```typescript
+// System fields excluded from change audit
+const EXCLUDED_SYSTEM_FIELDS = new Set([
+  "updated_at", "_version", "created_at",
+  "created_by", "updated_by", "is_deleted",
+]);
+
 export const chatterAutoLog = defineEventHandler({
   name: "chatter.auto_log",
   label: "Chatter Auto-Log",
@@ -241,23 +357,41 @@ export const chatterAutoLog = defineEventHandler({
   ],
 
   async handler(event, ctx) {
-    const logMessages: Record<string, () => LogEntry> = {
+    const logMessages: Record<string, () => LogEntry | null> = {
       "record.created": () => ({
-        body: `Created this record.`,
+        body: "Created this record.",
         logEvent: "record.created",
-        logMetadata: { fields: Object.keys(event.payload.data ?? {}) },
+        logMetadata: {},
       }),
-      "record.updated": () => ({
-        body: formatChangedFields(event.payload.changedFields, event.payload.before, event.payload.after),
-        logEvent: "record.updated",
-        logMetadata: {
-          changed_fields: event.payload.changedFields,
-          before: event.payload.before,
-          after: event.payload.after,
-        },
-      }),
+
+      "record.updated": () => {
+        // Filter out system fields from changed fields
+        const changedFields = (event.payload.changedFields ?? [])
+          .filter((f: string) => !EXCLUDED_SYSTEM_FIELDS.has(f));
+
+        // Nothing meaningful changed — skip log entry entirely
+        if (changedFields.length === 0) return null;
+
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const field of changedFields) {
+          before[field] = event.payload.before?.[field];
+          after[field] = event.payload.after?.[field];
+        }
+
+        return {
+          body: formatChangedFields(changedFields, before, after),
+          logEvent: "record.updated",
+          logMetadata: {
+            changed_fields: changedFields,
+            before,
+            after,
+          },
+        };
+      },
+
       "state.transition": () => ({
-        body: `State changed: **${event.payload.from}** → **${event.payload.to}** (via ${event.payload.action})`,
+        body: `Status: **${event.payload.from}** → **${event.payload.to}**`,
         logEvent: "state.transition",
         logMetadata: {
           from: event.payload.from,
@@ -265,8 +399,9 @@ export const chatterAutoLog = defineEventHandler({
           action: event.payload.action,
         },
       }),
+
       "record.deleted": () => ({
-        body: `Deleted this record.`,
+        body: "Deleted this record.",
         logEvent: "record.deleted",
         logMetadata: {},
       }),
@@ -290,9 +425,26 @@ export const chatterAutoLog = defineEventHandler({
 });
 ```
 
-## 5. File Attachments
+### 5.3 `formatChangedFields` 实现
 
-### 5.1 Storage Backends
+```typescript
+function formatChangedFields(
+  changedFields: string[],
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): string {
+  const lines = changedFields.map((field) => {
+    const oldVal = before[field] ?? "(empty)";
+    const newVal = after[field] ?? "(empty)";
+    return `- **${field}**: ${oldVal} → ${newVal}`;
+  });
+  return `Updated ${changedFields.length} field(s):\n${lines.join("\n")}`;
+}
+```
+
+## 6. 文件附件
+
+### 6.1 存储后端
 
 ```typescript
 interface AttachmentStorageBackend {
@@ -304,14 +456,14 @@ interface AttachmentStorageBackend {
 }
 ```
 
-Built-in backends:
+内置后端：
 
-| Backend | Config Key | Notes |
-|---------|-----------|-------|
-| `local` | `chatter.storage.local.basePath` | Default. Files stored in `data/attachments/`. Dev-friendly. |
-| `s3` | `chatter.storage.s3.*` | S3-compatible (AWS, MinIO, Cloudflare R2). Production-ready. |
+| Backend | Config Key | 说明 |
+|---------|-----------|------|
+| `local` | `chatter.storage.local.basePath` | 默认。文件存储在 `data/attachments/`。开发友好。 |
+| `s3` | `chatter.storage.s3.*` | S3 兼容（AWS、MinIO、Cloudflare R2）。生产就绪。 |
 
-Configuration via `linchkit.config.ts`:
+配置方式（`linchkit.config.ts`）：
 
 ```typescript
 export default defineConfig({
@@ -335,7 +487,7 @@ export default defineConfig({
 });
 ```
 
-### 5.2 Upload REST Endpoint
+### 6.2 Upload REST Endpoint
 
 ```
 POST /api/attachments/upload
@@ -364,30 +516,30 @@ Authorization: Bearer <token>
 → 200 with file stream (Content-Disposition: attachment)
 ```
 
-Attachments are uploaded first, then referenced by ID when creating a message. This decouples upload from message creation and allows drag-and-drop UX.
+附件先上传获得 ID，然后在创建消息时引用。这解耦了上传和消息创建，支持拖拽 UX。
 
-## 6. Notifications
+## 7. 通知
 
-### 6.1 Follower Model
+### 7.1 关注者模型
 
-Users can follow a record to receive notifications. Following happens:
+用户可以关注记录以接收通知。关注发生在：
 
-- **Automatically**: Record creator is auto-followed. Users assigned to the record (e.g., `assigned_to` field) are auto-followed.
-- **Manually**: User clicks "Follow" button on the record. User is @mentioned in a comment.
-- **Programmatically**: Actions can add followers via `ctx.services.chatter.addFollower()`.
+- **自动关注**：记录创建者自动关注。被分配到记录的用户（如 `assigned_to` 字段）自动关注。
+- **手动关注**：用户在记录上点击"关注"按钮。用户在评论中被 @提及。
+- **程序化关注**：Action 可通过 `ctx.services.chatter.addFollower()` 添加关注者。
 
-### 6.2 Notification Triggers
+### 7.2 通知触发条件
 
-| Trigger | Recipients | Condition |
-|---------|-----------|-----------|
-| New comment | All followers with `follow_type` = `all` or `comments` | Always |
-| New note | Followers who are in the same permission groups as the author | Notes are internal |
-| State change | Followers with `follow_type` = `all` or `state` | Always |
-| @mention | Mentioned user (auto-followed if not already) | Always |
+| 触发条件 | 接收者 | 条件 |
+|---------|-------|------|
+| 新评论 | 所有 `follow_type` = `all` 或 `comments` 的关注者 | 总是 |
+| 新备注 | 与作者同权限组的关注者 | 备注是内部的 |
+| 状态变更 | `follow_type` = `all` 或 `state` 的关注者 | 总是 |
+| @提及 | 被提及的用户（如未关注则自动关注） | 总是 |
 
-### 6.3 Notification Delivery
+### 7.3 通知投递
 
-Phase 1 (M3): In-app notifications only.
+Phase 1 (M3)：仅 in-app 通知。
 
 ```typescript
 interface ChatterNotification {
@@ -403,31 +555,32 @@ interface ChatterNotification {
 }
 ```
 
-Delivered via:
-- **SSE subscription** (reuses existing `onNewMessage` GraphQL subscription from spec 44)
-- **Notification bell** in UI header (unread count badge)
+投递方式：
+- **SSE subscription**（复用现有 `onNewMessage` GraphQL subscription，来自 spec 44）
+- **Notification bell** — UI header 中的未读计数 badge
 
-Phase 2 (future): Email notifications, webhook delivery, Slack/Teams integration — each as a separate capability or extension.
+Phase 2（future）：Email 通知、Webhook 投递、Slack/Teams 集成 — 各作为独立 Capability 或扩展。
 
-### 6.4 @Mention Resolution
+### 7.4 @提及解析
 
-Mentions in message body use `@[Display Name](user:user_id)` syntax (Markdown link-like). The parser:
+消息 body 中的提及使用 `@[Display Name](user:user_id)` 语法（类似 Markdown link）。解析器：
 
-1. Extracts mention references from body text
-2. Resolves user IDs against the auth provider
-3. Stores resolved mentions in the `mentions` JSONB column
-4. Triggers notification for each mentioned user
-5. Auto-follows mentioned users on the record
+1. 从 body 文本中提取提及引用
+2. 对 auth provider 解析用户 ID
+3. 将解析后的提及存储在 `mentions` JSONB 列中
+4. 为每个被提及的用户触发通知
+5. 自动关注被提及用户在该记录上
 
-## 7. GraphQL API
+## 8. GraphQL API
 
-### 7.1 Types
+### 8.1 Types
 
 ```graphql
 enum MessageType {
   comment
   note
   log
+  ai
 }
 
 type ChatterMessage {
@@ -491,7 +644,7 @@ type ChatterMessageConnection {
 }
 ```
 
-### 7.2 Queries
+### 8.2 Queries
 
 ```graphql
 type Query {
@@ -524,7 +677,7 @@ type Query {
 }
 ```
 
-### 7.3 Mutations
+### 8.3 Mutations
 
 ```graphql
 type Mutation {
@@ -532,7 +685,7 @@ type Mutation {
   chatterAddMessage(
     schemaName: String!
     recordId: String!
-    messageType: MessageType!  # comment | note (log is system-only)
+    messageType: MessageType!  # comment | note (log/ai are system-only)
     body: String!
     parentId: ID               # For threaded replies
     attachmentIds: [ID!]       # Previously uploaded attachment IDs
@@ -571,7 +724,7 @@ type Mutation {
 }
 ```
 
-### 7.4 Subscriptions
+### 8.4 Subscriptions
 
 ```graphql
 type Subscription {
@@ -586,11 +739,11 @@ type Subscription {
 }
 ```
 
-Implemented via SSE (consistent with spec 44), piggybacking on the existing subscription infrastructure in `cap-adapter-server`.
+通过 SSE 实现（与 spec 44 一致），复用 `cap-adapter-server` 中现有的 subscription 基础设施。
 
-## 8. Chatter Service
+## 9. Chatter Service
 
-The capability registers a `chatter` service via `extensions.services`, making it available to other capabilities via `ctx.services.chatter`.
+Capability 通过 `extensions.services` 注册 `chatter` 服务，使其可通过 `ctx.services.chatter` 供其他 Capability 使用。
 
 ```typescript
 interface ChatterService {
@@ -622,13 +775,13 @@ interface ChatterService {
 }
 ```
 
-## 9. UI Components
+## 10. UI 组件
 
-All UI components live in `cap-chatter` and are registered via `extensions.viewTypes` or injected into the form layout via a panel slot.
+所有 UI 组件位于 `cap-chatter` 中，通过 `extensions.formPanels` 注入表单布局。
 
-### 9.1 ChatterPanel
+### 10.1 ChatterPanel — 统一时间线视图
 
-The primary component, rendered on record detail/edit pages.
+主组件，在记录详情/编辑页面渲染。**替代现有 ActivityPanel**。
 
 ```
 ┌─────────────────────────────────────────┐
@@ -639,58 +792,70 @@ The primary component, rendered on record detail/edit pages.
 │ │ ...                                 │ │
 │ └─────────────────────────────────────┘ │
 │                                         │
-│ ┌─ Chatter ─────────────────────────────┤
-│ │ [Comment] [Note] [Activity Log]       │  ← Tab filter
-│ │                                       │
-│ │ ┌─ Composer ────────────────────────┐ │
-│ │ │ Write a comment...        [Send]  │ │  ← Rich text + attach button
-│ │ └───────────────────────────────────┘ │
-│ │                                       │
-│ │ ┌─ Message ─────────────────────────┐ │
-│ │ │ 👤 Alice · 2 hours ago            │ │
-│ │ │ Can we check pricing with @Bob?   │ │
-│ │ │ 📎 quote.pdf (204 KB)             │ │
-│ │ │ [👍 2] [Reply] [···]              │ │
-│ │ │                                   │ │
-│ │ │ ┌─ Reply ─────────────────────┐   │ │
-│ │ │ │ 👤 Bob · 1 hour ago         │   │ │
-│ │ │ │ Confirmed, pricing is valid. │   │ │
-│ │ │ └─────────────────────────────┘   │ │
-│ │ └───────────────────────────────────┘ │
-│ │                                       │
-│ │ ┌─ Log Entry ───────────────────────┐ │
-│ │ │ 🔄 State: draft → submitted       │ │
-│ │ │    by Alice · 3 hours ago          │ │
-│ │ └───────────────────────────────────┘ │
-│ │                                       │
-│ │ [Load more...]                        │
-│ └───────────────────────────────────────┘
+│ ┌─ Timeline ──────────────────────────┤
+│ │ [All] [Comments] [Notes] [Log] [AI] │  ← Tab filter
+│ │                                     │
+│ │ ┌─ Composer ──────────────────────┐ │
+│ │ │ Write a comment...      [Send]  │ │  ← Rich text + attach + @mention
+│ │ └─────────────────────────────────┘ │
+│ │                                     │
+│ │ ┌─ Comment ───────────────────────┐ │
+│ │ │ Alice · 2 hours ago             │ │
+│ │ │ Can we check pricing with @Bob? │ │
+│ │ │ [file] quote.pdf (204 KB)       │ │
+│ │ │ [+1 2] [Reply] [...]            │ │
+│ │ │                                 │ │
+│ │ │ ┌─ Reply ───────────────────┐   │ │
+│ │ │ │ Bob · 1 hour ago          │   │ │
+│ │ │ │ Confirmed, pricing valid. │   │ │
+│ │ │ └───────────────────────────┘   │ │
+│ │ └─────────────────────────────────┘ │
+│ │                                     │
+│ │ ┌─ Log: Field Change ─────────────┐ │
+│ │ │ [edit] Updated 2 field(s):      │ │
+│ │ │   - amount: 5000 → 8000         │ │
+│ │ │   - vendor: Acme → GlobalCo     │ │
+│ │ │   Alice · 3 hours ago           │ │
+│ │ └─────────────────────────────────┘ │
+│ │                                     │
+│ │ ┌─ Log: State Transition ─────────┐ │
+│ │ │ [arrow] Status: Draft → Submit  │ │
+│ │ │   Alice · 4 hours ago           │ │
+│ │ └─────────────────────────────────┘ │
+│ │                                     │
+│ │ ┌─ Log: Created ──────────────────┐ │
+│ │ │ [plus] Created this record      │ │
+│ │ │   Alice · 5 hours ago           │ │
+│ │ └─────────────────────────────────┘ │
+│ │                                     │
+│ │ [Load more...]                      │
+│ └─────────────────────────────────────┘
 └─────────────────────────────────────────┘
 ```
 
-### 9.2 Component Breakdown
+### 10.2 组件拆分
 
-| Component | Purpose |
-|-----------|---------|
-| `ChatterPanel` | Container with tabs, message list, composer. Takes `schemaName` + `recordId` props. |
-| `MessageComposer` | Rich text input (Markdown), file drag-and-drop, @mention autocomplete, send button. |
-| `MessageItem` | Single message display: avatar, author, timestamp, body (rendered Markdown), attachments, reactions, reply button. |
-| `ThreadView` | Indented reply list under a parent message. |
-| `LogEntry` | Compact display for system log entries (icon + summary + timestamp). |
-| `FollowerBar` | "Following" toggle + follower avatar list. Shown above or beside the chatter panel. |
-| `NotificationBell` | Header icon with unread count badge. Dropdown shows recent notifications. |
-| `AttachmentPreview` | Inline preview for images, download link for other file types. |
+| 组件 | 用途 |
+|------|------|
+| `ChatterPanel` | 容器：tabs、消息列表、composer。接收 `schemaName` + `recordId` props。**替代 ActivityPanel**。 |
+| `MessageComposer` | 富文本输入（Markdown）、文件拖拽、@提及自动完成、发送按钮。 |
+| `MessageItem` | 单条消息显示：头像、作者、时间戳、body（渲染 Markdown）、附件、reactions、回复按钮。 |
+| `ThreadView` | 父消息下的缩进回复列表。 |
+| `LogEntry` | 紧凑的系统日志条目显示：图标 + 变更详情 + 时间戳。支持字段 diff 展开。 |
+| `FollowerBar` | "关注"开关 + 关注者头像列表。显示在 chatter 面板上方。 |
+| `NotificationBell` | Header 图标，带未读计数 badge。下拉显示最近通知。 |
+| `AttachmentPreview` | 图片内联预览，其他文件类型显示下载链接。 |
 
-### 9.3 Integration with AutoForm
+### 10.3 与 AutoForm 集成
 
-The `ChatterPanel` is injected into the form page layout. The capability declares a `formPanel` extension:
+`ChatterPanel` 通过 `formPanels` 扩展注入表单页面布局：
 
 ```typescript
 extensions: {
   formPanels: [
     {
       name: "chatter",
-      label: "Chatter",
+      label: "Timeline",
       position: "below",     // below the form fields
       component: "ChatterPanel",
       // Props derived from route params
@@ -703,19 +868,19 @@ extensions: {
 }
 ```
 
-`cap-adapter-ui-react` reads `formPanels` extensions from all installed capabilities and renders them in the appropriate slot on the form page. No changes to core form layout logic needed.
+`cap-adapter-ui-react` 读取所有已安装 Capability 的 `formPanels` 扩展，在表单页面的适当位置渲染。不需要修改 core 表单布局逻辑。
 
-### 9.4 @Mention Autocomplete
+### 10.4 @提及自动完成
 
-The composer uses a mention plugin that:
+Composer 使用 mention 插件：
 
-1. Triggers on `@` character in the text input
-2. Queries a user search endpoint (provided by `cap-auth` or a user directory service)
-3. Shows a dropdown of matching users
-4. Inserts `@[Display Name](user:user_id)` into the Markdown body
-5. Adds the user to the `mentions` array on submit
+1. 在文本输入中输入 `@` 时触发
+2. 查询用户搜索端点（由 `cap-auth` 或用户目录服务提供）
+3. 显示匹配用户的下拉列表
+4. 在 Markdown body 中插入 `@[Display Name](user:user_id)`
+5. 提交时将用户添加到 `mentions` 数组
 
-## 10. Capability Structure
+## 11. Capability 结构
 
 ```
 capabilities/
@@ -735,18 +900,18 @@ capabilities/
         types.ts               # GraphQL type definitions
         resolvers.ts           # Query, Mutation, Subscription resolvers
       handlers/
-        auto-log.ts            # EventHandler for auto-logging
+        auto-log.ts            # EventHandler for auto-logging (field diff audit)
         auto-follow.ts         # EventHandler for auto-following creators
         mention-notify.ts      # EventHandler for @mention notifications
       rest/
         attachment-routes.ts   # Upload/download REST endpoints
     ui/
       components/
-        chatter-panel.tsx
+        chatter-panel.tsx      # Unified timeline (replaces ActivityPanel)
         message-composer.tsx
         message-item.tsx
         thread-view.tsx
-        log-entry.tsx
+        log-entry.tsx          # Field diff display, state transition display
         follower-bar.tsx
         notification-bell.tsx
         attachment-preview.tsx
@@ -757,21 +922,21 @@ capabilities/
     tsconfig.json
 ```
 
-### 10.1 Capability Definition
+### 11.1 Capability 定义
 
 ```typescript
 import { defineCapability } from "@linchkit/core";
 
 export default defineCapability({
   name: "chatter",
-  label: "Chatter & Collaboration",
-  description: "Record-level messaging, activity logging, and team collaboration",
+  label: "Chatter — Unified Record Timeline",
+  description: "Record-level unified timeline: field audit, execution log, comments, AI insights, state transitions",
   type: "standard",
   category: "system",
   version: "0.1.0",
 
   dependencies: [],   // Works without cap-auth (uses anonymous actor)
-  optionalDependencies: ["cap-auth"],  // Enhances with user resolution
+  optionalDependencies: ["cap-auth", "cap-ai"],
 
   eventHandlers: [chatterAutoLog, autoFollowCreator, mentionNotify],
 
@@ -786,7 +951,7 @@ export default defineCapability({
     formPanels: [
       {
         name: "chatter",
-        label: "Chatter",
+        label: "Timeline",
         position: "below",
         component: "ChatterPanel",
       },
@@ -795,24 +960,24 @@ export default defineCapability({
 });
 ```
 
-## 11. Permissions
+## 12. 权限
 
-When `cap-permission` is installed, chatter respects the following permission rules:
+当 `cap-permission` 安装时，Chatter 遵守以下权限规则：
 
-| Action | Default Permission | Notes |
-|--------|-------------------|-------|
-| View comments | Read access on the schema | If you can see the record, you can see comments |
-| Post comment | Read access on the schema | Viewers can comment |
-| Post note | Write access on the schema | Notes are team-internal |
-| Edit message | Own message only, within 15 min | Configurable window |
-| Delete message | Own message, or admin role | Admin can delete any message |
-| Follow/unfollow | Read access on the schema | Anyone with access can follow |
-| Upload attachment | Read access on the schema | File size limits apply |
-| View log entries | Read access on the schema | Logs are always visible |
+| 操作 | 默认权限 | 说明 |
+|------|---------|------|
+| 查看评论 | Schema 的 Read 权限 | 能看记录就能看评论 |
+| 发布评论 | Schema 的 Read 权限 | 查看者可评论 |
+| 发布备注 | Schema 的 Write 权限 | 备注是内部的 |
+| 编辑消息 | 仅自己的消息，15 分钟内 | 可配置时间窗口 |
+| 删除消息 | 自己的消息，或 admin 角色 | Admin 可删除任何消息 |
+| 关注/取消关注 | Schema 的 Read 权限 | 有访问权限者可关注 |
+| 上传附件 | Schema 的 Read 权限 | 文件大小限制适用 |
+| 查看日志条目 | Schema 的 Read 权限 | 日志始终可见 |
 
-When `cap-permission` is not installed, all operations are allowed (open mode, consistent with the rest of LinchKit).
+当 `cap-permission` 未安装时，所有操作均允许（开放模式，与 LinchKit 其余部分一致）。
 
-## 12. Configuration
+## 13. 配置
 
 ```typescript
 // In linchkit.config.ts
@@ -835,7 +1000,8 @@ When `cap-permission` is not installed, all operations are allowed (open mode, c
     autoLog: {
       enabled: boolean,             // Default: true
       events: string[],             // Default: all runtime events
-      excludeFields: string[],      // Fields to omit from change logs (e.g., ["_version"])
+      // System fields always excluded: updated_at, _version, created_at, created_by, updated_by, is_deleted
+      excludeFields: string[],      // Additional fields to omit from change logs
     },
 
     // Auto-follow
@@ -847,7 +1013,7 @@ When `cap-permission` is not installed, all operations are allowed (open mode, c
 
     // UI
     ui: {
-      defaultTab: "all" | "comments" | "notes" | "log",  // Default: "all"
+      defaultTab: "all" | "comments" | "notes" | "log" | "ai",  // Default: "all"
       showFollowerBar: boolean,     // Default: true
       enableReactions: boolean,     // Default: true
       enableThreading: boolean,     // Default: true
@@ -856,44 +1022,45 @@ When `cap-permission` is not installed, all operations are allowed (open mode, c
 }
 ```
 
-## 13. MCP Integration
+## 14. MCP 集成
 
-When `cap-adapter-mcp` is installed, chatter exposes additional MCP tools:
+当 `cap-adapter-mcp` 安装时，Chatter 暴露额外的 MCP tools：
 
-| Tool | Description |
-|------|-------------|
-| `list_messages` | List messages for a schema + record (with type filter) |
-| `add_comment` | Post a comment on a record |
-| `add_note` | Post an internal note on a record |
-| `get_activity_log` | Get the auto-generated activity log for a record |
-| `follow_record` | Follow a record for notifications |
+| Tool | 描述 |
+|------|------|
+| `list_messages` | 列出指定 schema + record 的消息（支持类型过滤） |
+| `add_comment` | 在记录上发布评论 |
+| `add_note` | 在记录上发布内部备注 |
+| `get_activity_log` | 获取记录的自动生成活动日志（字段变更、状态流转等） |
+| `follow_record` | 关注记录以接收通知 |
 
-This enables AI agents to participate in record discussions, post analysis results as notes, and monitor record activity.
+这使 AI agent 能够参与记录讨论、发布分析结果作为备注、监控记录活动。
 
-## 14. Performance Considerations
+## 15. 性能考量
 
-- **Pagination**: All message queries are paginated (default 20, max 100). No unbounded queries.
-- **Denormalization**: `author_name`, `thread_count` are denormalized to avoid joins on hot paths.
-- **DataLoader**: GraphQL resolvers use DataLoader for batching attachment and author lookups (consistent with Link resolver pattern).
-- **Attachment streaming**: File downloads stream directly from storage backend, not buffered in memory.
-- **Index strategy**: Primary index on `(schema_name, record_id, created_at DESC)` covers the main query pattern. GIN index on `mentions` for @mention queries.
-- **Soft delete filter**: Queries default to `is_deleted = false`. Explicit flag to include deleted messages (admin use).
+- **分页**：所有消息查询分页（默认 20，最大 100）。无无界查询。
+- **反规范化**：`author_name`、`thread_count` 反规范化以避免热路径上的 join。
+- **DataLoader**：GraphQL resolver 使用 DataLoader 批量加载附件和作者（与 Link resolver 模式一致）。
+- **附件流式传输**：文件下载直接从存储后端流式传输，不缓冲到内存。
+- **索引策略**：主索引 `(schema_name, record_id, created_at DESC)` 覆盖主查询路径。GIN 索引在 `mentions` 上用于 @提及查询。
+- **软删除过滤**：查询默认 `is_deleted = false`。显式标志可包含已删除消息（admin 用途）。
 
-## 15. Migration & Rollback
+## 16. 迁移与回滚
 
-- Installing `cap-chatter` runs `drizzle-kit generate` + `migrate` to create the three system tables in `_linchkit` schema.
-- Uninstalling does NOT drop tables (data preservation). Tables become inert.
-- Re-installing picks up existing data seamlessly.
+- 安装 `cap-chatter` 运行 `drizzle-kit generate` + `migrate` 在 `_linchkit` schema 中创建系统表。
+- 卸载**不**删除表（数据保留）。表变为惰性。
+- 重新安装无缝恢复现有数据。
 
-## 16. Future Extensions (Out of Scope for M3)
+## 17. 未来扩展（M3 范围外）
 
-| Feature | Description | Milestone |
-|---------|-------------|-----------|
-| Email notifications | Send email on new messages to followers | M4 |
-| Webhook delivery | POST notification payloads to external URLs | M4 |
-| Slack/Teams integration | Forward messages to channels | M4+ (separate capability) |
-| Rich text editor | WYSIWYG instead of Markdown (e.g., Tiptap) | M4 |
-| Message search | Full-text search across all messages | M4 |
-| Pinned messages | Pin important messages to top of feed | M4 |
-| AI summary | AI-generated summary of discussion thread | M4+ |
-| Read receipts | Track who has read which messages | M4+ |
+| 功能 | 描述 | 里程碑 |
+|------|------|--------|
+| Email 通知 | 向关注者发送新消息邮件 | M4 |
+| Webhook 投递 | POST 通知 payload 到外部 URL | M4 |
+| Slack/Teams 集成 | 转发消息到频道 | M4+（独立 Capability） |
+| 富文本编辑器 | WYSIWYG 替代 Markdown（如 Tiptap） | M4 |
+| 消息搜索 | 跨所有消息的全文搜索 | M4 |
+| 置顶消息 | 将重要消息固定到 feed 顶部 | M4 |
+| AI 摘要 | AI 生成的讨论线程摘要 | M4+（依赖 `cap-ai`） |
+| 已读回执 | 追踪谁阅读了哪些消息 | M4+ |
+| 可观测性集成 | 将 traces/metrics 嵌入时间线 | M4+（依赖 Spec 28） |

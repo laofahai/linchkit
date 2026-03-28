@@ -9,11 +9,11 @@ import type {
   OntologyRegistry,
   RelationDescriptor,
   SchemaDescriptor,
-} from "../ontology/ontology-registry";
-import type { ActionDefinition, ActionExposure } from "../types/action";
-import type { FieldDefinition } from "../types/schema";
+} from "@linchkit/core";
+import type { ActionDefinition, ActionExposure } from "@linchkit/core";
+import type { FieldDefinition } from "@linchkit/core";
 
-// ── Structured doc types ──────────────────────────────────
+// -- Structured doc types -------------------------------------------------
 
 /** Documentation for a single field */
 export interface FieldDoc {
@@ -69,7 +69,7 @@ export interface SystemDoc {
   schemas: SchemaDoc[];
 }
 
-// ── Field doc extraction ──────────────────────────────────
+// -- Field doc extraction -------------------------------------------------
 
 /** Convert a FieldDefinition to a FieldDoc */
 export function fieldToDoc(name: string, field: FieldDefinition): FieldDoc {
@@ -171,7 +171,7 @@ export function schemaToDoc(descriptor: SchemaDescriptor): SchemaDoc {
   };
 }
 
-// ── ApiDocGenerator ──────────────────────────────────
+// -- ApiDocGenerator -------------------------------------------------
 
 export interface ApiDocGeneratorOptions {
   /** Title for the generated documentation */

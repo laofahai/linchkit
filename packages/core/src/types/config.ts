@@ -2,7 +2,6 @@
  * LinchKit project configuration types
  */
 
-import type { FlowEngineConfig } from "../flow/types";
 import type { AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 
@@ -50,8 +49,15 @@ export interface LinchKitConfig {
     token?: string;
   };
 
-  /** Flow engine configuration */
-  flow?: FlowEngineConfig;
+  /** Flow engine configuration (Restate-specific — provided by @linchkit/cap-flow-restate) */
+  flow?: {
+    restate?: {
+      adminUrl?: string;
+      ingressUrl?: string;
+      servicePort?: number;
+      autoRegister?: boolean;
+    };
+  };
 
   /** Realtime subscription configuration (SSE-based server→client push) */
   subscription?: SubscriptionConfig;

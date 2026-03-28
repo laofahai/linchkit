@@ -106,6 +106,7 @@
     "recordCount": "{{count}} 条记录",
     "recordCount_other": "{{count}} 条记录",
     "filterHint": "尝试调整筛选条件以查找目标内容。",
+    "pageSize": "每页",
     "page": "第 {{current}} 页，共 {{total}} 页",
     "selected": "项已选中",
     "stateRibbon": "按状态筛选",
@@ -473,6 +474,113 @@
         "unit_price": "单价",
         "specification": "规格",
         "line_total": "行合计"
+      }
+    },
+    "execution_log": {
+      "_label": "执行日志",
+      "_labelPlural": "执行日志",
+      "fields": {
+        "action_name": "操作",
+        "schema_name": "数据模型",
+        "record_id": "记录ID",
+        "capability": "能力模块",
+        "actor_id": "执行人",
+        "actor_type": "执行人类型",
+        "status": "状态",
+        "duration_ms": "耗时(ms)",
+        "error_code": "错误代码",
+        "error_message": "错误信息",
+        "channel": "通道",
+        "input": "输入",
+        "output": "输出",
+        "started_at": "开始时间",
+        "completed_at": "完成时间"
+      }
+    },
+    "approval": {
+      "_label": "审批",
+      "_labelPlural": "审批",
+      "fields": {
+        "action_name": "操作",
+        "schema_name": "数据模型",
+        "record_id": "记录ID",
+        "capability": "能力模块",
+        "level": "审批级别",
+        "reason": "原因",
+        "actor_id": "申请人",
+        "actor_type": "申请人类型",
+        "assignee_type": "指派类型",
+        "assignee_value": "指派对象",
+        "status": "状态",
+        "decided_by": "审批人",
+        "decided_at": "审批时间",
+        "decision_note": "审批备注",
+        "expires_at": "过期时间",
+        "timeout_policy": "超时策略",
+        "input": "输入数据"
+      }
+    },
+    "rule": {
+      "_label": "规则",
+      "_labelPlural": "规则",
+      "fields": {
+        "name": "名称",
+        "label": "标签",
+        "description": "描述",
+        "priority": "优先级",
+        "trigger": "触发器",
+        "condition": "条件",
+        "effect_type": "效果类型",
+        "effect": "效果"
+      }
+    },
+    "flow": {
+      "_label": "工作流",
+      "_labelPlural": "工作流",
+      "fields": {
+        "name": "名称",
+        "label": "标签",
+        "description": "描述",
+        "version": "版本",
+        "trigger_type": "触发类型",
+        "step_count": "步骤数",
+        "trigger": "触发配置",
+        "steps": "步骤"
+      }
+    },
+    "state_machine": {
+      "_label": "状态机",
+      "_labelPlural": "状态机",
+      "fields": {
+        "name": "名称",
+        "schema_name": "数据模型",
+        "field": "字段",
+        "initial": "初始状态",
+        "state_count": "状态数",
+        "transition_count": "转换数",
+        "states": "状态",
+        "meta": "状态元数据"
+      }
+    },
+    "proposal": {
+      "_label": "提案",
+      "_labelPlural": "提案",
+      "fields": {
+        "title": "标题",
+        "description": "描述",
+        "author_name": "作者",
+        "author_type": "作者类型",
+        "capability": "能力模块",
+        "change_type": "变更类型",
+        "status": "状态",
+        "changes": "变更内容",
+        "impact": "影响分析",
+        "validation_result": "验证结果",
+        "validated_at": "验证时间",
+        "approved_at": "批准时间",
+        "committed_at": "提交时间",
+        "deployed_at": "部署时间",
+        "rejection_reason": "拒绝原因"
       }
     }
   },

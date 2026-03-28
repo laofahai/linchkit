@@ -12,6 +12,7 @@
 import type {
   Actor,
   DataProvider,
+  FieldDefinition,
   LinkDefinition,
   Logger,
   MaskRecordOptions,
@@ -20,10 +21,13 @@ import type {
 } from "@linchkit/core";
 import { maskRecord } from "@linchkit/core/server";
 import {
+  GraphQLBoolean,
+  GraphQLFloat,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   type GraphQLOutputType,
+  GraphQLString,
 } from "graphql";
 import type { LinkDataLoaders } from "./link-dataloader";
 
@@ -130,6 +134,101 @@ async function fetchByFK(
     { [fkColumn]: fkValue },
     { tenantId: ctx.tenantId },
   )) as Record<string, unknown>[];
+}
+
+// ── Edge type helpers for M:N with properties ──────────────
+
+const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
+
+/** Convert a snake_case name to PascalCase for GraphQL type names */
+function toPascalCase(name: string): string {
+  const raw = name
+    .split(/[_-]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
+  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
+}
+
+/** Convert a snake_case name to camelCase for GraphQL field names */
+function toCamelCase(name: string): string {
+  const pascal = toPascalCase(name);
+  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+}
+
+/** Map a FieldDefinition type to a GraphQL output type for edge properties */
+function mapPropertyToGraphQLType(field: FieldDefinition): GraphQLOutputType {
+  switch (field.type) {
+    case "number":
+      return GraphQLFloat;
+    case "boolean":
+      return GraphQLBoolean;
+    case "string":
+    case "text":
+    case "date":
+    case "datetime":
+    case "json":
+      return GraphQLString;
+    default:
+      return GraphQLString;
+  }
+}
+
+/** Cache for edge types to avoid duplicate type names */
+const edgeTypeCache = new Map<string, GraphQLObjectType>();
+
+/**
+ * Build a GraphQL edge type for an M:N link with properties.
+ * The edge type contains the related record plus all junction table property fields.
+ *
+ * Direction-specific naming:
+ * - From side: SalesOrderProductEdge { product: Product!, quantity: Float!, ... }
+ * - To side:   ProductSalesOrderEdge { salesOrder: SalesOrder!, quantity: Float!, ... }
+ */
+function getOrCreateEdgeType(
+  link: LinkDefinition,
+  relatedType: GraphQLObjectType,
+  relatedFieldName: string,
+  relatedSchemaName: string,
+  isFrom: boolean,
+): GraphQLObjectType {
+  // Direction-specific edge type names to avoid field conflicts
+  const ownerPascal = isFrom ? toPascalCase(link.from) : toPascalCase(link.to);
+  const otherPascal = isFrom ? toPascalCase(link.to) : toPascalCase(link.from);
+  const edgeTypeName = `${ownerPascal}${otherPascal}Edge`;
+
+  const cached = edgeTypeCache.get(edgeTypeName);
+  if (cached) return cached;
+
+  const properties = link.properties!;
+  const edgeType = new GraphQLObjectType({
+    name: edgeTypeName,
+    description: `Edge type for ${link.name} M:N relationship with properties`,
+    fields: () => {
+      const fields: Record<string, { type: GraphQLOutputType; description?: string }> = {};
+
+      // Related record field
+      fields[relatedFieldName] = {
+        type: new GraphQLNonNull(relatedType),
+        description: `Related ${relatedSchemaName} record`,
+      };
+
+      // Property fields from junction table
+      for (const [propName, propDef] of Object.entries(properties)) {
+        const gqlType = mapPropertyToGraphQLType(propDef);
+        const camelName = toCamelCase(propName);
+        fields[camelName] = {
+          type: propDef.required ? new GraphQLNonNull(gqlType) : gqlType,
+          description: propDef.description ?? propDef.label,
+        };
+      }
+
+      return fields;
+    },
+  });
+
+  edgeTypeCache.set(edgeTypeName, edgeType);
+  return edgeType;
 }
 
 // ── Link field builder ─────────────────────────────────────
@@ -336,44 +435,103 @@ export function buildLinkFields(
         const relatedType = typeMap.get(otherSchema);
         if (!relatedType) break;
 
-        const fieldName = `${otherSchema}s`;
-        const label = isFrom ? link.label?.from : link.label?.to;
         const junctionTable = `_link_${link.name}`;
         const thisFkCol = isFrom ? `${link.from}_id` : `${link.to}_id`;
         const otherFkCol = isFrom ? `${link.to}_id` : `${link.from}_id`;
+        const hasProperties = link.properties && Object.keys(link.properties).length > 0;
 
-        fields[fieldName] = {
-          type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
-          description: label ?? `Related ${otherSchema} records`,
-          resolve: async (obj, _args, ctx) => {
-            const id = obj.id as string;
-            if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
-            try {
-              // Query junction table for matching rows
-              const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);
-              // Collect related IDs from junction rows
-              const relatedIds = junctionRows
-                .map((row) => row[otherFkCol] as string)
-                .filter(Boolean);
-              if (relatedIds.length === 0) return [];
-              // Batch-fetch related records via DataLoader (or direct calls)
-              const results = await Promise.all(
-                relatedIds.map((relatedId) => fetchOne(otherSchema, relatedId, ctx)),
-              );
-              const filtered = results.filter(Boolean) as Record<string, unknown>[];
-              return applyLinkMaskingArray(filtered, otherSchema, ctx);
-            } catch (err) {
-              logger.error(
-                `[link-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
-              );
-              return [];
-            }
-          },
-        };
+        if (hasProperties) {
+          // M:N with properties: generate Edge type field (e.g. productEdges)
+          const relatedFieldName = toCamelCase(otherSchema);
+          const edgeType = getOrCreateEdgeType(link, relatedType, relatedFieldName, otherSchema, isFrom);
+          const fieldName = `${relatedFieldName}Edges`;
+          const label = isFrom ? link.label?.from : link.label?.to;
+
+          fields[fieldName] = {
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(edgeType))),
+            description: label ?? `Related ${otherSchema} edges with properties`,
+            resolve: async (obj, _args, ctx) => {
+              const id = obj.id as string;
+              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              try {
+                // Query junction table for matching rows
+                const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);
+                if (junctionRows.length === 0) return [];
+
+                // Build edge objects: related record + junction properties
+                const edges: Record<string, unknown>[] = [];
+                for (const jRow of junctionRows) {
+                  const relatedId = jRow[otherFkCol] as string;
+                  if (!relatedId) continue;
+                  const record = await fetchOne(otherSchema, relatedId, ctx);
+                  if (!record) continue;
+                  const maskedRecord = applyLinkMasking(record, otherSchema, ctx);
+
+                  // Build edge: related record + property fields (camelCase keys)
+                  const edge: Record<string, unknown> = {
+                    [relatedFieldName]: maskedRecord,
+                  };
+                  for (const propName of Object.keys(link.properties!)) {
+                    const camelName = toCamelCase(propName);
+                    edge[camelName] = jRow[propName] ?? null;
+                  }
+                  edges.push(edge);
+                }
+                return edges;
+              } catch (err) {
+                logger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (many_to_many edges): ${err}`,
+                );
+                return [];
+              }
+            },
+          };
+        } else {
+          // M:N without properties: plain array of related records
+          const fieldName = `${otherSchema}s`;
+          const label = isFrom ? link.label?.from : link.label?.to;
+
+          fields[fieldName] = {
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
+            description: label ?? `Related ${otherSchema} records`,
+            resolve: async (obj, _args, ctx) => {
+              const id = obj.id as string;
+              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              try {
+                // Query junction table for matching rows
+                const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);
+                // Collect related IDs from junction rows
+                const relatedIds = junctionRows
+                  .map((row) => row[otherFkCol] as string)
+                  .filter(Boolean);
+                if (relatedIds.length === 0) return [];
+                // Batch-fetch related records via DataLoader (or direct calls)
+                const results = await Promise.all(
+                  relatedIds.map((relatedId) => fetchOne(otherSchema, relatedId, ctx)),
+                );
+                const filtered = results.filter(Boolean) as Record<string, unknown>[];
+                return applyLinkMaskingArray(filtered, otherSchema, ctx);
+              } catch (err) {
+                logger.error(
+                  `[link-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
+                );
+                return [];
+              }
+            },
+          };
+        }
         break;
       }
     }
   }
 
   return fields;
+}
+
+/**
+ * Clear the edge type cache. Useful in tests to avoid type name collisions
+ * across test suites that build schemas with different link configurations.
+ */
+export function clearEdgeTypeCache(): void {
+  edgeTypeCache.clear();
 }

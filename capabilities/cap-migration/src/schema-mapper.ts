@@ -5,7 +5,7 @@
  * Provides field-level mapping with built-in transforms.
  */
 
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
 
 // ── Types ──────────────────────────────────────────────────
 

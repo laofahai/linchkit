@@ -9,11 +9,11 @@ import { describe, expect, test } from "bun:test";
 import {
   generateCapabilityDoc,
   renderCapabilityDoc,
-} from "../src/documentation/capability-doc-generator";
+} from "@linchkit/devtools/documentation";
 import {
   createDocSearchIndex,
   DocSearchIndex,
-} from "../src/documentation/doc-search";
+} from "@linchkit/devtools/documentation";
 import type { CapabilityDefinition } from "../src/types/capability";
 
 // ── Test data ──────────────────────────────────

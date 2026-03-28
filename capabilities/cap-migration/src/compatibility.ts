@@ -5,7 +5,7 @@
  * Implements the release compatibility protocol from spec 38.
  */
 
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
 
 // ── Types ──────────────────────────────────────────────────
 

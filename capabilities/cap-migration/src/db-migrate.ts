@@ -5,7 +5,8 @@
  * Used in production mode (linch db:migrate).
  *
  * Usage:
- *   import { runMigrations, createDatabase } from "@linchkit/core/server";
+ *   import { runMigrations } from "@linchkit/cap-migration";
+ *   import { createDatabase } from "@linchkit/core/server";
  *   const db = createDatabase({ url: process.env.DATABASE_URL! });
  *   await runMigrations(db, { migrationsFolder: "./drizzle/migrations" });
  */

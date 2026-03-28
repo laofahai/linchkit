@@ -8,7 +8,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-// ── Types ────────────────────────────────────────────
+// -- Types --------------------------------------------------------
 
 export type SpecStatusValue = "planned" | "in-progress" | "done" | "deprecated";
 
@@ -36,7 +36,7 @@ export interface SpecProgressReport {
   generatedAt: Date;
 }
 
-// ── SpecTracker class ────────────────────────────────
+// -- SpecTracker class --------------------------------------------
 
 export class SpecTracker {
   private specs = new Map<string, SpecStatus>();
@@ -117,7 +117,7 @@ export class SpecTracker {
   }
 }
 
-// ── Report generation ────────────────────────────────
+// -- Report generation --------------------------------------------
 
 /**
  * Generate a Markdown summary of spec implementation progress.
@@ -161,7 +161,7 @@ export function generateSpecReport(report: SpecProgressReport): string {
   return lines.join("\n");
 }
 
-// ── Internal helpers ─────────────────────────────────
+// -- Internal helpers ---------------------------------------------
 
 /** Derive a human-readable name from a spec filename like "03_schema.md" */
 function deriveSpecName(filename: string): string {

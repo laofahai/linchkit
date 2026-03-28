@@ -17,8 +17,8 @@ import {
   convertSchemaRelationshipFieldsToImplicitLinks,
   createDatabase,
   generateDrizzleSchemaFile,
-  runMigrations,
 } from "@linchkit/core/server";
+import { runMigrations } from "@linchkit/cap-migration";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 

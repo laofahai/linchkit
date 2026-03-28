@@ -5,7 +5,7 @@
  * for LinchKit projects.
  */
 
-// ── Types ───────────────────────────────────────────────
+// -- Types ---------------------------------------------------------------
 
 export type Severity = "error" | "warning" | "info";
 
@@ -41,7 +41,7 @@ export interface ExportBoundaryConfig {
   serverOnlyPatterns?: string[];
 }
 
-// ── Naming conventions ──────────────────────────────────
+// -- Naming conventions -------------------------------------------------
 
 const KEBAB_CASE_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const CAMEL_CASE_RE = /^[a-z][a-zA-Z0-9]*$/;
@@ -146,12 +146,12 @@ export function validateNamingConventions(files: FileContent[]): QualityReport {
   return buildReport(issues);
 }
 
-// ── Import patterns ─────────────────────────────────────
+// -- Import patterns ----------------------------------------------------
 
 /**
  * Validate import ordering and detect potential circular dependencies.
  *
- * Import order: external packages → absolute internal → relative
+ * Import order: external packages -> absolute internal -> relative
  * Circular dependency detection: looks for import cycles within provided files.
  */
 export function checkImportPatterns(files: FileContent[]): QualityReport {
@@ -167,12 +167,12 @@ export function checkImportPatterns(files: FileContent[]): QualityReport {
     for (const imp of imports) {
       const category = categorizeImport(imp.source);
 
-      // Check ordering: external → internal → relative
+      // Check ordering: external -> internal -> relative
       if (lastCategory && isOutOfOrder(lastCategory, category)) {
         issues.push({
           severity: "warning",
           rule: "import-order",
-          message: `Import "${imp.source}" is out of order. Expected: external → internal → relative`,
+          message: `Import "${imp.source}" is out of order. Expected: external -> internal -> relative`,
           file: file.path,
           line: imp.line,
         });
@@ -197,14 +197,14 @@ export function checkImportPatterns(files: FileContent[]): QualityReport {
     issues.push({
       severity: "error",
       rule: "circular-dependency",
-      message: `Circular dependency detected: ${cycle.join(" → ")}`,
+      message: `Circular dependency detected: ${cycle.join(" -> ")}`,
     });
   }
 
   return buildReport(issues);
 }
 
-// ── Export boundaries ───────────────────────────────────
+// -- Export boundaries --------------------------------------------------
 
 const DEFAULT_SERVER_ONLY_PATTERNS = [
   "node:fs",
@@ -254,7 +254,7 @@ export function validateExportPatterns(
   return buildReport(issues);
 }
 
-// ── Helpers ─────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------
 
 interface ImportInfo {
   source: string;

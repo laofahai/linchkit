@@ -158,7 +158,7 @@ export function SearchBar({
         placeholder={
           hasFilters || hasAIFilter
             ? ""
-            : `${t("common.search")}... ${t("aiSearch.hint", "(Enter for AI search)")}`
+            : `${t("common.search")}...`
         }
         className="h-8 min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />

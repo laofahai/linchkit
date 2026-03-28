@@ -16,8 +16,8 @@ import type {
   SchemaDefinition,
 } from "@linchkit/core";
 import { createInterfaceRegistry, validateTranslatableSchema } from "@linchkit/core";
-import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/core/methodology";
-import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/core/methodology";
+import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/devtools/methodology";
+import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/devtools/methodology";
 import {
   convertSchemaRelationshipFieldsToImplicitLinks,
   createLinkRegistry,

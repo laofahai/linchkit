@@ -14,31 +14,39 @@
 import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
 import {
-  applyMigration,
   type CapabilityManifest,
   createCapabilityHub,
+} from "@linchkit/core";
+import {
+  applyMigration,
   createVersionRegistry,
   MigrationRegistry,
   validateUpgrade,
-} from "@linchkit/core";
+} from "@linchkit/cap-migration";
+import {
+  createLinkRegistry,
+  createOntologyRegistry,
+  createSchemaRegistry,
+} from "@linchkit/core/server";
+import {
+  generateApiDoc,
+  generateOpenAPISpec,
+  renderSystemDoc,
+} from "@linchkit/devtools/documentation";
+import {
+  generateChangelog,
+  generateSpecReport,
+  generateVersionedChangelog,
+  parseConventionalCommit,
+  SpecTracker,
+  validateActionDoc,
+  validateSchemaDoc,
+} from "@linchkit/devtools/governance";
 import {
   checkActionDefinitions,
   checkCommitMessages,
   checkSchemaDefinitions,
-  createLinkRegistry,
-  createOntologyRegistry,
-  createSchemaRegistry,
-  generateApiDoc,
-  generateChangelog,
-  generateOpenAPISpec,
-  generateSpecReport,
-  generateVersionedChangelog,
-  parseConventionalCommit,
-  renderSystemDoc,
-  SpecTracker,
-  validateActionDoc,
-  validateSchemaDoc,
-} from "@linchkit/core/server";
+} from "@linchkit/devtools/methodology";
 import type { LinkDefinition } from "../src/types/link";
 
 // ── Shared test data ──────────────────────────────────────

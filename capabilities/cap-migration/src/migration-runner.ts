@@ -5,7 +5,7 @@
  * Supports dry-run mode, resume from last processed offset, and progress tracking.
  */
 
-import type { SchemaDefinition } from "../types/schema";
+import type { SchemaDefinition } from "@linchkit/core";
 import {
   DataImporter,
   type DataImporterOptions,

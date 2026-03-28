@@ -12,8 +12,9 @@
  * - Saga compensation on error
  */
 
-import type { FlowDefinition, FlowInstance, FlowInstanceStatus } from "../types/flow";
-import type { FlowEngine, RestateConfig } from "./types";
+import type { FlowDefinition, FlowInstance, FlowInstanceStatus } from "@linchkit/core";
+import type { FlowEngine } from "@linchkit/core/server";
+import type { RestateConfig } from "./types";
 
 // ── Defaults ────────────────────────────────────────────
 

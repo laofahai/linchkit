@@ -95,7 +95,6 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
   executor,
   dataProvider: store,
   actions: [submitAction, approveAction],
-  executionLogger,
 });
 
 const app = createServer(graphqlSchema, { executor, executionLogger, schemaRegistry });
@@ -304,27 +303,15 @@ describe("E2E: Execution Log", () => {
     expect(res.status).toBe(404);
   });
 
-  test("12. GraphQL: query execution logs", async () => {
-    const result = await graphql(`{
-			executionLogs(pageSize: 5) {
-				items {
-					id action status
-					actor { id type }
-					duration startedAt
-				}
-				total
-			}
-		}`);
-
-    expect(result.errors).toBeUndefined();
-    const logs = (result.data as Record<string, unknown>).executionLogs as Record<string, unknown>;
-    expect(logs.total as number).toBeGreaterThanOrEqual(3);
-
-    const items = logs.items as Array<Record<string, unknown>>;
-    expect(items.length).toBeGreaterThan(0);
+  test("12. Execution logs are recorded with correct structure", async () => {
+    // Verify execution logs via InMemoryExecutionLogger (the legacy executionLogs
+    // GraphQL query was removed; logs are now served via the system schema
+    // execution_log through SystemDataProvider, not wired in this unit test)
+    const entries = executionLogger.getAll();
+    expect(entries.length).toBeGreaterThanOrEqual(3);
 
     // Verify entry structure
-    const entry = items[0];
+    const entry = entries[0];
     expect(entry.id).toBeDefined();
     expect(entry.action).toBeDefined();
     expect(entry.status).toBeDefined();
@@ -332,22 +319,17 @@ describe("E2E: Execution Log", () => {
     expect(entry.startedAt).toBeDefined();
   });
 
-  test("13. GraphQL: query single execution log", async () => {
-    // Get an ID first
-    const listResult = await getExecutions();
-    const listData = (listResult as Record<string, unknown>).data as Record<string, unknown>;
-    const items = listData.items as Array<Record<string, unknown>>;
-    const firstId = items[0].id as string;
+  test("13. Single execution log entry lookup", async () => {
+    // Get an ID from the logger
+    const entries = executionLogger.getAll();
+    expect(entries.length).toBeGreaterThan(0);
+    const firstId = entries[0].id;
 
-    const result = await graphql(`{
-			executionLog(id: "${firstId}") {
-				id action status duration
-			}
-		}`);
-
-    expect(result.errors).toBeUndefined();
-    const entry = (result.data as Record<string, unknown>).executionLog as Record<string, unknown>;
-    expect(entry.id).toBe(firstId);
+    const found = executionLogger.getById(firstId);
+    expect(found).toBeDefined();
+    expect(found?.id).toBe(firstId);
+    expect(found?.action).toBeDefined();
+    expect(found?.status).toBeDefined();
   });
 });
 

@@ -23,18 +23,22 @@ import type {
 import {
   ActionRegistry,
   convertSchemaRelationshipFieldsToImplicitLinks,
-  createDocSearchIndex,
   createLinkRegistry,
   createOntologyRegistry,
+  SchemaRegistry,
+} from "@linchkit/core/server";
+import {
+  createDocSearchIndex,
   generateApiDoc,
   generateCapabilityDoc,
   generateOpenAPISpec,
   renderCapabilityDoc,
   renderSystemDoc,
-  SchemaRegistry,
+} from "@linchkit/devtools/documentation";
+import {
   validateActionDoc,
   validateSchemaDoc,
-} from "@linchkit/core/server";
+} from "@linchkit/devtools/governance";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
@@ -401,7 +405,7 @@ const searchCommand = defineCommand({
 });
 
 // Import DocSearchResult type for the search command arg typing
-type DocSearchResult = import("@linchkit/core/server").DocSearchResult;
+type DocSearchResult = import("@linchkit/devtools/documentation").DocSearchResult;
 
 // ── Main command ──────────────────────────────
 

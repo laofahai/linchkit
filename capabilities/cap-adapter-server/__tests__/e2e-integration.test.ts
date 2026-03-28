@@ -135,11 +135,10 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
       executor.registry.register(action);
     }
 
-    // Build GraphQL schema with execution logger
+    // Build GraphQL schema (execution logs now served via system schema auto-generation)
     const graphqlSchema = buildGraphQLSchema([testSchema], {
       executor,
       dataProvider: provider,
-      executionLogger,
     });
 
     // Start the real HTTP server
@@ -422,36 +421,21 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
     `);
     expect(updateResult.errors).toBeUndefined();
 
-    // Check execution logs via GraphQL query
-    const logResult = await gql(`
-      query {
-        executionLogs {
-          items {
-            id
-            action
-            status
-          }
-          total
-        }
-      }
-    `);
-
-    expect(logResult.errors).toBeUndefined();
-    const logs = logResult.data.executionLogs as {
-      items: Array<Record<string, unknown>>;
-      total: number;
-    };
+    // Check execution logs via InMemoryExecutionLogger (the legacy executionLogs
+    // GraphQL query was removed; logs are now served via the system schema
+    // execution_log through SystemDataProvider, which is not wired in this test)
+    const entries = executionLogger.getAll();
 
     // Should have at least 2 entries (create + update)
-    expect(logs.total).toBeGreaterThanOrEqual(2);
+    expect(entries.length).toBeGreaterThanOrEqual(2);
 
-    const actions = logs.items.map((item) => item.action);
+    const actions = entries.map((e) => e.action);
     expect(actions).toContain("create_e2e_item");
     expect(actions).toContain("update_e2e_item");
 
     // All should be successful
-    for (const item of logs.items) {
-      expect(item.status).toBe("succeeded");
+    for (const entry of entries) {
+      expect(entry.status).toBe("succeeded");
     }
   });
 

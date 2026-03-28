@@ -587,6 +587,7 @@ export interface ExecutionLogListResult {
 
 /**
  * Query execution logs for a specific schema/record via GraphQL.
+ * Uses the auto-generated executionLogList query with standard filter/sort/pagination.
  */
 export async function queryExecutionLogs(
   options: {
@@ -595,26 +596,48 @@ export async function queryExecutionLogs(
     pageSize?: number;
   },
 ): Promise<ExecutionLogListResult> {
+  const filter = options.schema ? JSON.stringify({ schema_name: options.schema }) : undefined;
   const query = `
-    query ($schema: String, $page: Int, $pageSize: Int) {
-      executionLogs(schema: $schema, page: $page, pageSize: $pageSize, sortField: "startedAt", sortOrder: "desc") {
+    query ($filter: String, $page: Int, $pageSize: Int) {
+      executionLogList(filter: $filter, page: $page, pageSize: $pageSize, sortField: "started_at", sortOrder: "desc") {
         items {
-          id action schema recordId
-          actor { type id }
+          id action_name schema_name record_id
+          actor_id actor_type
           input
-          status duration startedAt completedAt
-          error { code message }
-          stateTransition { from to }
+          status duration_ms started_at completed_at
+          error_code error_message
         }
         total
       }
     }
   `;
-  const res = await graphql<{ executionLogs: ExecutionLogListResult }>(query, {
-    schema: options.schema,
+  const res = await graphql<{
+    executionLogList: {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
+  }>(query, {
+    filter,
     page: options.page,
     pageSize: options.pageSize,
   });
   throwOnErrors(res);
-  return res.data?.executionLogs ?? { items: [], total: 0 };
+  const raw = res.data?.executionLogList ?? { items: [], total: 0 };
+  // Map snake_case system schema fields to camelCase UI interface
+  const items: ExecutionLogEntry[] = raw.items.map((r) => ({
+    id: r.id as string,
+    action: r.action_name as string,
+    schema: r.schema_name as string | undefined,
+    recordId: r.record_id as string | undefined,
+    actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
+    input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),
+    status: r.status as ExecutionLogEntry["status"],
+    error: r.error_code || r.error_message
+      ? { code: r.error_code as string | undefined, message: (r.error_message as string) ?? "" }
+      : undefined,
+    duration: (r.duration_ms as number) ?? 0,
+    startedAt: r.started_at as string,
+    completedAt: r.completed_at as string,
+  }));
+  return { items, total: raw.total };
 }

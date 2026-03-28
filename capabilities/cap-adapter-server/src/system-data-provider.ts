@@ -10,7 +10,7 @@
  * queries for internal schemas, delegating all others to the inner provider.
  */
 
-import type { DataProvider, DataQueryOptions } from "@linchkit/core";
+import type { DataProvider, DataQueryOptions, ExecutionLogEntry, ExecutionLogger } from "@linchkit/core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { FlowDefinition, RuleDefinition, StateDefinition } from "@linchkit/core";
 import { and, count, eq, sql } from "drizzle-orm";
@@ -28,6 +28,8 @@ interface SystemDataSources {
   states?: StateDefinition[];
   /** Proposals are fetched from the proposal store (REST API layer handles this) */
   proposals?: Array<Record<string, unknown>>;
+  /** ExecutionLogger — used as fallback data source when db is not available */
+  executionLogger?: ExecutionLogger;
 }
 
 type FilterObject = Record<string, unknown>;
@@ -201,6 +203,35 @@ function statesToRecords(states: StateDefinition[]): Array<Record<string, unknow
   }));
 }
 
+// ── ExecutionLogEntry → system schema record converter ────
+
+/** Convert an ExecutionLogEntry (camelCase) to a system schema record (snake_case) */
+function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
+  return {
+    id: e.id,
+    action_name: e.action,
+    schema_name: e.schema ?? null,
+    record_id: e.recordId ?? null,
+    capability: e.capability ?? null,
+    actor_id: e.actor?.id ?? null,
+    actor_type: e.actor?.type ?? null,
+    status: e.status,
+    duration_ms: e.duration ?? 0,
+    error_code: e.error?.code ?? null,
+    error_message: e.error?.message ?? null,
+    channel: e.channel ?? null,
+    input: e.input != null ? (typeof e.input === "string" ? e.input : JSON.stringify(e.input)) : null,
+    output: e.output != null ? (typeof e.output === "string" ? e.output : JSON.stringify(e.output)) : null,
+    started_at: e.startedAt instanceof Date ? e.startedAt.toISOString() : (e.startedAt ?? null),
+    completed_at: e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? null),
+    created_at: e.startedAt instanceof Date ? e.startedAt.toISOString() : (e.startedAt ?? new Date().toISOString()),
+    updated_at: e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? new Date().toISOString()),
+    parent_execution_id: e.parentExecutionId ?? null,
+    idempotency_key: e.idempotencyKey ?? null,
+    tenant_id: e.tenantId ?? null,
+  };
+}
+
 // ── DB query helpers for system tables ───────────────────
 
 const TABLE_MAP = {
@@ -266,7 +297,8 @@ function dbRowToRecord(row: Record<string, unknown>, schemaName: string): Record
   const record: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     const fieldName = reverseAlias[key] ?? key;
-    record[fieldName] = value;
+    // Serialize Date objects to ISO strings for GraphQL compatibility
+    record[fieldName] = value instanceof Date ? value.toISOString() : value;
   }
   return record;
 }
@@ -294,6 +326,12 @@ export class SystemDataProvider implements DataProvider {
     if (!this.isInternal(schema)) return this.inner.get(schema, id, options);
 
     if (schema === "execution_log" || schema === "approval") {
+      // Fallback to ExecutionLogger when DB is not available
+      if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
+        const entry = await this.sources.executionLogger.getById(id);
+        if (!entry) throw new Error(`${schema} "${id}" not found`);
+        return serializeJsonFields([executionEntryToRecord(entry)], schema)[0] as Record<string, unknown>;
+      }
       return this.dbGet(schema, id);
     }
 
@@ -316,6 +354,10 @@ export class SystemDataProvider implements DataProvider {
     if (!this.isInternal(schema)) return this.inner.query(schema, filter, options);
 
     if (schema === "execution_log" || schema === "approval") {
+      // Fallback to ExecutionLogger when DB is not available
+      if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
+        return this.executionLoggerQuery(filter);
+      }
       return this.dbQuery(schema, filter, options);
     }
 
@@ -334,6 +376,10 @@ export class SystemDataProvider implements DataProvider {
     if (!this.isInternal(schema)) return this.inner.count(schema, filter, options);
 
     if (schema === "execution_log" || schema === "approval") {
+      // Fallback to ExecutionLogger when DB is not available
+      if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
+        return this.executionLoggerCount(filter ?? {});
+      }
       return this.dbCount(schema, filter ?? {}, options);
     }
 
@@ -394,6 +440,31 @@ export class SystemDataProvider implements DataProvider {
     }
     // Serialize json-typed fields to strings for GraphQL compatibility
     return serializeJsonFields(records, schema);
+  }
+
+  // ── ExecutionLogger fallback (no DB) ─────────────────
+
+  /** Query execution logs from the in-memory ExecutionLogger (no-DB fallback) */
+  private async executionLoggerQuery(filter: FilterObject): Promise<Array<Record<string, unknown>>> {
+    const logger = this.sources.executionLogger;
+    if (!logger) return [];
+
+    const entries = await logger.getAll();
+    const records = entries.map(executionEntryToRecord);
+    const result = applyInMemoryQuery(records, filter);
+    return serializeJsonFields(result.items, "execution_log");
+  }
+
+  /** Count execution logs from the in-memory ExecutionLogger (no-DB fallback) */
+  private async executionLoggerCount(filter: FilterObject): Promise<number> {
+    const logger = this.sources.executionLogger;
+    if (!logger) return 0;
+
+    const entries = await logger.getAll();
+    const records = entries.map(executionEntryToRecord);
+    const conditions = extractFilterConditions(filter);
+    if (Object.keys(conditions).length === 0) return records.length;
+    return applyInMemoryQuery(records, filter).total;
   }
 
   // ── DB query implementations ─────────────────────────

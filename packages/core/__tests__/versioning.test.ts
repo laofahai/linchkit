@@ -14,7 +14,7 @@ import {
   type SchemaMigration,
   type VersionRegistry,
   validateUpgrade,
-} from "@linchkit/core";
+} from "@linchkit/cap-migration";
 
 // ── SemVer parsing ─────────────────────────────────────────
 

@@ -276,12 +276,20 @@ export function generateGraphQLObjectType(
       fields.created_at = {
         type: new GraphQLNonNull(GraphQLString),
         description: "ISO 8601 timestamp",
-        resolve: (obj: Record<string, unknown>) => obj.created_at ?? new Date().toISOString(),
+        resolve: (obj: Record<string, unknown>) => {
+          const v = obj.created_at;
+          if (v instanceof Date) return v.toISOString();
+          return v ?? new Date().toISOString();
+        },
       };
       fields.updated_at = {
         type: new GraphQLNonNull(GraphQLString),
         description: "ISO 8601 timestamp",
-        resolve: (obj: Record<string, unknown>) => obj.updated_at ?? new Date().toISOString(),
+        resolve: (obj: Record<string, unknown>) => {
+          const v = obj.updated_at;
+          if (v instanceof Date) return v.toISOString();
+          return v ?? new Date().toISOString();
+        },
       };
       fields.created_by = {
         type: GraphQLString,
@@ -354,6 +362,17 @@ export function generateGraphQLObjectType(
               },
             };
           }
+        } else if (field.type === "datetime" || field.type === "date") {
+          // Date/datetime fields: ensure Date objects are serialized to ISO strings
+          fields[fieldName] = {
+            type: graphqlType,
+            description: field.description ?? field.label,
+            resolve: (obj: Record<string, unknown>) => {
+              const v = obj[name];
+              if (v instanceof Date) return v.toISOString();
+              return v ?? null;
+            },
+          };
         } else {
           fields[fieldName] = {
             type: graphqlType, // Always nullable in output to prevent resolver crashes

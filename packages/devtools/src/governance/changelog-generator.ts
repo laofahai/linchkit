@@ -5,7 +5,7 @@
  * Markdown changelogs grouped by type and optionally by version.
  */
 
-// ── Types ────────────────────────────────────────────
+// -- Types --------------------------------------------------------
 
 export interface ConventionalCommit {
   /** Full commit hash */
@@ -47,7 +47,7 @@ export interface VersionGroup {
   commits: ConventionalCommit[];
 }
 
-// ── Conventional Commit parser ───────────────────────
+// -- Conventional Commit parser -----------------------------------
 
 const CONVENTIONAL_COMMIT_RE =
   /^(?<type>[a-z]+)(?:\((?<scope>[^)]+)\))?(?<breaking>!)?:\s+(?<subject>.+)$/;
@@ -80,7 +80,7 @@ export function parseConventionalCommit(
   };
 }
 
-// ── Commit grouping ──────────────────────────────────
+// -- Commit grouping ----------------------------------------------
 
 /** Human-readable labels for conventional commit types */
 const TYPE_LABELS: Record<string, string> = {
@@ -140,7 +140,7 @@ function groupByType(commits: ConventionalCommit[]): Map<string, ConventionalCom
   return groups;
 }
 
-// ── Changelog generation ─────────────────────────────
+// -- Changelog generation -----------------------------------------
 
 /**
  * Generate a Markdown changelog from parsed conventional commits.

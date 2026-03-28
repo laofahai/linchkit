@@ -106,6 +106,7 @@
     "recordCount": "{{count}} record",
     "recordCount_other": "{{count}} records",
     "filterHint": "Try adjusting your filters to find what you're looking for.",
+    "pageSize": "Per page",
     "page": "Page {{current}} of {{total}}",
     "selected": "selected",
     "stateRibbon": "Filter by state",
@@ -473,6 +474,113 @@
         "unit_price": "Unit Price",
         "specification": "Specification",
         "line_total": "Line Total"
+      }
+    },
+    "execution_log": {
+      "_label": "Execution Log",
+      "_labelPlural": "Execution Logs",
+      "fields": {
+        "action_name": "Action",
+        "schema_name": "Schema",
+        "record_id": "Record ID",
+        "capability": "Capability",
+        "actor_id": "Actor",
+        "actor_type": "Actor Type",
+        "status": "Status",
+        "duration_ms": "Duration (ms)",
+        "error_code": "Error Code",
+        "error_message": "Error Message",
+        "channel": "Channel",
+        "input": "Input",
+        "output": "Output",
+        "started_at": "Started At",
+        "completed_at": "Completed At"
+      }
+    },
+    "approval": {
+      "_label": "Approval",
+      "_labelPlural": "Approvals",
+      "fields": {
+        "action_name": "Action",
+        "schema_name": "Schema",
+        "record_id": "Record ID",
+        "capability": "Capability",
+        "level": "Level",
+        "reason": "Reason",
+        "actor_id": "Requester",
+        "actor_type": "Requester Type",
+        "assignee_type": "Assignee Type",
+        "assignee_value": "Assignee",
+        "status": "Status",
+        "decided_by": "Decided By",
+        "decided_at": "Decided At",
+        "decision_note": "Decision Note",
+        "expires_at": "Expires At",
+        "timeout_policy": "Timeout Policy",
+        "input": "Input Data"
+      }
+    },
+    "rule": {
+      "_label": "Rule",
+      "_labelPlural": "Rules",
+      "fields": {
+        "name": "Name",
+        "label": "Label",
+        "description": "Description",
+        "priority": "Priority",
+        "trigger": "Trigger",
+        "condition": "Condition",
+        "effect_type": "Effect Type",
+        "effect": "Effect"
+      }
+    },
+    "flow": {
+      "_label": "Flow",
+      "_labelPlural": "Flows",
+      "fields": {
+        "name": "Name",
+        "label": "Label",
+        "description": "Description",
+        "version": "Version",
+        "trigger_type": "Trigger Type",
+        "step_count": "Steps",
+        "trigger": "Trigger Config",
+        "steps": "Steps"
+      }
+    },
+    "state_machine": {
+      "_label": "State Machine",
+      "_labelPlural": "State Machines",
+      "fields": {
+        "name": "Name",
+        "schema_name": "Schema",
+        "field": "Field",
+        "initial": "Initial State",
+        "state_count": "States",
+        "transition_count": "Transitions",
+        "states": "States",
+        "meta": "State Metadata"
+      }
+    },
+    "proposal": {
+      "_label": "Proposal",
+      "_labelPlural": "Proposals",
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "author_name": "Author",
+        "author_type": "Author Type",
+        "capability": "Capability",
+        "change_type": "Change Type",
+        "status": "Status",
+        "changes": "Changes",
+        "impact": "Impact Analysis",
+        "validation_result": "Validation Result",
+        "validated_at": "Validated At",
+        "approved_at": "Approved At",
+        "committed_at": "Committed At",
+        "deployed_at": "Deployed At",
+        "rejection_reason": "Rejection Reason"
       }
     }
   },

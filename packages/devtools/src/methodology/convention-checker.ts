@@ -8,7 +8,7 @@
 
 import { buildReport, type QualityIssue, type QualityReport } from "./code-quality";
 
-// ── Types ───────────────────────────────────────────────
+// -- Types ---------------------------------------------------------------
 
 export interface CommitInfo {
   hash?: string;
@@ -25,7 +25,7 @@ export interface ActionInfo {
   schema: string;
 }
 
-// ── Reserved words ──────────────────────────────────────
+// -- Reserved words ------------------------------------------------------
 
 /**
  * SQL / system reserved words that must not be used as schema names.
@@ -75,13 +75,13 @@ const RESERVED_WORDS = new Set([
   "rollback",
 ]);
 
-// ── Patterns ────────────────────────────────────────────
+// -- Patterns ------------------------------------------------------------
 
 const SNAKE_CASE_RE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 const CONVENTIONAL_COMMIT_RE =
   /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9\-_/]+\))?!?:\s.+/;
 
-// ── Commit message validation ───────────────────────────
+// -- Commit message validation -------------------------------------------
 
 /**
  * Validate that commit messages follow Conventional Commits format.
@@ -126,7 +126,7 @@ export function checkCommitMessages(commits: CommitInfo[]): QualityReport {
   return buildReport(issues);
 }
 
-// ── Schema definition validation ────────────────────────
+// -- Schema definition validation ----------------------------------------
 
 /**
  * Validate schema naming conventions.
@@ -220,7 +220,7 @@ export function checkSchemaDefinitions(schemas: SchemaInfo[]): QualityReport {
   return buildReport(issues);
 }
 
-// ── Action definition validation ────────────────────────
+// -- Action definition validation ----------------------------------------
 
 /**
  * Validate action naming conventions.

@@ -20,8 +20,8 @@ import {
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
-  runMigrations,
 } from "@linchkit/core/server";
+import { runMigrations } from "@linchkit/cap-migration";
 import { getTableConfig, pgTable } from "drizzle-orm/pg-core";
 
 export interface DatabaseSetupResult {

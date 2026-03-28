@@ -11,7 +11,9 @@ export function parseDateValue(value: unknown): Date | null {
   if (value instanceof Date) return value;
   if (typeof value === "string") {
     try {
-      return parseISO(value);
+      const parsed = parseISO(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return parsed;
     } catch {
       // Malformed ISO string — cannot parse as a valid date
       return null;

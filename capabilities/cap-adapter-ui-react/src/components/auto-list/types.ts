@@ -93,6 +93,15 @@ export interface AutoListProps {
 	/** Callback fired when the active bazza filter state changes. Used by saved views. */
 	onFiltersChange?: (filters: SavedFilterEntry[]) => void;
 
+	// ── Controlled filter state (optional) ─────────────────────────────────────
+	// When provided, AutoList uses these instead of its own internal state.
+	// This allows the parent to share filter state across list and alternate views.
+
+	/** Controlled global text filter value. */
+	globalFilter?: string;
+	/** Controlled global text filter change handler. */
+	onGlobalFilterChange?: (value: string) => void;
+
 	// ── Column override (optional) ────────────────────────────────────────────
 
 	/** Raw TanStack Table column definitions. When provided, overrides auto-generated columns from `view`. */

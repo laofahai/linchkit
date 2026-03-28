@@ -26,19 +26,20 @@ import {
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAISearch, isNaturalLanguageQuery } from "../../hooks/use-ai-search";
+import { isNaturalLanguageQuery, useAISearch } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 import { useDataTableFilters } from "../data-table-filter";
 import type { FiltersState } from "../data-table-filter/core/types";
+import { EmptyState } from "../empty-state";
+import { BulkEditDialog } from "./bulk-edit-dialog";
 import { buildColumns, buildSelectionColumn } from "./columns";
 import { exportCsv } from "./csv-export";
 import { buildFilterColumns } from "./filter-columns";
-import { BulkEditDialog } from "./bulk-edit-dialog";
 import { ImportDialog } from "./import-dialog";
 import { ListPagination } from "./list-pagination";
 import { ListToolbar } from "./list-toolbar";
-import { EmptyState } from "../empty-state";
+import { MiniPagination } from "./mini-pagination";
 import type { AutoListProps } from "./types";
 
 /** Stable keys for skeleton placeholder rows (avoids array-index-as-key). */
@@ -97,31 +98,41 @@ function evaluateCondition(
     case "neq":
       return rowVal !== value && String(rowVal) !== String(value);
     case "gt": {
-      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      const a = coerceNumericOrDate(rowVal),
+        b = coerceNumericOrDate(value);
       if (a === null || b === null) return false;
       return a > b;
     }
     case "gte": {
-      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      const a = coerceNumericOrDate(rowVal),
+        b = coerceNumericOrDate(value);
       if (a === null || b === null) return false;
       return a >= b;
     }
     case "lt": {
-      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      const a = coerceNumericOrDate(rowVal),
+        b = coerceNumericOrDate(value);
       if (a === null || b === null) return false;
       return a < b;
     }
     case "lte": {
-      const a = coerceNumericOrDate(rowVal), b = coerceNumericOrDate(value);
+      const a = coerceNumericOrDate(rowVal),
+        b = coerceNumericOrDate(value);
       if (a === null || b === null) return false;
       return a <= b;
     }
     case "contains":
-      return String(rowVal ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
+      return String(rowVal ?? "")
+        .toLowerCase()
+        .includes(String(value ?? "").toLowerCase());
     case "startsWith":
-      return String(rowVal ?? "").toLowerCase().startsWith(String(value ?? "").toLowerCase());
+      return String(rowVal ?? "")
+        .toLowerCase()
+        .startsWith(String(value ?? "").toLowerCase());
     case "endsWith":
-      return String(rowVal ?? "").toLowerCase().endsWith(String(value ?? "").toLowerCase());
+      return String(rowVal ?? "")
+        .toLowerCase()
+        .endsWith(String(value ?? "").toLowerCase());
     case "in": {
       const arr = Array.isArray(value) ? value : [value];
       return arr.some((v) => String(rowVal) === String(v));
@@ -157,17 +168,19 @@ interface TableShellProps {
   hasActiveFilters: boolean;
 }
 
-/** Shared table + pagination rendering. */
+/** Shared table + pagination rendering with fixed-height scroll and sticky header. */
 function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShellProps) {
   const { t } = useTranslation();
   return (
     <>
-      {/* Table */}
-      <div className="rounded border border-border overflow-x-auto">
+      {/* Scrollable table container — fixed height based on viewport */}
+      <div
+        className="rounded border border-border overflow-auto max-h-[calc(100vh-220px)]"
+      >
         <table className="w-full text-sm min-w-[600px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
+              <tr key={headerGroup.id} className="border-b border-border">
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
@@ -217,6 +230,7 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
         </table>
       </div>
 
+      {/* Full pagination below the table */}
       <ListPagination table={table} />
     </>
   );
@@ -243,6 +257,9 @@ export function AutoList({
   onInlineEditSaved,
   onInlineEditError,
   onFiltersChange,
+  // Controlled filter state (optional)
+  globalFilter: globalFilterProp,
+  onGlobalFilterChange: onGlobalFilterChangeProp,
   // Column override / simple mode props
   columns: columnsProp,
   pageSize: pageSizeProp,
@@ -263,18 +280,18 @@ export function AutoList({
     return defaultSorting ?? [];
   });
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  // Use controlled or internal global filter state
+  const globalFilter = globalFilterProp ?? internalGlobalFilter;
+  const setGlobalFilter = onGlobalFilterChangeProp ?? setInternalGlobalFilter;
   const [importOpen, setImportOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
 
   // ── AI search (schema mode only) ────────────────────────────────────────
 
-  const {
-    aiSearch: aiSearchState,
-    triggerAISearch,
-    clearAISearch,
-  } = useAISearch(schema);
+  const { aiSearch: aiSearchState, triggerAISearch, clearAISearch } = useAISearch(schema);
 
   const handleSearchSubmit = useCallback(
     (query: string) => {
@@ -285,12 +302,9 @@ export function AutoList({
     [isSchemaMode, triggerAISearch],
   );
 
-  const handleGlobalFilterChange = useCallback(
-    (value: string) => {
-      setGlobalFilter(value);
-    },
-    [],
-  );
+  const handleGlobalFilterChange = useCallback((value: string) => {
+    setGlobalFilter(value);
+  }, [setGlobalFilter]);
 
   // ── Bazza filters (schema mode only) ──────────────────────────────────
 
@@ -353,12 +367,7 @@ export function AutoList({
     [view],
   );
 
-  const {
-    editingCell,
-    startEditing,
-    cancelEditing,
-    saveEdit,
-  } = useInlineEdit({
+  const { editingCell, startEditing, cancelEditing, saveEdit } = useInlineEdit({
     schemaName: schema?.name ?? "",
     queryFields,
     onSaved: onInlineEditSaved,
@@ -444,7 +453,22 @@ export function AutoList({
     if (selectable) cols.unshift(buildSelectionColumn());
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columnsProp, isSchemaMode, view?.fields, schema, rowActions, onAction, selectable, stateMeta, resolveLabel, hasEditableFields, editingCell, startEditing, saveEdit, cancelEditing]);
+  }, [
+    columnsProp,
+    isSchemaMode,
+    view?.fields,
+    schema,
+    rowActions,
+    onAction,
+    selectable,
+    stateMeta,
+    resolveLabel,
+    hasEditableFields,
+    editingCell,
+    startEditing,
+    saveEdit,
+    cancelEditing,
+  ]);
 
   // ── Table ─────────────────────────────────────────────────────────────
 
@@ -466,7 +490,8 @@ export function AutoList({
     initialState: { pagination: { pageSize: effectivePageSize } },
   });
 
-  const hasActiveFilters = globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
+  const hasActiveFilters =
+    globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
 
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const selectedIds = useMemo(
@@ -479,7 +504,7 @@ export function AutoList({
     setBazzaFilters([]);
     setGlobalFilter("");
     clearAISearch();
-  }, [clearAISearch]);
+  }, [clearAISearch, setGlobalFilter]);
 
   // ── CSV export (schema mode only) ─────────────────────────────────────
 
@@ -529,12 +554,17 @@ export function AutoList({
             </div>
           )}
           {SKELETON_KEYS.map((key) => (
-            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+            <div
+              key={key}
+              className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5"
+            >
               {isSchemaMode && selectable && <Skeleton className="h-4 w-4" />}
               {isSchemaMode ? (
-                view.fields.slice(0, 5).map((f, i) => (
-                  <Skeleton key={f.field} className="h-4" style={{ width: `${60 + i * 20}px` }} />
-                ))
+                view.fields
+                  .slice(0, 5)
+                  .map((f, i) => (
+                    <Skeleton key={f.field} className="h-4" style={{ width: `${60 + i * 20}px` }} />
+                  ))
               ) : (
                 <>
                   <Skeleton className="h-4 w-32" />
@@ -564,8 +594,16 @@ export function AutoList({
 
   // ── Render ────────────────────────────────────────────────────────────
 
+  // Compose toolbar extra: mini pagination + caller's extra content
+  const composedToolbarExtra = (
+    <>
+      <MiniPagination table={table} />
+      {toolbarExtra}
+    </>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <ListToolbar
         schema={isSchemaMode ? schema : undefined}
         globalFilter={globalFilter}
@@ -583,7 +621,7 @@ export function AutoList({
         bazzaFilters={isSchemaMode ? bazzaFilterState : undefined}
         bazzaActions={isSchemaMode ? bazzaActions : undefined}
         bazzaStrategy={isSchemaMode ? bazzaStrategy : undefined}
-        toolbarExtra={toolbarExtra}
+        toolbarExtra={composedToolbarExtra}
         aiSearchState={isSchemaMode ? aiSearchState : undefined}
         onClearAISearch={isSchemaMode ? clearAISearch : undefined}
         onSearchSubmit={isSchemaMode ? handleSearchSubmit : undefined}

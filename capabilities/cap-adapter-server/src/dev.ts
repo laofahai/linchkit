@@ -169,7 +169,6 @@ const graphqlSchema = buildGraphQLSchema(allSchemas, {
   executor: runtime.executor,
   dataProvider: runtime.dataProvider,
   actions: customActions,
-  executionLogger: runtime.executionLogger,
   links: capContributions.links,
   stateDefinitions: capContributions.states,
 });

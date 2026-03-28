@@ -5,13 +5,13 @@ import {
   generateChangelog,
   generateVersionedChangelog,
   parseConventionalCommit,
-} from "../src/governance/changelog-generator";
+} from "@linchkit/devtools/governance";
 import {
   validateActionDoc,
   validateCapabilityDoc,
   validateSchemaDoc,
-} from "../src/governance/doc-validator";
-import { generateSpecReport, SpecTracker } from "../src/governance/spec-tracker";
+} from "@linchkit/devtools/governance";
+import { generateSpecReport, SpecTracker } from "@linchkit/devtools/governance";
 import type { ActionDefinition } from "../src/types/action";
 import type { CapabilityDefinition } from "../src/types/capability";
 import type { SchemaDefinition } from "../src/types/schema";

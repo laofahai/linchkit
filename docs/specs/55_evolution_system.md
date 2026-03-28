@@ -742,3 +742,7 @@ Week 8:
 | **M6+** | Awareness 重要性图谱；跨通道关联分析；正向反馈；Proposal 自动验证 | M5 |
 
 每个阶段都交付独立可用的价值，不需要等到最后才有用。
+
+---
+
+> **相关规范**：[56 — 核心瘦身](./56_core_slimming.md)（Phase 2 的生命系统引擎接口抽象依赖本规范的 Sense/Memory/Awareness 定义）。

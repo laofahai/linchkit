@@ -29,8 +29,6 @@ import {
   createNoopAIService,
   CacheManager,
   checkConnection,
-  checkRestateHealth,
-  compileFlow,
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
@@ -47,7 +45,6 @@ import {
   createOntologyRegistry,
   createOutboxWorker,
   createPersistentEventBus,
-  createRestateFlowEngine,
   createSchemaCheck,
   createSyncFlowEngine,
   createTriggerBinding,
@@ -64,8 +61,13 @@ import {
   type OutboxWorker,
   PermissionRegistry,
   SchemaRegistry,
-  setupRestateEndpoint,
 } from "@linchkit/core/server";
+import {
+  checkRestateHealth,
+  compileFlow,
+  createRestateFlowEngine,
+  setupRestateEndpoint,
+} from "@linchkit/cap-flow-restate";
 
 // ── Input types ─────────────────────────────────────────────
 

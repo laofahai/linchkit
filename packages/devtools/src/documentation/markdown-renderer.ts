@@ -15,7 +15,7 @@ function snakeToPascal(s: string): string {
     .join("");
 }
 
-// ── Render options ──────────────────────────────────
+// -- Render options -------------------------------------------------
 
 export interface MarkdownRenderOptions {
   /** Include table of contents. Default: true */
@@ -35,7 +35,7 @@ const DEFAULT_OPTIONS: Required<MarkdownRenderOptions> = {
   stateMachines: true,
 };
 
-// ── Public API ──────────────────────────────────
+// -- Public API -------------------------------------------------
 
 /**
  * Render a full SystemDoc to Markdown.
@@ -214,7 +214,7 @@ export function renderActionDoc(action: ActionDoc): string {
   return lines.join("\n");
 }
 
-// ── Internal helpers ──────────────────────────────────
+// -- Internal helpers -------------------------------------------------
 
 /** Render a field list as a Markdown table */
 function renderFieldTable(fields: FieldDoc[]): string {

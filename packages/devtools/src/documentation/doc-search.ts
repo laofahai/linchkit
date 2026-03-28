@@ -11,13 +11,13 @@
  * See spec: docs/specs/25_documentation.md §5, §6 (M2)
  */
 
-import type { CapabilityDefinition } from "../types/capability";
+import type { CapabilityDefinition } from "@linchkit/core";
 import {
   type CapabilitySpecDoc,
   generateCapabilityDoc,
 } from "./capability-doc-generator";
 
-// ── Search result types ──────────────────────────────────
+// -- Search result types -------------------------------------------------
 
 /** A search result entry */
 export interface DocSearchResult {
@@ -45,7 +45,7 @@ export interface DocSearchOptions {
   capability?: string;
 }
 
-// ── Search index ──────────────────────────────────
+// -- Search index -------------------------------------------------
 
 /** Internal index entry for search */
 interface SearchEntry {

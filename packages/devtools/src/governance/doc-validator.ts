@@ -5,11 +5,11 @@
  * coverage (descriptions, field docs, examples, etc.) per spec 37.
  */
 
-import type { ActionDefinition } from "../types/action";
-import type { CapabilityDefinition } from "../types/capability";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { ActionDefinition } from "@linchkit/core";
+import type { CapabilityDefinition } from "@linchkit/core";
+import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
 
-// ── Types ────────────────────────────────────────────
+// -- Types --------------------------------------------------------
 
 export interface DocIssue {
   /** Severity: error = must fix, warning = should fix, info = nice to have */
@@ -35,7 +35,7 @@ export interface DocCompleteness {
   issues: DocIssue[];
 }
 
-// ── Schema validation ────────────────────────────────
+// -- Schema validation --------------------------------------------
 
 /**
  * Validate documentation completeness of a SchemaDefinition.
@@ -135,7 +135,7 @@ export function validateSchemaDoc(schema: SchemaDefinition): DocCompleteness {
   };
 }
 
-// ── Action validation ────────────────────────────────
+// -- Action validation --------------------------------------------
 
 /**
  * Validate documentation completeness of an ActionDefinition.
@@ -206,7 +206,7 @@ export function validateActionDoc(action: ActionDefinition): DocCompleteness {
   };
 }
 
-// ── Capability validation ────────────────────────────
+// -- Capability validation ----------------------------------------
 
 /**
  * Validate documentation completeness of a CapabilityDefinition.

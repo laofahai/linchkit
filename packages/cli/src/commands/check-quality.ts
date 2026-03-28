@@ -18,12 +18,12 @@ import type {
   QualityIssue,
   QualityReport,
   SchemaInfo,
-} from "@linchkit/core/methodology";
+} from "@linchkit/devtools/methodology";
 import {
   checkActionDefinitions,
   checkSchemaDefinitions,
   validateProjectStructure,
-} from "@linchkit/core/methodology";
+} from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";
 import consola from "consola";
 import { loadConfig } from "../utils/load-config";

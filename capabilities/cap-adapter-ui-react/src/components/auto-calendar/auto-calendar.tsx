@@ -44,6 +44,15 @@ export interface AutoCalendarProps {
   title?: string;
   /** Loading state */
   loading?: boolean;
+  /**
+   * Controlled current month. When provided, the calendar uses this value
+   * instead of internal state and calls `onMonthChange` on navigation.
+   * This allows the parent to render month navigation controls externally
+   * (e.g. inside a ViewToggle toolbar).
+   */
+  currentMonth?: Date;
+  /** Called when the displayed month changes (controlled mode). */
+  onMonthChange?: (month: Date) => void;
 }
 
 // ── Color mapping for field values ───────────────────
@@ -82,9 +91,19 @@ export function AutoCalendar({
   onRecordClick,
   title,
   loading = false,
+  currentMonth: controlledMonth,
+  onMonthChange,
 }: AutoCalendarProps) {
   const { t } = useTranslation();
-  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
+  const [internalMonth, setInternalMonth] = useState(() => startOfMonth(new Date()));
+  const isControlled = controlledMonth !== undefined;
+  const currentMonth = isControlled ? controlledMonth : internalMonth;
+  const setCurrentMonth = isControlled
+    ? (updater: Date | ((prev: Date) => Date)) => {
+        const next = typeof updater === "function" ? updater(currentMonth) : updater;
+        onMonthChange?.(next);
+      }
+    : setInternalMonth;
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const resolvedTitleField = titleField ?? detectTitleField(schema);
@@ -148,27 +167,29 @@ export function AutoCalendar({
 
   return (
     <div className="space-y-4">
-      {/* Header: title + navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
-          {title && <h2 className="text-lg font-semibold">{title}</h2>}
+      {/* Header: title + navigation (hidden when externally controlled) */}
+      {!isControlled && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+            {title && <h2 className="text-lg font-semibold">{title}</h2>}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={handleToday}>
+              {t("calendar.today", "Today")}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="min-w-[140px] text-center text-sm font-medium">
+              {format(currentMonth, "MMMM yyyy")}
+            </span>
+            <Button variant="ghost" size="icon" onClick={handleNextMonth}>
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={handleToday}>
-            {t("calendar.today", "Today")}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="min-w-[140px] text-center text-sm font-medium">
-            {format(currentMonth, "MMMM yyyy")}
-          </span>
-          <Button variant="ghost" size="icon" onClick={handleNextMonth}>
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Calendar grid */}
       <div className="rounded border border-border">

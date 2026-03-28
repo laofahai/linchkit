@@ -46,6 +46,7 @@ export const capAdapterServer = defineCapability({
                 rules: (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []),
                 flows: ctx.flowRegistry?.getAll() ?? [],
                 states: ctx.states ?? [],
+                executionLogger: ctx.executionLogger,
               })
             : undefined;
 
@@ -77,7 +78,6 @@ export const capAdapterServer = defineCapability({
           const graphqlSchema = buildGraphQLSchema(allSchemas, {
             executor: ctx.executor,
             dataProvider: systemDataProvider ?? ctx.dataProvider,
-            executionLogger: ctx.executionLogger,
             links: ctx.links,
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,

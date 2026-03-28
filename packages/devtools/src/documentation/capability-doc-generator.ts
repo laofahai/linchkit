@@ -8,12 +8,12 @@
  * See spec: docs/specs/25_documentation.md §2.1
  */
 
-import type { CapabilityDefinition } from "../types/capability";
-import type { LinkDefinition } from "../types/link";
+import type { CapabilityDefinition } from "@linchkit/core";
+import type { LinkDefinition } from "@linchkit/core";
 import type { FieldDoc, SchemaDoc } from "./api-doc-generator";
 import { fieldToDoc } from "./api-doc-generator";
 
-// ── Capability doc types ──────────────────────────────────
+// -- Capability doc types -------------------------------------------------
 
 /** Documentation for a capability */
 export interface CapabilitySpecDoc {
@@ -97,7 +97,7 @@ export interface CapabilityRelationDoc {
   label?: { from?: string; to?: string };
 }
 
-// ── Generator ──────────────────────────────────
+// -- Generator -------------------------------------------------
 
 /**
  * Generate a structured capability spec document from a CapabilityDefinition.
@@ -178,7 +178,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   };
 }
 
-// ── Markdown renderer ──────────────────────────────────
+// -- Markdown renderer -------------------------------------------------
 
 /**
  * Render a CapabilitySpecDoc to Markdown format.

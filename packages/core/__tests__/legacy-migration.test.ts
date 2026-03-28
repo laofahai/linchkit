@@ -6,7 +6,7 @@ import {
   MigrationResumeTracker,
   MigrationRunner,
   SchemaMapper,
-} from "../src/migration";
+} from "@linchkit/cap-migration";
 import type { SchemaDefinition } from "../src/types/schema";
 
 // ── Test schema ─────────────────────────────────────────────
