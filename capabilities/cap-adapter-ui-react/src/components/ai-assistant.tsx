@@ -6,6 +6,10 @@
  * - Built-in streaming via UI message protocol
  * - Tool/function calling support (server-side tools rendered automatically)
  * - Context-aware: passes current schema/record context with each request
+ *
+ * When AI is enabled, also performs parallel intent resolution on each user
+ * message. If a matching action is found (confidence >= 0.5), an
+ * ActionProposalCard is shown inline — the user can confirm execution or cancel.
  */
 
 import { useChat } from "@ai-sdk/react";
@@ -28,8 +32,22 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ActionProposalCard } from "./action-proposal-card";
+import {
+  isAiEnabled,
+  resolveIntent,
+  type ActionResult,
+  type IntentResolution,
+} from "../lib/api";
+
+// ── Proposal state ───────────────────────────────────────
+
+interface ProposalItem {
+  id: string;
+  intent: IntentResolution;
+}
 
 // ── Component ────────────────────────────────────────────
 
@@ -44,6 +62,10 @@ export function AIAssistant({
   const params = useParams({ strict: false }) as { name?: string; id?: string };
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Pending action proposals from intent resolution
+  const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [isResolvingIntent, setIsResolvingIntent] = useState(false);
 
   // Create transport with context-aware body (schema + record info + locale sent with each request)
   const transport = useMemo(
@@ -78,12 +100,12 @@ export function AIAssistant({
 
   const isLoading = status === "submitted" || status === "streaming";
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages or proposals change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, proposals]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -91,6 +113,19 @@ export function AIAssistant({
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
+
+  // Dismiss a proposal when user cancels
+  const handleProposalCancel = useCallback((proposalId: string) => {
+    setProposals((prev) => prev.filter((p) => p.id !== proposalId));
+  }, []);
+
+  // Remove proposal after execution completes (success or error)
+  const handleProposalComplete = useCallback(
+    (_proposalId: string, _result: ActionResult) => {
+      setProposals((prev) => prev.filter((p) => p.id !== _proposalId));
+    },
+    [],
+  );
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
   const handleSend = useCallback(() => {
@@ -101,7 +136,25 @@ export function AIAssistant({
 
     sendMessage({ text: trimmed });
     textarea.value = "";
-  }, [isLoading, sendMessage]);
+
+    // Parallel intent resolution — fire and forget, graceful on failure
+    if (isAiEnabled()) {
+      setIsResolvingIntent(true);
+      resolveIntent(trimmed, { schema: params.name, recordId: params.id })
+        .then((result) => {
+          if (result && result.confidence >= 0.5) {
+            const proposalId = crypto.randomUUID();
+            setProposals((prev) => [...prev, { id: proposalId, intent: result }]);
+          }
+        })
+        .catch(() => {
+          // AI unavailable — chat continues normally, no proposal shown
+        })
+        .finally(() => {
+          setIsResolvingIntent(false);
+        });
+    }
+  }, [isLoading, sendMessage, params.name, params.id]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -115,6 +168,7 @@ export function AIAssistant({
 
   const handleClear = useCallback(() => {
     setMessages([]);
+    setProposals([]);
   }, [setMessages]);
 
   return (
@@ -143,7 +197,7 @@ export function AIAssistant({
                   <Loader2Icon className="size-3.5 animate-spin" />
                 </Button>
               )}
-              {messages.length > 0 && (
+              {(messages.length > 0 || proposals.length > 0) && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -169,7 +223,7 @@ export function AIAssistant({
         {/* Messages area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-3 py-4">
-            {messages.length === 0 && (
+            {messages.length === 0 && proposals.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
                 <BotIcon className="size-10 opacity-30" />
                 <p className="text-sm">{t("ai.welcomeMessage")}</p>
@@ -201,6 +255,19 @@ export function AIAssistant({
               <MessageBubble key={msg.id} message={msg} />
             ))}
 
+            {/* Action proposal cards — shown after chat messages */}
+            {proposals.map((proposal) => (
+              <div key={proposal.id} className="flex justify-start">
+                <div className="w-full max-w-[95%]">
+                  <ActionProposalCard
+                    intent={proposal.intent}
+                    onComplete={(result) => handleProposalComplete(proposal.id, result)}
+                    onCancel={() => handleProposalCancel(proposal.id)}
+                  />
+                </div>
+              </div>
+            ))}
+
             {/* Error display */}
             {error && (
               <div className="flex justify-start">
@@ -216,6 +283,16 @@ export function AIAssistant({
                 <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
                   <Loader2Icon className="size-3.5 animate-spin" />
                   {t("ai.thinking")}
+                </div>
+              </div>
+            )}
+
+            {/* Intent resolution indicator */}
+            {isResolvingIntent && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  {t("ai.resolvingIntent")}
                 </div>
               </div>
             )}

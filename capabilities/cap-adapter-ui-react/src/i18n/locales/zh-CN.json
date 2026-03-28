@@ -307,7 +307,9 @@
     "actionSuccess": "操作执行成功。",
     "actionExecFailed": "操作执行失败。",
     "actionCancelled": "操作已取消。",
-    "missingFields": "缺少必填字段"
+    "missingFields": "缺少必填字段",
+    "stop": "停止",
+    "resolvingIntent": "正在识别操作意图..."
   },
   "health": {
     "title": "系统健康",
