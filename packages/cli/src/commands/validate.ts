@@ -16,13 +16,13 @@ import type {
   SchemaDefinition,
 } from "@linchkit/core";
 import { createInterfaceRegistry, validateTranslatableSchema } from "@linchkit/core";
-import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/devtools/methodology";
-import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/devtools/methodology";
 import {
   convertSchemaRelationshipFieldsToImplicitLinks,
   createLinkRegistry,
   SchemaRegistry,
 } from "@linchkit/core/server";
+import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/devtools/methodology";
+import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";
 import consola from "consola";
 import { loadConfig } from "../utils/load-config";

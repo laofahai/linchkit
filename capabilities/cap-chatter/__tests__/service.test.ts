@@ -2,7 +2,7 @@
  * ChatterService unit tests (InMemoryChatterService)
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { InMemoryChatterService } from "../src/service";
 
 describe("InMemoryChatterService", () => {
@@ -114,8 +114,21 @@ describe("InMemoryChatterService", () => {
     });
 
     it("filters by messageType", async () => {
-      await service.createMessage({ schemaName: "s", recordId: "r", messageType: "comment", body: "c", authorId: "u" });
-      await service.createMessage({ schemaName: "s", recordId: "r", messageType: "log", body: "l", authorId: "sys", authorType: "system" });
+      await service.createMessage({
+        schemaName: "s",
+        recordId: "r",
+        messageType: "comment",
+        body: "c",
+        authorId: "u",
+      });
+      await service.createMessage({
+        schemaName: "s",
+        recordId: "r",
+        messageType: "log",
+        body: "l",
+        authorId: "sys",
+        authorType: "system",
+      });
 
       const comments = await service.getMessages("s", "r", { messageType: "comment" });
       expect(comments.totalCount).toBe(1);

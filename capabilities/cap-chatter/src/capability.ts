@@ -5,10 +5,10 @@
  * Implements Spec 53 MVP scope.
  */
 
-import { defineCapability } from "@linchkit/core";
 import type { CapabilityDefinition } from "@linchkit/core";
+import { defineCapability } from "@linchkit/core";
 import { createChatterAutoLog } from "./event-handler";
-import { InMemoryChatterService, DrizzleChatterService } from "./service";
+import { DrizzleChatterService, InMemoryChatterService } from "./service";
 import type { ChatterService } from "./types";
 
 // ── Capability options ──────────────────────────────────────

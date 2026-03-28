@@ -11,14 +11,14 @@ export {
   createAutomationRegistry,
 } from "./automation-registry";
 export {
-  type WatcherDataQuerier,
-  type WatcherEngine,
-  type WatcherEngineOptions,
   createWatcherEngine,
   evaluateComparison,
   parseDuration,
+  type WatcherDataQuerier,
+  type WatcherEngine,
+  type WatcherEngineOptions,
 } from "./watcher-engine";
 export {
-  type WatcherRegistry,
   createWatcherRegistry,
+  type WatcherRegistry,
 } from "./watcher-registry";

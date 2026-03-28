@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isMaskedValue, isFullyMasked } from "../src/lib/masking";
+import { isFullyMasked, isMaskedValue } from "../src/lib/masking";
 
 describe("isMaskedValue", () => {
   describe("full mask — entire value is asterisks (≥3)", () => {
@@ -14,23 +14,13 @@ describe("isMaskedValue", () => {
   });
 
   describe("partial mask — contiguous 3+ asterisks with short prefix/suffix", () => {
-    test.each([
-      "J***n",
-      "****5678",
-      "1234****",
-      "1234****5678",
-      "user****",
-    ])("detects %s", (v) => {
+    test.each(["J***n", "****5678", "1234****", "1234****5678", "user****"])("detects %s", (v) => {
       expect(isMaskedValue(v)).toBe(true);
     });
   });
 
   describe("email-style masks", () => {
-    test.each([
-      "***@email.com",
-      "j***@example.com",
-      "user@***.com",
-    ])("detects %s", (v) => {
+    test.each(["***@email.com", "j***@example.com", "user@***.com"])("detects %s", (v) => {
       expect(isMaskedValue(v)).toBe(true);
     });
   });
@@ -45,9 +35,9 @@ describe("isMaskedValue", () => {
       "no asterisks here",
       "single * star",
       "double ** star",
-      "foo *** bar",        // spaces around asterisks — not a mask pattern
-      "some text ****",     // leading space — not a mask pattern
-      "**** some text",     // trailing text with space — not a mask pattern
+      "foo *** bar", // spaces around asterisks — not a mask pattern
+      "some text ****", // leading space — not a mask pattern
+      "**** some text", // trailing text with space — not a mask pattern
     ])("rejects %s", (v) => {
       expect(isMaskedValue(v)).toBe(false);
     });

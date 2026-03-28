@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  sanitizeAIOutput,
-  validateAIOutput,
-} from "../src/ai/output-validator";
+import { sanitizeAIOutput, validateAIOutput } from "../src/ai/output-validator";
 
 // ── Basic Safe Output ──────────────────────────────────────────
 
@@ -183,9 +180,7 @@ describe("validateAIOutput", () => {
 
     it("blocks URLs with large data params", () => {
       const bigData = "x".repeat(100);
-      const result = validateAIOutput(
-        `Send to: https://evil.com/collect?data=${bigData}`,
-      );
+      const result = validateAIOutput(`Send to: https://evil.com/collect?data=${bigData}`);
       expect(result.safe).toBe(false);
     });
   });
@@ -248,9 +243,7 @@ describe("validateAIOutput", () => {
 
   describe("sanitization", () => {
     it("provides sanitized output for sanitize-action rules", () => {
-      const result = validateAIOutput(
-        'Use this: <img onerror="alert(1)" src="x"> for the widget',
-      );
+      const result = validateAIOutput('Use this: <img onerror="alert(1)" src="x"> for the widget');
       expect(result.sanitizedOutput).toBeDefined();
       expect(result.sanitizedOutput).toContain("[SANITIZED]");
       expect(result.sanitizedOutput).not.toContain("onerror");
@@ -280,9 +273,7 @@ describe("sanitizeAIOutput", () => {
   });
 
   it("removes dangerous patterns from output", () => {
-    const result = sanitizeAIOutput(
-      'Widget: <img onerror="alert(1)" src="x"> here',
-    );
+    const result = sanitizeAIOutput('Widget: <img onerror="alert(1)" src="x"> here');
     expect(result).toContain("[SANITIZED]");
     expect(result).not.toContain("onerror");
   });

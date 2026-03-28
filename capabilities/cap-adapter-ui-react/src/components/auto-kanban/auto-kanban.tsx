@@ -7,21 +7,14 @@
  */
 
 import type { SchemaDefinition, StateDefinition, StateMeta } from "@linchkit/core/types";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  Skeleton,
-  toast,
-} from "@linchkit/ui-kit/components";
+import { Badge, Card, CardContent, CardHeader, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
-import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 import { transitionRecord } from "../../lib/api";
+import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -102,18 +95,26 @@ function KanbanColumn({
 }: KanbanColumnProps) {
   const { t } = useTranslation();
 
-  const colorToken = resolveStateColor(stateValue, stateMeta ? { [stateValue]: stateMeta } : undefined);
+  const colorToken = resolveStateColor(
+    stateValue,
+    stateMeta ? { [stateValue]: stateMeta } : undefined,
+  );
   const badgeClass = getStateBadgeClass(colorToken);
 
   // Resolve column header label
-  const label = resolveLabel(stateMeta?.label, stateValue.charAt(0).toUpperCase() + stateValue.slice(1));
+  const label = resolveLabel(
+    stateMeta?.label,
+    stateValue.charAt(0).toUpperCase() + stateValue.slice(1),
+  );
 
   // Presentation fields for cards
   const titleField = schema.presentation?.titleField ?? Object.keys(schema.fields)[0] ?? "id";
-  const summaryFields = schema.presentation?.summaryFields ?? Object.keys(schema.fields).slice(1, 4);
+  const summaryFields =
+    schema.presentation?.summaryFields ?? Object.keys(schema.fields).slice(1, 4);
   const badgeField = schema.presentation?.badgeField;
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop column uses drag events
     <div
       className={cn(
         "flex flex-col min-w-[280px] max-w-[320px] w-[280px] rounded-lg bg-muted/30 border transition-colors",
@@ -128,7 +129,12 @@ function KanbanColumn({
       {/* Column header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
         <div className="flex items-center gap-2">
-          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", badgeClass)}>
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+              badgeClass,
+            )}
+          >
             {label}
           </span>
         </div>
@@ -195,7 +201,10 @@ function KanbanColumn({
                           field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, " "),
                         );
                         return (
-                          <div key={field} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div
+                            key={field}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                          >
                             <span className="shrink-0">{fieldLabel}:</span>
                             <span className="truncate text-foreground/80">{displayValue(val)}</span>
                           </div>
@@ -322,7 +331,7 @@ export function AutoKanban({
       // Validate transition
       if (!isValidDrop(toState)) {
         toast.error(
-          t("kanban.invalidTransition", "Cannot move to \"{{state}}\" from current state", {
+          t("kanban.invalidTransition", 'Cannot move to "{{state}}" from current state', {
             state: toState,
           }),
         );
@@ -337,7 +346,8 @@ export function AutoKanban({
         toast.success(t("toast.transitionSuccess", "Status changed successfully"));
         onTransitioned?.();
       } catch (err) {
-        const message = err instanceof Error ? err.message : t("toast.transitionFailed", "Status change failed");
+        const message =
+          err instanceof Error ? err.message : t("toast.transitionFailed", "Status change failed");
         toast.error(message);
       } finally {
         setTransitioningId(null);
@@ -356,7 +366,10 @@ export function AutoKanban({
     return (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {Array.from({ length: 4 }, (_, i) => `skel-col-${i}`).map((key) => (
-          <div key={key} className="min-w-[280px] w-[280px] rounded-lg bg-muted/30 border border-transparent p-3 space-y-3">
+          <div
+            key={key}
+            className="min-w-[280px] w-[280px] rounded-lg bg-muted/30 border border-transparent p-3 space-y-3"
+          >
             <div className="flex items-center justify-between">
               <Skeleton className="h-5 w-20" />
               <Skeleton className="h-5 w-6" />
@@ -379,10 +392,8 @@ export function AutoKanban({
   }
 
   return (
-    <div
-      className="flex gap-4 overflow-x-auto pb-4"
-      onDragEnd={handleDragEnd}
-    >
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag container uses drag events
+    <div className="flex gap-4 overflow-x-auto pb-4" onDragEnd={handleDragEnd}>
       {orderedStates.map((stateValue) => {
         const records = columnData.get(stateValue) ?? [];
         const meta = stateDefinition.meta?.[stateValue];

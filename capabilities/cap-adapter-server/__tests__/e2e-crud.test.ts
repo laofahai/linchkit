@@ -350,7 +350,9 @@ describe("E2E CRUD lifecycle", () => {
     const verifyUpdate = await gql(`
       query { department(id: "${id}") { name budget _version } }
     `);
-    expect((verifyUpdate.data.department as Record<string, unknown>).name).toBe("Quality Assurance");
+    expect((verifyUpdate.data.department as Record<string, unknown>).name).toBe(
+      "Quality Assurance",
+    );
     expect((verifyUpdate.data.department as Record<string, unknown>)._version).toBe(2);
 
     // Delete

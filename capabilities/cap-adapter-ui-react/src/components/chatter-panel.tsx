@@ -26,7 +26,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSubscription } from "../hooks/use-subscription";
-import { addChatterMessage, queryChatterMessages, type ChatterMessage } from "../lib/api";
+import { addChatterMessage, type ChatterMessage, queryChatterMessages } from "../lib/api";
 
 interface ChatterPanelProps {
   schemaName: string;
@@ -42,14 +42,11 @@ function formatRelativeTime(iso: string, t: TFunc): string {
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60)
-    return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
+  if (minutes < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24)
-    return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
+  if (hours < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30)
-    return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
+  if (days < 30) return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
   return new Date(iso).toLocaleDateString();
 }
 
@@ -91,9 +88,7 @@ function renderLogDetail(msg: ChatterMessage): React.ReactNode {
                 <td className="px-2.5 py-1.5 text-muted-foreground/70">
                   {String(meta.before?.[field] ?? "—")}
                 </td>
-                <td className="px-2.5 py-1.5 font-medium">
-                  {String(meta.after?.[field] ?? "—")}
-                </td>
+                <td className="px-2.5 py-1.5 font-medium">{String(meta.after?.[field] ?? "—")}</td>
               </tr>
             ))}
           </tbody>
@@ -214,7 +209,10 @@ function CommentTimelineItem({ message, isLast }: TimelineItemProps) {
               {t("chatter.note", "Note")}
             </Badge>
           )}
-          <span className="text-xs text-muted-foreground" title={new Date(message.createdAt).toLocaleString()}>
+          <span
+            className="text-xs text-muted-foreground"
+            title={new Date(message.createdAt).toLocaleString()}
+          >
             {formatRelativeTime(message.createdAt, t)}
           </span>
         </div>
@@ -314,11 +312,7 @@ function MessageComposer({ schemaName, recordId, onSent }: MessageComposerProps)
           disabled={!body.trim() || sending}
           className="shrink-0 self-end"
         >
-          {sending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Send className="size-3.5" />
-          )}
+          {sending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
         </Button>
       </div>
     </div>
@@ -369,7 +363,7 @@ export function ChatterPanel({ schemaName, recordId }: ChatterPanelProps) {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, []);
 
   // Real-time subscription
   useSubscription({

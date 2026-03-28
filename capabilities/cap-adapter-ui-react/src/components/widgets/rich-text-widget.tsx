@@ -7,10 +7,11 @@
  * Input mode provides a toolbar with basic formatting controls.
  */
 
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
   Code,
@@ -24,7 +25,6 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
-import { cn } from "@linchkit/ui-kit/lib/utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 
@@ -85,9 +85,8 @@ function ToolbarButton({ onClick, active, disabled, title, children }: ToolbarBu
 // ── Toolbar ─────────────────────────────────────────────
 
 function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
-  if (!editor) return null;
-
   const setLink = useCallback(() => {
+    if (!editor) return;
     const previousUrl = editor.getAttributes("link").href;
     const url = window.prompt("URL", previousUrl);
 
@@ -101,6 +100,8 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   }, [editor]);
 
   const iconSize = 14;
+
+  if (!editor) return null;
 
   return (
     <div className="flex items-center gap-0.5 border-b px-2 py-1 flex-wrap">
@@ -169,11 +170,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 
       <div className="w-px h-4 bg-border mx-1" />
 
-      <ToolbarButton
-        onClick={setLink}
-        active={editor.isActive("link")}
-        title="Link"
-      >
+      <ToolbarButton onClick={setLink} active={editor.isActive("link")} title="Link">
         <LinkIcon size={iconSize} />
       </ToolbarButton>
       <ToolbarButton

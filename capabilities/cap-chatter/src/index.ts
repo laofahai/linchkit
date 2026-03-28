@@ -2,13 +2,11 @@
  * @linchkit/cap-chatter — public API
  */
 
-export { capChatter, createCapChatter } from "./capability";
 export type { CapChatterOptions } from "./capability";
-
-export { InMemoryChatterService, DrizzleChatterService } from "./service";
-
+export { capChatter, createCapChatter } from "./capability";
 export { createChatterAutoLog } from "./event-handler";
-
+export { DrizzleChatterService, InMemoryChatterService } from "./service";
+export { messagesTable } from "./tables";
 export type {
   ChatterMessage,
   ChatterService,
@@ -17,5 +15,3 @@ export type {
   MessageType,
   PaginatedMessages,
 } from "./types";
-
-export { messagesTable } from "./tables";

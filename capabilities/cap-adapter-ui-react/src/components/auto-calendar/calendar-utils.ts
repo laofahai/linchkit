@@ -60,15 +60,20 @@ export function groupRecordsByDate(
 }
 
 /** Find the first date/datetime field in schema for calendar view. */
-export function findDateField(
-  schemaFields: Record<string, { type?: string }>,
-): string | null {
+export function findDateField(schemaFields: Record<string, { type?: string }>): string | null {
   const dateFieldNames = Object.entries(schemaFields)
     .filter(([, def]) => def.type === "date" || def.type === "datetime")
     .map(([name]) => name);
 
   // Prefer fields with meaningful names
-  const preferred = ["due_date", "date", "scheduled_at", "submitted_at", "requested_at", "created_at"];
+  const preferred = [
+    "due_date",
+    "date",
+    "scheduled_at",
+    "submitted_at",
+    "requested_at",
+    "created_at",
+  ];
   for (const p of preferred) {
     if (dateFieldNames.includes(p)) return p;
   }

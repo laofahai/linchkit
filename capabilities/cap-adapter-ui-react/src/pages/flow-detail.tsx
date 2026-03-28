@@ -13,11 +13,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@linchkit/ui-kit/components";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  BotIcon,
   ClockIcon,
   GitBranchIcon,
   GitForkIcon,
@@ -27,10 +27,8 @@ import {
   SparklesIcon,
   SplitIcon,
 } from "lucide-react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { AutoList, SortableHeader } from "@/components/auto-list";
 import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
 import { useSchemaLabel } from "../i18n/use-schema-label";
@@ -101,11 +99,13 @@ const STEP_CONFIG: Record<string, { color: string; bgClass: string; icon: React.
 };
 
 function getStepConfig(type: string) {
-  return STEP_CONFIG[type] ?? {
-    color: "#6b7280",
-    bgClass: "bg-muted border-border",
-    icon: <PlayIcon className="size-4" />,
-  };
+  return (
+    STEP_CONFIG[type] ?? {
+      color: "#6b7280",
+      bgClass: "bg-muted border-border",
+      icon: <PlayIcon className="size-4" />,
+    }
+  );
 }
 
 // ── Step list AutoList sub-component ─────────────────────
@@ -119,79 +119,73 @@ function StepListAutoList({
 }) {
   const { t } = useTranslation();
 
-  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
-    {
-      id: "index",
-      header: "#",
-      size: 50,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.index + 1}</span>
-      ),
-    },
-    {
-      accessorKey: "id",
-      header: "ID",
-      size: 120,
-      cell: ({ row }) => (
-        <span className="font-mono text-xs">{row.getValue("id") as string}</span>
-      ),
-    },
-    {
-      accessorKey: "name",
-      header: ({ column }) => <SortableHeader column={column} label={t("flows.stepName")} />,
-      cell: ({ row }) => {
-        const step = row.original as unknown as FlowStep;
-        return <span className="font-medium">{resolveLabel(step.name, step.name)}</span>;
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(
+    () => [
+      {
+        id: "index",
+        header: "#",
+        size: 50,
+        cell: ({ row }) => <span className="text-muted-foreground">{row.index + 1}</span>,
       },
-    },
-    {
-      accessorKey: "type",
-      header: ({ column }) => <SortableHeader column={column} label={t("flows.stepType")} />,
-      cell: ({ row }) => {
-        const step = row.original as unknown as FlowStep;
-        const config = getStepConfig(step.type);
-        return (
-          <div className="flex items-center gap-1.5" style={{ color: config.color }}>
-            {config.icon}
-            <span className="text-xs">{step.type}</span>
-          </div>
-        );
+      {
+        accessorKey: "id",
+        header: "ID",
+        size: 120,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs">{row.getValue("id") as string}</span>
+        ),
       },
-      size: 120,
-    },
-    {
-      id: "details",
-      header: t("flows.stepDetails"),
-      cell: ({ row }) => {
-        const step = row.original as unknown as FlowStep;
-        let detail = "";
-        if (step.type === "action" && step.actionName) detail = step.actionName;
-        else if (step.type === "condition" && step.expression) detail = step.expression;
-        else if (step.type === "ai" && typeof step.prompt === "string") detail = step.prompt.slice(0, 60);
-        else if (step.type === "approval" && step.approvers) detail = step.approvers.join(", ");
-        else if (step.type === "wait") detail = step.signal ?? "duration";
-        else if (step.type === "parallel" && step.steps) detail = step.steps.join(", ");
-        return (
-          <span className="text-xs text-muted-foreground max-w-xs truncate block">
-            {detail}
-          </span>
-        );
+      {
+        accessorKey: "name",
+        header: ({ column }) => <SortableHeader column={column} label={t("flows.stepName")} />,
+        cell: ({ row }) => {
+          const step = row.original as unknown as FlowStep;
+          return <span className="font-medium">{resolveLabel(step.name, step.name)}</span>;
+        },
       },
-    },
-  ], [t, resolveLabel]);
+      {
+        accessorKey: "type",
+        header: ({ column }) => <SortableHeader column={column} label={t("flows.stepType")} />,
+        cell: ({ row }) => {
+          const step = row.original as unknown as FlowStep;
+          const config = getStepConfig(step.type);
+          return (
+            <div className="flex items-center gap-1.5" style={{ color: config.color }}>
+              {config.icon}
+              <span className="text-xs">{step.type}</span>
+            </div>
+          );
+        },
+        size: 120,
+      },
+      {
+        id: "details",
+        header: t("flows.stepDetails"),
+        cell: ({ row }) => {
+          const step = row.original as unknown as FlowStep;
+          let detail = "";
+          if (step.type === "action" && step.actionName) detail = step.actionName;
+          else if (step.type === "condition" && step.expression) detail = step.expression;
+          else if (step.type === "ai" && typeof step.prompt === "string")
+            detail = step.prompt.slice(0, 60);
+          else if (step.type === "approval" && step.approvers) detail = step.approvers.join(", ");
+          else if (step.type === "wait") detail = step.signal ?? "duration";
+          else if (step.type === "parallel" && step.steps) detail = step.steps.join(", ");
+          return (
+            <span className="text-xs text-muted-foreground max-w-xs truncate block">{detail}</span>
+          );
+        },
+      },
+    ],
+    [t, resolveLabel],
+  );
 
   const tableData = useMemo<Record<string, unknown>[]>(
     () => steps.map((s) => ({ ...s }) as Record<string, unknown>),
     [steps],
   );
 
-  return (
-    <AutoList
-      columns={columns}
-      data={tableData}
-      pageSize={50}
-    />
-  );
+  return <AutoList columns={columns} data={tableData} pageSize={50} />;
 }
 
 // ── Main component ───────────────────────────────────────
@@ -263,9 +257,7 @@ export function FlowDetailPage() {
         </Link>
         <div>
           <h1 className="text-lg font-semibold">{flow.label ?? flow.name}</h1>
-          {flow.description && (
-            <p className="text-sm text-muted-foreground">{flow.description}</p>
-          )}
+          {flow.description && <p className="text-sm text-muted-foreground">{flow.description}</p>}
         </div>
       </div>
 
@@ -277,14 +269,20 @@ export function FlowDetailPage() {
           {flow.trigger.type === "manual" && t("flows.triggerManual")}
         </Badge>
         {flow.version && <Badge variant="secondary">v{flow.version}</Badge>}
-        {flow.onError && <Badge variant="secondary">{t("flows.onError")}: {flow.onError}</Badge>}
+        {flow.onError && (
+          <Badge variant="secondary">
+            {t("flows.onError")}: {flow.onError}
+          </Badge>
+        )}
         <span className="text-sm text-muted-foreground">
           {flow.steps.length} {t("flows.steps")}
         </span>
       </div>
 
       {/* Flow chain dependencies */}
-      {(flow.dependencies?.upstream?.length || flow.dependencies?.downstream?.length || flow.onComplete) && (
+      {(flow.dependencies?.upstream?.length ||
+        flow.dependencies?.downstream?.length ||
+        flow.onComplete) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -339,18 +337,28 @@ export function FlowDetailPage() {
                     {t("flows.onComplete", { defaultValue: "On Complete" })}:
                   </span>
                   <div className="text-xs text-muted-foreground">
-                    {(Array.isArray(flow.onComplete) ? flow.onComplete : [flow.onComplete]).map((c) => (
-                      <div key={c.flow} className="flex items-center gap-1">
-                        <ArrowRightIcon className="size-3" />
-                        <span className="font-mono">{c.flow}</span>
-                        {c.onStatus && <Badge variant="secondary" className="text-[9px] h-4">{c.onStatus}</Badge>}
-                        {c.inputMapping && (
-                          <span className="text-muted-foreground/60">
-                            ({t("flows.mappedFields", { count: Object.keys(c.inputMapping).length })})
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {(Array.isArray(flow.onComplete) ? flow.onComplete : [flow.onComplete]).map(
+                      (c) => (
+                        <div key={c.flow} className="flex items-center gap-1">
+                          <ArrowRightIcon className="size-3" />
+                          <span className="font-mono">{c.flow}</span>
+                          {c.onStatus && (
+                            <Badge variant="secondary" className="text-[9px] h-4">
+                              {c.onStatus}
+                            </Badge>
+                          )}
+                          {c.inputMapping && (
+                            <span className="text-muted-foreground/60">
+                              (
+                              {t("flows.mappedFields", {
+                                count: Object.keys(c.inputMapping).length,
+                              })}
+                              )
+                            </span>
+                          )}
+                        </div>
+                      ),
+                    )}
                   </div>
                 </div>
               )}

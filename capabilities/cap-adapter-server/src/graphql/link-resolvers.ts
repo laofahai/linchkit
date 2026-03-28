@@ -200,7 +200,7 @@ function getOrCreateEdgeType(
   const cached = edgeTypeCache.get(edgeTypeName);
   if (cached) return cached;
 
-  const properties = link.properties!;
+  const properties = link.properties ?? {};
   const edgeType = new GraphQLObjectType({
     name: edgeTypeName,
     description: `Edge type for ${link.name} M:N relationship with properties`,
@@ -443,7 +443,13 @@ export function buildLinkFields(
         if (hasProperties) {
           // M:N with properties: generate Edge type field (e.g. productEdges)
           const relatedFieldName = toCamelCase(otherSchema);
-          const edgeType = getOrCreateEdgeType(link, relatedType, relatedFieldName, otherSchema, isFrom);
+          const edgeType = getOrCreateEdgeType(
+            link,
+            relatedType,
+            relatedFieldName,
+            otherSchema,
+            isFrom,
+          );
           const fieldName = `${relatedFieldName}Edges`;
           const label = isFrom ? link.label?.from : link.label?.to;
 
@@ -471,7 +477,7 @@ export function buildLinkFields(
                   const edge: Record<string, unknown> = {
                     [relatedFieldName]: maskedRecord,
                   };
-                  for (const propName of Object.keys(link.properties!)) {
+                  for (const propName of Object.keys(link.properties ?? {})) {
                     const camelName = toCamelCase(propName);
                     edge[camelName] = jRow[propName] ?? null;
                   }

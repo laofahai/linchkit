@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { ProposalChange } from "../src/ai/proposal-validator";
-import {
-  createProposalValidator,
-  validateProposal,
-} from "../src/ai/proposal-validator";
+import { createProposalValidator, validateProposal } from "../src/ai/proposal-validator";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -51,10 +48,9 @@ describe("validateProposal", () => {
     });
 
     it("allows configuring custom forbidden changes", () => {
-      const result = validateProposal(
-        [change("create_flow", "dangerous_flow")],
-        { forbiddenChanges: ["create_flow"] },
-      );
+      const result = validateProposal([change("create_flow", "dangerous_flow")], {
+        forbiddenChanges: ["create_flow"],
+      });
       expect(result.valid).toBe(false);
       expect(result.violations[0].reason).toContain("create_flow");
     });
@@ -80,34 +76,31 @@ describe("validateProposal", () => {
 
   describe("risk level assessment", () => {
     it("classifies delete operations as critical risk", () => {
-      const result = validateProposal(
-        [change("delete_action", "some_action")],
-        { forbiddenChanges: [] },
-      );
+      const result = validateProposal([change("delete_action", "some_action")], {
+        forbiddenChanges: [],
+      });
       expect(result.riskLevel).toBe("critical");
     });
 
     it("classifies modify operations as high risk", () => {
-      const result = validateProposal(
-        [change("modify_schema", "product")],
-        { forbiddenChanges: [] },
-      );
+      const result = validateProposal([change("modify_schema", "product")], {
+        forbiddenChanges: [],
+      });
       expect(result.riskLevel).toBe("high");
     });
 
     it("classifies create operations as medium risk", () => {
-      const result = validateProposal(
-        [change("create_action", "new_action")],
-        { forbiddenChanges: [] },
-      );
+      const result = validateProposal([change("create_action", "new_action")], {
+        forbiddenChanges: [],
+      });
       expect(result.riskLevel).toBe("medium");
     });
 
     it("returns highest risk level across all changes", () => {
       const result = validateProposal(
         [
-          change("create_action", "safe_action"),   // medium
-          change("modify_schema", "product"),         // high
+          change("create_action", "safe_action"), // medium
+          change("modify_schema", "product"), // high
         ],
         { forbiddenChanges: [] },
       );
@@ -122,10 +115,9 @@ describe("validateProposal", () => {
     });
 
     it("respects requireHumanApprovalForAll=false", () => {
-      const result = validateProposal(
-        [change("create_schema", "product")],
-        { requireHumanApprovalForAll: false },
-      );
+      const result = validateProposal([change("create_schema", "product")], {
+        requireHumanApprovalForAll: false,
+      });
       // Still requires approval because create_schema is in default requireApprovalFor
       expect(result.requiresHumanApproval).toBe(true);
     });
@@ -138,18 +130,14 @@ describe("validateProposal", () => {
 
   describe("change count limits", () => {
     it("rejects proposals exceeding max changes", () => {
-      const changes = Array.from({ length: 60 }, (_, i) =>
-        change("create_action", `action_${i}`),
-      );
+      const changes = Array.from({ length: 60 }, (_, i) => change("create_action", `action_${i}`));
       const result = validateProposal(changes);
       expect(result.valid).toBe(false);
       expect(result.violations.some((v) => v.ruleName === "max_changes_exceeded")).toBe(true);
     });
 
     it("respects custom max changes limit", () => {
-      const changes = Array.from({ length: 6 }, (_, i) =>
-        change("create_action", `action_${i}`),
-      );
+      const changes = Array.from({ length: 6 }, (_, i) => change("create_action", `action_${i}`));
       const result = validateProposal(changes, { maxChangesPerProposal: 5 });
       expect(result.valid).toBe(false);
     });
@@ -157,25 +145,19 @@ describe("validateProposal", () => {
 
   describe("sensitive entities", () => {
     it("warns when changing sensitive entities", () => {
-      const result = validateProposal(
-        [change("modify_schema", "user_profile")],
-        {
-          forbiddenChanges: [],
-          sensitiveEntities: ["user_profile", "payment_info"],
-        },
-      );
+      const result = validateProposal([change("modify_schema", "user_profile")], {
+        forbiddenChanges: [],
+        sensitiveEntities: ["user_profile", "payment_info"],
+      });
       expect(result.warnings.some((w) => w.includes("sensitive entity"))).toBe(true);
       expect(result.requiresHumanApproval).toBe(true);
     });
 
     it("bumps risk to at least high for sensitive entities", () => {
-      const result = validateProposal(
-        [change("create_action", "user_profile")],
-        {
-          forbiddenChanges: [],
-          sensitiveEntities: ["user_profile"],
-        },
-      );
+      const result = validateProposal([change("create_action", "user_profile")], {
+        forbiddenChanges: [],
+        sensitiveEntities: ["user_profile"],
+      });
       // create_action is normally medium, but sensitive entity bumps to high
       expect(result.riskLevel).toBe("high");
     });
@@ -183,50 +165,37 @@ describe("validateProposal", () => {
 
   describe("custom rules", () => {
     it("applies custom validation rules", () => {
-      const result = validateProposal(
-        [change("modify_schema", "audit_log")],
-        {
-          forbiddenChanges: [],
-          customRules: [
-            {
-              name: "no_audit_modification",
-              validate: (c) =>
-                c.target === "audit_log"
-                  ? "Audit log schema cannot be modified"
-                  : undefined,
-            },
-          ],
-        },
-      );
+      const result = validateProposal([change("modify_schema", "audit_log")], {
+        forbiddenChanges: [],
+        customRules: [
+          {
+            name: "no_audit_modification",
+            validate: (c) =>
+              c.target === "audit_log" ? "Audit log schema cannot be modified" : undefined,
+          },
+        ],
+      });
       expect(result.valid).toBe(false);
       expect(result.violations[0].ruleName).toBe("no_audit_modification");
     });
 
     it("passes custom rules when no violation", () => {
-      const result = validateProposal(
-        [change("modify_schema", "product")],
-        {
-          forbiddenChanges: [],
-          customRules: [
-            {
-              name: "no_audit_modification",
-              validate: (c) =>
-                c.target === "audit_log"
-                  ? "Cannot modify audit log"
-                  : undefined,
-            },
-          ],
-        },
-      );
+      const result = validateProposal([change("modify_schema", "product")], {
+        forbiddenChanges: [],
+        customRules: [
+          {
+            name: "no_audit_modification",
+            validate: (c) => (c.target === "audit_log" ? "Cannot modify audit log" : undefined),
+          },
+        ],
+      });
       expect(result.valid).toBe(true);
     });
   });
 
   describe("entity repetition warning", () => {
     it("warns when an entity has many changes", () => {
-      const changes = Array.from({ length: 8 }, () =>
-        change("modify_schema", "product"),
-      );
+      const changes = Array.from({ length: 8 }, () => change("modify_schema", "product"));
       const result = validateProposal(changes, { forbiddenChanges: [] });
       expect(result.warnings.some((w) => w.includes("product") && w.includes("8 changes"))).toBe(
         true,

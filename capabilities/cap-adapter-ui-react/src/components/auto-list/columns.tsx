@@ -20,9 +20,9 @@ import {
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from "lucide-react";
 import i18next from "i18next";
-import { isFieldTypeEditable, type EditingCell } from "../../hooks/use-inline-edit";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { type EditingCell, isFieldTypeEditable } from "../../hooks/use-inline-edit";
 import { FieldDisplay } from "../field-renderer";
 import { InlineEditCell } from "./inline-edit-cell";
 import { StatusBadge } from "./status-badge";
@@ -106,8 +106,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
 
         // Inline editable cell
         if (canInlineEdit && rowId) {
-          const isEditing =
-            editingCell?.rowId === rowId && editingCell?.field === vf.field;
+          const isEditing = editingCell?.rowId === rowId && editingCell?.field === vf.field;
           return (
             <InlineEditCell
               field={vf}

@@ -21,7 +21,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import {
-  BotIcon,
   ClockIcon,
   GitForkIcon,
   PlayIcon,
@@ -141,27 +140,19 @@ function getParamsSummary(step: FlowStep): string[] {
     case "condition":
       if (step.expression) {
         const expr =
-          step.expression.length > 40
-            ? `${step.expression.slice(0, 37)}...`
-            : step.expression;
+          step.expression.length > 40 ? `${step.expression.slice(0, 37)}...` : step.expression;
         params.push(expr);
       }
       break;
     case "ai":
       if (step.model) params.push(step.model);
       if (step.prompt) {
-        const text =
-          typeof step.prompt === "string"
-            ? step.prompt
-            : step.prompt.template;
-        params.push(
-          text.length > 35 ? `${text.slice(0, 32)}...` : text,
-        );
+        const text = typeof step.prompt === "string" ? step.prompt : step.prompt.template;
+        params.push(text.length > 35 ? `${text.slice(0, 32)}...` : text);
       }
       break;
     case "approval":
-      if (step.approvers?.length)
-        params.push(`approvers: ${step.approvers.join(", ")}`);
+      if (step.approvers?.length) params.push(`approvers: ${step.approvers.join(", ")}`);
       if (step.onTimeout) params.push(`timeout: ${step.onTimeout}`);
       break;
     case "wait":
@@ -364,8 +355,7 @@ function getLayoutedElements(
   g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 100, marginx: 40, marginy: 40 });
 
   for (const node of nodes) {
-    const height =
-      node.type === "conditionStep" ? NODE_HEIGHT_CONDITION : NODE_HEIGHT_NORMAL;
+    const height = node.type === "conditionStep" ? NODE_HEIGHT_CONDITION : NODE_HEIGHT_NORMAL;
     g.setNode(node.id, { width: NODE_WIDTH, height });
   }
 
@@ -377,8 +367,7 @@ function getLayoutedElements(
 
   const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = g.node(node.id);
-    const height =
-      node.type === "conditionStep" ? NODE_HEIGHT_CONDITION : NODE_HEIGHT_NORMAL;
+    const height = node.type === "conditionStep" ? NODE_HEIGHT_CONDITION : NODE_HEIGHT_NORMAL;
     return {
       ...node,
       position: {
@@ -418,7 +407,8 @@ function buildFlowGraph(
 
   // Build edges: sequential flow + condition branches
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]!;
+    const step = steps[i];
+    if (!step) continue;
 
     if (step.type === "condition") {
       // Condition step: explicit then/else edges
@@ -454,7 +444,8 @@ function buildFlowGraph(
       }
       // If condition has no explicit then/else, fall through to next
       if (!step.then && !step.else && i < steps.length - 1) {
-        const next = steps[i + 1]!;
+        const next = steps[i + 1];
+        if (!next) continue;
         edges.push({
           id: `${step.id}->${next.id}`,
           source: step.id,
@@ -468,12 +459,11 @@ function buildFlowGraph(
     } else {
       // Non-condition step: connect to next step in sequence
       if (i < steps.length - 1) {
-        const next = steps[i + 1]!;
+        const next = steps[i + 1];
+        if (!next) continue;
         // Skip if this step is a branch target (already connected from condition)
         const isConditionTarget = steps.some(
-          (s) =>
-            s.type === "condition" &&
-            (s.then === next.id || s.else === next.id),
+          (s) => s.type === "condition" && (s.then === next.id || s.else === next.id),
         );
         // Always connect sequential steps unless the next step is ONLY reachable
         // via condition branch (i.e., no sequential predecessor should connect to it)
@@ -496,7 +486,13 @@ function buildFlowGraph(
 
 // ── Main component ───────────────────────────────────────
 
-export function FlowDiagram({ steps, resolveLabel }: { steps: FlowStep[]; resolveLabel?: (label: string | undefined, fallback: string) => string }) {
+export function FlowDiagram({
+  steps,
+  resolveLabel,
+}: {
+  steps: FlowStep[];
+  resolveLabel?: (label: string | undefined, fallback: string) => string;
+}) {
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
     () => buildFlowGraph(steps, resolveLabel),
     [steps, resolveLabel],

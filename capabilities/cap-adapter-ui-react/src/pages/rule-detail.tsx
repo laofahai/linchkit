@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+
 // ── Types ────────────────────────────────────────────────
 
 interface SerializedCondition {
@@ -73,7 +74,13 @@ export interface RuleListItem {
 
 // ── Trigger display ────────────────────────────────────────
 
-function TriggerDisplay({ trigger, t }: { trigger: RuleListItem["trigger"]; t: (key: string) => string }) {
+function TriggerDisplay({
+  trigger,
+  t,
+}: {
+  trigger: RuleListItem["trigger"];
+  t: (key: string) => string;
+}) {
   if ("action" in trigger && trigger.action) {
     const actions = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
     return (
@@ -84,7 +91,9 @@ function TriggerDisplay({ trigger, t }: { trigger: RuleListItem["trigger"]; t: (
         </div>
         <div className="flex flex-wrap gap-1">
           {actions.map((a) => (
-            <Badge key={a} variant="outline" className="font-mono text-xs">{a}</Badge>
+            <Badge key={a} variant="outline" className="font-mono text-xs">
+              {a}
+            </Badge>
           ))}
         </div>
       </div>
@@ -129,7 +138,9 @@ function TriggerDisplay({ trigger, t }: { trigger: RuleListItem["trigger"]; t: (
           <ZapIcon className="size-4" />
           {t("rules.triggerTypes.event")}
         </div>
-        <Badge variant="outline" className="font-mono text-xs">{trigger.event}</Badge>
+        <Badge variant="outline" className="font-mono text-xs">
+          {trigger.event}
+        </Badge>
       </div>
     );
   }
@@ -140,7 +151,9 @@ function TriggerDisplay({ trigger, t }: { trigger: RuleListItem["trigger"]; t: (
           <CalendarIcon className="size-4" />
           {t("rules.triggerTypes.schedule")}
         </div>
-        <Badge variant="outline" className="font-mono text-xs">{trigger.schedule}</Badge>
+        <Badge variant="outline" className="font-mono text-xs">
+          {trigger.schedule}
+        </Badge>
       </div>
     );
   }
@@ -149,10 +162,19 @@ function TriggerDisplay({ trigger, t }: { trigger: RuleListItem["trigger"]; t: (
 
 // ── Condition tree visualization ────────────────────────
 
-function ConditionNode({ condition, depth = 0 }: { condition: SerializedCondition; depth?: number }) {
+function ConditionNode({
+  condition,
+  depth = 0,
+}: {
+  condition: SerializedCondition;
+  depth?: number;
+}) {
   if (condition.type === "code") {
     return (
-      <div className="flex items-center gap-2 text-xs p-2 bg-muted/50 rounded border" style={{ marginLeft: depth * 16 }}>
+      <div
+        className="flex items-center gap-2 text-xs p-2 bg-muted/50 rounded border"
+        style={{ marginLeft: depth * 16 }}
+      >
         <CodeIcon className="size-3.5 text-muted-foreground shrink-0" />
         <span className="text-muted-foreground italic">Code-based condition (function)</span>
       </div>
@@ -162,11 +184,20 @@ function ConditionNode({ condition, depth = 0 }: { condition: SerializedConditio
   // Simple condition: field operator value
   if (condition.field && condition.operator) {
     return (
-      <div className="flex items-center gap-2 text-xs p-2 bg-muted/50 rounded border" style={{ marginLeft: depth * 16 }}>
-        <span className="font-mono font-medium text-blue-600 dark:text-blue-400">{condition.field}</span>
-        <Badge variant="outline" className="text-[10px] shrink-0">{condition.operator}</Badge>
+      <div
+        className="flex items-center gap-2 text-xs p-2 bg-muted/50 rounded border"
+        style={{ marginLeft: depth * 16 }}
+      >
+        <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
+          {condition.field}
+        </span>
+        <Badge variant="outline" className="text-[10px] shrink-0">
+          {condition.operator}
+        </Badge>
         {condition.value !== undefined && (
-          <span className="font-mono text-green-600 dark:text-green-400">{JSON.stringify(condition.value)}</span>
+          <span className="font-mono text-green-600 dark:text-green-400">
+            {JSON.stringify(condition.value)}
+          </span>
         )}
       </div>
     );
@@ -177,11 +208,14 @@ function ConditionNode({ condition, depth = 0 }: { condition: SerializedConditio
     return (
       <div className="space-y-1" style={{ marginLeft: depth * 16 }}>
         <div className="flex items-center gap-1 text-xs font-medium">
-          <Badge variant="secondary" className="text-[10px]">{condition.operator.toUpperCase()}</Badge>
+          <Badge variant="secondary" className="text-[10px]">
+            {condition.operator.toUpperCase()}
+          </Badge>
         </div>
-        {condition.conditions.map((child, i) => (
-          <ConditionNode key={`${child.field ?? child.operator ?? "n"}-${i}`} condition={child} depth={depth + 1} />
-        ))}
+        {condition.conditions.map((child, i) => {
+          const key = `${child.field ?? child.operator ?? "n"}-${i}`;
+          return <ConditionNode key={key} condition={child} depth={depth + 1} />;
+        })}
       </div>
     );
   }
@@ -190,18 +224,30 @@ function ConditionNode({ condition, depth = 0 }: { condition: SerializedConditio
   if (condition.operator === "not" && condition.condition) {
     return (
       <div className="space-y-1" style={{ marginLeft: depth * 16 }}>
-        <Badge variant="secondary" className="text-[10px]">NOT</Badge>
+        <Badge variant="secondary" className="text-[10px]">
+          NOT
+        </Badge>
         <ConditionNode condition={condition.condition} depth={depth + 1} />
       </div>
     );
   }
 
-  return <span className="text-xs text-muted-foreground" style={{ marginLeft: depth * 16 }}>N/A</span>;
+  return (
+    <span className="text-xs text-muted-foreground" style={{ marginLeft: depth * 16 }}>
+      N/A
+    </span>
+  );
 }
 
 // ── Effect display ────────────────────────────────────────
 
-function EffectDisplay({ effect, t }: { effect: RuleListItem["effect"]; t: (key: string) => string }) {
+function EffectDisplay({
+  effect,
+  t,
+}: {
+  effect: RuleListItem["effect"];
+  t: (key: string) => string;
+}) {
   const iconMap: Record<string, React.ReactNode> = {
     block: <BanIcon className="size-4 text-destructive" />,
     warn: <TriangleAlertIcon className="size-4 text-yellow-500" />,
@@ -234,7 +280,10 @@ function EffectDisplay({ effect, t }: { effect: RuleListItem["effect"]; t: (key:
       )}
       {effect.action && (
         <div className="text-xs text-muted-foreground">
-          {t("rules.targetAction")}: <Badge variant="outline" className="font-mono">{effect.action}</Badge>
+          {t("rules.targetAction")}:{" "}
+          <Badge variant="outline" className="font-mono">
+            {effect.action}
+          </Badge>
         </div>
       )}
       {effect.setFields && Object.keys(effect.setFields).length > 0 && (
@@ -334,11 +383,21 @@ export function RuleDetailPage() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold">{rule.label}</h1>
-          <Badge variant={rule.effect.type === "block" ? "destructive" : rule.effect.type === "warn" ? "secondary" : "outline"}>
+          <Badge
+            variant={
+              rule.effect.type === "block"
+                ? "destructive"
+                : rule.effect.type === "warn"
+                  ? "secondary"
+                  : "outline"
+            }
+          >
             {rule.effect.type}
           </Badge>
           {rule.priority > 0 && (
-            <Badge variant="outline" className="text-[10px]">P{rule.priority}</Badge>
+            <Badge variant="outline" className="text-[10px]">
+              P{rule.priority}
+            </Badge>
           )}
         </div>
         <p className="text-sm text-muted-foreground font-mono">{rule.name}</p>

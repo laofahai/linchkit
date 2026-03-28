@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  formatCurrency,
   formatDate,
   formatDateTime,
-  formatCurrency,
   toDateInputValue,
   toDateTimeInputValue,
 } from "../src/components/widgets/utils";

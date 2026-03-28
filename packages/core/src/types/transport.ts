@@ -8,7 +8,6 @@
 
 import type { AIAuditLogger } from "../ai/ai-audit";
 import type { AIBoundary } from "../ai/ai-boundary";
-import type { AIService, AIServiceConfig } from "./ai";
 import type { AutomationEngine } from "../automation/automation-engine";
 import type { CacheManager } from "../cache/cache-manager";
 import type { ConfigRegistry } from "../config/config-registry";
@@ -25,6 +24,7 @@ import type { DerivedPropertyEngine } from "../schema/derived-property";
 import type { LinkRegistry } from "../schema/link-registry";
 import type { SchemaRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
+import type { AIService, AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 import type { ExecutionLogger } from "./execution-log";
 import type { LinkDefinition } from "./link";

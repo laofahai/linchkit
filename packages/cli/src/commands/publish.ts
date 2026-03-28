@@ -14,9 +14,9 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { validateCapabilityMetadata } from "@linchkit/core";
+import { resolve } from "node:path";
 import type { TrustLevel } from "@linchkit/core";
+import { validateCapabilityMetadata } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
 

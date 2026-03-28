@@ -81,13 +81,7 @@ const HIDDEN_FIELDS = new Set([
 ]);
 
 /** Field types suitable for inline editing */
-const INLINE_EDITABLE_TYPES = new Set([
-  "string",
-  "number",
-  "text",
-  "boolean",
-  "enum",
-]);
+const INLINE_EDITABLE_TYPES = new Set(["string", "number", "text", "boolean", "enum"]);
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -213,10 +207,9 @@ export function One2ManyField({
           }
         }
       `;
-      const res = await graphql<Record<string, { items: ChildRecord[]; total: number }>>(
-        query,
-        { filter },
-      );
+      const res = await graphql<Record<string, { items: ChildRecord[]; total: number }>>(query, {
+        filter,
+      });
       if (res.data?.[queryName]) {
         setRecords(res.data[queryName].items);
       }
@@ -346,7 +339,9 @@ export function One2ManyField({
 
     // Validate required fields
     const missingRequired = editableColumns.filter(
-      (col) => col.fieldDef.required && (input[col.field] === undefined || input[col.field] === "" || input[col.field] === null),
+      (col) =>
+        col.fieldDef.required &&
+        (input[col.field] === undefined || input[col.field] === "" || input[col.field] === null),
     );
     if (missingRequired.length > 0) {
       // Don't save yet — let the user fill required fields
@@ -355,11 +350,7 @@ export function One2ManyField({
 
     setSavingIds((prev) => new Set(prev).add(row._tempId));
     try {
-      const created = await createRecord<ChildRecord>(
-        childSchemaName,
-        input,
-        gqlFields.split(" "),
-      );
+      const created = await createRecord<ChildRecord>(childSchemaName, input, gqlFields.split(" "));
       // Remove pending row, add to saved records
       setPendingRows((prev) => prev.filter((r) => r._tempId !== row._tempId));
       setRecords((prev) => [...prev, created]);
@@ -496,10 +487,7 @@ export function One2ManyField({
               const isDeleting = deletingIds.has(row.id);
 
               return (
-                <TableRow
-                  key={row.id}
-                  className={row.isPending ? "bg-primary/5" : undefined}
-                >
+                <TableRow key={row.id} className={row.isPending ? "bg-primary/5" : undefined}>
                   {/* Row number */}
                   <TableCell className="text-center text-xs text-muted-foreground">
                     {idx + 1}
@@ -535,19 +523,21 @@ export function One2ManyField({
                               // persisting the edit value into pendingRows state.
                               // After it completes, check if the pending row is
                               // ready for auto-save.
-                              commitEdit().then(() => {
-                                if (row.isPending) {
-                                  // Re-read the latest pending row from state via
-                                  // setState callback to avoid stale closure
-                                  setPendingRows((prev) => {
-                                    const updatedRow = prev.find((r) => r._tempId === row.id);
-                                    if (updatedRow) {
-                                      handlePendingRowBlur(updatedRow);
-                                    }
-                                    return prev;
-                                  });
-                                }
-                              }).catch(console.error);
+                              commitEdit()
+                                .then(() => {
+                                  if (row.isPending) {
+                                    // Re-read the latest pending row from state via
+                                    // setState callback to avoid stale closure
+                                    setPendingRows((prev) => {
+                                      const updatedRow = prev.find((r) => r._tempId === row.id);
+                                      if (updatedRow) {
+                                        handlePendingRowBlur(updatedRow);
+                                      }
+                                      return prev;
+                                    });
+                                  }
+                                })
+                                .catch(console.error);
                             }}
                             onKeyDown={handleKeyDown}
                           />
@@ -638,8 +628,8 @@ const InlineCellEditor = forwardRef<HTMLInputElement, InlineCellEditorProps>(
   function InlineCellEditor({ col, value, onChange, onBlur, onKeyDown }, ref) {
     // Enum field — use select dropdown
     if (col.type === "enum" && "options" in col.fieldDef) {
-      const options = (col.fieldDef as { options?: Array<{ value: string; label?: string }> })
-        .options ?? [];
+      const options =
+        (col.fieldDef as { options?: Array<{ value: string; label?: string }> }).options ?? [];
       return (
         <div className="px-2 py-1">
           <Select
@@ -707,8 +697,8 @@ function CellDisplay({ col, value }: { col: ColumnDef; value: unknown }) {
   }
 
   if (col.type === "enum" && "options" in col.fieldDef) {
-    const options = (col.fieldDef as { options?: Array<{ value: string; label?: string }> })
-      .options ?? [];
+    const options =
+      (col.fieldDef as { options?: Array<{ value: string; label?: string }> }).options ?? [];
     const match = options.find((o) => o.value === value);
     return <span className="px-2">{match?.label ?? String(value)}</span>;
   }

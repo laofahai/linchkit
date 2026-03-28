@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  createActionExecutor,
-  type DataProvider,
-} from "../src/engine/action-engine";
+import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
 import type { ActionDefinition, Actor } from "../src/types/action";
 
 // ── Test fixtures ───────────────────────────────────────
@@ -23,7 +20,7 @@ function createMemoryDataProvider(): DataProvider {
     },
     query: async (schema) => Object.values(store[schema] ?? {}),
     create: async (schema, data) => {
-      const id = data.id as string ?? `id-${Date.now()}`;
+      const id = (data.id as string) ?? `id-${Date.now()}`;
       if (!store[schema]) store[schema] = {};
       const record = { ...data, id };
       store[schema][id] = record;

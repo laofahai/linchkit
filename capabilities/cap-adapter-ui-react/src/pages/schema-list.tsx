@@ -7,11 +7,7 @@
  */
 
 import type { ViewDefinition } from "@linchkit/core/types";
-import {
-  Button,
-  Skeleton,
-  toast,
-} from "@linchkit/ui-kit/components";
+import { Button, Skeleton, toast } from "@linchkit/ui-kit/components";
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { startOfMonth } from "date-fns";
@@ -20,20 +16,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar, CalendarNavControls } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
-import { AutoTree } from "../components/auto-tree";
-import { ListView } from "../components/list-view";
-import { ConfirmDialog } from "../components/confirm-dialog";
-import { EmptyState } from "../components/empty-state";
-import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { buildFilterColumns } from "../components/auto-list/filter-columns";
+import type { AutoListViewDefinition } from "../components/auto-list/types";
+import { AutoTree } from "../components/auto-tree";
+import { ConfirmDialog } from "../components/confirm-dialog";
 import { useDataTableFilters } from "../components/data-table-filter";
 import type { FiltersState } from "../components/data-table-filter/core/types";
+import { EmptyState } from "../components/empty-state";
+import { ListView } from "../components/list-view";
 import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
-import { useSavedViews } from "../hooks/use-saved-views";
+import { pushNotification } from "../hooks/use-notifications";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
+import { useSavedViews } from "../hooks/use-saved-views";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
-import { pushNotification } from "../hooks/use-notifications";
 import { useSchemaLabel } from "../i18n/use-schema-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
@@ -65,12 +61,12 @@ function buildLinkFieldNames(
 
     switch (link.cardinality) {
       case "many_to_one":
-        if (isFrom) names.add(link.to);             // singular
-        if (isTo) names.add(`${link.from}s`);        // plural
+        if (isFrom) names.add(link.to); // singular
+        if (isTo) names.add(`${link.from}s`); // plural
         break;
       case "one_to_many":
-        if (isFrom) names.add(`${link.to}s`);        // plural
-        if (isTo) names.add(link.from);               // singular
+        if (isFrom) names.add(`${link.to}s`); // plural
+        if (isTo) names.add(link.from); // singular
         break;
       case "one_to_one":
         if (isFrom) names.add(link.to);
@@ -129,8 +125,13 @@ function getQueryFields(
 
 /** System fields that are always scalar — never need subfield selection. */
 const SYSTEM_FIELDS = new Set([
-  "id", "tenant_id", "created_at", "updated_at",
-  "created_by", "updated_by", "_version",
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
 ]);
 
 function getPrimaryView<TView extends { type: string }>(
@@ -144,9 +145,11 @@ function getPrimaryView<TView extends { type: string }>(
  * Generate a fallback list view from schema fields when no explicit list view is defined.
  * Shows up to 6 fields in definition order with basic CRUD actions.
  */
-function generateFallbackListView(
-  schema: { name: string; label?: string; fields: Record<string, unknown> },
-): AutoListViewDefinition {
+function generateFallbackListView(schema: {
+  name: string;
+  label?: string;
+  fields: Record<string, unknown>;
+}): AutoListViewDefinition {
   const fieldNames = Object.keys(schema.fields).slice(0, 6);
   return {
     name: `${schema.name}_list_auto`,
@@ -157,7 +160,12 @@ function generateFallbackListView(
     defaultSort: fieldNames[0] ? { field: fieldNames[0], order: "asc" as const } : undefined,
     pageSize: 20,
     actions: [
-      { action: "create", label: "t:common.new", position: "toolbar" as const, variant: "default" as const },
+      {
+        action: "create",
+        label: "t:common.new",
+        position: "toolbar" as const,
+        variant: "default" as const,
+      },
       { action: "edit", label: "t:common.edit", position: "row" as const },
       { action: "duplicate", label: "t:common.duplicate", position: "row" as const },
       {
@@ -185,7 +193,14 @@ function findDateField(
     .map(([name]) => name);
 
   // Prefer fields with meaningful names
-  const preferred = ["due_date", "date", "scheduled_at", "submitted_at", "requested_at", "created_at"];
+  const preferred = [
+    "due_date",
+    "date",
+    "scheduled_at",
+    "submitted_at",
+    "requested_at",
+    "created_at",
+  ];
   for (const p of preferred) {
     if (dateFieldNames.includes(p)) return p;
   }
@@ -223,7 +238,9 @@ export function SchemaListPage() {
   } = useSchemaBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
-  const explicitListView = getPrimaryView(bundle?.views, "list") as AutoListViewDefinition | undefined;
+  const explicitListView = getPrimaryView(bundle?.views, "list") as
+    | AutoListViewDefinition
+    | undefined;
   // Fallback: auto-generate a list view from schema fields when none is defined.
   // Memoize to avoid creating a new object reference on every render.
   const listView = useMemo(
@@ -240,7 +257,7 @@ export function SchemaListPage() {
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()));
   // Track whether at least one successful fetch has been completed, to distinguish
   // "no records exist" from "data not yet loaded" for the empty state message.
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [_hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   // ── Saved views (localStorage-backed) ──────────────────────────
   const { views: savedViews, createView, renameView, deleteView } = useSavedViews(schemaName ?? "");
@@ -250,24 +267,21 @@ export function SchemaListPage() {
   );
 
   // Sync URL when saved view changes
-  const handleSelectSavedView = useCallback(
-    (viewId: string | null) => {
-      setActiveSavedViewId(viewId);
-      // Update URL query param without full navigation
-      const url = new URL(window.location.href);
-      if (viewId) {
-        url.searchParams.set("view", viewId);
-      } else {
-        url.searchParams.delete("view");
-      }
-      window.history.replaceState({}, "", url.toString());
-    },
-    [],
-  );
+  const handleSelectSavedView = useCallback((viewId: string | null) => {
+    setActiveSavedViewId(viewId);
+    // Update URL query param without full navigation
+    const url = new URL(window.location.href);
+    if (viewId) {
+      url.searchParams.set("view", viewId);
+    } else {
+      url.searchParams.delete("view");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   // Resolve the currently active saved view object
   const activeSavedView = useMemo(
-    () => (activeSavedViewId ? savedViews.find((v) => v.id === activeSavedViewId) ?? null : null),
+    () => (activeSavedViewId ? (savedViews.find((v) => v.id === activeSavedViewId) ?? null) : null),
     [activeSavedViewId, savedViews],
   );
 
@@ -317,7 +331,13 @@ export function SchemaListPage() {
 
   // Detect if tree view is available (schema has self-referencing ref field)
   const selfRefField = useMemo(
-    () => (schema ? findSelfRefField(schema.name, schema.fields as Record<string, { type?: string; target?: string }>) : null),
+    () =>
+      schema
+        ? findSelfRefField(
+            schema.name,
+            schema.fields as Record<string, { type?: string; target?: string }>,
+          )
+        : null,
     [schema],
   );
   const hasTreeOption = selfRefField !== null;
@@ -382,7 +402,9 @@ export function SchemaListPage() {
       const lower = globalFilter.toLowerCase();
       result = result.filter((row) =>
         Object.values(row).some((v) =>
-          String(v ?? "").toLowerCase().includes(lower),
+          String(v ?? "")
+            .toLowerCase()
+            .includes(lower),
         ),
       );
     }
@@ -402,7 +424,9 @@ export function SchemaListPage() {
             case "not_in":
               return !fv.includes(val as string);
             case "contains":
-              return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
+              return String(val ?? "")
+                .toLowerCase()
+                .includes(String(fv[0] ?? "").toLowerCase());
             case "gt":
               return Number(val) > Number(fv[0]);
             case "gte":
@@ -433,15 +457,21 @@ export function SchemaListPage() {
             const rv = row[field];
             switch (op) {
               case "contains":
-                return String(rv ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
+                return String(rv ?? "")
+                  .toLowerCase()
+                  .includes(String(value ?? "").toLowerCase());
               case "eq":
                 return rv === value || String(rv) === String(value);
               case "neq":
                 return rv !== value && String(rv) !== String(value);
               case "in":
-                return Array.isArray(value) ? value.some((v: unknown) => String(rv) === String(v)) : false;
+                return Array.isArray(value)
+                  ? value.some((v: unknown) => String(rv) === String(v))
+                  : false;
               case "not_in":
-                return Array.isArray(value) ? !value.some((v: unknown) => String(rv) === String(v)) : true;
+                return Array.isArray(value)
+                  ? !value.some((v: unknown) => String(rv) === String(v))
+                  : true;
               default:
                 return true;
             }
@@ -490,77 +520,86 @@ export function SchemaListPage() {
     // view does not persist when navigating to a different schema.
     setActiveView("list");
     setCalendarMonth(startOfMonth(new Date()));
-  }, [schemaName, clearAISearch]);
+  }, [clearAISearch]);
 
-  const fetchData = useCallback(async (options?: { background?: boolean }) => {
-    const currentListView = listViewRef.current;
-    if (!currentListView || !schemaName) {
-      setLoading(false);
-      return;
-    }
-    // Guard: ensure the listView belongs to the current schema to prevent
-    // querying with stale fields from a previously visited schema (e.g.
-    // purchase_item fields being sent in a department query).
-    if (currentListView.schema !== schemaName) {
-      // Don't clear loading — the correct listView will arrive and re-trigger fetch
-      return;
-    }
-    // Only show full loading skeleton for initial loads, not background refreshes.
-    // Background refreshes keep existing data visible while fetching.
-    if (!options?.background) {
-      setLoading(true);
-    }
-    setDataError(null);
-    try {
-      const fields = getQueryFields(currentListView, schemaFieldsRef.current, bundleLinksRef.current, schemaName);
-      // Ensure the date field is included in the query for calendar view
-      const dateField = calendarDateFieldRef.current;
-      if (dateField && !fields.some((f) => f === dateField)) {
-        fields.push(dateField);
+  const fetchData = useCallback(
+    async (options?: { background?: boolean }) => {
+      const currentListView = listViewRef.current;
+      if (!currentListView || !schemaName) {
+        setLoading(false);
+        return;
       }
-      // Ensure state field + presentation fields are included for kanban view
-      const stateDef = primaryStateDefRef.current;
-      if (stateDef) {
-        if (!fields.includes(stateDef.field)) fields.push(stateDef.field);
+      // Guard: ensure the listView belongs to the current schema to prevent
+      // querying with stale fields from a previously visited schema (e.g.
+      // purchase_item fields being sent in a department query).
+      if (currentListView.schema !== schemaName) {
+        // Don't clear loading — the correct listView will arrive and re-trigger fetch
+        return;
       }
-      const pres = schemaPresentationRef.current;
-      if (pres) {
-        if (pres.titleField && !fields.includes(pres.titleField)) fields.push(pres.titleField);
-        if (pres.badgeField && !fields.includes(pres.badgeField)) fields.push(pres.badgeField);
-        for (const sf of pres.summaryFields ?? []) {
+      // Only show full loading skeleton for initial loads, not background refreshes.
+      // Background refreshes keep existing data visible while fetching.
+      if (!options?.background) {
+        setLoading(true);
+      }
+      setDataError(null);
+      try {
+        const fields = getQueryFields(
+          currentListView,
+          schemaFieldsRef.current,
+          bundleLinksRef.current,
+          schemaName,
+        );
+        // Ensure the date field is included in the query for calendar view
+        const dateField = calendarDateFieldRef.current;
+        if (dateField && !fields.some((f) => f === dateField)) {
+          fields.push(dateField);
+        }
+        // Ensure state field + presentation fields are included for kanban view
+        const stateDef = primaryStateDefRef.current;
+        if (stateDef) {
+          if (!fields.includes(stateDef.field)) fields.push(stateDef.field);
+        }
+        const pres = schemaPresentationRef.current;
+        if (pres) {
+          if (pres.titleField && !fields.includes(pres.titleField)) fields.push(pres.titleField);
+          if (pres.badgeField && !fields.includes(pres.badgeField)) fields.push(pres.badgeField);
+          for (const sf of pres.summaryFields ?? []) {
+            if (!fields.includes(sf)) fields.push(sf);
+          }
+        }
+        if (!fields.includes("created_at")) fields.push("created_at");
+        // Ensure self-referencing parent field is included for tree view
+        const srf = selfRefFieldRef.current;
+        if (srf && !fields.includes(srf)) fields.push(srf);
+        // Ensure tree label + summary fields are included
+        const tlf = treeLabelFieldRef.current;
+        if (tlf && !fields.includes(tlf)) fields.push(tlf);
+        for (const sf of treeSummaryFieldsRef.current ?? []) {
           if (!fields.includes(sf)) fields.push(sf);
         }
+        const result = await queryList({
+          schema: schemaName,
+          fields,
+          pageSize: currentListView.pageSize ?? 50,
+        });
+        setData(result.items);
+        setHasLoadedOnce(true);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : t("errors.failedToLoadData", "Failed to load data");
+        if (options?.background) {
+          // Background refresh: keep existing data visible, show toast instead
+          toast.error(message);
+        } else {
+          setDataError(message);
+          setData([]);
+        }
+      } finally {
+        setLoading(false);
       }
-      if (!fields.includes("created_at")) fields.push("created_at");
-      // Ensure self-referencing parent field is included for tree view
-      const srf = selfRefFieldRef.current;
-      if (srf && !fields.includes(srf)) fields.push(srf);
-      // Ensure tree label + summary fields are included
-      const tlf = treeLabelFieldRef.current;
-      if (tlf && !fields.includes(tlf)) fields.push(tlf);
-      for (const sf of treeSummaryFieldsRef.current ?? []) {
-        if (!fields.includes(sf)) fields.push(sf);
-      }
-      const result = await queryList({
-        schema: schemaName,
-        fields,
-        pageSize: currentListView.pageSize ?? 50,
-      });
-      setData(result.items);
-      setHasLoadedOnce(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t("errors.failedToLoadData", "Failed to load data");
-      if (options?.background) {
-        // Background refresh: keep existing data visible, show toast instead
-        toast.error(message);
-      } else {
-        setDataError(message);
-        setData([]);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [schemaName]);
+    },
+    [schemaName, t],
+  );
 
   // ── Real-time subscription via SSE ──────────────────────
   const [hasNewData, setHasNewData] = useState(false);
@@ -580,11 +619,23 @@ export function SchemaListPage() {
         const d = data as Record<string, unknown>;
         const label = bundle?.schema?.label ?? schemaName;
         if (d.created) {
-          pushNotification({ type: "created", message: `${label} record created`, schema: schemaName });
+          pushNotification({
+            type: "created",
+            message: `${label} record created`,
+            schema: schemaName,
+          });
         } else if (d.updated) {
-          pushNotification({ type: "updated", message: `${label} record updated`, schema: schemaName });
+          pushNotification({
+            type: "updated",
+            message: `${label} record updated`,
+            schema: schemaName,
+          });
         } else if (d.deleted) {
-          pushNotification({ type: "deleted", message: `${label} record deleted`, schema: schemaName });
+          pushNotification({
+            type: "deleted",
+            message: `${label} record deleted`,
+            schema: schemaName,
+          });
         }
       }
 
@@ -620,14 +671,14 @@ export function SchemaListPage() {
   // bundleSchemaName ensures re-fetch when navigating between cached schemas
   // (bundleReady stays true→true but the bundle itself changes).
   const bundleReady = !bundleLoading && !!bundle;
-  const bundleSchemaName = bundle?.schema?.name;
+  const _bundleSchemaName = bundle?.schema?.name;
   useEffect(() => {
     if (bundleReady) {
       fetchData();
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchData, bundleReady, bundleSchemaName]);
+  }, [fetchData, bundleReady, bundle, bundleLoading]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -647,9 +698,7 @@ export function SchemaListPage() {
       case "edit": {
         const editRoute = listView?.rowActionRoute;
         if (editRoute) {
-          const url = editRoute
-            .replace("{id}", recordId)
-            .replace("{name}", schemaName);
+          const url = editRoute.replace("{id}", recordId).replace("{name}", schemaName);
           navigate({ to: url as "/" });
         } else {
           navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
@@ -677,9 +726,7 @@ export function SchemaListPage() {
     // Check if list view has custom detail route
     const customRoute = listView?.rowActionRoute;
     if (customRoute) {
-      const url = customRoute
-        .replace("{id}", recordId)
-        .replace("{name}", schemaName);
+      const url = customRoute.replace("{id}", recordId).replace("{name}", schemaName);
       navigate({ to: url as "/" });
     } else {
       navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
@@ -705,7 +752,7 @@ export function SchemaListPage() {
       await deleteRecord(schemaName, pendingSingleDeleteId.current);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
       await fetchData({ background: true });
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("toast.deleteFailed", "Failed to delete record"));
     } finally {
       setSingleDeleting(false);
@@ -722,7 +769,7 @@ export function SchemaListPage() {
       await bulkDeleteRecords(schemaName, pendingBulkIds.current);
       toast.success(t("toast.bulkDeleted", "{{count}} record(s) deleted successfully", { count }));
       await fetchData({ background: true });
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("toast.bulkDeleteFailed", "Failed to delete records"));
     } finally {
       setBulkDeleting(false);
@@ -748,7 +795,9 @@ export function SchemaListPage() {
           case "not_in":
             return !fv.includes(val as string);
           case "contains":
-            return String(val ?? "").toLowerCase().includes(String(fv[0] ?? "").toLowerCase());
+            return String(val ?? "")
+              .toLowerCase()
+              .includes(String(fv[0] ?? "").toLowerCase());
           case "gt":
             return Number(val) > Number(fv[0]);
           case "gte":
@@ -824,7 +873,10 @@ export function SchemaListPage() {
           </div>
           {/* Data rows */}
           {Array.from({ length: 5 }, (_, i) => `skel-row-${i}`).map((key) => (
-            <div key={key} className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5">
+            <div
+              key={key}
+              className="flex items-center gap-4 border-b border-border last:border-0 px-3 py-2.5"
+            >
               <Skeleton className="h-4 w-4" />
               <Skeleton className="h-4 w-28" />
               <Skeleton className="h-4 w-36" />
@@ -869,7 +921,7 @@ export function SchemaListPage() {
             {t("errors.dataLoadFailed", "Failed to load records.")}
           </p>
           <p className="text-xs text-destructive">{dataError}</p>
-          <Button variant="outline" size="sm" onClick={fetchData}>
+          <Button variant="outline" size="sm" onClick={() => fetchData()}>
             <RefreshCw className="mr-1.5 size-3.5" />
             {t("common.retry", "Retry")}
           </Button>
@@ -893,14 +945,43 @@ export function SchemaListPage() {
 
   // View toggle options
   const hasViewToggle = hasCalendarOption || hasKanbanOption || hasTreeOption;
-  const viewToggleExtraControls = activeView === "calendar" ? (
-    <CalendarNavControls currentMonth={calendarMonth} onMonthChange={setCalendarMonth} />
-  ) : undefined;
+  const viewToggleExtraControls =
+    activeView === "calendar" ? (
+      <CalendarNavControls currentMonth={calendarMonth} onMonthChange={setCalendarMonth} />
+    ) : undefined;
   const viewToggleOptions = [
-    { key: "list", icon: <List className="size-3.5" />, label: t("calendar.listView", "List view") },
-    ...(hasTreeOption ? [{ key: "tree", icon: <ListTree className="size-3.5" />, label: t("tree.treeView", "Tree view") }] : []),
-    ...(hasKanbanOption ? [{ key: "kanban", icon: <Kanban className="size-3.5" />, label: t("kanban.kanbanView", "Kanban view") }] : []),
-    ...(hasCalendarOption ? [{ key: "calendar", icon: <Calendar className="size-3.5" />, label: t("calendar.calendarView", "Calendar view") }] : []),
+    {
+      key: "list",
+      icon: <List className="size-3.5" />,
+      label: t("calendar.listView", "List view"),
+    },
+    ...(hasTreeOption
+      ? [
+          {
+            key: "tree",
+            icon: <ListTree className="size-3.5" />,
+            label: t("tree.treeView", "Tree view"),
+          },
+        ]
+      : []),
+    ...(hasKanbanOption
+      ? [
+          {
+            key: "kanban",
+            icon: <Kanban className="size-3.5" />,
+            label: t("kanban.kanbanView", "Kanban view"),
+          },
+        ]
+      : []),
+    ...(hasCalendarOption
+      ? [
+          {
+            key: "calendar",
+            icon: <Calendar className="size-3.5" />,
+            label: t("calendar.calendarView", "Calendar view"),
+          },
+        ]
+      : []),
   ];
 
   // Real-time refresh indicator shown briefly when subscription triggers a reload
@@ -931,68 +1012,76 @@ export function SchemaListPage() {
   // The toolbar (primary action + SearchBar + refresh indicator + ViewToggle)
   // is rendered by ListView, so alternate views only provide their content.
   // Uses pageFilteredData so that search/filter state applies to all views.
-  const alternateViewContent = activeView !== "list" ? (() => {
-    if (activeView === "kanban" && primaryStateDef) {
-      return (
-        <AutoKanban
-          schema={schema}
-          stateDefinition={primaryStateDef}
-          data={pageFilteredData}
-          loading={loading}
-          onRecordClick={handleRowClick}
-          onTransitioned={handleRefresh}
-          queryFields={listView.fields.map((f) => f.field).concat(["id", primaryStateDef.field, "created_at"])}
-        />
-      );
-    }
+  const alternateViewContent =
+    activeView !== "list"
+      ? (() => {
+          if (activeView === "kanban" && primaryStateDef) {
+            return (
+              <AutoKanban
+                schema={schema}
+                stateDefinition={primaryStateDef}
+                data={pageFilteredData}
+                loading={loading}
+                onRecordClick={handleRowClick}
+                onTransitioned={handleRefresh}
+                queryFields={listView.fields
+                  .map((f) => f.field)
+                  .concat(["id", primaryStateDef.field, "created_at"])}
+              />
+            );
+          }
 
-    if (activeView === "tree" && selfRefField) {
-      return (
-        <AutoTree
-          schemaName={schemaName}
-          parentField={selfRefField}
-          records={pageFilteredData}
-          labelField={treeLabelField}
-          summaryFields={treeSummaryFields}
-          onRecordClick={handleRowClick}
-        />
-      );
-    }
+          if (activeView === "tree" && selfRefField) {
+            return (
+              <AutoTree
+                schemaName={schemaName}
+                parentField={selfRefField}
+                records={pageFilteredData}
+                labelField={treeLabelField}
+                summaryFields={treeSummaryFields}
+                onRecordClick={handleRowClick}
+              />
+            );
+          }
 
-    // Calendar view (fallback)
-    return (
-      <AutoCalendar
-        schema={schema}
-        dateField={calendarDateField!}
-        titleField={calendarViewDef?.titleField}
-        colorField={calendarViewDef?.colorField}
-        data={pageFilteredData}
-        onRecordClick={handleRowClick}
-        loading={loading}
-        currentMonth={calendarMonth}
-        onMonthChange={setCalendarMonth}
-      />
-    );
-  })() : undefined;
+          // Calendar view (fallback)
+          return (
+            <AutoCalendar
+              schema={schema}
+              dateField={calendarDateField ?? ""}
+              titleField={calendarViewDef?.titleField}
+              colorField={calendarViewDef?.colorField}
+              data={pageFilteredData}
+              onRecordClick={handleRowClick}
+              loading={loading}
+              currentMonth={calendarMonth}
+              onMonthChange={setCalendarMonth}
+            />
+          );
+        })()
+      : undefined;
 
   // SearchBar props for alternate views (calendar/kanban/tree)
-  const searchBarPropsForAlternate = alternateViewContent ? {
-    schema,
-    globalFilter,
-    onGlobalFilterChange: setGlobalFilter,
-    onClearAll: hasPageLevelFilters ? handleClearAllFilters : undefined,
-    bazzaColumns,
-    bazzaFilters: bazzaFilterState,
-    bazzaActions,
-    bazzaStrategy,
-    aiSearchState,
-    onClearAISearch: clearAISearch,
-    onSubmit: handleSearchSubmit,
-  } : undefined;
+  const searchBarPropsForAlternate = alternateViewContent
+    ? {
+        schema,
+        globalFilter,
+        onGlobalFilterChange: setGlobalFilter,
+        onClearAll: hasPageLevelFilters ? handleClearAllFilters : undefined,
+        bazzaColumns,
+        bazzaFilters: bazzaFilterState,
+        bazzaActions,
+        bazzaStrategy,
+        aiSearchState,
+        onClearAISearch: clearAISearch,
+        onSubmit: handleSearchSubmit,
+      }
+    : undefined;
 
   return (
     <ListView
       schema={schema}
+      // biome-ignore lint/style/noNonNullAssertion: effectiveListView is guaranteed by listView being defined earlier
       view={effectiveListView!}
       data={viewFilteredData}
       loading={loading}
@@ -1014,12 +1103,16 @@ export function SchemaListPage() {
         onDeleteView: handleDeleteSavedView,
         hasActiveFilters: hasActiveListFilters,
       }}
-      viewToggle={hasViewToggle ? {
-        options: viewToggleOptions,
-        activeView,
-        onViewChange: setActiveView as (v: string) => void,
-        extraControls: viewToggleExtraControls,
-      } : undefined}
+      viewToggle={
+        hasViewToggle
+          ? {
+              options: viewToggleOptions,
+              activeView,
+              onViewChange: setActiveView as (v: string) => void,
+              extraControls: viewToggleExtraControls,
+            }
+          : undefined
+      }
       refreshIndicator={refreshIndicator}
       primaryActionSlot={alternateViewContent ? primaryActionButton : undefined}
       alternateViewContent={alternateViewContent}
@@ -1030,7 +1123,10 @@ export function SchemaListPage() {
             open={singleDeleteOpen}
             onOpenChange={setSingleDeleteOpen}
             title={t("confirm.deleteTitle", "Delete record")}
-            description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
+            description={t(
+              "confirm.deleteDescription",
+              "Are you sure you want to delete this record? This action cannot be undone.",
+            )}
             onConfirm={executeSingleDelete}
             loading={singleDeleting}
           />
@@ -1038,7 +1134,11 @@ export function SchemaListPage() {
             open={bulkDeleteOpen}
             onOpenChange={setBulkDeleteOpen}
             title={t("bulk.deleteTitle", "Delete records")}
-            description={t("bulk.deleteConfirm", "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.", { count: pendingBulkIds.current.length })}
+            description={t(
+              "bulk.deleteConfirm",
+              "Are you sure you want to delete {{count}} record(s)? This action cannot be undone.",
+              { count: pendingBulkIds.current.length },
+            )}
             onConfirm={executeBulkDelete}
             loading={bulkDeleting}
           />

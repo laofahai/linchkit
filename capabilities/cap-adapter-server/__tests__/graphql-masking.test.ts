@@ -5,9 +5,8 @@ import type {
   PermissionGroupDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
-import { createActionExecutor } from "@linchkit/core/server";
+import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { graphql } from "graphql";
-import { InMemoryStore } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,
   type GraphQLContext,

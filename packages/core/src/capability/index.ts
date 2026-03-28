@@ -34,14 +34,14 @@ export {
   buildActionChain,
   createExtensionResolver,
 } from "./extension-resolver";
+export { filterSchemaByCapabilities } from "./filter-schema";
 export type {
   RegistryEntry,
   RegistrySearchOptions,
   TrustLevel,
 } from "./local-registry";
 export {
-  LocalCapabilityRegistry,
   checkTrustPermissions,
   createLocalRegistry,
+  LocalCapabilityRegistry,
 } from "./local-registry";
-export { filterSchemaByCapabilities } from "./filter-schema";

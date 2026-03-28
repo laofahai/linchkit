@@ -9,7 +9,12 @@ import { useCallback, useSyncExternalStore } from "react";
 
 // ── Types ─────────────────────────────────────────────────
 
-export type NotificationType = "created" | "updated" | "deleted" | "action_success" | "action_failure";
+export type NotificationType =
+  | "created"
+  | "updated"
+  | "deleted"
+  | "action_success"
+  | "action_failure";
 
 export interface Notification {
   id: string;
@@ -28,7 +33,7 @@ export interface Notification {
 const MAX_NOTIFICATIONS = 50;
 
 let notifications: Notification[] = [];
-let listeners = new Set<() => void>();
+const listeners = new Set<() => void>();
 let nextId = 1;
 
 function emitChange() {

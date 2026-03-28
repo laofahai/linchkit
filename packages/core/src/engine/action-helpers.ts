@@ -36,7 +36,7 @@ export function resolveFieldExpression(
 
   if (value.startsWith("$actor.")) {
     const field = value.slice("$actor.".length);
-    return (actor as Record<string, unknown>)[field];
+    return (actor as unknown as Record<string, unknown>)[field];
   }
 
   if (value.startsWith("$input.")) {

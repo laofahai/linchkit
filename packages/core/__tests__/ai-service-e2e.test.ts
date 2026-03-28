@@ -5,8 +5,8 @@
  * Run: VOLCENGINE_API_KEY=sk-xxx bun test packages/core/__tests__/ai-service-e2e.test.ts
  */
 import { describe, expect, it } from "bun:test";
-import { z } from "zod";
 import { createAIService } from "@linchkit/cap-ai-provider";
+import { z } from "zod";
 import type { AIServiceConfig } from "../src/types/ai";
 
 const apiKey = process.env.VOLCENGINE_API_KEY;

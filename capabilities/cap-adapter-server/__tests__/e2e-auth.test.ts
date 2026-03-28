@@ -161,10 +161,7 @@ async function restAction(
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
-async function gql(
-  query: string,
-  headers: Record<string, string> = {},
-) {
+async function gql(query: string, headers: Record<string, string> = {}) {
   const res = await fetch(GQL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },

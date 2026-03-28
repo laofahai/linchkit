@@ -1,15 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   type AutomationActionExecutor,
-  type WatcherEngine,
   createWatcherEngine,
   evaluateComparison,
   parseDuration,
+  type WatcherEngine,
 } from "../src/automation";
-import {
-  type WatcherRegistry,
-  createWatcherRegistry,
-} from "../src/automation/watcher-registry";
+import { createWatcherRegistry, type WatcherRegistry } from "../src/automation/watcher-registry";
 import { defineWatcher } from "../src/define";
 import type { EventBusLike, EventRecord } from "../src/types/event";
 import type { WatcherDefinition } from "../src/types/watcher";

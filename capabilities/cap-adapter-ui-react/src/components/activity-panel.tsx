@@ -9,7 +9,6 @@
 import { Badge, Button } from "@linchkit/ui-kit/components";
 import {
   ArrowRight,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   CircleDot,
@@ -25,10 +24,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  type ExecutionLogEntry,
-  queryExecutionLogs,
-} from "../lib/api";
+import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/api";
 
 interface ActivityPanelProps {
   schemaName: string;
@@ -88,7 +84,10 @@ const DEFAULT_STATUS_CONFIG: StatusConfig = { variant: "outline" };
 
 // ── Helpers ───────────────────────────────────────────────
 
-function formatRelativeTime(iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+function formatRelativeTime(
+  iso: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
   const diff = Date.now() - new Date(iso).getTime();
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
@@ -114,14 +113,20 @@ function formatActionLabel(action: string, status?: string): string {
 /** Parse JSON-encoded input string, return field entries excluding system fields. */
 function parseInputChanges(
   input: string | undefined,
-  kind: ActionKind,
+  _kind: ActionKind,
 ): Array<{ field: string; value: unknown }> {
   if (!input) return [];
   try {
     const parsed = JSON.parse(input) as Record<string, unknown>;
     const SYSTEM_FIELDS = new Set([
-      "id", "tenant_id", "created_at", "updated_at",
-      "created_by", "updated_by", "_version", "is_deleted",
+      "id",
+      "tenant_id",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by",
+      "_version",
+      "is_deleted",
     ]);
     return Object.entries(parsed)
       .filter(([key]) => !SYSTEM_FIELDS.has(key))
@@ -159,9 +164,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
   return (
     <div className="relative flex gap-3 pb-4 last:pb-0">
       {/* Timeline connector line */}
-      {!isLast && (
-        <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
-      )}
+      {!isLast && <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />}
 
       {/* Timeline dot */}
       <div
@@ -206,10 +209,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                   {entry.stateTransition.from}
                 </Badge>
                 <ArrowRight className="size-3 text-muted-foreground" />
-                <Badge
-                  variant="secondary"
-                  className="text-[10px] px-1.5 py-0 font-normal"
-                >
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
                   {entry.stateTransition.to}
                 </Badge>
               </div>
@@ -234,11 +234,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
               onClick={() => setExpanded(!expanded)}
               className="shrink-0 p-1 rounded hover:bg-muted/50 text-muted-foreground transition-colors"
             >
-              {expanded ? (
-                <ChevronUp className="size-3.5" />
-              ) : (
-                <ChevronDown className="size-3.5" />
-              )}
+              {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             </button>
           )}
         </div>
@@ -262,17 +258,12 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                   </thead>
                   <tbody>
                     {changes.map((change) => (
-                      <tr
-                        key={change.field}
-                        className="border-b border-border/30 last:border-0"
-                      >
+                      <tr key={change.field} className="border-b border-border/30 last:border-0">
                         <td className="px-2.5 py-1.5 font-mono text-muted-foreground">
                           {change.field}
                         </td>
                         <td className="px-2.5 py-1.5">
-                          <span className="text-foreground">
-                            {formatFieldValue(change.value)}
-                          </span>
+                          <span className="text-foreground">{formatFieldValue(change.value)}</span>
                         </td>
                       </tr>
                     ))}
@@ -285,9 +276,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
             {entry.error && (
               <div className="rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
                 <span className="font-medium">{t("executionLog.error", "Error")}:</span>{" "}
-                {entry.error.code && (
-                  <span className="font-mono">[{entry.error.code}] </span>
-                )}
+                {entry.error.code && <span className="font-mono">[{entry.error.code}] </span>}
                 {entry.error.message}
               </div>
             )}
@@ -359,16 +348,9 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
           {t("detail.noActivity", "No activity recorded yet.")}
         </div>
       ) : (
-        <div
-          className="overflow-y-auto pr-1"
-          style={{ maxHeight: `${MAX_SCROLL_HEIGHT}px` }}
-        >
+        <div className="overflow-y-auto pr-1" style={{ maxHeight: `${MAX_SCROLL_HEIGHT}px` }}>
           {entries.map((entry, idx) => (
-            <TimelineEntry
-              key={entry.id}
-              entry={entry}
-              isLast={idx === entries.length - 1}
-            />
+            <TimelineEntry key={entry.id} entry={entry} isLast={idx === entries.length - 1} />
           ))}
         </div>
       )}

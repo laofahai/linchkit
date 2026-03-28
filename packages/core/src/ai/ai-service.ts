@@ -73,9 +73,7 @@ export function createNoopAIService(): AIService {
     defaultProvider: null,
     providerNames: [],
     complete: () => {
-      throw new Error(
-        "AI service is not configured. Add an 'ai' section to your LinchKit config.",
-      );
+      throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
     },
   };
 }
@@ -126,9 +124,7 @@ export function validateConfig(config: AIServiceConfig): void {
     throw new Error("AIServiceConfig.providers must have at least one provider");
   }
   if (!config.providers[config.defaultProvider]) {
-    throw new Error(
-      `Default provider "${config.defaultProvider}" is not defined in providers`,
-    );
+    throw new Error(`Default provider "${config.defaultProvider}" is not defined in providers`);
   }
   for (const [name, provider] of Object.entries(config.providers)) {
     if (!provider.defaultModel) {
@@ -216,10 +212,7 @@ export function resolveTenantConfig(
   return mergeTenantConfig(globalConfig, tenantOverride);
 }
 
-function mergeTenantConfig(
-  global: AIServiceConfig,
-  tenant: AITenantConfig,
-): AIServiceConfig {
+function mergeTenantConfig(global: AIServiceConfig, tenant: AITenantConfig): AIServiceConfig {
   const mergedProviders = { ...global.providers };
   if (tenant.providers) {
     for (const [name, override] of Object.entries(tenant.providers)) {

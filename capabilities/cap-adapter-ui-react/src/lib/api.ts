@@ -289,7 +289,13 @@ let cachedAppConfig: AppConfig | null = null;
  */
 export async function fetchAppConfig(): Promise<AppConfig> {
   if (cachedAppConfig) return cachedAppConfig;
-  const fallback: AppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
+  const fallback: AppConfig = {
+    authEnabled: false,
+    aiEnabled: false,
+    capabilities: [],
+    pages: [],
+    menuItems: [],
+  };
   try {
     const res = await fetch("/api/app-config");
     const json = await res.json();
@@ -348,7 +354,10 @@ export interface AiAutoFillResult {
  */
 export async function requestAiAutoFill(params: {
   schema: string;
-  fields: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
+  fields: Record<
+    string,
+    { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }
+  >;
   currentValues: Record<string, unknown>;
   locale?: string;
 }): Promise<AiAutoFillResult> {
@@ -690,13 +699,11 @@ export interface ExecutionLogListResult {
  * Query execution logs for a specific schema/record via GraphQL.
  * Uses the auto-generated executionLogList query with standard filter/sort/pagination.
  */
-export async function queryExecutionLogs(
-  options: {
-    schema?: string;
-    page?: number;
-    pageSize?: number;
-  },
-): Promise<ExecutionLogListResult> {
+export async function queryExecutionLogs(options: {
+  schema?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<ExecutionLogListResult> {
   const filter = options.schema ? JSON.stringify({ schema_name: options.schema }) : undefined;
   const query = `
     query ($filter: String, $page: Int, $pageSize: Int) {
@@ -733,9 +740,10 @@ export async function queryExecutionLogs(
     actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
     input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),
     status: r.status as ExecutionLogEntry["status"],
-    error: r.error_code || r.error_message
-      ? { code: r.error_code as string | undefined, message: (r.error_message as string) ?? "" }
-      : undefined,
+    error:
+      r.error_code || r.error_message
+        ? { code: r.error_code as string | undefined, message: (r.error_message as string) ?? "" }
+        : undefined,
     duration: (r.duration_ms as number) ?? 0,
     startedAt: r.started_at as string,
     completedAt: r.completed_at as string,

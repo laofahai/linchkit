@@ -217,7 +217,11 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
       return {
         content: JSON.stringify({
           title: { value: "Weekly Report", confidence: 0.8, reason: "Common task title" },
-          description: { value: "Write the weekly status report", confidence: 0.7, reason: "Inferred from title" },
+          description: {
+            value: "Write the weekly status report",
+            confidence: 0.7,
+            reason: "Inferred from title",
+          },
         }),
         usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
         model: "test-model",

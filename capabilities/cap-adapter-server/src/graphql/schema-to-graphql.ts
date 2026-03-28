@@ -15,9 +15,9 @@ import type {
 } from "@linchkit/core";
 import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core/server";
+
 export type { LinkResolverContext } from "./link-resolvers";
-import type { LinkResolverContext } from "./link-resolvers";
-import { buildLinkFields } from "./link-resolvers";
+
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -27,12 +27,13 @@ import {
   GraphQLInputObjectType,
   type GraphQLInputType,
   GraphQLInt,
-  GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
+import type { LinkResolverContext } from "./link-resolvers";
+import { buildLinkFields } from "./link-resolvers";
 
 // Cache for reusing GraphQLEnumType instances across output and input types
 const enumTypeCache = new Map<string, GraphQLEnumType>();
@@ -439,7 +440,10 @@ export function generateGraphQLInputType(
       // E.g., if purchase_request has a many_to_one link to department, add `department_id: String`.
       if (links) {
         for (const link of links) {
-          if (link.from === schema.name && (link.cardinality === "many_to_one" || link.cardinality === "one_to_one")) {
+          if (
+            link.from === schema.name &&
+            (link.cardinality === "many_to_one" || link.cardinality === "one_to_one")
+          ) {
             const fkFieldName = `${link.to}_id`;
             // Don't overwrite if already defined
             if (!fields[fkFieldName]) {

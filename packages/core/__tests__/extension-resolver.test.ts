@@ -75,6 +75,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", label: "Notes" } as any } },
       "cap-notes",
       10,
@@ -82,10 +83,10 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     const resolved = resolver.resolveSchemas(schemas);
     expect(resolved).toHaveLength(1);
-    expect(resolved[0]!.fields.notes).toBeDefined();
-    expect(resolved[0]!.fields.notes.type).toBe("text");
+    expect(resolved[0]?.fields.notes).toBeDefined();
+    expect(resolved[0]?.fields.notes.type).toBe("text");
     // Original field still present
-    expect(resolved[0]!.fields.total).toBeDefined();
+    expect(resolved[0]?.fields.total).toBeDefined();
   });
 
   test("multiple extensions add fields from different sources", () => {
@@ -94,21 +95,23 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { priority: { type: "number" } as any } },
       "cap-priority",
       10,
     );
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { tags: { type: "json" } as any } },
       "cap-tags",
       20,
     );
 
     const resolved = resolver.resolveSchemas(schemas);
-    expect(resolved[0]!.fields.priority).toBeDefined();
-    expect(resolved[0]!.fields.tags).toBeDefined();
-    expect(resolved[0]!.fields.total).toBeDefined();
+    expect(resolved[0]?.fields.priority).toBeDefined();
+    expect(resolved[0]?.fields.tags).toBeDefined();
+    expect(resolved[0]?.fields.total).toBeDefined();
   });
 
   test("ignores extensions targeting non-existent schemas", () => {
@@ -117,6 +120,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     resolver.addSchemaExtension(
       "nonexistent",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { foo: { type: "string" } as any } },
       "cap-x",
       10,
@@ -124,7 +128,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     const resolved = resolver.resolveSchemas(schemas);
     expect(resolved).toHaveLength(1);
-    expect(resolved[0]!.name).toBe("order");
+    expect(resolved[0]?.name).toBe("order");
   });
 
   test("records conflict when multiple sources add the same field", () => {
@@ -133,12 +137,14 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text" } as any } },
       "cap-a",
       10,
     );
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "string" } as any } },
       "cap-b",
       20,
@@ -158,12 +164,14 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", label: "From A" } as any } },
       "cap-a",
       10,
     );
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "string", label: "From B" } as any } },
       "cap-b",
       20,
@@ -171,8 +179,8 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
     const resolved = resolver.resolveSchemas(schemas);
     // Higher priority (20) is applied after lower (10), so it wins
-    expect(resolved[0]!.fields.notes.type).toBe("string");
-    expect(resolved[0]!.fields.notes.label).toBe("From B");
+    expect(resolved[0]?.fields.notes.type).toBe("string");
+    expect(resolved[0]?.fields.notes.label).toBe("From B");
   });
 });
 
@@ -191,10 +199,11 @@ describe("ExtensionResolver — Schema Overrides", () => {
     );
 
     const resolved = resolver.resolveSchemas(schemas);
-    expect(resolved[0]!.fields.total.required).toBe(true);
-    expect((resolved[0]!.fields.total as any).min).toBe(0);
+    expect(resolved[0]?.fields.total.required).toBe(true);
+    // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
+    expect((resolved[0]?.fields.total as any).min).toBe(0);
     // Original type preserved
-    expect(resolved[0]!.fields.total.type).toBe("number");
+    expect(resolved[0]?.fields.total.type).toBe("number");
   });
 
   test("higher priority override wins", () => {
@@ -205,7 +214,8 @@ describe("ExtensionResolver — Schema Overrides", () => {
     resolver.addSchemaOverride("order", { fields: { total: { min: 50 } } }, "cap-b", 20);
 
     const resolved = resolver.resolveSchemas(schemas);
-    expect((resolved[0]!.fields.total as any).min).toBe(50);
+    // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
+    expect((resolved[0]?.fields.total as any).min).toBe(50);
   });
 
   test("skips override for non-existent fields", () => {
@@ -220,7 +230,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     );
 
     const resolved = resolver.resolveSchemas(schemas);
-    expect(resolved[0]!.fields.nonexistent).toBeUndefined();
+    expect(resolved[0]?.fields.nonexistent).toBeUndefined();
   });
 
   test("extensions and overrides can be combined", () => {
@@ -230,6 +240,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     // First add a field via extension
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", required: false } as any } },
       "cap-notes",
       10,
@@ -244,8 +255,8 @@ describe("ExtensionResolver — Schema Overrides", () => {
     );
 
     const resolved = resolver.resolveSchemas(schemas);
-    expect(resolved[0]!.fields.notes).toBeDefined();
-    expect(resolved[0]!.fields.total.required).toBe(true);
+    expect(resolved[0]?.fields.notes).toBeDefined();
+    expect(resolved[0]?.fields.total.required).toBe(true);
   });
 });
 
@@ -295,7 +306,7 @@ describe("ExtensionResolver — Action Overrides", () => {
 
     const resolved = resolver.resolveActions(actions);
     const ctx = stubCtx();
-    const result = await resolved[0]!.handler!(ctx);
+    const result = await resolved[0]?.handler?.(ctx);
 
     expect(callOrder).toEqual(["B.before", "A.before", "original", "A.after", "B.after"]);
     expect(result).toBe("original_result");
@@ -324,7 +335,7 @@ describe("ExtensionResolver — Action Overrides", () => {
     );
 
     const resolved = resolver.resolveActions(actions);
-    await resolved[0]!.handler!(stubCtx());
+    await resolved[0]?.handler?.(stubCtx());
 
     expect(callOrder).toEqual(["before", "original"]);
   });
@@ -352,7 +363,7 @@ describe("ExtensionResolver — Action Overrides", () => {
     );
 
     const resolved = resolver.resolveActions(actions);
-    await resolved[0]!.handler!(stubCtx());
+    await resolved[0]?.handler?.(stubCtx());
 
     expect(callOrder).toEqual(["original", "after"]);
   });
@@ -371,6 +382,7 @@ describe("ExtensionResolver — Action Overrides", () => {
     resolver.addActionOverride(
       "submit_order",
       {
+        // biome-ignore lint/suspicious/noExplicitAny: test mock context
         handler: async (ctx: any) => {
           callOrder.push("replacement_before");
           const result = await ctx.callOriginal();
@@ -383,7 +395,7 @@ describe("ExtensionResolver — Action Overrides", () => {
     );
 
     const resolved = resolver.resolveActions(actions);
-    const result = await resolved[0]!.handler!(stubCtx());
+    const result = await resolved[0]?.handler?.(stubCtx());
 
     expect(callOrder).toEqual(["replacement_before", "original", "replacement_after"]);
     expect(result).toBe("wrapped_original_result");
@@ -413,7 +425,7 @@ describe("ExtensionResolver — Action Overrides", () => {
     );
 
     const resolved = resolver.resolveActions(actions);
-    const result = await resolved[0]!.handler!(stubCtx());
+    const result = await resolved[0]?.handler?.(stubCtx());
 
     expect(callOrder).toEqual(["replacement"]);
     expect(result).toBe("replaced_result");
@@ -450,9 +462,9 @@ describe("ExtensionResolver — Action Overrides", () => {
     resolver.addActionOverride("submit_order", { policy: { transaction: true } }, "cap-tx", 10);
 
     const resolved = resolver.resolveActions(actions);
-    expect(resolved[0]!.policy.transaction).toBe(true);
+    expect(resolved[0]?.policy.transaction).toBe(true);
     // Original mode preserved
-    expect(resolved[0]!.policy.mode).toBe("sync");
+    expect(resolved[0]?.policy.mode).toBe("sync");
   });
 
   test("ignores overrides targeting non-existent actions", () => {
@@ -463,7 +475,7 @@ describe("ExtensionResolver — Action Overrides", () => {
 
     const resolved = resolver.resolveActions(actions);
     expect(resolved).toHaveLength(1);
-    expect(resolved[0]!.name).toBe("submit_order");
+    expect(resolved[0]?.name).toBe("submit_order");
   });
 });
 
@@ -560,6 +572,7 @@ describe("buildActionChain", () => {
       // Outer: full replacement that calls through
       {
         override: {
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context
           handler: async (ctx: any) => {
             callOrder.push("B.enter");
             const r = await ctx.callOriginal();
@@ -591,7 +604,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
     );
 
     const resolved = resolver.resolveRules(rules);
-    expect(resolved[0]!.condition).toEqual({ field: "amount", operator: "gt", value: 500 });
+    expect(resolved[0]?.condition).toEqual({ field: "amount", operator: "gt", value: 500 });
   });
 
   test("overrides rule effect", () => {
@@ -606,7 +619,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
     );
 
     const resolved = resolver.resolveRules(rules);
-    expect(resolved[0]!.effect.type).toBe("warn");
+    expect(resolved[0]?.effect.type).toBe("warn");
   });
 
   test("overrides rule trigger", () => {
@@ -621,7 +634,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
     );
 
     const resolved = resolver.resolveRules(rules);
-    expect(resolved[0]!.trigger).toEqual({ action: "create_order" });
+    expect(resolved[0]?.trigger).toEqual({ action: "create_order" });
   });
 
   test("overrides rule priority", () => {
@@ -631,7 +644,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
     resolver.addRuleOverride("max_amount_rule", { priority: 99 }, "cap-priority-bump", 10);
 
     const resolved = resolver.resolveRules(rules);
-    expect(resolved[0]!.priority).toBe(99);
+    expect(resolved[0]?.priority).toBe(99);
   });
 
   test("higher priority override wins for rule fields", () => {
@@ -653,8 +666,9 @@ describe("ExtensionResolver — Rule Overrides", () => {
 
     const resolved = resolver.resolveRules(rules);
     // Priority 20 applied last, so it wins
-    expect(resolved[0]!.effect.type).toBe("block");
-    expect((resolved[0]!.effect as any).message).toBe("From B");
+    expect(resolved[0]?.effect.type).toBe("block");
+    // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
+    expect((resolved[0]?.effect as any).message).toBe("From B");
   });
 
   test("records conflict when multiple sources override the same rule", () => {
@@ -679,7 +693,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
 
     const resolved = resolver.resolveRules(rules);
     expect(resolved).toHaveLength(1);
-    expect(resolved[0]!.priority).toBe(10);
+    expect(resolved[0]?.priority).toBe(10);
   });
 });
 
@@ -693,6 +707,7 @@ describe("ExtensionResolver — Immutability", () => {
 
     resolver.addSchemaExtension(
       "order",
+      // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text" } as any } },
       "cap-notes",
       10,
@@ -702,7 +717,7 @@ describe("ExtensionResolver — Immutability", () => {
     // Original schema should not have the new field
     expect(original.fields.notes).toBeUndefined();
     // Resolved schema should have it
-    expect(resolved[0]!.fields.notes).toBeDefined();
+    expect(resolved[0]?.fields.notes).toBeDefined();
   });
 
   test("does not mutate the original action array", async () => {
@@ -730,6 +745,6 @@ describe("ExtensionResolver — Immutability", () => {
     // Original action's handler should not be modified
     expect(original.handler).toBe(originalHandler);
     // But resolved handler is different
-    expect(resolved[0]!.handler).not.toBe(originalHandler);
+    expect(resolved[0]?.handler).not.toBe(originalHandler);
   });
 });

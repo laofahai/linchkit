@@ -53,7 +53,7 @@ export function buildCsv({ fields, data, resolveLabel }: CsvExportOptions): stri
 
 /** Trigger a CSV file download in the browser. */
 export function downloadCsv(csv: string, filename: string): void {
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

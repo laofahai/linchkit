@@ -34,7 +34,9 @@ export function useTransitionPermissions(
     }
   }, [schemaName, recordId, enabled]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
 
   // Map: action name → { allowed, reason }
   const permMap = useMemo(() => {

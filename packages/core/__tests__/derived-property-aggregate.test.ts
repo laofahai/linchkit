@@ -13,17 +13,16 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { LinkDefinition, LinkRegistryInterface } from "../src/types/link";
-import type { SchemaDefinition } from "../src/types/schema";
-import type { DataProvider } from "../src/engine/action-engine";
+import { InMemoryStore } from "../src/persistence/in-memory-store";
 import {
+  type AggregateDerived,
   computeAggregate,
   createDerivedPropertyEngine,
   resolveAggregateValue,
-  type AggregateDerived,
 } from "../src/schema/derived-property";
-import { InMemoryStore } from "../src/persistence/in-memory-store";
 import { createLinkRegistry } from "../src/schema/link-registry";
+import type { LinkDefinition } from "../src/types/link";
+import type { SchemaDefinition } from "../src/types/schema";
 
 // ── computeAggregate ──────────────────────────────────────────
 
@@ -67,21 +66,14 @@ describe("computeAggregate", () => {
   });
 
   test("null/undefined values are skipped in sum", () => {
-    const mixed = [
-      { amount: 100 },
-      { amount: null },
-      { amount: undefined },
-      { amount: 50 },
-    ];
+    const mixed = [{ amount: 100 }, { amount: null }, { amount: undefined }, { amount: 50 }];
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
     expect(computeAggregate("sum", "amount", mixed as any)).toBe(150);
   });
 
   test("NaN values are skipped", () => {
-    const mixed = [
-      { amount: 100 },
-      { amount: "not_a_number" },
-      { amount: 50 },
-    ];
+    const mixed = [{ amount: 100 }, { amount: "not_a_number" }, { amount: 50 }];
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
     expect(computeAggregate("sum", "amount", mixed as any)).toBe(150);
   });
 
@@ -471,7 +463,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
   });
 
   test("cascade handles missing parent gracefully", async () => {
-    const { store, engine } = createTestEnv();
+    const { engine } = createTestEnv();
 
     const item = { id: "i1", order_id: "nonexistent", amount: 100 };
 
@@ -481,7 +473,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
   });
 
   test("cascade handles missing FK gracefully", async () => {
-    const { store, engine } = createTestEnv();
+    const { engine } = createTestEnv();
 
     // Child record without FK value
     const item = { id: "i1", amount: 100 };
@@ -1014,7 +1006,9 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
     const emp = await store.create("employee", { id: "e1", department_id: "d1", name: "Bob" });
 
     // With maxCascadeDepth=1, should only cascade one level (employee → department)
-    const updates = await engine.cascadeRecalculate("employee", emp, undefined, { maxCascadeDepth: 1 });
+    const updates = await engine.cascadeRecalculate("employee", emp, undefined, {
+      maxCascadeDepth: 1,
+    });
 
     // Department should be updated
     const dept = await store.get("department", "d1");

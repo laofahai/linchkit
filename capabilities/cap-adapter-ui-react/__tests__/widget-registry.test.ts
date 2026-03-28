@@ -1,17 +1,19 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import { createWidgetRegistry } from "../src/lib/widget-registry";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { WidgetDefinition } from "@linchkit/core/types";
+import { createWidgetRegistry } from "../src/lib/widget-registry";
 
 function makeDisplay(name: string) {
   // Return a dummy component function (no DOM rendering needed)
   const Comp = () => null;
   Comp.displayName = name;
+  // biome-ignore lint/suspicious/noExplicitAny: test mock component
   return Comp as any;
 }
 
 function makeInput(name: string) {
   const Comp = () => null;
   Comp.displayName = name;
+  // biome-ignore lint/suspicious/noExplicitAny: test mock component
   return Comp as any;
 }
 
@@ -36,7 +38,7 @@ describe("WidgetRegistry", () => {
       };
       registry.register({ definition: def, display: makeDisplay("TextDisplay") });
       expect(registry.list()).toHaveLength(1);
-      expect(registry.list()[0]!.id).toBe("text");
+      expect(registry.list()[0]?.id).toBe("text");
     });
   });
 
@@ -50,7 +52,12 @@ describe("WidgetRegistry", () => {
       const display = makeDisplay("D");
       const input = makeInput("I");
       registry.register({
-        definition: { id: "w1", fieldTypes: "string", modes: ["display", "input"], isDefault: true },
+        definition: {
+          id: "w1",
+          fieldTypes: "string",
+          modes: ["display", "input"],
+          isDefault: true,
+        },
         display,
         input,
       });
@@ -62,7 +69,12 @@ describe("WidgetRegistry", () => {
   describe("resolve", () => {
     test("resolves default widget for field type", () => {
       registry.register({
-        definition: { id: "str-default", fieldTypes: "string", modes: ["display"], isDefault: true },
+        definition: {
+          id: "str-default",
+          fieldTypes: "string",
+          modes: ["display"],
+          isDefault: true,
+        },
         display: makeDisplay("D"),
       });
       const resolved = registry.resolve({ fieldType: "string", mode: "display" });
@@ -76,7 +88,12 @@ describe("WidgetRegistry", () => {
 
     test("explicit override takes priority over default", () => {
       registry.register({
-        definition: { id: "str-default", fieldTypes: "string", modes: ["display"], isDefault: true },
+        definition: {
+          id: "str-default",
+          fieldTypes: "string",
+          modes: ["display"],
+          isDefault: true,
+        },
         display: makeDisplay("D1"),
       });
       registry.register({
@@ -93,7 +110,12 @@ describe("WidgetRegistry", () => {
 
     test("format-based matching takes priority over default", () => {
       registry.register({
-        definition: { id: "str-default", fieldTypes: "string", modes: ["display"], isDefault: true },
+        definition: {
+          id: "str-default",
+          fieldTypes: "string",
+          modes: ["display"],
+          isDefault: true,
+        },
         display: makeDisplay("D1"),
       });
       registry.register({

@@ -135,9 +135,7 @@ export class InMemoryMetricsCollector implements MetricsCollector {
    * Returns an object with p50, p90, p95, p99, min, max, count, and mean.
    * Returns null if no observations exist for the given name.
    */
-  getPercentiles(
-    name: string,
-  ): {
+  getPercentiles(name: string): {
     count: number;
     min: number;
     max: number;
@@ -156,8 +154,8 @@ export class InMemoryMetricsCollector implements MetricsCollector {
 
     return {
       count,
-      min: sorted[0]!,
-      max: sorted[count - 1]!,
+      min: sorted[0] ?? 0,
+      max: sorted[count - 1] ?? 0,
       mean: sum / count,
       p50: percentile(sorted, 0.5),
       p90: percentile(sorted, 0.9),
@@ -170,7 +168,9 @@ export class InMemoryMetricsCollector implements MetricsCollector {
    * Get all counters matching a name prefix.
    * Returns an array of { tags, value } entries.
    */
-  getCountersByPrefix(prefix: string): Array<{ name: string; tags: Record<string, string>; value: number }> {
+  getCountersByPrefix(
+    prefix: string,
+  ): Array<{ name: string; tags: Record<string, string>; value: number }> {
     const result: Array<{ name: string; tags: Record<string, string>; value: number }> = [];
     for (const snapshot of this.counters.values()) {
       if (snapshot.name.startsWith(prefix)) {
@@ -200,7 +200,10 @@ export class InMemoryMetricsCollector implements MetricsCollector {
     for (const s of this.histograms) {
       histogramNames.add(s.name);
     }
-    const histogramSummaries: Record<string, ReturnType<InMemoryMetricsCollector["getPercentiles"]>> = {};
+    const histogramSummaries: Record<
+      string,
+      ReturnType<InMemoryMetricsCollector["getPercentiles"]>
+    > = {};
     for (const name of histogramNames) {
       histogramSummaries[name] = this.getPercentiles(name);
     }
@@ -234,7 +237,7 @@ export class InMemoryMetricsCollector implements MetricsCollector {
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const index = Math.ceil(p * sorted.length) - 1;
-  return sorted[Math.max(0, index)]!;
+  return sorted[Math.max(0, index)] ?? 0;
 }
 
 // ── MetricsSummary type ────────────────────────────────

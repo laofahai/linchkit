@@ -6,6 +6,7 @@
  * generates a Drizzle schema barrel file, then delegates to drizzle-kit.
  */
 
+import { runMigrations } from "@linchkit/cap-migration";
 import type {
   CapabilityDefinition,
   LinchKitConfig,
@@ -18,7 +19,6 @@ import {
   createDatabase,
   generateDrizzleSchemaFile,
 } from "@linchkit/core/server";
-import { runMigrations } from "@linchkit/cap-migration";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 

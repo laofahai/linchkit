@@ -38,7 +38,11 @@ export const purchaseRequestSchema: SchemaDefinition = {
       label: "t:schemas.purchase_request.fields.description",
       ui: { editor: "rich" },
     },
-    department: { type: "ref", target: "department", label: "t:schemas.purchase_request.fields.department" },
+    department: {
+      type: "ref",
+      target: "department",
+      label: "t:schemas.purchase_request.fields.department",
+    },
     amount: {
       type: "number",
       required: true,

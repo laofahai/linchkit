@@ -39,16 +39,20 @@ export function EmptyState({
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const displayTitle = title
-    ?? (schemaLabel
+  const displayTitle =
+    title ??
+    (schemaLabel
       ? t("emptyState.title", "No {{label}} yet", { label: schemaLabel })
       : t("common.noData", "No data"));
 
-  const displayDescription = description
-    ?? (schemaLabel
-      ? (hideAction
+  const displayDescription =
+    description ??
+    (schemaLabel
+      ? hideAction
         ? t("emptyState.descriptionReadOnly", "No {{label}} records found.", { label: schemaLabel })
-        : t("emptyState.description", "Create your first {{label}} to get started.", { label: schemaLabel }))
+        : t("emptyState.description", "Create your first {{label}} to get started.", {
+            label: schemaLabel,
+          })
       : undefined);
 
   const showCreateButton = !hideAction && schemaName && schemaLabel;
@@ -59,21 +63,15 @@ export function EmptyState({
         {icon ?? <PackageOpen className="size-10 text-muted-foreground" />}
       </div>
 
-      <h3 className="text-lg font-medium text-foreground mb-1">
-        {displayTitle}
-      </h3>
+      <h3 className="text-lg font-medium text-foreground mb-1">{displayTitle}</h3>
 
       {displayDescription && (
-        <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-          {displayDescription}
-        </p>
+        <p className="text-sm text-muted-foreground mb-6 max-w-sm">{displayDescription}</p>
       )}
 
       {showCreateButton && (
         <Button
-          onClick={() =>
-            navigate({ to: "/schemas/$name/new", params: { name: schemaName } })
-          }
+          onClick={() => navigate({ to: "/schemas/$name/new", params: { name: schemaName } })}
         >
           <Plus className="mr-1.5 size-4" />
           {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}

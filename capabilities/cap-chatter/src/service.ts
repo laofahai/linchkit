@@ -6,7 +6,13 @@
  * - DrizzleChatterService: for PostgreSQL environments
  */
 
-import type { ChatterMessage, ChatterService, CreateMessageInput, MessageQueryOptions, PaginatedMessages } from "./types";
+import type {
+  ChatterMessage,
+  ChatterService,
+  CreateMessageInput,
+  MessageQueryOptions,
+  PaginatedMessages,
+} from "./types";
 
 // ── Shared helpers ──────────────────────────────────────────
 
@@ -54,7 +60,9 @@ export class InMemoryChatterService implements ChatterService {
         m.schemaName === schemaName &&
         m.recordId === recordId &&
         !m.isDeleted &&
-        (parentId === undefined ? m.parentId === undefined : m.parentId === (parentId ?? undefined)),
+        (parentId === undefined
+          ? m.parentId === undefined
+          : m.parentId === (parentId ?? undefined)),
     );
 
     if (messageType !== undefined) {

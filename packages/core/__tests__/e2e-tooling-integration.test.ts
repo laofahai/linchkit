@@ -12,17 +12,14 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
-import {
-  type CapabilityManifest,
-  createCapabilityHub,
-} from "@linchkit/core";
 import {
   applyMigration,
   createVersionRegistry,
   MigrationRegistry,
   validateUpgrade,
 } from "@linchkit/cap-migration";
+import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import { type CapabilityManifest, createCapabilityHub } from "@linchkit/core";
 import {
   createLinkRegistry,
   createOntologyRegistry,

@@ -7,13 +7,42 @@
  */
 
 import type { ViewAction } from "@linchkit/core/types";
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Separator, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, toast } from "@linchkit/ui-kit/components";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Separator,
+  Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  toast,
+} from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, Check, Copy, Loader2, MoreHorizontal, Pencil, RefreshCw, ServerCrash, Sparkles, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  ServerCrash,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChatterPanel } from "../components/chatter-panel";
 import { AutoForm } from "../components/auto-form";
+import { ChatterPanel } from "../components/chatter-panel";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
@@ -21,11 +50,19 @@ import { StatusBar, type StatusBarStep } from "../components/status-bar";
 import { VersionHistoryPanel } from "../components/version-history-panel";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
+import { pushNotification } from "../hooks/use-notifications";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useSchemaLabel } from "../i18n/use-schema-label";
-import { pushNotification } from "../hooks/use-notifications";
-import { createRecord, deleteRecord, executeAction, isAiEnabled, queryRecord, transitionRecord, updateRecord } from "../lib/api";
+import {
+  createRecord,
+  deleteRecord,
+  executeAction,
+  isAiEnabled,
+  queryRecord,
+  transitionRecord,
+  updateRecord,
+} from "../lib/api";
 import {
   CLONE_STRIP_FIELDS,
   deriveStatusSteps,
@@ -55,7 +92,9 @@ export function SchemaFormPage() {
 
   const schema = bundle?.schema;
   const formView = useMemo(
-    () => getPrimaryView(bundle?.views, "form") ?? (schema ? generateFallbackFormView(schema) : undefined),
+    () =>
+      getPrimaryView(bundle?.views, "form") ??
+      (schema ? generateFallbackFormView(schema) : undefined),
     [bundle?.views, schema],
   );
 
@@ -90,7 +129,10 @@ export function SchemaFormPage() {
   );
   const aiSuggestionCount = Object.keys(aiAutoFill.state.suggestions).length;
 
-  const recordFields = useMemo(() => (formView ? getRecordFields(formView, schema) : []), [formView, schema]);
+  const recordFields = useMemo(
+    () => (formView ? getRecordFields(formView, schema) : []),
+    [formView, schema],
+  );
 
   // Stabilize recordFields via ref so fetchRecord doesn't get recreated on every render
   const recordFieldsRef = useRef(recordFields);
@@ -108,7 +150,8 @@ export function SchemaFormPage() {
         setRecordError(t("errors.recordNotFound", 'Record "{{id}}" not found.', { id: params.id }));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("errors.recordLoadFailed", "Failed to load record.");
+      const message =
+        err instanceof Error ? err.message : t("errors.recordLoadFailed", "Failed to load record.");
       setRecordError(message);
     } finally {
       setLoading(false);
@@ -148,12 +191,17 @@ export function SchemaFormPage() {
       }
     } catch (err) {
       console.warn("Failed to load clone source:", err);
-      toast.error(t("toast.cloneSourceFailed", "Failed to load clone source. You can fill the form manually."));
+      toast.error(
+        t(
+          "toast.cloneSourceFailed",
+          "Failed to load clone source. You can fill the form manually.",
+        ),
+      );
       // Non-fatal — user can still fill the form manually
     } finally {
       setLoading(false);
     }
-  }, [cloneId, schemaName, formView, schema, bundle?.states]);
+  }, [cloneId, schemaName, formView, schema, bundle?.states, t]);
 
   // Sync form mode when navigating between create/edit via URL changes
   useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
@@ -188,7 +236,8 @@ export function SchemaFormPage() {
 
   // Dynamically find the state field name from the schema
   const stateFieldName = useMemo(
-    () => schema ? Object.entries(schema.fields).find(([, f]) => f.type === "state")?.[0] : undefined,
+    () =>
+      schema ? Object.entries(schema.fields).find(([, f]) => f.type === "state")?.[0] : undefined,
     [schema],
   );
 
@@ -199,8 +248,11 @@ export function SchemaFormPage() {
   const recordStatus = record && stateFieldName ? String(record[stateFieldName] ?? "") : undefined;
 
   // Fetch available transitions for permission pre-check
-  const { transitions: availableTransitions, permMap: transitionPermMap, refetch: refetchTransitions } =
-    useTransitionPermissions(schemaName, params.id, hasStateMachine && !isCreate);
+  const {
+    transitions: availableTransitions,
+    permMap: transitionPermMap,
+    refetch: refetchTransitions,
+  } = useTransitionPermissions(schemaName, params.id, hasStateMachine && !isCreate);
 
   // Collect ALL transition action names across the state machine (all states, not just current)
   const allTransitionActionNames = useMemo(() => {
@@ -282,16 +334,21 @@ export function SchemaFormPage() {
           // Check bundle.links for actual FK column name, fall back to convention
           const link = bundle?.links?.find(
             (l) =>
-              (l.from === schemaName && l.to === target && (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
+              (l.from === schemaName &&
+                l.to === target &&
+                (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
               (l.to === schemaName && l.from === target && l.cardinality === "one_to_many"),
           );
           const fkKey = link
-            ? (link.from === schemaName ? `${link.to}_id` : `${link.from}_id`)
+            ? link.from === schemaName
+              ? `${link.to}_id`
+              : `${link.from}_id`
             : `${target}_id`;
           // Extract ID from expanded object or use raw value
-          const refValue = typeof value === "object" && value !== null && "id" in value
-            ? (value as { id: string }).id
-            : value;
+          const refValue =
+            typeof value === "object" && value !== null && "id" in value
+              ? (value as { id: string }).id
+              : value;
           // Only send if the value is not empty
           if (refValue != null && refValue !== "") {
             input[fkKey] = refValue;
@@ -306,7 +363,7 @@ export function SchemaFormPage() {
     return input;
   }
 
-  async function handleSubmit(data: Record<string, unknown>) {
+  async function handleSubmit(data: Record<string, unknown>): Promise<undefined> {
     if (!schemaName) return;
     setSaving(true);
     const mutationInput = prepareMutationInput(data);
@@ -350,7 +407,12 @@ export function SchemaFormPage() {
       // If it's a transition action, use transitionRecord instead of executeAction
       const transition = availableTransitions.find((tr) => tr.action === actionName);
       if (transition) {
-        const updated = await transitionRecord(schemaName!, params.id, transition.to, recordFields);
+        const updated = await transitionRecord(
+          schemaName ?? "",
+          params.id,
+          transition.to,
+          recordFields,
+        );
         toast.success(t("toast.transitionSuccess", "Status changed successfully"));
         setRecord(updated as Record<string, unknown>);
         await refetchTransitions();
@@ -376,7 +438,7 @@ export function SchemaFormPage() {
           recordId: params.id,
         });
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("toast.actionFailed", "Action failed"));
       pushNotification({
         type: "action_failure",
@@ -395,7 +457,7 @@ export function SchemaFormPage() {
       await deleteRecord(schemaName, params.id);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
       navigate({ to: "/schemas/$name", params: { name: schemaName } });
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("toast.deleteFailed", "Failed to delete record"));
     } finally {
       setDeleting(false);
@@ -516,9 +578,7 @@ export function SchemaFormPage() {
       (l.cardinality === "one_to_many" && l.from === schemaName) ||
       (l.cardinality === "many_to_one" && l.to === schemaName),
   );
-  const otherLinks = allLinks.filter(
-    (l) => !one2manyLinks.includes(l),
-  );
+  const otherLinks = allLinks.filter((l) => !one2manyLinks.includes(l));
   const hasOtherLinks = otherLinks.length > 0;
 
   return (
@@ -531,110 +591,110 @@ export function SchemaFormPage() {
           </Button>
 
           <TooltipProvider delayDuration={300}>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {businessActions.map((a) => {
-              const { enabled, reason } = isActionEnabled(a.action);
-              const isDisabled = saving || !enabled;
-              const btn = (
-                <Button
-                  key={a.action}
-                  size="sm"
-                  variant={
-                    a.variant === "destructive"
-                      ? "destructive"
-                      : a.variant === "ghost"
-                        ? "ghost"
-                        : "default"
-                  }
-                  disabled={isDisabled}
-                  onClick={() => handleAction(a.action)}
-                >
-                  {resolveLabel(a.label, a.action)}
-                </Button>
-              );
-              if (isDisabled && reason) {
-                return (
-                  <Tooltip key={a.action}>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">{btn}</span>
-                    </TooltipTrigger>
-                    <TooltipContent>{reason}</TooltipContent>
-                  </Tooltip>
-                );
-              }
-              return btn;
-            })}
-
-            {!isCreate && !isEditing && businessActions.length > 0 && (
-              <Separator orientation="vertical" className="!self-auto h-5 mx-1 hidden md:block" />
-            )}
-
-            {!isCreate && !isEditing && !isInternal && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
-                  <Pencil className="mr-1.5 size-3.5" />
-                  {t("common.edit", "Edit")}
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="ghost" className="size-8 p-0">
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() =>
-                        navigate({
-                          to: "/schemas/$name/new",
-                          params: { name: schemaName },
-                          search: { clone: params.id },
-                        })
-                      }
-                    >
-                      <Copy className="mr-2 size-3.5" />
-                      {t("common.duplicate", "Duplicate")}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => setDeleteOpen(true)}
-                    >
-                      <Trash2 className="mr-2 size-3.5" />
-                      {t("common.delete", "Delete")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
-            {isEditing && (
-              <>
-                {aiEnabled && schema && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {businessActions.map((a) => {
+                const { enabled, reason } = isActionEnabled(a.action);
+                const isDisabled = saving || !enabled;
+                const btn = (
                   <Button
-                    variant="outline"
+                    key={a.action}
                     size="sm"
-                    type="button"
-                    disabled={saving || aiAutoFill.state.loading}
-                    onClick={() => aiAutoFill.requestSuggestions(formValuesRef.current)}
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                    variant={
+                      a.variant === "destructive"
+                        ? "destructive"
+                        : a.variant === "ghost"
+                          ? "ghost"
+                          : "default"
+                    }
+                    disabled={isDisabled}
+                    onClick={() => handleAction(a.action)}
                   >
-                    {aiAutoFill.state.loading ? (
-                      <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-1.5 size-3.5" />
-                    )}
-                    {t("ai.fill", "AI Fill")}
+                    {resolveLabel(a.label, a.action)}
                   </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
-                  {t("common.cancel", "Cancel")}
-                </Button>
-                <Button size="sm" type="submit" form="auto-form" disabled={saving}>
-                  {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-                  {t("common.save", "Save")}
-                </Button>
-              </>
-            )}
-          </div>
+                );
+                if (isDisabled && reason) {
+                  return (
+                    <Tooltip key={a.action}>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">{btn}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{reason}</TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                return btn;
+              })}
+
+              {!isCreate && !isEditing && businessActions.length > 0 && (
+                <Separator orientation="vertical" className="!self-auto h-5 mx-1 hidden md:block" />
+              )}
+
+              {!isCreate && !isEditing && !isInternal && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
+                    <Pencil className="mr-1.5 size-3.5" />
+                    {t("common.edit", "Edit")}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="ghost" className="size-8 p-0">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() =>
+                          navigate({
+                            to: "/schemas/$name/new",
+                            params: { name: schemaName },
+                            search: { clone: params.id },
+                          })
+                        }
+                      >
+                        <Copy className="mr-2 size-3.5" />
+                        {t("common.duplicate", "Duplicate")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteOpen(true)}
+                      >
+                        <Trash2 className="mr-2 size-3.5" />
+                        {t("common.delete", "Delete")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
+              {isEditing && (
+                <>
+                  {aiEnabled && schema && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      disabled={saving || aiAutoFill.state.loading}
+                      onClick={() => aiAutoFill.requestSuggestions(formValuesRef.current)}
+                      className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                    >
+                      {aiAutoFill.state.loading ? (
+                        <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="mr-1.5 size-3.5" />
+                      )}
+                      {t("ai.fill", "AI Fill")}
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
+                    {t("common.cancel", "Cancel")}
+                  </Button>
+                  <Button size="sm" type="submit" form="auto-form" disabled={saving}>
+                    {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                    {t("common.save", "Save")}
+                  </Button>
+                </>
+              )}
+            </div>
           </TooltipProvider>
         </div>
       </div>
@@ -655,7 +715,9 @@ export function SchemaFormPage() {
               <div className="mb-3 flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-800 dark:bg-blue-950/50 animate-in fade-in duration-200">
                 <span className="text-blue-700 dark:text-blue-300">
                   <Sparkles className="inline-block size-3.5 mr-1.5 -mt-0.5" />
-                  {t("ai.suggestionsAvailable", "{{count}} AI suggestion(s) available", { count: aiSuggestionCount })}
+                  {t("ai.suggestionsAvailable", "{{count}} AI suggestion(s) available", {
+                    count: aiSuggestionCount,
+                  })}
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
@@ -700,15 +762,20 @@ export function SchemaFormPage() {
               aiSuggestions={aiAutoFill.state.suggestions}
               onAiAccept={(fieldName) => aiAutoFill.acceptSuggestion(fieldName)}
               onAiReject={(fieldName) => aiAutoFill.rejectSuggestion(fieldName)}
-              onValuesChange={(values) => { formValuesRef.current = values; }}
-              registerSetField={(setter) => { autoFormSetFieldRef.current = setter; }}
+              onValuesChange={(values) => {
+                formValuesRef.current = values;
+              }}
+              registerSetField={(setter) => {
+                autoFormSetFieldRef.current = setter;
+              }}
             />
-
           </div>
 
           {/* Bottom tabs: relation tabs + other panels */}
           {!isCreate && params.id && (
-            <Tabs defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]!.name}` : "chatter"}>
+            <Tabs
+              defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]?.name}` : "chatter"}
+            >
               <TabsList variant="line">
                 {/* One_to_many relationship tabs */}
                 {one2manyLinks.map((link) => {
@@ -733,9 +800,7 @@ export function SchemaFormPage() {
                   {t("versionHistory.title", "Version History")}
                 </TabsTrigger>
                 {/* Chatter tab */}
-                <TabsTrigger value="chatter">
-                  {t("chatter.title", "Chatter")}
-                </TabsTrigger>
+                <TabsTrigger value="chatter">{t("chatter.title", "Chatter")}</TabsTrigger>
               </TabsList>
 
               {/* One_to_many tab content */}
@@ -743,7 +808,7 @@ export function SchemaFormPage() {
                 <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
                   <RelatedRecordsTab
                     parentSchema={schemaName}
-                    parentId={params.id!}
+                    parentId={params.id ?? ""}
                     link={link}
                   />
                 </TabsContent>
@@ -754,7 +819,7 @@ export function SchemaFormPage() {
                 <TabsContent value="related">
                   <RelatedRecordsPanel
                     schemaName={schemaName}
-                    recordId={params.id!}
+                    recordId={params.id ?? ""}
                     links={otherLinks}
                     bare
                   />
@@ -765,23 +830,22 @@ export function SchemaFormPage() {
               <TabsContent value="version-history">
                 <VersionHistoryPanel
                   schemaName={schemaName}
-                  recordId={params.id!}
+                  recordId={params.id ?? ""}
                   currentRecord={record}
                   fields={schema.fields}
                   recordFields={recordFields}
                   onRestore={() => {
                     fetchRecord();
-                    toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
+                    toast.success(
+                      t("versionHistory.restoreSuccess", "Record restored to selected version"),
+                    );
                   }}
                 />
               </TabsContent>
 
               {/* Chatter tab content */}
               <TabsContent value="chatter">
-                <ChatterPanel
-                  schemaName={schemaName}
-                  recordId={params.id!}
-                />
+                <ChatterPanel schemaName={schemaName} recordId={params.id ?? ""} />
               </TabsContent>
             </Tabs>
           )}
@@ -793,7 +857,10 @@ export function SchemaFormPage() {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={t("confirm.deleteTitle", "Delete record")}
-        description={t("confirm.deleteDescription", "Are you sure you want to delete this record? This action cannot be undone.")}
+        description={t(
+          "confirm.deleteDescription",
+          "Are you sure you want to delete this record? This action cannot be undone.",
+        )}
         onConfirm={executeDelete}
         loading={deleting}
       />

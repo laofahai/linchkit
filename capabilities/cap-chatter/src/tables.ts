@@ -5,6 +5,7 @@
  * other system tables (executions, events, approvals).
  */
 
+import { linchkitSchema } from "@linchkit/core/server";
 import {
   boolean,
   index,
@@ -15,7 +16,6 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { linchkitSchema } from "@linchkit/core/server";
 
 // ── Messages table ──────────────────────────────────────────
 

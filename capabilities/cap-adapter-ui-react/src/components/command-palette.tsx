@@ -88,17 +88,23 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
     return () => document.removeEventListener("keydown", down);
   }, [open, setOpen]);
 
-  const runCommand = useCallback((cb: () => void) => {
-    setOpen(false);
-    cb();
-  }, [setOpen]);
+  const runCommand = useCallback(
+    (cb: () => void) => {
+      setOpen(false);
+      cb();
+    },
+    [setOpen],
+  );
 
-  const navigate = useCallback((href: string) => {
-    runCommand(() => {
-      window.history.pushState({}, "", href);
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    });
-  }, [runCommand]);
+  const navigate = useCallback(
+    (href: string) => {
+      runCommand(() => {
+        window.history.pushState({}, "", href);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+    },
+    [runCommand],
+  );
 
   // Stable ref for navigate to avoid stale closure in handleAISearch
   const navigateRef = useRef(navigate);

@@ -291,7 +291,9 @@ async function executeAIStep(
 export function createSyncFlowEngine(
   stepContext: FlowStepContext,
   options?: {
-    eventBus?: EventBusLike & { emit?: (event: import("../types/event").EventRecord) => Promise<void> };
+    eventBus?: EventBusLike & {
+      emit?: (event: import("../types/event").EventRecord) => Promise<void>;
+    };
     flowRegistry?: FlowRegistry;
   },
 ): FlowEngine {

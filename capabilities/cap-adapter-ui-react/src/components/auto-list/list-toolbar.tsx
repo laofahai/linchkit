@@ -7,7 +7,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@linchkit/ui-kit/components";
-import { ChevronDown, Columns3, Download, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
+import {
+  ChevronDown,
+  Columns3,
+  Download,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
@@ -96,7 +106,14 @@ export function ListToolbar({
         schema={schema}
         globalFilter={globalFilter}
         onGlobalFilterChange={onGlobalFilterChange}
-        onClearAll={hasActiveFilters ? () => { onClearFilters(); onClearAISearch?.(); } : undefined}
+        onClearAll={
+          hasActiveFilters
+            ? () => {
+                onClearFilters();
+                onClearAISearch?.();
+              }
+            : undefined
+        }
         bazzaColumns={bazzaColumns}
         bazzaFilters={bazzaFilters}
         bazzaActions={bazzaActions}

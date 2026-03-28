@@ -1,2 +1,2 @@
-export { AutoKanban } from "./auto-kanban";
 export type { AutoKanbanProps } from "./auto-kanban";
+export { AutoKanban } from "./auto-kanban";

@@ -1,14 +1,14 @@
 export {
-  AlertEngine,
   type AlertCondition,
   type AlertEffect,
+  AlertEngine,
   type AlertEngineOptions,
   type AlertEvaluationResult,
   type AlertHandler,
   type AlertOperator,
   type AlertSeverity,
-  type SystemAlertDefinition,
   defineSystemAlert,
+  type SystemAlertDefinition,
 } from "./alert-engine";
 export { consoleLogger } from "./console-logger";
 export { InMemoryExecutionLogger } from "./execution-logger";
@@ -19,15 +19,15 @@ export {
   type MetricsSummary,
   noopMetricsCollector,
 } from "./metrics";
+export { createPinoLogger, type PinoLoggerOptions } from "./pino-logger";
 export {
   createStructuredLogger,
+  createTestLogSink,
   type LogLevel,
   type LogSink,
   type StructuredLogEntry,
   type StructuredLoggerOptions,
-  createTestLogSink,
 } from "./structured-logger";
-export { createPinoLogger, type PinoLoggerOptions } from "./pino-logger";
 export {
   getCurrentTrace,
   getTraceDepth,

@@ -7,15 +7,19 @@
  */
 
 import type { StateDefinition, StateMeta } from "@linchkit/core/types";
-import { Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, toast } from "@linchkit/ui-kit/components";
+import {
+  Badge,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  toast,
+} from "@linchkit/ui-kit/components";
 import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  type AvailableTransition,
-  queryAvailableTransitions,
-  transitionRecord,
-} from "../lib/api";
+import { type AvailableTransition, queryAvailableTransitions, transitionRecord } from "../lib/api";
 
 interface TransitionButtonsProps {
   schemaName: string;
@@ -89,7 +93,7 @@ export function TransitionButtons({
       onTransitioned?.(updated as Record<string, unknown>);
       // Refresh available transitions after successful transition
       await fetchTransitions();
-    } catch (err) {
+    } catch (_err) {
       toast.error(t("toast.transitionFailed", "Status change failed"));
     } finally {
       setTransitioning(null);

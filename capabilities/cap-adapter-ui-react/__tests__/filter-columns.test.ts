@@ -96,10 +96,7 @@ describe("extractOptions logic", () => {
   test("enum field falls back to value when label is missing", () => {
     const fieldDef = {
       type: "enum" as const,
-      options: [
-        { value: "active" },
-        { value: "inactive" },
-      ],
+      options: [{ value: "active" }, { value: "inactive" }],
     };
 
     const options = fieldDef.options.map((o: { value: string; label?: string }) => ({

@@ -29,8 +29,8 @@ import type {
   SubscriptionConfig,
   ViewDefinition,
 } from "@linchkit/core";
-import { createTenantAwareDataProvider } from "@linchkit/core/server";
 import type { HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
+import { createTenantAwareDataProvider } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
@@ -69,7 +69,10 @@ export interface ServerOptions {
    * tenant can be extracted from verified claims instead of raw JWT.
    * Return undefined for no tenant filtering (e.g., admin/system users).
    */
-  resolveRequestTenantId?: (request: Request, actor?: Actor) => Promise<string | undefined> | string | undefined;
+  resolveRequestTenantId?: (
+    request: Request,
+    actor?: Actor,
+  ) => Promise<string | undefined> | string | undefined;
   /**
    * Resolve the authenticated actor from a request.
    * Called on each GraphQL and REST request to extract the actor context.
@@ -158,16 +161,27 @@ export function createServer(
       const actor = resolveRequestActor
         ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
         : ANONYMOUS_ACTOR;
-      const tenantId = resolveRequestTenantId ? await resolveRequestTenantId(request, actor) : undefined;
+      const tenantId = resolveRequestTenantId
+        ? await resolveRequestTenantId(request, actor)
+        : undefined;
       const locale = resolveRequestLocale(request);
       // Wrap DataProvider with tenant isolation for this request so all GraphQL
       // resolvers (get, list, link traversal) enforce row-level tenant scoping.
-      const scopedProvider = tenantId && dataProvider
-        ? createTenantAwareDataProvider(dataProvider, tenantId)
-        : dataProvider;
+      const scopedProvider =
+        tenantId && dataProvider
+          ? createTenantAwareDataProvider(dataProvider, tenantId)
+          : dataProvider;
       // Create per-request DataLoaders for batched link resolution (avoids N+1)
       const linkLoaders = scopedProvider ? createLinkDataLoaders(scopedProvider) : undefined;
-      return { actor, tenantId, locale, dataProvider: scopedProvider, permissionGroups, schemaMap, linkLoaders };
+      return {
+        actor,
+        tenantId,
+        locale,
+        dataProvider: scopedProvider,
+        permissionGroups,
+        schemaMap,
+        linkLoaders,
+      };
     },
   });
 
@@ -181,13 +195,12 @@ export function createServer(
           ? corsOption
           : ["http://localhost:3000", "http://localhost:3001"];
 
-  const app = new Elysia()
-    .use(
-      cors({
-        origin: corsOrigin === false ? [] : corsOrigin,
-        credentials: false,
-      }),
-    );
+  const app = new Elysia().use(
+    cors({
+      origin: corsOrigin === false ? [] : corsOrigin,
+      credentials: false,
+    }),
+  );
 
   // Ensure options is defined for route modules (they expect non-optional parameter)
   const opts = options ?? {};

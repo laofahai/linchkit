@@ -7,8 +7,8 @@
  */
 
 import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
-import { PatternDetector, createProposalEngine } from "@linchkit/core/server";
 import type { PatternInsight } from "@linchkit/core/server";
+import { createProposalEngine, PatternDetector } from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -113,9 +113,7 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
         // Deduplicate by pattern type + schema via change name (pattern.id encodes type+schema),
         // instead of fragile exact title string matching
         const alreadyProposed = existing.some(
-          (p) =>
-            p.capability === pattern.schema &&
-            p.changes.some((c) => c.name === pattern.id),
+          (p) => p.capability === pattern.schema && p.changes.some((c) => c.name === pattern.id),
         );
         if (!alreadyProposed) {
           proposalEngine.createProposal({
@@ -174,13 +172,15 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
     const proposals = proposalEngine.listProposals(filter);
     // Sort by creation date descending (newest first)
-    proposals.sort((a: ProposalDefinition, b: ProposalDefinition) =>
-      b.createdAt.getTime() - a.createdAt.getTime(),
+    proposals.sort(
+      (a: ProposalDefinition, b: ProposalDefinition) =>
+        b.createdAt.getTime() - a.createdAt.getTime(),
     );
 
     // Count pending proposals for badge
-    const pendingCount = proposalEngine.listProposals({ status: "draft" }).length
-      + proposalEngine.listProposals({ status: "validated" }).length;
+    const pendingCount =
+      proposalEngine.listProposals({ status: "draft" }).length +
+      proposalEngine.listProposals({ status: "validated" }).length;
 
     return {
       success: true,
@@ -192,71 +192,89 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
     };
   });
 
-  app.get("/api/proposals/:id", ({ params, set }: { params: { id: string }; set: { status: number } }) => {
-    try {
-      const proposal = proposalEngine.getProposal(params.id);
-      return { success: true, data: serializeProposal(proposal) };
-    } catch {
-      // Proposal not found or engine error — return 404
-      set.status = 404;
-      return { success: false, error: { message: `Proposal "${params.id}" not found.` } };
-    }
-  });
-
-  app.post("/api/proposals/:id/approve", ({ params, set }: { params: { id: string }; set: { status: number } }) => {
-    try {
-      const proposal = proposalEngine.getProposal(params.id);
-
-      // If draft, auto-submit first
-      if (proposal.status === "draft") {
-        proposalEngine.submitProposal({ proposalId: params.id });
+  app.get(
+    "/api/proposals/:id",
+    ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+      try {
+        const proposal = proposalEngine.getProposal(params.id);
+        return { success: true, data: serializeProposal(proposal) };
+      } catch {
+        // Proposal not found or engine error — return 404
+        set.status = 404;
+        return { success: false, error: { message: `Proposal "${params.id}" not found.` } };
       }
+    },
+  );
 
-      // Re-fetch to check validation result
-      const refreshed = proposalEngine.getProposal(params.id);
-      if (refreshed.status !== "validated") {
+  app.post(
+    "/api/proposals/:id/approve",
+    ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+      try {
+        const proposal = proposalEngine.getProposal(params.id);
+
+        // If draft, auto-submit first
+        if (proposal.status === "draft") {
+          proposalEngine.submitProposal({ proposalId: params.id });
+        }
+
+        // Re-fetch to check validation result
+        const refreshed = proposalEngine.getProposal(params.id);
+        if (refreshed.status !== "validated") {
+          set.status = 422;
+          return {
+            success: false,
+            error: { message: "Proposal validation failed. Cannot approve." },
+            data: refreshed.validationResult,
+          };
+        }
+
+        const approved = proposalEngine.approveProposal({
+          proposalId: params.id,
+          approvedBy: { type: "human", id: "admin" },
+        });
+        return { success: true, data: serializeProposal(approved) };
+      } catch (err) {
         set.status = 422;
         return {
           success: false,
-          error: { message: "Proposal validation failed. Cannot approve." },
-          data: refreshed.validationResult,
+          error: { message: err instanceof Error ? err.message : String(err) },
         };
       }
+    },
+  );
 
-      const approved = proposalEngine.approveProposal({
-        proposalId: params.id,
-        approvedBy: { type: "human", id: "admin" },
-      });
-      return { success: true, data: serializeProposal(approved) };
-    } catch (err) {
-      set.status = 422;
-      return { success: false, error: { message: err instanceof Error ? err.message : String(err) } };
-    }
-  });
+  app.post(
+    "/api/proposals/:id/reject",
+    ({ params, body, set }: { params: { id: string }; body: unknown; set: { status: number } }) => {
+      try {
+        const proposal = proposalEngine.getProposal(params.id);
 
-  app.post("/api/proposals/:id/reject", ({ params, body, set }: { params: { id: string }; body: unknown; set: { status: number } }) => {
-    try {
-      const proposal = proposalEngine.getProposal(params.id);
+        // If draft, auto-submit first
+        if (proposal.status === "draft") {
+          proposalEngine.submitProposal({ proposalId: params.id });
+        }
 
-      // If draft, auto-submit first
-      if (proposal.status === "draft") {
-        proposalEngine.submitProposal({ proposalId: params.id });
-      }
+        const refreshed = proposalEngine.getProposal(params.id);
+        if (refreshed.status !== "validated") {
+          set.status = 422;
+          return {
+            success: false,
+            error: { message: "Proposal validation failed. Cannot reject." },
+          };
+        }
 
-      const refreshed = proposalEngine.getProposal(params.id);
-      if (refreshed.status !== "validated") {
+        const reason = (body as Record<string, string>)?.reason ?? "Rejected by user";
+        const rejected = proposalEngine.rejectProposal({ proposalId: params.id, reason });
+        return { success: true, data: serializeProposal(rejected) };
+      } catch (err) {
         set.status = 422;
-        return { success: false, error: { message: "Proposal validation failed. Cannot reject." } };
+        return {
+          success: false,
+          error: { message: err instanceof Error ? err.message : String(err) },
+        };
       }
-
-      const reason = (body as Record<string, string>)?.reason ?? "Rejected by user";
-      const rejected = proposalEngine.rejectProposal({ proposalId: params.id, reason });
-      return { success: true, data: serializeProposal(rejected) };
-    } catch (err) {
-      set.status = 422;
-      return { success: false, error: { message: err instanceof Error ? err.message : String(err) } };
-    }
-  });
+    },
+  );
 
   // ── AI Insights ────────────────────────────────────────
 
@@ -302,8 +320,9 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
   // ── Pending count (for sidebar badge) ──────────────────
 
   app.get("/api/proposals/pending-count", () => {
-    const pendingCount = proposalEngine.listProposals({ status: "draft" }).length
-      + proposalEngine.listProposals({ status: "validated" }).length;
+    const pendingCount =
+      proposalEngine.listProposals({ status: "draft" }).length +
+      proposalEngine.listProposals({ status: "validated" }).length;
     return { success: true, data: { count: pendingCount } };
   });
 }

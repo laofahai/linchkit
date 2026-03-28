@@ -12,9 +12,9 @@ import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
+  InMemoryStore,
   SchemaRegistry,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 

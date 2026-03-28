@@ -63,7 +63,7 @@ export class TenantOverrideStore {
       if (!typeMap.has(row.targetType)) {
         typeMap.set(row.targetType, new Map());
       }
-      typeMap.get(row.targetType)!.set(row.targetName, {
+      typeMap.get(row.targetType)?.set(row.targetName, {
         id: row.id,
         tenantId: row.tenantId,
         targetType: row.targetType as OverrideTargetType,
@@ -128,7 +128,8 @@ export class TenantOverrideStore {
       )
       .limit(1);
 
-    if (existing.length > 0) {
+    const existingItem = existing[0];
+    if (existingItem) {
       // Update existing
       const [updated] = await this.db
         .update(tenantOverridesTable)
@@ -137,12 +138,13 @@ export class TenantOverrideStore {
           updatedBy: override.updatedBy ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(tenantOverridesTable.id, existing[0].id))
+        .where(eq(tenantOverridesTable.id, existingItem.id))
         .returning();
 
       // Invalidate cache for this tenant
       this.cache.delete(override.tenantId);
 
+      if (!updated) throw new Error("Update returned no rows");
       return {
         ...updated,
         targetType: updated.targetType as OverrideTargetType,
@@ -166,6 +168,7 @@ export class TenantOverrideStore {
     // Invalidate cache for this tenant
     this.cache.delete(override.tenantId);
 
+    if (!inserted) throw new Error("Insert returned no rows");
     return {
       ...inserted,
       targetType: inserted.targetType as OverrideTargetType,

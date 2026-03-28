@@ -63,7 +63,10 @@ export function generateCrudActions(
       if (derivedEngine) {
         try {
           // Use async version to support aggregate computations
-          const derivedValues = await derivedEngine.computeStoreFieldsAsync(name, inputWithDefaults);
+          const derivedValues = await derivedEngine.computeStoreFieldsAsync(
+            name,
+            inputWithDefaults,
+          );
           Object.assign(inputWithDefaults, derivedValues);
         } catch (err) {
           throw new Error(
@@ -78,7 +81,7 @@ export function generateCrudActions(
         ...result,
       });
       // Cascade recalculate parent aggregate fields if this child schema affects any
-      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+      if (derivedEngine?.hasCascadeTargets(name)) {
         try {
           await derivedEngine.cascadeRecalculate(name, result);
         } catch {
@@ -159,7 +162,7 @@ export function generateCrudActions(
       });
 
       // Cascade recalculate parent aggregate fields if this child schema affects any
-      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+      if (derivedEngine?.hasCascadeTargets(name)) {
         try {
           await derivedEngine.cascadeRecalculate(name, result);
         } catch {
@@ -181,7 +184,7 @@ export function generateCrudActions(
       const id = ctx.input.id as string;
       // Capture the record before deletion for cascade recalculation
       let deletedRecord: Record<string, unknown> | undefined;
-      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+      if (derivedEngine?.hasCascadeTargets(name)) {
         try {
           deletedRecord = await ctx.get(name, id);
         } catch {
@@ -227,7 +230,7 @@ export function generateCrudActions(
       // Clear deleted_at to restore the record
       const result = await ctx.update(name, id, { deleted_at: null });
       // Cascade recalculate parent aggregate fields after restore
-      if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
+      if (derivedEngine?.hasCascadeTargets(name)) {
         try {
           await derivedEngine.cascadeRecalculate(name, result);
         } catch {

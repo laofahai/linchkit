@@ -24,8 +24,12 @@ export type {
   ModelPricing,
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
-export type { AutomationEngine, AutomationRegistry } from "./automation";
-export type { WatcherEngine, WatcherRegistry } from "./automation";
+export type {
+  AutomationEngine,
+  AutomationRegistry,
+  WatcherEngine,
+  WatcherRegistry,
+} from "./automation";
 // Cache — type exports (browser-safe)
 export type {
   CacheEntry,
@@ -37,45 +41,37 @@ export type {
   NamespacedCache,
 } from "./cache";
 // Capability Hub — discovery and dependency management
+// Capability extension resolver — bridge override resolution
+// Capability local registry — file-based capability tracking
 export type {
+  ActionOverrideEntry,
   CapabilityDependency,
   CapabilityManifest,
   CapabilityProvides,
   CapabilityRequires,
   CapabilitySearchOptions,
   CompatibilityIssue,
-  ValidationResult,
-} from "./capability";
-export {
-  CapabilityHub,
-  CapabilityHubError,
-  createCapabilityHub,
-  satisfiesVersionRange,
-} from "./capability";
-// Capability extension resolver — bridge override resolution
-export type {
-  ActionOverrideEntry,
   ExtensionResolver,
+  RegistryEntry,
+  RegistrySearchOptions,
   ResolutionConflict,
   RuleOverrideEntry,
   SchemaExtensionEntry,
   SchemaOverrideEntry,
+  TrustLevel,
+  ValidationResult,
 } from "./capability";
 export {
   buildActionChain,
-  createExtensionResolver,
-} from "./capability";
-// Capability local registry — file-based capability tracking
-export type {
-  RegistryEntry,
-  RegistrySearchOptions,
-  TrustLevel,
-} from "./capability";
-export {
-  LocalCapabilityRegistry,
+  CapabilityHub,
+  CapabilityHubError,
   checkTrustPermissions,
+  createCapabilityHub,
+  createExtensionResolver,
   createLocalRegistry,
   filterSchemaByCapabilities,
+  LocalCapabilityRegistry,
+  satisfiesVersionRange,
 } from "./capability";
 // Config center
 export type { ConfigSchemaRef } from "./config";
@@ -148,14 +144,6 @@ export {
   evaluateCondition,
   resolveField,
 } from "./engine/condition-evaluator";
-// Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
-export {
-  type Overridable,
-  applyOverride,
-  deepMerge,
-  resolveOverrides,
-  resolveRuleOverride,
-} from "./runtime/override-resolver";
 export type { PermissionRegistry } from "./engine/permission-engine";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
@@ -194,7 +182,12 @@ export type {
   SystemAlertDefinition,
 } from "./observability/alert-engine";
 export type { MetricSnapshot, MetricsCollector, MetricsSummary } from "./observability/metrics";
-export type { LogLevel, LogSink, StructuredLogEntry, StructuredLoggerOptions } from "./observability/structured-logger";
+export type {
+  LogLevel,
+  LogSink,
+  StructuredLogEntry,
+  StructuredLoggerOptions,
+} from "./observability/structured-logger";
 export type { TraceState } from "./observability/trace-context";
 export type {
   OntologyRegistry,
@@ -202,6 +195,14 @@ export type {
   RelationDescriptor,
   SchemaDescriptor,
 } from "./ontology";
+// Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
+export {
+  applyOverride,
+  deepMerge,
+  type Overridable,
+  resolveOverrides,
+  resolveRuleOverride,
+} from "./runtime/override-resolver";
 export {
   type AggregateDerived,
   type CascadeTarget,

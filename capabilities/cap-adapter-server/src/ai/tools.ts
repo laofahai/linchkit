@@ -108,7 +108,9 @@ export function buildTools(ctx: ToolContext) {
         "This respects all permission and validation rules. " +
         "Use this when the user wants to create, update, delete records or perform business operations.",
       inputSchema: z.object({
-        action: z.string().describe("The action name to execute (e.g. 'create_product', 'approve_order')"),
+        action: z
+          .string()
+          .describe("The action name to execute (e.g. 'create_product', 'approve_order')"),
         input: z
           .record(z.string(), z.unknown())
           .describe("The action input data as key-value pairs"),
@@ -248,7 +250,9 @@ export function buildTools(ctx: ToolContext) {
       "Use this when the user wants to view a list, form, or specific record. " +
       "The result will be rendered as a clickable link in the chat.",
     inputSchema: z.object({
-      path: z.string().describe("The application path (e.g. '/schemas/product', '/schemas/order/abc-123')"),
+      path: z
+        .string()
+        .describe("The application path (e.g. '/schemas/product', '/schemas/order/abc-123')"),
       label: z.string().describe("A human-readable label for the navigation link"),
     }),
     // No execute — this is a client-side tool rendered by the UI

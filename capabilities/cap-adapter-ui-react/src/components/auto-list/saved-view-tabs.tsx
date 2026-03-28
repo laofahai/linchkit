@@ -166,7 +166,11 @@ export function SavedViewTabs({
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p>{hasActiveFilters ? t("viewTabs.saveView", "Save current filters as view") : t("viewTabs.noFilters", "Apply filters first to save a view")}</p>
+            <p>
+              {hasActiveFilters
+                ? t("viewTabs.saveView", "Save current filters as view")
+                : t("viewTabs.noFilters", "Apply filters first to save a view")}
+            </p>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -177,7 +181,10 @@ export function SavedViewTabs({
           <DialogHeader>
             <DialogTitle>{t("viewTabs.saveViewTitle", "Save View")}</DialogTitle>
             <DialogDescription>
-              {t("viewTabs.saveViewDesc", "Save the current filters as a named view for quick access.")}
+              {t(
+                "viewTabs.saveViewDesc",
+                "Save the current filters as a named view for quick access.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
@@ -194,7 +201,9 @@ export function SavedViewTabs({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" size="sm">{t("common.cancel", "Cancel")}</Button>
+              <Button variant="outline" size="sm">
+                {t("common.cancel", "Cancel")}
+              </Button>
             </DialogClose>
             <Button size="sm" disabled={!viewName.trim()} onClick={handleSave}>
               {t("common.save", "Save")}
@@ -222,7 +231,9 @@ export function SavedViewTabs({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" size="sm">{t("common.cancel", "Cancel")}</Button>
+              <Button variant="outline" size="sm">
+                {t("common.cancel", "Cancel")}
+              </Button>
             </DialogClose>
             <Button size="sm" disabled={!viewName.trim()} onClick={handleRename}>
               {t("common.save", "Save")}

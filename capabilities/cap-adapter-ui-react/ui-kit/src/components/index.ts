@@ -107,7 +107,6 @@ export {
   SelectValue,
 } from "./select";
 export { Separator } from "./separator";
-export { Toaster, toast } from "./sonner";
 export {
   Sheet,
   SheetClose,
@@ -146,6 +145,7 @@ export {
 } from "./sidebar";
 export { Skeleton } from "./skeleton";
 export { Slider } from "./slider";
+export { Toaster, toast } from "./sonner";
 export { Switch } from "./switch";
 export {
   Table,

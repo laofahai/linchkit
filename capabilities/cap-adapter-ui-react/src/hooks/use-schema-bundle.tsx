@@ -5,7 +5,12 @@
  * Once a schema is loaded, subsequent navigations serve from cache.
  */
 
-import type { LinkDefinition, SchemaDefinition, StateDefinition, ViewDefinition } from "@linchkit/core/types";
+import type {
+  LinkDefinition,
+  SchemaDefinition,
+  StateDefinition,
+  ViewDefinition,
+} from "@linchkit/core/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { fetchSchemaBundle } from "@/lib/api";
 

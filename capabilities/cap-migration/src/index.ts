@@ -23,27 +23,6 @@ export {
   isCompatible,
   parseSemVer,
 } from "./compatibility";
-
-// ── Schema migration transforms ────────────────────────────
-export type {
-  MigrationTransform,
-  SchemaMigration,
-  MigrationResult as SchemaMigrationResult,
-} from "./schema-migration";
-export { applyMigration, MigrationRegistry, validateUpgrade } from "./schema-migration";
-
-// ── Version registry ───────────────────────────────────────
-export type {
-  CompatibilityCheckResult,
-  VersionEntry,
-  VersionedEntityType,
-  VersionQuery,
-} from "./version-registry";
-export { createVersionRegistry, VersionRegistry } from "./version-registry";
-
-// ── Drizzle DB migration runner ────────────────────────────
-export { type MigrateOptions, runMigrations } from "./db-migrate";
-
 // ── Legacy data import utilities ───────────────────────────
 export {
   CSVImportSource,
@@ -58,6 +37,8 @@ export {
   JSONImportSource,
   type JSONImportSourceOptions,
 } from "./data-importer";
+// ── Drizzle DB migration runner ────────────────────────────
+export { type MigrateOptions, runMigrations } from "./db-migrate";
 export {
   type MigrationPlan,
   type MigrationResult,
@@ -72,3 +53,18 @@ export {
   type MappingValidationResult,
   SchemaMapper,
 } from "./schema-mapper";
+// ── Schema migration transforms ────────────────────────────
+export type {
+  MigrationResult as SchemaMigrationResult,
+  MigrationTransform,
+  SchemaMigration,
+} from "./schema-migration";
+export { applyMigration, MigrationRegistry, validateUpgrade } from "./schema-migration";
+// ── Version registry ───────────────────────────────────────
+export type {
+  CompatibilityCheckResult,
+  VersionEntry,
+  VersionedEntityType,
+  VersionQuery,
+} from "./version-registry";
+export { createVersionRegistry, VersionRegistry } from "./version-registry";

@@ -6,10 +6,9 @@
 
 export const VERSION = "0.0.1";
 
-export { capAdapterServer } from "./capability";
-
 export type { FindManyOptions } from "@linchkit/core/server";
 export { InMemoryStore } from "@linchkit/core/server";
+export { capAdapterServer } from "./capability";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";
 export type {
   BuildGraphQLSchemaOptions,
@@ -23,12 +22,12 @@ export {
   createEventBusPubSub,
 } from "./graphql/build-subscriptions";
 export type { RuntimeContext, RuntimeContextOptions } from "./runtime-context";
-export {
-  SubscriptionManager,
-  formatSSEEvent,
-  parseSubscriptionQuery,
-} from "./subscription-manager";
-export type { SubscriptionEvent, SubscriptionFilter } from "./subscription-manager";
 export { createRuntimeContext } from "./runtime-context";
 export type { ServerOptions } from "./server";
 export { createServer } from "./server";
+export type { SubscriptionEvent, SubscriptionFilter } from "./subscription-manager";
+export {
+  formatSSEEvent,
+  parseSubscriptionQuery,
+  SubscriptionManager,
+} from "./subscription-manager";

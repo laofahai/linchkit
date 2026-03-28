@@ -71,7 +71,6 @@ export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   return <span className="text-muted-foreground">--</span>;
 }
 
-
 export function ManyToManyInput({
   value,
   onChange,
@@ -196,12 +195,16 @@ export function ManyToManyInput({
             )}
             onBlur={onBlur}
           >
-            {isLoading ? t("common.loading", "Loading...") : t("common.selectTarget", "Select {{target}}...", { target: targetBundle?.schema.label ?? targetSchema })}
+            {isLoading
+              ? t("common.loading", "Loading...")
+              : t("common.selectTarget", "Select {{target}}...", {
+                  target: targetBundle?.schema.label ?? targetSchema,
+                })}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
           <Command>
-            <CommandInput placeholder={t("common.search", "Search") + "..."} />
+            <CommandInput placeholder={`${t("common.search", "Search")}...`} />
             <CommandList>
               <CommandEmpty>{t("commandPalette.noResults", "No results found.")}</CommandEmpty>
               <CommandGroup>

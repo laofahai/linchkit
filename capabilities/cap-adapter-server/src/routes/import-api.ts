@@ -8,10 +8,7 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import { resolveActor, resolveRequestLocale } from "./shared";
 
-export function mountImportRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountImportRoutes(app: Elysia, options: ServerOptions): void {
   const executor = options.executor;
   const commandLayer = options.commandLayer;
   const schemaRegistry = options.schemaRegistry;
@@ -60,16 +57,19 @@ export function mountImportRoutes(
           const lines = content.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
           if (lines.length < 2) {
             set.status = 400;
-            return { success: false, error: { message: "CSV file must have a header row and at least one data row." } };
+            return {
+              success: false,
+              error: { message: "CSV file must have a header row and at least one data row." },
+            };
           }
-          const headerLine = lines[0]!;
+          const headerLine = lines[0] ?? "";
           const headers = headerLine.split(",").map((h: string) => h.trim());
           records = [];
           for (let i = 1; i < lines.length; i++) {
-            const values = lines[i]!.split(",");
+            const values = lines[i]?.split(",");
             const record: Record<string, unknown> = {};
             for (let j = 0; j < headers.length; j++) {
-              record[headers[j]!] = values[j]?.trim() ?? "";
+              record[headers[j] ?? ""] = values?.[j]?.trim() ?? "";
             }
             records.push(record);
           }
@@ -86,7 +86,7 @@ export function mountImportRoutes(
 
         for (let i = 0; i < records.length; i++) {
           try {
-            const input = records[i]!;
+            const input = records[i] ?? {};
             if (commandLayer) {
               const result = await commandLayer.execute({
                 command: createActionName,

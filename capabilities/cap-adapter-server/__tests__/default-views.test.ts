@@ -92,9 +92,7 @@ describe("generateDefaultViews", () => {
       { field: "description" },
       { field: "priority" },
     ]);
-    expect(list.actions).toEqual([
-      { action: "create_task", label: "Create", variant: "default" },
-    ]);
+    expect(list.actions).toEqual([{ action: "create_task", label: "Create", variant: "default" }]);
   });
 
   test("form view has correct structure", () => {
@@ -122,7 +120,12 @@ describe("generateDefaultViews", () => {
 
     expect(list.fields).toHaveLength(6);
     expect(list.fields.map((f) => f.field)).toEqual([
-      "name", "sku", "price", "category", "brand", "color",
+      "name",
+      "sku",
+      "price",
+      "category",
+      "brand",
+      "color",
     ]);
   });
 
@@ -132,7 +135,14 @@ describe("generateDefaultViews", () => {
 
     expect(form.fields).toHaveLength(8);
     expect(form.fields.map((f) => f.field)).toEqual([
-      "name", "sku", "price", "category", "brand", "color", "weight", "stock",
+      "name",
+      "sku",
+      "price",
+      "category",
+      "brand",
+      "color",
+      "weight",
+      "stock",
     ]);
   });
 
@@ -142,7 +152,12 @@ describe("generateDefaultViews", () => {
 
     // summaryFields are used first, then padded with remaining
     expect(list.fields.map((f) => f.field)).toEqual([
-      "order_number", "customer", "total", "status", "notes", "shipping_address",
+      "order_number",
+      "customer",
+      "total",
+      "status",
+      "notes",
+      "shipping_address",
     ]);
   });
 
@@ -151,7 +166,16 @@ describe("generateDefaultViews", () => {
     const list = views.item_list_default;
     const form = views.item_form_default;
 
-    const systemNames = ["id", "tenant_id", "created_at", "updated_at", "created_by", "updated_by", "_version", "is_deleted"];
+    const systemNames = [
+      "id",
+      "tenant_id",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by",
+      "_version",
+      "is_deleted",
+    ];
 
     for (const view of [list, form]) {
       for (const f of view.fields) {

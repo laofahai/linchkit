@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, OntologyRegistry, SchemaDefinition } from "@linchkit/core";
 import type { SchemaDescriptor } from "@linchkit/core/server";
-import { buildSystemPrompt, type SystemPromptContext } from "../src/ai/system-prompt";
+import { buildSystemPrompt } from "../src/ai/system-prompt";
 
 // ── Mock factories ──────────────────────────────────────
 
@@ -41,11 +41,26 @@ const productDescriptor: SchemaDescriptor = {
     category: { type: "enum", label: "Category" },
   },
   relations: [
-    { linkName: "product_orders", label: "Orders", targetSchema: "order", cardinality: "one_to_many" as const },
+    {
+      linkName: "product_orders",
+      label: "Orders",
+      targetSchema: "order",
+      cardinality: "one_to_many" as const,
+    },
   ],
   actions: [
-    { name: "create_product", label: "Create Product", schema: "product", policy: "unrestricted" } as ActionDefinition,
-    { name: "update_price", label: "Update Price", schema: "product", policy: "unrestricted" } as ActionDefinition,
+    {
+      name: "create_product",
+      label: "Create Product",
+      schema: "product",
+      policy: "unrestricted",
+    } as ActionDefinition,
+    {
+      name: "update_price",
+      label: "Update Price",
+      schema: "product",
+      policy: "unrestricted",
+    } as ActionDefinition,
   ],
   rules: [],
   states: {
@@ -57,6 +72,7 @@ const productDescriptor: SchemaDescriptor = {
       archived: { label: "Archived" },
     },
     transitions: [],
+    // biome-ignore lint/suspicious/noExplicitAny: test mock partial descriptor
   } as any,
   views: [],
   flows: [],
@@ -151,6 +167,7 @@ describe("buildSystemPrompt — current schema context", () => {
       },
     ]);
     const prompt = buildSystemPrompt({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock registry
       schemaRegistry: sr as any,
       context: { schema: "product" },
     });

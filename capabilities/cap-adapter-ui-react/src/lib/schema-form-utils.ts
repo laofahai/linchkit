@@ -100,17 +100,25 @@ export function getPrimaryView<TView extends { type: string }>(
 
 /** System-managed fields to exclude from auto-generated form views */
 const SYSTEM_FIELDS = new Set([
-  "id", "tenant_id", "created_at", "updated_at",
-  "created_by", "updated_by", "_version", "is_deleted",
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+  "is_deleted",
 ]);
 
 /** Field types that benefit from full-width display (single column) */
 const WIDE_FIELD_TYPES = new Set(["text", "json", "html", "richtext"]);
 
 /** Generate a minimal form view from schema fields when no explicit form view is defined */
-export function generateFallbackFormView(
-  schema: { name: string; label?: string; fields: Record<string, { label?: string; type?: string }> },
-): ViewDefinition {
+export function generateFallbackFormView(schema: {
+  name: string;
+  label?: string;
+  fields: Record<string, { label?: string; type?: string }>;
+}): ViewDefinition {
   const fieldNames = Object.keys(schema.fields).filter((f) => !SYSTEM_FIELDS.has(f));
 
   const fields = fieldNames.map((field) => ({
@@ -166,5 +174,12 @@ export function generateFallbackFormView(
 
 /** Fields to strip when cloning a record */
 export const CLONE_STRIP_FIELDS = new Set([
-  "id", "created_at", "updated_at", "created_by", "updated_by", "_version", "tenant_id", "is_deleted",
+  "id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+  "tenant_id",
+  "is_deleted",
 ]);

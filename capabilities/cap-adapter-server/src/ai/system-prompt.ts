@@ -8,11 +8,7 @@
  * 4. Available schemas overview
  */
 
-import type {
-  AIAssistantConfig,
-  OntologyRegistry,
-  SchemaRegistry,
-} from "@linchkit/core";
+import type { AIAssistantConfig, OntologyRegistry, SchemaRegistry } from "@linchkit/core";
 
 export interface SystemPromptContext {
   /** Current schema name the user is viewing */

@@ -10,6 +10,7 @@
  *   // Merge chatterFields.queryFields into your Query type fields
  */
 
+import type { GraphQLFieldConfig, GraphQLResolveInfo } from "graphql";
 import {
   GraphQLBoolean,
   GraphQLInt,
@@ -18,7 +19,6 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import type { GraphQLFieldConfig, GraphQLResolveInfo } from "graphql";
 import type { ChatterService } from "./types";
 
 // ── Shared GraphQL types ────────────────────────────────────
@@ -82,7 +82,10 @@ export function buildChatterGraphQLExtension(
     args: {
       schemaName: { type: new GraphQLNonNull(GraphQLString) },
       recordId: { type: new GraphQLNonNull(GraphQLString) },
-      messageType: { type: GraphQLString, description: "Filter by type: comment | note | log | ai" },
+      messageType: {
+        type: GraphQLString,
+        description: "Filter by type: comment | note | log | ai",
+      },
       limit: { type: GraphQLInt, defaultValue: 20 },
       offset: { type: GraphQLInt, defaultValue: 0 },
     },

@@ -100,7 +100,8 @@ export function AutoForm({
         handleChange(fieldName, value);
       });
     }
-  }, [registerSetField]); // eslint-disable-line react-hooks/exhaustive-deps
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-register on mount
+  }, [registerSetField, handleChange]);
 
   // ── State-driven action buttons ──
 
@@ -126,7 +127,10 @@ export function AutoForm({
         case "invalid_type": {
           // When a required field receives undefined/null
           const details = _details as { received?: string } | undefined;
-          if (fieldDef?.required && (details?.received === "undefined" || details?.received === "null")) {
+          if (
+            fieldDef?.required &&
+            (details?.received === "undefined" || details?.received === "null")
+          ) {
             return t("form.required");
           }
           if (details?.received === "undefined" || details?.received === "null") {
@@ -198,7 +202,11 @@ export function AutoForm({
       if (!result.success) {
         const issue = result.error.issues[0];
         if (issue) {
-          return translateZodMessage(issue.code, fieldName, issue as unknown as Record<string, unknown>);
+          return translateZodMessage(
+            issue.code,
+            fieldName,
+            issue as unknown as Record<string, unknown>,
+          );
         }
         return t("form.invalid");
       }
@@ -299,7 +307,7 @@ export function AutoForm({
 
     // If the element is inside a hidden tab panel, switch to that tab first
     const tabPanel = firstInvalid.closest<HTMLElement>('[role="tabpanel"]');
-    if (tabPanel && tabPanel.hidden) {
+    if (tabPanel?.hidden) {
       const panelId = tabPanel.id;
       if (panelId) {
         // Find the tab trigger that controls this panel
@@ -695,7 +703,9 @@ function parseServerError(err: unknown): {
 
       for (const gqlError of obj.errors) {
         if (typeof gqlError === "object" && gqlError !== null) {
-          const ext = (gqlError as Record<string, unknown>).extensions as Record<string, unknown> | undefined;
+          const ext = (gqlError as Record<string, unknown>).extensions as
+            | Record<string, unknown>
+            | undefined;
           if (ext?.fieldErrors && typeof ext.fieldErrors === "object") {
             Object.assign(fieldErrors, ext.fieldErrors);
           } else {

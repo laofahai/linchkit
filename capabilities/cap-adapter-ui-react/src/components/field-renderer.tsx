@@ -33,8 +33,7 @@ export function FieldDisplay({ field: viewField, value, fieldDef }: FieldDisplay
 
   // Derive widget override: explicit widget > editor hint > none
   const displayOverride =
-    viewField.widget ??
-    (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+    viewField.widget ?? (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
 
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,
@@ -84,8 +83,7 @@ export function FieldInput({
 
   // Derive widget override: explicit widget > editor hint > none
   const inputOverride =
-    viewField.widget ??
-    (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+    viewField.widget ?? (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
 
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,

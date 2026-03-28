@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach } from "bun:test";
-import { ProposalEngine } from "../src/ai/proposal-engine";
-import type { Proposal } from "../src/ai/proposal-engine";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { PatternInsight } from "../src/ai/pattern-detector";
+import type { Proposal } from "../src/ai/proposal-engine";
+import { ProposalEngine } from "../src/ai/proposal-engine";
 
 // ── Test helpers ──────────────────────────────────────────
 
@@ -152,14 +152,14 @@ describe("ProposalEngine", () => {
       const result = engine.submit(proposal.id);
 
       expect(result.success).toBe(true);
-      expect(engine.get(proposal.id)!.status).toBe("pending");
+      expect(engine.get(proposal.id)?.status).toBe("pending");
     });
 
     it("fails if proposal is not in draft status", () => {
       const proposal = engine.createFromInsight(createInsight());
       engine.submit(proposal.id);
       // Now in pending, trying to submit again should fail
-      expect(() => engine.submit(proposal.id)).toThrow("expected \"draft\"");
+      expect(() => engine.submit(proposal.id)).toThrow('expected "draft"');
     });
 
     it("rejects proposals that fail security validation", () => {
@@ -175,8 +175,8 @@ describe("ProposalEngine", () => {
 
       expect(result.success).toBe(false);
       expect(result.validation).toBeDefined();
-      expect(result.validation!.valid).toBe(false);
-      expect(engine2.get(proposal.id)!.status).toBe("draft"); // stays in draft
+      expect(result.validation?.valid).toBe(false);
+      expect(engine2.get(proposal.id)?.status).toBe("draft"); // stays in draft
     });
   });
 
@@ -195,7 +195,7 @@ describe("ProposalEngine", () => {
 
     it("fails if proposal is not in pending status", () => {
       const proposal = engine.createFromInsight(createInsight());
-      expect(() => engine.approve(proposal.id, "admin")).toThrow("expected \"pending\"");
+      expect(() => engine.approve(proposal.id, "admin")).toThrow('expected "pending"');
     });
   });
 
@@ -214,7 +214,7 @@ describe("ProposalEngine", () => {
 
     it("fails if proposal is not in pending status", () => {
       const proposal = engine.createFromInsight(createInsight());
-      expect(() => engine.reject(proposal.id, "admin", "reason")).toThrow("expected \"pending\"");
+      expect(() => engine.reject(proposal.id, "admin", "reason")).toThrow('expected "pending"');
     });
   });
 
@@ -248,13 +248,13 @@ describe("ProposalEngine", () => {
       await engine2.apply(proposal.id);
 
       expect(callbackCalled).toBe(true);
-      expect(callbackProposal!.id).toBe(proposal.id);
+      expect(callbackProposal?.id).toBe(proposal.id);
     });
 
     it("fails if proposal is not approved", async () => {
       const proposal = engine.createFromInsight(createInsight());
       engine.submit(proposal.id);
-      await expect(engine.apply(proposal.id)).rejects.toThrow("expected \"approved\"");
+      await expect(engine.apply(proposal.id)).rejects.toThrow('expected "approved"');
     });
   });
 
@@ -294,7 +294,7 @@ describe("ProposalEngine", () => {
       const proposal = engine.createFromInsight(createInsight());
       engine.submit(proposal.id);
       engine.approve(proposal.id, "admin");
-      await expect(engine.rollback(proposal.id)).rejects.toThrow("expected \"applied\"");
+      await expect(engine.rollback(proposal.id)).rejects.toThrow('expected "applied"');
     });
   });
 
@@ -379,7 +379,7 @@ describe("ProposalEngine", () => {
       const result = engine2.submit(proposal.id);
 
       expect(result.success).toBe(false);
-      expect(result.validation!.valid).toBe(false);
+      expect(result.validation?.valid).toBe(false);
     });
   });
 
@@ -401,17 +401,17 @@ describe("ProposalEngine", () => {
 
       const submitResult = engine2.submit(proposal.id);
       expect(submitResult.success).toBe(true);
-      expect(engine2.get(proposal.id)!.status).toBe("pending");
+      expect(engine2.get(proposal.id)?.status).toBe("pending");
 
       engine2.approve(proposal.id, "admin-1");
-      expect(engine2.get(proposal.id)!.status).toBe("approved");
+      expect(engine2.get(proposal.id)?.status).toBe("approved");
 
       await engine2.apply(proposal.id);
-      expect(engine2.get(proposal.id)!.status).toBe("applied");
+      expect(engine2.get(proposal.id)?.status).toBe("applied");
       expect(appliedProposals).toHaveLength(1);
 
       await engine2.rollback(proposal.id);
-      expect(engine2.get(proposal.id)!.status).toBe("rolled_back");
+      expect(engine2.get(proposal.id)?.status).toBe("rolled_back");
       expect(rolledBackProposals).toHaveLength(1);
     });
 
@@ -422,10 +422,10 @@ describe("ProposalEngine", () => {
       engine.submit(proposal.id);
       engine.reject(proposal.id, "reviewer-1", "Not aligned with business goals");
 
-      const final = engine.get(proposal.id)!;
-      expect(final.status).toBe("rejected");
-      expect(final.reviewedBy).toBe("reviewer-1");
-      expect(final.rejectionReason).toBe("Not aligned with business goals");
+      const final = engine.get(proposal.id);
+      expect(final?.status).toBe("rejected");
+      expect(final?.reviewedBy).toBe("reviewer-1");
+      expect(final?.rejectionReason).toBe("Not aligned with business goals");
     });
   });
 });

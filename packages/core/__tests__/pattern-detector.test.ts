@@ -1,6 +1,5 @@
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { PatternDetector } from "../src/ai/pattern-detector";
-import type { PatternDetectorConfig } from "../src/ai/pattern-detector";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ExecutionLogEntry } from "../src/types/execution-log";
 
@@ -25,7 +24,7 @@ function daysAgo(n: number): Date {
   return d;
 }
 
-function hoursAgo(n: number, minuteOffset = 0): Date {
+function _hoursAgo(n: number, minuteOffset = 0): Date {
   const d = new Date();
   d.setHours(d.getHours() - n, minuteOffset, 0, 0);
   return d;
@@ -62,9 +61,9 @@ describe("PatternDetector", () => {
 
       const decisionInsight = repetitive.find((i) => i.description.includes("decision"));
       expect(decisionInsight).toBeDefined();
-      expect(decisionInsight!.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(decisionInsight!.schema).toBe("purchase_request");
-      expect(decisionInsight!.suggestedAction.type).toBe("add_rule");
+      expect(decisionInsight?.confidence).toBeGreaterThanOrEqual(0.7);
+      expect(decisionInsight?.schema).toBe("purchase_request");
+      expect(decisionInsight?.suggestedAction.type).toBe("add_rule");
     });
 
     it("does not detect patterns below minimum occurrences", async () => {
@@ -128,9 +127,9 @@ describe("PatternDetector", () => {
       const defaults = insights.filter((i) => i.type === "default_value");
       const currencyInsight = defaults.find((i) => i.description.includes("currency"));
       expect(currencyInsight).toBeDefined();
-      expect(currencyInsight!.confidence).toBe(1.0);
-      expect(currencyInsight!.suggestedAction.type).toBe("modify_schema");
-      expect(currencyInsight!.suggestedAction.details.defaultValue).toBe("USD");
+      expect(currencyInsight?.confidence).toBe(1.0);
+      expect(currencyInsight?.suggestedAction.type).toBe("modify_schema");
+      expect(currencyInsight?.suggestedAction.details.defaultValue).toBe("USD");
     });
 
     it("does not flag fields with diverse values", async () => {
@@ -177,8 +176,8 @@ describe("PatternDetector", () => {
       const validations = insights.filter((i) => i.type === "validation_pattern");
       const emailInsight = validations.find((i) => i.description.includes("email"));
       expect(emailInsight).toBeDefined();
-      expect(emailInsight!.description).toContain("email");
-      expect(emailInsight!.suggestedAction.type).toBe("add_rule");
+      expect(emailInsight?.description).toContain("email");
+      expect(emailInsight?.suggestedAction.type).toBe("add_rule");
     });
 
     it("detects numeric string patterns", async () => {
@@ -303,7 +302,7 @@ describe("PatternDetector", () => {
 
       const hourInsight = timingInsights.find((i) => i.description.includes("9:00"));
       expect(hourInsight).toBeDefined();
-      expect(hourInsight!.suggestedAction.type).toBe("add_automation");
+      expect(hourInsight?.suggestedAction.type).toBe("add_automation");
     });
   });
 

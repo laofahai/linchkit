@@ -9,10 +9,7 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import { resolveActor, resolveRequestLocale, resolveStatusCode } from "./shared";
 
-export function mountActionRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
   const executor = options.executor;
   const commandLayer = options.commandLayer;
   const resolveRequestActor = options.resolveRequestActor;

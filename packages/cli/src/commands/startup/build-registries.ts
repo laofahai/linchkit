@@ -6,22 +6,26 @@
 import type {
   ActionDefinition,
   CapabilityDefinition,
+  ConfigRegistry,
   DataProvider,
-  EnvironmentInfo,
   InterfaceDefinition,
   LinkDefinition,
   MiddlewareRegistration,
   SchemaDefinition,
 } from "@linchkit/core";
-import type { ConfigRegistry } from "@linchkit/core";
+
+interface EnvironmentInfo {
+  isDevelopment: boolean;
+}
+
 import {
   ActionRegistry,
-  PermissionRegistry,
-  SchemaRegistry,
+  convertSchemaRelationshipFieldsToImplicitLinks,
   createInterfaceRegistry,
   createLinkRegistry,
   createTenantIsolationMiddleware,
-  convertSchemaRelationshipFieldsToImplicitLinks,
+  PermissionRegistry,
+  SchemaRegistry,
 } from "@linchkit/core/server";
 
 export interface RegistryBuildResult {
@@ -54,16 +58,8 @@ export interface RegistryBuildInput {
  * (appending implicit links, tenant middleware, permission middleware).
  */
 export async function buildRegistries(input: RegistryBuildInput): Promise<RegistryBuildResult> {
-  const {
-    capabilities,
-    interfaces,
-    schemas,
-    actions,
-    links,
-    middlewares,
-    registry,
-    environment,
-  } = input;
+  const { capabilities, interfaces, schemas, actions, links, middlewares, registry, environment } =
+    input;
 
   // Auto-promote schema relationship fields to implicit links
   const { implicitLinks, conflicts, missingTargets } =
@@ -101,7 +97,9 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     interfaceRegistry.register(iface);
   }
   if (interfaces.length > 0) {
-    console.log(`[linch] Registered ${interfaces.length} interface(s): ${interfaces.map((i) => i.name).join(", ")}`);
+    console.log(
+      `[linch] Registered ${interfaces.length} interface(s): ${interfaces.map((i) => i.name).join(", ")}`,
+    );
   }
 
   // Build SchemaRegistry

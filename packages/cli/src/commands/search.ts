@@ -33,7 +33,8 @@ export const searchCommand = defineCommand({
     },
     category: {
       type: "string",
-      description: "Filter by category: business | system | infrastructure | integration | ui | utility",
+      description:
+        "Filter by category: business | system | infrastructure | integration | ui | utility",
     },
     "trust-level": {
       type: "string",

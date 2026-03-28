@@ -279,9 +279,7 @@ export class InterfaceRegistry {
       const pairs = Array.from(initials.entries())
         .map(([initial, ifaceName]) => `"${ifaceName}" (initial="${initial}")`)
         .join(", ");
-      errors.push(
-        `Schema "${schemaName}": conflicting initial states from interfaces: ${pairs}`,
-      );
+      errors.push(`Schema "${schemaName}": conflicting initial states from interfaces: ${pairs}`);
     }
 
     // Check transition conflicts (same from+action but different to)
@@ -313,10 +311,7 @@ export class InterfaceRegistry {
    *   all interface transitions (superset check).
    * - If interface has state and schema has no custom state, interface state is used as-is.
    */
-  validateStateCompatibility(
-    schemaName: string,
-    schemaState: StateDefinition | null,
-  ): string[] {
+  validateStateCompatibility(schemaName: string, schemaState: StateDefinition | null): string[] {
     const errors: string[] = [];
     const ifaceNames = this.schemaToInterfaces.get(schemaName);
     if (!ifaceNames) return errors;

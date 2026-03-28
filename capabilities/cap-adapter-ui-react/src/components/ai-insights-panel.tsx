@@ -5,9 +5,6 @@
  * confidence level and action buttons.
  */
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import {
   Badge,
   Button,
@@ -18,10 +15,10 @@ import {
   CardTitle,
   Skeleton,
 } from "@linchkit/ui-kit/components";
+import { Link } from "@tanstack/react-router";
 import {
   AlertTriangleIcon,
   ArrowRight,
-  BotIcon,
   BrainCircuitIcon,
   LightbulbIcon,
   ShieldCheckIcon,
@@ -29,15 +26,20 @@ import {
   TrendingUpIcon,
   ZapIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { type AIInsight, fetchAIInsights } from "@/lib/proposal-api";
 
 // ── Category config ──────────────────────────────────────
 
-const CATEGORY_CONFIG: Record<string, {
-  icon: typeof LightbulbIcon;
-  color: string;
-  bgColor: string;
-}> = {
+const CATEGORY_CONFIG: Record<
+  string,
+  {
+    icon: typeof LightbulbIcon;
+    color: string;
+    bgColor: string;
+  }
+> = {
   rule_suggestion: {
     icon: ShieldCheckIcon,
     color: "text-blue-600 dark:text-blue-400",
@@ -69,11 +71,12 @@ const CATEGORY_CONFIG: Record<string, {
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const pct = Math.round(confidence * 100);
-  const color = pct >= 80
-    ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
-    : pct >= 60
-      ? "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800"
-      : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800";
+  const color =
+    pct >= 80
+      ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+      : pct >= 60
+        ? "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800"
+        : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800";
 
   return (
     <Badge variant="outline" className={`text-[10px] gap-1 ${color}`}>
@@ -86,14 +89,20 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
 
 function InsightItem({ insight }: { insight: AIInsight }) {
   const { t } = useTranslation();
-  const defaultCfg = { icon: LightbulbIcon, color: "text-blue-600 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-950" };
+  const defaultCfg = {
+    icon: LightbulbIcon,
+    color: "text-blue-600 dark:text-blue-400",
+    bgColor: "bg-blue-50 dark:bg-blue-950",
+  };
   const cfg = CATEGORY_CONFIG[insight.category] ?? defaultCfg;
   const Icon = cfg.icon;
 
   return (
     <div className="flex items-start gap-3 rounded-md border p-3">
       {/* Icon */}
-      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.bgColor}`}>
+      <div
+        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.bgColor}`}
+      >
         <Icon className={`h-4 w-4 ${cfg.color}`} />
       </div>
 
@@ -152,9 +161,7 @@ export function AIInsightsPanel() {
             <BrainCircuitIcon className="h-4 w-4 text-purple-500" />
             <div>
               <CardTitle className="text-sm">{t("insights.title")}</CardTitle>
-              <CardDescription className="text-xs">
-                {t("insights.subtitle")}
-              </CardDescription>
+              <CardDescription className="text-xs">{t("insights.subtitle")}</CardDescription>
             </div>
           </div>
           <Link

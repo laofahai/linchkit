@@ -23,21 +23,12 @@ import type { FieldDefinition, SchemaDefinition } from "../types/schema";
  * The original schema is never mutated.
  */
 export function filterSchemaByCapabilities<
-  TFields extends Record<string, FieldDefinition> = Record<
-    string,
-    FieldDefinition
-  >,
->(
-  schema: SchemaDefinition<TFields>,
-  activeCapabilities: Set<string>,
-): SchemaDefinition {
+  TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
+>(schema: SchemaDefinition<TFields>, activeCapabilities: Set<string>): SchemaDefinition {
   const filteredFields: Record<string, FieldDefinition> = {};
 
   for (const [name, field] of Object.entries(schema.fields)) {
-    if (
-      field.requiresCapability &&
-      !activeCapabilities.has(field.requiresCapability)
-    ) {
+    if (field.requiresCapability && !activeCapabilities.has(field.requiresCapability)) {
       continue;
     }
     filteredFields[name] = field;

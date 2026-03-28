@@ -6,13 +6,7 @@
  */
 
 import type { LinkDefinition } from "@linchkit/core/types";
-import {
-  Badge,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@linchkit/ui-kit/components";
+import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@linchkit/ui-kit/components";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -155,11 +149,7 @@ export function RelatedRecordsPanel({
       </TabsList>
       {tabs.map((tab) => (
         <TabsContent key={tab.key} value={tab.key}>
-          <RelatedRecordsList
-            schemaName={schemaName}
-            recordId={recordId}
-            tab={tab}
-          />
+          <RelatedRecordsList schemaName={schemaName} recordId={recordId} tab={tab} />
         </TabsContent>
       ))}
     </Tabs>
@@ -251,7 +241,7 @@ function RelatedRecordsList({
     );
   }
 
-  const firstRecord = records[0]!;
+  const firstRecord = records[0] ?? {};
   const columns = getColumnHeaders(firstRecord);
 
   return (
@@ -311,9 +301,11 @@ function getColumnHeaders(record: Record<string, unknown>): string[] {
 
 /** Format a cell value for display */
 function formatCellValue(value: unknown): React.ReactNode {
-  if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>;
+  if (value === null || value === undefined)
+    return <span className="text-muted-foreground">-</span>;
   if (typeof value === "boolean") return <BooleanCell value={value} />;
-  if (typeof value === "object") return <span className="font-mono text-xs">{JSON.stringify(value)}</span>;
+  if (typeof value === "object")
+    return <span className="font-mono text-xs">{JSON.stringify(value)}</span>;
   return String(value);
 }
 

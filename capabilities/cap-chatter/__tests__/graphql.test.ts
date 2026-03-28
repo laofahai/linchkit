@@ -2,10 +2,10 @@
  * Chatter GraphQL extension tests
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { GraphQLNonNull, GraphQLObjectType, GraphQLSchema, GraphQLString, graphql } from "graphql";
 import { buildChatterGraphQLExtension } from "../src/graphql";
 import { InMemoryChatterService } from "../src/service";
-import { graphql, GraphQLObjectType, GraphQLSchema, GraphQLString, GraphQLNonNull } from "graphql";
 
 describe("buildChatterGraphQLExtension", () => {
   let service: InMemoryChatterService;
@@ -98,8 +98,21 @@ describe("buildChatterGraphQLExtension", () => {
     });
 
     it("filters by messageType", async () => {
-      await service.createMessage({ schemaName: "s", recordId: "r", messageType: "comment", body: "c", authorId: "u" });
-      await service.createMessage({ schemaName: "s", recordId: "r", messageType: "log", body: "l", authorId: "sys", authorType: "system" });
+      await service.createMessage({
+        schemaName: "s",
+        recordId: "r",
+        messageType: "comment",
+        body: "c",
+        authorId: "u",
+      });
+      await service.createMessage({
+        schemaName: "s",
+        recordId: "r",
+        messageType: "log",
+        body: "l",
+        authorId: "sys",
+        authorType: "system",
+      });
 
       const schema = buildTestSchema(service);
       const result = await graphql({
@@ -119,7 +132,13 @@ describe("buildChatterGraphQLExtension", () => {
 
     it("paginates via limit and offset", async () => {
       for (let i = 0; i < 5; i++) {
-        await service.createMessage({ schemaName: "s", recordId: "r", messageType: "comment", body: `msg ${i}`, authorId: "u" });
+        await service.createMessage({
+          schemaName: "s",
+          recordId: "r",
+          messageType: "comment",
+          body: `msg ${i}`,
+          authorId: "u",
+        });
       }
 
       const schema = buildTestSchema(service);

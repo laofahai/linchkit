@@ -388,8 +388,8 @@ describe("E2E link / relationship integrity", () => {
     for (const pr of list.items) {
       const dept = pr.department as Record<string, unknown> | null;
       expect(dept).not.toBeNull();
-      expect(dept!.id).toBeDefined();
-      expect(dept!.name).toBeDefined();
+      expect(dept?.id).toBeDefined();
+      expect(dept?.name).toBeDefined();
     }
   });
 });

@@ -18,7 +18,12 @@ export const departmentListView: ViewDefinition = {
   defaultSort: { field: "name", order: "asc" },
   pageSize: 10,
   actions: [
-    { action: "create", label: "t:schemas.department.actions.create", position: "toolbar", variant: "default" },
+    {
+      action: "create",
+      label: "t:schemas.department.actions.create",
+      position: "toolbar",
+      variant: "default",
+    },
     { action: "edit", label: "t:common.edit", position: "row" },
     {
       action: "delete",

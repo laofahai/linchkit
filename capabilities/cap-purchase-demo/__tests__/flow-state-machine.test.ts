@@ -18,6 +18,7 @@
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { Actor } from "@linchkit/core";
+import type { FlowStepContext } from "@linchkit/core/server";
 import {
   canTransition,
   createStateMachine,
@@ -26,7 +27,6 @@ import {
   InMemoryStore,
   transition,
 } from "@linchkit/core/server";
-import type { FlowStepContext } from "@linchkit/core/server";
 import { purchaseApprovalFlow } from "../src/flows/purchase-approval";
 import { purchaseRequestState } from "../src/states/purchase-request";
 
@@ -92,16 +92,28 @@ describe("Purchase State Machine — transition guards", () => {
 
   test("valid transitions: the happy path", () => {
     // draft → pending → approved
-    expect(transition(machine, "draft", "submit_purchase_request")).toMatchObject({ allowed: true, to: "pending" });
-    expect(transition(machine, "pending", "approve_purchase_request")).toMatchObject({ allowed: true, to: "approved" });
+    expect(transition(machine, "draft", "submit_purchase_request")).toMatchObject({
+      allowed: true,
+      to: "pending",
+    });
+    expect(transition(machine, "pending", "approve_purchase_request")).toMatchObject({
+      allowed: true,
+      to: "approved",
+    });
   });
 
   test("valid transitions: rejection path", () => {
-    expect(transition(machine, "pending", "reject_purchase_request")).toMatchObject({ allowed: true, to: "rejected" });
+    expect(transition(machine, "pending", "reject_purchase_request")).toMatchObject({
+      allowed: true,
+      to: "rejected",
+    });
   });
 
   test("valid transitions: resubmit after rejection", () => {
-    expect(transition(machine, "rejected", "submit_purchase_request")).toMatchObject({ allowed: true, to: "pending" });
+    expect(transition(machine, "rejected", "submit_purchase_request")).toMatchObject({
+      allowed: true,
+      to: "pending",
+    });
   });
 
   test("BLOCKED: cannot skip states", () => {
@@ -353,7 +365,7 @@ describe("Flow engine operational features", () => {
     // Query status by instance ID
     const status = await engine.getFlowStatus("flow-001");
     expect(status).not.toBeNull();
-    expect(status!.status).toBe("completed");
+    expect(status?.status).toBe("completed");
   });
 
   test("flow fails gracefully when action errors", async () => {
@@ -370,12 +382,13 @@ describe("Flow engine operational features", () => {
 
     expect(instance.status).toBe("failed");
     expect(instance.error).toBeDefined();
-    expect(instance.error!.stepId).toBe("auto_approve");
+    expect(instance.error?.stepId).toBe("auto_approve");
   });
 
   test("unregistered flow throws clear error", async () => {
     const engine = createSyncFlowEngine(createTestFlowContext(new InMemoryStore()));
-    await expect(engine.startFlow("nonexistent", {})).rejects.toThrow('"nonexistent" is not registered');
+    await expect(engine.startFlow("nonexistent", {})).rejects.toThrow(
+      '"nonexistent" is not registered',
+    );
   });
-
 });

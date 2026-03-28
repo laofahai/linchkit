@@ -546,10 +546,11 @@ export class DrizzleDataProvider implements DataProvider {
 
     let rows: Record<string, unknown>[];
     try {
-      rows = (await this.db.update(table).set(coercedUpdateData).where(whereClause).returning()) as Record<
-        string,
-        unknown
-      >[];
+      rows = (await this.db
+        .update(table)
+        .set(coercedUpdateData)
+        .where(whereClause)
+        .returning()) as Record<string, unknown>[];
     } catch (err) {
       this.normalizeDbError(err, schema);
     }

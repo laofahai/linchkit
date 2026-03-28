@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition, StateDefinition } from "@linchkit/core";
-import { createActionExecutor } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
+import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -107,8 +106,8 @@ describe("GraphQL state transition validation", () => {
     `);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors![0] as { message: string }).message;
+    expect(result.errors?.length).toBeGreaterThan(0);
+    const errorMsg = (result.errors?.[0] as { message: string }).message;
     expect(errorMsg).toContain("State transition not allowed");
     expect(errorMsg).toContain("draft");
     expect(errorMsg).toContain("approved");
@@ -295,8 +294,8 @@ describe("transition mutation", () => {
     `);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors![0] as { message: string }).message;
+    expect(result.errors?.length).toBeGreaterThan(0);
+    const errorMsg = (result.errors?.[0] as { message: string }).message;
     expect(errorMsg).toContain("State transition not allowed");
     expect(errorMsg).toContain("draft");
     expect(errorMsg).toContain("approved");
@@ -349,8 +348,8 @@ describe("transition mutation", () => {
     `);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors![0] as { message: string }).message;
+    expect(result.errors?.length).toBeGreaterThan(0);
+    const errorMsg = (result.errors?.[0] as { message: string }).message;
     expect(errorMsg).toContain("not found");
   });
 });

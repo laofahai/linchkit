@@ -1,9 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import {
-  getActiveTenantId,
-  setActiveTenantId,
-  getTenantHeaders,
-} from "../src/lib/tenant";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { getActiveTenantId, getTenantHeaders, setActiveTenantId } from "../src/lib/tenant";
 
 // Minimal localStorage shim for bun test (no DOM environment)
 const store = new Map<string, string>();

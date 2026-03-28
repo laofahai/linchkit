@@ -67,7 +67,9 @@ export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
   return (
     <div className="space-y-2">
       {records.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("common.noRelatedRecords", "No related records")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("common.noRelatedRecords", "No related records")}
+        </p>
       ) : (
         <div className="space-y-1">
           {records.map((record, i) => (
@@ -90,7 +92,9 @@ export function HasManyInput({ value, fieldDef, readonly }: WidgetInputProps) {
       {!readonly && targetSchema && (
         <Link to="/schemas/$name/new" params={{ name: targetSchema }}>
           <Button type="button" variant="outline" size="sm">
-            {t("widget.addTarget", "+ Add {{target}}", { target: targetBundle?.schema.label ?? targetSchema })}
+            {t("widget.addTarget", "+ Add {{target}}", {
+              target: targetBundle?.schema.label ?? targetSchema,
+            })}
           </Button>
         </Link>
       )}

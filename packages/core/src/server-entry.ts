@@ -23,14 +23,14 @@ export {
 // === Watcher engine (data-condition automation, spec 45) ===
 
 export {
-  type WatcherDataQuerier,
-  type WatcherEngine,
-  type WatcherEngineOptions,
-  type WatcherRegistry,
   createWatcherEngine,
   createWatcherRegistry,
   evaluateComparison,
   parseDuration,
+  type WatcherDataQuerier,
+  type WatcherEngine,
+  type WatcherEngineOptions,
+  type WatcherRegistry,
 } from "./automation";
 
 // === Engine: action, command, approval, state, rule, validation, permission, proposal ===
@@ -160,16 +160,16 @@ export {
 // === Observability ===
 
 export {
-  AlertEngine,
   type AlertCondition,
   type AlertEffect,
+  AlertEngine,
   type AlertEngineOptions,
   type AlertEvaluationResult,
   type AlertHandler,
   type AlertOperator,
   type AlertSeverity,
-  type SystemAlertDefinition,
   defineSystemAlert,
+  type SystemAlertDefinition,
 } from "./observability/alert-engine";
 export { consoleLogger } from "./observability/console-logger";
 export { InMemoryExecutionLogger } from "./observability/execution-logger";
@@ -221,8 +221,8 @@ export { AIBoundary, AIBoundaryError } from "./ai";
 
 // === AI Pattern Detection (server-only — analysis engine) ===
 
+export type { PatternDetectorConfig, PatternEvidence, PatternInsight, PatternType } from "./ai";
 export { PatternDetector } from "./ai";
-export type { PatternDetectorConfig, PatternInsight, PatternEvidence, PatternType } from "./ai";
 
 // === AI Audit (server-only — compliance audit trail) ===
 
@@ -269,6 +269,7 @@ export {
 // === AI Proposal Validator (server-only — proposal security checks) ===
 
 export {
+  createProposalValidator,
   type ProposalChange,
   type ProposalChangeType,
   type ProposalCustomRule,
@@ -276,15 +277,14 @@ export {
   type ProposalValidationResult,
   type ProposalValidatorConfig,
   type ProposalViolation,
-  createProposalValidator,
   validateProposal as validateAIProposal,
 } from "./ai";
 
 // === AI Anomaly Detector (server-only — behavioral anomaly detection) ===
 
 export {
-  AnomalyDetector,
   type AnomalyDetection,
+  AnomalyDetector,
   type AnomalyDetectorConfig,
   type AnomalySeverity,
   type AnomalyType,
@@ -330,6 +330,7 @@ export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzl
 export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
 export * as drizzleSchema from "./persistence/drizzle-schema";
 export { DrizzleTransactionManager } from "./persistence/drizzle-transaction-manager";
+export { type FindManyOptions, InMemoryStore } from "./persistence/in-memory-store";
 export {
   approvalStatusEnum,
   approvalsTable,
@@ -341,13 +342,12 @@ export {
   overrideTargetTypeEnum,
   tenantOverridesTable,
 } from "./persistence/system-tables";
+export { TableRegistry } from "./persistence/table-registry";
 export {
-  TenantOverrideStore,
   type OverrideTargetType,
   type TenantOverride,
+  TenantOverrideStore,
 } from "./persistence/tenant-override-store";
-export { type FindManyOptions, InMemoryStore } from "./persistence/in-memory-store";
-export { TableRegistry } from "./persistence/table-registry";
 
 // === Security: tenant isolation ===
 

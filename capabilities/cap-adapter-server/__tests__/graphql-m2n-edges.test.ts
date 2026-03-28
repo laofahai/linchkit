@@ -197,28 +197,24 @@ describe("M:N link with properties (edge types)", () => {
     expect(edges.length).toBe(2);
 
     // Find the Widget A edge
-    const edgeA = edges.find(
-      (e) => (e.product as Record<string, unknown>).name === "Widget A",
-    );
+    const edgeA = edges.find((e) => (e.product as Record<string, unknown>).name === "Widget A");
     expect(edgeA).toBeDefined();
-    expect(edgeA!.quantity).toBe(10);
-    expect(edgeA!.unitPrice).toBe(25);
-    expect(edgeA!.discount).toBe(5);
-    expect(edgeA!.note).toBe("Bulk order");
+    expect(edgeA?.quantity).toBe(10);
+    expect(edgeA?.unitPrice).toBe(25);
+    expect(edgeA?.discount).toBe(5);
+    expect(edgeA?.note).toBe("Bulk order");
 
     // Verify the product record
-    const prodA = edgeA!.product as Record<string, unknown>;
+    const prodA = edgeA?.product as Record<string, unknown>;
     expect(prodA.id).toBe("prod_1");
     expect(prodA.sku).toBe("WA-001");
 
     // Find the Widget B edge
-    const edgeB = edges.find(
-      (e) => (e.product as Record<string, unknown>).name === "Widget B",
-    );
+    const edgeB = edges.find((e) => (e.product as Record<string, unknown>).name === "Widget B");
     expect(edgeB).toBeDefined();
-    expect(edgeB!.quantity).toBe(5);
-    expect(edgeB!.unitPrice).toBe(50);
-    expect(edgeB!.discount).toBe(0);
+    expect(edgeB?.quantity).toBe(5);
+    expect(edgeB?.unitPrice).toBe(50);
+    expect(edgeB?.discount).toBe(0);
   });
 
   test("2. Reverse direction: product has salesOrderEdges", async () => {

@@ -265,8 +265,8 @@ describe("E2E state machine transitions", () => {
     `);
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors![0] as { message: string }).message;
+    expect(result.errors?.length).toBeGreaterThan(0);
+    const errorMsg = (result.errors?.[0] as { message: string }).message;
     expect(errorMsg).toContain("State transition not allowed");
 
     // Verify status unchanged
@@ -308,7 +308,9 @@ describe("E2E state machine transitions", () => {
     const beforeResubmit = await gql(`
       query { purchaseRequest(id: "${id}") { status } }
     `);
-    expect((beforeResubmit.data.purchaseRequest as Record<string, unknown>).status).toBe("rejected");
+    expect((beforeResubmit.data.purchaseRequest as Record<string, unknown>).status).toBe(
+      "rejected",
+    );
 
     // Resubmit
     const { status, body } = await restAction("resubmit_purchase_request", { id });

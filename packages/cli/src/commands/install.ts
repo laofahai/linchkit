@@ -14,7 +14,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { CapabilityMetadata, TrustLevel } from "@linchkit/core";
-import { VERSION, checkTrustPermissions, satisfiesVersionRange, validateCapabilityMetadata } from "@linchkit/core";
+import {
+  checkTrustPermissions,
+  satisfiesVersionRange,
+  VERSION,
+  validateCapabilityMetadata,
+} from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
 
@@ -379,7 +384,9 @@ export const installCommand = defineCommand({
     } else if (trustLevel === "community") {
       console.log("");
       console.log("[linch] Trust level: community");
-      console.log("  This capability has passed automated checks but has not been manually reviewed.");
+      console.log(
+        "  This capability has passed automated checks but has not been manually reviewed.",
+      );
     }
 
     // Step 8: Check system permission compatibility with trust level
@@ -418,9 +425,7 @@ export const installCommand = defineCommand({
     if (metadata.description) {
       console.log(`  Description: ${metadata.description}`);
     }
-    console.log(
-      `  Extensions: ${summarizeExtensions(capExt)}`,
-    );
+    console.log(`  Extensions: ${summarizeExtensions(capExt)}`);
 
     if (missingDeps.length > 0) {
       console.log("");

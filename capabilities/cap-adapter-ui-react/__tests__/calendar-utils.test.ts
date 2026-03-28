@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import type { SchemaDefinition } from "@linchkit/core/types";
 import {
   detectTitleField,
   findDateField,
   groupRecordsByDate,
   parseDateValue,
 } from "../src/components/auto-calendar/calendar-utils";
-import type { SchemaDefinition } from "@linchkit/core/types";
 
 // ── parseDateValue ───────────────────────────────────
 
@@ -20,15 +20,15 @@ describe("parseDateValue", () => {
   test("parses ISO string", () => {
     const d = parseDateValue("2026-03-15T10:30:00Z");
     expect(d).toBeInstanceOf(Date);
-    expect(d!.getUTCFullYear()).toBe(2026);
-    expect(d!.getUTCMonth()).toBe(2); // March = 2
-    expect(d!.getUTCDate()).toBe(15);
+    expect(d?.getUTCFullYear()).toBe(2026);
+    expect(d?.getUTCMonth()).toBe(2); // March = 2
+    expect(d?.getUTCDate()).toBe(15);
   });
 
   test("parses date-only ISO string", () => {
     const d = parseDateValue("2026-01-20");
     expect(d).toBeInstanceOf(Date);
-    expect(d!.getFullYear()).toBe(2026);
+    expect(d?.getFullYear()).toBe(2026);
   });
 
   test("passes through Date objects", () => {
@@ -41,7 +41,7 @@ describe("parseDateValue", () => {
     const ts = new Date("2026-06-01T00:00:00Z").getTime();
     const d = parseDateValue(ts);
     expect(d).toBeInstanceOf(Date);
-    expect(d!.getTime()).toBe(ts);
+    expect(d?.getTime()).toBe(ts);
   });
 
   test("returns null for non-date values", () => {

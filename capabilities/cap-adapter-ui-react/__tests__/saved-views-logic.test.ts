@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 // Test the pure localStorage logic from use-saved-views.ts.
 // We re-implement the helpers here since they are not exported.
@@ -55,12 +55,14 @@ const mockLocalStorage = {
   setItem: (key: string, value: string) => storage.set(key, value),
   removeItem: (key: string) => storage.delete(key),
   clear: () => storage.clear(),
-  get length() { return storage.size; },
+  get length() {
+    return storage.size;
+  },
   key: (index: number) => Array.from(storage.keys())[index] ?? null,
 };
 
 // Install mock localStorage if not available
-const originalLocalStorage = globalThis.localStorage;
+const _originalLocalStorage = globalThis.localStorage;
 beforeEach(() => {
   // Clear all localStorage entries to ensure test isolation
   if (typeof globalThis.localStorage !== "undefined") {
@@ -130,7 +132,7 @@ describe("saved views — writeViews", () => {
     writeViews(SCHEMA, views);
     const raw = localStorage.getItem(storageKey(SCHEMA));
     expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!);
+    const parsed = JSON.parse(raw ?? "[]");
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("Test View");
   });
@@ -211,7 +213,10 @@ describe("saved views — CRUD operations", () => {
     writeViews(SCHEMA, views);
 
     const current = readViews(SCHEMA);
-    writeViews(SCHEMA, current.filter((v) => v.id !== "sv_2"));
+    writeViews(
+      SCHEMA,
+      current.filter((v) => v.id !== "sv_2"),
+    );
 
     const result = readViews(SCHEMA);
     expect(result).toHaveLength(2);

@@ -54,10 +54,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
   onDataRef.current = onData;
 
   // Serialize variables to a stable string to avoid reconnections on object reference changes
-  const variablesKey = useMemo(
-    () => (variables ? JSON.stringify(variables) : ""),
-    [variables],
-  );
+  const _variablesKey = useMemo(() => (variables ? JSON.stringify(variables) : ""), [variables]);
   // Keep a ref to variables so the effect closure always has the latest value
   const variablesRef = useRef(variables);
   variablesRef.current = variables;
@@ -172,10 +169,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
 
         // Schedule reconnection with exponential backoff
         const attempt = reconnectAttemptRef.current++;
-        const delay = Math.min(
-          INITIAL_RECONNECT_DELAY * 2 ** attempt,
-          MAX_RECONNECT_DELAY,
-        );
+        const delay = Math.min(INITIAL_RECONNECT_DELAY * 2 ** attempt, MAX_RECONNECT_DELAY);
 
         reconnectTimerRef.current = setTimeout(() => {
           if (!aborted) connect();
@@ -193,7 +187,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
       }
       setConnected(false);
     };
-  }, [query, variablesKey, enabled, cleanup]);
+  }, [query, enabled, cleanup]);
 
   return { connected, error };
 }
@@ -367,8 +361,6 @@ export function useSchemaSubscription(
             } else if (line.startsWith("data: ")) {
               eventData += line.slice(6);
             } else if (line.startsWith(":")) {
-              // SSE comment (heartbeat keepalive) — ignore
-              continue;
             } else if (line === "" && eventData) {
               // End of event
               try {
@@ -402,10 +394,7 @@ export function useSchemaSubscription(
 
         // Reconnect with exponential backoff
         const attempt = reconnectAttemptRef.current++;
-        const delay = Math.min(
-          INITIAL_RECONNECT_DELAY * 2 ** attempt,
-          MAX_RECONNECT_DELAY,
-        );
+        const delay = Math.min(INITIAL_RECONNECT_DELAY * 2 ** attempt, MAX_RECONNECT_DELAY);
 
         reconnectTimerRef.current = setTimeout(() => {
           if (!aborted) connect();

@@ -10,12 +10,7 @@ import { useCallback, useRef, useState } from "react";
 import { updateRecord } from "../lib/api";
 
 /** Field types that support inline editing */
-const EDITABLE_FIELD_TYPES: ReadonlySet<FieldType> = new Set([
-  "string",
-  "number",
-  "integer",
-  "enum",
-]);
+const EDITABLE_FIELD_TYPES: ReadonlySet<FieldType> = new Set(["string", "number", "enum"]);
 
 /** Check whether a field type supports inline editing */
 export function isFieldTypeEditable(fieldType: FieldType): boolean {
