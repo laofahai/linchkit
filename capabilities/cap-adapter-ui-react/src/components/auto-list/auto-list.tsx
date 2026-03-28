@@ -14,6 +14,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type ColumnSizingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -24,7 +25,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery, useAISearch } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
@@ -177,19 +178,33 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
       <div
         className="rounded border border-border overflow-auto max-h-[calc(100vh-220px)]"
       >
-        <table className="w-full text-sm min-w-[600px]">
+        <table
+          className="text-sm min-w-[600px]"
+          style={{ width: table.getTotalSize(), tableLayout: "fixed" }}
+        >
           <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-border">
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-3 py-2 text-left font-medium text-muted-foreground"
-                    style={header.getSize() !== 150 ? { width: header.getSize() } : undefined}
+                    className="relative px-3 py-2 text-left font-medium text-muted-foreground overflow-hidden"
+                    style={{ width: header.getSize() }}
                   >
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.column.getCanResize() && (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={cn(
+                          "absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none",
+                          "opacity-0 hover:opacity-100 bg-border",
+                          header.column.getIsResizing() && "opacity-100 bg-primary",
+                        )}
+                      />
+                    )}
                   </th>
                 ))}
               </tr>
@@ -219,7 +234,11 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
                   }}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-1.5">
+                    <td
+                      key={cell.id}
+                      className="px-3 py-1.5 overflow-hidden text-ellipsis"
+                      style={{ width: cell.column.getSize() }}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -282,6 +301,34 @@ export function AutoList({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  // ── Column resizing (persisted to localStorage) ──────────────────────────
+
+  const colSizeStorageKey = `lk-col-widths:${schema?.name ?? "default"}`;
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
+    try {
+      const stored = localStorage.getItem(colSizeStorageKey);
+      return stored ? (JSON.parse(stored) as ColumnSizingState) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleColumnSizingChange: Dispatch<SetStateAction<ColumnSizingState>> =
+    useCallback(
+      (updater) => {
+        setColumnSizing((prev) => {
+          const next = typeof updater === "function" ? updater(prev) : updater;
+          try {
+            localStorage.setItem(colSizeStorageKey, JSON.stringify(next));
+          } catch {
+            // Ignore storage errors
+          }
+          return next;
+        });
+      },
+      [colSizeStorageKey],
+    );
 
   // Use controlled or internal global filter state
   const globalFilter = globalFilterProp ?? internalGlobalFilter;
@@ -477,12 +524,15 @@ export function AutoList({
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting, columnFilters, globalFilter, rowSelection },
+    state: { sorting, columnFilters, globalFilter, rowSelection, columnSizing },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onRowSelectionChange: setRowSelection,
+    onColumnSizingChange: handleColumnSizingChange,
     enableRowSelection: selectable && isSchemaMode,
+    enableColumnResizing: true,
+    columnResizeMode: "onEnd",
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
