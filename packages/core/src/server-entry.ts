@@ -326,6 +326,7 @@ export {
   type DatabaseConfig,
 } from "./persistence/database";
 export { DrizzleApprovalStore } from "./persistence/drizzle-approval-store";
+export { DrizzleConfigStore } from "./persistence/drizzle-config-store";
 export { DrizzleDataProvider, type I18nQueryOptions } from "./persistence/drizzle-data-provider";
 export { DrizzleExecutionLogger } from "./persistence/drizzle-execution-logger";
 export * as drizzleSchema from "./persistence/drizzle-schema";
@@ -334,6 +335,9 @@ export { type FindManyOptions, InMemoryStore } from "./persistence/in-memory-sto
 export {
   approvalStatusEnum,
   approvalsTable,
+  configScopeEnum,
+  configTable,
+  configVersionsTable,
   eventStatusEnum,
   eventsTable,
   executionStatusEnum,

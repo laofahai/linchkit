@@ -3,6 +3,15 @@
  */
 
 export { ConfigRegistry } from "./config-registry";
+export type {
+  ConfigEntry,
+  ConfigScope,
+  ConfigScopeRef,
+  ConfigStore,
+  ConfigVersion,
+  SetConfigOptions,
+} from "./config-store";
+export { InMemoryConfigStore, resolveWithCascade } from "./config-store";
 export type { ConfigSchemaRef } from "./define-config-schema";
 export { defineConfigSchema } from "./define-config-schema";
 export { ConfigValidationError, RuntimeConfigRegistry } from "./runtime-config-registry";

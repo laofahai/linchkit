@@ -74,13 +74,23 @@ export {
   satisfiesVersionRange,
 } from "./capability";
 // Config center
-export type { ConfigSchemaRef } from "./config";
+export type {
+  ConfigEntry,
+  ConfigSchemaRef,
+  ConfigScope,
+  ConfigScopeRef,
+  ConfigStore,
+  ConfigVersion,
+  SetConfigOptions,
+} from "./config";
 export {
   ConfigRegistry,
   ConfigValidationError,
   databaseConfig,
   defineConfigSchema,
+  InMemoryConfigStore,
   queueConfig,
+  resolveWithCascade,
   RuntimeConfigRegistry,
   securityConfig,
   serverConfig,

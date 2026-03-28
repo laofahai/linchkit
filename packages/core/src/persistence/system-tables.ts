@@ -141,6 +141,66 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ── Config KV store tables ──────────────────────────────
+
+export const configScopeEnum = linchkitSchema.enum("config_scope", [
+  "global",
+  "tenant",
+  "department",
+  "user",
+]);
+
+/**
+ * _linchkit.config — runtime KV config entries (spec 42 §9.1)
+ *
+ * Unique constraint: (namespace, key, scope, scope_id)
+ */
+export const configTable = linchkitSchema.table(
+  "config",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    namespace: varchar("namespace", { length: 255 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    value: jsonb("value"),
+    scope: configScopeEnum("scope").notNull().default("global"),
+    scopeId: varchar("scope_id", { length: 255 }),
+    encrypted: boolean("encrypted").notNull().default(false),
+    updatedBy: varchar("updated_by", { length: 255 }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_config_unique").on(table.namespace, table.key, table.scope, table.scopeId),
+    index("idx_config_namespace").on(table.namespace),
+  ],
+);
+
+/**
+ * _linchkit.config_versions — version history for config entries (spec 42 §9.1)
+ *
+ * Each set() writes a new row here for full audit trail + rollback support.
+ */
+export const configVersionsTable = linchkitSchema.table(
+  "config_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    configId: uuid("config_id").notNull(),
+    namespace: varchar("namespace", { length: 255 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    value: jsonb("value"),
+    scope: configScopeEnum("scope").notNull().default("global"),
+    scopeId: varchar("scope_id", { length: 255 }),
+    version: integer("version").notNull(),
+    changedBy: varchar("changed_by", { length: 255 }),
+    changedAt: timestamp("changed_at", { mode: "date" }).notNull().defaultNow(),
+    changeReason: text("change_reason"),
+  },
+  (table) => [
+    index("idx_config_versions_config_id").on(table.configId),
+    index("idx_config_versions_ns_key").on(table.namespace, table.key, table.scope),
+  ],
+);
+
 // ── Override target type enum ───────────────────────────
 
 export const overrideTargetTypeEnum = linchkitSchema.enum("override_target_type", [
