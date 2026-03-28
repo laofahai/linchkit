@@ -217,7 +217,8 @@
     "rootNodes_other": "{{count}} 个根节点",
     "childCount": "{{count}} 个子节点",
     "childCount_other": "{{count}} 个子节点",
-    "treeView": "树形视图"
+    "treeView": "树形视图",
+    "addChild": "添加子节点"
   },
   "detail": {
     "relatedRecords": "关联记录",
