@@ -141,6 +141,48 @@ export interface ActionContext {
   timestamp: Date;
 }
 
+// ── Action AI configuration ─────────────────────────────────
+
+/**
+ * Per-action AI behavior configuration (spec 52 §2.4).
+ * Controls how AI interacts with this action.
+ */
+export interface ActionAIConfig {
+  /** Confirmation mode. 'explicit' (default): user must click Execute. 'auto': execute without confirmation for read-only queries. */
+  confirmationMode?: "explicit" | "auto";
+  /** When true, prevents AI from auto-executing this action even in auto mode */
+  allowAutoExecute?: boolean;
+  /** Hints to help AI understand this action's purpose and usage */
+  promptHints?: string[];
+}
+
+// ── Intent resolution ─────────────────────────────────────
+
+/**
+ * Result of AI natural language intent resolution (spec 52 §2.2).
+ * Represents what the AI understood from a user's natural language message.
+ */
+export interface IntentResolution {
+  /** Matched action name, or null if no match */
+  action: string | null;
+  /** Target schema (inferred from action) */
+  schema: string | null;
+  /** Extracted input parameters */
+  input: Record<string, unknown>;
+  /** Fields that are required but not extracted */
+  missingFields: string[];
+  /** Confidence score 0-1 */
+  confidence: number;
+  /** Human-readable explanation of what will happen */
+  explanation: string;
+  /** Alternative interpretations if confidence < threshold */
+  alternatives?: Array<{
+    action: string;
+    confidence: number;
+    explanation: string;
+  }>;
+}
+
 // ── Action permissions ─────────────────────────────────────
 
 export interface ActionPermissions {
@@ -170,6 +212,8 @@ export interface ActionDefinition {
   sideEffects?: ActionSideEffect[];
   exposure?: ActionExposure | "all";
   permissions?: ActionPermissions;
+  /** AI behavior configuration for this action (spec 52 §2.4) */
+  ai?: ActionAIConfig;
 }
 
 // ── Action execution result ─────────────────────────────────
