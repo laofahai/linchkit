@@ -1,5 +1,7 @@
 @import "./capability-styles.css";
 @import "@fontsource-variable/geist";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
 
 @theme inline {
   --font-heading: var(--font-sans);
