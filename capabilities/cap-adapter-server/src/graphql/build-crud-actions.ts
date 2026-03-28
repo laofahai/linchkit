@@ -72,6 +72,11 @@ export function generateCrudActions(
         }
       }
       const result = await ctx.create(name, inputWithDefaults);
+      ctx.emit("record.created", {
+        schema: name,
+        recordId: result.id as string,
+        ...result,
+      });
       // Cascade recalculate parent aggregate fields if this child schema affects any
       if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
         try {
@@ -95,13 +100,24 @@ export function generateCrudActions(
       const id = ctx.input.id as string;
       const { id: _id, ...data } = ctx.input;
 
+      // Fetch existing record once — used for state validation, derived fields, and change diff
+      let before: Record<string, unknown>;
+      try {
+        before = await ctx.get(name, id);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("not found")) {
+          before = {};
+        } else {
+          throw err;
+        }
+      }
+
       // Validate state field transitions: reject direct state changes that bypass the state machine
       if (stateFieldMachines.size > 0) {
-        const existing = await ctx.get(name, id);
         for (const [fieldName, machine] of stateFieldMachines) {
           const newValue = data[fieldName] as string | undefined;
           if (newValue === undefined || newValue === null) continue;
-          const currentValue = existing[fieldName] as string | undefined;
+          const currentValue = before[fieldName] as string | undefined;
           if (currentValue === newValue) continue;
           // Check if the target state is reachable from the current state via any transition
           const available = getAvailableTransitions(machine, currentValue ?? "");
@@ -117,18 +133,7 @@ export function generateCrudActions(
       // Compute store-strategy derived fields before persisting.
       // Merge existing record with new data so derived expressions can access all fields.
       if (derivedEngine) {
-        let fullRecord: Record<string, unknown>;
-        try {
-          const existing = await ctx.get(name, id);
-          fullRecord = { ...existing, ...data };
-        } catch (err) {
-          // Only fall back for NotFoundError; re-throw unexpected errors
-          if (err instanceof Error && err.message.includes("not found")) {
-            fullRecord = { ...data };
-          } else {
-            throw err;
-          }
-        }
+        const fullRecord = { ...before, ...data };
         try {
           // Use async version to support aggregate computations
           const derivedValues = await derivedEngine.computeStoreFieldsAsync(name, fullRecord);
@@ -140,6 +145,19 @@ export function generateCrudActions(
         }
       }
       const result = await ctx.update(name, id, data);
+
+      // Emit record.updated with before/after diff for Chatter auto-audit and subscriptions
+      const changedFields = Object.keys(data).filter(
+        (k) => before[k] !== (result as Record<string, unknown>)[k],
+      );
+      ctx.emit("record.updated", {
+        schema: name,
+        recordId: id,
+        before,
+        after: result,
+        changedFields,
+      });
+
       // Cascade recalculate parent aggregate fields if this child schema affects any
       if (derivedEngine && derivedEngine.hasCascadeTargets(name)) {
         try {
@@ -171,6 +189,11 @@ export function generateCrudActions(
         }
       }
       await ctx.delete(name, id);
+      ctx.emit("record.deleted", {
+        schema: name,
+        recordId: id,
+        id,
+      });
       // Cascade recalculate parent aggregate fields after delete
       if (derivedEngine && deletedRecord) {
         try {
