@@ -4,7 +4,7 @@
 project:
   name: linchkit
   root: /Users/laofahai/Documents/workspace/linchkit
-  canonicalBranch: main
+  canonicalBranch: feat/m2
   qualityGates:
     - name: Tests
       command: bun test
