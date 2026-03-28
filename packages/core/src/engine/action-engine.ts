@@ -642,6 +642,32 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         } catch {
           // Don't fail the action if event emission fails
         }
+
+        // Flush pending events (from ctx.emit()) to in-memory EventBus subscribers.
+        // Only flush at the root action level — child actions sharing a parent transaction
+        // have their events merged into the parent's pendingEvents and will be flushed
+        // when the parent's transaction commits.
+        if (!execOptions?._txDataProvider && pendingEvents.length > 0) {
+          for (const pe of pendingEvents) {
+            try {
+              await eventBus.emit({
+                id: crypto.randomUUID(),
+                type: pe.type,
+                category: pe.type.startsWith("record.") ? "change" : "custom",
+                timestamp: new Date(),
+                actor: { type: actor.type, id: actor.id },
+                schema: typeof pe.payload.schema === "string" ? pe.payload.schema : undefined,
+                recordId:
+                  typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
+                tenantId: pe.tenantId,
+                executionId: pe.sourceExecutionId ?? executionId,
+                payload: pe.payload,
+              });
+            } catch {
+              // Non-blocking — don't fail the action if flush fails
+            }
+          }
+        }
       }
 
       return {
