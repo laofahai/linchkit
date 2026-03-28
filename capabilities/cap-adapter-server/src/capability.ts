@@ -173,6 +173,14 @@ export const capAdapterServer = defineCapability({
     ],
     menuItems: [
       {
+        id: "relation-graph",
+        label: "t:relationGraph.navLabel",
+        path: "/admin/graph",
+        icon: "Network",
+        section: "admin",
+        order: 75,
+      },
+      {
         id: "evolution",
         label: "t:evolution.navLabel",
         path: "/admin/evolution",

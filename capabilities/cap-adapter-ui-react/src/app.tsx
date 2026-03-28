@@ -28,6 +28,7 @@ import { ConfigCenterPage } from "./pages/config-center";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { HealthMonitorPage } from "./pages/health-monitor";
+import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
@@ -210,6 +211,13 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const relationGraphRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/graph",
+    component: RelationGraphPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -226,6 +234,7 @@ function buildRouter(appConfig: AppConfig) {
       ruleDetailRoute,
       settingsRoute,
       configCenterRoute,
+      relationGraphRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),
