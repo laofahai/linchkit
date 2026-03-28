@@ -107,3 +107,66 @@ export interface MemoryStore {
 export interface Detector<TEvent = unknown, TResult = unknown> {
   detect(events: TEvent[]): Promise<TResult[]>;
 }
+
+// -- SignalBus --
+export interface SignalBus {
+  emit(signal: SensorSignal): void;
+  subscribe(listener: (signal: SensorSignal) => void): () => void;
+}
+
+// -- Usage Importance Graph (Spec 55 §5.2) --
+export type UsageNodeKind = 'schema' | 'action' | 'field';
+
+export interface UsageNode {
+  kind: UsageNodeKind;
+  schema: string;
+  name?: string;
+  importance: number;
+  usageCount: number;
+  lastAccessed: Date;
+}
+
+export interface UsageImportanceGraph {
+  recordUsage(kind: UsageNodeKind, schema: string, name?: string): void;
+  getImportance(kind: UsageNodeKind, schema: string, name?: string): number;
+  topN(n: number, kind?: UsageNodeKind): UsageNode[];
+  nodesFor(schema: string): UsageNode[];
+  toArray(): UsageNode[];
+}
+
+// -- Attention Budget (Spec 55 §6.3) --
+export interface AttentionBudgetConfig {
+  maxInsightsPerCycle: number;
+  ignoreDecay: number;
+  endorseBoost: number;
+}
+
+export interface ScoredCandidate<T = unknown> {
+  item: T;
+  score: number;
+  breakdown: { confidence: number; impact: number; importance: number; typeWeight: number; };
+}
+
+export interface AttentionBudget {
+  rank<T>(candidates: Array<{ item: T; confidence: number; impact: number; schema?: string; type?: string; }>): ScoredCandidate<T>[];
+  recordIgnore(type: string): void;
+  recordEndorse(type: string): void;
+}
+
+// -- Structural Check (Spec 55 §5.4) --
+export type StructuralIssueKind = 'schema_no_view' | 'action_never_called' | 'link_no_records' | 'rule_never_triggered' | 'field_constant_value';
+
+export interface StructuralIssue {
+  kind: StructuralIssueKind;
+  schema: string;
+  target?: string;
+  message: string;
+}
+
+// -- AwarenessEngine (Spec 55 §5) --
+export interface AwarenessEngine {
+  readonly usageGraph: UsageImportanceGraph;
+  readonly attentionBudget: AttentionBudget;
+  structuralCheck(): StructuralIssue[];
+  ingestSignal(signal: SensorSignal): void;
+}

@@ -378,6 +378,8 @@ export type {
   SignalBusOptions,
   SignalHandler,
 } from "./life-system";
+export { createUsageImportanceGraph, createAttentionBudget, createAwarenessEngine } from "./life-system";
+export type { AwarenessEngineOptions } from "./life-system";
 
 // === Deployment: health checks, graceful shutdown, environment ===
 
