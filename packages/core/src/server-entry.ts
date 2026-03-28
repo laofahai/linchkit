@@ -369,6 +369,9 @@ export {
   type SchemaDescriptor,
 } from "./ontology";
 
+// === Life system: Awareness layer ===
+export { createSignalBus, createUsageImportanceGraph, createAttentionBudget, createAwarenessEngine } from './life-system';
+
 // === Deployment: health checks, graceful shutdown, environment ===
 
 export {
