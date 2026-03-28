@@ -369,6 +369,16 @@ export {
   type SchemaDescriptor,
 } from "./ontology";
 
+// === Life-system: Sense layer (Spec 55) ===
+
+export { createSignalBus, defineSensor } from "./life-system";
+export type {
+  SensorDefinitionConfig,
+  SignalBus,
+  SignalBusOptions,
+  SignalHandler,
+} from "./life-system";
+
 // === Deployment: health checks, graceful shutdown, environment ===
 
 export {

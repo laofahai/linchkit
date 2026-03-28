@@ -7,6 +7,7 @@
 
 import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
+import type { Sensor } from "./life-system";
 import type { AutomationDefinition } from "./automation";
 import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
@@ -197,6 +198,8 @@ export interface CapabilityExtensions {
     handler: (...args: unknown[]) => Promise<void> | void;
     priority?: number;
   }>;
+  /** Sensors registered by this capability for the Sense layer (Spec 55 §3.3) */
+  sensors?: Sensor[];
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────
