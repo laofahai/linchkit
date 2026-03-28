@@ -255,6 +255,14 @@ export {
 } from "./types";
 export type { Logger } from "./types/logger";
 export type { PermissionGroupDefinition } from "./types/permission";
+// Life-system — Sense layer (Spec 55)
+export { createSignalBus, defineSensor } from "./life-system";
+export type {
+  SensorDefinitionConfig,
+  SignalBus,
+  SignalBusOptions,
+  SignalHandler,
+} from "./life-system";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
