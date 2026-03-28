@@ -23,6 +23,7 @@ import type {
   OntologyRegistry,
   PermissionGroupDefinition,
   RuleDefinition,
+  RuntimeConfigRegistry,
   SchemaDefinition,
   SchemaRegistry,
   StateDefinition,
@@ -40,6 +41,7 @@ import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
 import { mountApprovalRoutes } from "./routes/approval-api";
+import { mountConfigRoutes } from "./routes/config-api";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountSchemaRoutes } from "./routes/schema-api";
 import { ANONYMOUS_ACTOR, resolveRequestLocale } from "./routes/shared";
@@ -124,6 +126,8 @@ export interface ServerOptions {
   linchKitConfig?: LinchKitConfig;
   /** Approval engine — when provided, enables /api/approvals REST endpoints */
   approvalEngine?: ApprovalEngine;
+  /** Runtime config registry — when provided, enables /api/configs REST endpoints */
+  runtimeConfigRegistry?: RuntimeConfigRegistry;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -211,6 +215,7 @@ export function createServer(
   mountActionRoutes(app, opts);
   mountImportRoutes(app, opts);
   mountApprovalRoutes(app, opts);
+  mountConfigRoutes(app, opts);
   mountAIRoutes(app, opts);
 
   // Mount graphql-yoga — handle all methods on the graphql path

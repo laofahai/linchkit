@@ -24,6 +24,7 @@ import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
+import { ConfigCenterPage } from "./pages/config-center";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { HealthMonitorPage } from "./pages/health-monitor";
@@ -202,6 +203,13 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const configCenterRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/config",
+    component: ConfigCenterPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -217,6 +225,7 @@ function buildRouter(appConfig: AppConfig) {
       evolutionRoute,
       ruleDetailRoute,
       settingsRoute,
+      configCenterRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),
