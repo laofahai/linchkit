@@ -25,7 +25,7 @@ import {
   createDocSearchIndex,
   generateCapabilityDoc,
   renderCapabilityDoc,
-} from "@linchkit/core/server";
+} from "@linchkit/devtools";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { OperationTypeNode, parse } from "graphql";
 import { z } from "zod";

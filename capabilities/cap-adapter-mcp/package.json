@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@linchkit/core": "workspace:*",
+    "@linchkit/devtools": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1"
   },
   "devDependencies": {

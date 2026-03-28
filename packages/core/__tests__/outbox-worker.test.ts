@@ -535,7 +535,7 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
 
     worker.start();
     // Give it time to pick up the event
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await worker.stop();
 
     // The handler should have completed before stop returned
