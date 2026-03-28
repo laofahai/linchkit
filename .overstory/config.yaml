@@ -61,6 +61,12 @@ logging:
 runtime:
   default: claude
   shellInitDelayMs: 0
+  capabilities:
+    coordinator: claude
+    lead: claude
+    builder: claude
+    scout: gemini
+    reviewer: codex
   pi:
     provider: anthropic
     modelMap:
