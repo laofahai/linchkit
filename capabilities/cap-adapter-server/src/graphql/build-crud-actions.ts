@@ -153,8 +153,8 @@ export function generateCrudActions(
       ctx.emit("record.updated", {
         schema: name,
         recordId: id,
-        before,
-        after: result,
+        _old: before,
+        _new: result,
         changedFields,
       });
 

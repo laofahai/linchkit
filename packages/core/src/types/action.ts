@@ -110,7 +110,11 @@ export interface ActionContext {
   ai: AIService;
 
   // Data operations
-  get(schema: string, id: string): Promise<Record<string, unknown>>;
+  get(
+    schema: string,
+    id: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<Record<string, unknown>>;
   query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
   create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(
