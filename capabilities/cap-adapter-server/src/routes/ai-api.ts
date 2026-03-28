@@ -531,8 +531,20 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         return { success: true, data: null };
       }
 
-      // Build action catalog for the AI prompt
-      const allActions = actionRegistry.getAll();
+      const ontologyRegistry = options.ontologyRegistry;
+
+      // Build set of AI-disabled schema names (ai.actionable === false)
+      const aiDisabledSchemas = new Set<string>();
+      if (schemaRegistry) {
+        for (const schema of schemaRegistry.getAll()) {
+          if (schema.ai?.actionable === false) {
+            aiDisabledSchemas.add(schema.name);
+          }
+        }
+      }
+
+      // Build action catalog for the AI prompt — filter out AI-restricted schemas
+      const allActions = actionRegistry.getAll().filter((a) => !aiDisabledSchemas.has(a.schema));
       const actionCatalog = allActions.map((a) => {
         const inputFields = a.input
           ? Object.entries(a.input).map(([name, field]) => ({
@@ -551,11 +563,26 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           schema: a.schema,
           label: a.label,
           description: a.description,
+          promptHints: a.ai?.promptHints,
           inputFields,
         };
       });
 
-      // Build schema context
+      // Build schema overview from OntologyRegistry for richer context
+      let schemaOverview = "";
+      if (ontologyRegistry) {
+        const schemaNames = ontologyRegistry.listSchemas().filter((n) => !aiDisabledSchemas.has(n));
+        const schemaLines = schemaNames.map((n) => {
+          const desc = ontologyRegistry.describe(n);
+          if (!desc) return `- ${n}`;
+          return `- ${n}${desc.label ? ` (${desc.label})` : ""}${desc.description ? `: ${desc.description}` : ""}`;
+        });
+        if (schemaLines.length > 0) {
+          schemaOverview = `\nAvailable schemas:\n${schemaLines.join("\n")}`;
+        }
+      }
+
+      // Build current page context
       let schemaContext = "";
       if (context?.schema && schemaRegistry) {
         const schema = schemaRegistry.get(context.schema);
@@ -573,7 +600,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
       const langInstruction = locale ? getLanguageInstruction(locale) : undefined;
 
       const systemPrompt = `You are LinchKit AI Intent Resolver. Given a user's natural language request, determine which action to execute and extract the input parameters.
-${langInstruction ? `\n${langInstruction}\n` : ""}
+${langInstruction ? `\n${langInstruction}\n` : ""}${schemaOverview}
+
 Available actions:
 ${JSON.stringify(actionCatalog, null, 2)}
 ${schemaContext}
@@ -585,7 +613,8 @@ Respond with a JSON object (and nothing else) in this exact format:
   "input": { "field_name": "extracted_value" },
   "missingFields": ["field names that are required but not extracted"],
   "confidence": 0.0 to 1.0,
-  "explanation": "Human-readable explanation of what will happen"
+  "explanation": "Human-readable explanation of what will happen",
+  "alternatives": [{ "action": "alt_action_name", "confidence": 0.0, "explanation": "..." }]
 }
 
 Rules:
@@ -594,6 +623,7 @@ Rules:
 - The user may write in any language (including Chinese like "创建采购请求"). Match intent regardless of input language.
 - If you cannot determine a good match, set action to null and confidence to 0.
 - If some required fields are missing from the user message, list them in missingFields.
+- If confidence < 0.7, include up to 3 alternative interpretations in "alternatives".
 - The explanation should be concise, user-friendly${langInstruction ? ", and written in the user's language" : ""}.`;
 
       try {
@@ -616,6 +646,7 @@ Rules:
           missingFields?: string[];
           confidence: number;
           explanation: string;
+          alternatives?: Array<{ action: string; confidence: number; explanation: string }>;
         };
         try {
           // Strip markdown code fences if present
@@ -630,9 +661,9 @@ Rules:
           return { success: true, data: null };
         }
 
-        // Verify the action actually exists
+        // Verify the action actually exists and is not AI-restricted
         const matchedAction = actionRegistry.get(parsed.action);
-        if (!matchedAction) {
+        if (!matchedAction || aiDisabledSchemas.has(matchedAction.schema)) {
           return { success: true, data: null };
         }
 
@@ -645,6 +676,9 @@ Rules:
             missingFields: parsed.missingFields ?? [],
             confidence: parsed.confidence,
             explanation: parsed.explanation,
+            ...(parsed.confidence < 0.7 && parsed.alternatives?.length
+              ? { alternatives: parsed.alternatives }
+              : {}),
             actionLabel: matchedAction.label,
             actionDescription: matchedAction.description,
             inputSchema: matchedAction.input
@@ -665,6 +699,89 @@ Rules:
         };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "AI request failed";
+        set.status = 500;
+        return { success: false, error: { message: errorMessage } };
+      }
+    })
+    // ── AI Execute-Intent endpoint — execute a confirmed AI-proposed action ──
+    .post("/api/ai/execute-intent", async ({ body, set, request }) => {
+      const { action: actionName, input, source } = (body ?? {}) as {
+        action?: string;
+        input?: Record<string, unknown>;
+        source?: string;
+      };
+
+      if (!actionName || typeof actionName !== "string") {
+        set.status = 400;
+        return { success: false, error: { message: "action is required" } };
+      }
+
+      if (!executor && !options.commandLayer) {
+        set.status = 500;
+        return { success: false, error: { message: "Action executor not configured." } };
+      }
+
+      const { resolveActor, resolveRequestLocale, resolveStatusCode } = await import("./shared");
+      const actor = await resolveActor(request, options.resolveRequestActor);
+      const locale = resolveRequestLocale(request);
+
+      // Tag the actor metadata so the execution log records this as AI-sourced
+      const aiActor = {
+        ...actor,
+        metadata: {
+          ...actor.metadata,
+          source: source ?? "ai",
+          aiInitiated: true,
+        },
+      };
+
+      const actionInput = input ?? {};
+
+      try {
+        let result: import("@linchkit/core").ActionResult;
+        if (options.commandLayer) {
+          const headers: Record<string, string> = {};
+          for (const [key, value] of request.headers.entries()) {
+            headers[key] = value;
+          }
+          result = await options.commandLayer.execute({
+            command: actionName,
+            input: actionInput,
+            actor: aiActor,
+            channel: "http",
+            locale,
+            headers,
+          });
+        } else {
+          result = await executor!.execute(actionName, actionInput, aiActor, {
+            channel: "http",
+            locale,
+          });
+        }
+
+        if (result.success) {
+          return {
+            success: true,
+            data: result.data,
+            meta: { executionId: result.executionId, source: "ai" },
+          };
+        }
+
+        set.status = resolveStatusCode(result);
+        const errData = result.data as Record<string, unknown> | undefined;
+        const rawMessage = (errData?.error as string) ?? "Action execution failed";
+        const isDevMode = process.env.NODE_ENV !== "production";
+        return {
+          success: false,
+          error: {
+            code: "ACTION.EXECUTION.FAILED",
+            message: isDevMode ? rawMessage : "Action execution failed",
+            ...(isDevMode && errData?.details ? { details: errData.details } : {}),
+          },
+          meta: { executionId: result.executionId },
+        };
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Action execution failed";
         set.status = 500;
         return { success: false, error: { message: errorMessage } };
       }

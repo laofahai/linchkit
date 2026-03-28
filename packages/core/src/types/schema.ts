@@ -241,6 +241,25 @@ export interface InterfaceDefinition {
   actions?: Record<string, InterfaceActionTemplate>;
 }
 
+// ── Schema AI configuration ──────────────────────────────────
+
+/**
+ * Per-schema AI behavior configuration (spec 52 §8.2).
+ * Controls what AI features are available for this schema.
+ */
+export interface SchemaAIConfig {
+  /** Whether AI can read records of this schema for analysis/context (default: true) */
+  readable?: boolean;
+  /** Whether AI can propose actions on this schema (default: true) */
+  actionable?: boolean;
+  /** Whether AI can include this schema in search results (default: true) */
+  searchable?: boolean;
+  /** Specific fields to exclude from AI context */
+  excludeFields?: string[];
+  /** Custom AI instructions for this schema */
+  instructions?: string;
+}
+
 // ── Schema definition ──────────────────────────────────────
 
 /** Internationalization configuration for a schema's translatable fields */
@@ -277,6 +296,8 @@ export interface SchemaDefinition<
 
   exposure?: ExposureConfig;
   fieldExposure?: FieldExposureMap;
+  /** AI behavior configuration for this schema (spec 52 §8.2) */
+  ai?: SchemaAIConfig;
 }
 
 // ── Schema extension and override ─────────────────────────────────
