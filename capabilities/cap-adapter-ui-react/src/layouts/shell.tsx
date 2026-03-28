@@ -63,6 +63,7 @@ function ShellContent() {
               {breadcrumbItems.map((item, index) => {
                 const isLast = index === breadcrumbItems.length - 1;
                 return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: breadcrumb items lack stable ids
                   <React.Fragment key={`${index}-${item.label}`}>
                     {index > 0 && <BreadcrumbSeparator />}
                     <BreadcrumbItemUI>

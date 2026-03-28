@@ -6,9 +6,9 @@
  * within the same group auto-align to the widest one.
  */
 
-import { Fragment } from "react";
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { Fragment } from "react";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 
 interface FormGroupProps {
@@ -38,9 +38,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
           style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}
         >
           {node.children.map((child, i) => (
-            <Fragment key={getGroupChildKey(child, i)}>
-              {renderNode(child, depth + 1)}
-            </Fragment>
+            <Fragment key={getGroupChildKey(child, i)}>{renderNode(child, depth + 1)}</Fragment>
           ))}
         </div>
       </div>
@@ -58,10 +56,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
         </div>
       )}
       <div
-        className={cn(
-          "grid gap-x-8",
-          "max-md:!grid-cols-1",
-        )}
+        className={cn("grid gap-x-8", "max-md:!grid-cols-1")}
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
@@ -69,8 +64,12 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
         {node.children.map((child, i) => (
           <div
             key={getGroupChildKey(child, i)}
-            className={child.type === "field" ? "grid gap-y-0 items-center max-md:!grid-cols-1" : undefined}
-            style={child.type === "field" ? { gridTemplateColumns: "auto minmax(0, 1fr)" } : undefined}
+            className={
+              child.type === "field" ? "grid gap-y-0 items-center max-md:!grid-cols-1" : undefined
+            }
+            style={
+              child.type === "field" ? { gridTemplateColumns: "auto minmax(0, 1fr)" } : undefined
+            }
           >
             {renderNode(child, depth + 1)}
           </div>

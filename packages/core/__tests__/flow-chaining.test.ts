@@ -1,4 +1,5 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import type { FlowCompletedPayload } from "../src/flow/flow-chaining";
 import {
   detectFlowCycle,
   emitFlowCompletionEvent,
@@ -8,7 +9,6 @@ import {
   resolveInputMapping,
   validateFlowChains,
 } from "../src/flow/flow-chaining";
-import type { FlowCompletedPayload } from "../src/flow/flow-chaining";
 import { createFlowRegistry } from "../src/flow/flow-registry";
 import { createSyncFlowEngine } from "../src/flow/sync-engine";
 import type { FlowStepContext } from "../src/flow/types";
@@ -43,9 +43,7 @@ function createMockStepContext(
 const flowA: FlowDefinition = {
   name: "flow-a",
   trigger: { type: "manual" },
-  steps: [
-    { id: "step1", name: "Step 1", type: "action", actionName: "do.a" },
-  ],
+  steps: [{ id: "step1", name: "Step 1", type: "action", actionName: "do.a" }],
   onComplete: {
     flow: "flow-b",
     inputMapping: { orderId: "$result.__steps.step1.output.orderId" },
@@ -55,17 +53,13 @@ const flowA: FlowDefinition = {
 const flowB: FlowDefinition = {
   name: "flow-b",
   trigger: { type: "manual" },
-  steps: [
-    { id: "step1", name: "Step 1", type: "action", actionName: "do.b" },
-  ],
+  steps: [{ id: "step1", name: "Step 1", type: "action", actionName: "do.b" }],
 };
 
 const flowC: FlowDefinition = {
   name: "flow-c",
   trigger: { type: "manual" },
-  steps: [
-    { id: "step1", name: "Step 1", type: "action", actionName: "do.c" },
-  ],
+  steps: [{ id: "step1", name: "Step 1", type: "action", actionName: "do.c" }],
 };
 
 // ── Tests ───────────────────────────────────────────────
@@ -93,9 +87,9 @@ describe("Flow Chaining", () => {
 
       // Event is emitted asynchronously, give it a tick
       expect(emittedEvents.length).toBe(1);
-      expect(emittedEvents[0]!.type).toBe(FLOW_COMPLETED_EVENT);
-      expect((emittedEvents[0]!.payload as FlowCompletedPayload).flowName).toBe("my-flow");
-      expect((emittedEvents[0]!.payload as FlowCompletedPayload).status).toBe("completed");
+      expect(emittedEvents[0]?.type).toBe(FLOW_COMPLETED_EVENT);
+      expect((emittedEvents[0]?.payload as FlowCompletedPayload).flowName).toBe("my-flow");
+      expect((emittedEvents[0]?.payload as FlowCompletedPayload).status).toBe("completed");
     });
 
     it("emits flow.failed event on failure", () => {
@@ -118,8 +112,8 @@ describe("Flow Chaining", () => {
       });
 
       expect(emittedEvents.length).toBe(1);
-      expect(emittedEvents[0]!.type).toBe(FLOW_FAILED_EVENT);
-      expect((emittedEvents[0]!.payload as FlowCompletedPayload).error?.message).toBe("DB error");
+      expect(emittedEvents[0]?.type).toBe(FLOW_FAILED_EVENT);
+      expect((emittedEvents[0]?.payload as FlowCompletedPayload).error?.message).toBe("DB error");
     });
 
     it("does not throw when eventBus has no emit method", () => {
@@ -236,7 +230,7 @@ describe("Flow Chaining", () => {
 
       const cycle = detectFlowCycle(registry, "flow-a");
       expect(cycle).not.toBeNull();
-      expect(cycle!.length).toBeGreaterThanOrEqual(3);
+      expect(cycle?.length).toBeGreaterThanOrEqual(3);
     });
 
     it("handles self-referencing flow", () => {
@@ -354,8 +348,8 @@ describe("Flow Chaining", () => {
       await engine.startFlow("flow-b", { data: "test" });
 
       expect(emittedEvents.length).toBe(1);
-      expect(emittedEvents[0]!.type).toBe("flow.completed");
-      const payload = emittedEvents[0]!.payload as unknown as FlowCompletedPayload;
+      expect(emittedEvents[0]?.type).toBe("flow.completed");
+      const payload = emittedEvents[0]?.payload as unknown as FlowCompletedPayload;
       expect(payload.flowName).toBe("flow-b");
       expect(payload.status).toBe("completed");
     });
@@ -380,7 +374,7 @@ describe("Flow Chaining", () => {
       const instance = await engine.startFlow("flow-b", {});
       expect(instance.status).toBe("failed");
       expect(emittedEvents.length).toBe(1);
-      expect(emittedEvents[0]!.type).toBe("flow.failed");
+      expect(emittedEvents[0]?.type).toBe("flow.failed");
     });
 
     it("triggers downstream flow via onComplete chain", async () => {
@@ -432,10 +426,7 @@ describe("Flow Chaining", () => {
         name: "flow-a",
         trigger: { type: "manual" },
         steps: [{ id: "s1", name: "Step", type: "action", actionName: "do.a" }],
-        onComplete: [
-          { flow: "flow-b" },
-          { flow: "flow-c" },
-        ],
+        onComplete: [{ flow: "flow-b" }, { flow: "flow-c" }],
       };
 
       const registry = createFlowRegistry();

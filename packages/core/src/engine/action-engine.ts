@@ -20,6 +20,7 @@ import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
 
 export { ActionRegistry } from "./action-registry";
+
 import {
   checkPermissions,
   generateExecutionId,
@@ -634,7 +635,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             tenantId: execOptions?.tenantId,
             payload: {
               action: actionName,
-              ...((typeof resultData === "object" && resultData !== null)
+              ...(typeof resultData === "object" && resultData !== null
                 ? (resultData as Record<string, unknown>)
                 : { result: resultData }),
             },
@@ -657,8 +658,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 timestamp: new Date(),
                 actor: { type: actor.type, id: actor.id },
                 schema: typeof pe.payload.schema === "string" ? pe.payload.schema : undefined,
-                recordId:
-                  typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
+                recordId: typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
                 tenantId: pe.tenantId,
                 executionId: pe.sourceExecutionId ?? executionId,
                 payload: pe.payload,

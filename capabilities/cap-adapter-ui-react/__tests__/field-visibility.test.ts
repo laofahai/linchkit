@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { evaluateVisibility } from "../src/lib/field-visibility";
 import type { FieldVisibilityCondition } from "@linchkit/core/types";
+import { evaluateVisibility } from "../src/lib/field-visibility";
 
 describe("evaluateVisibility", () => {
   const data = {

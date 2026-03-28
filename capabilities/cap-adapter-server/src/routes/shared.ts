@@ -5,7 +5,7 @@
  * and other helpers used across multiple route files.
  */
 
-import type { ActionResult, Actor, CapabilityDefinition } from "@linchkit/core";
+import type { Actor, CapabilityDefinition } from "@linchkit/core";
 
 /** Default anonymous actor for unauthenticated requests. */
 export const ANONYMOUS_ACTOR: Actor = {
@@ -119,25 +119,29 @@ export function resolveRequestLocale(request: Request): string | undefined {
 // ── Error response helpers ───────────────────────────────────────────
 
 /** Return a 503 (or custom status) "service unavailable" error envelope. */
-export function serviceUnavailable(set: { status: number }, message: string, status = 503) {
+export function serviceUnavailable(
+  set: { status?: number | string | undefined },
+  message: string,
+  status = 503,
+) {
   set.status = status;
   return { success: false as const, error: { message } };
 }
 
 /** Return a 404 "not found" error envelope. */
-export function notFound(set: { status: number }, message: string) {
+export function notFound(set: { status?: number | string | undefined }, message: string) {
   set.status = 404;
   return { success: false as const, error: { message } };
 }
 
 /** Return a 400 "bad request" error envelope. */
-export function badRequest(set: { status: number }, message: string) {
+export function badRequest(set: { status?: number | string | undefined }, message: string) {
   set.status = 400;
   return { success: false as const, error: { message } };
 }
 
 /** Return a 500 "server error" error envelope. */
-export function serverError(set: { status: number }, message: string) {
+export function serverError(set: { status?: number | string | undefined }, message: string) {
   set.status = 500;
   return { success: false as const, error: { message } };
 }

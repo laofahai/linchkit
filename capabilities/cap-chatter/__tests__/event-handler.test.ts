@@ -2,10 +2,10 @@
  * Chatter auto-log event handler tests
  */
 
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import type { EventRecord } from "@linchkit/core";
 import { createChatterAutoLog } from "../src/event-handler";
 import { InMemoryChatterService } from "../src/service";
-import type { EventRecord } from "@linchkit/core";
 
 // Stub EventHandlerContext (not used by handler, but required by signature)
 const stubCtx = {
@@ -70,7 +70,10 @@ describe("createChatterAutoLog", () => {
     expect(msg.body).toContain("5000");
     expect(msg.body).toContain("8000");
     expect(msg.body).toContain("vendor");
-    expect((msg.logMetadata as Record<string, unknown>)?.changed_fields).toEqual(["amount", "vendor"]);
+    expect((msg.logMetadata as Record<string, unknown>)?.changed_fields).toEqual([
+      "amount",
+      "vendor",
+    ]);
   });
 
   it("skips record.updated when only system fields changed", async () => {

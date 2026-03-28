@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, AIServiceConfig, SchemaDefinition } from "@linchkit/core";
+import type { AIService, SchemaDefinition } from "@linchkit/core";
 import { SchemaRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";

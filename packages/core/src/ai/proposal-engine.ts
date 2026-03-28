@@ -12,19 +12,25 @@
 
 import type { AutomationDefinition } from "../types/automation";
 import type { RuleDefinition } from "../types/rule";
+import type { PatternInsight } from "./pattern-detector";
 import type {
   ProposalValidatorConfig,
-  ProposalValidationResult as SecurityValidationResult,
   ProposalChange as SecurityProposalChange,
+  ProposalValidationResult as SecurityValidationResult,
 } from "./proposal-validator";
 import { validateProposal as validateProposalSecurity } from "./proposal-validator";
-import type { PatternInsight } from "./pattern-detector";
 
 // ── Proposal types ───────────────────────────────────────
 
 export type ProposalType = "add_rule" | "add_automation" | "modify_schema" | "add_default";
 
-export type AIProposalStatus = "draft" | "pending" | "approved" | "rejected" | "applied" | "rolled_back";
+export type AIProposalStatus =
+  | "draft"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "applied"
+  | "rolled_back";
 
 /** A draft suggestion from the pattern detector — not yet a full proposal */
 export interface ProposalDraft {
@@ -163,7 +169,9 @@ export class ProposalEngine {
     const proposal = this.getOrThrow(proposalId);
 
     if (proposal.status !== "draft") {
-      throw new Error(`Cannot submit proposal "${proposalId}": status is "${proposal.status}", expected "draft"`);
+      throw new Error(
+        `Cannot submit proposal "${proposalId}": status is "${proposal.status}", expected "draft"`,
+      );
     }
 
     // Run security validation
@@ -278,7 +286,9 @@ export class ProposalEngine {
   /** Get proposals for a specific schema */
   listBySchema(schema: string): Proposal[] {
     return Array.from(this.proposals.values()).filter(
-      (p) => p.diff.definition && "schema" in (p.diff.definition as Record<string, unknown>) &&
+      (p) =>
+        p.diff.definition &&
+        "schema" in (p.diff.definition as Record<string, unknown>) &&
         (p.diff.definition as Record<string, unknown>).schema === schema,
     );
   }
@@ -370,9 +380,7 @@ export class ProposalEngine {
       description: insight.description,
       priority: 10,
       trigger: { action: action ?? `update_${insight.schema}` },
-      condition: field
-        ? { field, operator: "eq", value }
-        : { field: "id", operator: "not_null" },
+      condition: field ? { field, operator: "eq", value } : { field: "id", operator: "not_null" },
       effect: {
         type: "enrich",
         setFields: field && value ? { [field]: value } : {},
@@ -457,9 +465,9 @@ export class ProposalEngine {
     };
 
     const targetName = proposal.diff.definition
-      ? ("name" in (proposal.diff.definition as Record<string, unknown>)
-          ? String((proposal.diff.definition as Record<string, unknown>).name)
-          : "unknown")
+      ? "name" in (proposal.diff.definition as Record<string, unknown>)
+        ? String((proposal.diff.definition as Record<string, unknown>).name)
+        : "unknown"
       : "unknown";
 
     return [

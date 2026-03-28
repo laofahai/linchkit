@@ -71,7 +71,10 @@ export interface AlertEvaluationResult {
 }
 
 /** Callback invoked when an alert triggers */
-export type AlertHandler = (result: AlertEvaluationResult, definition: SystemAlertDefinition) => void;
+export type AlertHandler = (
+  result: AlertEvaluationResult,
+  definition: SystemAlertDefinition,
+) => void;
 
 // ── defineSystemAlert ───────────────────────────────────
 

@@ -11,11 +11,10 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
-import { createActionExecutor } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
-import { executionLogSchema } from "../src/system-schemas";
+import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
+import { executionLogSchema } from "../src/system-schemas";
 
 // ── Setup ────────────────────────────────────────────────
 
@@ -165,17 +164,23 @@ describe("GraphQL executionLogList query", () => {
     await seedLog({ action_name: "create_task" });
     await seedLog({ action_name: "delete_task", status: "failed" });
 
-    const result = await gql(`
+    const result = await gql(
+      `
       query($filter: String) {
         executionLogList(filter: $filter) {
           items { action_name }
           total
         }
       }
-    `, { filter: JSON.stringify({ action_name: "create_task" }) });
+    `,
+      { filter: JSON.stringify({ action_name: "create_task" }) },
+    );
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(2);
     for (const item of logs.items) {
       expect(item.action_name).toBe("create_task");
@@ -186,17 +191,23 @@ describe("GraphQL executionLogList query", () => {
     await seedLog({ status: "succeeded" });
     await seedLog({ status: "failed", error_message: "missing field" });
 
-    const result = await gql(`
+    const result = await gql(
+      `
       query($filter: String) {
         executionLogList(filter: $filter) {
           items { status }
           total
         }
       }
-    `, { filter: JSON.stringify({ status: "succeeded" }) });
+    `,
+      { filter: JSON.stringify({ status: "succeeded" }) },
+    );
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(1);
     for (const item of logs.items) {
       expect(item.status).toBe("succeeded");
@@ -207,17 +218,23 @@ describe("GraphQL executionLogList query", () => {
     await seedLog({ schema_name: "task" });
     await seedLog({ schema_name: "order" });
 
-    const result = await gql(`
+    const result = await gql(
+      `
       query($filter: String) {
         executionLogList(filter: $filter) {
           items { schema_name }
           total
         }
       }
-    `, { filter: JSON.stringify({ schema_name: "task" }) });
+    `,
+      { filter: JSON.stringify({ schema_name: "task" }) },
+    );
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(1);
     expect(logs.items[0].schema_name).toBe("task");
   });
@@ -267,7 +284,10 @@ describe("GraphQL executionLogList query", () => {
     `);
 
     expect(ascResult.errors).toBeUndefined();
-    const logs = ascResult.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = ascResult.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(2);
     const t0 = new Date(logs.items[0].started_at as string).getTime();
     const t1 = new Date(logs.items[1].started_at as string).getTime();
@@ -281,7 +301,8 @@ describe("GraphQL executionLogList query", () => {
       error_message: "Action not found",
     });
 
-    const result = await gql(`
+    const result = await gql(
+      `
       query($filter: String) {
         executionLogList(filter: $filter) {
           items {
@@ -292,10 +313,15 @@ describe("GraphQL executionLogList query", () => {
           total
         }
       }
-    `, { filter: JSON.stringify({ status: "failed" }) });
+    `,
+      { filter: JSON.stringify({ status: "failed" }) },
+    );
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(1);
     const failedEntry = logs.items[0];
     expect(failedEntry.status).toBe("failed");
@@ -321,7 +347,10 @@ describe("GraphQL executionLogList query", () => {
     `);
 
     expect(result.errors).toBeUndefined();
-    const logs = result.data.executionLogList as { items: Array<Record<string, unknown>>; total: number };
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(logs.total).toBe(1);
     const entry = logs.items[0];
     expect(entry.channel).toBe("graphql");
@@ -338,7 +367,8 @@ describe("GraphQL executionLog single entry query", () => {
     });
     const entryId = created.id as string;
 
-    const result = await gql(`
+    const result = await gql(
+      `
       query($id: ID!) {
         executionLog(id: $id) {
           id
@@ -348,7 +378,9 @@ describe("GraphQL executionLog single entry query", () => {
           actor_type
         }
       }
-    `, { id: entryId });
+    `,
+      { id: entryId },
+    );
 
     expect(result.errors).toBeUndefined();
     const entry = result.data.executionLog as Record<string, unknown>;
@@ -380,13 +412,16 @@ describe("GraphQL executionLog single entry query", () => {
     const entryId = created.id as string;
 
     // Query without tenant context should return the entry (no tenant filtering)
-    const result = await gql(`
+    const result = await gql(
+      `
       query($id: ID!) {
         executionLog(id: $id) {
           id
         }
       }
-    `, { id: entryId });
+    `,
+      { id: entryId },
+    );
 
     expect(result.errors).toBeUndefined();
     // Without tenant context in the GraphQL context, tenant isolation check

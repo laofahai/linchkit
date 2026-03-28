@@ -9,10 +9,7 @@ import type { Elysia } from "elysia";
 import { generateDefaultViews } from "../default-views";
 import type { ServerOptions } from "../server";
 
-export function mountSchemaRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
   const schemaRegistry = options.schemaRegistry;
   const views = options.views;
   const capabilities = options.capabilities ?? [];
@@ -64,6 +61,9 @@ export function mountSchemaRoutes(
         (cap.links ?? []).filter((l) => l.from === params.name || l.to === params.name),
       );
       const internal = schemaRegistry.isInternal(params.name) || undefined;
-      return { success: true, data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks, internal } };
+      return {
+        success: true,
+        data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks, internal },
+      };
     });
 }

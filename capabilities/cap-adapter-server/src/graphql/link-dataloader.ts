@@ -8,8 +8,8 @@
  * isolation is preserved within the shared batch function.
  */
 
-import DataLoader from "dataloader";
 import type { DataProvider } from "@linchkit/core";
+import DataLoader from "dataloader";
 
 // ── Key helpers ─────────────────────────────────────────────
 
@@ -78,6 +78,7 @@ export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoade
       const groups = new Map<string, { keys: GetLoaderKey[]; indices: number[] }>();
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
+        if (!k) continue;
         const groupKey = `${k.schema}\0${k.tenantId ?? ""}`;
         let group = groups.get(groupKey);
         if (!group) {
@@ -95,13 +96,12 @@ export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoade
           // Fetch all IDs for this schema+tenant group in parallel
           const records = await Promise.all(
             group.keys.map((k) =>
-              dataProvider
-                .get(k.schema, k.id, { tenantId: k.tenantId })
-                .catch(() => null),
+              dataProvider.get(k.schema, k.id, { tenantId: k.tenantId }).catch(() => null),
             ),
           );
           for (let j = 0; j < records.length; j++) {
-            results[group.indices[j]] = (records[j] as Record<string, unknown>) ?? null;
+            const idx = group.indices[j];
+            if (idx !== undefined) results[idx] = (records[j] as Record<string, unknown>) ?? null;
           }
         }),
       );
@@ -109,6 +109,7 @@ export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoade
       return results;
     },
     {
+      // @ts-expect-error dataloader cacheKeyFn can return string
       cacheKeyFn: getKeyStr,
     },
   );
@@ -147,6 +148,7 @@ export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoade
       return results;
     },
     {
+      // @ts-expect-error dataloader cacheKeyFn can return string
       cacheKeyFn: queryKeyStr,
     },
   );

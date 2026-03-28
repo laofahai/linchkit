@@ -26,17 +26,11 @@ function event(opts: {
 }
 
 /** Fill the detector with baseline events spread over time */
-function buildBaseline(
-  detector: AnomalyDetector,
-  eventCount: number,
-  windowMs: number,
-): void {
+function buildBaseline(detector: AnomalyDetector, eventCount: number, windowMs: number): void {
   // Simulate 5 baseline windows to establish a rate
   for (let w = 0; w < 5; w++) {
     for (let i = 0; i < eventCount; i++) {
-      detector.recordEvent(
-        event({ offsetMs: windowMs * (w + 1) + i * 10, actionName: "query" }),
-      );
+      detector.recordEvent(event({ offsetMs: windowMs * (w + 1) + i * 10, actionName: "query" }));
     }
     detector.detect();
   }
@@ -254,15 +248,11 @@ describe("AnomalyDetector", () => {
 
       // tenant-1: all failures
       for (let i = 0; i < 10; i++) {
-        detector.recordEvent(
-          event({ offsetMs: i * 10, tenantId: "tenant-1", success: false }),
-        );
+        detector.recordEvent(event({ offsetMs: i * 10, tenantId: "tenant-1", success: false }));
       }
       // tenant-2: all successes
       for (let i = 0; i < 10; i++) {
-        detector.recordEvent(
-          event({ offsetMs: i * 10, tenantId: "tenant-2", success: true }),
-        );
+        detector.recordEvent(event({ offsetMs: i * 10, tenantId: "tenant-2", success: true }));
       }
 
       const t1 = detector.detect({ tenantId: "tenant-1" });

@@ -18,10 +18,8 @@
  */
 
 import type {
-  AICacheConfig,
   AICompletionOptions,
   AICompletionResult,
-  AIFallbackConfig,
   AIModelRoute,
   AIProviderConfig,
   AIProviderType,
@@ -77,17 +75,14 @@ export function createAIService(config: AIServiceConfig): AIService {
   validateConfig(config);
 
   const costEstimator = new CostEstimator();
-  const cache =
-    config.cache?.enabled ? new AIResponseCache(config.cache) : undefined;
+  const cache = config.cache?.enabled ? new AIResponseCache(config.cache) : undefined;
 
   return {
     configured: true,
     defaultProvider: config.defaultProvider,
     providerNames: Object.keys(config.providers),
-    complete: (options) =>
-      executeWithFallback(config, options, costEstimator, cache),
-    completeStream: (options) =>
-      executeStream(config, options),
+    complete: (options) => executeWithFallback(config, options, costEstimator, cache),
+    completeStream: (options) => executeStream(config, options),
   };
 }
 
@@ -188,10 +183,7 @@ export function resolveTenantConfig(
   return mergeTenantConfig(globalConfig, tenantOverride);
 }
 
-function mergeTenantConfig(
-  global: AIServiceConfig,
-  tenant: AITenantConfig,
-): AIServiceConfig {
+function mergeTenantConfig(global: AIServiceConfig, tenant: AITenantConfig): AIServiceConfig {
   // Merge provider configs: tenant overrides specific fields per provider
   const mergedProviders = { ...global.providers };
   if (tenant.providers) {
@@ -308,9 +300,7 @@ async function executeWithFallback(
   cache: AIResponseCache | undefined,
 ): Promise<AICompletionResult> {
   // Resolve tenant-specific config if tenantId is specified
-  const effectiveConfig = options.tenantId
-    ? resolveTenantConfig(config, options.tenantId)
-    : config;
+  const effectiveConfig = options.tenantId ? resolveTenantConfig(config, options.tenantId) : config;
 
   // Apply model routing if taskType is specified and no explicit model
   let resolvedOptions = options;
@@ -378,7 +368,10 @@ async function executeWithFallback(
         if (!failedPrimary) failedPrimary = providerName;
 
         // Delay between retries (not before the very first attempt)
-        if (attempt < retriesPerProvider - 1 || providerChain.indexOf(providerName) < providerChain.length - 1) {
+        if (
+          attempt < retriesPerProvider - 1 ||
+          providerChain.indexOf(providerName) < providerChain.length - 1
+        ) {
           await sleep(retryDelay);
         }
       }
@@ -386,9 +379,7 @@ async function executeWithFallback(
   }
 
   // All providers exhausted
-  throw new Error(
-    `All AI providers failed. Last error: ${lastError?.message ?? "unknown"}`,
-  );
+  throw new Error(`All AI providers failed. Last error: ${lastError?.message ?? "unknown"}`);
 }
 
 /**
@@ -414,14 +405,24 @@ function shouldFallback(
         }
         break;
       case "server_error":
-        if (msg.includes("500") || msg.includes("502") || msg.includes("503") ||
-            msg.includes("internal server") || msg.includes("service unavailable")) {
+        if (
+          msg.includes("500") ||
+          msg.includes("502") ||
+          msg.includes("503") ||
+          msg.includes("internal server") ||
+          msg.includes("service unavailable")
+        ) {
           return true;
         }
         break;
       case "auth_error":
-        if (msg.includes("401") || msg.includes("403") || msg.includes("unauthorized") ||
-            msg.includes("forbidden") || msg.includes("invalid api key")) {
+        if (
+          msg.includes("401") ||
+          msg.includes("403") ||
+          msg.includes("unauthorized") ||
+          msg.includes("forbidden") ||
+          msg.includes("invalid api key")
+        ) {
           return true;
         }
         break;
@@ -559,9 +560,7 @@ async function executeStream(
   options: AICompletionOptions,
 ): Promise<AIStreamResult> {
   // Resolve tenant-specific config if tenantId is specified
-  const effectiveConfig = options.tenantId
-    ? resolveTenantConfig(config, options.tenantId)
-    : config;
+  const effectiveConfig = options.tenantId ? resolveTenantConfig(config, options.tenantId) : config;
 
   // Apply model routing if taskType is specified and no explicit model
   let resolvedOptions = options;

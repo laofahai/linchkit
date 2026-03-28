@@ -12,8 +12,8 @@
  * - Folder/File icons for branch/leaf nodes
  */
 
-import { Button } from "@linchkit/ui-kit/components";
 import {
+  Button,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -22,7 +22,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Inbox } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type TreeNode, buildTree, collectAllIds } from "./tree-utils";
+import { buildTree, collectAllIds, type TreeNode } from "./tree-utils";
 
 export interface AutoTreeProps {
   /** Schema name (for context / key namespacing) */
@@ -167,34 +167,36 @@ function TreeNodeRow({
     .filter(Boolean);
 
   // Connector lines: vertical lines from ancestors, horizontal connector to this node
-  const connectors = depth > 0 ? (
-    <div className="relative shrink-0" style={{ width: `${depth * 24}px`, height: "100%" }}>
-      {/* Horizontal connector line */}
-      <div
-        className="absolute border-t border-border"
-        style={{
-          top: "50%",
-          left: `${(depth - 1) * 24 + 12}px`,
-          width: "12px",
-        }}
-      />
-      {/* Vertical connector line (from parent) */}
-      <div
-        className={cn("absolute border-l border-border")}
-        style={{
-          left: `${(depth - 1) * 24 + 12}px`,
-          top: 0,
-          height: isLast ? "50%" : "100%",
-        }}
-      />
-    </div>
-  ) : null;
+  const connectors =
+    depth > 0 ? (
+      <div className="relative shrink-0" style={{ width: `${depth * 24}px`, height: "100%" }}>
+        {/* Horizontal connector line */}
+        <div
+          className="absolute border-t border-border"
+          style={{
+            top: "50%",
+            left: `${(depth - 1) * 24 + 12}px`,
+            width: "12px",
+          }}
+        />
+        {/* Vertical connector line (from parent) */}
+        <div
+          className={cn("absolute border-l border-border")}
+          style={{
+            left: `${(depth - 1) * 24 + 12}px`,
+            top: 0,
+            height: isLast ? "50%" : "100%",
+          }}
+        />
+      </div>
+    ) : null;
 
-  const summaryBadges = summaryParts.length > 0 ? (
-    <span className="ml-2 text-xs text-muted-foreground truncate">
-      {summaryParts.join(" · ")}
-    </span>
-  ) : null;
+  const summaryBadges =
+    summaryParts.length > 0 ? (
+      <span className="ml-2 text-xs text-muted-foreground truncate">
+        {summaryParts.join(" · ")}
+      </span>
+    ) : null;
 
   if (!hasChildren) {
     // Leaf node — simple row
@@ -228,6 +230,7 @@ function TreeNodeRow({
         <div
           role="treeitem"
           aria-expanded={isOpen}
+          tabIndex={0}
           className="flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent text-sm"
           style={{ paddingLeft: depth > 0 ? `${depth * 24 + 8}px` : "8px" }}
         >
@@ -238,11 +241,7 @@ function TreeNodeRow({
               className="p-0.5 rounded hover:bg-muted shrink-0"
               aria-label={isOpen ? "collapse" : "expand"}
             >
-              {isOpen ? (
-                <ChevronDown className="size-4" />
-              ) : (
-                <ChevronRight className="size-4" />
-              )}
+              {isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             </button>
           </CollapsibleTrigger>
           {isOpen ? (
@@ -250,20 +249,14 @@ function TreeNodeRow({
           ) : (
             <Folder className="size-4 text-muted-foreground shrink-0" />
           )}
-          <span
-            className="truncate cursor-pointer font-medium hover:underline"
+          <button
+            type="button"
+            className="truncate cursor-pointer font-medium hover:underline text-left"
             onClick={() => onRecordClick?.(id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") onRecordClick?.(id);
-            }}
-            tabIndex={0}
-            role="link"
           >
             {label}
-          </span>
-          <span className="text-xs text-muted-foreground ml-1">
-            ({node.children.length})
-          </span>
+          </button>
+          <span className="text-xs text-muted-foreground ml-1">({node.children.length})</span>
           {summaryBadges}
         </div>
         <CollapsibleContent>

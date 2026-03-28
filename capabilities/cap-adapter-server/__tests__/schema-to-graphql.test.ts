@@ -469,7 +469,9 @@ describe("i18n field name collision", () => {
     const result = fields.name_i18n.resolve?.(
       { name_i18n: "custom_value" },
       {},
+      // biome-ignore lint/suspicious/noExplicitAny: GraphQL resolver context mock
       {} as any,
+      // biome-ignore lint/suspicious/noExplicitAny: GraphQL resolver info mock
       {} as any,
     );
     expect(result).toBe("custom_value");

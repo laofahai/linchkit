@@ -11,7 +11,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, AIService, SchemaDefinition } from "@linchkit/core";
 import { ActionRegistry, SchemaRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -43,7 +43,11 @@ const createTaskAction: ActionDefinition = {
   input: {
     title: { type: "string", required: true, label: "Title" },
     description: { type: "text", label: "Description" },
-    priority: { type: "enum", label: "Priority", options: [{ value: "low" }, { value: "medium" }, { value: "high" }] },
+    priority: {
+      type: "enum",
+      label: "Priority",
+      options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
+    },
     assignee: { type: "string", label: "Assignee" },
   },
   policy: "unrestricted",
@@ -62,7 +66,11 @@ const mockAiService: AIService = {
     const allText = options.messages.map((m) => m.content).join(" ");
 
     // Route to different responses based on prompt content
-    if (allText.includes("auto-fill") || allText.includes("suggest") || allText.includes("Fields that need suggestions")) {
+    if (
+      allText.includes("auto-fill") ||
+      allText.includes("suggest") ||
+      allText.includes("Fields that need suggestions")
+    ) {
       return {
         content: JSON.stringify({
           title: { value: "Weekly Standup Notes", confidence: 0.85, reason: "Common task title" },
@@ -92,7 +100,11 @@ const mockAiService: AIService = {
         duration: 80,
       };
     }
-    if (allText.includes("Intent Resolver") || allText.includes("resolve") || allText.includes("intent")) {
+    if (
+      allText.includes("Intent Resolver") ||
+      allText.includes("resolve") ||
+      allText.includes("intent")
+    ) {
       return {
         content: JSON.stringify({
           action: "create_task",
@@ -239,6 +251,7 @@ describe("E2E AI endpoints — with mock AI service", () => {
     server = createServer(graphqlSchema, {
       port: PORT,
       aiService: mockAiService,
+      // biome-ignore lint/suspicious/noExplicitAny: mock for test
       executor: mockExecutor as any,
       schemaRegistry,
     });
@@ -443,6 +456,7 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
       executor: {
         registry: actionRegistry,
         execute: async () => ({ success: true, data: {}, executionId: "x" }),
+        // biome-ignore lint/suspicious/noExplicitAny: mock for test
       } as any,
       schemaRegistry,
     });

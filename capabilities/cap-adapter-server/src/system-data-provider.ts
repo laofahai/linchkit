@@ -10,13 +10,19 @@
  * queries for internal schemas, delegating all others to the inner provider.
  */
 
-import type { DataProvider, DataQueryOptions, ExecutionLogEntry, ExecutionLogger } from "@linchkit/core";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type { FlowDefinition, RuleDefinition, StateDefinition } from "@linchkit/core";
-import { and, count, eq, sql } from "drizzle-orm";
-import type { PgColumn } from "drizzle-orm/pg-core";
-import { getTableColumns } from "drizzle-orm";
+import type {
+  DataProvider,
+  DataQueryOptions,
+  ExecutionLogEntry,
+  ExecutionLogger,
+  FlowDefinition,
+  RuleDefinition,
+  StateDefinition,
+} from "@linchkit/core";
 import { approvalsTable, executionsTable } from "@linchkit/core/server";
+import { and, count, eq, getTableColumns, sql } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { INTERNAL_SCHEMA_NAMES, systemSchemas } from "./system-schemas";
 
 // ── Types ─────────────────────────────────────────────────
@@ -220,12 +226,25 @@ function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
     error_code: e.error?.code ?? null,
     error_message: e.error?.message ?? null,
     channel: e.channel ?? null,
-    input: e.input != null ? (typeof e.input === "string" ? e.input : JSON.stringify(e.input)) : null,
-    output: e.output != null ? (typeof e.output === "string" ? e.output : JSON.stringify(e.output)) : null,
+    input:
+      e.input != null ? (typeof e.input === "string" ? e.input : JSON.stringify(e.input)) : null,
+    output:
+      e.output != null
+        ? typeof e.output === "string"
+          ? e.output
+          : JSON.stringify(e.output)
+        : null,
     started_at: e.startedAt instanceof Date ? e.startedAt.toISOString() : (e.startedAt ?? null),
-    completed_at: e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? null),
-    created_at: e.startedAt instanceof Date ? e.startedAt.toISOString() : (e.startedAt ?? new Date().toISOString()),
-    updated_at: e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? new Date().toISOString()),
+    completed_at:
+      e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? null),
+    created_at:
+      e.startedAt instanceof Date
+        ? e.startedAt.toISOString()
+        : (e.startedAt ?? new Date().toISOString()),
+    updated_at:
+      e.completedAt instanceof Date
+        ? e.completedAt.toISOString()
+        : (e.completedAt ?? new Date().toISOString()),
     parent_execution_id: e.parentExecutionId ?? null,
     idempotency_key: e.idempotencyKey ?? null,
     tenant_id: e.tenantId ?? null,
@@ -322,7 +341,11 @@ export class SystemDataProvider implements DataProvider {
 
   // ── get ──────────────────────────────────────────────
 
-  async get(schema: string, id: string, options?: DataQueryOptions): Promise<Record<string, unknown>> {
+  async get(
+    schema: string,
+    id: string,
+    options?: DataQueryOptions,
+  ): Promise<Record<string, unknown>> {
     if (!this.isInternal(schema)) return this.inner.get(schema, id, options);
 
     if (schema === "execution_log" || schema === "approval") {
@@ -330,7 +353,10 @@ export class SystemDataProvider implements DataProvider {
       if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
         const entry = await this.sources.executionLogger.getById(id);
         if (!entry) throw new Error(`${schema} "${id}" not found`);
-        return serializeJsonFields([executionEntryToRecord(entry)], schema)[0] as Record<string, unknown>;
+        return serializeJsonFields([executionEntryToRecord(entry)], schema)[0] as Record<
+          string,
+          unknown
+        >;
       }
       return this.dbGet(schema, id);
     }
@@ -445,7 +471,9 @@ export class SystemDataProvider implements DataProvider {
   // ── ExecutionLogger fallback (no DB) ─────────────────
 
   /** Query execution logs from the in-memory ExecutionLogger (no-DB fallback) */
-  private async executionLoggerQuery(filter: FilterObject): Promise<Array<Record<string, unknown>>> {
+  private async executionLoggerQuery(
+    filter: FilterObject,
+  ): Promise<Array<Record<string, unknown>>> {
     const logger = this.sources.executionLogger;
     if (!logger) return [];
 
@@ -469,7 +497,10 @@ export class SystemDataProvider implements DataProvider {
 
   // ── DB query implementations ─────────────────────────
 
-  private async dbGet(schema: "execution_log" | "approval", id: string): Promise<Record<string, unknown>> {
+  private async dbGet(
+    schema: "execution_log" | "approval",
+    id: string,
+  ): Promise<Record<string, unknown>> {
     const db = this.sources.db;
     if (!db) throw new Error("Database not available for system table query");
 
@@ -536,7 +567,9 @@ export class SystemDataProvider implements DataProvider {
     }
 
     const rows = await query;
-    const records = (rows as Array<Record<string, unknown>>).map((row) => dbRowToRecord(row, schema));
+    const records = (rows as Array<Record<string, unknown>>).map((row) =>
+      dbRowToRecord(row, schema),
+    );
     return serializeJsonFields(records, schema);
   }
 

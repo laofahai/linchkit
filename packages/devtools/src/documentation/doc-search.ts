@@ -12,10 +12,7 @@
  */
 
 import type { CapabilityDefinition } from "@linchkit/core";
-import {
-  type CapabilitySpecDoc,
-  generateCapabilityDoc,
-} from "./capability-doc-generator";
+import { type CapabilitySpecDoc, generateCapabilityDoc } from "./capability-doc-generator";
 
 // -- Search result types -------------------------------------------------
 
@@ -167,9 +164,7 @@ export class DocSearchIndex {
         capability: doc.name,
         label: rel.linkName,
         description: `${rel.from} -> ${rel.to} (${rel.cardinality})`,
-        searchText: [rel.linkName, rel.from, rel.to, rel.cardinality]
-          .join(" ")
-          .toLowerCase(),
+        searchText: [rel.linkName, rel.from, rel.to, rel.cardinality].join(" ").toLowerCase(),
       });
     }
   }

@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { inferTrustLevel } from "../src/commands/install";
+import { runPublishChecks } from "../src/commands/publish";
 import {
   loadLocalRegistry,
   registerCapability,
   saveLocalRegistry,
   unregisterCapability,
 } from "../src/utils/local-registry-io";
-import { runPublishChecks } from "../src/commands/publish";
-import { inferTrustLevel } from "../src/commands/install";
 
 const TEST_DIR = resolve(import.meta.dir, ".tmp-test-hub-commands");
 

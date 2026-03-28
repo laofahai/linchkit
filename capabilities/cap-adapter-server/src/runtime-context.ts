@@ -31,8 +31,8 @@ import {
   createNoopAIService,
   createStateMachine,
   InMemoryExecutionLogger,
-  SchemaRegistry,
   InMemoryStore,
+  SchemaRegistry,
 } from "@linchkit/core/server";
 
 export interface RuntimeContext {

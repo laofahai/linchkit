@@ -11,11 +11,7 @@ import {
   SidebarRail,
 } from "@linchkit/ui-kit/components";
 import { Link } from "@tanstack/react-router";
-import {
-  DatabaseIcon,
-  LayoutDashboardIcon,
-  ScrollTextIcon,
-} from "lucide-react";
+import { DatabaseIcon, LayoutDashboardIcon, ScrollTextIcon } from "lucide-react";
 import type * as React from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -52,9 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       .filter((item) => item.section === "admin")
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map((item) => {
-        const resolvedLabel = item.label.startsWith("t:")
-          ? t(item.label.slice(2))
-          : item.label;
+        const resolvedLabel = item.label.startsWith("t:") ? t(item.label.slice(2)) : item.label;
         const Icon = getLucideIcon(item.icon);
         return {
           id: item.id,

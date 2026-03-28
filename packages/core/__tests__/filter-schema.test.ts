@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "../src/types/schema";
 import { filterSchemaByCapabilities } from "../src/capability/filter-schema";
+import type { SchemaDefinition } from "../src/types/schema";
 
 const testSchema: SchemaDefinition = {
   name: "product",

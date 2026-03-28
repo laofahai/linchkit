@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 // We test the pure utility functions from api.ts.
 // toCamelCase and toPascalCase are not exported, so we test them indirectly
@@ -97,9 +97,9 @@ describe("GraphQL response parsing logic", () => {
     expect(() => throwOnErrors({ errors: [] })).not.toThrow();
 
     // With errors — should throw with first error message
-    expect(() =>
-      throwOnErrors({ errors: [{ message: "Field not found" }] }),
-    ).toThrow("Field not found");
+    expect(() => throwOnErrors({ errors: [{ message: "Field not found" }] })).toThrow(
+      "Field not found",
+    );
 
     // Multiple errors — throws first
     expect(() =>

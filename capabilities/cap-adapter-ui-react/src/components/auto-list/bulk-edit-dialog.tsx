@@ -63,11 +63,7 @@ const EXCLUDED_FIELDS = new Set([
 ]);
 
 /** Field types that cannot be bulk-edited. */
-const EXCLUDED_FIELD_TYPES = new Set([
-  "computed",
-  "has_many",
-  "many_to_many",
-]);
+const EXCLUDED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
 
 // ── Component ────────────────────────────────────────────────
 
@@ -162,7 +158,7 @@ export function BulkEditDialog({
     const errors: Array<{ id: string; error: string }> = [];
 
     // Execute updates with Promise.allSettled for parallel execution
-    const results = await Promise.allSettled(
+    const _results = await Promise.allSettled(
       selectedIds.map(async (id, index) => {
         try {
           await updateRecord(schema.name, id, input, fields);
@@ -228,9 +224,13 @@ export function BulkEditDialog({
             {t("bulkEdit.title", "Bulk Edit")}
           </DialogTitle>
           <DialogDescription>
-            {t("bulkEdit.description", "Select fields to update across {{count}} selected records.", {
-              count: selectedIds.length,
-            })}
+            {t(
+              "bulkEdit.description",
+              "Select fields to update across {{count}} selected records.",
+              {
+                count: selectedIds.length,
+              },
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -263,9 +263,7 @@ export function BulkEditDialog({
 
                       {/* Show input when field is selected */}
                       {selectedFields.has(name) && (
-                        <div className="ml-6">
-                          {renderFieldInput(name, def)}
-                        </div>
+                        <div className="ml-6">{renderFieldInput(name, def)}</div>
                       )}
                     </div>
                   ))}
@@ -283,10 +281,7 @@ export function BulkEditDialog({
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button
-                disabled={selectedFields.size === 0}
-                onClick={handleApply}
-              >
+              <Button disabled={selectedFields.size === 0} onClick={handleApply}>
                 {t("bulkEdit.applyToCount", "Apply to {{count}} records", {
                   count: selectedIds.length,
                 })}
@@ -359,10 +354,12 @@ export function BulkEditDialog({
             )}
 
             <DialogFooter>
-              <Button onClick={() => {
-                handleOpenChange(false);
-                onCompleted?.();
-              }}>
+              <Button
+                onClick={() => {
+                  handleOpenChange(false);
+                  onCompleted?.();
+                }}
+              >
                 {t("common.close")}
               </Button>
             </DialogFooter>

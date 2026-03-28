@@ -22,7 +22,7 @@ export function ListPagination({ table }: ListPaginationProps) {
   const totalRows = table.getFilteredRowModel().rows.length;
   const { pageIndex, pageSize } = table.getState().pagination;
 
-  if (pageCount <= 1 && totalRows <= PAGE_SIZE_OPTIONS[0]) return null;
+  if (pageCount <= 1 && totalRows <= (PAGE_SIZE_OPTIONS[0] ?? 10)) return null;
 
   // Build visible page numbers (show at most 5 around the current page)
   const pages: number[] = [];

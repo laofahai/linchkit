@@ -203,7 +203,8 @@ const BUILTIN_RULES: OutputValidationRule[] = [
     name: "rule_override_instruction",
     type: "forbidden_instruction",
     severity: "critical",
-    pattern: /(?:disable|remove|bypass|skip|ignore)\s+(?:all\s+)?(?:rules?|validations?|permissions?|security|checks?)/i,
+    pattern:
+      /(?:disable|remove|bypass|skip|ignore)\s+(?:all\s+)?(?:rules?|validations?|permissions?|security|checks?)/i,
     description: "AI output contains instruction to bypass security controls",
     action: "block",
   },
@@ -211,7 +212,8 @@ const BUILTIN_RULES: OutputValidationRule[] = [
     name: "admin_escalation",
     type: "forbidden_instruction",
     severity: "critical",
-    pattern: /(?:grant|set|assign)\s+(?:admin|superuser|root|system_admin)\s+(?:role|permission|access|privilege)/i,
+    pattern:
+      /(?:grant|set|assign)\s+(?:admin|superuser|root|system_admin)\s+(?:role|permission|access|privilege)/i,
     description: "AI output contains privilege escalation instruction",
     action: "block",
   },
@@ -249,10 +251,7 @@ export function validateAIOutput(
   config?: OutputValidatorConfig,
 ): OutputValidationResult {
   const useBuiltin = config?.useBuiltinRules ?? true;
-  const rules = [
-    ...(useBuiltin ? BUILTIN_RULES : []),
-    ...(config?.customRules ?? []),
-  ];
+  const rules = [...(useBuiltin ? BUILTIN_RULES : []), ...(config?.customRules ?? [])];
   const applySanitization = config?.applySanitization ?? true;
   const maxLength = config?.maxOutputLength ?? 100_000;
   const allowPatterns = config?.allowPatterns ?? [];

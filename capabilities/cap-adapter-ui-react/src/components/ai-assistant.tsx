@@ -17,9 +17,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@linchkit/ui-kit/components";
-import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
-import type { UIMessage, UIMessagePart } from "ai";
 import { useParams } from "@tanstack/react-router";
+import type { UIMessage, UIMessagePart } from "ai";
+import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
 import {
   BotIcon,
   ExternalLinkIcon,
@@ -62,14 +62,7 @@ export function AIAssistant({
   );
 
   // Vercel AI SDK useChat — manages conversation history, streaming, and tool calls
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    error,
-    stop,
-  } = useChat({
+  const { messages, setMessages, sendMessage, status, error, stop } = useChat({
     transport,
     onError: (err) => {
       console.error("[AI Assistant] Error:", err);
@@ -83,7 +76,7 @@ export function AIAssistant({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, []);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -119,11 +112,7 @@ export function AIAssistant({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col p-0 sm:max-w-md"
-        showCloseButton
-      >
+      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md" showCloseButton>
         {/* Header */}
         <SheetHeader className="border-b px-4 py-3">
           <div className="flex items-center justify-between">
@@ -174,25 +163,23 @@ export function AIAssistant({
                 <BotIcon className="size-10 opacity-30" />
                 <p className="text-sm">{t("ai.welcomeMessage")}</p>
                 <div className="flex flex-wrap justify-center gap-1.5">
-                  {[
-                    t("ai.quickPrompt1"),
-                    t("ai.quickPrompt2"),
-                    t("ai.quickPrompt3"),
-                  ].map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
-                      onClick={() => {
-                        if (inputRef.current) {
-                          inputRef.current.value = prompt;
-                          inputRef.current.focus();
-                        }
-                      }}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
+                  {[t("ai.quickPrompt1"), t("ai.quickPrompt2"), t("ai.quickPrompt3")].map(
+                    (prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
+                        onClick={() => {
+                          if (inputRef.current) {
+                            inputRef.current.value = prompt;
+                            inputRef.current.focus();
+                          }
+                        }}
+                      >
+                        {prompt}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             )}
@@ -234,11 +221,7 @@ export function AIAssistant({
               style={{ maxHeight: "120px" }}
               disabled={isLoading}
             />
-            <Button
-              size="icon-sm"
-              onClick={handleSend}
-              disabled={isLoading}
-            >
+            <Button size="icon-sm" onClick={handleSend} disabled={isLoading}>
               <SendIcon className="size-3.5" />
             </Button>
           </div>
@@ -265,13 +248,10 @@ function MessageBubble({ message }: { message: UIMessage }) {
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
         }`}
       >
         {message.parts.map((part, index) => {
-          // biome-ignore lint/suspicious/noArrayIndexKey: stable message parts
           const key = `${message.id}-${index}`;
           return <MessagePart key={key} part={part} />;
         })}

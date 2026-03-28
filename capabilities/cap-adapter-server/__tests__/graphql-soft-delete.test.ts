@@ -8,8 +8,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
-import { createActionExecutor } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
+import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 

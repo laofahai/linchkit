@@ -44,27 +44,21 @@ export function loadLocalRegistry(projectRoot: string): LocalCapabilityRegistry 
  * Save the local registry to disk.
  * Creates the .linchkit directory if needed.
  */
-export function saveLocalRegistry(
-  projectRoot: string,
-  registry: LocalCapabilityRegistry,
-): void {
+export function saveLocalRegistry(projectRoot: string, registry: LocalCapabilityRegistry): void {
   const dir = resolve(projectRoot, REGISTRY_DIR);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  const filePath = registryFilePath(dir.replace(`/${REGISTRY_DIR}`, ""));
+  const _filePath = registryFilePath(dir.replace(`/${REGISTRY_DIR}`, ""));
   // Re-compute proper path
   const actualPath = resolve(projectRoot, REGISTRY_DIR, REGISTRY_FILE);
-  writeFileSync(actualPath, JSON.stringify(registry.toJSON(), null, 2) + "\n");
+  writeFileSync(actualPath, `${JSON.stringify(registry.toJSON(), null, 2)}\n`);
 }
 
 /**
  * Add or update a capability entry in the local registry and save.
  */
-export function registerCapability(
-  projectRoot: string,
-  entry: RegistryEntry,
-): void {
+export function registerCapability(projectRoot: string, entry: RegistryEntry): void {
   const registry = loadLocalRegistry(projectRoot);
   registry.register(entry);
   saveLocalRegistry(projectRoot, registry);
@@ -73,10 +67,7 @@ export function registerCapability(
 /**
  * Remove a capability from the local registry and save.
  */
-export function unregisterCapability(
-  projectRoot: string,
-  name: string,
-): boolean {
+export function unregisterCapability(projectRoot: string, name: string): boolean {
   const registry = loadLocalRegistry(projectRoot);
   const removed = registry.unregister(name);
   if (removed) {

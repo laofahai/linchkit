@@ -56,9 +56,7 @@ describe("buildTree", () => {
   });
 
   test("handles empty string parent field as root", () => {
-    const records = [
-      { id: "1", name: "A", parent_id: "" },
-    ];
+    const records = [{ id: "1", name: "A", parent_id: "" }];
     const tree = buildTree(records, "parent_id");
     expect(tree).toHaveLength(1);
   });

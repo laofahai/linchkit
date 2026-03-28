@@ -83,7 +83,8 @@ function buildFieldMeta(
       if (Array.isArray(f.options)) {
         meta.options = f.options.map((o: unknown) => {
           if (typeof o === "string") return o;
-          if (typeof o === "object" && o !== null && "value" in o) return String((o as { value: unknown }).value);
+          if (typeof o === "object" && o !== null && "value" in o)
+            return String((o as { value: unknown }).value);
           return String(o);
         });
       }

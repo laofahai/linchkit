@@ -6,18 +6,15 @@
 
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
+import type { SubscriptionEvent } from "../subscription-manager";
 import {
-  SubscriptionManager,
   formatSSEEvent,
   parseSubscriptionQuery,
+  SubscriptionManager,
 } from "../subscription-manager";
-import type { SubscriptionEvent } from "../subscription-manager";
 import { resolveActor } from "./shared";
 
-export function mountSubscriptionRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): void {
   const eventBus = options.eventBus;
   const subscriptionConfig = options.subscriptionConfig;
   const resolveRequestActor = options.resolveRequestActor;
@@ -119,9 +116,7 @@ export function mountSubscriptionRoutes(
 
         // Send initial connection event
         controller.enqueue(
-          encoder.encode(
-            `event: connected\ndata: ${JSON.stringify({ connectionId })}\n\n`,
-          ),
+          encoder.encode(`event: connected\ndata: ${JSON.stringify({ connectionId })}\n\n`),
         );
       },
       cancel() {
@@ -133,7 +128,7 @@ export function mountSubscriptionRoutes(
 
     set.headers["content-type"] = "text/event-stream";
     set.headers["cache-control"] = "no-cache";
-    set.headers["connection"] = "keep-alive";
+    set.headers.connection = "keep-alive";
     set.headers["x-accel-buffering"] = "no";
 
     return new Response(stream, {

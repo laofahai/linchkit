@@ -7,7 +7,7 @@ import type {
   SchemaRegistry,
 } from "@linchkit/core";
 import type { SchemaDescriptor } from "@linchkit/core/server";
-import { buildTools, type ToolContext } from "../src/ai/tools";
+import { buildTools } from "../src/ai/tools";
 
 // ── Mock factories ──────────────────────────────────────
 
@@ -22,10 +22,10 @@ function createMockDataProvider(data: Record<string, Record<string, unknown>[]>)
     query: async (schema: string) => {
       return data[schema] ?? [];
     },
-    create: async (schema: string, record: Record<string, unknown>) => {
+    create: async (_schema: string, record: Record<string, unknown>) => {
       return { id: "new-1", ...record };
     },
-    update: async (schema: string, id: string, record: Record<string, unknown>) => {
+    update: async (_schema: string, id: string, record: Record<string, unknown>) => {
       return { id, ...record };
     },
     delete: async () => {},
@@ -39,10 +39,7 @@ function createMockOntologyRegistry(schemas: SchemaDescriptor[]): OntologyRegist
     listSchemas: () => schemas.map((s) => s.name),
     searchSchemas: (query: string) =>
       schemas.filter(
-        (s) =>
-          s.name.includes(query) ||
-          s.label?.includes(query) ||
-          s.description?.includes(query),
+        (s) => s.name.includes(query) || s.label?.includes(query) || s.description?.includes(query),
       ),
     actionsFor: () => [],
     rulesFor: () => [],
@@ -75,10 +72,20 @@ const productDescriptor: SchemaDescriptor = {
     category: { type: "enum", label: "Category" },
   },
   relations: [
-    { linkName: "product_orders", label: "Orders", targetSchema: "order", cardinality: "one_to_many" as const },
+    {
+      linkName: "product_orders",
+      label: "Orders",
+      targetSchema: "order",
+      cardinality: "one_to_many" as const,
+    },
   ],
   actions: [
-    { name: "create_product", label: "Create Product", schema: "product", policy: "unrestricted" } as ActionDefinition,
+    {
+      name: "create_product",
+      label: "Create Product",
+      schema: "product",
+      policy: "unrestricted",
+    } as ActionDefinition,
   ],
   rules: [],
   views: [],
@@ -139,6 +146,7 @@ describe("buildTools — tool registration", () => {
     const mockCl = {
       execute: async () => ({ success: true, data: {} }),
     };
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
     const tools = buildTools({ commandLayer: mockCl as any });
     expect(tools.executeAction).toBeDefined();
   });
@@ -272,6 +280,7 @@ describe("executeAction tool", () => {
       },
     };
 
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
     const tools = buildTools({ commandLayer: mockCl as any });
     const result = await tools.executeAction.execute({
       action: "create_product",
@@ -285,15 +294,18 @@ describe("executeAction tool", () => {
   });
 
   test("uses default system actor when no actor provided", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test mock variable
     let capturedActor: any;
 
     const mockCl = {
+      // biome-ignore lint/suspicious/noExplicitAny: test mock variable
       execute: async (params: any) => {
         capturedActor = params.actor;
         return { success: true, data: {} };
       },
     };
 
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
     const tools = buildTools({ commandLayer: mockCl as any });
     await tools.executeAction.execute({ action: "test_action", input: {} });
 
@@ -302,9 +314,11 @@ describe("executeAction tool", () => {
   });
 
   test("uses provided actor when available", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: test mock variable
     let capturedActor: any;
 
     const mockCl = {
+      // biome-ignore lint/suspicious/noExplicitAny: test mock variable
       execute: async (params: any) => {
         capturedActor = params.actor;
         return { success: true, data: {} };
@@ -312,6 +326,7 @@ describe("executeAction tool", () => {
     };
 
     const actor = { type: "user" as const, id: "user-42", groups: ["admin"] };
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
     const tools = buildTools({ commandLayer: mockCl as any, actor });
     await tools.executeAction.execute({ action: "test_action", input: {} });
 
@@ -326,6 +341,7 @@ describe("executeAction tool", () => {
       },
     };
 
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
     const tools = buildTools({ commandLayer: mockCl as any });
     const result = await tools.executeAction.execute({
       action: "forbidden_action",

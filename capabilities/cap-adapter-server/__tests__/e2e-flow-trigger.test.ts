@@ -22,9 +22,9 @@ import {
   InMemoryStore,
   SchemaRegistry,
 } from "@linchkit/core/server";
+import { purchaseApprovalFlow } from "../../cap-purchase-demo/src/flows/purchase-approval";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
-import { purchaseApprovalFlow } from "../../cap-purchase-demo/src/flows/purchase-approval";
 
 // ── Schema ──────────────────────────────────────────────
 

@@ -9,16 +9,11 @@ import { createCommandLayer } from "../src/engine/command-layer";
 import { evaluateRules, type RuleEvalInput } from "../src/engine/rule-engine";
 import {
   AlertEngine,
-  defineSystemAlert,
   type AlertEvaluationResult,
-  type SystemAlertDefinition,
+  defineSystemAlert,
 } from "../src/observability/alert-engine";
 import { InMemoryMetricsCollector } from "../src/observability/metrics";
-import {
-  createStructuredLogger,
-  createTestLogSink,
-  type StructuredLogEntry,
-} from "../src/observability/structured-logger";
+import { createStructuredLogger, createTestLogSink } from "../src/observability/structured-logger";
 import { getCurrentTrace, withTrace } from "../src/observability/trace-context";
 import type { ActionDefinition, Actor } from "../src/types/action";
 import type { RuleDefinition } from "../src/types/rule";
@@ -162,13 +157,13 @@ describe("InMemoryMetricsCollector percentiles", () => {
   it("computes correct percentiles for a single value", () => {
     metrics.histogram("latency", 100);
 
-    const p = metrics.getPercentiles("latency")!;
-    expect(p.count).toBe(1);
-    expect(p.min).toBe(100);
-    expect(p.max).toBe(100);
-    expect(p.mean).toBe(100);
-    expect(p.p50).toBe(100);
-    expect(p.p99).toBe(100);
+    const p = metrics.getPercentiles("latency");
+    expect(p?.count).toBe(1);
+    expect(p?.min).toBe(100);
+    expect(p?.max).toBe(100);
+    expect(p?.mean).toBe(100);
+    expect(p?.p50).toBe(100);
+    expect(p?.p99).toBe(100);
   });
 
   it("computes correct percentiles for multiple values", () => {
@@ -177,15 +172,15 @@ describe("InMemoryMetricsCollector percentiles", () => {
       metrics.histogram("latency", i);
     }
 
-    const p = metrics.getPercentiles("latency")!;
-    expect(p.count).toBe(100);
-    expect(p.min).toBe(1);
-    expect(p.max).toBe(100);
-    expect(p.mean).toBe(50.5);
-    expect(p.p50).toBe(50);
-    expect(p.p90).toBe(90);
-    expect(p.p95).toBe(95);
-    expect(p.p99).toBe(99);
+    const p = metrics.getPercentiles("latency");
+    expect(p?.count).toBe(100);
+    expect(p?.min).toBe(1);
+    expect(p?.max).toBe(100);
+    expect(p?.mean).toBe(50.5);
+    expect(p?.p50).toBe(50);
+    expect(p?.p90).toBe(90);
+    expect(p?.p95).toBe(95);
+    expect(p?.p99).toBe(99);
   });
 
   it("getCountersByPrefix returns matching counters", () => {
@@ -216,8 +211,8 @@ describe("InMemoryMetricsCollector percentiles", () => {
 
     // Histograms
     expect(summary.histograms["action.duration_ms"]).toBeDefined();
-    expect(summary.histograms["action.duration_ms"]!.count).toBe(2);
-    expect(summary.histograms["action.duration_ms"]!.mean).toBe(150);
+    expect(summary.histograms["action.duration_ms"]?.count).toBe(2);
+    expect(summary.histograms["action.duration_ms"]?.mean).toBe(150);
   });
 });
 
@@ -365,7 +360,11 @@ describe("AlertEngine", () => {
   });
 
   it("supports all comparison operators", () => {
-    const operators: Array<{ op: "gt" | "gte" | "lt" | "lte" | "eq" | "neq"; val: number; expect: boolean }> = [
+    const operators: Array<{
+      op: "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
+      val: number;
+      expect: boolean;
+    }> = [
       { op: "gt", val: 5, expect: true },
       { op: "gte", val: 10, expect: true },
       { op: "lt", val: 15, expect: true },
@@ -412,16 +411,20 @@ describe("AlertEngine", () => {
   it("supports list and unregister", () => {
     const engine = new AlertEngine({ metrics });
 
-    engine.register(defineSystemAlert({
-      name: "a1",
-      condition: { metric: "x", operator: "gt", value: 0 },
-      effect: { notify: [] },
-    }));
-    engine.register(defineSystemAlert({
-      name: "a2",
-      condition: { metric: "y", operator: "gt", value: 0 },
-      effect: { notify: [] },
-    }));
+    engine.register(
+      defineSystemAlert({
+        name: "a1",
+        condition: { metric: "x", operator: "gt", value: 0 },
+        effect: { notify: [] },
+      }),
+    );
+    engine.register(
+      defineSystemAlert({
+        name: "a2",
+        condition: { metric: "y", operator: "gt", value: 0 },
+        effect: { notify: [] },
+      }),
+    );
 
     expect(engine.list().length).toBe(2);
 

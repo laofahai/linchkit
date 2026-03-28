@@ -5,6 +5,8 @@
  * with capabilities from config. No hardcoded demo data.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type {
   ActionDefinition,
   CapabilityDefinition,
@@ -15,8 +17,6 @@ import type {
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext } from "./runtime-context";

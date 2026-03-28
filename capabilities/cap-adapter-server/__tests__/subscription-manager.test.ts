@@ -6,14 +6,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { EventRecord } from "@linchkit/core";
+import type { EventBus, EventRecord } from "@linchkit/core";
 import { createEventBus } from "@linchkit/core/server";
-import type { EventBus } from "@linchkit/core";
 import {
-  SubscriptionManager,
   formatSSEEvent,
   parseSubscriptionQuery,
   type SubscriptionEvent,
+  SubscriptionManager,
 } from "../src/subscription-manager";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -111,7 +110,7 @@ describe("formatSSEEvent", () => {
     expect(result).toContain("data: ");
     // Verify JSON payload
     const dataLine = result.split("\n").find((l) => l.startsWith("data: "));
-    const parsed = JSON.parse(dataLine!.slice(6));
+    const parsed = JSON.parse(dataLine?.slice(6));
     expect(parsed.schema).toBe("task");
     expect(parsed.recordId).toBe("task-1");
   });
@@ -171,7 +170,7 @@ describe("SubscriptionManager", () => {
       expect(connId).not.toBeNull();
       expect(manager.connectionCount).toBe(1);
 
-      manager.removeConnection(connId!);
+      if (connId) manager.removeConnection(connId);
       expect(manager.connectionCount).toBe(0);
       expect(mock.closed).toBe(true);
     });
@@ -246,7 +245,7 @@ describe("SubscriptionManager", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
-      expect(mock.events[0]!.schema).toBe("task");
+      expect(mock.events[0]?.schema).toBe("task");
     });
 
     test("filters out events for non-subscribed schemas", async () => {
@@ -297,7 +296,7 @@ describe("SubscriptionManager", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
-      expect(mock.events[0]!.recordId).toBe("task-1");
+      expect(mock.events[0]?.recordId).toBe("task-1");
     });
 
     test("enforces tenant isolation", async () => {
@@ -315,7 +314,7 @@ describe("SubscriptionManager", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
-      expect(mock.events[0]!.tenantId).toBe("tenant-a");
+      expect(mock.events[0]?.tenantId).toBe("tenant-a");
     });
   });
 
@@ -335,7 +334,7 @@ describe("SubscriptionManager", () => {
       await bus.emit(makeEventRecord({ type: "record.created" }));
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.type).toBe("record.created");
+      expect(mock.events[0]?.type).toBe("record.created");
     });
 
     test("maps record.updated to record.updated", async () => {
@@ -351,7 +350,7 @@ describe("SubscriptionManager", () => {
       await bus.emit(makeEventRecord({ type: "record.updated" }));
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.type).toBe("record.updated");
+      expect(mock.events[0]?.type).toBe("record.updated");
     });
 
     test("maps record.deleted to record.deleted", async () => {
@@ -367,7 +366,7 @@ describe("SubscriptionManager", () => {
       await bus.emit(makeEventRecord({ type: "record.deleted" }));
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.type).toBe("record.deleted");
+      expect(mock.events[0]?.type).toBe("record.deleted");
     });
 
     test("maps state.transition to state.changed", async () => {
@@ -390,8 +389,8 @@ describe("SubscriptionManager", () => {
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.type).toBe("state.changed");
-      expect(mock.events[0]!.state).toEqual({
+      expect(mock.events[0]?.type).toBe("state.changed");
+      expect(mock.events[0]?.state).toEqual({
         from: "draft",
         to: "submitted",
         action: "state.transition",
@@ -411,7 +410,7 @@ describe("SubscriptionManager", () => {
       await bus.emit(makeEventRecord({ type: "approval.resolved" }));
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.type).toBe("approval.resolved");
+      expect(mock.events[0]?.type).toBe("approval.resolved");
     });
 
     test("ignores events without schema", async () => {
@@ -473,7 +472,7 @@ describe("SubscriptionManager", () => {
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.changes).toEqual({
+      expect(mock.events[0]?.changes).toEqual({
         title: "New Task",
         description: "Details",
       });
@@ -497,9 +496,9 @@ describe("SubscriptionManager", () => {
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.changes).toEqual({ title: "Updated" });
-      expect(mock.events[0]!.changes?.id).toBeUndefined();
-      expect(mock.events[0]!.changes?._version).toBeUndefined();
+      expect(mock.events[0]?.changes).toEqual({ title: "Updated" });
+      expect(mock.events[0]?.changes?.id).toBeUndefined();
+      expect(mock.events[0]?.changes?._version).toBeUndefined();
     });
 
     test("includes actor and timestamp metadata", async () => {
@@ -521,8 +520,8 @@ describe("SubscriptionManager", () => {
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.actor).toEqual({ type: "user", id: "admin-1" });
-      expect(mock.events[0]!.timestamp).toBe("2026-03-26T12:00:00.000Z");
+      expect(mock.events[0]?.actor).toEqual({ type: "user", id: "admin-1" });
+      expect(mock.events[0]?.timestamp).toBe("2026-03-26T12:00:00.000Z");
     });
 
     test("includes executionId for traceability", async () => {
@@ -538,7 +537,7 @@ describe("SubscriptionManager", () => {
       await bus.emit(makeEventRecord({ executionId: "exec-42" }));
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(mock.events[0]!.executionId).toBe("exec-42");
+      expect(mock.events[0]?.executionId).toBe("exec-42");
     });
   });
 
@@ -727,7 +726,7 @@ describe("SubscriptionManager", () => {
   describe("permission enforcement", () => {
     test("blocks events when permission checker denies access", async () => {
       const mock = createMockConnection();
-      manager.setPermissionChecker((actor, schemaName) => {
+      manager.setPermissionChecker((_actor, schemaName) => {
         // Only allow reading "task" schema, deny "secret"
         return schemaName === "task";
       });
@@ -774,9 +773,9 @@ describe("SubscriptionManager", () => {
   describe("dead connection cleanup", () => {
     test("calls close() on connection when push returns false", async () => {
       const mock = createMockConnection();
-      let pushCount = 0;
+      let _pushCount = 0;
       const failingPush = (_event: SubscriptionEvent | null): boolean => {
-        pushCount++;
+        _pushCount++;
         return false; // Always fail
       };
 

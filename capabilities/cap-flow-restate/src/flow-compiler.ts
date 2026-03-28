@@ -5,7 +5,6 @@
  * with a `run` handler (sequential step execution with branching), signal
  * handlers for approval steps, and a status query handler.
  */
-import * as restate from "@restatedev/restate-sdk";
 
 import type {
   ActionFlowStep,
@@ -18,6 +17,7 @@ import type {
   WaitFlowStep,
 } from "@linchkit/core";
 import type { FlowStepContext } from "@linchkit/core/server";
+import * as restate from "@restatedev/restate-sdk";
 import type { CompiledFlow } from "./types";
 
 // ── Expression resolution ────────────────────────────────

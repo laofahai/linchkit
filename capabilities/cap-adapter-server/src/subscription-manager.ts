@@ -276,9 +276,7 @@ export class SubscriptionManager {
 
     // Attach state transition info
     if (subEventType === "state.changed") {
-      const st = event.payload.stateTransition as
-        | { from: string; to: string }
-        | undefined;
+      const st = event.payload.stateTransition as { from: string; to: string } | undefined;
       if (st) {
         subEvent.state = {
           from: st.from,
@@ -389,7 +387,9 @@ export class SubscriptionManager {
 // ── Helpers ──────────────────────────────────────────────────
 
 /** Parse subscription query parameters from URL search params */
-export function parseSubscriptionQuery(query: Record<string, string | undefined>): SubscriptionFilter {
+export function parseSubscriptionQuery(
+  query: Record<string, string | undefined>,
+): SubscriptionFilter {
   const schemas = query.schemas
     ? query.schemas
         .split(",")
@@ -417,10 +417,7 @@ export function parseSubscriptionQuery(query: Record<string, string | undefined>
  * For heartbeat (null event), returns a comment line:
  *   : keepalive
  */
-export function formatSSEEvent(
-  event: SubscriptionEvent | null,
-  eventId?: string,
-): string {
+export function formatSSEEvent(event: SubscriptionEvent | null, eventId?: string): string {
   if (event === null) {
     return ": keepalive\n\n";
   }

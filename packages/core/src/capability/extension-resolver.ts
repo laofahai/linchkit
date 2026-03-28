@@ -9,13 +9,8 @@
  * each layer can wrap the original handler with before/after hooks or fully replace it.
  */
 
-import type {
-  ActionContext,
-  ActionDefinition,
-  ActionOverride,
-  ActionPolicy,
-} from "../types/action";
-import type { RuleDefinition, RuleOverride, DeclarativeCondition, RuleEffect, RuleTrigger } from "../types/rule";
+import type { ActionContext, ActionDefinition, ActionOverride } from "../types/action";
+import type { RuleDefinition, RuleOverride } from "../types/rule";
 import type {
   FieldConstraints,
   FieldDefinition,
@@ -68,9 +63,24 @@ export interface ResolutionConflict {
 
 export interface ExtensionResolver {
   // Collect extensions/overrides from capabilities
-  addSchemaExtension(target: string, extension: SchemaExtension, source: string, priority: number): void;
-  addSchemaOverride(target: string, override: SchemaOverride, source: string, priority: number): void;
-  addActionOverride(target: string, override: ActionOverride, source: string, priority: number): void;
+  addSchemaExtension(
+    target: string,
+    extension: SchemaExtension,
+    source: string,
+    priority: number,
+  ): void;
+  addSchemaOverride(
+    target: string,
+    override: SchemaOverride,
+    source: string,
+    priority: number,
+  ): void;
+  addActionOverride(
+    target: string,
+    override: ActionOverride,
+    source: string,
+    priority: number,
+  ): void;
   addRuleOverride(target: string, override: RuleOverride, source: string, priority: number): void;
 
   // Apply all collected extensions/overrides to definitions
@@ -223,7 +233,10 @@ export function createExtensionResolver(): ExtensionResolver {
 
       // Build the action handler chain (onion model)
       const originalHandler = action.handler;
-      if (originalHandler || sortedOverrides.some((o) => o.override.handler || o.override.before || o.override.after)) {
+      if (
+        originalHandler ||
+        sortedOverrides.some((o) => o.override.handler || o.override.before || o.override.after)
+      ) {
         action.handler = buildActionChain(originalHandler, sortedOverrides);
       }
 
@@ -326,7 +339,8 @@ export function buildActionChain(
   const sorted = [...overrides].sort((a, b) => a.priority - b.priority);
 
   // Start with the original handler (or a noop if no original)
-  let current: (ctx: ActionContext) => Promise<unknown> = originalHandler ?? (async () => undefined);
+  let current: (ctx: ActionContext) => Promise<unknown> =
+    originalHandler ?? (async () => undefined);
 
   // Wrap from inside out
   for (const entry of sorted) {
@@ -339,7 +353,9 @@ export function buildActionChain(
       const replacementHandler = override.handler;
       current = async (ctx: ActionContext) => {
         // Attach callOriginal to the context for the replacement handler to use
-        const extendedCtx = Object.create(ctx) as ActionContext & { callOriginal: () => Promise<unknown> };
+        const extendedCtx = Object.create(ctx) as ActionContext & {
+          callOriginal: () => Promise<unknown>;
+        };
         extendedCtx.callOriginal = () => inner(ctx);
         return replacementHandler(extendedCtx);
       };

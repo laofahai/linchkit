@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, AIService, SchemaDefinition } from "@linchkit/core";
 import { ActionRegistry, SchemaRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -133,6 +133,7 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     server = createServer(graphqlSchema, {
       port: PORT,
       aiService: mockAiService,
+      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
       executor: mockExecutor as any,
       schemaRegistry,
     });
@@ -197,6 +198,7 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     const server2 = createServer(graphqlSchema, {
       port: server2Port,
       aiService: lowConfService,
+      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
       executor: mockExecutor as any,
       schemaRegistry,
     });

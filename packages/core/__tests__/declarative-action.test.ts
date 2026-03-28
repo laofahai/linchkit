@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  createActionExecutor,
-  type DataProvider,
-} from "../src/engine/action-engine";
+import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
 import { createStateMachine } from "../src/engine/state-machine";
 import type { ActionDefinition, Actor } from "../src/types/action";
 import type { StateDefinition } from "../src/types/state";

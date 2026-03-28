@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
 import {
   analyzeCompatibility,
   applyMigration,
@@ -15,6 +14,7 @@ import {
   type VersionRegistry,
   validateUpgrade,
 } from "@linchkit/cap-migration";
+import type { SchemaDefinition } from "@linchkit/core";
 
 // ── SemVer parsing ─────────────────────────────────────────
 

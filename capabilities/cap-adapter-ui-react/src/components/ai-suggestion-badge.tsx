@@ -5,10 +5,10 @@
  * Appears below the field input when the field has an AI suggestion.
  */
 
-import type { AiFieldSuggestion } from "../lib/api";
 import { Button } from "@linchkit/ui-kit/components";
 import { Check, Info, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { AiFieldSuggestion } from "../lib/api";
 
 export interface AiSuggestionBadgeProps {
   suggestion: AiFieldSuggestion;

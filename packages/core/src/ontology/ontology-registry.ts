@@ -257,10 +257,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
   }
 
   /** Collect items from the inheritance chain (ancestors only, excluding self) */
-  function collectFromAncestors<T>(
-    schemaName: string,
-    getter: (name: string) => T[],
-  ): T[] {
+  function collectFromAncestors<T>(schemaName: string, getter: (name: string) => T[]): T[] {
     if (!deps.schemas.getInheritanceChain) return [];
     const chain = deps.schemas.getInheritanceChain(schemaName);
     // chain = [root, ..., parent, self]; exclude self (last element)
@@ -321,10 +318,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     const inheritedRules = collectFromAncestors(schemaName, (n) => rulesBySchema.get(n) ?? []);
     const ownRules = rulesBySchema.get(schemaName) ?? [];
     const ownRuleNames = new Set(ownRules.map((r) => r.name));
-    const mergedRules = [
-      ...inheritedRules.filter((r) => !ownRuleNames.has(r.name)),
-      ...ownRules,
-    ];
+    const mergedRules = [...inheritedRules.filter((r) => !ownRuleNames.has(r.name)), ...ownRules];
 
     // State machine: own takes priority, then inherited
     const ownState = statesBySchema.get(schemaName);
@@ -334,10 +328,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     const inheritedViews = collectFromAncestors(schemaName, (n) => viewsBySchema.get(n) ?? []);
     const ownViews = viewsBySchema.get(schemaName) ?? [];
     const ownViewNames = new Set(ownViews.map((v) => v.name));
-    const mergedViews = [
-      ...inheritedViews.filter((v) => !ownViewNames.has(v.name)),
-      ...ownViews,
-    ];
+    const mergedViews = [...inheritedViews.filter((v) => !ownViewNames.has(v.name)), ...ownViews];
 
     // Resolve children
     const children: string[] = deps.schemas.getAllDescendants

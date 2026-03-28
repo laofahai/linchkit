@@ -9,11 +9,7 @@
  */
 
 import type { SchemaDefinition } from "@linchkit/core/types";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@linchkit/ui-kit/components";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Loader2, Search, Sparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
@@ -155,11 +151,7 @@ export function SearchBar({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
-        placeholder={
-          hasFilters || hasAIFilter
-            ? ""
-            : `${t("common.search")}...`
-        }
+        placeholder={hasFilters || hasAIFilter ? "" : `${t("common.search")}...`}
         className="h-8 min-w-[80px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
 

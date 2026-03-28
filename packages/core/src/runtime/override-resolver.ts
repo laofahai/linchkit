@@ -74,7 +74,7 @@ export function applyOverride<T extends Overridable>(
   delete safeOverride.name;
   delete safeOverride.overridable;
 
-  return deepMerge(definition, safeOverride);
+  return deepMerge(definition as unknown as Record<string, unknown>, safeOverride) as unknown as T;
 }
 
 /**

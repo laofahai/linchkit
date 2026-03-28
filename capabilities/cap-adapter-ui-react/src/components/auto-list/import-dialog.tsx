@@ -64,8 +64,14 @@ interface ImportDialogProps {
 
 // ── System fields that should be excluded from import ────────
 const SYSTEM_FIELDS = new Set([
-  "id", "tenant_id", "created_at", "updated_at",
-  "created_by", "updated_by", "_version", "is_deleted",
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+  "is_deleted",
 ]);
 
 // ── CSV parser (simple, handles quoted fields) ───────────────
@@ -103,14 +109,14 @@ function parseCSV(content: string): { headers: string[]; rows: Record<string, st
   const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return { headers: [], rows: [] };
 
-  const headers = parseCSVLine(lines[0]!, ",").map((h) => h.trim());
+  const headers = parseCSVLine(lines[0] ?? "", ",").map((h) => h.trim());
   const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]!, ",");
+    const values = parseCSVLine(lines[i] ?? "", ",");
     const record: Record<string, string> = {};
     for (let j = 0; j < headers.length; j++) {
-      record[headers[j]!] = values[j] ?? "";
+      record[headers[j] ?? ""] = values[j] ?? "";
     }
     rows.push(record);
   }
@@ -228,7 +234,9 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
         }
 
         if (headers.length === 0) {
-          setParseError(t("import.parseError", "Could not parse the file. Please check the format."));
+          setParseError(
+            t("import.parseError", "Could not parse the file. Please check the format."),
+          );
           return;
         }
 
@@ -301,7 +309,15 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
       }
 
       if (mappedRows.length === 0) {
-        setResult({ imported: 0, errors: [{ row: 0, error: t("import.noMappedData", "No data to import. Please map at least one column.") }] });
+        setResult({
+          imported: 0,
+          errors: [
+            {
+              row: 0,
+              error: t("import.noMappedData", "No data to import. Please map at least one column."),
+            },
+          ],
+        });
         setPhase("done");
         return;
       }
@@ -378,6 +394,7 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
         {phase === "upload" && (
           <div className="space-y-4">
             {/* Drop zone */}
+            {/* biome-ignore lint/a11y/useSemanticElements: dropzone div with multiple event types cannot use button */}
             <div
               className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
                 dragOver
@@ -444,11 +461,7 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
                   ({fileRows.length} {t("import.rows", "rows")})
                 </span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={resetState}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={resetState}>
                 <X className="size-3.5" />
               </Button>
             </div>
@@ -459,12 +472,18 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
                 {t("import.columnMapping", "Column Mapping")}
               </h4>
               <p className="mb-3 text-xs text-muted-foreground">
-                {t("import.columnMappingDesc", "Map file columns to schema fields. Unmapped columns will be skipped.")}
+                {t(
+                  "import.columnMappingDesc",
+                  "Map file columns to schema fields. Unmapped columns will be skipped.",
+                )}
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {fileHeaders.map((header) => (
                   <div key={header} className="flex items-center gap-3">
-                    <span className="w-1/3 truncate text-sm font-mono text-muted-foreground" title={header}>
+                    <span
+                      className="w-1/3 truncate text-sm font-mono text-muted-foreground"
+                      title={header}
+                    >
                       {header}
                     </span>
                     <span className="text-xs text-muted-foreground">&rarr;</span>
@@ -498,7 +517,8 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
             {previewRows.length > 0 && (
               <div>
                 <h4 className="mb-2 text-sm font-medium">
-                  {t("import.preview", "Preview")} ({Math.min(5, fileRows.length)} {t("import.rows", "rows")})
+                  {t("import.preview", "Preview")} ({Math.min(5, fileRows.length)}{" "}
+                  {t("import.rows", "rows")})
                 </h4>
                 <div className="overflow-x-auto rounded border border-border">
                   <table className="w-full text-xs">
@@ -507,7 +527,10 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
                         {fileHeaders
                           .filter((h) => columnMapping[h] && columnMapping[h] !== "__skip__")
                           .map((h) => (
-                            <th key={h} className="px-2 py-1.5 text-left font-medium text-muted-foreground">
+                            <th
+                              key={h}
+                              className="px-2 py-1.5 text-left font-medium text-muted-foreground"
+                            >
                               {columnMapping[h]}
                             </th>
                           ))}
@@ -515,6 +538,7 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
                     </thead>
                     <tbody>
                       {previewRows.map((row, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: preview rows have no stable id
                         <tr key={`preview-${i}`} className="border-b last:border-0">
                           {fileHeaders
                             .filter((h) => columnMapping[h] && columnMapping[h] !== "__skip__")
@@ -618,6 +642,7 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
                       </thead>
                       <tbody>
                         {result.errors.map((err, i) => (
+                          // biome-ignore lint/suspicious/noArrayIndexKey: import error rows have no stable id
                           <tr key={`err-${i}`} className="border-b last:border-0">
                             <td className="px-2 py-1.5 text-muted-foreground">{err.row}</td>
                             <td className="px-2 py-1.5 text-destructive">{err.error}</td>

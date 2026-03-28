@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
+import type { StateDefinition, StateMeta } from "@linchkit/core/types";
 import {
   Badge,
   Card,
@@ -10,31 +8,33 @@ import {
   CardTitle,
   Skeleton,
 } from "@linchkit/ui-kit/components";
+import { Link } from "@tanstack/react-router";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Clock,
   Database,
+  Hourglass,
   Plus,
   TrendingUp,
   XCircle,
-  AlertTriangle,
-  Hourglass,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { AIInsightsPanel } from "@/components/ai-insights-panel";
 import { useSchemas } from "@/hooks/use-schemas";
 import { useSchemaLabel } from "@/i18n/use-schema-label";
 import {
+  type ExecutionLogEntry,
   fetchSchemaBundle,
   graphql,
   queryExecutionLogs,
-  type ExecutionLogEntry,
   type SchemaInfo,
 } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 import { getStateBadgeClass } from "@/lib/state-colors";
-import { AIInsightsPanel } from "@/components/ai-insights-panel";
-import type { StateDefinition, StateMeta } from "@linchkit/core/types";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ async function fetchSchemaSummaries(
   const queryParts: string[] = [];
   for (const s of schemas) {
     const alias = toCamelCase(s.name);
-    const stateInfo = stateFields.get(s.name);
+    const _stateInfo = stateFields.get(s.name);
     // Only fetch total count — state breakdown should be a server-side
     // aggregation, not a client-side full-table scan (pageSize=0 was fetching ALL records).
     queryParts.push(`${alias}: ${alias}List(pageSize: 1) { total }`);
@@ -121,13 +121,16 @@ async function fetchSchemaSummaries(
   // Step 4: Execute query and build summaries
   const summaries: Record<string, SchemaSummary> = {};
   try {
-    const res = await graphql<
-      Record<string, { total: number; items?: Record<string, string>[] }>
-    >(query);
+    const res =
+      await graphql<Record<string, { total: number; items?: Record<string, string>[] }>>(query);
     if (res.errors) {
       // Fallback: return empty summaries
       for (const s of schemas) {
-        summaries[s.name] = { total: 0, stateBreakdown: {}, recentCount: recentCounts[s.name] ?? 0 };
+        summaries[s.name] = {
+          total: 0,
+          stateBreakdown: {},
+          recentCount: recentCounts[s.name] ?? 0,
+        };
       }
       return summaries;
     }
@@ -172,28 +175,40 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
   switch (status) {
     case "succeeded":
       return (
-        <Badge variant="outline" className="gap-1 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950"
+        >
           <CheckCircle2 className="h-3 w-3" />
           {t("executionLog.succeeded")}
         </Badge>
       );
     case "failed":
       return (
-        <Badge variant="outline" className="gap-1 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950"
+        >
           <XCircle className="h-3 w-3" />
           {t("executionLog.failed")}
         </Badge>
       );
     case "blocked":
       return (
-        <Badge variant="outline" className="gap-1 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950"
+        >
           <AlertTriangle className="h-3 w-3" />
           {t("executionLog.blocked")}
         </Badge>
       );
     case "pending_approval":
       return (
-        <Badge variant="outline" className="gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950"
+        >
           <Hourglass className="h-3 w-3" />
           {t("executionLog.pendingApproval")}
         </Badge>
@@ -203,7 +218,10 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
 
 // ── Time formatting ─────────────────────────────────────
 
-function formatRelativeTime(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+function formatRelativeTime(
+  dateStr: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
@@ -331,7 +349,13 @@ function SchemaSummaryCards({
                   <CardTitle className="text-sm font-medium">{label}</CardTitle>
                 </div>
                 {recentCount > 0 && (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground" title={t("workspace.recentActivityCount", { defaultValue: "{{count}} actions in last 24h", count: recentCount })}>
+                  <span
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground"
+                    title={t("workspace.recentActivityCount", {
+                      defaultValue: "{{count}} actions in last 24h",
+                      count: recentCount,
+                    })}
+                  >
                     <TrendingUp className="h-3 w-3" />
                     {recentCount}
                   </span>
@@ -345,10 +369,7 @@ function SchemaSummaryCards({
                   </span>
                 </div>
                 {hasStates && (
-                  <StateBreakdownBadges
-                    breakdown={stateBreakdown}
-                    stateMeta={summary?.stateMeta}
-                  />
+                  <StateBreakdownBadges breakdown={stateBreakdown} stateMeta={summary?.stateMeta} />
                 )}
               </CardContent>
             </Card>
@@ -389,13 +410,7 @@ function QuickActions({ schemas }: { schemas: SchemaInfo[] }) {
 
 // ── Recent Activity ─────────────────────────────────────
 
-function RecentActivity({
-  logs,
-  loading,
-}: {
-  logs: ExecutionLogEntry[];
-  loading: boolean;
-}) {
+function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading: boolean }) {
   const { t } = useTranslation();
 
   if (loading) {
@@ -430,10 +445,7 @@ function RecentActivity({
           : "";
 
         return (
-          <div
-            key={log.id}
-            className="flex items-start gap-3 rounded-md border p-3 text-sm"
-          >
+          <div key={log.id} className="flex items-start gap-3 rounded-md border p-3 text-sm">
             {/* Icon */}
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
               <Activity className="h-3.5 w-3.5 text-muted-foreground" />
@@ -461,11 +473,7 @@ function RecentActivity({
                     {t("executionLog.actor")}: {log.actor.id}
                   </span>
                 )}
-                {log.duration > 0 && (
-                  <span>
-                    {log.duration}ms
-                  </span>
-                )}
+                {log.duration > 0 && <span>{log.duration}ms</span>}
                 {log.stateTransition && (
                   <span>
                     {log.stateTransition.from} → {log.stateTransition.to}
@@ -522,12 +530,8 @@ export function WorkspacePage() {
     <div className="space-y-6 p-4">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground">
-          {t("workspace.title")}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("workspace.subtitle")}
-        </p>
+        <h1 className="text-xl font-semibold text-foreground">{t("workspace.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("workspace.subtitle")}</p>
       </div>
 
       {/* Schema summary cards */}
@@ -563,9 +567,7 @@ export function WorkspacePage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-sm">
-                  {t("workspace.recentActivity")}
-                </CardTitle>
+                <CardTitle className="text-sm">{t("workspace.recentActivity")}</CardTitle>
                 <CardDescription className="text-xs">
                   {t("workspace.recentActivityDesc")}
                 </CardDescription>

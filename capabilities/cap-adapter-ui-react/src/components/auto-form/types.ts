@@ -28,7 +28,9 @@ export interface AutoFormProps {
    * Return a SubmitResult to display server-side errors on the form.
    * Return void or undefined on success.
    */
-  onSubmit?: (data: Record<string, unknown>) => void | SubmitResult | Promise<void | SubmitResult | undefined>;
+  onSubmit?: (
+    data: Record<string, unknown>,
+  ) => undefined | SubmitResult | Promise<undefined | SubmitResult | undefined>;
   onCancel?: () => void;
   onAction?: (actionName: string) => void;
   mode?: "create" | "edit" | "view";

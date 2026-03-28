@@ -9,7 +9,7 @@
  */
 
 import type { EventBusLike, EventRecord } from "../types/event";
-import type { FlowChainConfig, FlowDefinition, FlowInstance } from "../types/flow";
+import type { FlowDefinition, FlowInstance } from "../types/flow";
 import type { FlowEngine, FlowRegistry } from "./types";
 
 // ── Event names ──────────────────────────────────────────
@@ -107,7 +107,9 @@ export function resolveInputMapping(
       result[key] = getNestedValue(payload.result, path);
     } else if (expr.startsWith("$error.")) {
       const path = expr.slice("$error.".length);
-      result[key] = payload.error ? getNestedValue(payload.error as unknown as Record<string, unknown>, path) : undefined;
+      result[key] = payload.error
+        ? getNestedValue(payload.error as unknown as Record<string, unknown>, path)
+        : undefined;
     } else {
       // Unknown expression — pass through
       result[key] = expr;
@@ -144,7 +146,7 @@ export function detectFlowCycle(
   const visited = new Set<string>();
   const path: string[] = [];
 
-  function dfs(flowName: string): string[] | null {
+  function _dfs(flowName: string): string[] | null {
     if (visited.has(flowName)) {
       // Found cycle — extract the cycle portion
       const cycleStart = path.indexOf(flowName);
@@ -160,7 +162,7 @@ export function detectFlowCycle(
     const downstream = getDownstreamFlows(flowRegistry, flowName, additionalChains);
     for (const next of downstream) {
       // Need to track recursion stack separately from visited
-      const result = dfs(next);
+      const result = _dfs(next);
       if (result) return result;
     }
 

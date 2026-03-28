@@ -13,21 +13,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@linchkit/ui-kit/components";
+import { Link, useParams } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Link } from "@tanstack/react-router";
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CircleDotIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "@tanstack/react-router";
 import { AutoList, SortableHeader } from "@/components/auto-list";
-import {
-  StateDiagram,
-  type StateMachineDetail,
-} from "../components/state-diagram";
+import { StateDiagram, type StateMachineDetail } from "../components/state-diagram";
 import { getStateBadgeClass } from "../lib/state-colors";
 
 // ── Types ────────────────────────────────────────────────
@@ -36,17 +28,6 @@ interface StateMeta {
   label: string;
   color?: string;
   description?: string;
-}
-
-interface StateMachineSummary {
-  name: string;
-  schema: string;
-  field: string;
-  initial: string;
-  stateCount: number;
-  transitionCount: number;
-  states: string[];
-  meta?: Record<string, StateMeta>;
 }
 
 // No demo data — shows empty state when API is unavailable
@@ -105,61 +86,60 @@ function TransitionsAutoList({ machine }: { machine: StateMachineDetail }) {
     return rows;
   }, [machine.transitions]);
 
-  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(() => [
-    {
-      accessorKey: "from",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.from")} />,
-      cell: ({ row }) => {
-        const fromState = row.getValue("from") as string;
-        return (
-          <Badge
-            variant="outline"
-            className={getStateBadgeClass(getStateColor(fromState, machine.meta))}
-          >
-            {getStateLabel(fromState, machine.meta, t)}
-          </Badge>
-        );
+  const columns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(
+    () => [
+      {
+        accessorKey: "from",
+        header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.from")} />,
+        cell: ({ row }) => {
+          const fromState = row.getValue("from") as string;
+          return (
+            <Badge
+              variant="outline"
+              className={getStateBadgeClass(getStateColor(fromState, machine.meta))}
+            >
+              {getStateLabel(fromState, machine.meta, t)}
+            </Badge>
+          );
+        },
       },
-    },
-    {
-      accessorKey: "action",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.action")} />,
-      cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
-          <ArrowRightIcon className="size-3" />
-          {row.getValue("action") as string}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "to",
-      header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.to")} />,
-      cell: ({ row }) => {
-        const toState = row.getValue("to") as string;
-        return (
-          <Badge
-            variant="outline"
-            className={getStateBadgeClass(getStateColor(toState, machine.meta))}
-          >
-            {getStateLabel(toState, machine.meta, t)}
-          </Badge>
-        );
+      {
+        accessorKey: "action",
+        header: ({ column }) => (
+          <SortableHeader column={column} label={t("stateMachines.action")} />
+        ),
+        cell: ({ row }) => (
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
+            <ArrowRightIcon className="size-3" />
+            {row.getValue("action") as string}
+          </span>
+        ),
       },
-    },
-  ], [t, machine.meta]);
+      {
+        accessorKey: "to",
+        header: ({ column }) => <SortableHeader column={column} label={t("stateMachines.to")} />,
+        cell: ({ row }) => {
+          const toState = row.getValue("to") as string;
+          return (
+            <Badge
+              variant="outline"
+              className={getStateBadgeClass(getStateColor(toState, machine.meta))}
+            >
+              {getStateLabel(toState, machine.meta, t)}
+            </Badge>
+          );
+        },
+      },
+    ],
+    [t, machine.meta],
+  );
 
   const tableData = useMemo<Record<string, unknown>[]>(
     () => flatTransitions.map((tr) => ({ ...tr }) as Record<string, unknown>),
     [flatTransitions],
   );
 
-  return (
-    <AutoList
-      columns={columns}
-      data={tableData}
-      pageSize={50}
-    />
-  );
+  return <AutoList columns={columns} data={tableData} pageSize={50} />;
 }
 
 // ── State machine detail page ────────────────────────────
@@ -231,7 +211,8 @@ export function StateMachineDetailPage() {
         <div>
           <h1 className="text-lg font-semibold">{machine.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {machine.schema}.{machine.field} — {t("stateMachines.initial")}: {getStateLabel(machine.initial, machine.meta, t)}
+            {machine.schema}.{machine.field} — {t("stateMachines.initial")}:{" "}
+            {getStateLabel(machine.initial, machine.meta, t)}
           </p>
         </div>
       </div>

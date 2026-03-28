@@ -24,14 +24,14 @@ import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
+import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { HealthMonitorPage } from "./pages/health-monitor";
+import { RuleDetailPage } from "./pages/rule-detail";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
-import { StateMachineDetailPage } from "./pages/state-machines";
-import { EvolutionPage } from "./pages/evolution";
-import { RuleDetailPage } from "./pages/rule-detail";
 import { SettingsPage } from "./pages/settings";
+import { StateMachineDetailPage } from "./pages/state-machines";
 import { WorkspacePage } from "./pages/workspace";
 
 // ── Root route (no layout) ────────────────────────────────────────

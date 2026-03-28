@@ -5,7 +5,13 @@
  * sensible defaults so the UI always receives usable view definitions.
  */
 
-import type { FormLayoutNode, SchemaDefinition, ViewDefinition, ViewFieldConfig, ViewAction } from "@linchkit/core";
+import type {
+  FormLayoutNode,
+  SchemaDefinition,
+  ViewAction,
+  ViewDefinition,
+  ViewFieldConfig,
+} from "@linchkit/core";
 
 /** System fields excluded from auto-generated views */
 const SYSTEM_FIELD_NAMES = new Set([
@@ -151,9 +157,7 @@ function generateDefaultFormView(schema: SchemaDefinition): ViewDefinition {
  * Returns a record keyed by view name, suitable for merging into the
  * schema metadata response.
  */
-export function generateDefaultViews(
-  schema: SchemaDefinition,
-): Record<string, ViewDefinition> {
+export function generateDefaultViews(schema: SchemaDefinition): Record<string, ViewDefinition> {
   const list = generateDefaultListView(schema);
   const form = generateDefaultFormView(schema);
   return {

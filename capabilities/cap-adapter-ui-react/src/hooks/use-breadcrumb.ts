@@ -64,7 +64,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
   const items: BreadcrumbItem[] = [{ label: t("nav.home"), href: "/" }];
 
   for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i]!;
+    const segment = segments[i] ?? "";
     const cumulativePath = `/${segments.slice(0, i + 1).join("/")}`;
     const isLast = i === segments.length - 1;
     const parentSegment = i > 0 ? segments[i - 1] : undefined;

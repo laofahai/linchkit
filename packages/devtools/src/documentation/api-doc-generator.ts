@@ -6,12 +6,13 @@
  */
 
 import type {
+  ActionDefinition,
+  ActionExposure,
+  FieldDefinition,
   OntologyRegistry,
   RelationDescriptor,
   SchemaDescriptor,
 } from "@linchkit/core";
-import type { ActionDefinition, ActionExposure } from "@linchkit/core";
-import type { FieldDefinition } from "@linchkit/core";
 
 // -- Structured doc types -------------------------------------------------
 

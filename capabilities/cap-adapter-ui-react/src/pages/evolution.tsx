@@ -6,8 +6,6 @@
  * Revert button for each reversible change.
  */
 
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   Badge,
   Button,
@@ -29,6 +27,8 @@ import {
   RotateCcwIcon,
   UserIcon,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { type EvolutionEntry, fetchEvolutionHistory } from "@/lib/proposal-api";
 
 // ── Change type badge ────────────────────────────────────
@@ -41,7 +41,9 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
   };
 
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${colors[changeType] ?? ""}`}>
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${colors[changeType] ?? ""}`}
+    >
       {changeType}
     </span>
   );
@@ -49,13 +51,7 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
 
 // ── Timeline item ────────────────────────────────────────
 
-function TimelineItem({
-  entry,
-  isLast,
-}: {
-  entry: EvolutionEntry;
-  isLast: boolean;
-}) {
+function TimelineItem({ entry, isLast }: { entry: EvolutionEntry; isLast: boolean }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
@@ -70,9 +66,7 @@ function TimelineItem({
             <UserIcon className="h-5 w-5 text-blue-500" />
           )}
         </div>
-        {!isLast && (
-          <div className="w-0.5 flex-1 bg-border" />
-        )}
+        {!isLast && <div className="w-0.5 flex-1 bg-border" />}
       </div>
 
       {/* Content */}
@@ -86,8 +80,7 @@ function TimelineItem({
                   <ChangeTypeBadge changeType={entry.changeType} />
                   {entry.version && (
                     <Badge variant="outline" className="text-[10px] gap-1">
-                      <GitBranchIcon className="h-3 w-3" />
-                      v{entry.version}
+                      <GitBranchIcon className="h-3 w-3" />v{entry.version}
                     </Badge>
                   )}
                 </CardTitle>
@@ -111,7 +104,10 @@ function TimelineItem({
               <span className="flex items-center gap-1">
                 <ClockIcon className="h-3 w-3" />
                 {new Date(entry.appliedAt).toLocaleDateString()}{" "}
-                {new Date(entry.appliedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {new Date(entry.appliedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3" />
@@ -146,15 +142,15 @@ function TimelineItem({
                 className="text-xs text-primary hover:underline flex items-center gap-1"
                 onClick={() => setExpanded(!expanded)}
               >
-                {expanded ? t("list.showLess") : t("evolution.showChanges", { count: entry.changes.length })}
+                {expanded
+                  ? t("list.showLess")
+                  : t("evolution.showChanges", { count: entry.changes.length })}
               </button>
               {expanded && (
                 <div className="mt-2 space-y-1">
                   {entry.changes.map((change, i) => (
-                    <div
-                      key={`${change.name}-${i}`}
-                      className="rounded border p-2 text-xs"
-                    >
+                    // biome-ignore lint/suspicious/noArrayIndexKey: changes have no stable id
+                    <div key={`${change.name}-${i}`} className="rounded border p-2 text-xs">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-[9px]">
                           {change.operation}
@@ -186,7 +182,7 @@ export function EvolutionPage() {
   const [entries, setEntries] = useState<EvolutionEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchEvolutionHistory();
@@ -196,11 +192,11 @@ export function EvolutionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [loadHistory]);
 
   return (
     <div className="p-4 space-y-4">
@@ -226,19 +222,13 @@ export function EvolutionPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <HistoryIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-            <p className="text-sm text-muted-foreground">
-              {t("evolution.noHistory")}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("evolution.noHistory")}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="relative">
           {entries.map((entry, i) => (
-            <TimelineItem
-              key={entry.id}
-              entry={entry}
-              isLast={i === entries.length - 1}
-            />
+            <TimelineItem key={entry.id} entry={entry} isLast={i === entries.length - 1} />
           ))}
         </div>
       )}

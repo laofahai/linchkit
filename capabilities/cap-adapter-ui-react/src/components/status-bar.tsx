@@ -45,14 +45,12 @@ export function StatusBar({ steps, current, onStepClick, className }: StatusBarP
       {steps.map((step, i) => {
         const isActive = step.value === current;
         const isCompleted = i < currentIndex;
-        const isFuture = i > currentIndex;
+        const _isFuture = i > currentIndex;
         const isFirst = i === 0;
         const isLast = i === steps.length - 1;
 
         // Resolve color for the active step
-        const colorToken: StateColorToken = step.color
-          ? resolveColorToken(step.color)
-          : "default";
+        const colorToken: StateColorToken = step.color ? resolveColorToken(step.color) : "default";
 
         let colorCls: string;
         if (isActive) {

@@ -20,10 +20,12 @@ import type {
   SchemaDefinition,
   StateDefinition,
 } from "@linchkit/core";
-import type { CacheManager } from "@linchkit/core/server";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
+import type { CacheManager } from "@linchkit/core/server";
 import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
-export { generateCrudActions, type GenerateCrudActionsOptions } from "./build-crud-actions";
+
+export { type GenerateCrudActionsOptions, generateCrudActions } from "./build-crud-actions";
+
 import {
   GraphQLBoolean,
   GraphQLError,
@@ -191,7 +193,11 @@ export function buildGraphQLSchema(
   const GQL_CACHE_TTL = 30_000;
 
   /** Cache-aware wrapper: try cache first, fall back to loader, store result */
-  async function cachedQuery<T>(cacheKey: string, tags: string[], loader: () => Promise<T>): Promise<T> {
+  async function cachedQuery<T>(
+    cacheKey: string,
+    tags: string[],
+    loader: () => Promise<T>,
+  ): Promise<T> {
     if (!cacheManager) return loader();
     const cached = cacheManager.get<T>(cacheKey);
     if (cached !== undefined) return cached;
@@ -332,7 +338,11 @@ export function buildGraphQLSchema(
                 }
                 // Resolve translatable JSONB → plain strings BEFORE masking,
                 // so masking always operates on strings, not locale-map objects.
-                const resolved = resolveTranslatableRow(record as Record<string, unknown>, schema, locale);
+                const resolved = resolveTranslatableRow(
+                  record as Record<string, unknown>,
+                  schema,
+                  locale,
+                );
                 return applyMasking(resolved, schemaName, ctx);
               } catch (err) {
                 console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
@@ -384,7 +394,10 @@ export function buildGraphQLSchema(
         page: { type: GraphQLInt, description: "Page number (1-based)" },
         pageSize: { type: GraphQLInt, description: "Number of items per page" },
         locale: { type: GraphQLString, description: "Locale for translatable fields" },
-        includeDeleted: { type: GraphQLBoolean, description: "Include soft-deleted records (default: false)" },
+        includeDeleted: {
+          type: GraphQLBoolean,
+          description: "Include soft-deleted records (default: false)",
+        },
       },
       resolve: dataProvider
         ? async (
@@ -464,11 +477,16 @@ export function buildGraphQLSchema(
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
             const normalizedInput = normalizeTranslatableRow(args.input, schema, locale);
-            const result = await executor.execute(`create_${schemaName}`, normalizedInput, ctx.actor, {
-              channel: "http",
-              tenantId: ctx.tenantId,
-              locale,
-            });
+            const result = await executor.execute(
+              `create_${schemaName}`,
+              normalizedInput,
+              ctx.actor,
+              {
+                channel: "http",
+                tenantId: ctx.tenantId,
+                locale,
+              },
+            );
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
@@ -630,7 +648,8 @@ export function buildGraphQLSchema(
               try {
                 const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
                 if (!record) return [];
-                const currentState = (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
+                const currentState =
+                  (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
                 const transitions = getAvailableTransitions(machine, currentState);
                 // Enrich each transition with permission pre-check from action definitions
                 return transitions.map((tr) => {
@@ -642,12 +661,20 @@ export function buildGraphQLSchema(
                     const perms = actionDef?.permissions;
                     if (!perms) continue;
                     if (perms.actorTypes?.length && !perms.actorTypes.includes(actor.type)) {
-                      return { ...tr, allowed: false, reason: `Actor type "${actor.type}" is not allowed` };
+                      return {
+                        ...tr,
+                        allowed: false,
+                        reason: `Actor type "${actor.type}" is not allowed`,
+                      };
                     }
                     if (perms.groups?.length) {
                       const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
                       if (!hasGroup) {
-                        return { ...tr, allowed: false, reason: `Requires group: ${perms.groups.join(", ")}` };
+                        return {
+                          ...tr,
+                          allowed: false,
+                          reason: `Requires group: ${perms.groups.join(", ")}`,
+                        };
                       }
                     }
                   }
@@ -669,63 +696,58 @@ export function buildGraphQLSchema(
           id: { type: new GraphQLNonNull(GraphQLID) },
           to: { type: new GraphQLNonNull(GraphQLString) },
         },
-        resolve: executor && dataProvider
-          ? async (
-              _root: unknown,
-              args: { id: string; to: string },
-              ctx: GraphQLContext,
-            ) => {
-              const opts: DataQueryOptions = {
-                ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
-              };
-              const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
+        resolve:
+          executor && dataProvider
+            ? async (_root: unknown, args: { id: string; to: string }, ctx: GraphQLContext) => {
+                const opts: DataQueryOptions = {
+                  ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+                };
+                const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
 
-              // Fetch current record to get current state
-              let record: Record<string, unknown>;
-              try {
-                record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
-              } catch {
-                // DataProvider.get threw (record missing or DB error) — surface as GraphQL error
-                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
-              }
-              if (!record) {
-                throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
-              }
-              const currentState = (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
+                // Fetch current record to get current state
+                let record: Record<string, unknown>;
+                try {
+                  record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+                } catch {
+                  // DataProvider.get threw (record missing or DB error) — surface as GraphQL error
+                  throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+                }
+                if (!record) {
+                  throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+                }
+                const currentState =
+                  (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
 
-              // Validate the transition is allowed
-              const available = getAvailableTransitions(machine, currentState);
-              const match = available.find((t) => t.to === args.to);
-              if (!match) {
-                throw new GraphQLError(
-                  `State transition not allowed: cannot transition from "${currentState}" to "${args.to}"`,
-                );
-              }
+                // Validate the transition is allowed
+                const available = getAvailableTransitions(machine, currentState);
+                const match = available.find((t) => t.to === args.to);
+                if (!match) {
+                  throw new GraphQLError(
+                    `State transition not allowed: cannot transition from "${currentState}" to "${args.to}"`,
+                  );
+                }
 
-              // Execute the update via the action engine so all middleware/logging applies
-              const input: Record<string, unknown> = {
-                id: args.id,
-                [stateFieldName]: args.to,
-              };
-              const result = await executor.execute(
-                `update_${schemaName}`,
-                input,
-                ctx.actor,
-                { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
-              );
-              if (!result.success) {
-                const errData = result.data as Record<string, unknown> | undefined;
-                throw new GraphQLError(
-                  (errData?.error as string) ?? `State transition failed`,
-                );
+                // Execute the update via the action engine so all middleware/logging applies
+                const input: Record<string, unknown> = {
+                  id: args.id,
+                  [stateFieldName]: args.to,
+                };
+                const result = await executor.execute(`update_${schemaName}`, input, ctx.actor, {
+                  channel: "http",
+                  tenantId: ctx.tenantId,
+                  locale: ctx.locale,
+                });
+                if (!result.success) {
+                  const errData = result.data as Record<string, unknown> | undefined;
+                  throw new GraphQLError((errData?.error as string) ?? `State transition failed`);
+                }
+                invalidateSchemaCache(schemaName);
+                const data = result.data as Record<string, unknown>;
+                return data ? resolveTranslatableRow(data, schema, ctx.locale) : data;
               }
-              invalidateSchemaCache(schemaName);
-              const data = result.data as Record<string, unknown>;
-              return data ? resolveTranslatableRow(data, schema, ctx.locale) : data;
-            }
-          : () => {
-              throw new GraphQLError("Executor or data provider not configured");
-            },
+            : () => {
+                throw new GraphQLError("Executor or data provider not configured");
+              },
       };
     }
   }

@@ -149,10 +149,7 @@ export class PatternDetector {
   /**
    * Analyze a specific schema's execution logs.
    */
-  async analyzeSchema(
-    logger: ExecutionLogger,
-    schemaName: string,
-  ): Promise<PatternInsight[]> {
+  async analyzeSchema(logger: ExecutionLogger, schemaName: string): Promise<PatternInsight[]> {
     const since = new Date();
     since.setDate(since.getDate() - this.config.lookbackDays);
     const entries = await logger.findMany({
@@ -223,7 +220,7 @@ export class PatternDetector {
       if (entries.length < this.config.minOccurrences) continue;
 
       const [actionName] = key.split("::");
-      const schema = entries[0].schema ?? "unknown";
+      const schema = entries[0]?.schema ?? "unknown";
 
       // Check for similar input patterns using field value frequency
       const fieldPatterns = this.analyzeInputSimilarity(entries);
@@ -448,7 +445,10 @@ export class PatternDetector {
     const insights: PatternInsight[] = [];
 
     // Collect state transitions grouped by schema + record, with timestamps for ordering
-    const transitions = new Map<string, Array<{ from: string; to: string; action: string; time: number }>>();
+    const transitions = new Map<
+      string,
+      Array<{ from: string; to: string; action: string; time: number }>
+    >();
 
     for (const log of logs) {
       if (!log.stateTransition || !log.schema || !log.recordId) continue;
@@ -470,7 +470,7 @@ export class PatternDetector {
     // Group by schema and build transition path frequencies
     const schemaPaths = new Map<string, Map<string, number>>();
     for (const [key, trans] of transitions) {
-      const schema = key.split("::")[0];
+      const schema = key.split("::")[0] ?? "";
       let pathMap = schemaPaths.get(schema);
       if (!pathMap) {
         pathMap = new Map();
@@ -479,7 +479,10 @@ export class PatternDetector {
       // Sort transitions by time ascending to build correct path
       trans.sort((a, b) => a.time - b.time);
       // Build path string: "draft→submitted→approved→done"
-      const states = [trans[0].from, ...trans.map((t) => t.to)];
+      const firstTrans = trans[0];
+      const states = firstTrans
+        ? [firstTrans.from, ...trans.map((t) => t.to)]
+        : trans.map((t) => t.to);
       const pathStr = states.join("→");
       pathMap.set(pathStr, (pathMap.get(pathStr) ?? 0) + 1);
     }
@@ -518,7 +521,11 @@ export class PatternDetector {
           examples: Array.from(pathMap.entries())
             .sort((a, b) => b[1] - a[1])
             .slice(0, this.config.maxExamples)
-            .map(([path, count]) => ({ path, count, percentage: Math.round((count / totalRecords) * 100) })),
+            .map(([path, count]) => ({
+              path,
+              count,
+              percentage: Math.round((count / totalRecords) * 100),
+            })),
         },
         suggestedAction: {
           type: "add_automation",
@@ -557,13 +564,13 @@ export class PatternDetector {
 
     for (const [action, entries] of actionLogs) {
       if (entries.length < this.config.minOccurrences) continue;
-      const schema = entries[0].schema ?? "unknown";
+      const schema = entries[0]?.schema ?? "unknown";
 
       // Analyze hour-of-day distribution
       const hourCounts = new Array<number>(24).fill(0);
       for (const entry of entries) {
         const hour = entry.startedAt.getHours();
-        hourCounts[hour]++;
+        hourCounts[hour] = (hourCounts[hour] ?? 0) + 1;
       }
 
       // Find peak hours (consecutive hours with > 60% of total)
@@ -601,8 +608,7 @@ export class PatternDetector {
           },
           suggestedAction: {
             type: "add_automation",
-            description:
-              `Consider scheduling "${action}" as a batch job at ${peakHours.startHour}:00`,
+            description: `Consider scheduling "${action}" as a batch job at ${peakHours.startHour}:00`,
             targetSchema: schema,
             details: {
               action,
@@ -617,11 +623,19 @@ export class PatternDetector {
       const dayCounts = new Array<number>(7).fill(0);
       for (const entry of entries) {
         const day = entry.startedAt.getDay();
-        dayCounts[day]++;
+        dayCounts[day] = (dayCounts[day] ?? 0) + 1;
       }
 
       // Check if action is concentrated on specific days
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayNames = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
       const peakDays = this.findPeakDays(dayCounts, totalCount);
 
       if (peakDays && peakDays.concentration >= this.config.minConfidence) {
@@ -644,7 +658,7 @@ export class PatternDetector {
                 peakDays: dayStr,
                 dayDistribution: dayCounts.reduce(
                   (acc, count, day) => {
-                    if (count > 0) acc[dayNames[day]] = count;
+                    if (count > 0) acc[dayNames[day] ?? String(day)] = count;
                     return acc;
                   },
                   {} as Record<string, number>,
@@ -726,13 +740,21 @@ export class PatternDetector {
     values: string[],
   ): Array<{ name: string; regex: string; matchRate: number }> {
     const patterns: Array<{ name: string; regex: RegExp; regexStr: string }> = [
-      { name: "email", regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, regexStr: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$" },
+      {
+        name: "email",
+        regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        regexStr: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+      },
       { name: "phone", regex: /^\+?[\d\s\-()]{7,15}$/, regexStr: "^\\+?[\\d\\s\\-()]{7,15}$" },
       { name: "url", regex: /^https?:\/\/.+$/, regexStr: "^https?://.+$" },
-      { name: "uuid", regex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, regexStr: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+      {
+        name: "uuid",
+        regex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        regexStr: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      },
       { name: "date_iso", regex: /^\d{4}-\d{2}-\d{2}$/, regexStr: "^\\d{4}-\\d{2}-\\d{2}$" },
       { name: "numeric_string", regex: /^\d+$/, regexStr: "^\\d+$" },
-      { name: "uppercase", regex: /^[A-Z][A-Z0-9_\-]+$/, regexStr: "^[A-Z][A-Z0-9_\\-]+$" },
+      { name: "uppercase", regex: /^[A-Z][A-Z0-9_-]+$/, regexStr: "^[A-Z][A-Z0-9_\\-]+$" },
     ];
 
     const results: Array<{ name: string; regex: string; matchRate: number }> = [];
@@ -756,13 +778,18 @@ export class PatternDetector {
     if (total === 0) return null;
 
     // Try windows of 1-4 hours
-    let best: { startHour: number; endHour: number; concentration: number; countInPeak: number } | null = null;
+    let best: {
+      startHour: number;
+      endHour: number;
+      concentration: number;
+      countInPeak: number;
+    } | null = null;
 
     for (let windowSize = 1; windowSize <= 4; windowSize++) {
       for (let start = 0; start < 24; start++) {
         let count = 0;
         for (let i = 0; i < windowSize; i++) {
-          count += hourCounts[(start + i) % 24];
+          count += hourCounts[(start + i) % 24] ?? 0;
         }
         const concentration = count / total;
         if (!best || concentration > best.concentration) {

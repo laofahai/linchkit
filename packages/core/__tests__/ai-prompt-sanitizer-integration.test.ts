@@ -43,7 +43,9 @@ describe("detectInjection — integration", () => {
   });
 
   test("allows normal business queries", () => {
-    const result = detectInjection("Show me all orders from last week with amount greater than 1000");
+    const result = detectInjection(
+      "Show me all orders from last week with amount greater than 1000",
+    );
     expect(result.detected).toBe(false);
     expect(result.action).toBe("allow");
     expect(result.score).toBe(0);
@@ -126,9 +128,7 @@ describe("sanitizePII — integration", () => {
   });
 
   test("redacts multiple PII types in one text", () => {
-    const result = sanitizePII(
-      "Contact john@example.com or call +1-234-567-8901. IP: 10.0.0.1",
-    );
+    const result = sanitizePII("Contact john@example.com or call +1-234-567-8901. IP: 10.0.0.1");
     expect(result.piiTypesFound).toContain("email");
     expect(result.piiTypesFound).toContain("phone");
     expect(result.piiTypesFound).toContain("ip_address");
@@ -223,7 +223,12 @@ describe("sanitizeRecordForAI — schema-aware", () => {
   });
 
   test("applies PII sanitization to sensitive fields", () => {
-    const record = { name: "John", email: "john@example.com", phone: "+1-234-567-8901", notes: "Regular" };
+    const record = {
+      name: "John",
+      email: "john@example.com",
+      phone: "+1-234-567-8901",
+      notes: "Regular",
+    };
     const result = sanitizeRecordForAI(record, schema);
 
     // Email is sensitive — should be PII-scanned and redacted
@@ -245,7 +250,11 @@ describe("sanitizeRecordForAI — schema-aware", () => {
   });
 
   test("handles alwaysRedactFields config", () => {
-    const record = { name: "John Doe", email: "j@t.com", notes: "Has PII in notes: SSN 123-45-6789" };
+    const record = {
+      name: "John Doe",
+      email: "j@t.com",
+      notes: "Has PII in notes: SSN 123-45-6789",
+    };
     const result = sanitizeRecordForAI(record, schema, {
       alwaysRedactFields: ["notes"],
     });

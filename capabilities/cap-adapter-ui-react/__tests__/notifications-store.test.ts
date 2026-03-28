@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-  pushNotification,
-  markAllRead,
   clearNotifications,
+  markAllRead,
   type Notification,
+  pushNotification,
 } from "../src/hooks/use-notifications";
 
 // Access the module's internal state via the public API.
 // We use a subscribe + getSnapshot pattern to read state without React.
-function getNotifications(): Notification[] {
+function _getNotifications(): Notification[] {
   // Re-import to get current snapshot — the module uses a singleton array
   // We'll track state via a listener
-  let current: Notification[] = [];
+  const current: Notification[] = [];
   // The subscribe/getSnapshot are not exported, so we test via side effects
   // by pushing and reading back. We need a way to read the current state.
   // Since the module exports pushNotification which mutates `notifications`,
@@ -32,7 +32,7 @@ describe("notification store", () => {
     // We can verify by pushing and then checking via another push + clear cycle
     // But since getSnapshot is not exported, we test the logic through the
     // subscribe callback mechanism
-    let callCount = 0;
+    const _callCount = 0;
     // We can't directly subscribe without the hook, but we can test
     // that functions don't throw and have correct behavior
 

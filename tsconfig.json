@@ -22,6 +22,8 @@
       "@linchkit/core/types": ["./packages/core/src/types-entry.ts"],
       "@linchkit/core/define": ["./packages/core/src/define-entry.ts"],
       "@linchkit/core/server": ["./packages/core/src/server-entry.ts"],
+      "@linchkit/core/config": ["./packages/core/src/config/index.ts"],
+      "@linchkit/core/utils/env": ["./packages/core/src/utils/env.ts"],
       "@linchkit/cli": ["./packages/cli/src"],
       "@linchkit/devtools": ["./packages/devtools/src"],
       "@linchkit/cap-adapter-server": ["./capabilities/cap-adapter-server/src"],

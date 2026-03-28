@@ -74,10 +74,7 @@ function deriveChildSchema(link: LinkDefinition, parentSchema: string): string {
  * Generate a list view from child schema fields when no explicit list view is defined.
  * Shows up to 6 fields excluding system and FK fields.
  */
-function generateChildListView(
-  schema: SchemaDefinition,
-  fkField: string,
-): AutoListViewDefinition {
+function generateChildListView(schema: SchemaDefinition, fkField: string): AutoListViewDefinition {
   const fieldNames = Object.keys(schema.fields)
     .filter((f) => !SYSTEM_FIELDS.has(f) && f !== fkField)
     .slice(0, 6);
@@ -96,11 +93,7 @@ function generateChildListView(
 
 // ── Component ────────────────────────────────────────────
 
-export function RelatedRecordsTab({
-  parentSchema,
-  parentId,
-  link,
-}: RelatedRecordsTabProps) {
+export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecordsTabProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const childSchemaName = deriveChildSchema(link, parentSchema);
@@ -114,9 +107,9 @@ export function RelatedRecordsTab({
     if (!childSchema) return undefined;
 
     // Try to find an explicit list view from the child bundle
-    const explicitList = Object.values(childBundle?.views ?? {}).find(
-      (v) => v.type === "list",
-    ) as AutoListViewDefinition | undefined;
+    const explicitList = Object.values(childBundle?.views ?? {}).find((v) => v.type === "list") as
+      | AutoListViewDefinition
+      | undefined;
 
     if (explicitList) {
       // Filter out the FK field from columns so it's not shown
@@ -209,11 +202,7 @@ export function RelatedRecordsTab({
 
   // "New" button for creating related records
   const newButton = (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={handleCreateNew}
-    >
+    <Button size="sm" variant="outline" onClick={handleCreateNew}>
       <Plus className="mr-1.5 size-3.5" />
       {t("common.new", "New")}
     </Button>
@@ -226,11 +215,7 @@ export function RelatedRecordsTab({
         <p className="text-sm text-muted-foreground mb-3">
           {t("emptyState.relatedRecords", "No records yet")}
         </p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleCreateNew}
-        >
+        <Button size="sm" variant="outline" onClick={handleCreateNew}>
           <Plus className="mr-1.5 size-3.5" />
           {t("common.new", "New")}
         </Button>

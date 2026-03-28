@@ -1,6 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { PatternDetector } from "../src/ai/pattern-detector";
-import type { PatternDetectorConfig } from "../src/ai/pattern-detector";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ExecutionLogEntry } from "../src/types/execution-log";
 
@@ -25,7 +24,7 @@ function daysAgo(n: number): Date {
   return d;
 }
 
-function hoursAgoAt(hoursBack: number, targetHour: number): Date {
+function _hoursAgoAt(hoursBack: number, targetHour: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - Math.floor(hoursBack / 24));
   d.setHours(targetHour, 0, 0, 0);
@@ -102,10 +101,10 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
     // Should detect "currency" = "USD" as a default
     const currencyInsight = defaultInsights.find((i) => i.description.includes("currency"));
     expect(currencyInsight).toBeDefined();
-    expect(currencyInsight!.confidence).toBeGreaterThanOrEqual(0.8);
-    expect(currencyInsight!.suggestedAction.type).toBe("modify_schema");
-    expect(currencyInsight!.suggestedAction.details.field).toBe("currency");
-    expect(currencyInsight!.suggestedAction.details.defaultValue).toBe("USD");
+    expect(currencyInsight?.confidence).toBeGreaterThanOrEqual(0.8);
+    expect(currencyInsight?.suggestedAction.type).toBe("modify_schema");
+    expect(currencyInsight?.suggestedAction.details.field).toBe("currency");
+    expect(currencyInsight?.suggestedAction.details.defaultValue).toBe("USD");
   });
 
   test("detects validation pattern (email format)", async () => {
@@ -132,7 +131,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
 
     const emailPattern = validationInsights.find((i) => i.description.includes("email"));
     expect(emailPattern).toBeDefined();
-    expect(emailPattern!.suggestedAction.type).toBe("add_rule");
+    expect(emailPattern?.suggestedAction.type).toBe("add_rule");
   });
 
   test("detects state flow pattern", async () => {
@@ -206,7 +205,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
 
     const hourInsight = timingInsights.find((i) => i.description.includes("9:00"));
     expect(hourInsight).toBeDefined();
-    expect(hourInsight!.suggestedAction.type).toBe("add_automation");
+    expect(hourInsight?.suggestedAction.type).toBe("add_automation");
   });
 });
 

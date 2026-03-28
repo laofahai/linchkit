@@ -57,15 +57,27 @@ const EXCLUDED_FIELD_TYPES = new Set(["state", "has_many", "many_to_many"]);
  */
 function buildFieldDescriptors(
   schema: SchemaDefinition,
-): Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }> {
-  const result: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }> = {};
+): Record<
+  string,
+  { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }
+> {
+  const result: Record<
+    string,
+    { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }
+  > = {};
 
   for (const [name, field] of Object.entries(schema.fields)) {
     if (EXCLUDED_FIELDS.has(name)) continue;
     if (field.type && EXCLUDED_FIELD_TYPES.has(field.type)) continue;
     if (field.derived) continue;
 
-    const descriptor: { label?: string; type?: string; required?: boolean; options?: string[]; description?: string } = {
+    const descriptor: {
+      label?: string;
+      type?: string;
+      required?: boolean;
+      options?: string[];
+      description?: string;
+    } = {
       label: field.label,
       type: field.type,
       required: field.required,

@@ -1,3 +1,4 @@
+export type { FlowCompletedPayload, FlowDependencyInfo } from "./flow-chaining";
 export {
   detectFlowCycle,
   emitFlowCompletionEvent,
@@ -8,7 +9,6 @@ export {
   resolveInputMapping,
   validateFlowChains,
 } from "./flow-chaining";
-export type { FlowCompletedPayload, FlowDependencyInfo } from "./flow-chaining";
 export { createFlowRegistry, FlowRegistryImpl } from "./flow-registry";
 export { createFlowStepContext, type FlowStepContextDeps } from "./flow-step-context";
 export { createSyncFlowEngine } from "./sync-engine";

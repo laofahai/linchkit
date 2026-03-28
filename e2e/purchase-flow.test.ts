@@ -3,9 +3,9 @@ import { approveAction, purchaseRequestSchema, submitAction } from "@linchkit/ca
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
+  InMemoryStore,
   SchemaRegistry,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,
   generateCrudActions,
@@ -39,7 +39,6 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
   executor,
   dataProvider: store,
   actions: [e2eSubmitAction, e2eApproveAction],
-  executionLogger,
 });
 
 const app = createServer(graphqlSchema, {

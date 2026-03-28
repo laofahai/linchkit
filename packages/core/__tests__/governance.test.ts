@@ -3,15 +3,14 @@ import { join } from "node:path";
 import {
   type ConventionalCommit,
   generateChangelog,
+  generateSpecReport,
   generateVersionedChangelog,
   parseConventionalCommit,
-} from "@linchkit/devtools/governance";
-import {
+  SpecTracker,
   validateActionDoc,
   validateCapabilityDoc,
   validateSchemaDoc,
 } from "@linchkit/devtools/governance";
-import { generateSpecReport, SpecTracker } from "@linchkit/devtools/governance";
 import type { ActionDefinition } from "../src/types/action";
 import type { CapabilityDefinition } from "../src/types/capability";
 import type { SchemaDefinition } from "../src/types/schema";

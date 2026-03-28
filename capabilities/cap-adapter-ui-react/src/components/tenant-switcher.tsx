@@ -20,7 +20,7 @@ import {
 import { Building2Icon, CheckIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type TenantInfo, getActiveTenantId, setActiveTenantId } from "@/lib/tenant";
+import { getActiveTenantId, setActiveTenantId, type TenantInfo } from "@/lib/tenant";
 
 interface TenantSwitcherProps {
   /** Optional list of tenants. If not provided, fetches from /api/tenants. */
@@ -52,15 +52,12 @@ export function TenantSwitcher({ tenants: propTenants }: TenantSwitcherProps) {
     };
   }, [propTenants]);
 
-  const handleSelect = useCallback(
-    (tenantId: string | null) => {
-      setActiveTenantId(tenantId);
-      setActiveTenant(tenantId);
-      // Reload page to refetch all data with new tenant context
-      window.location.reload();
-    },
-    [],
-  );
+  const handleSelect = useCallback((tenantId: string | null) => {
+    setActiveTenantId(tenantId);
+    setActiveTenant(tenantId);
+    // Reload page to refetch all data with new tenant context
+    window.location.reload();
+  }, []);
 
   // Don't render if no tenants are configured
   if (tenants.length === 0) return null;
@@ -95,18 +92,13 @@ export function TenantSwitcher({ tenants: propTenants }: TenantSwitcherProps) {
           >
             <Building2Icon className="size-4 text-muted-foreground" />
             <span className="flex-1">{tenant.name}</span>
-            {tenant.id === activeTenantId && (
-              <CheckIcon className="size-4 text-primary" />
-            )}
+            {tenant.id === activeTenantId && <CheckIcon className="size-4 text-primary" />}
           </DropdownMenuItem>
         ))}
         {activeTenantId && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => handleSelect(null)}
-              className="text-muted-foreground"
-            >
+            <DropdownMenuItem onClick={() => handleSelect(null)} className="text-muted-foreground">
               {t("tenant.clearTenant")}
             </DropdownMenuItem>
           </>

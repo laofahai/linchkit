@@ -112,11 +112,17 @@ export function RefInput({
           )}
           onBlur={onBlur}
         >
-          <SelectValue placeholder={isLoading ? t("common.loading", "Loading...") : t("common.select", "Select...")} />
+          <SelectValue
+            placeholder={
+              isLoading ? t("common.loading", "Loading...") : t("common.select", "Select...")
+            }
+          />
         </SelectTrigger>
         <SelectContent>
           {queryError && (
-            <div className="px-2 py-1 text-xs text-destructive">{t("common.loadFailed", "Failed to load options")}</div>
+            <div className="px-2 py-1 text-xs text-destructive">
+              {t("common.loadFailed", "Failed to load options")}
+            </div>
           )}
           {options.length === 0 && !isLoading && !queryError && (
             <SelectItem value="__empty" disabled>

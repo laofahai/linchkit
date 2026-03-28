@@ -105,10 +105,7 @@ export function parseDuration(duration: string): number | null {
 // ── Comparison evaluator ──────────────────────────────────
 
 /** Evaluate a WatcherComparisonCondition against a numeric value */
-export function evaluateComparison(
-  value: number,
-  condition: WatcherComparisonCondition,
-): boolean {
+export function evaluateComparison(value: number, condition: WatcherComparisonCondition): boolean {
   if (condition.gt !== undefined && !(value > condition.gt)) return false;
   if (condition.gte !== undefined && !(value >= condition.gte)) return false;
   if (condition.lt !== undefined && !(value < condition.lt)) return false;
@@ -161,9 +158,7 @@ class WatcherEngineImpl implements WatcherEngine {
     this.startStalenessPoller();
 
     const watcherCount = this.registry.getEnabled().length;
-    this.logger.info?.(
-      `[WatcherEngine] Started with ${watcherCount} enabled watcher(s)`,
-    );
+    this.logger.info?.(`[WatcherEngine] Started with ${watcherCount} enabled watcher(s)`);
   }
 
   stop(): void {
@@ -195,9 +190,7 @@ class WatcherEngineImpl implements WatcherEngine {
         results.push(result);
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
-        this.logger.error?.(
-          `[WatcherEngine] Error evaluating watcher "${watcher.name}": ${error}`,
-        );
+        this.logger.error?.(`[WatcherEngine] Error evaluating watcher "${watcher.name}": ${error}`);
         results.push({
           watcherName: watcher.name,
           fired: false,
@@ -239,7 +232,7 @@ class WatcherEngineImpl implements WatcherEngine {
 
         const record =
           eventType === "record.updated"
-            ? (event.payload._new as Record<string, unknown>) ?? event.payload
+            ? ((event.payload._new as Record<string, unknown>) ?? event.payload)
             : event.payload;
         const oldRecord =
           eventType === "record.updated"
@@ -352,14 +345,15 @@ class WatcherEngineImpl implements WatcherEngine {
 
       const records = await this.dataQuerier.queryRecords(watcher.watch.schema);
       // Apply filter in-memory if present
-      const filtered = watcher.watch.filter
+      const watchFilter = watcher.watch.filter;
+      const filtered = watchFilter
         ? records.filter((r) => {
             const ctx: ConditionContext = {
               target: r,
               context: {},
               actor: { type: "system", id: "watcher", groups: [] },
             };
-            return evaluateCondition(watcher.watch.filter!, ctx);
+            return evaluateCondition(watchFilter, ctx);
           })
         : records;
 
@@ -498,14 +492,15 @@ class WatcherEngineImpl implements WatcherEngine {
     const records = await this.dataQuerier.queryRecords(watcher.watch.schema);
 
     // Apply filter
-    const filtered = watcher.watch.filter
+    const watchFilter2 = watcher.watch.filter;
+    const filtered = watchFilter2
       ? records.filter((r) => {
           const ctx: ConditionContext = {
             target: r,
             context: {},
             actor: { type: "system", id: "watcher", groups: [] },
           };
-          return evaluateCondition(watcher.watch.filter!, ctx);
+          return evaluateCondition(watchFilter2, ctx);
         })
       : records;
 
@@ -516,7 +511,9 @@ class WatcherEngineImpl implements WatcherEngine {
       if (!fieldValue) continue;
 
       const timestamp =
-        fieldValue instanceof Date ? fieldValue.getTime() : new Date(fieldValue as string).getTime();
+        fieldValue instanceof Date
+          ? fieldValue.getTime()
+          : new Date(fieldValue as string).getTime();
 
       if (Number.isNaN(timestamp)) continue;
 
@@ -565,9 +562,7 @@ class WatcherEngineImpl implements WatcherEngine {
       case "count":
         return values.length;
       case "avg":
-        return values.length > 0
-          ? values.reduce((acc, v) => acc + v, 0) / values.length
-          : 0;
+        return values.length > 0 ? values.reduce((acc, v) => acc + v, 0) / values.length : 0;
       case "min":
         return values.length > 0 ? Math.min(...values) : 0;
       case "max":
@@ -579,10 +574,7 @@ class WatcherEngineImpl implements WatcherEngine {
 
   // ── Effect execution ────────────────────────────────────
 
-  private async fireEffect(
-    watcher: WatcherDefinition,
-    ctx: WatcherContext,
-  ): Promise<void> {
+  private async fireEffect(watcher: WatcherDefinition, ctx: WatcherContext): Promise<void> {
     if (!this.actionExecutor) {
       this.logger.warn?.(
         `[WatcherEngine] No actionExecutor configured, cannot fire effect for "${watcher.name}"`,
@@ -607,10 +599,7 @@ class WatcherEngineImpl implements WatcherEngine {
 
   // ── Debounce logic ──────────────────────────────────────
 
-  private getGroupKey(
-    watcher: WatcherDefinition,
-    record: Record<string, unknown>,
-  ): string {
+  private getGroupKey(watcher: WatcherDefinition, record: Record<string, unknown>): string {
     if (watcher.watch.aggregate?.groupBy) {
       return String(record[watcher.watch.aggregate.groupBy] ?? "default");
     }
@@ -622,11 +611,7 @@ class WatcherEngineImpl implements WatcherEngine {
    * Check whether the watcher should fire based on debounce strategy.
    * Returns true if the watcher should fire.
    */
-  private shouldFire(
-    watcher: WatcherDefinition,
-    groupKey: string,
-    conditionMet: boolean,
-  ): boolean {
+  private shouldFire(watcher: WatcherDefinition, groupKey: string, conditionMet: boolean): boolean {
     if (!conditionMet) return false;
 
     const debounce = watcher.trigger.debounce;
@@ -668,11 +653,7 @@ class WatcherEngineImpl implements WatcherEngine {
     }
   }
 
-  private updateState(
-    watcherName: string,
-    groupKey: string,
-    conditionMet: boolean,
-  ): void {
+  private updateState(watcherName: string, groupKey: string, conditionMet: boolean): void {
     const stateKey = `${watcherName}:${groupKey}`;
     this.stateMap.set(stateKey, {
       watcherName,

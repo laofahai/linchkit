@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { applyOverride, deepMerge, resolveOverrides, resolveRuleOverride } from "../src/runtime/override-resolver";
+import {
+  applyOverride,
+  deepMerge,
+  resolveOverrides,
+  resolveRuleOverride,
+} from "../src/runtime/override-resolver";
 import type { RuleDefinition } from "../src/types/rule";
 
 // ── deepMerge ─────────────────────────────────────────
@@ -91,7 +96,7 @@ describe("resolveOverrides", () => {
     ]);
     const result = resolveOverrides(defs, overrides);
     expect(result[0].value).toBe(10); // overridable: applied
-    expect(result[1].value).toBe(2);  // not overridable: unchanged
+    expect(result[1].value).toBe(2); // not overridable: unchanged
   });
 
   it("leaves definitions without matching overrides unchanged", () => {

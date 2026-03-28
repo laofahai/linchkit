@@ -6,8 +6,8 @@
  * state.transition events from the EventBus.
  */
 
-import { defineEventHandler } from "@linchkit/core";
 import type { EventHandlerDefinition } from "@linchkit/core";
+import { defineEventHandler } from "@linchkit/core";
 import type { ChatterService } from "./types";
 
 // System fields excluded from change audit (noise reduction)

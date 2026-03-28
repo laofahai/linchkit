@@ -85,7 +85,12 @@ export function useSavedViews(schemaName: string) {
   }, [raw]);
 
   const createView = useCallback(
-    (name: string, filters: SavedViewFilter[], sort?: SavedViewSort, columns?: string[]): SavedView => {
+    (
+      name: string,
+      filters: SavedViewFilter[],
+      sort?: SavedViewSort,
+      columns?: string[],
+    ): SavedView => {
       const view: SavedView = {
         id: generateId(),
         name,
@@ -113,7 +118,10 @@ export function useSavedViews(schemaName: string) {
   const deleteView = useCallback(
     (viewId: string): void => {
       const current = readViews(schemaName);
-      writeViews(schemaName, current.filter((v) => v.id !== viewId));
+      writeViews(
+        schemaName,
+        current.filter((v) => v.id !== viewId),
+      );
     },
     [schemaName],
   );
@@ -121,9 +129,7 @@ export function useSavedViews(schemaName: string) {
   const updateView = useCallback(
     (viewId: string, filters: SavedViewFilter[], sort?: SavedViewSort): void => {
       const current = readViews(schemaName);
-      const updated = current.map((v) =>
-        v.id === viewId ? { ...v, filters, sort } : v,
-      );
+      const updated = current.map((v) => (v.id === viewId ? { ...v, filters, sort } : v));
       writeViews(schemaName, updated);
     },
     [schemaName],

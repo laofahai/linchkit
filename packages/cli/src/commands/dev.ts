@@ -9,23 +9,15 @@
  * transport factories through the capability contract.
  */
 
-import type {
-  CapabilityDefinition,
-  LinchKitConfig,
-  TransportLifecycle,
-} from "@linchkit/core";
+import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
 import { ConfigRegistry } from "@linchkit/core";
-import {
-  closeDatabase,
-  detectEnvironment,
-  GracefulShutdownManager,
-} from "@linchkit/core/server";
+import { closeDatabase, detectEnvironment, GracefulShutdownManager } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
 import { wireDevEngines } from "./dev-wiring";
-import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
 import { buildRegistries, wireAuthProvider } from "./startup/build-registries";
+import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
 import { setupDatabase } from "./startup/setup-database";
 
 export const devCommand = defineCommand({
@@ -112,17 +104,8 @@ export const devCommand = defineCommand({
 
     // ── Collect all definitions from capabilities ──
     const collected = collectCapabilityDefinitions(capabilities);
-    const {
-      schemas,
-      actions,
-      views,
-      states,
-      links,
-      rules,
-      automations,
-      middlewares,
-      transports,
-    } = collected;
+    const { schemas, actions, views, states, links, rules, automations, middlewares, transports } =
+      collected;
 
     console.log(
       `[linch] Loaded ${capabilities.length} capabilities, ${schemas.length} schemas, ${actions.length} actions`,
@@ -132,25 +115,24 @@ export const devCommand = defineCommand({
     );
 
     // ── Build registries (schema, action, link, interface, permission) + middleware wiring ──
-    const {
-      schemaRegistry,
-      actionRegistry,
-      linkRegistry,
-      interfaceRegistry,
-      permissionRegistry,
-    } = await buildRegistries({
-      capabilities,
-      interfaces: collected.interfaces,
-      schemas,
-      actions,
-      links,
-      middlewares,
-      registry,
-      environment,
-    });
+    const { schemaRegistry, actionRegistry, linkRegistry, interfaceRegistry, permissionRegistry } =
+      await buildRegistries({
+        capabilities,
+        interfaces: collected.interfaces,
+        schemas,
+        actions,
+        links,
+        middlewares,
+        registry,
+        environment,
+      });
 
     // ── Database setup ──
-    const { dataProvider: devDataProvider, usingDatabase, dbInstance } = await setupDatabase({
+    const {
+      dataProvider: devDataProvider,
+      usingDatabase,
+      dbInstance,
+    } = await setupDatabase({
       registry,
       schemas,
       links,
@@ -169,34 +151,29 @@ export const devCommand = defineCommand({
     });
 
     // ── Wire all runtime engines (executor, event bus, flows, automation, etc.) ──
-    const {
-      transportCtx,
-      restateEndpoint,
-      outboxWorker,
-      automationEngine,
-      automationsStarted,
-    } = await wireDevEngines({
-      config,
-      registry,
-      environment,
-      schemaRegistry,
-      actionRegistry,
-      linkRegistry,
-      interfaceRegistry,
-      permissionRegistry,
-      schemas,
-      actions,
-      views,
-      states,
-      links,
-      rules,
-      automations,
-      middlewares,
-      capabilities,
-      dbInstance,
-      dataProvider: devDataProvider,
-      usingDatabase,
-    });
+    const { transportCtx, restateEndpoint, outboxWorker, automationEngine, automationsStarted } =
+      await wireDevEngines({
+        config,
+        registry,
+        environment,
+        schemaRegistry,
+        actionRegistry,
+        linkRegistry,
+        interfaceRegistry,
+        permissionRegistry,
+        schemas,
+        actions,
+        views,
+        states,
+        links,
+        rules,
+        automations,
+        middlewares,
+        capabilities,
+        dbInstance,
+        dataProvider: devDataProvider,
+        usingDatabase,
+      });
 
     // Start all transports
     const lifecycles: TransportLifecycle[] = [];

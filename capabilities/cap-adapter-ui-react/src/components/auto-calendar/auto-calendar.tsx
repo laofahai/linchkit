@@ -6,7 +6,14 @@
  */
 
 import type { SchemaDefinition } from "@linchkit/core/types";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@linchkit/ui-kit/components";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
   addMonths,
@@ -69,9 +76,10 @@ const COLOR_PALETTE = [
 ] as const;
 
 function getColorForValue(value: string, colorMap: Map<string, string>): string {
-  if (colorMap.has(value)) return colorMap.get(value)!;
+  const cached = colorMap.get(value);
+  if (cached) return cached;
   const idx = colorMap.size % COLOR_PALETTE.length;
-  const color = COLOR_PALETTE[idx]!;
+  const color = COLOR_PALETTE[idx] ?? COLOR_PALETTE[0] ?? "#e0e0e0";
   colorMap.set(value, color);
   return color;
 }
@@ -247,10 +255,11 @@ export function AutoCalendar({
                         : "bg-primary/10 text-primary";
 
                       return (
-                        <div
+                        <button
                           key={String(record.id)}
+                          type="button"
                           className={cn(
-                            "truncate rounded px-1 py-0.5 text-[10px] leading-tight cursor-pointer",
+                            "truncate rounded px-1 py-0.5 text-[10px] leading-tight cursor-pointer w-full text-left",
                             colorClass,
                           )}
                           onClick={(e) => {
@@ -260,7 +269,7 @@ export function AutoCalendar({
                           title={recordTitle}
                         >
                           {recordTitle}
-                        </div>
+                        </button>
                       );
                     })}
                     {dayRecords.length > 3 && (
@@ -289,11 +298,7 @@ export function AutoCalendar({
                   </Badge>
                 )}
               </CardTitle>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setSelectedDay(null)}
-              >
+              <Button variant="ghost" size="icon-xs" onClick={() => setSelectedDay(null)}>
                 <X className="size-3.5" />
               </Button>
             </div>
@@ -313,16 +318,19 @@ export function AutoCalendar({
                     : "bg-primary/10 text-primary";
 
                   return (
-                    <div
+                    <button
                       key={String(record.id)}
+                      type="button"
                       className={cn(
-                        "flex items-center justify-between rounded-md border p-2 cursor-pointer",
+                        "flex items-center justify-between rounded-md border p-2 cursor-pointer w-full text-left",
                         "hover:bg-muted/50 transition-colors",
                       )}
                       onClick={() => onRecordClick?.(String(record.id))}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className={cn("h-2 w-2 rounded-full shrink-0", colorClass.split(" ")[0])} />
+                        <div
+                          className={cn("h-2 w-2 rounded-full shrink-0", colorClass.split(" ")[0])}
+                        />
                         <span className="text-sm truncate">{recordTitle}</span>
                       </div>
                       {colorVal && (
@@ -330,7 +338,7 @@ export function AutoCalendar({
                           {colorVal}
                         </Badge>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>

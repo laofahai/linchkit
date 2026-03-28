@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { RegistryEntry } from "@linchkit/core";
 import {
-  LocalCapabilityRegistry,
   checkTrustPermissions,
   createLocalRegistry,
+  LocalCapabilityRegistry,
 } from "@linchkit/core";
 
 // ── Fixtures ────────────────────────────────────────────
 
-function makeEntry(
-  overrides: Partial<RegistryEntry> & { name: string },
-): RegistryEntry {
+function makeEntry(overrides: Partial<RegistryEntry> & { name: string }): RegistryEntry {
   return {
     version: "1.0.0",
     type: "standard",
@@ -219,9 +217,7 @@ describe("LocalCapabilityRegistry", () => {
       const loaded = LocalCapabilityRegistry.fromJSON(json);
       expect(loaded.size).toBe(2);
       expect(loaded.get("@linchkit/cap-auth")?.version).toBe("1.2.0");
-      expect(loaded.get("@linchkit/cap-permission")?.dependencies).toEqual([
-        "@linchkit/cap-auth",
-      ]);
+      expect(loaded.get("@linchkit/cap-permission")?.dependencies).toEqual(["@linchkit/cap-auth"]);
     });
   });
 
@@ -235,10 +231,7 @@ describe("LocalCapabilityRegistry", () => {
 
 describe("checkTrustPermissions", () => {
   it("should allow all permissions for official", () => {
-    const result = checkTrustPermissions("official", [
-      "database.create_table",
-      "system.exec",
-    ]);
+    const result = checkTrustPermissions("official", ["database.create_table", "system.exec"]);
     expect(result.allowed).toBe(true);
     expect(result.denied).toEqual([]);
   });
@@ -257,10 +250,7 @@ describe("checkTrustPermissions", () => {
   });
 
   it("should deny non-allowed permissions for community", () => {
-    const result = checkTrustPermissions("community", [
-      "database.create_table",
-      "system.exec",
-    ]);
+    const result = checkTrustPermissions("community", ["database.create_table", "system.exec"]);
     expect(result.allowed).toBe(false);
     expect(result.denied).toEqual(["system.exec"]);
   });

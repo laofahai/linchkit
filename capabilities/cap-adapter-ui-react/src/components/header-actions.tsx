@@ -120,7 +120,11 @@ export function HeaderActions({
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {theme === "dark" ? t("theme.dark", "Dark") : theme === "light" ? t("theme.light", "Light") : t("theme.system", "System")}
+          {theme === "dark"
+            ? t("theme.dark", "Dark")
+            : theme === "light"
+              ? t("theme.light", "Light")
+              : t("theme.system", "System")}
         </TooltipContent>
       </Tooltip>
     </div>

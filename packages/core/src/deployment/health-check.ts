@@ -210,7 +210,9 @@ export function createEventBusCheck(getListenerCount: () => number): HealthCheck
  *
  * @param getStats - Returns cache statistics (hits, misses, size).
  */
-export function createCacheCheck(getStats: () => { hits: number; misses: number; size: number }): HealthCheckFn {
+export function createCacheCheck(
+  getStats: () => { hits: number; misses: number; size: number },
+): HealthCheckFn {
   return (): HealthCheckResult => {
     const stats = getStats();
     return {

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
-import { createActionExecutor } from "@linchkit/core/server";
-import { InMemoryStore } from "@linchkit/core/server";
+import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -43,7 +42,10 @@ async function gql(query: string, variables?: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
-  return res.json() as Promise<{ data: Record<string, unknown>; errors?: Array<{ message: string; extensions?: Record<string, unknown> }> }>;
+  return res.json() as Promise<{
+    data: Record<string, unknown>;
+    errors?: Array<{ message: string; extensions?: Record<string, unknown> }>;
+  }>;
 }
 
 // ── Tests ─────────────────────────────────────────────────
@@ -108,9 +110,9 @@ describe("GraphQL optimistic locking (_version)", () => {
     );
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    expect(result.errors![0].message).toContain("Version conflict");
-    expect(result.errors![0].extensions?.code).toBe("CONFLICT");
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(result.errors?.[0].message).toContain("Version conflict");
+    expect(result.errors?.[0].extensions?.code).toBe("CONFLICT");
   });
 
   test("update without _version → succeeds (no locking enforced)", async () => {
@@ -169,7 +171,7 @@ describe("GraphQL optimistic locking (_version)", () => {
       { id: recordId, version: currentVersion },
     );
     expect(resultB.errors).toBeDefined();
-    expect(resultB.errors![0].message).toContain("Version conflict");
+    expect(resultB.errors?.[0].message).toContain("Version conflict");
 
     // Verify the record has Writer A's value
     const stored = await store.get("item", recordId);

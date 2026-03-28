@@ -1,13 +1,13 @@
-import { describe, expect, it, beforeEach, mock } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import {
+  AIResponseCache,
+  CostEstimator,
   createAIService,
   defaultAIConfig,
+  defaultCostEstimator,
   resolveModel,
   resolveModelRoute,
   resolveTenantConfig,
-  CostEstimator,
-  defaultCostEstimator,
-  AIResponseCache,
 } from "@linchkit/cap-ai-provider";
 import { createNoopAIService } from "../src/ai/ai-service";
 import type {
@@ -58,7 +58,7 @@ describe("CostEstimator", () => {
     const cost = estimator.estimateCost("claude-sonnet-4-20250514", 1000, 500);
     expect(cost).toBeDefined();
     // 1000 * 3/1M + 500 * 15/1M = 0.003 + 0.0075 = 0.0105
-    expect(cost!).toBeCloseTo(0.0105, 6);
+    expect(cost).toBeCloseTo(0.0105, 6);
   });
 
   it("estimates cost for known OpenAI models", () => {
@@ -68,7 +68,7 @@ describe("CostEstimator", () => {
     const cost = estimator.estimateCost("gpt-4o", 2000, 1000);
     expect(cost).toBeDefined();
     // 2000 * 2.5/1M + 1000 * 10/1M = 0.005 + 0.01 = 0.015
-    expect(cost!).toBeCloseTo(0.015, 6);
+    expect(cost).toBeCloseTo(0.015, 6);
   });
 
   it("returns undefined for unknown models", () => {
@@ -93,7 +93,7 @@ describe("CostEstimator", () => {
 
     const cost = estimator.estimateCost("my-custom-model", 1000, 500);
     expect(cost).toBeDefined();
-    expect(cost!).toBeCloseTo(0.002, 6); // 1000 * 1/1M + 500 * 2/1M = 0.001 + 0.001
+    expect(cost).toBeCloseTo(0.002, 6); // 1000 * 1/1M + 500 * 2/1M = 0.001 + 0.001
   });
 
   it("custom pricing overrides defaults", () => {
@@ -115,15 +115,15 @@ describe("CostEstimator", () => {
     const estimator = new CostEstimator();
     const pricing = estimator.getPricing("claude-haiku-4-5-20251001");
     expect(pricing).toBeDefined();
-    expect(pricing!.inputPerToken).toBeGreaterThan(0);
-    expect(pricing!.outputPerToken).toBeGreaterThan(0);
+    expect(pricing?.inputPerToken).toBeGreaterThan(0);
+    expect(pricing?.outputPerToken).toBeGreaterThan(0);
   });
 
   it("estimates pre-cost for budget checks", () => {
     const estimator = new CostEstimator();
     const preCost = estimator.estimatePreCost("claude-sonnet-4-20250514", 5000, 2000);
     expect(preCost).toBeDefined();
-    expect(preCost!).toBeGreaterThan(0);
+    expect(preCost).toBeGreaterThan(0);
   });
 
   it("defaultCostEstimator singleton works", () => {
@@ -137,7 +137,7 @@ describe("CostEstimator", () => {
     const cost = estimator.estimateCost("claude-haiku-4-5-20251001", 10000, 5000);
     expect(cost).toBeDefined();
     // 10000 * 0.8/1M + 5000 * 4/1M = 0.008 + 0.02 = 0.028
-    expect(cost!).toBeCloseTo(0.028, 6);
+    expect(cost).toBeCloseTo(0.028, 6);
   });
 
   it("estimates cost for opus model", () => {
@@ -146,7 +146,7 @@ describe("CostEstimator", () => {
     const cost = estimator.estimateCost("claude-opus-4-20250514", 1000, 500);
     expect(cost).toBeDefined();
     // 1000 * 15/1M + 500 * 75/1M = 0.015 + 0.0375 = 0.0525
-    expect(cost!).toBeCloseTo(0.0525, 6);
+    expect(cost).toBeCloseTo(0.0525, 6);
   });
 });
 
@@ -187,8 +187,8 @@ describe("AIResponseCache", () => {
     cache.set(sampleOptions, sampleResult);
     const result = cache.get(sampleOptions);
     expect(result).toBeDefined();
-    expect(result!.content).toBe("4");
-    expect(result!.cached).toBe(true);
+    expect(result?.content).toBe("4");
+    expect(result?.cached).toBe(true);
   });
 
   it("does not cache requests with tools", () => {
@@ -241,7 +241,7 @@ describe("AIResponseCache", () => {
     // New entry should be cached
     const newResult = cache.get(newOpts);
     expect(newResult).toBeDefined();
-    expect(newResult!.content).toBe("Answer new");
+    expect(newResult?.content).toBe("Answer new");
   });
 
   it("expires entries after TTL", async () => {
@@ -309,8 +309,8 @@ describe("AIResponseCache", () => {
     cache.set(opts1, { ...sampleResult, content: "anthropic answer" });
     cache.set(opts2, { ...sampleResult, content: "openai answer" });
 
-    expect(cache.get(opts1)!.content).toBe("anthropic answer");
-    expect(cache.get(opts2)!.content).toBe("openai answer");
+    expect(cache.get(opts1)?.content).toBe("anthropic answer");
+    expect(cache.get(opts2)?.content).toBe("openai answer");
   });
 
   it("differentiates cache keys by tenant", () => {
@@ -326,8 +326,8 @@ describe("AIResponseCache", () => {
     cache.set(opts1, { ...sampleResult, content: "tenant-a answer" });
     cache.set(opts2, { ...sampleResult, content: "tenant-b answer" });
 
-    expect(cache.get(opts1)!.content).toBe("tenant-a answer");
-    expect(cache.get(opts2)!.content).toBe("tenant-b answer");
+    expect(cache.get(opts1)?.content).toBe("tenant-a answer");
+    expect(cache.get(opts2)?.content).toBe("tenant-b answer");
   });
 });
 
@@ -468,13 +468,11 @@ describe("createAIService with routing config", () => {
   it("creates service with full config (routing + cache + fallback + tenants)", () => {
     const config: AIServiceConfig = {
       ...testConfig,
-      routing: [
-        { taskType: "classification", model: "fast" },
-      ],
+      routing: [{ taskType: "classification", model: "fast" }],
       cache: { enabled: true },
       fallback: { providers: ["openai"] },
       tenants: {
-        "t1": {
+        t1: {
           providers: { anthropic: { apiKey: "tenant-key" } },
         },
       },

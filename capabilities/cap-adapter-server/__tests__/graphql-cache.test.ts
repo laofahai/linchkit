@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
-import { CacheManager, InMemoryStore, createActionExecutor } from "@linchkit/core/server";
+import { CacheManager, createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -65,6 +65,7 @@ describe("GraphQL query cache", () => {
 
     const result1 = await gql(`query { taskList { items { id title } total } }`);
     expect(result1.errors).toBeUndefined();
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result1.data.taskList as any).total).toBe(1);
 
     // Cache stats should show a miss (first call)
@@ -74,6 +75,7 @@ describe("GraphQL query cache", () => {
     // Second call should hit cache
     const result2 = await gql(`query { taskList { items { id title } total } }`);
     expect(result2.errors).toBeUndefined();
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result2.data.taskList as any).total).toBe(1);
 
     const stats2 = cacheManager.stats();
@@ -86,14 +88,16 @@ describe("GraphQL query cache", () => {
     const query = `query { task(id: "t1") { id title } }`;
     const result1 = await gql(query);
     expect(result1.errors).toBeUndefined();
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result1.data.task as any).title).toBe("Task 1");
 
     const stats1 = cacheManager.stats();
-    const missesAfterFirst = stats1.l1.misses;
+    const _missesAfterFirst = stats1.l1.misses;
 
     // Second call should hit cache
     const result2 = await gql(query);
     expect(result2.errors).toBeUndefined();
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result2.data.task as any).title).toBe("Task 1");
 
     const stats2 = cacheManager.stats();
@@ -105,6 +109,7 @@ describe("GraphQL query cache", () => {
 
     // Warm up list cache
     const result1 = await gql(`query { taskList { total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result1.data.taskList as any).total).toBe(1);
 
     // Create a new task via mutation
@@ -112,6 +117,7 @@ describe("GraphQL query cache", () => {
 
     // List should reflect the new record (cache was invalidated)
     const result2 = await gql(`query { taskList { total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result2.data.taskList as any).total).toBe(2);
   });
 
@@ -120,6 +126,7 @@ describe("GraphQL query cache", () => {
 
     // Warm up get cache
     const result1 = await gql(`query { task(id: "t1") { title } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result1.data.task as any).title).toBe("Original");
 
     // Update via mutation
@@ -127,6 +134,7 @@ describe("GraphQL query cache", () => {
 
     // Get should reflect the update (cache was invalidated)
     const result2 = await gql(`query { task(id: "t1") { title } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result2.data.task as any).title).toBe("Updated");
   });
 
@@ -136,6 +144,7 @@ describe("GraphQL query cache", () => {
 
     // Warm up list cache
     const result1 = await gql(`query { taskList { total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result1.data.taskList as any).total).toBe(2);
 
     // Delete one
@@ -143,6 +152,7 @@ describe("GraphQL query cache", () => {
 
     // List should reflect deletion (cache was invalidated)
     const result2 = await gql(`query { taskList { total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((result2.data.taskList as any).total).toBe(1);
   });
 
@@ -165,6 +175,7 @@ describe("GraphQL query cache", () => {
         body: JSON.stringify({ query: `query { taskList { total } }` }),
       });
       const result = (await res.json()) as { data: Record<string, unknown> };
+      // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
       expect((result.data.taskList as any).total).toBe(1);
     } finally {
       noCacheApp.stop();
@@ -177,12 +188,16 @@ describe("GraphQL query cache", () => {
 
     // Query with pageSize=1
     const r1 = await gql(`query { taskList(pageSize: 1) { items { id } total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((r1.data.taskList as any).items).toHaveLength(1);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((r1.data.taskList as any).total).toBe(2);
 
     // Query with pageSize=2 — different cache key
     const r2 = await gql(`query { taskList(pageSize: 2) { items { id } total } }`);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((r2.data.taskList as any).items).toHaveLength(2);
+    // biome-ignore lint/suspicious/noExplicitAny: GraphQL response type is unknown
     expect((r2.data.taskList as any).total).toBe(2);
   });
 });

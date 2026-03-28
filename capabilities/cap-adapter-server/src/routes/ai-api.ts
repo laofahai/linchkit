@@ -54,10 +54,7 @@ function validateAIFilter(
   return f;
 }
 
-export function mountAIRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
   const aiService = options.aiService;
   const schemaRegistry = options.schemaRegistry;
   const executor = options.executor;
@@ -65,9 +62,23 @@ export function mountAIRoutes(
   app
     // ── AI Auto-Fill endpoint ────────────────────────────
     .post("/api/ai/auto-fill", async ({ body, set, request }) => {
-      const { schema: schemaName, fields, currentValues, locale: bodyLocale } = (body ?? {}) as {
+      const {
+        schema: schemaName,
+        fields,
+        currentValues,
+        locale: bodyLocale,
+      } = (body ?? {}) as {
         schema?: string;
-        fields?: Record<string, { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }>;
+        fields?: Record<
+          string,
+          {
+            label?: string;
+            type?: string;
+            required?: boolean;
+            options?: string[];
+            description?: string;
+          }
+        >;
         currentValues?: Record<string, unknown>;
         locale?: string;
       };
@@ -75,7 +86,10 @@ export function mountAIRoutes(
       // Always validate required fields first, before checking AI availability
       if (!schemaName || !fields) {
         set.status = 400;
-        return { success: false, error: { message: "Missing 'schema' or 'fields' in request body." } };
+        return {
+          success: false,
+          error: { message: "Missing 'schema' or 'fields' in request body." },
+        };
       }
 
       // Identify empty fields that need suggestions
@@ -95,21 +109,25 @@ export function mountAIRoutes(
       let recentRecords: Array<Record<string, unknown>> = [];
       if (dataProvider) {
         try {
-          recentRecords = await dataProvider.query(
-            schemaName,
-            { sortField: "created_at", sortOrder: "desc", limit: 10 },
-          );
+          recentRecords = await dataProvider.query(schemaName, {
+            sortField: "created_at",
+            sortOrder: "desc",
+            limit: 10,
+          });
         } catch {
           // Data provider may not have this schema table yet — ignore
         }
       }
 
       // Build per-field statistics from recent records
-      const fieldStats: Record<string, {
-        mostCommon?: { value: unknown; count: number; total: number };
-        recentValues: unknown[];
-        uniqueValues: unknown[];
-      }> = {};
+      const fieldStats: Record<
+        string,
+        {
+          mostCommon?: { value: unknown; count: number; total: number };
+          recentValues: unknown[];
+          uniqueValues: unknown[];
+        }
+      > = {};
 
       for (const fieldName of emptyFieldNames) {
         const values = recentRecords
@@ -169,15 +187,18 @@ export function mountAIRoutes(
       }
 
       // ── Step 3: Enrich field definitions with server-side knowledge ──
-      const enrichedFields: Record<string, {
-        label?: string;
-        type?: string;
-        required?: boolean;
-        options?: string[];
-        description?: string;
-        constraints?: Record<string, unknown>;
-        stats?: (typeof fieldStats)[string];
-      }> = {};
+      const enrichedFields: Record<
+        string,
+        {
+          label?: string;
+          type?: string;
+          required?: boolean;
+          options?: string[];
+          description?: string;
+          constraints?: Record<string, unknown>;
+          stats?: (typeof fieldStats)[string];
+        }
+      > = {};
 
       for (const [name, clientDef] of Object.entries(fields)) {
         const serverField = schemaDef?.fields[name];
@@ -185,15 +206,16 @@ export function mountAIRoutes(
 
         if (serverField) {
           if (!merged.label && serverField.label) merged.label = serverField.label;
-          if (!merged.description && serverField.description) merged.description = serverField.description;
+          if (!merged.description && serverField.description)
+            merged.description = serverField.description;
           if (!merged.type) merged.type = serverField.type;
           if (serverField.required) merged.required = true;
 
           // Extract enum options from server definition
           if (serverField.type === "enum" && "options" in serverField && !merged.options?.length) {
-            merged.options = (serverField as { options: Array<{ value: string; label?: string }> }).options.map(
-              (o) => o.label ? `${o.value} (${o.label})` : o.value,
-            );
+            merged.options = (
+              serverField as { options: Array<{ value: string; label?: string }> }
+            ).options.map((o) => (o.label ? `${o.value} (${o.label})` : o.value));
           }
 
           // Extract state machine options
@@ -210,8 +232,10 @@ export function mountAIRoutes(
           const constraints: Record<string, unknown> = {};
           if (serverField.min !== undefined) constraints.min = serverField.min;
           if (serverField.max !== undefined) constraints.max = serverField.max;
-          if ("format" in serverField && serverField.format) constraints.format = serverField.format;
-          if ("pattern" in serverField && serverField.pattern) constraints.pattern = serverField.pattern;
+          if ("format" in serverField && serverField.format)
+            constraints.format = serverField.format;
+          if ("pattern" in serverField && serverField.pattern)
+            constraints.pattern = serverField.pattern;
           if (serverField.default !== undefined) constraints.default = serverField.default;
           if (Object.keys(constraints).length > 0) merged.constraints = constraints;
         }
@@ -222,7 +246,8 @@ export function mountAIRoutes(
 
       // ── Step 4: No AI service — statistical fallback ───
       if (!aiService?.configured) {
-        const suggestions: Record<string, { value: unknown; confidence: number; reason: string }> = {};
+        const suggestions: Record<string, { value: unknown; confidence: number; reason: string }> =
+          {};
 
         for (const fieldName of emptyFieldNames) {
           const stats = fieldStats[fieldName];
@@ -273,13 +298,18 @@ export function mountAIRoutes(
             }
             if (def.stats?.mostCommon) {
               const mc = def.stats.mostCommon;
-              parts.push(`(most common: ${JSON.stringify(mc.value)}, freq: ${mc.count}/${mc.total})`);
+              parts.push(
+                `(most common: ${JSON.stringify(mc.value)}, freq: ${mc.count}/${mc.total})`,
+              );
             }
             if (def.stats && def.stats.uniqueValues.length > 0) {
-              parts.push(`recent values: [${def.stats.uniqueValues.map((v) => JSON.stringify(v)).join(", ")}]`);
+              parts.push(
+                `recent values: [${def.stats.uniqueValues.map((v) => JSON.stringify(v)).join(", ")}]`,
+              );
             }
             return parts.join(" ");
-          }).join("\n");
+          })
+          .join("\n");
 
         // Build already-filled context with related record enrichment
         const filledFields = currentValues
@@ -343,7 +373,11 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         const result = await aiService.complete({
           model: "fast",
           messages: [
-            { role: "system", content: "You are a data-aware form assistant. You suggest values based on real data patterns, field constraints, and contextual clues. Never guess randomly. Always respond with valid JSON only, no markdown formatting." },
+            {
+              role: "system",
+              content:
+                "You are a data-aware form assistant. You suggest values based on real data patterns, field constraints, and contextual clues. Never guess randomly. Always respond with valid JSON only, no markdown formatting.",
+            },
             { role: "user", content: prompt },
           ],
           temperature: 0.1,
@@ -352,7 +386,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         });
 
         // Parse AI response
-        let suggestions: Record<string, { value: unknown; confidence: number; reason?: string }> = {};
+        let suggestions: Record<string, { value: unknown; confidence: number; reason?: string }> =
+          {};
         try {
           let content = result.content.trim();
           if (content.startsWith("```")) {
@@ -365,7 +400,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         }
 
         // Post-process: validate suggestions against field constraints
-        const validated: Record<string, { value: unknown; confidence: number; reason?: string }> = {};
+        const validated: Record<string, { value: unknown; confidence: number; reason?: string }> =
+          {};
         for (const [fieldName, suggestion] of Object.entries(suggestions)) {
           if (!emptyFieldNames.includes(fieldName)) continue;
           if (typeof suggestion?.confidence !== "number" || suggestion.confidence < 0.4) continue;
@@ -384,8 +420,16 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
           // Validate number constraints
           if (fieldDef.type === "number" && typeof suggestion.value === "number") {
-            if (fieldDef.constraints?.min !== undefined && suggestion.value < (fieldDef.constraints.min as number)) continue;
-            if (fieldDef.constraints?.max !== undefined && suggestion.value > (fieldDef.constraints.max as number)) continue;
+            if (
+              fieldDef.constraints?.min !== undefined &&
+              suggestion.value < (fieldDef.constraints.min as number)
+            )
+              continue;
+            if (
+              fieldDef.constraints?.max !== undefined &&
+              suggestion.value > (fieldDef.constraints.max as number)
+            )
+              continue;
           }
 
           validated[fieldName] = suggestion;
@@ -393,9 +437,12 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
         return { success: true, data: { suggestions: validated } };
       } catch (err) {
-        const message = process.env.NODE_ENV === "production"
-          ? "AI auto-fill failed."
-          : err instanceof Error ? err.message : String(err);
+        const message =
+          process.env.NODE_ENV === "production"
+            ? "AI auto-fill failed."
+            : err instanceof Error
+              ? err.message
+              : String(err);
         set.status = 500;
         return { success: false, error: { message } };
       }
@@ -417,7 +464,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         return {
           success: false,
           error: {
-            message: "AI service is not configured. Configure an AI provider in linchkit.config.ts to enable the assistant.",
+            message:
+              "AI service is not configured. Configure an AI provider in linchkit.config.ts to enable the assistant.",
           },
         };
       }
@@ -433,10 +481,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         const assistantConfig = aiConfig.assistant;
 
         // Resolve the language model from config
-        const model = await resolveLanguageModel(
-          aiConfig,
-          assistantConfig?.model ?? "fast",
-        );
+        const model = await resolveLanguageModel(aiConfig, assistantConfig?.model ?? "fast");
 
         // Resolve actor for permission-aware tool calls
         const resolveRequestActor = options.resolveRequestActor;
@@ -451,9 +496,10 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           ? await resolveRequestTenantId(request, actor)
           : undefined;
         const dataProvider = options.dataProvider;
-        const scopedProvider = tenantId && dataProvider
-          ? createTenantAwareDataProvider(dataProvider, tenantId)
-          : dataProvider;
+        const scopedProvider =
+          tenantId && dataProvider
+            ? createTenantAwareDataProvider(dataProvider, tenantId)
+            : dataProvider;
 
         // Resolve locale from request body or Accept-Language header
         const locale = extractLocale(context?.locale, request);
@@ -499,8 +545,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         // Compatible with @ai-sdk/react useChat hook
         return result.toUIMessageStreamResponse();
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "AI chat failed";
+        const errorMessage = err instanceof Error ? err.message : "AI chat failed";
         set.status = 500;
         return {
           success: false,
@@ -510,7 +555,11 @@ Only include fields where you have genuine confidence. Omit fields where you wou
     })
     // ── AI Intent Resolution endpoint — natural language to action proposal ──
     .post("/api/ai/resolve-intent", async ({ body, set, request }) => {
-      const { message, context, locale: bodyLocale } = (body ?? {}) as {
+      const {
+        message,
+        context,
+        locale: bodyLocale,
+      } = (body ?? {}) as {
         message?: string;
         context?: { schema?: string; recordId?: string };
         locale?: string;
@@ -540,9 +589,9 @@ Only include fields where you have genuine confidence. Omit fields where you wou
               type: field.type,
               label: field.label,
               required: field.required ?? false,
-              options: (field as { options?: Array<{ value: string; label?: string }> }).options?.map(
-                (o) => o.value,
-              ),
+              options: (
+                field as { options?: Array<{ value: string; label?: string }> }
+              ).options?.map((o) => o.value),
               description: field.description,
             }))
           : [];
@@ -619,7 +668,10 @@ Rules:
         };
         try {
           // Strip markdown code fences if present
-          const cleaned = result.content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          const cleaned = result.content
+            .replace(/```json\n?/g, "")
+            .replace(/```\n?/g, "")
+            .trim();
           parsed = JSON.parse(cleaned);
         } catch {
           // AI didn't return valid JSON — no intent resolved
@@ -655,7 +707,8 @@ Rules:
                       type: v.type,
                       label: v.label,
                       required: v.required ?? false,
-                      options: (v as { options?: Array<{ value: string; label?: string }> }).options,
+                      options: (v as { options?: Array<{ value: string; label?: string }> })
+                        .options,
                       description: v.description,
                     },
                   ]),
@@ -671,7 +724,12 @@ Rules:
     })
     // ── AI Search endpoint — natural language to DeclarativeCondition ──
     .post("/api/ai/search", async ({ body, set, request }) => {
-      const { query: rawQuery, schema: targetSchema, fields, locale: bodyLocale } = (body ?? {}) as {
+      const {
+        query: rawQuery,
+        schema: targetSchema,
+        fields,
+        locale: bodyLocale,
+      } = (body ?? {}) as {
         query?: string;
         schema?: string;
         fields?: Record<string, { label?: string; type?: string; options?: string[] }>;
@@ -680,7 +738,10 @@ Rules:
 
       if (!rawQuery || !targetSchema) {
         set.status = 400;
-        return { success: false, error: { message: "Missing 'query' or 'schema' in request body." } };
+        return {
+          success: false,
+          error: { message: "Missing 'query' or 'schema' in request body." },
+        };
       }
 
       if (!aiService?.configured) {
@@ -689,26 +750,34 @@ Rules:
 
       // Sanitize query: strip control characters, limit length, escape quotes
       const sanitizedQuery = rawQuery
-        .replace(/[\x00-\x1f\x7f]/g, "") // strip control characters
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars
+        .replace(/[\u0000-\u001f\u007f]/g, "") // strip control characters
         .slice(0, 500) // limit length
         .replace(/"/g, '\\"'); // escape quotes
 
       // Build allowed field names set (schema fields + system fields)
-      const SYSTEM_FIELDS = new Set(["id", "tenant_id", "created_at", "updated_at", "created_by", "updated_by", "_version"]);
-      const SENSITIVE_FIELDS = new Set(["_password", "password", "secret", "token", "tenant_id"]);
-      const allowedFields = new Set([
-        ...Object.keys(fields ?? {}),
-        ...SYSTEM_FIELDS,
+      const SYSTEM_FIELDS = new Set([
+        "id",
+        "tenant_id",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "_version",
       ]);
+      const SENSITIVE_FIELDS = new Set(["_password", "password", "secret", "token", "tenant_id"]);
+      const allowedFields = new Set([...Object.keys(fields ?? {}), ...SYSTEM_FIELDS]);
 
       try {
-        const fieldDescs = Object.entries(fields ?? {}).map(([name, def]) => {
-          const parts = [`- ${name}`];
-          if (def.label) parts.push(`(label: "${def.label}")`);
-          if (def.type) parts.push(`[type: ${def.type}]`);
-          if (def.options?.length) parts.push(`options: [${def.options.join(", ")}]`);
-          return parts.join(" ");
-        }).join("\n");
+        const fieldDescs = Object.entries(fields ?? {})
+          .map(([name, def]) => {
+            const parts = [`- ${name}`];
+            if (def.label) parts.push(`(label: "${def.label}")`);
+            if (def.type) parts.push(`[type: ${def.type}]`);
+            if (def.options?.length) parts.push(`options: [${def.options.join(", ")}]`);
+            return parts.join(" ");
+          })
+          .join("\n");
 
         const locale = extractLocale(bodyLocale, request);
         const langInstruction = locale ? getLanguageInstruction(locale) : undefined;
@@ -726,7 +795,7 @@ Rules:
           "",
           `Query: "${sanitizedQuery}"`,
           "",
-          'Respond with valid JSON only (no markdown, no code fences). The response must have this exact shape:',
+          "Respond with valid JSON only (no markdown, no code fences). The response must have this exact shape:",
           `{ "filter": <condition>, "explanation": "<brief explanation${langInstruction ? " in the user's language" : ""}>" }`,
           "",
           "Filter condition formats:",
@@ -747,7 +816,11 @@ Rules:
         const result = await aiService.complete({
           model: "fast",
           messages: [
-            { role: "system", content: "You are a precise query parser. Only output valid JSON. No markdown formatting." },
+            {
+              role: "system",
+              content:
+                "You are a precise query parser. Only output valid JSON. No markdown formatting.",
+            },
             { role: "user", content: prompt },
           ],
           temperature: 0,
@@ -774,9 +847,12 @@ Rules:
           data: { filter: validatedFilter, explanation: parsed.explanation ?? "" },
         };
       } catch (err) {
-        const errMsg = process.env.NODE_ENV === "production"
-          ? "AI search parsing failed."
-          : err instanceof Error ? err.message : String(err);
+        const errMsg =
+          process.env.NODE_ENV === "production"
+            ? "AI search parsing failed."
+            : err instanceof Error
+              ? err.message
+              : String(err);
         set.status = 500;
         return { success: false, error: { message: errMsg } };
       }

@@ -15,7 +15,12 @@ const orderSchema: SchemaDefinition = {
     status: {
       type: "enum",
       label: "Status",
-      options: [{ value: "draft" }, { value: "confirmed" }, { value: "shipped" }, { value: "delivered" }],
+      options: [
+        { value: "draft" },
+        { value: "confirmed" },
+        { value: "shipped" },
+        { value: "delivered" },
+      ],
     },
     created_at: { type: "datetime", label: "Created At" },
     notes: { type: "text", label: "Notes" },

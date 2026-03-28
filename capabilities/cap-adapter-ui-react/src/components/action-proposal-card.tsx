@@ -60,11 +60,7 @@ function FieldEditor({
           {label}
           {schema.required && <span className="ml-0.5 text-destructive">*</span>}
         </Label>
-        <Select
-          value={String(value ?? "")}
-          onValueChange={(v) => onChange(v)}
-          disabled={disabled}
-        >
+        <Select value={String(value ?? "")} onValueChange={(v) => onChange(v)} disabled={disabled}>
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -153,7 +149,7 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
   const { t } = useTranslation();
   const [status, setStatus] = useState<ProposalStatus>("pending");
   const [editedInput, setEditedInput] = useState<Record<string, unknown>>({ ...intent.input });
-  const [result, setResult] = useState<ActionResult | null>(null);
+  const [_result, setResult] = useState<ActionResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleFieldChange = useCallback((field: string, value: unknown) => {
@@ -197,16 +193,12 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <PlayIcon className="size-3 text-primary" />
-            <span className="text-xs font-semibold">
-              {intent.actionLabel ?? intent.action}
-            </span>
+            <span className="text-xs font-semibold">{intent.actionLabel ?? intent.action}</span>
           </div>
           <ConfidenceBadge confidence={intent.confidence} />
         </div>
         {intent.actionDescription && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {intent.actionDescription}
-          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{intent.actionDescription}</p>
         )}
       </div>
 

@@ -9,8 +9,8 @@ export { compileFlow } from "./flow-compiler";
 export {
   checkRestateHealth,
   createRestateEndpoint,
-  registerDeployment,
   type RestateEndpoint,
+  registerDeployment,
   setupRestateEndpoint,
 } from "./restate-client";
 export { createRestateFlowEngine } from "./restate-flow-engine";

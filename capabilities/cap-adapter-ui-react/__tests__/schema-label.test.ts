@@ -29,7 +29,9 @@ describe("resolveSchemaLabel", () => {
   });
 
   test("resolves t: prefix to i18n translation", () => {
-    expect(resolveSchemaLabel(mockI18n, "t:schema.purchase_order", "fallback")).toBe("Purchase Order");
+    expect(resolveSchemaLabel(mockI18n, "t:schema.purchase_order", "fallback")).toBe(
+      "Purchase Order",
+    );
   });
 
   test("resolves t: prefix for another key", () => {
@@ -37,7 +39,9 @@ describe("resolveSchemaLabel", () => {
   });
 
   test("falls back to defaultValue when t: key is not found", () => {
-    expect(resolveSchemaLabel(mockI18n, "t:schema.nonexistent", "Fallback Name")).toBe("Fallback Name");
+    expect(resolveSchemaLabel(mockI18n, "t:schema.nonexistent", "Fallback Name")).toBe(
+      "Fallback Name",
+    );
   });
 
   test("returns fallback for empty string label", () => {

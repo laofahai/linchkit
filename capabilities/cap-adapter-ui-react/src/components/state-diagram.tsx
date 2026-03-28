@@ -6,7 +6,6 @@
  */
 
 import {
-  Background,
   BaseEdge,
   Controls,
   type Edge,
@@ -60,10 +59,7 @@ const ARROW_ID = "state-arrow";
 
 // ── Helpers ──────────────────────────────────────────────
 
-function getStateColor(
-  stateName: string,
-  meta?: Record<string, StateMeta>,
-): string {
+function getStateColor(stateName: string, meta?: Record<string, StateMeta>): string {
   return meta?.[stateName]?.color ?? DEFAULT_STATE_COLOR;
 }
 
@@ -116,11 +112,7 @@ const ACCENT_BAR_CLASS: Record<string, string> = {
 };
 
 /** Pill-style edge label used by EdgeLabelRenderer */
-function EdgeLabel({
-  label,
-  x,
-  y,
-}: { label: string; x: number; y: number }) {
+function EdgeLabel({ label, x, y }: { label: string; x: number; y: number }) {
   return (
     <div
       style={{
@@ -298,14 +290,9 @@ function StateNode({ data }: NodeProps<Node<StateNodeData>>) {
 
 // ── Self-loop edge ───────────────────────────────────────
 
-function SelfLoopEdge({
-  id,
-  sourceX,
-  sourceY,
-  label,
-}: EdgeProps) {
+function SelfLoopEdge({ id, sourceX, sourceY, label }: EdgeProps) {
   // Self-loop arcs above the node (source and target are top handles)
-  const loopWidth = 40;
+  const _loopWidth = 40;
   const loopHeight = 50;
 
   const path = `M ${sourceX - 20} ${sourceY}
@@ -338,17 +325,8 @@ function SelfLoopEdge({
 // ── Labeled edge (overrides default to use pill labels) ──
 
 function LabeledEdge(props: EdgeProps) {
-  const {
-    id,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    label,
-    data,
-  } = props;
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, label, data } =
+    props;
 
   // Apply vertical offset for parallel edges between the same pair of nodes
   const offsetY = (data?.offsetY as number) ?? 0;
@@ -469,9 +447,7 @@ function buildStateGraph(
     const froms = Array.isArray(tr.from) ? tr.from : [tr.from];
     for (const f of froms) hasOutgoing.add(f);
   }
-  const terminalStates = new Set(
-    machine.states.filter((s) => !hasOutgoing.has(s)),
-  );
+  const terminalStates = new Set(machine.states.filter((s) => !hasOutgoing.has(s)));
 
   const nodes: Node<StateNodeData>[] = machine.states.map((state) => ({
     id: state,
@@ -490,7 +466,7 @@ function buildStateGraph(
   let edgeIdx = 0;
 
   // Count edges between each directed pair to apply offset for parallel edges
-  const pairEdgeCounts = new Map<string, number>();
+  const _pairEdgeCounts = new Map<string, number>();
 
   // First pass: collect all edges
   interface RawEdge {
@@ -558,9 +534,9 @@ function buildStateGraph(
 
 // ── Arrow marker definition ─────────────────────────────
 
-function ArrowMarkerDefs() {
+function _ArrowMarkerDefs() {
   return (
-    <svg style={{ position: "absolute", width: 0, height: 0 }}>
+    <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
       <defs>
         <marker
           id={ARROW_ID}

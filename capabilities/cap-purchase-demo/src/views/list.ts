@@ -25,7 +25,12 @@ export const purchaseRequestListView: ViewDefinition = {
   defaultSort: { field: "title", order: "asc" },
   pageSize: 10,
   actions: [
-    { action: "create", label: "t:schemas.purchase_request.actions.create_request", position: "toolbar", variant: "default" },
+    {
+      action: "create",
+      label: "t:schemas.purchase_request.actions.create_request",
+      position: "toolbar",
+      variant: "default",
+    },
     { action: "edit", label: "t:common.edit", position: "row" },
     {
       action: "delete",

@@ -9,8 +9,7 @@
  */
 
 import type { CapabilityDefinition } from "@linchkit/core";
-import type { LinkDefinition } from "@linchkit/core";
-import type { FieldDoc, SchemaDoc } from "./api-doc-generator";
+import type { FieldDoc } from "./api-doc-generator";
 import { fieldToDoc } from "./api-doc-generator";
 
 // -- Capability doc types -------------------------------------------------
@@ -294,9 +293,7 @@ export function renderCapabilityDoc(doc: CapabilitySpecDoc): string {
     lines.push("## Relations");
     lines.push("");
     for (const rel of doc.relations) {
-      const label = rel.label
-        ? ` (${rel.label.from ?? rel.to} / ${rel.label.to ?? rel.from})`
-        : "";
+      const label = rel.label ? ` (${rel.label.from ?? rel.to} / ${rel.label.to ?? rel.from})` : "";
       lines.push(`- **${rel.linkName}**: ${rel.from} -> ${rel.to} (${rel.cardinality})${label}`);
     }
     lines.push("");

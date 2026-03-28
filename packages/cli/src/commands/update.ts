@@ -82,9 +82,7 @@ export const updateCommand = defineCommand({
       existing.version = metadata.version;
       registry.register(existing);
       saveLocalRegistry(process.cwd(), registry);
-      console.log(
-        `[linch] Registry updated: ${packageName} ${oldVersion} -> ${metadata.version}`,
-      );
+      console.log(`[linch] Registry updated: ${packageName} ${oldVersion} -> ${metadata.version}`);
     } else {
       console.log("[linch] Capability not in local registry — use 'linch install' to register it.");
     }

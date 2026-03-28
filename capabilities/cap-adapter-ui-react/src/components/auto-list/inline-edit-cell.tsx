@@ -5,12 +5,11 @@
  * Enter or blur saves the value, Escape cancels editing.
  */
 
-import type { FieldDefinition, ViewFieldConfig } from "@linchkit/core/types";
+import type { FieldDefinition, StateMeta, ViewFieldConfig } from "@linchkit/core/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldDisplay, FieldInput } from "../field-renderer";
 import { StatusBadge } from "./status-badge";
-import type { StateMeta } from "@linchkit/core/types";
 
 export interface InlineEditCellProps {
   field: ViewFieldConfig;
@@ -86,6 +85,7 @@ export function InlineEditCell({
   // Display mode
   if (!isEditing) {
     return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: double-click to edit is intentional UX pattern
       <div
         className="cursor-text min-h-[1.5rem] rounded px-0.5 -mx-0.5 hover:bg-muted/60 transition-colors"
         onDoubleClick={(e) => {
@@ -105,6 +105,7 @@ export function InlineEditCell({
 
   // Edit mode
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: edit container handles keyboard via onKeyDown
     <div
       ref={containerRef}
       className="inline-edit-cell -mx-1"

@@ -25,7 +25,14 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from "lucide-react";
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery, useAISearch } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
@@ -175,9 +182,7 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
   return (
     <>
       {/* Scrollable table container — fixed height based on viewport */}
-      <div
-        className="rounded border border-border overflow-auto max-h-[calc(100vh-220px)]"
-      >
+      <div className="rounded border border-border overflow-auto max-h-[calc(100vh-220px)]">
         <table
           className="text-sm min-w-[600px]"
           style={{ width: table.getTotalSize(), tableLayout: "fixed" }}
@@ -195,6 +200,7 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
                     {header.column.getCanResize() && (
+                      // biome-ignore lint/a11y/noStaticElementInteractions: column resize handle uses mouse/touch events
                       <div
                         onMouseDown={header.getResizeHandler()}
                         onTouchStart={header.getResizeHandler()}
@@ -284,7 +290,6 @@ export function AutoList({
   pageSize: pageSizeProp,
   defaultSorting,
 }: AutoListProps) {
-  const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
 
   // Whether schema-driven features are active
@@ -314,21 +319,20 @@ export function AutoList({
     }
   });
 
-  const handleColumnSizingChange: Dispatch<SetStateAction<ColumnSizingState>> =
-    useCallback(
-      (updater) => {
-        setColumnSizing((prev) => {
-          const next = typeof updater === "function" ? updater(prev) : updater;
-          try {
-            localStorage.setItem(colSizeStorageKey, JSON.stringify(next));
-          } catch {
-            // Ignore storage errors
-          }
-          return next;
-        });
-      },
-      [colSizeStorageKey],
-    );
+  const handleColumnSizingChange: Dispatch<SetStateAction<ColumnSizingState>> = useCallback(
+    (updater) => {
+      setColumnSizing((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        try {
+          localStorage.setItem(colSizeStorageKey, JSON.stringify(next));
+        } catch {
+          // Ignore storage errors
+        }
+        return next;
+      });
+    },
+    [colSizeStorageKey],
+  );
 
   // Use controlled or internal global filter state
   const globalFilter = globalFilterProp ?? internalGlobalFilter;
@@ -349,9 +353,12 @@ export function AutoList({
     [isSchemaMode, triggerAISearch],
   );
 
-  const handleGlobalFilterChange = useCallback((value: string) => {
-    setGlobalFilter(value);
-  }, [setGlobalFilter]);
+  const handleGlobalFilterChange = useCallback(
+    (value: string) => {
+      setGlobalFilter(value);
+    },
+    [setGlobalFilter],
+  );
 
   // ── Bazza filters (schema mode only) ──────────────────────────────────
 

@@ -1052,9 +1052,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
       field: "status",
       initial: "draft",
       states: ["draft", "active", "paused"],
-      transitions: [
-        { from: ["active", "paused"], to: "draft", action: "reset" },
-      ],
+      transitions: [{ from: ["active", "paused"], to: "draft", action: "reset" }],
     };
 
     const errors = registry.validateStateCompatibility("task", schemaState);

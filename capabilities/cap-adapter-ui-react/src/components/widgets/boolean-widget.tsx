@@ -18,7 +18,9 @@ export function BooleanInput({ value, onChange, readonly, error }: WidgetInputPr
           onCheckedChange={(checked) => onChange(checked)}
           disabled={readonly}
         />
-        <span className="text-sm text-muted-foreground">{value ? t("common.yes", "Yes") : t("common.no", "No")}</span>
+        <span className="text-sm text-muted-foreground">
+          {value ? t("common.yes", "Yes") : t("common.no", "No")}
+        </span>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

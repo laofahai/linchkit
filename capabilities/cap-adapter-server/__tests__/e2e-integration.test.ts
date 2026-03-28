@@ -219,7 +219,10 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
     `);
 
     expect(page1.errors).toBeUndefined();
-    const list1 = page1.data.e2eItemList as { items: Array<Record<string, unknown>>; total: number };
+    const list1 = page1.data.e2eItemList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(list1.total).toBe(5);
     expect(list1.items.length).toBe(3);
 
@@ -234,7 +237,10 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
     `);
 
     expect(page2.errors).toBeUndefined();
-    const list2 = page2.data.e2eItemList as { items: Array<Record<string, unknown>>; total: number };
+    const list2 = page2.data.e2eItemList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
     expect(list2.total).toBe(5);
     expect(list2.items.length).toBe(2);
 

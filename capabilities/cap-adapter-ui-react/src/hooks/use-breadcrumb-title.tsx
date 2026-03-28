@@ -7,7 +7,7 @@
  * instead of a raw UUID segment.
  */
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
 interface BreadcrumbTitleContextValue {
   /** Current custom title for the deepest breadcrumb segment */

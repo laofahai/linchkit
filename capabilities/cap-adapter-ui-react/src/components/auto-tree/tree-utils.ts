@@ -18,10 +18,7 @@ export interface TreeNode {
  * @param parentField  The field name referencing the parent record id (e.g. "parent_id")
  * @returns  Array of root TreeNodes
  */
-export function buildTree(
-  records: Record<string, unknown>[],
-  parentField: string,
-): TreeNode[] {
+export function buildTree(records: Record<string, unknown>[], parentField: string): TreeNode[] {
   // Index all records by id
   const byId = new Map<string, TreeNode>();
   for (const record of records) {
@@ -59,7 +56,8 @@ export function collectAllIds(nodes: TreeNode[]): Set<string> {
   const ids = new Set<string>();
   const stack = [...nodes];
   while (stack.length > 0) {
-    const node = stack.pop()!;
+    const node = stack.pop();
+    if (!node) break;
     const id = String(node.record.id);
     if (node.children.length > 0) {
       ids.add(id);

@@ -5,9 +5,9 @@
  * the parent border using -mb-px.
  */
 
-import { Fragment } from "react";
 import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
+import { Fragment } from "react";
 import { useSchemaLabel } from "../../i18n/use-schema-label";
 
 interface FormNotebookProps {

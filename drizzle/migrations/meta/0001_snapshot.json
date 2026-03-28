@@ -265,16 +265,12 @@
         "department_name_unique": {
           "name": "department_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         },
         "department_code_unique": {
           "name": "department_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -733,12 +729,8 @@
           "name": "purchase_item_purchase_request_id_purchase_request_id_fk",
           "tableFrom": "purchase_item",
           "tableTo": "purchase_request",
-          "columnsFrom": [
-            "purchase_request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["purchase_request_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -890,12 +882,8 @@
           "name": "purchase_request_department_id_department_id_fk",
           "tableFrom": "purchase_request",
           "tableTo": "department",
-          "columnsFrom": [
-            "department_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["department_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -911,34 +899,17 @@
     "_linchkit.approval_status": {
       "name": "approval_status",
       "schema": "_linchkit",
-      "values": [
-        "pending",
-        "approved",
-        "rejected",
-        "expired",
-        "cancelled"
-      ]
+      "values": ["pending", "approved", "rejected", "expired", "cancelled"]
     },
     "_linchkit.event_status": {
       "name": "event_status",
       "schema": "_linchkit",
-      "values": [
-        "pending",
-        "processing",
-        "completed",
-        "failed",
-        "dead_letter"
-      ]
+      "values": ["pending", "processing", "completed", "failed", "dead_letter"]
     },
     "_linchkit.execution_status": {
       "name": "execution_status",
       "schema": "_linchkit",
-      "values": [
-        "succeeded",
-        "failed",
-        "blocked",
-        "pending_approval"
-      ]
+      "values": ["succeeded", "failed", "blocked", "pending_approval"]
     }
   },
   "schemas": {

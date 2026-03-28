@@ -3,25 +3,25 @@
  * TableRegistry construction, and InMemoryStore fallback.
  */
 
+import { runMigrations } from "@linchkit/cap-migration";
 import type {
+  ConfigRegistry,
   DataProvider,
   LinkDefinition,
   SchemaDefinition,
 } from "@linchkit/core";
-import type { ConfigRegistry } from "@linchkit/core";
 import { databaseConfig } from "@linchkit/core";
 import {
-  DrizzleDataProvider,
-  InMemoryStore,
-  TableRegistry,
   buildTableColumns,
   closeDatabase,
   createDatabase,
+  DrizzleDataProvider,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
   generateLinkColumns,
+  InMemoryStore,
+  TableRegistry,
 } from "@linchkit/core/server";
-import { runMigrations } from "@linchkit/cap-migration";
 import { getTableConfig, pgTable } from "drizzle-orm/pg-core";
 
 export interface DatabaseSetupResult {
@@ -73,10 +73,7 @@ export async function setupDatabase(opts: {
     } catch (migrationErr) {
       const migrationMsg =
         migrationErr instanceof Error ? migrationErr.message : String(migrationErr);
-      if (
-        migrationMsg.includes("No migrations found") ||
-        migrationMsg.includes("no such file")
-      ) {
+      if (migrationMsg.includes("No migrations found") || migrationMsg.includes("no such file")) {
         console.log(
           "[linch] No migrations found — run 'bun run db:generate' to create initial migration",
         );

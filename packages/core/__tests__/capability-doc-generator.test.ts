@@ -7,12 +7,10 @@
 
 import { describe, expect, test } from "bun:test";
 import {
-  generateCapabilityDoc,
-  renderCapabilityDoc,
-} from "@linchkit/devtools/documentation";
-import {
   createDocSearchIndex,
   DocSearchIndex,
+  generateCapabilityDoc,
+  renderCapabilityDoc,
 } from "@linchkit/devtools/documentation";
 import type { CapabilityDefinition } from "../src/types/capability";
 
@@ -188,15 +186,15 @@ describe("generateCapabilityDoc", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
     expect(doc.schemas).toHaveLength(1);
-    expect(doc.schemas[0]!.name).toBe("purchase_request");
-    expect(doc.schemas[0]!.fields.length).toBeGreaterThanOrEqual(5);
+    expect(doc.schemas[0]?.name).toBe("purchase_request");
+    expect(doc.schemas[0]?.fields.length).toBeGreaterThanOrEqual(5);
 
-    const titleField = doc.schemas[0]!.fields.find((f) => f.name === "title");
+    const titleField = doc.schemas[0]?.fields.find((f) => f.name === "title");
     expect(titleField).toBeDefined();
     expect(titleField?.type).toBe("string");
     expect(titleField?.required).toBe(true);
 
-    const refField = doc.schemas[0]!.fields.find((f) => f.name === "department_id");
+    const refField = doc.schemas[0]?.fields.find((f) => f.name === "department_id");
     expect(refField?.target).toBe("department");
   });
 
@@ -212,18 +210,18 @@ describe("generateCapabilityDoc", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
     expect(doc.rules).toHaveLength(1);
-    expect(doc.rules[0]!.name).toBe("amount_check");
-    expect(doc.rules[0]!.description).toBe("Large amounts need director approval");
+    expect(doc.rules[0]?.name).toBe("amount_check");
+    expect(doc.rules[0]?.description).toBe("Large amounts need director approval");
   });
 
   test("includes state machine documentation", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
     expect(doc.stateMachines).toHaveLength(1);
-    expect(doc.stateMachines[0]!.name).toBe("purchase_lifecycle");
-    expect(doc.stateMachines[0]!.initial).toBe("draft");
-    expect(doc.stateMachines[0]!.states).toContain("approved");
-    expect(doc.stateMachines[0]!.transitions).toHaveLength(2);
+    expect(doc.stateMachines[0]?.name).toBe("purchase_lifecycle");
+    expect(doc.stateMachines[0]?.initial).toBe("draft");
+    expect(doc.stateMachines[0]?.states).toContain("approved");
+    expect(doc.stateMachines[0]?.transitions).toHaveLength(2);
   });
 
   test("includes view documentation", () => {
@@ -243,10 +241,10 @@ describe("generateCapabilityDoc", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
     expect(doc.relations).toHaveLength(1);
-    expect(doc.relations[0]!.linkName).toBe("dept_purchase");
-    expect(doc.relations[0]!.from).toBe("department");
-    expect(doc.relations[0]!.to).toBe("purchase_request");
-    expect(doc.relations[0]!.cardinality).toBe("one_to_many");
+    expect(doc.relations[0]?.linkName).toBe("dept_purchase");
+    expect(doc.relations[0]?.from).toBe("department");
+    expect(doc.relations[0]?.to).toBe("purchase_request");
+    expect(doc.relations[0]?.cardinality).toBe("one_to_many");
   });
 
   test("handles minimal capability with no schemas/actions", () => {
@@ -433,7 +431,7 @@ describe("DocSearchIndex", () => {
     const results = index.search("purchase");
 
     for (let i = 1; i < results.length; i++) {
-      expect(results[i]!.score).toBeLessThanOrEqual(results[i - 1]!.score);
+      expect(results[i]?.score).toBeLessThanOrEqual(results[i - 1]?.score);
     }
   });
 
@@ -457,8 +455,8 @@ describe("DocSearchIndex", () => {
 
     expect(results.length).toBeGreaterThan(0);
     // Multi-word match should score higher than single-word
-    const topResult = results[0]!;
-    expect(topResult.score).toBeGreaterThan(1);
+    const topResult = results[0];
+    expect(topResult?.score).toBeGreaterThan(1);
   });
 
   test("searches state machines by state name", () => {

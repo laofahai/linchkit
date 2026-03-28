@@ -72,10 +72,7 @@ describe("buildCsv", () => {
   });
 
   test("uses field name as fallback when label is missing", () => {
-    const noLabelFields = [
-      { field: "name" },
-      { field: "status" },
-    ];
+    const noLabelFields = [{ field: "name" }, { field: "status" }];
     const csv = buildCsv({ fields: noLabelFields, data: [], schemaName: "test" });
     expect(csv).toBe("name,status");
   });

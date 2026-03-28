@@ -6,6 +6,13 @@
  * on config loading, capability collection, and transport lifecycle.
  */
 
+import { createAIService } from "@linchkit/cap-ai-provider";
+import {
+  checkRestateHealth,
+  compileFlow,
+  createRestateFlowEngine,
+  setupRestateEndpoint,
+} from "@linchkit/cap-flow-restate";
 import type {
   ActionDefinition,
   AutomationDefinition,
@@ -20,13 +27,11 @@ import type {
   TransportContext,
   ViewDefinition,
 } from "@linchkit/core";
-import { ConfigRegistry, createDerivedPropertyEngine } from "@linchkit/core";
-import { createAIService } from "@linchkit/cap-ai-provider";
+import { type ConfigRegistry, createDerivedPropertyEngine } from "@linchkit/core";
 import {
-  ActionRegistry,
+  type ActionRegistry,
   AIAuditLogger,
   AIBoundary,
-  createNoopAIService,
   CacheManager,
   checkConnection,
   createActionExecutor,
@@ -34,14 +39,15 @@ import {
   createApprovalVerifier,
   createAutomationEngine,
   createAutomationRegistry,
-  createCommandLayer,
   createCacheCheck,
+  createCommandLayer,
   createDatabaseCheck,
   createEventBus,
   createEventBusCheck,
   createFlowRegistry,
   createFlowStepContext,
-  createLinkRegistry,
+  type createLinkRegistry,
+  createNoopAIService,
   createOntologyRegistry,
   createOutboxWorker,
   createPersistentEventBus,
@@ -53,21 +59,14 @@ import {
   DrizzleExecutionLogger,
   DrizzleTransactionManager,
   type FlowEngine,
-  GracefulShutdownManager,
   HealthCheckRegistry,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
   livenessCheck,
   type OutboxWorker,
-  PermissionRegistry,
-  SchemaRegistry,
+  type PermissionRegistry,
+  type SchemaRegistry,
 } from "@linchkit/core/server";
-import {
-  checkRestateHealth,
-  compileFlow,
-  createRestateFlowEngine,
-  setupRestateEndpoint,
-} from "@linchkit/cap-flow-restate";
 
 // ── Input types ─────────────────────────────────────────────
 
@@ -135,16 +134,13 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     capabilities,
     dbInstance,
     dataProvider,
-    usingDatabase,
   } = input;
 
   // Create execution logger — Drizzle-backed when DB is available
   const executionLogger = dbInstance
     ? new DrizzleExecutionLogger(dbInstance)
     : new InMemoryExecutionLogger();
-  console.log(
-    `[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`,
-  );
+  console.log(`[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`);
 
   // Create approval store — Drizzle-backed when DB is available
   const approvalStore = dbInstance
@@ -228,9 +224,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   console.log("[linch] AIAuditLogger created");
 
   // ── AI Service — create from config or use noop ──
-  const aiService = config.ai
-    ? createAIService(config.ai)
-    : createNoopAIService();
+  const aiService = config.ai ? createAIService(config.ai) : createNoopAIService();
   if (config.ai) {
     console.log(`[linch] AIService created (provider: ${config.ai.defaultProvider})`);
   }
@@ -417,9 +411,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     handlers: eventHandlerRegistry,
     interfaces: interfaceRegistry,
   });
-  console.log(
-    `[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`,
-  );
+  console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`);
 
   // ── Health check registry ──
   const healthCheckRegistry = new HealthCheckRegistry();

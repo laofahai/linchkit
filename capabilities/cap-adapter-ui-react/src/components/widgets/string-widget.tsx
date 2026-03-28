@@ -1,11 +1,10 @@
 import { Input } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 
 export function StringDisplay({ value }: WidgetDisplayProps) {
-  if (value == null) return <span className="text-muted-foreground leading-9">&mdash;</span>;
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
@@ -13,14 +12,13 @@ export function StringDisplay({ value }: WidgetDisplayProps) {
   useEffect(() => {
     const el = ref.current;
     if (el) setOverflowing(el.scrollWidth > el.clientWidth);
-  }, [value]);
+  }, []);
+
+  if (value == null) return <span className="text-muted-foreground leading-9">&mdash;</span>;
 
   return (
     <span className="inline-flex items-baseline gap-1 max-w-full min-w-0 leading-9">
-      <span
-        ref={ref}
-        className={expanded ? "break-words whitespace-normal" : "truncate"}
-      >
+      <span ref={ref} className={expanded ? "break-words whitespace-normal" : "truncate"}>
         {String(value)}
       </span>
       {(overflowing || expanded) && (
@@ -58,7 +56,11 @@ export function StringInput({
         disabled={readonly}
         placeholder={placeholder}
         aria-invalid={!!error}
-        className={cn(required && requiredBg, dirty && !error && "border-ring", error && "border-destructive focus-visible:ring-destructive")}
+        className={cn(
+          required && requiredBg,
+          dirty && !error && "border-ring",
+          error && "border-destructive focus-visible:ring-destructive",
+        )}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

@@ -39,7 +39,7 @@ export function mountAdminRoutes(
   const tenants = options.tenants ?? [];
   const rules = options.rules ?? [];
   const linchKitConfig = options.linchKitConfig;
-  const dataProvider = options.dataProvider;
+  const _dataProvider = options.dataProvider;
   const executionLogger = options.executionLogger;
 
   app
@@ -111,10 +111,7 @@ export function mountAdminRoutes(
       const cfg = linchKitConfig;
       const dp = options.dataProvider;
       const uptimeMs = Date.now() - serverStartedAt;
-      const actionCount = capabilities.reduce(
-        (sum, c) => sum + (c.actions?.length ?? 0),
-        0,
-      );
+      const actionCount = capabilities.reduce((sum, c) => sum + (c.actions?.length ?? 0), 0);
 
       // Determine real database status from the actual DataProvider instance
       let dbConnected = false;
@@ -138,9 +135,11 @@ export function mountAdminRoutes(
           registeredSchemas: schemaRegistry?.getAll().length ?? 0,
           registeredActions: actionCount,
           registeredRules: rules.length,
-          registeredFlows: options.flows?.length ??
+          registeredFlows:
+            options.flows?.length ??
             capabilities.reduce((sum, c) => sum + (c.flows?.length ?? 0), 0),
-          registeredStates: options.states?.length ??
+          registeredStates:
+            options.states?.length ??
             capabilities.reduce((sum, c) => sum + (c.states?.length ?? 0), 0),
           capabilityCount: capabilities.length,
           capabilities: capabilities.map((c) => c.name),
@@ -308,7 +307,11 @@ export function mountAdminRoutes(
     })
     // ── Flow REST endpoints ──────────────────────────────────
     .get("/api/flows", () => {
-      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
+      const allFlows = collectFromCapabilities<FlowDefinition>(
+        options.flows,
+        capabilities,
+        "flows",
+      );
       const summary = allFlows.map((f) => ({
         name: f.name,
         label: f.label,
@@ -321,7 +324,11 @@ export function mountAdminRoutes(
       return { success: true, data: summary };
     })
     .get("/api/flows/:name", ({ params, set }) => {
-      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
+      const allFlows = collectFromCapabilities<FlowDefinition>(
+        options.flows,
+        capabilities,
+        "flows",
+      );
       const flow = allFlows.find((f) => f.name === params.name);
       if (!flow) {
         return notFound(set, `Flow "${params.name}" not found.`);
@@ -336,7 +343,11 @@ export function mountAdminRoutes(
       }
 
       // Verify flow exists
-      const allFlows = collectFromCapabilities<FlowDefinition>(options.flows, capabilities, "flows");
+      const allFlows = collectFromCapabilities<FlowDefinition>(
+        options.flows,
+        capabilities,
+        "flows",
+      );
       const flow = allFlows.find((f) => f.name === params.name);
       if (!flow) {
         return notFound(set, `Flow "${params.name}" not found.`);
@@ -364,7 +375,11 @@ export function mountAdminRoutes(
     })
     // ── State Machine REST endpoints ─────────────────────────
     .get("/api/states", () => {
-      const allStates = collectFromCapabilities<StateDefinition>(options.states, capabilities, "states");
+      const allStates = collectFromCapabilities<StateDefinition>(
+        options.states,
+        capabilities,
+        "states",
+      );
       const summary = allStates.map((s) => ({
         name: s.name,
         schema: s.schema,
@@ -378,7 +393,11 @@ export function mountAdminRoutes(
       return { success: true, data: summary };
     })
     .get("/api/states/:name", ({ params, set }) => {
-      const allStates = collectFromCapabilities<StateDefinition>(options.states, capabilities, "states");
+      const allStates = collectFromCapabilities<StateDefinition>(
+        options.states,
+        capabilities,
+        "states",
+      );
       const state = allStates.find((s) => s.name === params.name);
       if (!state) {
         return notFound(set, `State machine "${params.name}" not found.`);

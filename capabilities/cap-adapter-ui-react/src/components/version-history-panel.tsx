@@ -10,13 +10,7 @@
  */
 
 import type { FieldDefinition } from "@linchkit/core/types";
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Separator,
-  Skeleton,
-} from "@linchkit/ui-kit/components";
+import { Badge, Button, Checkbox, Separator, Skeleton } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import {
   ArrowRight,
@@ -33,11 +27,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  type ExecutionLogEntry,
-  queryExecutionLogs,
-  updateRecord,
-} from "../lib/api";
+import { type ExecutionLogEntry, queryExecutionLogs, updateRecord } from "../lib/api";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -78,8 +68,14 @@ interface FieldDiff {
 // ── Constants ────────────────────────────────────────────
 
 const SYSTEM_FIELDS = new Set([
-  "id", "tenant_id", "created_at", "updated_at",
-  "created_by", "updated_by", "_version", "is_deleted",
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+  "is_deleted",
 ]);
 
 // ── Helpers ──────────────────────────────────────────────
@@ -96,14 +92,11 @@ function formatRelativeTime(
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60)
-    return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
+  if (minutes < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24)
-    return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
+  if (hours < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30)
-    return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
+  if (days < 30) return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
   return new Date(iso).toLocaleDateString();
 }
 
@@ -142,7 +135,7 @@ function buildVersions(
   );
 
   const versions: VersionSnapshot[] = [];
-  let cumulative: Record<string, unknown> = {};
+  const cumulative: Record<string, unknown> = {};
 
   for (const entry of sorted) {
     if (entry.status !== "succeeded") continue;
@@ -177,7 +170,7 @@ function buildVersions(
   // If we have a current record and versions, add implicit "current" if
   // the last version snapshot differs from current record
   if (currentRecord && versions.length > 0) {
-    const lastSnapshot = versions[versions.length - 1]!.snapshot;
+    const lastSnapshot = versions[versions.length - 1]?.snapshot ?? {};
     const currentDiffs: string[] = [];
     for (const [key, value] of Object.entries(currentRecord)) {
       if (SYSTEM_FIELDS.has(key)) continue;
@@ -190,13 +183,14 @@ function buildVersions(
     if (currentDiffs.length === 0) {
       // Patch the last snapshot to include any fields from currentRecord
       // that weren't in the execution logs
-      const patched = { ...versions[versions.length - 1]!.snapshot };
+      const patched = { ...versions[versions.length - 1]?.snapshot };
       for (const [key, value] of Object.entries(currentRecord)) {
         if (!SYSTEM_FIELDS.has(key) && !(key in patched)) {
           patched[key] = value;
         }
       }
-      versions[versions.length - 1]!.snapshot = patched;
+      const lastVersion = versions[versions.length - 1];
+      if (lastVersion) lastVersion.snapshot = patched;
     }
   }
 
@@ -275,20 +269,14 @@ function VersionEntry({
         <div className="flex items-start gap-3 min-w-0 flex-1">
           {/* Compare checkbox */}
           {compareMode && (
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={onToggleSelect}
-              className="mt-0.5"
-            />
+            <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} className="mt-0.5" />
           )}
 
           <div className="min-w-0 flex-1">
             {/* Version header */}
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant={isCreate ? "default" : "secondary"} className="text-xs">
-                {isCreate
-                  ? t("versionHistory.created", "Created")
-                  : `v${version.version}`}
+                {isCreate ? t("versionHistory.created", "Created") : `v${version.version}`}
               </Badge>
               {changedDiffs.length > 0 && !isCreate && (
                 <span className="text-xs text-muted-foreground">
@@ -338,11 +326,7 @@ function VersionEntry({
               onClick={() => setExpanded(!expanded)}
               className="p-1 rounded hover:bg-muted/50 text-muted-foreground transition-colors"
             >
-              {expanded ? (
-                <ChevronUp className="size-3.5" />
-              ) : (
-                <ChevronDown className="size-3.5" />
-              )}
+              {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             </button>
           )}
         </div>
@@ -367,13 +351,8 @@ function VersionEntry({
             </thead>
             <tbody>
               {changedDiffs.map((diff) => (
-                <tr
-                  key={diff.field}
-                  className="border-b border-border/30 last:border-0"
-                >
-                  <td className="px-2.5 py-1.5 font-mono text-muted-foreground">
-                    {diff.label}
-                  </td>
+                <tr key={diff.field} className="border-b border-border/30 last:border-0">
+                  <td className="px-2.5 py-1.5 font-mono text-muted-foreground">{diff.label}</td>
                   <td className="px-2.5 py-1.5">
                     {isCreate ? (
                       <span className="text-muted-foreground/50">-</span>
@@ -454,9 +433,7 @@ function CompareView({ leftVersion, rightVersion, fields, onClose }: CompareView
                   diff.changed ? "bg-amber-50/50 dark:bg-amber-950/20" : "",
                 )}
               >
-                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                  {diff.label}
-                </td>
+                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{diff.label}</td>
                 <td className="px-3 py-2 text-xs">
                   <span className={diff.changed ? "text-red-600 dark:text-red-400" : ""}>
                     {formatValue(diff.oldValue)}
@@ -518,26 +495,24 @@ export function VersionHistoryPanel({
   }, [fetchVersions]);
 
   // Toggle version selection for compare
-  const toggleSelect = useCallback(
-    (versionNum: number) => {
-      setSelectedVersions((prev) => {
-        const next = new Set(prev);
-        if (next.has(versionNum)) {
-          next.delete(versionNum);
-        } else {
-          // Max 2 selections
-          if (next.size >= 2) {
-            // Replace the smallest one
-            const sorted = [...next].sort((a, b) => a - b);
-            next.delete(sorted[0]!);
-          }
-          next.add(versionNum);
+  const toggleSelect = useCallback((versionNum: number) => {
+    setSelectedVersions((prev) => {
+      const next = new Set(prev);
+      if (next.has(versionNum)) {
+        next.delete(versionNum);
+      } else {
+        // Max 2 selections
+        if (next.size >= 2) {
+          // Replace the smallest one
+          const sorted = [...next].sort((a, b) => a - b);
+          const first = sorted[0];
+          if (first !== undefined) next.delete(first);
         }
-        return next;
-      });
-    },
-    [],
-  );
+        next.add(versionNum);
+      }
+      return next;
+    });
+  }, []);
 
   // Start comparison
   const handleCompare = useCallback(() => {
@@ -666,9 +641,7 @@ export function VersionHistoryPanel({
       ) : (
         <div className="space-y-2">
           {displayVersions.map((version) => {
-            const prevVersion = versions.find(
-              (v) => v.version === version.version - 1,
-            );
+            const prevVersion = versions.find((v) => v.version === version.version - 1);
             const previousSnapshot = prevVersion?.snapshot ?? {};
 
             return (
@@ -681,9 +654,7 @@ export function VersionHistoryPanel({
                 onToggleSelect={() => toggleSelect(version.version)}
                 compareMode={compareMode}
                 onRestore={
-                  recordFields && recordFields.length > 0
-                    ? () => handleRestore(version)
-                    : undefined
+                  recordFields && recordFields.length > 0 ? () => handleRestore(version) : undefined
                 }
                 restoring={restoring}
               />

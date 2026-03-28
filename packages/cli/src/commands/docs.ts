@@ -35,10 +35,7 @@ import {
   renderCapabilityDoc,
   renderSystemDoc,
 } from "@linchkit/devtools/documentation";
-import {
-  validateActionDoc,
-  validateSchemaDoc,
-} from "@linchkit/devtools/governance";
+import { validateActionDoc, validateSchemaDoc } from "@linchkit/devtools/governance";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
@@ -350,7 +347,8 @@ const searchCommand = defineCommand({
     },
     type: {
       type: "string",
-      description: "Filter by type (capability, schema, action, rule, state_machine, view, relation)",
+      description:
+        "Filter by type (capability, schema, action, rule, state_machine, view, relation)",
     },
     capability: {
       type: "string",
@@ -389,7 +387,7 @@ const searchCommand = defineCommand({
 
     console.log("");
     console.log(`  Search results for "${args.query}" (${results.length} found):`);
-    console.log("  " + "=".repeat(50));
+    console.log(`  ${"=".repeat(50)}`);
     console.log("");
 
     for (const r of results) {

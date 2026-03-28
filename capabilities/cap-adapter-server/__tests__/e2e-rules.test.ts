@@ -11,8 +11,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { ActionDefinition, RuleDefinition, SchemaDefinition } from "@linchkit/core";
-import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
-import { evaluateRules } from "@linchkit/core/server";
+import { createActionExecutor, evaluateRules, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -111,10 +110,7 @@ beforeAll(() => {
   store = new InMemoryStore();
   const executor = createActionExecutor({ dataProvider: store });
 
-  const allActions = [
-    ...generateCrudActions(purchaseSchema),
-    submitPurchaseAction,
-  ];
+  const allActions = [...generateCrudActions(purchaseSchema), submitPurchaseAction];
   for (const action of allActions) {
     executor.registry.register(action);
   }

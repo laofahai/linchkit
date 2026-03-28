@@ -5,9 +5,12 @@
  * coverage (descriptions, field docs, examples, etc.) per spec 37.
  */
 
-import type { ActionDefinition } from "@linchkit/core";
-import type { CapabilityDefinition } from "@linchkit/core";
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
+import type {
+  ActionDefinition,
+  CapabilityDefinition,
+  FieldDefinition,
+  SchemaDefinition,
+} from "@linchkit/core";
 
 // -- Types --------------------------------------------------------
 

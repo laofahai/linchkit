@@ -11,8 +11,8 @@ import {
   createActionExecutor,
   type DataProvider,
   type DataQueryOptions,
-  type TransactionManager,
   type PendingEvent,
+  type TransactionManager,
 } from "../src/engine/action-engine";
 import type { ActionDefinition, Actor } from "../src/types/action";
 

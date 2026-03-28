@@ -26,7 +26,9 @@ export const capAdapterServer = defineCapability({
           );
           const { createServer } = await import("./server");
           const { SystemDataProvider } = await import("./system-data-provider");
-          const { systemSchemas, systemViews, INTERNAL_SCHEMA_NAMES } = await import("./system-schemas");
+          const { systemSchemas, systemViews, INTERNAL_SCHEMA_NAMES } = await import(
+            "./system-schemas"
+          );
 
           // Register system schemas as internal (read-only, system-managed)
           for (const schema of systemSchemas) {
@@ -42,7 +44,9 @@ export const capAdapterServer = defineCapability({
           // Wrap DataProvider to handle internal schema queries
           const systemDataProvider = ctx.dataProvider
             ? new SystemDataProvider(ctx.dataProvider, {
-                db: (ctx.dataProvider as { db?: unknown }).db as import("drizzle-orm/postgres-js").PostgresJsDatabase | undefined,
+                db: (ctx.dataProvider as { db?: unknown }).db as
+                  | import("drizzle-orm/postgres-js").PostgresJsDatabase
+                  | undefined,
                 rules: (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []),
                 flows: ctx.flowRegistry?.getAll() ?? [],
                 states: ctx.states ?? [],
@@ -123,13 +127,21 @@ export const capAdapterServer = defineCapability({
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
             // Never decode JWT directly — that bypasses signature verification.
-            resolveRequestTenantId: (request: Request, actor?: { tenantId?: string; metadata?: Record<string, unknown> }) => {
+            resolveRequestTenantId: (
+              request: Request,
+              actor?: { tenantId?: string; metadata?: Record<string, unknown> },
+            ) => {
               // Prefer tenant from verified actor (auth middleware already validated the JWT)
               if (actor) {
-                const actorTenant = actor.tenantId
-                  ?? (typeof actor.metadata?.tenantId === "string" ? actor.metadata.tenantId : undefined)
-                  ?? (typeof actor.metadata?.tenant_id === "string" ? actor.metadata.tenant_id : undefined)
-                  ?? (typeof actor.metadata?.org_id === "string" ? actor.metadata.org_id : undefined);
+                const actorTenant =
+                  actor.tenantId ??
+                  (typeof actor.metadata?.tenantId === "string"
+                    ? actor.metadata.tenantId
+                    : undefined) ??
+                  (typeof actor.metadata?.tenant_id === "string"
+                    ? actor.metadata.tenant_id
+                    : undefined) ??
+                  (typeof actor.metadata?.org_id === "string" ? actor.metadata.org_id : undefined);
                 if (actorTenant) {
                   return actorTenant;
                 }
@@ -160,9 +172,30 @@ export const capAdapterServer = defineCapability({
       },
     ],
     menuItems: [
-      { id: "evolution", label: "t:evolution.navLabel", path: "/admin/evolution", icon: "History", section: "admin", order: 80 },
-      { id: "health", label: "t:health.title", path: "/admin/health", icon: "HeartPulse", section: "admin", order: 90 },
-      { id: "settings", label: "t:settings.title", path: "/admin/settings", icon: "Settings", section: "admin", order: 100 },
+      {
+        id: "evolution",
+        label: "t:evolution.navLabel",
+        path: "/admin/evolution",
+        icon: "History",
+        section: "admin",
+        order: 80,
+      },
+      {
+        id: "health",
+        label: "t:health.title",
+        path: "/admin/health",
+        icon: "HeartPulse",
+        section: "admin",
+        order: 90,
+      },
+      {
+        id: "settings",
+        label: "t:settings.title",
+        path: "/admin/settings",
+        icon: "Settings",
+        section: "admin",
+        order: 100,
+      },
     ],
     commands: [
       {

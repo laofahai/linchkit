@@ -82,7 +82,8 @@ export const purchaseApprovalFlow: FlowDefinition = {
       actionName: "update_purchase_request",
       input: {
         id: "$input.id",
-        audit_notes: "Routed by approval flow. Manual manager approval required for amounts over 5,000.",
+        audit_notes:
+          "Routed by approval flow. Manual manager approval required for amounts over 5,000.",
       },
     },
   ],
@@ -90,4 +91,3 @@ export const purchaseApprovalFlow: FlowDefinition = {
   onError: "abort",
   timeout: 30000,
 };
-

@@ -13,10 +13,7 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import { badRequest, notFound, resolveActor, serviceUnavailable } from "./shared";
 
-export function mountApprovalRoutes(
-  app: Elysia,
-  options: ServerOptions,
-): void {
+export function mountApprovalRoutes(app: Elysia, options: ServerOptions): void {
   const approvalEngine = options.approvalEngine;
   const resolveRequestActor = options.resolveRequestActor;
   const resolveRequestTenantId = options.resolveRequestTenantId;
@@ -32,12 +29,12 @@ export function mountApprovalRoutes(
       const requests = await approvalEngine.store.query({
         status: statusFilter ?? "pending",
         tenantId: resolveRequestTenantId
-          ? (await resolveRequestTenantId(request, actor)) ?? undefined
+          ? ((await resolveRequestTenantId(request, actor)) ?? undefined)
           : undefined,
       });
       return { success: true, data: { items: requests, total: requests.length } };
     })
-    .get("/api/approvals/count", async ({ request, set }) => {
+    .get("/api/approvals/count", async ({ request }) => {
       if (!approvalEngine) {
         return { success: true, data: { count: 0 } };
       }
@@ -45,7 +42,7 @@ export function mountApprovalRoutes(
       const requests = await approvalEngine.store.query({
         status: "pending",
         tenantId: resolveRequestTenantId
-          ? (await resolveRequestTenantId(request, actor)) ?? undefined
+          ? ((await resolveRequestTenantId(request, actor)) ?? undefined)
           : undefined,
       });
       return { success: true, data: { count: requests.length } };
@@ -67,10 +64,7 @@ export function mountApprovalRoutes(
       const actor = await resolveActor(request, resolveRequestActor);
       const { note } = (body ?? {}) as { note?: string };
       try {
-        const result = await approvalEngine.approve(
-          { approvalId: params.id, note },
-          actor,
-        );
+        const result = await approvalEngine.approve({ approvalId: params.id, note }, actor);
         return { success: true, data: result };
       } catch (err) {
         set.status = 400;
@@ -90,10 +84,7 @@ export function mountApprovalRoutes(
         return badRequest(set, "Rejection note is required.");
       }
       try {
-        const result = await approvalEngine.reject(
-          { approvalId: params.id, note },
-          actor,
-        );
+        const result = await approvalEngine.reject({ approvalId: params.id, note }, actor);
         return { success: true, data: result };
       } catch (err) {
         set.status = 400;
