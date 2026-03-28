@@ -424,7 +424,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
       try {
         const { streamText, stepCountIs, convertToModelMessages } = await import("ai");
-        const { resolveLanguageModel } = await import("@linchkit/core/server");
+        const { resolveLanguageModel } = await import("@linchkit/cap-ai-provider");
         const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
         const { buildSystemPrompt } = await import("../ai/system-prompt");
         const { buildTools } = await import("../ai/tools");
