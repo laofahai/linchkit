@@ -33,7 +33,7 @@ import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
 import { SettingsPage } from "./pages/settings";
 import { StateMachineDetailPage } from "./pages/state-machines";
-import { WorkspacePage } from "./pages/workspace";
+import { DashboardPage } from "./pages/dashboard";
 
 // ── Root route (no layout) ────────────────────────────────────────
 
@@ -132,7 +132,7 @@ function buildRouter(appConfig: AppConfig) {
   const workspaceRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/",
-    component: WorkspacePage,
+    component: DashboardPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 

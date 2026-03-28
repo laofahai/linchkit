@@ -15,6 +15,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.140",
     "@fontsource-variable/geist": "^5.2.8",
     "@linchkit/core": "workspace:*",
     "@linchkit/ui-kit": "workspace:*",
@@ -26,6 +27,7 @@
     "@tiptap/react": "^3.20.5",
     "@tiptap/starter-kit": "^3.20.5",
     "@types/dagre": "^0.7.54",
+    "@types/react-grid-layout": "^2.1.0",
     "@xyflow/react": "^12.10.1",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
@@ -37,9 +39,10 @@
     "react": "^19.2.4",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.4",
+    "react-grid-layout": "^2.2.3",
     "react-i18next": "^16.6.1",
+    "recharts": "^3.8.1",
     "shadcn": "^4.1.0",
-    "@ai-sdk/react": "^3.0.140",
     "sonner": "^2.0.7"
   },
   "devDependencies": {
