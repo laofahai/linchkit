@@ -11,11 +11,12 @@ import { Button, Skeleton, toast } from "@linchkit/ui-kit/components";
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { startOfMonth } from "date-fns";
-import { Calendar, Kanban, List, ListTree, RefreshCw, ServerCrash } from "lucide-react";
+import { Calendar, Kanban, List, ListTree, Pencil, Plus, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar, CalendarNavControls } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
+import type { TreeNodeAction } from "../components/auto-tree";
 import { buildFilterColumns } from "../components/auto-list/filter-columns";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
 import { AutoTree } from "../components/auto-tree";
@@ -721,6 +722,28 @@ export function SchemaListPage() {
     }
   }
 
+  function handleTreeNodeAction(action: string, recordId: string) {
+    if (!schemaName) return;
+    switch (action) {
+      case "edit":
+        navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+        break;
+      case "delete":
+        pendingSingleDeleteId.current = recordId;
+        setSingleDeleteOpen(true);
+        break;
+      case "add_child":
+        navigate({
+          to: "/schemas/$name/new",
+          params: { name: schemaName },
+          search: { parent: recordId },
+        });
+        break;
+      default:
+        console.log(`Tree action: ${action}, Record: ${recordId}`);
+    }
+  }
+
   function handleRowClick(recordId: string) {
     if (!schemaName) return;
     // Check if list view has custom detail route
@@ -1032,6 +1055,23 @@ export function SchemaListPage() {
           }
 
           if (activeView === "tree" && selfRefField) {
+            const treeNodeActions: TreeNodeAction[] = [
+              {
+                action: "add_child",
+                label: t("tree.addChild", "Add child"),
+                icon: <Plus className="size-3.5" />,
+              },
+              {
+                action: "edit",
+                label: t("common.edit", "Edit"),
+                icon: <Pencil className="size-3.5" />,
+              },
+              {
+                action: "delete",
+                label: t("common.delete", "Delete"),
+                icon: <Trash2 className="size-3.5" />,
+              },
+            ];
             return (
               <AutoTree
                 schemaName={schemaName}
@@ -1040,6 +1080,8 @@ export function SchemaListPage() {
                 labelField={treeLabelField}
                 summaryFields={treeSummaryFields}
                 onRecordClick={handleRowClick}
+                nodeActions={treeNodeActions}
+                onNodeAction={handleTreeNodeAction}
               />
             );
           }

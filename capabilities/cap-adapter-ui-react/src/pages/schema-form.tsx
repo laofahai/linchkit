@@ -76,8 +76,9 @@ export function SchemaFormPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
-  const searchParams = useSearch({ strict: false }) as { clone?: string };
+  const searchParams = useSearch({ strict: false }) as { clone?: string; parent?: string };
   const cloneId = searchParams.clone;
+  const parentId = searchParams.parent;
   const schemaName = params.name;
   const { resolveLabel } = useSchemaLabel();
   const { setBreadcrumbTitle } = useBreadcrumbTitle();
@@ -210,13 +211,23 @@ export function SchemaFormPage() {
     if (!bundleLoading && bundle) {
       if (isCreate && cloneId) {
         fetchCloneSource();
+      } else if (isCreate && parentId && bundle.schema) {
+        // Pre-fill the parent field when creating a child record
+        const schemaFields = bundle.schema.fields as Record<string, { type?: string; target?: string }>;
+        const selfRefField = Object.entries(schemaFields).find(
+          ([, def]) => def.type === "ref" && def.target === bundle.schema?.name,
+        )?.[0];
+        if (selfRefField) {
+          setRecord({ [selfRefField]: parentId });
+        }
+        setLoading(false);
       } else {
         fetchRecord();
       }
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchRecord, fetchCloneSource, bundleLoading, bundle, isCreate, cloneId]);
+  }, [fetchRecord, fetchCloneSource, bundleLoading, bundle, isCreate, cloneId, parentId]);
 
   // Update breadcrumb title with the record's display name
   useEffect(() => {

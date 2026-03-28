@@ -10,6 +10,7 @@
  * - Visual indent connectors (vertical/horizontal lines)
  * - Summary fields rendered inline after the label
  * - Folder/File icons for branch/leaf nodes
+ * - Inline action buttons on hover (edit, delete, add child, etc.)
  */
 
 import {
@@ -23,6 +24,18 @@ import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Inbox } from "luci
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { buildTree, collectAllIds, type TreeNode } from "./tree-utils";
+
+/** An action that can be performed on a tree node. */
+export interface TreeNodeAction {
+  /** Action identifier (e.g. "edit", "delete", "add_child") */
+  action: string;
+  /** Display label */
+  label: string;
+  /** Lucide icon element to render */
+  icon?: React.ReactNode;
+  /** Only show for nodes matching this condition */
+  visibleWhen?: (record: Record<string, unknown>) => boolean;
+}
 
 export interface AutoTreeProps {
   /** Schema name (for context / key namespacing) */
@@ -39,6 +52,10 @@ export interface AutoTreeProps {
   onRecordClick?: (recordId: string) => void;
   /** Extra content to render in the toolbar (e.g. view toggle, refresh) */
   toolbarExtra?: React.ReactNode;
+  /** Inline actions shown on hover for each tree node */
+  nodeActions?: TreeNodeAction[];
+  /** Callback when a node action is triggered */
+  onNodeAction?: (action: string, recordId: string) => void;
 }
 
 export function AutoTree({
@@ -49,6 +66,8 @@ export function AutoTree({
   summaryFields,
   onRecordClick,
   toolbarExtra,
+  nodeActions,
+  onNodeAction,
 }: AutoTreeProps) {
   const { t } = useTranslation();
   const tree = useMemo(() => buildTree(records, parentField), [records, parentField]);
@@ -115,6 +134,8 @@ export function AutoTree({
             onToggle={toggle}
             onRecordClick={onRecordClick}
             isLast={index === tree.length - 1}
+            nodeActions={nodeActions}
+            onNodeAction={onNodeAction}
           />
         ))}
       </div>
@@ -144,6 +165,8 @@ interface TreeNodeRowProps {
   onToggle: (id: string) => void;
   onRecordClick?: (recordId: string) => void;
   isLast: boolean;
+  nodeActions?: TreeNodeAction[];
+  onNodeAction?: (action: string, recordId: string) => void;
 }
 
 function TreeNodeRow({
@@ -155,6 +178,8 @@ function TreeNodeRow({
   onToggle,
   onRecordClick,
   isLast,
+  nodeActions,
+  onNodeAction,
 }: TreeNodeRowProps) {
   const id = String(node.record.id);
   const label = String(node.record[labelField] ?? node.record.name ?? id);
@@ -165,6 +190,11 @@ function TreeNodeRow({
   const summaryParts = (summaryFields ?? [])
     .map((f) => formatSummaryValue(node.record[f]))
     .filter(Boolean);
+
+  // Filter visible actions for this node
+  const visibleActions = (nodeActions ?? []).filter(
+    (a) => !a.visibleWhen || a.visibleWhen(node.record),
+  );
 
   // Connector lines: vertical lines from ancestors, horizontal connector to this node
   const connectors =
@@ -198,6 +228,28 @@ function TreeNodeRow({
       </span>
     ) : null;
 
+  // Inline action buttons shown on hover
+  const inlineActions =
+    visibleActions.length > 0 ? (
+      <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover/node:opacity-100 transition-opacity">
+        {visibleActions.map((a) => (
+          <button
+            key={a.action}
+            type="button"
+            title={a.label}
+            aria-label={a.label}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNodeAction?.(a.action, id);
+            }}
+          >
+            {a.icon ?? <span className="text-xs">{a.label}</span>}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   if (!hasChildren) {
     // Leaf node — simple row
     return (
@@ -205,7 +257,7 @@ function TreeNodeRow({
         <div
           role="treeitem"
           className={cn(
-            "flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer text-sm",
+            "group/node flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer text-sm",
           )}
           style={{ paddingLeft: depth > 0 ? `${depth * 24 + 8}px` : "8px" }}
           onClick={() => onRecordClick?.(id)}
@@ -218,6 +270,7 @@ function TreeNodeRow({
           <File className="size-4 text-muted-foreground shrink-0" />
           <span className="truncate font-medium">{label}</span>
           {summaryBadges}
+          {inlineActions}
         </div>
       </div>
     );
@@ -231,7 +284,7 @@ function TreeNodeRow({
           role="treeitem"
           aria-expanded={isOpen}
           tabIndex={0}
-          className="flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent text-sm"
+          className="group/node flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent text-sm"
           style={{ paddingLeft: depth > 0 ? `${depth * 24 + 8}px` : "8px" }}
         >
           {connectors}
@@ -258,6 +311,7 @@ function TreeNodeRow({
           </button>
           <span className="text-xs text-muted-foreground ml-1">({node.children.length})</span>
           {summaryBadges}
+          {inlineActions}
         </div>
         <CollapsibleContent>
           <div className="relative">
@@ -281,6 +335,8 @@ function TreeNodeRow({
                 onToggle={onToggle}
                 onRecordClick={onRecordClick}
                 isLast={index === node.children.length - 1}
+                nodeActions={nodeActions}
+                onNodeAction={onNodeAction}
               />
             ))}
           </div>

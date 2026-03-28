@@ -217,7 +217,8 @@
     "rootNodes_other": "{{count}} root nodes",
     "childCount": "{{count}} child",
     "childCount_other": "{{count}} children",
-    "treeView": "Tree view"
+    "treeView": "Tree view",
+    "addChild": "Add child"
   },
   "detail": {
     "relatedRecords": "Related Records",
