@@ -15,6 +15,10 @@
       "Bash(head *)",
       "Bash(rm *)",
       "Bash(mkdir *)",
+      "Bash(ov *)",
+      "Bash(sd *)",
+      "Bash(ml *)",
+      "Bash(mulch *)",
       "Read(**)",
       "Write(**)",
       "Edit(**)"
