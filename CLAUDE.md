@@ -46,6 +46,34 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 - drizzle-kit: Use `bun ./node_modules/.bin/drizzle-kit` (NOT `bunx drizzle-kit` — EPIPE bug on macOS)
 - Database DDL: **Never hand-write CREATE TABLE / ALTER TABLE** — always delegate to drizzle-kit
 
+## Core Boundary Rules (Three-Way Review Consensus)
+
+**Minimal Core ≠ CRUD only**. Core must retain life-system engines and abstractions (Sense / Memory / Awareness / Insight / Proposal).
+
+**Three-tier classification:**
+
+- **CORE**: Engines + types + pipeline + life-system engines (ActionEngine, RuleEngine, StateMachine, AutomationEngine, ApprovalEngine, ProposalEngine, Flow minimal execution, AI security layer)
+- **CORE interface + CAPABILITY implementation**: Core defines abstract interfaces; capabilities provide concrete implementations (e.g. AI Provider SDK → cap-ai-provider, Restate → cap-flow-restate)
+- **PURE CAPABILITY**: Dev tooling (doc generation, code quality checks, data migration)
+
+**Must NOT be moved out of core:**
+
+- AutomationEngine (Sense layer engine)
+- ApprovalEngine (Rule Engine critical path)
+- engine/ProposalEngine (security closed loop)
+- Flow interfaces + SyncEngine + TriggerBinding (meta-model first-class citizens)
+- AI security layer (AIBoundary, PromptSanitizer, OutputValidator)
+- PatternDetector / AnomalyDetector interfaces (Awareness layer abstractions)
+
+**Safe to move out** (already moved or planned):
+
+- Documentation / Methodology / Governance tooling → @linchkit/devtools
+- Migration → cap-migration
+- RestateFlowEngine → cap-flow-restate
+- AI Provider SDK implementations → cap-ai-provider
+
+**Decision criterion:** Before adding new functionality, ask — "Without this, is a zero-capability LinchKit still AI-Native?" If yes → capability. If no → core.
+
 ## Packages
 
 ```
@@ -170,3 +198,72 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 
 Full specs in project: `docs/specs/` (54 files, 00–50).
 Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`.
+
+<!-- mulch:start -->
+## Project Expertise (Mulch)
+<!-- mulch-onboard-v:1 -->
+
+This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
+
+**At the start of every session**, run:
+```bash
+mulch prime
+```
+
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+Use `mulch prime --files src/foo.ts` to load only records relevant to specific files.
+
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
+```bash
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
+```
+
+Link evidence when available: `--evidence-commit <sha>`, `--evidence-bead <id>`
+
+Run `mulch status` to check domain health and entry counts.
+Run `mulch --help` for full usage.
+Mulch write commands use file locking and atomic writes — multiple agents can safely record to the same domain concurrently.
+
+### Before You Finish
+
+1. Discover what to record:
+   ```bash
+   mulch learn
+   ```
+2. Store insights from this work session:
+   ```bash
+   mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
+   ```
+3. Validate and commit:
+   ```bash
+   mulch sync
+   ```
+<!-- mulch:end -->
+
+<!-- seeds:start -->
+## Issue Tracking (Seeds)
+<!-- seeds-onboard-v:1 -->
+
+This project uses [Seeds](https://github.com/jayminwest/seeds) for git-native issue tracking.
+
+**At the start of every session**, run:
+```
+sd prime
+```
+
+This injects session context: rules, command reference, and workflows.
+
+**Quick reference:**
+- `sd ready` — Find unblocked work
+- `sd create --title "..." --type task --priority 2` — Create issue
+- `sd update <id> --status in_progress` — Claim work
+- `sd close <id>` — Complete work
+- `sd dep add <id> <depends-on>` — Add dependency between issues
+- `sd sync` — Sync with git (run before pushing)
+
+### Before You Finish
+1. Close completed issues: `sd close <id>`
+2. File issues for remaining work: `sd create --title "..."`
+3. Sync and push: `sd sync && git push`
+<!-- seeds:end -->
