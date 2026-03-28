@@ -107,12 +107,25 @@ function matchesType(value: unknown, type: ConfigFieldType): boolean {
   }
 }
 
+/** A single version history entry for a config field change */
+export interface ConfigValueHistoryEntry {
+  configName: string;
+  fieldName: string;
+  oldValue: unknown;
+  newValue: unknown;
+  changedAt: string;
+  changedBy?: string;
+}
+
 export class RuntimeConfigRegistry {
   /** Registered config definitions */
   private readonly definitions = new Map<string, ConfigDefinition>();
 
   /** In-memory value store: configName -> fieldName -> value */
   private readonly store = new Map<string, Map<string, unknown>>();
+
+  /** Version history: configName -> list of change entries (newest first) */
+  private readonly history = new Map<string, ConfigValueHistoryEntry[]>();
 
   /** Register a config definition. Throws if name is already registered. */
   register(config: ConfigDefinition): void {
@@ -195,9 +208,10 @@ export class RuntimeConfigRegistry {
 
   /**
    * Set a field value. Validates the value against the field definition.
+   * Records the change in version history.
    * Throws ConfigValidationError on validation failure.
    */
-  setValue(configName: string, fieldName: string, value: unknown): void {
+  setValue(configName: string, fieldName: string, value: unknown, changedBy?: string): void {
     const def = this.definitions.get(configName);
     if (!def) {
       throw new Error(`Config "${configName}" is not registered`);
@@ -212,11 +226,39 @@ export class RuntimeConfigRegistry {
       throw new ConfigValidationError(configName, fieldName, error);
     }
 
+    const oldValue = this.store.get(configName)?.get(fieldName);
+
     let values = this.store.get(configName);
     if (!values) {
       values = new Map();
       this.store.set(configName, values);
     }
     values.set(fieldName, value);
+
+    // Record history entry
+    const entries = this.history.get(configName) ?? [];
+    entries.unshift({
+      configName,
+      fieldName,
+      oldValue,
+      newValue: value,
+      changedAt: new Date().toISOString(),
+      changedBy,
+    });
+    // Keep last 100 entries per config to prevent unbounded growth
+    if (entries.length > 100) entries.length = 100;
+    this.history.set(configName, entries);
+  }
+
+  /**
+   * Get version history for a config namespace.
+   * Returns entries newest-first, optionally filtered by fieldName.
+   */
+  getHistory(configName: string, fieldName?: string): ConfigValueHistoryEntry[] {
+    if (!this.definitions.has(configName)) {
+      throw new Error(`Config "${configName}" is not registered`);
+    }
+    const entries = this.history.get(configName) ?? [];
+    return fieldName ? entries.filter((e) => e.fieldName === fieldName) : entries;
   }
 }

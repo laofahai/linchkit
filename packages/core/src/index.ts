@@ -80,6 +80,7 @@ export type {
   ConfigScope,
   ConfigScopeRef,
   ConfigStore,
+  ConfigValueHistoryEntry,
   ConfigVersion,
   SetConfigOptions,
 } from "./config";

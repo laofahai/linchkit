@@ -750,3 +750,81 @@ export async function queryExecutionLogs(options: {
   }));
   return { items, total: raw.total };
 }
+
+// ── Runtime Config API ──────────────────────────────────
+
+export interface ConfigFieldDef {
+  type: "string" | "number" | "boolean" | "json";
+  label?: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  secret?: boolean;
+  validation?: { min?: number; max?: number; pattern?: string };
+}
+
+export interface ConfigItem {
+  name: string;
+  schema: string;
+  label?: string;
+  fields: Record<string, ConfigFieldDef>;
+  values: Record<string, unknown>;
+}
+
+export interface ConfigHistoryEntry {
+  configName: string;
+  fieldName: string;
+  oldValue: unknown;
+  newValue: unknown;
+  changedAt: string;
+  changedBy?: string;
+}
+
+/** List all registered runtime config namespaces */
+export async function fetchConfigs(): Promise<ConfigItem[]> {
+  const res = await fetch("/api/configs", { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data?.items ?? [];
+}
+
+/** Get a single runtime config namespace by name */
+export async function fetchConfig(name: string): Promise<ConfigItem | null> {
+  const res = await fetch(`/api/configs/${encodeURIComponent(name)}`, {
+    headers: getAuthHeaders(),
+  });
+  handleUnauthorized(res);
+  if (res.status === 404) return null;
+  const json = await res.json();
+  return json.data ?? null;
+}
+
+/** Update field values for a runtime config namespace */
+export async function updateConfigValues(
+  name: string,
+  values: Record<string, unknown>,
+): Promise<ConfigItem> {
+  const res = await fetch(`/api/configs/${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(values),
+  });
+  handleUnauthorized(res);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error?.message ?? "Failed to update config");
+  return json.data;
+}
+
+/** Get version history for a runtime config namespace */
+export async function fetchConfigHistory(
+  name: string,
+  field?: string,
+): Promise<ConfigHistoryEntry[]> {
+  const url = field
+    ? `/api/configs/${encodeURIComponent(name)}/history?field=${encodeURIComponent(field)}`
+    : `/api/configs/${encodeURIComponent(name)}/history`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data?.items ?? [];
+}
