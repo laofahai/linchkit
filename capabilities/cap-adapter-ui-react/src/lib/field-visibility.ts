@@ -37,6 +37,21 @@ export function evaluateVisibility(
       return actual !== null && actual !== undefined && actual !== "";
     case "is_empty":
       return actual === null || actual === undefined || actual === "";
+    case "gt":
+      if (typeof actual !== "number" || typeof condition.value !== "number") return false;
+      return actual > condition.value;
+    case "gte":
+      if (typeof actual !== "number" || typeof condition.value !== "number") return false;
+      return actual >= condition.value;
+    case "lt":
+      if (typeof actual !== "number" || typeof condition.value !== "number") return false;
+      return actual < condition.value;
+    case "lte":
+      if (typeof actual !== "number" || typeof condition.value !== "number") return false;
+      return actual <= condition.value;
+    case "contains":
+      if (typeof actual !== "string" || typeof condition.value !== "string") return false;
+      return actual.toLowerCase().includes((condition.value as string).toLowerCase());
     default:
       return true;
   }

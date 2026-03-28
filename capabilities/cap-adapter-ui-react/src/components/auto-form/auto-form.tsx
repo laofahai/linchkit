@@ -226,6 +226,13 @@ export function AutoForm({
         delete dataToValidate[key];
       }
     }
+    // Strip fields hidden by visibleWhen — they are not user-editable and
+    // should not block form submission with validation errors.
+    for (const vf of view.fields) {
+      if (vf.visibleWhen && !evaluateVisibility(vf.visibleWhen, formData)) {
+        delete dataToValidate[vf.field];
+      }
+    }
     const result = zodSchema.safeParse(dataToValidate);
     if (result.success) {
       setErrors({});
@@ -244,7 +251,7 @@ export function AutoForm({
     }
     setErrors(newErrors);
     return false;
-  }, [zodSchema, formData, translateZodMessage]);
+  }, [zodSchema, formData, translateZodMessage, view.fields]);
 
   // ── Handlers ──
 
@@ -449,37 +456,54 @@ export function AutoForm({
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
 
-    if (!visible) return null;
+    const hasCondition = !!(node.visibleWhen ?? view.fields.find((f) => f.field === node.field)?.visibleWhen);
+
+    // Fields with visibleWhen: keep in DOM for CSS transition; fields without: skip entirely when invisible
+    if (!visible && !hasCondition) return null;
 
     return (
-      <>
-        <FormFieldRow
-          key={node.field}
-          node={node}
-          fieldDef={fieldDef}
-          viewField={vf ?? { field: node.field }}
-          value={formData[node.field]}
-          isViewMode={isViewMode}
-          required={required}
-          readonly={readonly}
-          error={errors[node.field]}
-          isDirty={dirtyFields.has(node.field)}
-          onChange={(val) => handleChange(node.field, val)}
-          onBlur={() => handleBlur(node.field)}
-        />
-        {suggestion && !isViewMode && (
-          <div style={{ gridColumn: "1 / -1" }} className="px-1 -mt-1 mb-1">
-            <AiSuggestionBadge
-              suggestion={suggestion}
-              onAccept={() => {
-                // Delegate to parent — value application happens via the registered setter
-                externalAiAccept?.(node.field);
-              }}
-              onReject={() => onAiReject?.(node.field)}
-            />
-          </div>
-        )}
-      </>
+      <div
+        style={
+          hasCondition
+            ? {
+                display: "grid",
+                gridTemplateRows: visible ? "1fr" : "0fr",
+                opacity: visible ? 1 : 0,
+                transition: "grid-template-rows 200ms ease-in-out, opacity 200ms ease-in-out",
+                pointerEvents: visible ? undefined : "none",
+              }
+            : undefined
+        }
+      >
+        <div style={hasCondition ? { overflow: "hidden" } : undefined}>
+          <FormFieldRow
+            key={node.field}
+            node={node}
+            fieldDef={fieldDef}
+            viewField={vf ?? { field: node.field }}
+            value={formData[node.field]}
+            isViewMode={isViewMode}
+            required={required}
+            readonly={readonly}
+            error={errors[node.field]}
+            isDirty={dirtyFields.has(node.field)}
+            onChange={(val) => handleChange(node.field, val)}
+            onBlur={() => handleBlur(node.field)}
+          />
+          {suggestion && !isViewMode && (
+            <div style={{ gridColumn: "1 / -1" }} className="px-1 -mt-1 mb-1">
+              <AiSuggestionBadge
+                suggestion={suggestion}
+                onAccept={() => {
+                  // Delegate to parent — value application happens via the registered setter
+                  externalAiAccept?.(node.field);
+                }}
+                onReject={() => onAiReject?.(node.field)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
