@@ -41,3 +41,6 @@ coverage/
 
 # Superpowers (Claude Code skill files)
 superpowers/
+
+# Overstory worktrees (dynamic agent workspaces)
+.overstory/worktrees/

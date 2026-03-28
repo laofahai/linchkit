@@ -1,0 +1,14 @@
+[
+	{
+		"id": "group-64e8de20",
+		"name": "m2-batch-2",
+		"memberIssueIds": [
+			"linchkit-2281",
+			"linchkit-0c81",
+			"linchkit-abb1"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-28T05:59:30.887Z",
+		"completedAt": "2026-03-28T14:02:16.697Z"
+	}
+]

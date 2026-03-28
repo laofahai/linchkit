@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { createSignalBus } from "../../life-system/signal-bus";
 import { defineSensor } from "../../life-system/define-sensor";
 import type { SensorContext, SensorSignal } from "../../types/life-system";

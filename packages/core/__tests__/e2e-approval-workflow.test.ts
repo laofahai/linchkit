@@ -20,8 +20,6 @@ import {
   createApprovalVerifier,
 } from "../src/engine/approval-engine";
 import { createCommandLayer } from "../src/engine/command-layer";
-import { PermissionRegistry } from "../src/engine/permission-engine";
-import { evaluateRules } from "../src/engine/rule-engine";
 import { createEventBus } from "../src/event/event-bus";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ActionDefinition, Actor } from "../src/types/action";
@@ -70,7 +68,7 @@ function createMemoryDataProvider() {
       counter++;
       const id = `id_${counter}`;
       const record = { id, ...input, _version: 1, tenant_id: null };
-      store.get(schema)!.set(id, record);
+      store.get(schema)?.set(id, record);
       return record;
     },
     async update(schema: string, id: string, updates: Record<string, unknown>) {
@@ -133,7 +131,7 @@ function createTestSetup(): TestSetup {
 
   const dp = createMemoryDataProvider();
   const executor = createActionExecutor({ dataProvider: dp });
-  const executionLogger = new InMemoryExecutionLogger();
+  const _executionLogger = new InMemoryExecutionLogger();
   const approvalStore = new InMemoryApprovalStore();
 
   const approvalRule = buildApprovalRule();
@@ -320,7 +318,7 @@ describe("E2E: Approval workflow", () => {
 
   describe("Permission enforcement", () => {
     it("enforces assignee check when enforceAssignee=true", async () => {
-      const { registry: eventRegistry, bus: eventBus } = createEventBus();
+      const { bus: eventBus } = createEventBus();
       const dp = createMemoryDataProvider();
       const executor = createActionExecutor({ dataProvider: dp });
       executor.registry.register(buildHighValueAction());
@@ -351,7 +349,7 @@ describe("E2E: Approval workflow", () => {
     });
 
     it("allows authorized actor with matching group", async () => {
-      const { registry: eventRegistry, bus: eventBus } = createEventBus();
+      const { bus: eventBus } = createEventBus();
       const dp = createMemoryDataProvider();
       const executor = createActionExecutor({ dataProvider: dp });
       executor.registry.register(buildHighValueAction());

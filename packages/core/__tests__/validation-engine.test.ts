@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { validatePhase1, validateProposal } from "../src/engine/validation-engine";
 import type { ProposalChange } from "../src/types/proposal";
 import type { SchemaDefinition } from "../src/types/schema";

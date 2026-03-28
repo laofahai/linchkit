@@ -806,7 +806,9 @@ Rules:
             headers,
           });
         } else {
-          result = await executor!.execute(actionName, actionInput, aiActor, {
+          // executor is guaranteed non-null here — guard at line 772 ensures it
+          const exec = executor as NonNullable<typeof executor>;
+          result = await exec.execute(actionName, actionInput, aiActor, {
             channel: "http",
             locale,
           });

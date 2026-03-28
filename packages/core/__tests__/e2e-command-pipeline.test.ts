@@ -36,7 +36,7 @@ function createMemoryDataProvider() {
       counter++;
       const id = `id_${counter}`;
       const record = { id, ...input, _version: 1, tenant_id: null };
-      store.get(schema)!.set(id, record);
+      store.get(schema)?.set(id, record);
       return record;
     },
     async update(schema: string, id: string, updates: Record<string, unknown>) {
@@ -92,12 +92,12 @@ function createTestSetup() {
 
 describe("E2E: CommandLayer 7-slot pipeline", () => {
   let layer: CommandLayer;
-  let executor: ReturnType<typeof createActionExecutor>;
+  let _executor: ReturnType<typeof createActionExecutor>;
 
   beforeEach(() => {
     const setup = createTestSetup();
     layer = setup.layer;
-    executor = setup.executor;
+    _executor = setup.executor;
   });
 
   describe("Each pipeline slot executes in order", () => {

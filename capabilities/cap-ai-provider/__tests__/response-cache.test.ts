@@ -10,7 +10,7 @@
  * - Cache statistics
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { AIResponseCache } from "../src/response-cache";
 import type { AICompletionOptions, AICompletionResult } from "@linchkit/core";
 

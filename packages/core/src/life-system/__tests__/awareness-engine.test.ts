@@ -44,7 +44,8 @@ describe('AwarenessEngine', () => {
     const issues = engine.structuralCheck();
     const noViewIssues = issues.filter(i => i.kind === 'schema_no_view');
     expect(noViewIssues).toHaveLength(1);
-    expect(noViewIssues[0].schema).toBe('Order');
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(noViewIssues[0]!.schema).toBe('Order');
   });
 
   test('structuralCheck detects action_never_called', () => {

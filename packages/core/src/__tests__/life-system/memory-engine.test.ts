@@ -36,7 +36,8 @@ describe("InMemoryMemoryStore", () => {
     await store.recordSignal(signal);
     const signals = await store.getSignals();
     expect(signals).toHaveLength(1);
-    expect(signals[0].type).toBe("sensor_a");
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(signals[0]!.type).toBe("sensor_a");
   });
 
   it("getSignals filters by schema via payload.schema", async () => {
@@ -56,7 +57,8 @@ describe("InMemoryMemoryStore", () => {
 
     const orders = await store.getSignals({ schema: "order" });
     expect(orders).toHaveLength(1);
-    expect(orders[0].type).toBe("s1");
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(orders[0]!.type).toBe("s1");
   });
 
   it("getSignals filters by since date", async () => {
@@ -80,7 +82,8 @@ describe("InMemoryMemoryStore", () => {
     const since = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
     const result = await store.getSignals({ since });
     expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("new");
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(result[0]!.type).toBe("new");
   });
 
   it("getSignals limits results", async () => {

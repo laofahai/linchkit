@@ -9,7 +9,7 @@
  * - hasPricing / getPricing utilities
  */
 
-import { beforeEach, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { CostEstimator, defaultCostEstimator } from "../src/cost-estimator";
 
 describe("CostEstimator", () => {
@@ -20,8 +20,8 @@ describe("CostEstimator", () => {
 
       const pricing = est.getPricing("claude-sonnet-4-20250514");
       expect(pricing).toBeDefined();
-      expect(pricing!.inputPerToken).toBeGreaterThan(0);
-      expect(pricing!.outputPerToken).toBeGreaterThan(0);
+      expect((pricing as NonNullable<typeof pricing>).inputPerToken).toBeGreaterThan(0);
+      expect((pricing as NonNullable<typeof pricing>).outputPerToken).toBeGreaterThan(0);
     });
 
     it("provides pricing for claude-opus-4-20250514", () => {
@@ -82,9 +82,9 @@ describe("CostEstimator", () => {
       const est = new CostEstimator();
       const tokens = 1_000_000;
 
-      const opusCost = est.estimateCost("claude-opus-4-20250514", tokens, 0)!;
-      const sonnetCost = est.estimateCost("claude-sonnet-4-20250514", tokens, 0)!;
-      const haikuCost = est.estimateCost("claude-haiku-4-5-20251001", tokens, 0)!;
+      const opusCost = est.estimateCost("claude-opus-4-20250514", tokens, 0) ?? 0;
+      const sonnetCost = est.estimateCost("claude-sonnet-4-20250514", tokens, 0) ?? 0;
+      const haikuCost = est.estimateCost("claude-haiku-4-5-20251001", tokens, 0) ?? 0;
 
       expect(opusCost).toBeGreaterThan(sonnetCost);
       expect(sonnetCost).toBeGreaterThan(haikuCost);

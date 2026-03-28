@@ -101,6 +101,7 @@ export function AIAssistant({
   const isLoading = status === "submitted" || status === "streaming";
 
   // Auto-scroll to bottom when messages or proposals change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages and proposals are triggers, not deps used inside
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -348,7 +349,6 @@ function MessageBubble({ message }: { message: UIMessage }) {
         }`}
       >
         {message.parts.map((part, index) => {
-          // biome-ignore lint/suspicious/noArrayIndexKey: stable message parts
           const key = `${message.id}-${index}`;
           return <MessagePart key={key} part={part} />;
         })}

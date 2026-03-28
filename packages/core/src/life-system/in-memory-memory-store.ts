@@ -5,7 +5,7 @@
  * Production deployments should use a persistent store (e.g. cap-memory-drizzle).
  */
 
-import type { Baseline, MemoryStore, Signal, SignalSource } from "../types/life-system";
+import type { Baseline, MemoryStore, Signal } from "../types/life-system";
 
 export class InMemoryMemoryStore implements MemoryStore {
   private signals: Signal[] = [];

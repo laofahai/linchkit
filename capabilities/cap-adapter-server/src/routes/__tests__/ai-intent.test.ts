@@ -83,7 +83,7 @@ function createMockAIService(responseContent: string): AIService {
       model: "mock-model",
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
     }),
-  } as AIService;
+  } as unknown as AIService;
 }
 
 const noopAIService: AIService = {
@@ -125,8 +125,6 @@ function buildTestServer(aiService: AIService): { server: ReturnType<typeof crea
 // ── Main test server ──────────────────────────────────────
 
 const PORT = 34210;
-const BASE_URL = `http://localhost:${PORT}`;
-
 // biome-ignore lint/suspicious/noExplicitAny: test server type
 let mainApp: any;
 let mainStore: InMemoryStore;

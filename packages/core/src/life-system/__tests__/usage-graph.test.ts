@@ -27,8 +27,10 @@ describe('UsageImportanceGraph', () => {
     graph.recordUsage('schema', 'B');
     graph.recordUsage('schema', 'C');
     const top2 = graph.topN(2);
-    expect(top2[0].schema).toBe('A');
-    expect(top2[1].schema).toBe('B');
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(top2[0]!.schema).toBe('A');
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
+    expect(top2[1]!.schema).toBe('B');
   });
 
   test('topN filters by kind', () => {
