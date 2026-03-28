@@ -5,6 +5,7 @@ domains:
   - architecture
   - chatter
   - life-system
+  - ui
 governance:
   max_entries: 100
   warn_entries: 150
