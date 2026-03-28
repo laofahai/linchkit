@@ -3,6 +3,7 @@ domains:
   - testing
   - core
   - architecture
+  - chatter
 governance:
   max_entries: 100
   warn_entries: 150
