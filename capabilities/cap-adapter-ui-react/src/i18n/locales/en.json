@@ -307,7 +307,9 @@
     "actionSuccess": "Action executed successfully.",
     "actionExecFailed": "Action execution failed.",
     "actionCancelled": "Action cancelled.",
-    "missingFields": "Missing required fields"
+    "missingFields": "Missing required fields",
+    "stop": "Stop",
+    "resolvingIntent": "Detecting action intent..."
   },
   "health": {
     "title": "System Health",
