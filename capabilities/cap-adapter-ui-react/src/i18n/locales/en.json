@@ -891,5 +891,20 @@
     "approvedBy": "Approved by",
     "rejectedBy": "Rejected by",
     "decisionNote": "Note"
+  },
+  "relationGraph": {
+    "title": "Relation Graph",
+    "subtitle": "Interactive visualization of schema relationships defined via links.",
+    "navLabel": "Relation Graph",
+    "noLinks": "No links registered.",
+    "noLinksDesc": "Define links between schemas using defineLink() to see the relationship graph.",
+    "loadFailed": "Failed to load graph data.",
+    "showInternal": "Show system schemas",
+    "cardinalityLabels": {
+      "one_to_one": "1:1",
+      "one_to_many": "1:N",
+      "many_to_one": "N:1",
+      "many_to_many": "N:M"
+    }
   }
 }

@@ -12,9 +12,10 @@
  * - GET /api/flows/:name/status/:instanceId — query flow instance status
  * - GET /api/states, GET /api/states/:name
  * - GET /api/executions, GET /api/executions/:id
+ * - GET /api/links — all registered link definitions (for relation graph)
  */
 
-import type { ExecutionStatus, FlowDefinition, StateDefinition } from "@linchkit/core";
+import type { ExecutionStatus, FlowDefinition, LinkDefinition, StateDefinition } from "@linchkit/core";
 import { DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
@@ -403,5 +404,14 @@ export function mountAdminRoutes(
         return notFound(set, `State machine "${params.name}" not found.`);
       }
       return { success: true, data: state };
+    })
+    // ── Link REST endpoints ─────────────────────────────────
+    .get("/api/links", () => {
+      const allLinks = collectFromCapabilities<LinkDefinition>(
+        undefined,
+        capabilities,
+        "links",
+      );
+      return { success: true, data: allLinks };
     });
 }

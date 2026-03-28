@@ -891,5 +891,20 @@
     "approvedBy": "批准人",
     "rejectedBy": "驳回人",
     "decisionNote": "备注"
+  },
+  "relationGraph": {
+    "title": "关系图谱",
+    "subtitle": "以交互式图形展示通过 Links 定义的 Schema 关系。",
+    "navLabel": "关系图谱",
+    "noLinks": "暂无已注册的链接。",
+    "noLinksDesc": "使用 defineLink() 定义 Schema 之间的关系，即可在此处查看关系图谱。",
+    "loadFailed": "图谱数据加载失败。",
+    "showInternal": "显示系统 Schema",
+    "cardinalityLabels": {
+      "one_to_one": "1:1",
+      "one_to_many": "1:N",
+      "many_to_one": "N:1",
+      "many_to_many": "N:M"
+    }
   }
 }

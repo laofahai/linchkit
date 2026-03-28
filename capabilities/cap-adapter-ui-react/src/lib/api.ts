@@ -424,6 +424,16 @@ export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | nu
   return json.data ?? null;
 }
 
+/**
+ * Fetch all registered link definitions from the server.
+ */
+export async function fetchLinks(): Promise<LinkDefinition[]> {
+  const res = await fetch("/api/links", { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data ?? [];
+}
+
 // ── REST Action execution ───────────────────────────────
 
 export interface ActionResult {
