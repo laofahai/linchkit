@@ -284,19 +284,25 @@ let cachedAppConfig: AppConfig | null = null;
 
 /**
  * Fetch app config from the server.
- * Returns cached result after first successful fetch.
+ * Only caches on successful fetch — errors are not cached so the next
+ * page load will retry (prevents permanent empty menus after startup glitch).
  */
 export async function fetchAppConfig(): Promise<AppConfig> {
   if (cachedAppConfig) return cachedAppConfig;
+  const fallback: AppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
   try {
     const res = await fetch("/api/app-config");
     const json = await res.json();
-    cachedAppConfig = json.data ?? { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
+    if (json.data) {
+      cachedAppConfig = json.data;
+      return cachedAppConfig as AppConfig;
+    }
+    // Server responded but returned no data — don't cache, return fallback
+    return fallback;
   } catch {
-    // If server is unreachable, assume no auth (graceful degradation)
-    cachedAppConfig = { authEnabled: false, aiEnabled: false, capabilities: [], pages: [], menuItems: [] };
+    // Server unreachable — return fallback without caching so next load retries
+    return fallback;
   }
-  return cachedAppConfig as AppConfig;
 }
 
 /**
