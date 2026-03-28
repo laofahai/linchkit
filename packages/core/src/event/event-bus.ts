@@ -228,9 +228,6 @@ export class EventBus {
    *  Accepts optional tenantId to propagate tenant scope to chained events. */
   protected createHandlerContext(tenantId?: string): EventHandlerContext {
     return {
-      execute: () => {
-        throw new Error("execute() is not wired");
-      },
       emit: (eventType: string, payload: Record<string, unknown>) => {
         const record: EventRecord = {
           id: crypto.randomUUID(),
@@ -246,12 +243,6 @@ export class EventBus {
         this.emit(record).catch(() => {
           // Intentionally swallowed
         });
-      },
-      get: () => {
-        throw new Error("get() is not wired");
-      },
-      query: () => {
-        throw new Error("query() is not wired");
       },
     };
   }

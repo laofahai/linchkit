@@ -9,7 +9,7 @@
 import { resolve } from "node:path";
 import type { LinchKitConfig, Logger } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core/server";
-import { resolveEnvVars } from "@linchkit/core/utils/env";
+import { resolveEnvVars } from "@linchkit/core";
 
 /** Default configuration values */
 const CONFIG_DEFAULTS: LinchKitConfig = {

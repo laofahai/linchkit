@@ -124,20 +124,12 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
     };
   }
 
-  /** Create a minimal handler context for re-execution */
+  /** Create a minimal handler context for re-execution.
+   *  emit is swallowed to prevent cascading retries. */
   function createHandlerContext(): EventHandlerContext {
     return {
-      execute: () => {
-        throw new Error("execute() is not wired in OutboxWorker");
-      },
       emit: () => {
         // Swallow re-emissions from retry context to prevent cascading retries
-      },
-      get: () => {
-        throw new Error("get() is not wired in OutboxWorker");
-      },
-      query: () => {
-        throw new Error("query() is not wired in OutboxWorker");
       },
     };
   }
