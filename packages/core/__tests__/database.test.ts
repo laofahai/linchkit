@@ -1,7 +1,12 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { checkConnection, closeDatabase, createDatabase } from "../src/persistence/database";
 
 // ── Lifecycle & config ──────────────────────────────────
+
+beforeEach(async () => {
+  // Ensure clean state before each test (in case a prior test file leaked a connection)
+  await closeDatabase();
+});
 
 afterEach(async () => {
   // Ensure clean state between tests
