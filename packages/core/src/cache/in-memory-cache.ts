@@ -1,11 +1,15 @@
 /**
- * InMemoryCacheProvider — L1 process-local cache with LRU eviction and TTL
+ * InMemoryCacheProvider — L1 process-local cache with LRU eviction, TTL, and SWR
  *
  * Uses a Map (insertion-ordered) for O(1) get/set with LRU semantics:
  * on access, the entry is deleted and re-inserted to move it to the tail.
  * Eviction removes from the head (oldest / least-recently-used).
  *
- * See spec: docs/specs/34_cache_strategy.md §2 (L1)
+ * Supports stale-while-revalidate (SWR): after soft TTL expires but before
+ * hard TTL (softTtl + swrTtl), the value is served stale so callers can
+ * revalidate in the background without blocking.
+ *
+ * See spec: docs/specs/34_cache_strategy.md §2 (L1), §3.2 (SWR for tenant overrides)
  */
 
 import type { CacheEntry, CacheProvider, CacheSetOptions, CacheStats } from "./cache-provider";
@@ -33,6 +37,15 @@ export class InMemoryCacheProvider implements CacheProvider {
   // ── get ─────────────────────────────────────────────────
 
   get<T = unknown>(key: string): T | undefined {
+    return this.getWithStaleness<T>(key)?.value;
+  }
+
+  /**
+   * Retrieve a value with staleness metadata.
+   * Returns `{ value, isStale: true }` when in the SWR window (soft-expired but still alive).
+   * Returns undefined on hard expiry or miss.
+   */
+  getWithStaleness<T = unknown>(key: string): { value: T; isStale: boolean } | undefined {
     const entry = this.store.get(key);
 
     if (!entry) {
@@ -40,8 +53,10 @@ export class InMemoryCacheProvider implements CacheProvider {
       return undefined;
     }
 
-    // TTL check
-    if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
+    const now = Date.now();
+
+    // Hard expiry check — evict and count as miss
+    if (entry.expiresAt !== undefined && now > entry.expiresAt) {
       this.removeEntry(key, entry);
       this._misses++;
       return undefined;
@@ -52,7 +67,11 @@ export class InMemoryCacheProvider implements CacheProvider {
     this.store.set(key, entry);
 
     this._hits++;
-    return entry.value as T;
+
+    // Stale check: within SWR window if past softExpiresAt but not yet hardExpiresAt
+    const isStale = entry.softExpiresAt !== undefined && now > entry.softExpiresAt;
+
+    return { value: entry.value as T, isStale };
   }
 
   // ── set ─────────────────────────────────────────────────
@@ -66,11 +85,28 @@ export class InMemoryCacheProvider implements CacheProvider {
     }
 
     const tags = options?.tags ?? [];
+    const now = Date.now();
+
+    let softExpiresAt: number | undefined;
+    let hardExpiresAt: number | undefined;
+
+    if (options?.ttl !== undefined) {
+      if (options.swrTtl !== undefined) {
+        // SWR mode: soft expiry at ttl, hard eviction at ttl + swrTtl
+        softExpiresAt = now + options.ttl;
+        hardExpiresAt = now + options.ttl + options.swrTtl;
+      } else {
+        // Normal TTL: hard eviction at ttl
+        hardExpiresAt = now + options.ttl;
+      }
+    }
+
     const entry: CacheEntry = {
       value,
-      expiresAt: options?.ttl !== undefined ? Date.now() + options.ttl : undefined,
+      expiresAt: hardExpiresAt,
+      softExpiresAt,
       tags,
-      createdAt: Date.now(),
+      createdAt: now,
     };
 
     this.store.set(key, entry);

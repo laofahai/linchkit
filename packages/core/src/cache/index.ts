@@ -7,3 +7,9 @@
 export { CacheManager, type CacheManagerOptions, type NamespacedCache } from "./cache-manager";
 export type { CacheEntry, CacheProvider, CacheSetOptions, CacheStats } from "./cache-provider";
 export { type InMemoryCacheOptions, InMemoryCacheProvider } from "./in-memory-cache";
+export {
+  type CacheInvalidationPayload,
+  CACHE_INVALIDATION_CHANNEL,
+  PostgresCacheInvalidator,
+  type PostgresCacheInvalidatorOptions,
+} from "./postgres-invalidator";

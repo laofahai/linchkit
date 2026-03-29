@@ -76,6 +76,42 @@ describe("InMemoryCacheProvider", () => {
     expect(cache.get("no-ttl")).toBe("value");
   });
 
+  // -- SWR (stale-while-revalidate) --
+
+  it("serves stale value during SWR window after soft expiry", async () => {
+    cache.set("swr-key", "fresh", { ttl: 40, swrTtl: 200 });
+
+    // Before soft expiry: fresh and not stale
+    const before = cache.getWithStaleness("swr-key");
+    expect(before?.value).toBe("fresh");
+    expect(before?.isStale).toBe(false);
+
+    // After soft expiry but within SWR window: stale but still served
+    await sleep(60);
+    expect(cache.get("swr-key")).toBe("fresh"); // still served via get()
+    const stale = cache.getWithStaleness("swr-key");
+    expect(stale?.value).toBe("fresh");
+    expect(stale?.isStale).toBe(true);
+  });
+
+  it("hard-expires entry after ttl + swrTtl", async () => {
+    cache.set("swr-expire", "value", { ttl: 30, swrTtl: 30 });
+    await sleep(80); // past both soft and hard TTL
+    expect(cache.get("swr-expire")).toBeUndefined();
+    expect(cache.getWithStaleness("swr-expire")).toBeUndefined();
+  });
+
+  it("getWithStaleness returns isStale=false for fresh entries within normal TTL", () => {
+    cache.set("fresh-key", "value", { ttl: 5000 });
+    const result = cache.getWithStaleness("fresh-key");
+    expect(result?.value).toBe("value");
+    expect(result?.isStale).toBe(false);
+  });
+
+  it("getWithStaleness returns undefined for missing keys", () => {
+    expect(cache.getWithStaleness("missing")).toBeUndefined();
+  });
+
   // -- LRU eviction --
 
   it("evicts least-recently-used entries when maxSize is exceeded", () => {

@@ -13,6 +13,7 @@
 
 import type { CommandContext, MiddlewareHandler, MiddlewareRegistration } from "@linchkit/core";
 import { AuthorizationError, type PermissionRegistry } from "@linchkit/core";
+import type { CacheManager } from "@linchkit/core/server";
 import {
   checkActionPermission,
   resolveConditionVariables,
@@ -20,6 +21,21 @@ import {
 } from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
+
+/** Cached permission decision for a single actor + action + schema combination */
+interface CachedPermissionResult {
+  allowed: boolean;
+  reason?: string;
+  decidedBy?: string;
+  dataAccess?: {
+    read: unknown;
+    write: unknown;
+  };
+  fieldAccess?: {
+    visible?: string[];
+    hidden?: string[];
+  };
+}
 
 export interface PermissionMiddlewareOptions {
   /** The permission registry containing all group definitions */
@@ -36,7 +52,17 @@ export interface PermissionMiddlewareOptions {
    * These are typically actions with exposure: "all" and no auth requirement.
    */
   publicActions?: string[];
+  /**
+   * Cache manager for caching permission decisions.
+   * When provided, permission check results are cached per actor+tenant+action+schema.
+   * Cache key: perm:{tenantId}:{userId}:{command}:{schema}
+   * TTL: 10 minutes. Invalidated by permission-related write events (via CacheManager).
+   */
+  cacheManager?: CacheManager;
 }
+
+/** TTL for permission decision cache entries: 10 minutes (spec §4) */
+const PERM_CACHE_TTL_MS = 10 * 60 * 1000;
 
 // ── Middleware factory ─────────────────────────────────────
 
@@ -54,7 +80,7 @@ export interface PermissionMiddlewareOptions {
 export function createPermissionMiddleware(
   options: PermissionMiddlewareOptions,
 ): MiddlewareHandler {
-  const { registry, resolveCapability, publicActions = [] } = options;
+  const { registry, resolveCapability, publicActions = [], cacheManager } = options;
 
   return async (ctx: CommandContext, next: () => Promise<void>): Promise<void> => {
     const { actor, command, action } = ctx;
@@ -76,10 +102,48 @@ export function createPermissionMiddleware(
       ? resolveCapability(command, ctx)
       : (action?.schema ?? command);
 
-    // Step 1: Check action permission
+    // ── Cache lookup ─────────────────────────────────────────
+    const tenantId = (ctx.meta?.tenantId as string | undefined) ?? "";
+    const schemaKey = action?.schema ?? "";
+    const cacheKey = `perm:${tenantId}:${actor.id}:${command}:${schemaKey}`;
+    const cacheTags = [`perm:${tenantId}`, `perm`];
+
+    if (cacheManager) {
+      const cached = cacheManager.get<CachedPermissionResult>(cacheKey);
+      if (cached !== undefined) {
+        if (!cached.allowed) {
+          throw new AuthorizationError({
+            code: "authz.action.denied",
+            message: `Permission denied for action "${command}": ${cached.reason ?? "no matching permission group"}`,
+            requiredGroups: actor.groups.length > 0 ? undefined : ["(any)"],
+            details: {
+              action: command,
+              capability: capabilityName,
+              decidedBy: cached.decidedBy,
+            },
+          });
+        }
+        if (cached.dataAccess) {
+          ctx.meta.dataAccess = cached.dataAccess;
+        }
+        if (cached.fieldAccess) {
+          ctx.meta.fieldAccess = cached.fieldAccess;
+        }
+        await next();
+        return;
+      }
+    }
+
+    // ── Step 1: Check action permission ──────────────────────
     const permResult = checkActionPermission(registry, actor, capabilityName, command);
 
     if (!permResult.allowed) {
+      // Cache negative result too (prevents repeat lookups for denied actions)
+      cacheManager?.set<CachedPermissionResult>(
+        cacheKey,
+        { allowed: false, reason: permResult.reason, decidedBy: permResult.decidedBy },
+        { ttl: PERM_CACHE_TTL_MS, tags: cacheTags },
+      );
       throw new AuthorizationError({
         code: "authz.action.denied",
         message: `Permission denied for action "${command}": ${permResult.reason ?? "no matching permission group"}`,
@@ -92,10 +156,11 @@ export function createPermissionMiddleware(
       });
     }
 
-    // Step 2: Resolve data access conditions for the target schema
+    // ── Step 2: Resolve data access conditions ───────────────
+    let resolvedDataAccess: CachedPermissionResult["dataAccess"] | undefined;
+
     if (action?.schema) {
       const readAccess = resolveDataAccess(registry, actor, capabilityName, action.schema, "read");
-
       const writeAccess = resolveDataAccess(
         registry,
         actor,
@@ -115,16 +180,13 @@ export function createPermissionMiddleware(
           ? resolveConditionVariables(writeAccess, actor)
           : writeAccess;
 
-      // Inject data access conditions into ctx.meta for use by data layer
-      ctx.meta.dataAccess = {
-        read: resolvedReadAccess,
-        write: resolvedWriteAccess,
-      };
+      resolvedDataAccess = { read: resolvedReadAccess, write: resolvedWriteAccess };
+      ctx.meta.dataAccess = resolvedDataAccess;
     }
 
-    // Step 3: Resolve field-level visibility
-    // Field-level filtering is handled at the query/response layer,
-    // but we attach the resolved field permissions for downstream use
+    // ── Step 3: Resolve field-level visibility ───────────────
+    let resolvedFieldAccess: CachedPermissionResult["fieldAccess"] | undefined;
+
     if (action?.schema) {
       const groups = registry.resolveActorPermissions(actor);
       const visibleFields = new Set<string>();
@@ -149,13 +211,26 @@ export function createPermissionMiddleware(
         }
       }
 
-      // Only set if any group declared field-level permissions
       if (visibleFields.size > 0 || hiddenFields.size > 0) {
-        ctx.meta.fieldAccess = {
+        resolvedFieldAccess = {
           visible: visibleFields.size > 0 ? Array.from(visibleFields) : undefined,
           hidden: hiddenFields.size > 0 ? Array.from(hiddenFields) : undefined,
         };
+        ctx.meta.fieldAccess = resolvedFieldAccess;
       }
+    }
+
+    // ── Cache positive result ─────────────────────────────────
+    if (cacheManager) {
+      cacheManager.set<CachedPermissionResult>(
+        cacheKey,
+        {
+          allowed: true,
+          dataAccess: resolvedDataAccess,
+          fieldAccess: resolvedFieldAccess,
+        },
+        { ttl: PERM_CACHE_TTL_MS, tags: cacheTags },
+      );
     }
 
     await next();

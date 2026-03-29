@@ -14,11 +14,12 @@
  * - GET /api/executions, GET /api/executions/:id
  * - GET /api/links — all registered link definitions (for relation graph)
  * - GET /api/semantic-relations — inferred semantic relations between capabilities/schemas
+ * - GET /internal/cache/stats — cache hit rate, eviction rate, memory usage (spec §9)
  */
 
 import type { ExecutionStatus, FlowDefinition, LinkDefinition, StateDefinition } from "@linchkit/core";
 import { buildRelationGraph } from "@linchkit/core";
-import { DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
+import { type CacheManager, DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
@@ -431,5 +432,51 @@ export function mountAdminRoutes(
     .get("/api/semantic-relations", () => {
       const graph = buildRelationGraph(capabilities);
       return { success: true, data: graph.relations };
+    })
+    // ── Cache stats endpoint (spec §9) ─────────────────────
+    .get("/internal/cache/stats", () => {
+      const cacheManager = options.cacheManager as CacheManager | undefined;
+      if (!cacheManager) {
+        return { success: false, error: "No cache manager configured" };
+      }
+
+      const raw = cacheManager.stats();
+      const l1 = raw.l1;
+      const l2 = raw.l2;
+
+      // Compute eviction rate: evictions / (hits + misses + evictions) — fraction of all operations
+      const l1Total = l1.hits + l1.misses;
+      const l1EvictionRate = l1.evictions + l1Total > 0
+        ? l1.evictions / (l1.evictions + l1Total)
+        : 0;
+
+      const result: Record<string, unknown> = {
+        l1: {
+          hits: l1.hits,
+          misses: l1.misses,
+          evictions: l1.evictions,
+          size: l1.size,
+          hitRate: l1.hitRate,
+          evictionRate: l1EvictionRate,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      if (l2) {
+        const l2Total = l2.hits + l2.misses;
+        const l2EvictionRate = l2.evictions + l2Total > 0
+          ? l2.evictions / (l2.evictions + l2Total)
+          : 0;
+        result.l2 = {
+          hits: l2.hits,
+          misses: l2.misses,
+          evictions: l2.evictions,
+          size: l2.size,
+          hitRate: l2.hitRate,
+          evictionRate: l2EvictionRate,
+        };
+      }
+
+      return { success: true, data: result };
     });
 }
