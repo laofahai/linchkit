@@ -68,3 +68,122 @@ export function collectAllIds(nodes: TreeNode[]): Set<string> {
   }
   return ids;
 }
+
+/**
+ * Filter a tree by a search query string.
+ *
+ * A node matches if its label contains the query (case-insensitive).
+ * Ancestor nodes of matching nodes are always included to preserve the chain.
+ * Returns a new tree containing only matching nodes and their ancestors.
+ *
+ * @param nodes       Tree nodes to filter
+ * @param query       Search string (empty string returns original tree)
+ * @param labelField  Field name used as the node label
+ * @returns  Filtered tree preserving ancestor chain
+ */
+export function filterTree(nodes: TreeNode[], query: string, labelField: string): TreeNode[] {
+  if (!query.trim()) return nodes;
+
+  const lowerQuery = query.toLowerCase();
+
+  function filterNode(node: TreeNode): TreeNode | null {
+    const label = String(node.record[labelField] ?? node.record.name ?? node.record.id ?? "");
+    const selfMatches = label.toLowerCase().includes(lowerQuery);
+
+    // Recursively filter children
+    const filteredChildren = node.children.map(filterNode).filter((n): n is TreeNode => n !== null);
+
+    if (selfMatches || filteredChildren.length > 0) {
+      return { record: node.record, children: filteredChildren };
+    }
+    return null;
+  }
+
+  return nodes.map(filterNode).filter((n): n is TreeNode => n !== null);
+}
+
+/**
+ * Collect ids of all nodes that should be expanded when a search query is active.
+ * Expands all ancestor nodes of matching nodes so they are visible.
+ */
+export function getSearchExpandIds(nodes: TreeNode[], query: string, labelField: string): Set<string> {
+  if (!query.trim()) return new Set();
+
+  const lowerQuery = query.toLowerCase();
+  const ids = new Set<string>();
+
+  function walk(node: TreeNode): boolean {
+    const label = String(node.record[labelField] ?? node.record.name ?? node.record.id ?? "");
+    const selfMatches = label.toLowerCase().includes(lowerQuery);
+
+    let childMatches = false;
+    for (const child of node.children) {
+      if (walk(child)) {
+        childMatches = true;
+      }
+    }
+
+    // If any descendant matches, expand this node
+    if (childMatches) {
+      ids.add(String(node.record.id));
+    }
+
+    return selfMatches || childMatches;
+  }
+
+  for (const node of nodes) {
+    walk(node);
+  }
+  return ids;
+}
+
+/**
+ * Reparent a record in a flat list: update its parentField to newParentId.
+ * Returns the modified records array (immutable — creates new objects).
+ */
+export function reparentRecord(
+  records: Record<string, unknown>[],
+  draggedId: string,
+  newParentId: string | null,
+  parentField: string,
+): Record<string, unknown>[] {
+  return records.map((r) => {
+    if (String(r.id) === draggedId) {
+      return { ...r, [parentField]: newParentId };
+    }
+    return r;
+  });
+}
+
+/**
+ * Check if making `candidateId` a child of `newParentId` would create a cycle.
+ * Returns true if it would (i.e., newParentId is a descendant of candidateId).
+ */
+export function wouldCreateCycle(
+  records: Record<string, unknown>[],
+  draggedId: string,
+  newParentId: string | null,
+  parentField: string,
+): boolean {
+  if (newParentId === null) return false;
+  if (newParentId === draggedId) return true;
+
+  // Walk up from newParentId — if we encounter draggedId, it's a cycle
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const r of records) {
+    byId.set(String(r.id), r);
+  }
+
+  let current: string | null = newParentId;
+  const visited = new Set<string>();
+  while (current !== null) {
+    if (current === draggedId) return true;
+    if (visited.has(current)) break; // defensive cycle break
+    visited.add(current);
+    const rec = byId.get(current);
+    if (!rec) break;
+    const parentId = rec[parentField];
+    current = parentId == null || parentId === "" ? null : String(parentId);
+  }
+  return false;
+}
