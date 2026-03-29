@@ -2,8 +2,10 @@
  * AutoForm type definitions.
  */
 
-import type { SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { RecordTemplate, SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
+
+export type { RecordTemplate };
 
 /** Field-level errors returned from server validation */
 export interface ServerFieldErrors {
@@ -50,4 +52,9 @@ export interface AutoFormProps {
   onValuesChange?: (values: Record<string, unknown>) => void;
   /** Called once on mount — registers a setter so parent can programmatically set field values */
   registerSetField?: (setter: (fieldName: string, value: unknown) => void) => void;
+  /**
+   * Record templates to display as a pre-fill selector in create mode.
+   * When provided and mode === "create", a TemplateSelector is shown above the form.
+   */
+  templates?: RecordTemplate[];
 }

@@ -41,5 +41,6 @@ export type * from "./state";
 export type * from "./transport";
 export type * from "./version";
 export type * from "./view";
+export type * from "./template";
 export type * from "./watcher";
 export type * from "./widget";
