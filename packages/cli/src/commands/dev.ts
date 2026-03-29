@@ -73,7 +73,7 @@ export const devCommand = defineCommand({
       console.log(`[linch] Config loaded from ${result.configPath}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Config file not found")) {
+      if (msg.startsWith("Config file not found:")) {
         console.log("[linch] No config found, using defaults.");
       } else {
         console.error("[linch] Failed to load config:", msg);
