@@ -18,7 +18,7 @@ import { AuthorizationError, LinchKitError, SystemError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
-import { getCurrentTrace, withTrace } from "../observability/trace-context";
+import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
@@ -148,6 +148,8 @@ export interface CommandExecuteOptions {
   approvalId?: string;
   /** Rule names to skip during re-execution (forwarded to executor) */
   skipRules?: string[];
+  /** External trace ID — when provided, the pipeline reuses this instead of generating a new one */
+  traceId?: string;
 }
 
 /**
@@ -221,9 +223,11 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // Wrap entire pipeline in a trace context for observability.
     // If already inside a trace (e.g. event handler re-entry), depth increments.
     const pipelineStart = Date.now();
-    return (await withTrace(async () => {
-      return await executeInner(execOptions, pipelineStart);
-    })) as ActionResult;
+    const traceFn = async () => executeInner(execOptions, pipelineStart);
+    if (execOptions.traceId) {
+      return (await withTraceId(execOptions.traceId, traceFn)) as ActionResult;
+    }
+    return (await withTrace(traceFn)) as ActionResult;
   }
 
   async function executeInner(

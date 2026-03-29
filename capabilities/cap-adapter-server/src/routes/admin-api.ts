@@ -56,6 +56,15 @@ export function mountAdminRoutes(
         schemaCount: schemaRegistry?.getAll().length ?? 0,
         capabilityCount: capabilities.length,
       };
+      const metrics = metricsCollector
+        ? {
+            actionCount:
+              metricsCollector.getCounter("action.executed") +
+              metricsCollector.getCounter("command.processed"),
+            ruleBlockCount: metricsCollector.getCounter("rule.block_count"),
+            eventCount: metricsCollector.getCounter("event.emitted"),
+          }
+        : undefined;
       if (healthCheckRegistry) {
         const result = await healthCheckRegistry.runAll();
         // Return 503 when any check is unhealthy so load balancers can route away
@@ -67,6 +76,7 @@ export function mountAdminRoutes(
           checks: result.checks,
           timestamp: result.timestamp,
           system,
+          ...(metrics !== undefined && { metrics }),
         };
       }
       // Fallback: basic liveness response when no registry is configured
@@ -75,6 +85,7 @@ export function mountAdminRoutes(
         checks: [],
         timestamp: new Date().toISOString(),
         system,
+        ...(metrics !== undefined && { metrics }),
       };
     })
     // Metrics summary endpoint — returns aggregated metrics from the collector

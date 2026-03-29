@@ -31,7 +31,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core";
 import type { HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
-import { createTenantAwareDataProvider } from "@linchkit/core/server";
+import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
@@ -205,6 +205,14 @@ export function createServer(
       credentials: false,
     }),
   );
+
+  // Propagate trace ID to all HTTP responses via X-Trace-Id header
+  app.onAfterHandle(({ set }) => {
+    // Use the trace ID from AsyncLocalStorage (set by CommandLayer) when available,
+    // otherwise generate a fresh one so all responses include X-Trace-Id.
+    const activeTrace = getCurrentTrace();
+    set.headers["x-trace-id"] = activeTrace?.traceId ?? crypto.randomUUID();
+  });
 
   // Ensure options is defined for route modules (they expect non-optional parameter)
   const opts = options ?? {};
