@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # review-gate.sh — Post-merge review gate for overstory workflow
 # Usage: review-gate.sh <base-branch> <feature-branch> [--auto-revert] [--output <file>] [--large]
+#                       [--task-id <id>] [--domain <name>] [--context-lines <n>]
 # Exit codes: 0 = PASS, 1 = FAIL (review failed), 2 = error
 
 set -euo pipefail
@@ -9,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Args ──────────────────────────────────────────────────────────────────────
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <base-branch> <feature-branch> [--auto-revert] [--output <file>] [--large]" >&2
+  echo "Usage: $0 <base-branch> <feature-branch> [--auto-revert] [--output <file>] [--large] [--task-id <id>] [--domain <name>] [--context-lines <n>]" >&2
   exit 2
 fi
 
@@ -30,6 +31,18 @@ while [[ $i -le $# ]]; do
       OUTPUT_FILE="${!i}"
       ;;
     --large) EXTRA_FLAGS="$EXTRA_FLAGS --large" ;;
+    --task-id)
+      i=$((i + 1))
+      EXTRA_FLAGS="$EXTRA_FLAGS --task-id ${!i}"
+      ;;
+    --domain)
+      i=$((i + 1))
+      EXTRA_FLAGS="$EXTRA_FLAGS --domain ${!i}"
+      ;;
+    --context-lines)
+      i=$((i + 1))
+      EXTRA_FLAGS="$EXTRA_FLAGS --context-lines ${!i}"
+      ;;
   esac
   i=$((i + 1))
 done
