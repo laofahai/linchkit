@@ -62,6 +62,7 @@ export function FormFieldRow({
         className={cn("py-2 text-sm min-h-[36px]", node.className)}
         style={{ gridColumn: `span ${colspan * 2}` }}
         data-field={node.field}
+        data-form-field
       >
         {isViewMode || readonly ? (
           <FieldDisplay
@@ -107,6 +108,7 @@ export function FormFieldRow({
         className={cn("text-sm min-h-[36px] min-w-0", "py-1", "max-md:pt-0")}
         style={colspan > 1 ? { gridColumn: `span ${colspan * 2 - 1}` } : undefined}
         data-field={node.field}
+        data-form-field
       >
         {isViewMode || readonly ? (
           <FieldDisplay

@@ -1,3 +1,4 @@
+@import "./styles/print.css";
 @import "./capability-styles.css";
 @import "@fontsource-variable/geist";
 @import "react-grid-layout/css/styles.css";
