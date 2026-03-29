@@ -45,5 +45,17 @@
 		"status": "active",
 		"createdAt": "2026-03-29T04:55:26.564Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-5760f3db",
+		"name": "m2-batch-closing",
+		"memberIssueIds": [
+			"linchkit-82d4",
+			"linchkit-508d",
+			"linchkit-a3b4"
+		],
+		"status": "active",
+		"createdAt": "2026-03-29T05:53:24.259Z",
+		"completedAt": null
 	}
 ]
