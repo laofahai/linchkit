@@ -35,6 +35,8 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       // Resolve locale and actor from request
       const locale = resolveRequestLocale(request);
       const actor = await resolveActor(request, resolveRequestActor);
+      // Accept external trace ID for distributed tracing propagation
+      const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
 
       // Use CommandLayer pipeline when available, otherwise direct executor
       let result: ActionResult;
@@ -51,6 +53,7 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
           channel: "http",
           locale,
           headers,
+          traceId: incomingTraceId,
         });
       } else {
         if (!executor) {
