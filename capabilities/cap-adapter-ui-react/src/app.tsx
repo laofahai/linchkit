@@ -35,6 +35,7 @@ import { SchemaListPage } from "./pages/schema-list";
 import { SettingsPage } from "./pages/settings";
 import { StateMachineDetailPage } from "./pages/state-machines";
 import { DashboardPage } from "./pages/dashboard";
+import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 
 // ── Root route (no layout) ────────────────────────────────────────
 
@@ -218,6 +219,13 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  const metricsDashboardRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/metrics",
+    component: MetricsDashboardPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -235,6 +243,7 @@ function buildRouter(appConfig: AppConfig) {
       settingsRoute,
       configCenterRoute,
       relationGraphRoute,
+      metricsDashboardRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),
