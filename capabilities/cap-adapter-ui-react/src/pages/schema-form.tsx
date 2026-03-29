@@ -34,6 +34,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  Printer,
   RefreshCw,
   ServerCrash,
   Sparkles,
@@ -98,6 +99,15 @@ export function SchemaFormPage() {
       (schema ? generateFallbackFormView(schema) : undefined),
     [bundle?.views, schema],
   );
+
+  // Look up optional per-schema print layout (named '{schema}-print'); reserved for future use
+  const _printView = useMemo(() => {
+    if (!bundle?.views || !schemaName) return undefined;
+    const printViewName = `${schemaName}-print`;
+    return Object.values(bundle.views).find(
+      (v) => v.name === printViewName && v.type === "form",
+    );
+  }, [bundle?.views, schemaName]);
 
   // Status bar steps derived from schema, with i18n label resolution
   const statusSteps = useMemo((): StatusBarStep[] | null => {
@@ -481,6 +491,10 @@ export function SchemaFormPage() {
     navigate({ to: "/schemas/$name", params: { name: schemaName } });
   }
 
+  function handlePrint() {
+    window.print();
+  }
+
   // Missing schema name in route
   if (!schemaName) {
     return (
@@ -642,6 +656,10 @@ export function SchemaFormPage() {
 
               {!isCreate && !isEditing && !isInternal && (
                 <>
+                  <Button size="sm" variant="outline" onClick={handlePrint}>
+                    <Printer className="mr-1.5 size-3.5" />
+                    {t("common.print", "Print")}
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
                     <Pencil className="mr-1.5 size-3.5" />
                     {t("common.edit", "Edit")}

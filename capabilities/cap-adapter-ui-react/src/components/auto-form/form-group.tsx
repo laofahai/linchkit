@@ -25,7 +25,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
   if (depth > 0) {
     // Inner group: label-value grid where all labels auto-align
     return (
-      <div className={cn(node.className)}>
+      <div className={cn(node.className)} data-form-group>
         {title && (
           <div className="py-3 border-b border-border/50">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -47,7 +47,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
 
   // Top-level group: equal columns, each containing an inner group
   return (
-    <div className={cn(node.className)}>
+    <div className={cn(node.className)} data-form-group>
       {title && (
         <div className="py-3 border-b border-border/50">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
