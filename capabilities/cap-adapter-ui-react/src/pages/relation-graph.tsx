@@ -29,8 +29,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import type { LinkDefinition } from "@linchkit/core/types";
+import type { SemanticRelation } from "@linchkit/core/types";
 import { useQuery } from "@tanstack/react-query";
-import { fetchLinks, fetchSchemas, type SchemaInfo } from "@/lib/api";
+import { fetchLinks, fetchSchemas, fetchSemanticRelations, type SchemaInfo } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
 
@@ -216,24 +217,117 @@ function RelationEdge({
   );
 }
 
+// ── Semantic relation edge ───────────────────────────────
+
+// Pastel colors per semantic relation type
+const SEMANTIC_EDGE_COLOR: Record<string, string> = {
+  depends_on: "#6366f1",
+  contains: "#0ea5e9",
+  references: "#10b981",
+  affects: "#f59e0b",
+  triggers: "#ef4444",
+  orchestrates: "#8b5cf6",
+  reads_from: "#ec4899",
+  bridges: "#64748b",
+};
+
+interface SemanticEdgeData {
+  relationType: string;
+  inferredFrom?: string;
+  [key: string]: unknown;
+}
+
+function SemanticEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+}: EdgeProps<Edge<SemanticEdgeData>>) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const relType = data?.relationType ?? "";
+  const color = SEMANTIC_EDGE_COLOR[relType] ?? "#94a3b8";
+
+  return (
+    <>
+      <path
+        id={id}
+        d={edgePath}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeDasharray="5,3"
+        markerEnd={`url(#semantic-arrow-${relType})`}
+        opacity={0.7}
+      />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: "absolute",
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              color,
+              backgroundColor: "white",
+              padding: "1px 5px",
+              borderRadius: 9999,
+              border: `1px solid ${color}`,
+              whiteSpace: "nowrap",
+              lineHeight: "16px",
+              display: "inline-block",
+              opacity: 0.9,
+            }}
+          >
+            {relType.replace(/_/g, " ")}
+          </span>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
 // ── Node / Edge type maps (stable references outside component) ──
 
 const nodeTypes = { schema: SchemaNode };
-const edgeTypes = { relation: RelationEdge };
+const edgeTypes = { relation: RelationEdge, semantic: SemanticEdge };
 
 // ── Graph builder ────────────────────────────────────────
 
 function buildGraph(
   schemas: SchemaInfo[],
   links: LinkDefinition[],
+  semanticRelations: SemanticRelation[],
   showInternal: boolean,
+  showSemantic: boolean,
   onNodeClick: (name: string) => void,
 ): { nodes: Node[]; edges: Edge[] } {
-  // Collect schemas that participate in at least one link
+  // Collect schemas that participate in at least one link or semantic relation
   const linkedSchemas = new Set<string>();
   for (const link of links) {
     linkedSchemas.add(link.from);
     linkedSchemas.add(link.to);
+  }
+  if (showSemantic) {
+    for (const rel of semanticRelations) {
+      if (rel.from.schema) linkedSchemas.add(rel.from.schema);
+      if (rel.to.schema) linkedSchemas.add(rel.to.schema);
+    }
   }
 
   // Filter: only schemas in links; respect internal toggle
@@ -263,7 +357,7 @@ function buildGraph(
     },
   }));
 
-  const edges: Edge[] = links
+  const structuralEdges: Edge[] = links
     .filter((l) => visibleSet.has(l.from) && visibleSet.has(l.to))
     .map((l) => ({
       id: l.name,
@@ -273,6 +367,27 @@ function buildGraph(
       data: { cardinality: l.cardinality, linkName: l.name },
     }));
 
+  const semanticEdges: Edge[] = showSemantic
+    ? semanticRelations
+        .filter(
+          (r) =>
+            r.from.schema &&
+            r.to.schema &&
+            visibleSet.has(r.from.schema) &&
+            visibleSet.has(r.to.schema),
+        )
+        .map((r) => ({
+          id: `sem:${r.id}`,
+          // biome-ignore lint/style/noNonNullAssertion: filtered above to guarantee schema is present
+          source: r.from.schema!,
+          // biome-ignore lint/style/noNonNullAssertion: filtered above to guarantee schema is present
+          target: r.to.schema!,
+          type: "semantic",
+          data: { relationType: r.type, inferredFrom: r.inferredFrom },
+        }))
+    : [];
+
+  const edges = [...structuralEdges, ...semanticEdges];
   const laidOutNodes = applyDagreLayout(nodes, edges);
   return { nodes: laidOutNodes, edges };
 }
@@ -282,19 +397,21 @@ function buildGraph(
 interface GraphCanvasProps {
   schemas: SchemaInfo[];
   links: LinkDefinition[];
+  semanticRelations: SemanticRelation[];
   showInternal: boolean;
+  showSemantic: boolean;
   onNodeClick: (name: string) => void;
 }
 
-function GraphCanvas({ schemas, links, showInternal, onNodeClick }: GraphCanvasProps) {
+function GraphCanvas({ schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick }: GraphCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(schemas, links, showInternal, onNodeClick);
+    const { nodes: n, edges: e } = buildGraph(schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick);
     setRfNodes(n);
     setRfEdges(e);
-  }, [schemas, links, showInternal, onNodeClick, setRfNodes, setRfEdges]);
+  }, [schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick, setRfNodes, setRfEdges]);
 
   return (
     <div
@@ -318,6 +435,19 @@ function GraphCanvas({ schemas, links, showInternal, onNodeClick }: GraphCanvasP
           >
             <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
           </marker>
+          {Object.entries(SEMANTIC_EDGE_COLOR).map(([type, color]) => (
+            <marker
+              key={type}
+              id={`semantic-arrow-${type}`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+            >
+              <polygon points="0 0, 8 3, 0 6" fill={color} fillOpacity={0.7} />
+            </marker>
+          ))}
         </defs>
       </svg>
       <ReactFlow
@@ -353,15 +483,22 @@ export function RelationGraphPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showInternal, setShowInternal] = useState(false);
+  const [showSemantic, setShowSemantic] = useState(false);
 
   const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchSchemas });
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
+  const semanticQuery = useQuery({
+    queryKey: ["semantic-relations"],
+    queryFn: fetchSemanticRelations,
+    enabled: showSemantic,
+  });
 
   const loading = schemasQuery.isLoading || linksQuery.isLoading;
   const error = schemasQuery.isError || linksQuery.isError;
 
   const schemas = schemasQuery.data ?? [];
   const links = linksQuery.data ?? [];
+  const semanticRelations = semanticQuery.data ?? [];
 
   const handleNodeClick = useCallback(
     (name: string) => {
@@ -404,15 +541,26 @@ export function RelationGraphPage() {
           <p className="text-sm text-muted-foreground">{t("relationGraph.subtitle")}</p>
         </div>
         {hasLinks && (
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={showInternal}
-              onChange={(e) => setShowInternal(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            {t("relationGraph.showInternal")}
-          </label>
+          <div className="flex items-center gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showSemantic}
+                onChange={(e) => setShowSemantic(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              {t("relationGraph.showSemantic", "Show semantic relations")}
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showInternal}
+                onChange={(e) => setShowInternal(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              {t("relationGraph.showInternal")}
+            </label>
+          </div>
         )}
       </div>
 
@@ -427,7 +575,9 @@ export function RelationGraphPage() {
         <GraphCanvas
           schemas={schemas}
           links={links}
+          semanticRelations={semanticRelations}
           showInternal={showInternal}
+          showSemantic={showSemantic}
           onNodeClick={handleNodeClick}
         />
       )}

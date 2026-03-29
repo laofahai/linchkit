@@ -1,0 +1,343 @@
+/**
+ * Semantic Relation Inference Engine — spec 24 §2.2
+ *
+ * Scans all registered capability definitions at startup and automatically
+ * infers semantic relations between capabilities and schemas.
+ *
+ * Inference sources (in order of spec 24 §2.2):
+ * 1. capability.dependencies → depends_on
+ * 2. Schema ref/has_many fields → references / contains
+ * 3. capability.bridges → bridges / affects
+ * 4. EventHandler cross-module listeners → triggers / affects
+ * 5. Flow cross-module action steps → orchestrates
+ * 6. Rule cross-module context queries → reads_from
+ */
+
+import type { CapabilityDefinition } from "../types/capability";
+import type { RuleDefinition } from "../types/rule";
+import type {
+  RelationGraph,
+  SemanticRelation,
+  SemanticRelationEndpoint,
+} from "../types/semantic-relation";
+
+// ── Inference helpers ────────────────────────────────────
+
+function makeId(
+  fromCap: string | undefined,
+  fromSchema: string | undefined,
+  type: string,
+  toCap: string | undefined,
+  toSchema: string | undefined,
+  suffix?: string,
+): string {
+  const from = [fromCap ?? "", fromSchema ?? ""].filter(Boolean).join(":");
+  const to = [toCap ?? "", toSchema ?? ""].filter(Boolean).join(":");
+  return suffix ? `${from}->${type}->${to}@${suffix}` : `${from}->${type}->${to}`;
+}
+
+/** Extract the schema name from a conventional event type string like "purchase_request.submit.succeeded" */
+function schemaFromEventType(eventType: string): string | undefined {
+  const parts = eventType.split(".");
+  return parts.length >= 2 ? parts[0] : undefined;
+}
+
+/** Extract schema name from a rule context query string (e.g. "schema:purchase_request" or raw schema name) */
+function schemaFromContextQuery(query: string): string | undefined {
+  // Support "schema:name" notation and bare names
+  const match = query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
+  return match?.[1];
+}
+
+// ── Main inferrer ────────────────────────────────────────
+
+export interface InferenceInput {
+  capabilities: CapabilityDefinition[];
+  /** Optional pre-indexed action→schema map to avoid re-scanning */
+  actionToSchema?: Map<string, string>;
+}
+
+/**
+ * Infer all semantic relations from a set of capability definitions.
+ * Returns a deduplicated list — duplicate ids are silently dropped.
+ */
+export function inferSemanticRelations(input: InferenceInput): SemanticRelation[] {
+  const { capabilities } = input;
+  const seen = new Set<string>();
+  const relations: SemanticRelation[] = [];
+
+  function add(rel: SemanticRelation): void {
+    if (!seen.has(rel.id)) {
+      seen.add(rel.id);
+      relations.push(rel);
+    }
+  }
+
+  // Build action→schema index from all capabilities
+  const actionToSchema = input.actionToSchema ?? buildActionToSchema(capabilities);
+
+  for (const cap of capabilities) {
+    // ── 1. capability.dependencies → depends_on ──────────────
+    for (const dep of cap.dependencies ?? []) {
+      add({
+        id: makeId(cap.name, undefined, "depends_on", dep, undefined),
+        type: "depends_on",
+        from: { capability: cap.name },
+        to: { capability: dep },
+        source: "capability_dependency",
+        inferredFrom: `${cap.name}.dependencies`,
+      });
+    }
+
+    // ── 2. Schema ref / has_many → references / contains ─────
+    for (const schema of cap.schemas ?? []) {
+      for (const [fieldName, field] of Object.entries(schema.fields ?? {})) {
+        if (field.type === "ref" && "target" in field && field.target) {
+          add({
+            id: makeId(cap.name, schema.name, "references", undefined, field.target, fieldName),
+            type: "references",
+            from: { capability: cap.name, schema: schema.name },
+            to: { schema: field.target },
+            source: "schema_ref",
+            inferredFrom: `${schema.name}.${fieldName}`,
+          });
+        }
+        if (field.type === "has_many" && "target" in field && field.target) {
+          add({
+            id: makeId(cap.name, schema.name, "contains", undefined, field.target, fieldName),
+            type: "contains",
+            from: { capability: cap.name, schema: schema.name },
+            to: { schema: field.target },
+            source: "schema_has_many",
+            inferredFrom: `${schema.name}.${fieldName}`,
+          });
+        }
+      }
+    }
+
+    // ── 3. Bridge.bridges → bridges + affects ────────────────
+    if (cap.type === "bridge" && cap.bridges) {
+      for (const bridged of cap.bridges) {
+        add({
+          id: makeId(cap.name, undefined, "bridges", bridged.capability, undefined),
+          type: "bridges",
+          from: { capability: cap.name },
+          to: { capability: bridged.capability },
+          source: "bridge_definition",
+          inferredFrom: `${cap.name}.bridges`,
+        });
+      }
+      // Also infer affects: each bridged cap affects the others
+      for (let i = 0; i < cap.bridges.length; i++) {
+        for (let j = 0; j < cap.bridges.length; j++) {
+          if (i === j) continue;
+          // biome-ignore lint/style/noNonNullAssertion: index is within bounds
+          const fromCap = cap.bridges[i]!.capability;
+          // biome-ignore lint/style/noNonNullAssertion: index is within bounds
+          const toCap = cap.bridges[j]!.capability;
+          add({
+            id: makeId(fromCap, undefined, "affects", toCap, undefined, `via:${cap.name}`),
+            type: "affects",
+            from: { capability: fromCap },
+            to: { capability: toCap },
+            source: "bridge_definition",
+            inferredFrom: cap.name,
+            description: `Inferred via bridge capability ${cap.name}`,
+          });
+        }
+      }
+    }
+
+    // ── 4. EventHandler cross-module listeners → triggers / affects ──
+    for (const handler of cap.eventHandlers ?? []) {
+      const listens = Array.isArray(handler.listen) ? handler.listen : [handler.listen];
+      for (const eventType of listens) {
+        const sourceSchema = schemaFromEventType(eventType);
+        if (!sourceSchema) continue;
+
+        // Determine source capability for this schema (best effort)
+        const sourceCap = findCapabilityForSchema(capabilities, sourceSchema);
+
+        // If the handler lives in a different capability than where the event originates
+        if (sourceCap && sourceCap !== cap.name) {
+          add({
+            id: makeId(sourceCap, sourceSchema, "triggers", cap.name, undefined, handler.name),
+            type: "triggers",
+            from: { capability: sourceCap, schema: sourceSchema },
+            to: { capability: cap.name },
+            source: "event_handler",
+            inferredFrom: handler.name,
+          });
+          add({
+            id: makeId(sourceCap, sourceSchema, "affects", cap.name, undefined, handler.name),
+            type: "affects",
+            from: { capability: sourceCap, schema: sourceSchema },
+            to: { capability: cap.name },
+            source: "event_handler",
+            inferredFrom: handler.name,
+          });
+        }
+      }
+    }
+
+    // ── 5. Flow cross-module action steps → orchestrates ─────
+    for (const flow of cap.flows ?? []) {
+      const touchedSchemas = new Set<string>();
+
+      // Find this flow's "home" schema from its trigger
+      const triggerSchema =
+        flow.trigger.type === "event"
+          ? schemaFromEventType(flow.trigger.eventType)
+          : undefined;
+
+      for (const step of flow.steps ?? []) {
+        if (step.type !== "action") continue;
+        const targetSchema = actionToSchema.get(step.actionName);
+        if (!targetSchema) continue;
+        if (touchedSchemas.has(targetSchema)) continue;
+        touchedSchemas.add(targetSchema);
+
+        // Only record cross-module orchestration (different schema from trigger)
+        if (triggerSchema && targetSchema !== triggerSchema) {
+          const targetCap = findCapabilityForSchema(capabilities, targetSchema);
+          add({
+            id: makeId(
+              cap.name,
+              triggerSchema,
+              "orchestrates",
+              targetCap,
+              targetSchema,
+              flow.name,
+            ),
+            type: "orchestrates",
+            from: { capability: cap.name, schema: triggerSchema },
+            to: { capability: targetCap ?? undefined, schema: targetSchema },
+            source: "flow_step",
+            inferredFrom: `${flow.name}/${step.id}`,
+          });
+        }
+      }
+    }
+
+    // ── 6. Rule cross-module context queries → reads_from ────
+    for (const rule of cap.rules ?? []) {
+      if (!rule.context) continue;
+
+      // Determine which schema this rule belongs to
+      const ruleSchema = extractRuleSchema(rule, actionToSchema);
+
+      for (const [contextKey, query] of Object.entries(rule.context)) {
+        const targetSchema = schemaFromContextQuery(query.query);
+        if (!targetSchema || targetSchema === ruleSchema) continue;
+
+        const targetCap = findCapabilityForSchema(capabilities, targetSchema);
+        const fromCap = ruleSchema ? findCapabilityForSchema(capabilities, ruleSchema) : cap.name;
+        add({
+          id: makeId(
+            fromCap ?? cap.name,
+            ruleSchema ?? undefined,
+            "reads_from",
+            targetCap,
+            targetSchema,
+            `${rule.name}:${contextKey}`,
+          ),
+          type: "reads_from",
+          from: { capability: fromCap ?? cap.name, schema: ruleSchema ?? undefined },
+          to: { capability: targetCap ?? undefined, schema: targetSchema },
+          source: "rule_context",
+          inferredFrom: `${rule.name}.context.${contextKey}`,
+        });
+      }
+    }
+  }
+
+  return relations;
+}
+
+// ── RelationGraph factory ────────────────────────────────
+
+/**
+ * Build a RelationGraph from a list of capabilities.
+ * Accepts optional manual relations to merge alongside inferred ones.
+ */
+export function buildRelationGraph(
+  capabilities: CapabilityDefinition[],
+  manualRelations: SemanticRelation[] = [],
+): RelationGraph {
+  const inferred = inferSemanticRelations({ capabilities });
+  const allRelations = [...inferred, ...manualRelations];
+
+  function matchEndpoint(rel: SemanticRelationEndpoint, target: SemanticRelationEndpoint): boolean {
+    if (target.capability && target.schema) {
+      return rel.capability === target.capability && rel.schema === target.schema;
+    }
+    if (target.capability) return rel.capability === target.capability;
+    if (target.schema) return rel.schema === target.schema;
+    return false;
+  }
+
+  return {
+    relations: allRelations,
+
+    outgoing(endpoint: SemanticRelationEndpoint): SemanticRelation[] {
+      return allRelations.filter((r) => matchEndpoint(r.from, endpoint));
+    },
+
+    incoming(endpoint: SemanticRelationEndpoint): SemanticRelation[] {
+      return allRelations.filter((r) => matchEndpoint(r.to, endpoint));
+    },
+
+    forCapability(capabilityName: string): SemanticRelation[] {
+      return allRelations.filter(
+        (r) => r.from.capability === capabilityName || r.to.capability === capabilityName,
+      );
+    },
+
+    forSchema(schemaName: string): SemanticRelation[] {
+      return allRelations.filter(
+        (r) => r.from.schema === schemaName || r.to.schema === schemaName,
+      );
+    },
+  };
+}
+
+// ── Internal helpers ─────────────────────────────────────
+
+function buildActionToSchema(capabilities: CapabilityDefinition[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const cap of capabilities) {
+    for (const action of cap.actions ?? []) {
+      map.set(action.name, action.schema);
+    }
+  }
+  return map;
+}
+
+function findCapabilityForSchema(
+  capabilities: CapabilityDefinition[],
+  schemaName: string,
+): string | undefined {
+  for (const cap of capabilities) {
+    if ((cap.schemas ?? []).some((s) => s.name === schemaName)) {
+      return cap.name;
+    }
+  }
+  return undefined;
+}
+
+function extractRuleSchema(
+  rule: RuleDefinition,
+  actionToSchema: Map<string, string>,
+): string | undefined {
+  const trigger = rule.trigger;
+  if ("action" in trigger) {
+    const actionNames = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
+    for (const name of actionNames) {
+      const schema = actionToSchema.get(name);
+      if (schema) return schema;
+    }
+  }
+  if ("stateChange" in trigger) return trigger.stateChange.schema;
+  if ("fieldChange" in trigger) return trigger.fieldChange.schema;
+  return undefined;
+}

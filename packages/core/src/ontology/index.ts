@@ -9,3 +9,4 @@ export {
   type RelationDescriptor,
   type SchemaDescriptor,
 } from "./ontology-registry";
+export { buildRelationGraph, inferSemanticRelations } from "./semantic-inference";

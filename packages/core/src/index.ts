@@ -206,6 +206,15 @@ export type {
   RelationDescriptor,
   SchemaDescriptor,
 } from "./ontology";
+export { buildRelationGraph, inferSemanticRelations } from "./ontology";
+export type {
+  RelationGraph,
+  SemanticRelation,
+  SemanticRelationEndpoint,
+  SemanticRelationSource,
+  SemanticRelationType,
+} from "./types/semantic-relation";
+export { defineRelation } from "./types/semantic-relation";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
 export {
   applyOverride,
