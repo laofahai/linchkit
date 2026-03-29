@@ -9,6 +9,8 @@
 
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import { ConflictError } from "../errors";
+import { resolveTranslatableRow } from "../schema/translatable";
+import type { SchemaDefinition } from "../types/schema";
 
 export interface FindManyOptions {
   filter?: Record<string, unknown>;
@@ -23,6 +25,29 @@ export interface FindManyOptions {
 
 export class InMemoryStore implements DataProvider {
   private store = new Map<string, Map<string, Record<string, unknown>>>();
+  /** Optional schema definitions for translatable field resolution */
+  private schemaMap = new Map<string, SchemaDefinition>();
+
+  /**
+   * Register schema definitions to enable translatable field locale resolution.
+   * When a schema is registered, get() and query() will resolve translatable
+   * fields to the requested locale from DataQueryOptions.
+   */
+  registerSchema(schema: SchemaDefinition): void {
+    this.schemaMap.set(schema.name, schema);
+  }
+
+  /** Resolve translatable fields in a row if locale and schema are available */
+  private resolveLocale(
+    schemaName: string,
+    row: Record<string, unknown>,
+    locale?: string,
+  ): Record<string, unknown> {
+    if (!locale) return row;
+    const schemaDef = this.schemaMap.get(schemaName);
+    if (!schemaDef) return row;
+    return resolveTranslatableRow(row, schemaDef, locale);
+  }
 
   /** Get or create the table for a schema */
   private table(schema: string): Map<string, Record<string, unknown>> {
@@ -55,7 +80,7 @@ export class InMemoryStore implements DataProvider {
     if (options?.tenantId && record.tenant_id !== options.tenantId) {
       throw new Error(`Record not found: ${schema}/${id}`);
     }
-    return { ...record };
+    return this.resolveLocale(schema, { ...record }, options?.locale);
   }
 
   async query(
@@ -89,7 +114,7 @@ export class InMemoryStore implements DataProvider {
       limit = filter.limit as number | undefined;
     }
 
-    return this.findMany(schema, {
+    const rows = this.findMany(schema, {
       filter: dataFilter,
       sort,
       offset,
@@ -97,6 +122,8 @@ export class InMemoryStore implements DataProvider {
       tenantId: options?.tenantId,
       includeDeleted: options?.includeDeleted,
     });
+    if (!options?.locale) return rows;
+    return rows.map((row) => this.resolveLocale(schema, row, options.locale));
   }
 
   async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
