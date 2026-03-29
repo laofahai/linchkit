@@ -394,7 +394,7 @@ export function AutoTree({
             enableDnD={enableDnD}
             dropTarget={dropTarget}
             activeDragId={activeDragId}
-            isSelected={selectedNodeId === String(node.record.id)}
+            selectedNodeId={selectedNodeId ?? undefined}
           />
         ))}
       </div>
@@ -537,7 +537,7 @@ interface TreeNodeRowProps {
   enableDnD?: boolean;
   dropTarget?: DropTarget | null;
   activeDragId?: string | null;
-  isSelected?: boolean;
+  selectedNodeId?: string;
 }
 
 function TreeNodeRow({
@@ -554,8 +554,9 @@ function TreeNodeRow({
   enableDnD,
   dropTarget,
   activeDragId,
-  isSelected,
+  selectedNodeId,
 }: TreeNodeRowProps) {
+  const isSelected = selectedNodeId === String(node.record.id);
   const id = String(node.record.id);
   const label = String(node.record[labelField] ?? node.record.name ?? id);
   const hasChildren = node.children.length > 0;
@@ -779,7 +780,7 @@ function TreeNodeRow({
                 enableDnD={enableDnD}
                 dropTarget={dropTarget}
                 activeDragId={activeDragId}
-                isSelected={isSelected && String(child.record.id) === String(node.record.id)}
+                selectedNodeId={selectedNodeId}
               />
             ))}
           </div>
