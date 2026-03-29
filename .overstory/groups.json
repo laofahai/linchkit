@@ -33,5 +33,17 @@
 		"status": "active",
 		"createdAt": "2026-03-29T03:35:55.534Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-5095bd8f",
+		"name": "m2-batch-infra",
+		"memberIssueIds": [
+			"linchkit-8716",
+			"linchkit-04d5",
+			"linchkit-3aea"
+		],
+		"status": "active",
+		"createdAt": "2026-03-29T04:55:26.564Z",
+		"completedAt": null
 	}
 ]
