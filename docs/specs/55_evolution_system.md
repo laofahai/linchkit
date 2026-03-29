@@ -437,6 +437,8 @@ Skill 在进化循环中的介入点：
 
 这意味着进化系统的能力边界不是封闭的——随着 MCP 生态和 Skill 市场的扩展，系统的"认知能力"也在扩展。装一个新的 MCP Server，系统就多了一个信息来源。
 
+**协议适配器状态：** MCP 已实现（`cap-adapter-mcp`）。ACP（IBM/BeeAI）与 A2A（Google）正在 Linux Foundation 下合并，收敛后再实现 A2A 适配器，避免对短生命周期协议的重复投资。详见 [ACP 研究报告](../research/acp-research-findings.md)。
+
 ### 7.3 Proposal 可行性验证
 
 Proposal 不是自然语言描述，而是**可执行的 defineXxx() 代码**。生成时自动做静态验证：
@@ -446,6 +448,8 @@ Proposal 不是自然语言描述，而是**可执行的 defineXxx() 代码**。
 - 与现有 Rule/Flow 有冲突吗？
 
 验证不通过的 Proposal 不会到达用户面前。
+
+**技术选型：** Proposal 代码验证使用 **ts-morph**（TypeScript Compiler API 封装），进程内运行，提供 AST 操作 + 类型检查 + 影响分析。详见 [LSP 集成研究报告](../research/lsp-integration-findings.md)。完整 LSP 协议延迟到 tsgo 成熟后（M6+）。
 
 ### 7.4 回测与影响预览
 

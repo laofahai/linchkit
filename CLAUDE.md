@@ -199,6 +199,12 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 Full specs in project: `docs/specs/` (54 files, 00–50).
 Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`.
 
+## Research
+
+Point-in-time research reports in `docs/research/`:
+- `lsp-integration-findings.md` — LSP vs ts-morph analysis for Spec 55 Proposal code validation; recommendation: ts-morph (TypeScript Compiler API) in-process, full LSP deferred to M6+
+- `acp-research-findings.md` — ACP/A2A/MCP protocol landscape; ACP (IBM/BeeAI) converging into A2A under Linux Foundation; A2A adapter deferred until protocols stabilize
+
 <!-- mulch:start -->
 ## Project Expertise (Mulch)
 <!-- mulch-onboard-v:1 -->
