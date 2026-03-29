@@ -29,6 +29,10 @@ export interface LinchKitErrorOptions {
   code: ErrorCode;
   message: string;
   details?: Record<string, unknown>;
+  /** i18n message key for client-side translation (e.g. "errors.validation.required") */
+  messageKey?: string;
+  /** i18n interpolation params for the messageKey template */
+  messageParams?: Record<string, unknown>;
 }
 
 // ── Error variants ────────────────────────────────────────
@@ -75,6 +79,10 @@ export interface LinchKitErrorResponse {
     message: string;
     type: ErrorType;
     details?: Record<string, unknown>;
+    /** i18n message key for client-side translation */
+    messageKey?: string;
+    /** i18n interpolation params for the messageKey template */
+    messageParams?: Record<string, unknown>;
     fields?: ValidationErrorData["fields"];
     rules?: BusinessRuleErrorData["rules"];
     approvalId?: string;

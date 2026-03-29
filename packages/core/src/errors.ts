@@ -30,6 +30,8 @@ export class LinchKitError extends Error {
   readonly details?: Record<string, unknown>;
   readonly statusCode: number;
   readonly type: ErrorType;
+  readonly messageKey?: string;
+  readonly messageParams?: Record<string, unknown>;
 
   constructor(options: LinchKitErrorOptions, type: ErrorType = "system") {
     super(options.message);
@@ -38,6 +40,8 @@ export class LinchKitError extends Error {
     this.details = options.details;
     this.type = type;
     this.statusCode = ERROR_STATUS_MAP[type];
+    this.messageKey = options.messageKey;
+    this.messageParams = options.messageParams;
   }
 
   /** Convert to a standardized error response object. */
@@ -49,6 +53,8 @@ export class LinchKitError extends Error {
         message: this.message,
         type: this.type,
         ...(this.details !== undefined && { details: this.details }),
+        ...(this.messageKey !== undefined && { messageKey: this.messageKey }),
+        ...(this.messageParams !== undefined && { messageParams: this.messageParams }),
       },
     };
   }

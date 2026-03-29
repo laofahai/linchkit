@@ -283,6 +283,13 @@ export type {
   SignalBusOptions,
   SignalHandler,
 } from "./life-system";
+// i18n — shared types and locale utilities
+export {
+  parseAcceptLanguage,
+  resolveLocale,
+  type I18nConfig,
+  type SupportedLanguage,
+} from "./i18n";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
