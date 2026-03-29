@@ -1,27 +1,40 @@
 #!/usr/bin/env bash
 # multi-review.sh — Multi-agent code review gate for overstory workflow
 # Usage: multi-review.sh <base-branch> <feature-branch> [--large] [--json]
+#                        [--task-id <id>] [--domain <name>] [--context-lines <n>]
 # Exit codes: 0 = all pass, 1 = any fail, 2 = error
 
 set -euo pipefail
 
 # ── Args ──────────────────────────────────────────────────────────────────────
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <base-branch> <feature-branch> [--large] [--json]" >&2
+  echo "Usage: $0 <base-branch> <feature-branch> [--large] [--json] [--task-id <id>] [--domain <name>] [--context-lines <n>]" >&2
   exit 2
 fi
 
 BASE_BRANCH="$1"
 FEATURE_BRANCH="$2"
-FORCE_LARGE="${3:-}"
+FORCE_LARGE=""
 JSON_MODE=false
+TASK_ID=""
+DOMAIN_NAME=""
+CONTEXT_LINES=20
 
 # Parse flags from remaining args
-for arg in "${@:3}"; do
+i=3
+while [[ $i -le $# ]]; do
+  arg="${!i}"
   case "$arg" in
-    --json)   JSON_MODE=true ;;
-    --large)  FORCE_LARGE="--large" ;;
+    --json)         JSON_MODE=true ;;
+    --large)        FORCE_LARGE="--large" ;;
+    --task-id)
+      i=$((i + 1)); TASK_ID="${!i}" ;;
+    --domain)
+      i=$((i + 1)); DOMAIN_NAME="${!i}" ;;
+    --context-lines)
+      i=$((i + 1)); CONTEXT_LINES="${!i}" ;;
   esac
+  i=$((i + 1))
 done
 
 # ── Temp dir with cleanup ─────────────────────────────────────────────────────
@@ -32,8 +45,8 @@ GEMINI_OUT="$TMPDIR_REVIEW/gemini.txt"
 CODEX_OUT="$TMPDIR_REVIEW/codex.txt"
 DIFF_FILE="$TMPDIR_REVIEW/diff.patch"
 
-# ── Get diff ──────────────────────────────────────────────────────────────────
-if ! git diff "${BASE_BRANCH}...${FEATURE_BRANCH}" > "$DIFF_FILE" 2>/dev/null; then
+# ── Get diff (with configurable context lines) ────────────────────────────────
+if ! git diff -U"${CONTEXT_LINES}" "${BASE_BRANCH}...${FEATURE_BRANCH}" > "$DIFF_FILE" 2>/dev/null; then
   echo "ERROR: Failed to compute diff between ${BASE_BRANCH} and ${FEATURE_BRANCH}" >&2
   exit 2
 fi
@@ -73,10 +86,68 @@ if ! $JSON_MODE; then
   echo ""
 fi
 
+# ── Build context sections ────────────────────────────────────────────────────
+
+# Project context: extract Constraints + Principles sections from CLAUDE.md
+PROJECT_CONTEXT=""
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/CLAUDE.md" ]]; then
+  PROJECT_CONTEXT="$(awk '
+    /^## (Constraints|Principles)/ { found=1; print; next }
+    found && /^## / && !/^## (Constraints|Principles)/ {
+      if (in_section) { in_section=0 }
+      found=0
+    }
+    found { in_section=1; print }
+  ' "$REPO_ROOT/CLAUDE.md" 2>/dev/null | head -60 || true)"
+fi
+
+# Task intent: fetch seeds issue description
+TASK_INTENT=""
+if [[ -n "$TASK_ID" ]]; then
+  TASK_INTENT="$(sd show "$TASK_ID" 2>/dev/null || true)"
+fi
+
+# Domain conventions: fetch mulch records for domain
+DOMAIN_CONVENTIONS=""
+if [[ -n "$DOMAIN_NAME" ]]; then
+  DOMAIN_CONVENTIONS="$(mulch search "$DOMAIN_NAME" 2>/dev/null || true)"
+fi
+
+# ── Build context preamble ────────────────────────────────────────────────────
+build_context_preamble() {
+  local preamble=""
+
+  if [[ -n "$PROJECT_CONTEXT" ]]; then
+    preamble="${preamble}
+--- PROJECT CONTEXT ---
+${PROJECT_CONTEXT}
+"
+  fi
+
+  if [[ -n "$TASK_INTENT" ]]; then
+    preamble="${preamble}
+--- TASK INTENT ---
+${TASK_INTENT}
+"
+  fi
+
+  if [[ -n "$DOMAIN_CONVENTIONS" ]]; then
+    preamble="${preamble}
+--- DOMAIN CONVENTIONS (${DOMAIN_NAME}) ---
+${DOMAIN_CONVENTIONS}
+"
+  fi
+
+  echo "$preamble"
+}
+
+CONTEXT_PREAMBLE="$(build_context_preamble)"
+
 # ── Review prompt ─────────────────────────────────────────────────────────────
 if $JSON_MODE; then
   REVIEW_PROMPT="You are a senior code reviewer. Review the following git diff carefully.
-
+${CONTEXT_PREAMBLE}
 Respond in EXACTLY this JSON format (no extra prose, valid JSON only):
 {
   \"verdict\": \"PASS\" or \"FAIL\",
@@ -104,7 +175,7 @@ ${DIFF_CONTENT}
 --- END DIFF ---"
 else
   REVIEW_PROMPT="You are a senior code reviewer. Review the following git diff carefully.
-
+${CONTEXT_PREAMBLE}
 Respond in EXACTLY this format (no extra prose):
 VERDICT: PASS or FAIL
 ISSUES:
@@ -143,9 +214,9 @@ if $USE_TRIPLE; then
     echo "--- Codex Review ---"
   fi
   if $JSON_MODE; then
-    CODEX_INSTRUCTIONS="Review the changes introduced on branch '${FEATURE_BRANCH}' relative to '${BASE_BRANCH}'. Respond ONLY with valid JSON: { \"verdict\": \"PASS\" or \"FAIL\", \"issues\": [{\"file\": \"...\", \"line\": 0, \"severity\": \"error\" or \"warning\", \"message\": \"...\", \"suggestion\": \"...\"}], \"summary\": \"...\" }. verdict is FAIL only for error-severity issues."
+    CODEX_INSTRUCTIONS="Review the changes introduced on branch '${FEATURE_BRANCH}' relative to '${BASE_BRANCH}'.${CONTEXT_PREAMBLE:+ ${CONTEXT_PREAMBLE}} Respond ONLY with valid JSON: { \"verdict\": \"PASS\" or \"FAIL\", \"issues\": [{\"file\": \"...\", \"line\": 0, \"severity\": \"error\" or \"warning\", \"message\": \"...\", \"suggestion\": \"...\"}], \"summary\": \"...\" }. verdict is FAIL only for error-severity issues."
   else
-    CODEX_INSTRUCTIONS="Review the changes introduced on branch '${FEATURE_BRANCH}' relative to '${BASE_BRANCH}'. Report: VERDICT (PASS/FAIL), ISSUES list, one-line SUMMARY. Focus on correctness, security, and type safety."
+    CODEX_INSTRUCTIONS="Review the changes introduced on branch '${FEATURE_BRANCH}' relative to '${BASE_BRANCH}'.${CONTEXT_PREAMBLE:+ ${CONTEXT_PREAMBLE}} Report: VERDICT (PASS/FAIL), ISSUES list, one-line SUMMARY. Focus on correctness, security, and type safety."
   fi
   if ! codex review --base "${BASE_BRANCH}" "$CODEX_INSTRUCTIONS" > "$CODEX_OUT" 2>&1; then
     CODEX_EXIT=$?
