@@ -16,7 +16,18 @@ export interface FieldVisibilityCondition {
   /** Name of the field to watch */
   field: string;
   /** Comparison operator */
-  operator: "eq" | "neq" | "in" | "not_in" | "is_set" | "is_empty";
+  operator:
+    | "eq"
+    | "neq"
+    | "in"
+    | "not_in"
+    | "is_set"
+    | "is_empty"
+    | "gt"
+    | "gte"
+    | "lt"
+    | "lte"
+    | "contains";
   /** Value(s) to compare against. Not required for is_set / is_empty. */
   value?: unknown;
 }

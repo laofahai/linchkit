@@ -142,6 +142,106 @@ describe("evaluateVisibility", () => {
     expect(evaluateVisibility(cond, data)).toBe(false);
   });
 
+  // ── gt ──
+
+  test("gt: returns true when field value is greater than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gt", value: 3 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("gt: returns false when field value equals threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gt", value: 5 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  test("gt: returns false when field value is less than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gt", value: 10 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  test("gt: returns false when field or value is not a number", () => {
+    const cond: FieldVisibilityCondition = { field: "priority", operator: "gt", value: 3 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  // ── gte ──
+
+  test("gte: returns true when field value equals threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gte", value: 5 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("gte: returns true when field value is greater than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gte", value: 3 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("gte: returns false when field value is less than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "gte", value: 10 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  // ── lt ──
+
+  test("lt: returns true when field value is less than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lt", value: 10 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("lt: returns false when field value equals threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lt", value: 5 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  test("lt: returns false when field value is greater than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lt", value: 3 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  // ── lte ──
+
+  test("lte: returns true when field value equals threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lte", value: 5 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("lte: returns true when field value is less than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lte", value: 10 };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("lte: returns false when field value is greater than threshold", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "lte", value: 3 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  // ── contains ──
+
+  test("contains: returns true when string field contains substring (case-insensitive)", () => {
+    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "sec" };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("contains: returns true for exact match", () => {
+    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "security" };
+    expect(evaluateVisibility(cond, data)).toBe(true);
+  });
+
+  test("contains: returns false when substring not found", () => {
+    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "billing" };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  test("contains: returns false when field is not a string", () => {
+    const cond: FieldVisibilityCondition = { field: "count", operator: "contains", value: "5" };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
+  test("contains: returns false when value is not a string", () => {
+    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: 42 };
+    expect(evaluateVisibility(cond, data)).toBe(false);
+  });
+
   // ── edge cases ──
 
   test("unknown operator defaults to true", () => {
