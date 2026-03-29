@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { buildTree, collectAllIds } from "../src/components/auto-tree/tree-utils";
+import {
+  buildTree,
+  collectAllIds,
+  filterTree,
+  getSearchExpandIds,
+  reparentRecord,
+  wouldCreateCycle,
+} from "../src/components/auto-tree/tree-utils";
 
 describe("buildTree", () => {
   test("empty records produce empty tree", () => {
@@ -118,5 +125,123 @@ describe("collectAllIds", () => {
     const tree = buildTree(records, "parent_id");
     const ids = collectAllIds(tree);
     expect(ids).toEqual(new Set(["1", "2", "3"]));
+  });
+});
+
+describe("filterTree", () => {
+  const records = [
+    { id: "1", name: "Root", parent_id: null },
+    { id: "2", name: "Child Alpha", parent_id: "1" },
+    { id: "3", name: "Child Beta", parent_id: "1" },
+    { id: "4", name: "Grandchild Alpha One", parent_id: "2" },
+    { id: "5", name: "Other Root", parent_id: null },
+  ];
+
+  test("empty query returns original tree", () => {
+    const tree = buildTree(records, "parent_id");
+    const result = filterTree(tree, "", "name");
+    expect(result).toHaveLength(2);
+  });
+
+  test("matches direct nodes by label", () => {
+    const tree = buildTree(records, "parent_id");
+    const result = filterTree(tree, "Beta", "name");
+    expect(result).toHaveLength(1);
+    expect(result[0].record.name).toBe("Root");
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].record.name).toBe("Child Beta");
+  });
+
+  test("preserves ancestor chain for matching descendants", () => {
+    const tree = buildTree(records, "parent_id");
+    const result = filterTree(tree, "Grandchild", "name");
+    expect(result).toHaveLength(1);
+    expect(result[0].record.name).toBe("Root");
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].record.name).toBe("Child Alpha");
+    expect(result[0].children[0].children).toHaveLength(1);
+    expect(result[0].children[0].children[0].record.name).toBe("Grandchild Alpha One");
+  });
+
+  test("case-insensitive matching", () => {
+    const tree = buildTree(records, "parent_id");
+    const result = filterTree(tree, "alpha", "name");
+    // "Child Alpha" and "Grandchild Alpha One" match — Root ancestor included
+    expect(result).toHaveLength(1);
+    expect(result[0].record.name).toBe("Root");
+  });
+
+  test("no matches returns empty array", () => {
+    const tree = buildTree(records, "parent_id");
+    const result = filterTree(tree, "zzz-no-match", "name");
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("getSearchExpandIds", () => {
+  test("empty query returns empty set", () => {
+    const tree = buildTree([], "parent_id");
+    expect(getSearchExpandIds(tree, "", "name")).toEqual(new Set());
+  });
+
+  test("returns ancestor ids when descendants match", () => {
+    const records = [
+      { id: "1", name: "Root", parent_id: null },
+      { id: "2", name: "Parent", parent_id: "1" },
+      { id: "3", name: "Target", parent_id: "2" },
+    ];
+    const tree = buildTree(records, "parent_id");
+    const ids = getSearchExpandIds(tree, "Target", "name");
+    expect(ids.has("1")).toBe(true);
+    expect(ids.has("2")).toBe(true);
+    expect(ids.has("3")).toBe(false); // leaf, not an ancestor
+  });
+});
+
+describe("reparentRecord", () => {
+  test("updates parent field for target record", () => {
+    const records = [
+      { id: "1", name: "A", parent_id: null },
+      { id: "2", name: "B", parent_id: "1" },
+    ];
+    const result = reparentRecord(records, "2", null, "parent_id");
+    const updated = result.find((r) => String(r.id) === "2");
+    expect(updated?.parent_id).toBe(null);
+  });
+
+  test("returns new array (immutable)", () => {
+    const records = [{ id: "1", name: "A", parent_id: null }];
+    const result = reparentRecord(records, "1", "2", "parent_id");
+    expect(result).not.toBe(records);
+    expect(result[0]).not.toBe(records[0]);
+  });
+});
+
+describe("wouldCreateCycle", () => {
+  const records = [
+    { id: "1", name: "Root", parent_id: null },
+    { id: "2", name: "Child", parent_id: "1" },
+    { id: "3", name: "Grandchild", parent_id: "2" },
+  ];
+
+  test("moving to own descendant is a cycle", () => {
+    expect(wouldCreateCycle(records, "1", "3", "parent_id")).toBe(true);
+  });
+
+  test("moving to self is a cycle", () => {
+    expect(wouldCreateCycle(records, "1", "1", "parent_id")).toBe(true);
+  });
+
+  test("moving to root (null) is not a cycle", () => {
+    expect(wouldCreateCycle(records, "3", null, "parent_id")).toBe(false);
+  });
+
+  test("moving to sibling is not a cycle", () => {
+    const r = [
+      { id: "1", name: "Root", parent_id: null },
+      { id: "2", name: "A", parent_id: "1" },
+      { id: "3", name: "B", parent_id: "1" },
+    ];
+    expect(wouldCreateCycle(r, "2", "3", "parent_id")).toBe(false);
   });
 });
