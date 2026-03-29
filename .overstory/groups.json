@@ -10,5 +10,16 @@
 		"status": "completed",
 		"createdAt": "2026-03-28T05:59:30.887Z",
 		"completedAt": "2026-03-28T14:02:16.697Z"
+	},
+	{
+		"id": "group-f2e5a2c1",
+		"name": "review-gate-followup",
+		"memberIssueIds": [
+			"linchkit-20bd",
+			"linchkit-2f8f"
+		],
+		"status": "active",
+		"createdAt": "2026-03-29T03:21:02.186Z",
+		"completedAt": null
 	}
 ]
