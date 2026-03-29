@@ -44,3 +44,5 @@ export type * from "./view";
 export type * from "./template";
 export type * from "./watcher";
 export type * from "./widget";
+export type * from "./semantic-relation";
+export { defineRelation } from "./semantic-relation";

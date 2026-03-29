@@ -388,6 +388,7 @@ export interface SchemaInfo {
 }
 
 import type { LinkDefinition, StateDefinition } from "@linchkit/core/types";
+import type { SemanticRelation } from "@linchkit/core/types";
 
 /** Full schema bundle with views (from GET /api/schemas/:name) */
 export interface SchemaBundle {
@@ -429,6 +430,16 @@ export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | nu
  */
 export async function fetchLinks(): Promise<LinkDefinition[]> {
   const res = await fetch("/api/links", { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data ?? [];
+}
+
+/**
+ * Fetch inferred semantic relations from the server.
+ */
+export async function fetchSemanticRelations(): Promise<SemanticRelation[]> {
+  const res = await fetch("/api/semantic-relations", { headers: getAuthHeaders() });
   handleUnauthorized(res);
   const json = await res.json();
   return json.data ?? [];

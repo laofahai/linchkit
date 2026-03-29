@@ -13,9 +13,11 @@
  * - GET /api/states, GET /api/states/:name
  * - GET /api/executions, GET /api/executions/:id
  * - GET /api/links — all registered link definitions (for relation graph)
+ * - GET /api/semantic-relations — inferred semantic relations between capabilities/schemas
  */
 
 import type { ExecutionStatus, FlowDefinition, LinkDefinition, StateDefinition } from "@linchkit/core";
+import { buildRelationGraph } from "@linchkit/core";
 import { DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
@@ -413,5 +415,10 @@ export function mountAdminRoutes(
         "links",
       );
       return { success: true, data: allLinks };
+    })
+    // ── Semantic relation endpoint ──────────────────────────
+    .get("/api/semantic-relations", () => {
+      const graph = buildRelationGraph(capabilities);
+      return { success: true, data: graph.relations };
     });
 }
