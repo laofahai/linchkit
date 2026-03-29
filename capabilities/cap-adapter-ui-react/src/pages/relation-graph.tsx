@@ -3,7 +3,8 @@
  *
  * Interactive schema relationship diagram.
  * Renders schemas as nodes and links as edges using ReactFlow + dagre auto-layout.
- * Click a node to navigate to the schema list page.
+ * Single-click a node to select it and view impact analysis.
+ * Double-click a node to navigate to its schema list page.
  */
 
 import {
@@ -24,8 +25,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
-import { DatabaseIcon, NetworkIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import type { LinkDefinition } from "@linchkit/core/types";
@@ -82,23 +83,37 @@ interface SchemaNodeData {
   label: string;
   name: string;
   internal: boolean;
-  onClick: (name: string) => void;
+  selected: boolean;
+  dimmed: boolean;
+  onSelect: (name: string) => void;
+  onNavigate: (name: string) => void;
   [key: string]: unknown;
 }
 
 function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
-  const { label, name, internal, onClick } = data;
+  const { label, name, internal, selected, dimmed, onSelect, onNavigate } = data;
+
+  const borderColor = selected ? "#6366f1" : internal ? "#94a3b8" : "#e2e8f0";
+  const borderStyle = internal ? "dashed" : "solid";
+  const borderWidth = selected ? 2 : 1;
+  const bg = selected ? "#eef2ff" : internal ? "#f8fafc" : "#ffffff";
+  const boxShadow = selected
+    ? "0 0 0 3px rgba(99,102,241,0.18), 0 1px 4px rgba(0,0,0,0.08)"
+    : "0 1px 4px rgba(0,0,0,0.08)";
+
   return (
     <button
       type="button"
-      onClick={() => onClick(name)}
+      onClick={() => onSelect(name)}
+      onDoubleClick={() => onNavigate(name)}
+      title="Click to select · Double-click to navigate"
       style={{
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
-        background: internal ? "#f8fafc" : "#ffffff",
-        border: internal ? "1px dashed #94a3b8" : "1px solid #e2e8f0",
+        background: bg,
+        border: `${borderWidth}px ${borderStyle} ${borderColor}`,
         borderRadius: 8,
-        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+        boxShadow,
         display: "flex",
         alignItems: "center",
         gap: 10,
@@ -106,20 +121,21 @@ function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
         cursor: "pointer",
         userSelect: "none",
         textAlign: "left",
+        opacity: dimmed ? 0.25 : 1,
+        transition: "opacity 0.15s, box-shadow 0.15s, border-color 0.15s",
       }}
-      className="hover:shadow-md transition-shadow"
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <DatabaseIcon
         size={14}
-        style={{ color: internal ? "#94a3b8" : "#6366f1", flexShrink: 0 }}
+        style={{ color: selected ? "#6366f1" : internal ? "#94a3b8" : "#6366f1", flexShrink: 0 }}
       />
       <div style={{ overflow: "hidden" }}>
         <div
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: internal ? "#64748b" : "#1e293b",
+            color: selected ? "#4338ca" : internal ? "#64748b" : "#1e293b",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -151,6 +167,7 @@ function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
 interface RelationEdgeData {
   cardinality: string;
   linkName: string;
+  dimmed: boolean;
   [key: string]: unknown;
 }
 
@@ -174,6 +191,7 @@ function RelationEdge({
   });
 
   const cardinalityLabel = CARDINALITY_LABEL[data?.cardinality ?? ""] ?? data?.cardinality ?? "";
+  const opacity = data?.dimmed ? 0.1 : 1;
 
   return (
     <>
@@ -184,8 +202,9 @@ function RelationEdge({
         stroke="#94a3b8"
         strokeWidth={1.5}
         markerEnd="url(#relation-arrow)"
+        style={{ opacity, transition: "opacity 0.15s" }}
       />
-      {cardinalityLabel && (
+      {cardinalityLabel && !data?.dimmed && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -219,7 +238,7 @@ function RelationEdge({
 
 // ── Semantic relation edge ───────────────────────────────
 
-// Pastel colors per semantic relation type
+// Colors per semantic relation type
 const SEMANTIC_EDGE_COLOR: Record<string, string> = {
   depends_on: "#6366f1",
   contains: "#0ea5e9",
@@ -234,6 +253,7 @@ const SEMANTIC_EDGE_COLOR: Record<string, string> = {
 interface SemanticEdgeData {
   relationType: string;
   inferredFrom?: string;
+  dimmed: boolean;
   [key: string]: unknown;
 }
 
@@ -258,6 +278,7 @@ function SemanticEdge({
 
   const relType = data?.relationType ?? "";
   const color = SEMANTIC_EDGE_COLOR[relType] ?? "#94a3b8";
+  const opacity = data?.dimmed ? 0.08 : 0.7;
 
   return (
     <>
@@ -269,35 +290,37 @@ function SemanticEdge({
         strokeWidth={1.5}
         strokeDasharray="5,3"
         markerEnd={`url(#semantic-arrow-${relType})`}
-        opacity={0.7}
+        style={{ opacity, transition: "opacity 0.15s" }}
       />
-      <EdgeLabelRenderer>
-        <div
-          style={{
-            position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            pointerEvents: "none",
-          }}
-        >
-          <span
+      {!data?.dimmed && (
+        <EdgeLabelRenderer>
+          <div
             style={{
-              fontSize: 9,
-              fontWeight: 600,
-              color,
-              backgroundColor: "white",
-              padding: "1px 5px",
-              borderRadius: 9999,
-              border: `1px solid ${color}`,
-              whiteSpace: "nowrap",
-              lineHeight: "16px",
-              display: "inline-block",
-              opacity: 0.9,
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: "none",
             }}
           >
-            {relType.replace(/_/g, " ")}
-          </span>
-        </div>
-      </EdgeLabelRenderer>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color,
+                backgroundColor: "white",
+                padding: "1px 5px",
+                borderRadius: 9999,
+                border: `1px solid ${color}`,
+                whiteSpace: "nowrap",
+                lineHeight: "16px",
+                display: "inline-block",
+                opacity: 0.9,
+              }}
+            >
+              {relType.replace(/_/g, " ")}
+            </span>
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 }
@@ -315,7 +338,9 @@ function buildGraph(
   semanticRelations: SemanticRelation[],
   showInternal: boolean,
   showSemantic: boolean,
-  onNodeClick: (name: string) => void,
+  selectedNode: string | null,
+  onSelect: (name: string) => void,
+  onNavigate: (name: string) => void,
 ): { nodes: Node[]; edges: Edge[] } {
   // Collect schemas that participate in at least one link or semantic relation
   const linkedSchemas = new Set<string>();
@@ -345,6 +370,30 @@ function buildGraph(
 
   const visibleSet = new Set(visibleSchemas.map((s) => s.name));
 
+  // Build connected set for dimming
+  const connectedNodes = new Set<string>();
+  const connectedEdgeIds = new Set<string>();
+
+  if (selectedNode) {
+    connectedNodes.add(selectedNode);
+    for (const link of links) {
+      if (link.from === selectedNode || link.to === selectedNode) {
+        connectedNodes.add(link.from);
+        connectedNodes.add(link.to);
+        connectedEdgeIds.add(link.name);
+      }
+    }
+    if (showSemantic) {
+      for (const rel of semanticRelations) {
+        if (rel.from.schema === selectedNode || rel.to.schema === selectedNode) {
+          if (rel.from.schema) connectedNodes.add(rel.from.schema);
+          if (rel.to.schema) connectedNodes.add(rel.to.schema);
+          connectedEdgeIds.add(`sem:${rel.id}`);
+        }
+      }
+    }
+  }
+
   const nodes: Node[] = visibleSchemas.map((s) => ({
     id: s.name,
     type: "schema",
@@ -353,7 +402,10 @@ function buildGraph(
       label: s.label ?? s.name,
       name: s.name,
       internal: s.internal ?? false,
-      onClick: onNodeClick,
+      selected: s.name === selectedNode,
+      dimmed: selectedNode !== null && !connectedNodes.has(s.name),
+      onSelect,
+      onNavigate,
     },
   }));
 
@@ -364,7 +416,11 @@ function buildGraph(
       source: l.from,
       target: l.to,
       type: "relation",
-      data: { cardinality: l.cardinality, linkName: l.name },
+      data: {
+        cardinality: l.cardinality,
+        linkName: l.name,
+        dimmed: selectedNode !== null && !connectedEdgeIds.has(l.name),
+      },
     }));
 
   const semanticEdges: Edge[] = showSemantic
@@ -383,13 +439,361 @@ function buildGraph(
           // biome-ignore lint/style/noNonNullAssertion: filtered above to guarantee schema is present
           target: r.to.schema!,
           type: "semantic",
-          data: { relationType: r.type, inferredFrom: r.inferredFrom },
+          data: {
+            relationType: r.type,
+            inferredFrom: r.inferredFrom,
+            dimmed: selectedNode !== null && !connectedEdgeIds.has(`sem:${r.id}`),
+          },
         }))
     : [];
 
   const edges = [...structuralEdges, ...semanticEdges];
   const laidOutNodes = applyDagreLayout(nodes, edges);
   return { nodes: laidOutNodes, edges };
+}
+
+// ── Impact analysis helpers ──────────────────────────────
+
+interface ImpactEntry {
+  schema: string;
+  label?: string;
+  relationLabel: string;
+  direction: "outgoing" | "incoming";
+  edgeType: "structural" | "semantic";
+  relationType?: string;
+}
+
+function computeImpact(
+  selectedSchema: string,
+  schemas: SchemaInfo[],
+  links: LinkDefinition[],
+  semanticRelations: SemanticRelation[],
+): ImpactEntry[] {
+  const labelMap = new Map(schemas.map((s) => [s.name, s.label ?? s.name]));
+  const entries: ImpactEntry[] = [];
+
+  for (const link of links) {
+    if (link.from === selectedSchema) {
+      entries.push({
+        schema: link.to,
+        label: labelMap.get(link.to),
+        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} → ${link.name}`,
+        direction: "outgoing",
+        edgeType: "structural",
+      });
+    } else if (link.to === selectedSchema) {
+      entries.push({
+        schema: link.from,
+        label: labelMap.get(link.from),
+        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} ← ${link.name}`,
+        direction: "incoming",
+        edgeType: "structural",
+      });
+    }
+  }
+
+  for (const rel of semanticRelations) {
+    if (rel.from.schema === selectedSchema && rel.to.schema) {
+      entries.push({
+        schema: rel.to.schema,
+        label: labelMap.get(rel.to.schema),
+        relationLabel: rel.type.replace(/_/g, " "),
+        direction: "outgoing",
+        edgeType: "semantic",
+        relationType: rel.type,
+      });
+    } else if (rel.to.schema === selectedSchema && rel.from.schema) {
+      entries.push({
+        schema: rel.from.schema,
+        label: labelMap.get(rel.from.schema),
+        relationLabel: rel.type.replace(/_/g, " "),
+        direction: "incoming",
+        edgeType: "semantic",
+        relationType: rel.type,
+      });
+    }
+  }
+
+  return entries;
+}
+
+// ── Impact panel ─────────────────────────────────────────
+
+interface ImpactPanelProps {
+  selectedSchema: string;
+  schemas: SchemaInfo[];
+  links: LinkDefinition[];
+  semanticRelations: SemanticRelation[];
+  onNavigate: (name: string) => void;
+  onClose: () => void;
+}
+
+function ImpactPanel({
+  selectedSchema,
+  schemas,
+  links,
+  semanticRelations,
+  onNavigate,
+  onClose,
+}: ImpactPanelProps) {
+  const { t } = useTranslation();
+  const schemaLabel = schemas.find((s) => s.name === selectedSchema)?.label ?? selectedSchema;
+  const entries = useMemo(
+    () => computeImpact(selectedSchema, schemas, links, semanticRelations),
+    [selectedSchema, schemas, links, semanticRelations],
+  );
+
+  const outgoing = entries.filter((e) => e.direction === "outgoing");
+  const incoming = entries.filter((e) => e.direction === "incoming");
+
+  return (
+    <div
+      style={{
+        width: 280,
+        flexShrink: 0,
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 12,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: "calc(100vh - 200px)",
+      }}
+    >
+      {/* Panel header */}
+      <div
+        style={{
+          padding: "12px 16px",
+          borderBottom: "1px solid #f1f5f9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "#f8fafc",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <DatabaseIcon size={14} style={{ color: "#6366f1", flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#1e293b",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {schemaLabel}
+            </div>
+            {schemaLabel !== selectedSchema && (
+              <div style={{ fontSize: 10, color: "#94a3b8" }}>{selectedSchema}</div>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 4,
+            color: "#94a3b8",
+            display: "flex",
+            alignItems: "center",
+            borderRadius: 4,
+            flexShrink: 0,
+          }}
+          aria-label="Close"
+        >
+          <XIcon size={14} />
+        </button>
+      </div>
+
+      {/* Navigate button */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9" }}>
+        <button
+          type="button"
+          onClick={() => onNavigate(selectedSchema)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#6366f1",
+            background: "#eef2ff",
+            border: "none",
+            borderRadius: 6,
+            padding: "6px 12px",
+            cursor: "pointer",
+            width: "100%",
+            justifyContent: "center",
+          }}
+        >
+          <ArrowRightIcon size={12} />
+          {t("relationGraph.impact.navigate", "Open schema list")}
+        </button>
+      </div>
+
+      {/* Connections */}
+      <div style={{ overflowY: "auto", flex: 1, padding: "10px 0" }}>
+        {entries.length === 0 ? (
+          <div
+            style={{ padding: "20px 16px", textAlign: "center", fontSize: 12, color: "#94a3b8" }}
+          >
+            {t("relationGraph.impact.noConnections", "No connections")}
+          </div>
+        ) : (
+          <>
+            {outgoing.length > 0 && (
+              <ImpactSection
+                title={t("relationGraph.impact.outgoing", "Outgoing")}
+                entries={outgoing}
+                onSchemaClick={onClose}
+              />
+            )}
+            {incoming.length > 0 && (
+              <ImpactSection
+                title={t("relationGraph.impact.incoming", "Incoming")}
+                entries={incoming}
+                onSchemaClick={onClose}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface ImpactSectionProps {
+  title: string;
+  entries: ImpactEntry[];
+  onSchemaClick: () => void;
+}
+
+function ImpactSection({ title, entries }: ImpactSectionProps) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div
+        style={{
+          padding: "6px 16px 4px",
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: "#94a3b8",
+        }}
+      >
+        {title}
+      </div>
+      {entries.map((entry) => {
+        const color =
+          entry.edgeType === "semantic" && entry.relationType
+            ? (SEMANTIC_EDGE_COLOR[entry.relationType] ?? "#94a3b8")
+            : "#94a3b8";
+        return (
+          <div
+            key={`${entry.direction}-${entry.schema}-${entry.relationLabel}`}
+            style={{
+              padding: "6px 16px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: color,
+                flexShrink: 0,
+                marginTop: 3,
+              }}
+            />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {entry.label ?? entry.schema}
+              </div>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>
+                {entry.relationLabel}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Semantic legend ──────────────────────────────────────
+
+interface SemanticLegendProps {
+  activeTypes: Set<string>;
+}
+
+function SemanticLegend({ activeTypes }: SemanticLegendProps) {
+  const { t } = useTranslation();
+  if (activeTypes.size === 0) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 12,
+        left: 12,
+        background: "rgba(255,255,255,0.95)",
+        border: "1px solid #e2e8f0",
+        borderRadius: 8,
+        padding: "8px 12px",
+        zIndex: 10,
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        maxWidth: 200,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+      }}
+    >
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#94a3b8", letterSpacing: "0.05em", marginBottom: 2 }}>
+        {t("relationGraph.legend.title", "Semantic relations")}
+      </div>
+      {[...activeTypes].map((type) => {
+        const color = SEMANTIC_EDGE_COLOR[type] ?? "#94a3b8";
+        return (
+          <div key={type} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="20" height="10" style={{ flexShrink: 0 }} aria-hidden="true" focusable="false">
+              <line
+                x1="0"
+                y1="5"
+                x2="16"
+                y2="5"
+                stroke={color}
+                strokeWidth="1.5"
+                strokeDasharray="4,2"
+                opacity="0.8"
+              />
+            </svg>
+            <span style={{ fontSize: 10, color: "#475569", whiteSpace: "nowrap" }}>
+              {type.replace(/_/g, " ")}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── GraphCanvas — inner component that owns ReactFlow state ─
@@ -400,25 +804,66 @@ interface GraphCanvasProps {
   semanticRelations: SemanticRelation[];
   showInternal: boolean;
   showSemantic: boolean;
-  onNodeClick: (name: string) => void;
+  selectedNode: string | null;
+  onSelect: (name: string) => void;
+  onNavigate: (name: string) => void;
 }
 
-function GraphCanvas({ schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick }: GraphCanvasProps) {
+function GraphCanvas({
+  schemas,
+  links,
+  semanticRelations,
+  showInternal,
+  showSemantic,
+  selectedNode,
+  onSelect,
+  onNavigate,
+}: GraphCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick);
+    const { nodes: n, edges: e } = buildGraph(
+      schemas,
+      links,
+      semanticRelations,
+      showInternal,
+      showSemantic,
+      selectedNode,
+      onSelect,
+      onNavigate,
+    );
     setRfNodes(n);
     setRfEdges(e);
-  }, [schemas, links, semanticRelations, showInternal, showSemantic, onNodeClick, setRfNodes, setRfEdges]);
+  }, [
+    schemas,
+    links,
+    semanticRelations,
+    showInternal,
+    showSemantic,
+    selectedNode,
+    onSelect,
+    onNavigate,
+    setRfNodes,
+    setRfEdges,
+  ]);
+
+  // Compute which semantic relation types are actually visible for the legend
+  const activeSemanticTypes = useMemo(() => {
+    if (!showSemantic) return new Set<string>();
+    const types = new Set<string>();
+    for (const rel of semanticRelations) {
+      types.add(rel.type);
+    }
+    return types;
+  }, [showSemantic, semanticRelations]);
 
   return (
     <div
-      style={{ height: "calc(100vh - 200px)", minHeight: 500 }}
+      style={{ height: "calc(100vh - 200px)", minHeight: 500, position: "relative" }}
       className="overflow-hidden rounded-lg border bg-background"
     >
-      {/* Hidden SVG for custom arrow marker — aria-hidden since it's decorative */}
+      {/* Hidden SVG for custom arrow markers */}
       <svg
         aria-hidden="true"
         focusable="false"
@@ -469,10 +914,16 @@ function GraphCanvas({ schemas, links, semanticRelations, showInternal, showSema
         <Background gap={16} size={1} color="#f1f5f9" />
         <Controls showInteractive={false} />
         <MiniMap
-          nodeColor={(n) => ((n.data as SchemaNodeData).internal ? "#cbd5e1" : "#818cf8")}
+          nodeColor={(n) => {
+            const d = n.data as SchemaNodeData;
+            if (d.selected) return "#6366f1";
+            if (d.dimmed) return "#e2e8f0";
+            return d.internal ? "#cbd5e1" : "#818cf8";
+          }}
           maskColor="rgba(248,250,252,0.7)"
         />
       </ReactFlow>
+      {showSemantic && <SemanticLegend activeTypes={activeSemanticTypes} />}
     </div>
   );
 }
@@ -484,6 +935,7 @@ export function RelationGraphPage() {
   const navigate = useNavigate();
   const [showInternal, setShowInternal] = useState(false);
   const [showSemantic, setShowSemantic] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchSchemas });
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
@@ -500,12 +952,23 @@ export function RelationGraphPage() {
   const links = linksQuery.data ?? [];
   const semanticRelations = semanticQuery.data ?? [];
 
-  const handleNodeClick = useCallback(
+  const handleSelect = useCallback(
+    (name: string) => {
+      setSelectedNode((prev) => (prev === name ? null : name));
+    },
+    [],
+  );
+
+  const handleNavigate = useCallback(
     (name: string) => {
       navigate({ to: "/schemas/$name", params: { name } });
     },
     [navigate],
   );
+
+  const handleClosePanel = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
 
   if (loading) {
     return (
@@ -572,14 +1035,30 @@ export function RelationGraphPage() {
           <p className="text-sm text-muted-foreground/70">{t("relationGraph.noLinksDesc")}</p>
         </div>
       ) : (
-        <GraphCanvas
-          schemas={schemas}
-          links={links}
-          semanticRelations={semanticRelations}
-          showInternal={showInternal}
-          showSemantic={showSemantic}
-          onNodeClick={handleNodeClick}
-        />
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <GraphCanvas
+              schemas={schemas}
+              links={links}
+              semanticRelations={semanticRelations}
+              showInternal={showInternal}
+              showSemantic={showSemantic}
+              selectedNode={selectedNode}
+              onSelect={handleSelect}
+              onNavigate={handleNavigate}
+            />
+          </div>
+          {selectedNode && (
+            <ImpactPanel
+              selectedSchema={selectedNode}
+              schemas={schemas}
+              links={links}
+              semanticRelations={semanticRelations}
+              onNavigate={handleNavigate}
+              onClose={handleClosePanel}
+            />
+          )}
+        </div>
       )}
     </div>
   );

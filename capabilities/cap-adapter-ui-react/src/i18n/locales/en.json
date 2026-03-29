@@ -903,11 +903,21 @@
     "noLinksDesc": "Define links between schemas using defineLink() to see the relationship graph.",
     "loadFailed": "Failed to load graph data.",
     "showInternal": "Show system schemas",
+    "showSemantic": "Show semantic relations",
     "cardinalityLabels": {
       "one_to_one": "1:1",
       "one_to_many": "1:N",
       "many_to_one": "N:1",
       "many_to_many": "N:M"
+    },
+    "impact": {
+      "navigate": "Open schema list",
+      "outgoing": "Outgoing",
+      "incoming": "Incoming",
+      "noConnections": "No connections"
+    },
+    "legend": {
+      "title": "Semantic relations"
     }
   }
 }

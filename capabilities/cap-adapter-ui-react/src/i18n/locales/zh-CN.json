@@ -903,11 +903,21 @@
     "noLinksDesc": "使用 defineLink() 定义 Schema 之间的关系，即可在此处查看关系图谱。",
     "loadFailed": "图谱数据加载失败。",
     "showInternal": "显示系统 Schema",
+    "showSemantic": "显示语义关系",
     "cardinalityLabels": {
       "one_to_one": "1:1",
       "one_to_many": "1:N",
       "many_to_one": "N:1",
       "many_to_many": "N:M"
+    },
+    "impact": {
+      "navigate": "打开 Schema 列表",
+      "outgoing": "输出关系",
+      "incoming": "输入关系",
+      "noConnections": "无关联"
+    },
+    "legend": {
+      "title": "语义关系"
     }
   }
 }
