@@ -37,6 +37,8 @@ export interface CacheManagerOptions {
  */
 export interface NamespacedCache {
   get<T = unknown>(key: string): T | undefined;
+  /** Retrieve value with staleness metadata for stale-while-revalidate pattern */
+  getWithStaleness<T = unknown>(key: string): { value: T; isStale: boolean } | undefined;
   set<T = unknown>(key: string, value: T, options?: CacheSetOptions): void;
   delete(key: string): boolean;
   invalidateByTag(tag: string): number;
@@ -80,16 +82,24 @@ export class CacheManager {
   // ── Core operations ─────────────────────────────────────
 
   get<T = unknown>(key: string): T | undefined {
+    return this.getWithStaleness<T>(key)?.value;
+  }
+
+  /**
+   * Retrieve a value with staleness metadata for stale-while-revalidate pattern.
+   * Returns `{ value, isStale: true }` when in SWR window.
+   */
+  getWithStaleness<T = unknown>(key: string): { value: T; isStale: boolean } | undefined {
     // Try L1 first
-    const l1Result = this.l1.get<T>(key);
+    const l1Result = this.l1.getWithStaleness<T>(key);
     if (l1Result !== undefined) return l1Result;
 
     // Try L2 if available
     if (this.l2) {
-      const l2Result = this.l2.get<T>(key);
+      const l2Result = this.l2.getWithStaleness<T>(key);
       if (l2Result !== undefined) {
-        // Promote to L1
-        this.l1.set(key, l2Result);
+        // Promote to L1 (without SWR metadata since original options are not available)
+        this.l1.set(key, l2Result.value);
         return l2Result;
       }
     }
@@ -147,6 +157,9 @@ export class CacheManager {
     return {
       get<T = unknown>(key: string): T | undefined {
         return manager.get<T>(`${prefix}${key}`);
+      },
+      getWithStaleness<T = unknown>(key: string): { value: T; isStale: boolean } | undefined {
+        return manager.getWithStaleness<T>(`${prefix}${key}`);
       },
       set<T = unknown>(key: string, value: T, options?: CacheSetOptions): void {
         manager.set(`${prefix}${key}`, value, options);

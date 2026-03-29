@@ -10,6 +10,7 @@ import type {
   CommandContext,
 } from "@linchkit/core";
 import { defineCapability, type PermissionRegistry } from "@linchkit/core";
+import type { CacheManager } from "@linchkit/core/server";
 import type { z } from "zod";
 import { assignUserAction } from "./actions/assign-user";
 import { createGroupAction } from "./actions/create-group";
@@ -31,6 +32,13 @@ export interface CapPermissionOptions {
   registry?: PermissionRegistry;
   /** Programmatic dependency — custom capability resolver */
   resolveCapability?: (actionName: string, ctx: CommandContext) => string;
+  /**
+   * Optional cache manager for caching permission decisions.
+   * Cache key: perm:{tenantId}:{userId}:{command}:{schema}, 10min TTL.
+   * Invalidated automatically when permission-related actions execute
+   * (assign_role, revoke_role, update_permission) via CacheManager event handling.
+   */
+  cacheManager?: CacheManager;
 
   /** Declarative configuration — validated by capPermissionConfig schema */
   config?: Partial<z.infer<typeof capPermissionConfig.schema>>;
@@ -49,6 +57,7 @@ export function createCapPermission(options?: CapPermissionOptions): CapabilityD
           handler: createPermissionMiddleware({
             registry: options.registry,
             publicActions: cfg?.publicActions as string[] | undefined,
+            cacheManager: options.cacheManager,
           }),
           priority: 50,
         },

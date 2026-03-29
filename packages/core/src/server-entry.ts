@@ -155,6 +155,10 @@ export {
   type InMemoryCacheOptions,
   InMemoryCacheProvider,
   type NamespacedCache,
+  type CacheInvalidationPayload,
+  CACHE_INVALIDATION_CHANNEL,
+  PostgresCacheInvalidator,
+  type PostgresCacheInvalidatorOptions,
 } from "./cache";
 
 // === Observability ===
