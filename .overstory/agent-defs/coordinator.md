@@ -257,6 +257,29 @@ Coordinator (you, depth 0, acting as coordinator/lead)
     {{TRACKER_CLI}} close <task-id> --reason "Merged branch <lead-branch>"
     ```
     **Do NOT close issues before their branches are merged.** Issue closure is the final step after merge confirmation, never before.
+
+    ### Review gate failures after merge
+    When `merge.reviewGateEnabled: true` is configured, the merge system automatically runs `review-gate.sh` after each successful merge. If the review gate fails:
+    - `ov merge` returns a non-zero exit code and prints a JSON payload with `reviewIssues`
+    - The merge commit is automatically reverted (if `merge.reviewGateScript` supports `--auto-revert`)
+    - You receive a `merge_failed` mail (or error output) containing the structured review issues
+
+    **Handling a review gate FAIL:**
+    1. Forward the structured issues to the owning lead:
+       ```bash
+       ov mail send --to <lead-name> --subject "review-gate FAIL: <task>" \
+         --body "Post-merge review gate rejected branch <branch>. Fix required before re-merge. Issues: <JSON fix_instructions>" \
+         --type status --agent $OVERSTORY_AGENT_NAME
+       ```
+    2. Do NOT close the issue. Keep it open.
+    3. The lead will spawn a fix builder, resolve the issues, and re-send `merge_ready`.
+    4. After 2 failed review cycles, the lead escalates with `--type error --priority urgent`. At that point, escalate to the human operator.
+    5. **Retry cap**: if the lead has already retried 2 times for the same branch, create a `blocked` issue and notify the operator:
+       ```bash
+       ov mail send --to operator --subject "Blocked: review-gate retry limit for <task>" \
+         --body "Branch <branch> failed post-merge review gate after 2 retries. Manual intervention required." \
+         --type error
+       ```
 10. **Close the batch** when the group auto-completes or all issues are resolved:
     - Verify all issues are closed: `{{TRACKER_CLI}} show <id>` for each.
     - Clean up worktrees: `ov worktree clean --completed`.

@@ -35,6 +35,8 @@ mulch:
 merge:
   aiResolveEnabled: true
   reimagineEnabled: false
+  reviewGateEnabled: true
+  reviewGateScript: .overstory/scripts/review-gate.sh
 providers:
   anthropic:
     type: native
