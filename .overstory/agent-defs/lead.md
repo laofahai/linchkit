@@ -344,6 +344,47 @@ If the pipeline exits with code 1 (VERDICT: FAIL), treat it as a reviewer FAIL:
 - After the builder revises and sends `worker_done`, re-run the review gate on the updated branch.
 - Cap revision cycles at 3. Escalate to coordinator with `--type error` if still failing after 3 cycles.
 
+## review-gate-auto-fix-flow
+
+When the coordinator reports that a merge was rejected by the post-merge review gate (via `merge_failed` mail with `reviewIssues` in the payload), follow this auto-fix protocol.
+
+### When triggered
+The coordinator sends you a `status` mail with subject containing "review-gate FAIL" and a structured JSON body listing issues from the review gate.
+
+### Auto-fix workflow
+
+1. **Parse the review issues** from the mail body (JSON `fix_instructions` array).
+2. **Create a fix issue** for each distinct file/area:
+   ```bash
+   # Do NOT run sd create in worktrees — mail the coordinator to create the issue on main
+   ov mail send --to coordinator --subject "create-issue: fix review issues for <builder-task>" \
+     --body "type: task, priority: 1, description: Fix issues identified by post-merge review gate for branch <branch>. Issues: <list of file:message pairs>" \
+     --type status
+   ```
+3. **Spawn a fix builder** with the specific issues as the spec:
+   ```bash
+   ov sling <fix-task-id> --capability builder --name fix-<builder-name> \
+     --spec .overstory/specs/<fix-task-id>.md \
+     --files <affected-files> \
+     --parent $OVERSTORY_AGENT_NAME --depth <current+1>
+   ```
+4. **Send the fix spec** to the builder with each issue clearly described:
+   ```
+   Fix the following issues identified by the post-merge review gate:
+   - File: <file>, Line: <line>, Severity: <severity>
+     Issue: <message>
+     Suggestion: <suggestion>
+   ```
+5. **After fix builder completes**, re-run the review gate on the updated branch.
+6. **Retry cap**: maximum 2 retry cycles per merge. After 2 failed cycles, escalate to the coordinator with `--type error --priority urgent`.
+
+### Escalation format
+```bash
+ov mail send --to coordinator --subject "Error: review-gate retry limit exceeded for <task>" \
+  --body "Branch <branch> failed post-merge review gate after 2 fix cycles. Issues: <JSON issues list>. Manual intervention required." \
+  --type error --priority urgent --agent $OVERSTORY_AGENT_NAME
+```
+
 ## completion-protocol
 
 1. **Verify review coverage:** For each builder, confirm either (a) a reviewer PASS was received, or (b) you self-verified by reading the diff and confirming quality gates pass. In all cases, the multi-agent review gate must have returned PASS before `merge_ready` was sent.
