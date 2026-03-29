@@ -30,7 +30,7 @@ import type {
   SubscriptionConfig,
   ViewDefinition,
 } from "@linchkit/core";
-import type { HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
+import type { CacheManager, HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
 import { createTenantAwareDataProvider } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
@@ -128,6 +128,8 @@ export interface ServerOptions {
   approvalEngine?: ApprovalEngine;
   /** Runtime config registry — when provided, enables /api/configs REST endpoints */
   runtimeConfigRegistry?: RuntimeConfigRegistry;
+  /** Cache manager — when provided, enables /internal/cache/stats endpoint */
+  cacheManager?: CacheManager;
 }
 
 // Re-export parseAcceptLanguage for external consumers

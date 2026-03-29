@@ -14,6 +14,11 @@ export interface CacheEntry<T = unknown> {
   value: T;
   /** Absolute expiry timestamp (ms since epoch). Undefined = no TTL. */
   expiresAt?: number;
+  /**
+   * Soft expiry for stale-while-revalidate pattern.
+   * After softExpiresAt but before expiresAt, the value is stale but still served.
+   */
+  softExpiresAt?: number;
   /** Tags for group invalidation (e.g. ["schema:purchase_request", "tenant:t1"]) */
   tags: string[];
   /** Timestamp when entry was created (ms since epoch) */
@@ -25,6 +30,13 @@ export interface CacheEntry<T = unknown> {
 export interface CacheSetOptions {
   /** Time-to-live in milliseconds. Undefined = no expiry. */
   ttl?: number;
+  /**
+   * Stale-while-revalidate window in milliseconds.
+   * After `ttl` expires but within `ttl + swrTtl`, the value is served stale.
+   * The hard eviction happens at `ttl + swrTtl`.
+   * Requires `ttl` to be set.
+   */
+  swrTtl?: number;
   /** Tags for group invalidation */
   tags?: string[];
 }
@@ -47,8 +59,15 @@ export interface CacheStats {
 // ── Provider interface ────────────────────────────────────
 
 export interface CacheProvider {
-  /** Retrieve a cached value. Returns undefined on miss or expired entry. */
+  /** Retrieve a cached value. Returns undefined on miss or hard-expired entry. Serves stale value during SWR window. */
   get<T = unknown>(key: string): T | undefined;
+
+  /**
+   * Retrieve a cached value with staleness metadata.
+   * Returns undefined on miss or hard-expired entry.
+   * Returns `{ value, isStale: true }` when entry is soft-expired (within SWR window).
+   */
+  getWithStaleness<T = unknown>(key: string): { value: T; isStale: boolean } | undefined;
 
   /** Store a value with optional TTL and tags. */
   set<T = unknown>(key: string, value: T, options?: CacheSetOptions): void;
