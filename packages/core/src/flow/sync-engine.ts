@@ -16,6 +16,7 @@ import type { EventBusLike } from "../types/event";
 import type {
   ActionFlowStep,
   AIFlowStep,
+  CompensationLogEntry,
   ConditionFlowStep,
   FlowDefinition,
   FlowInstance,
@@ -272,6 +273,60 @@ async function executeAIStep(
   };
 }
 
+// ── Saga compensation ───────────────────────────────────
+
+/** Record of a successfully completed action step that has a compensation action */
+interface CompletedActionRecord {
+  stepId: string;
+  compensationAction: string;
+  compensationInput: Record<string, unknown> | string | undefined;
+  /** Output from the step — used as default compensation input */
+  stepOutput: Record<string, unknown>;
+}
+
+/**
+ * Execute Saga compensations in reverse order for all completed action steps
+ * that declared a compensation action.
+ *
+ * Each compensation is attempted independently; failures are logged but do not
+ * stop the remaining compensations from running.
+ */
+async function runCompensations(
+  completed: CompletedActionRecord[],
+  runCtx: FlowStepContext,
+  flowContext: Record<string, unknown>,
+): Promise<CompensationLogEntry[]> {
+  const log: CompensationLogEntry[] = [];
+
+  // Run in reverse order (last-in, first-out)
+  for (let i = completed.length - 1; i >= 0; i--) {
+    const record = completed[i];
+    if (!record) continue;
+
+    const resolvedInput = record.compensationInput
+      ? resolveInputExpressions(record.compensationInput, flowContext)
+      : record.stepOutput;
+
+    const entry: CompensationLogEntry = {
+      stepId: record.stepId,
+      compensationAction: record.compensationAction,
+      status: "succeeded",
+      executedAt: new Date(),
+    };
+
+    try {
+      await runCtx.executeAction(record.compensationAction, resolvedInput);
+    } catch (err) {
+      entry.status = "failed";
+      entry.error = err instanceof Error ? err.message : String(err);
+    }
+
+    log.push(entry);
+  }
+
+  return log;
+}
+
 // ── SyncFlowEngine ──────────────────────────────────────
 
 /**
@@ -417,6 +472,9 @@ export function createSyncFlowEngine(
       flowContext,
     };
 
+    // Track completed action steps that have a compensation action (for Saga rollback)
+    const completedActionSteps: CompletedActionRecord[] = [];
+
     try {
       // Walk through steps sequentially
       let stepIndex = 0;
@@ -427,6 +485,16 @@ export function createSyncFlowEngine(
         instance.currentStepId = step.id;
 
         const { output, nextStepId } = await executeStep(step, flowContext, stepMap, runCtx);
+
+        // Track action steps that declare a compensation action
+        if (step.type === "action" && (step as ActionFlowStep).compensation) {
+          completedActionSteps.push({
+            stepId: step.id,
+            compensationAction: (step as ActionFlowStep).compensation as string,
+            compensationInput: (step as ActionFlowStep).compensationInput,
+            stepOutput: output,
+          });
+        }
 
         // Store step output in context (wrapped in { output } to match compiler format)
         const stepsCtx = flowContext.__steps as Record<string, unknown>;
@@ -459,6 +527,14 @@ export function createSyncFlowEngine(
         stepId: instance.currentStepId,
         message: err instanceof Error ? err.message : String(err),
       };
+
+      // Run Saga compensations if onError === 'compensate' and there are steps to undo
+      if (definition.onError === "compensate" && completedActionSteps.length > 0) {
+        instance.status = "compensating";
+        const compensationLog = await runCompensations(completedActionSteps, runCtx, flowContext);
+        instance.compensationLog = compensationLog;
+        instance.status = "compensated";
+      }
     }
 
     // Emit flow completion/failure event to EventBus

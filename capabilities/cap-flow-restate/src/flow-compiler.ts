@@ -10,6 +10,7 @@ import type {
   ActionFlowStep,
   AIFlowStep,
   ApprovalFlowStep,
+  CompensationLogEntry,
   ConditionFlowStep,
   FlowDefinition,
   FlowStep,
@@ -32,6 +33,14 @@ interface FlowExecutionContext {
   prev: { output: unknown } | null;
   /** Outputs indexed by step ID */
   steps: Record<string, { output: unknown }>;
+}
+
+/** Record of a completed action step with a declared compensation */
+interface CompletedActionRecord {
+  stepId: string;
+  compensationAction: string;
+  compensationInput: Record<string, unknown> | string | undefined;
+  stepOutput: unknown;
 }
 
 /**
@@ -205,57 +214,119 @@ export function compileFlow(
 
     ctx.set("status", "running");
 
+    // Track action steps with compensation declarations for potential Saga rollback
+    const completedActionSteps: CompletedActionRecord[] = [];
+
     let pointer = 0;
 
-    while (pointer < steps.length) {
-      const step = steps[pointer];
-      if (!step) break;
-      ctx.set("current_step", step.id);
+    try {
+      while (pointer < steps.length) {
+        const step = steps[pointer];
+        if (!step) break;
+        ctx.set("current_step", step.id);
 
-      const result = await executeStep(
-        ctx,
-        step,
-        stepIndex,
-        steps,
-        flowCtx,
-        stepContext,
-        definition.name,
-      );
+        const result = await executeStep(
+          ctx,
+          step,
+          stepIndex,
+          steps,
+          flowCtx,
+          stepContext,
+          definition.name,
+        );
 
-      // Handle jump instructions from condition/approval steps
-      if (
-        result !== undefined &&
-        typeof result === "object" &&
-        result !== null &&
-        "__jump" in result
-      ) {
-        const jumpTarget = (result as { __jump: string }).__jump;
-        const targetIndex = stepIndex.get(jumpTarget);
-        if (targetIndex === undefined) {
-          throw new restate.TerminalError(`Jump target step "${jumpTarget}" not found`);
+        // Handle jump instructions from condition/approval steps
+        if (
+          result !== undefined &&
+          typeof result === "object" &&
+          result !== null &&
+          "__jump" in result
+        ) {
+          const jumpTarget = (result as { __jump: string }).__jump;
+          const targetIndex = stepIndex.get(jumpTarget);
+          if (targetIndex === undefined) {
+            throw new restate.TerminalError(`Jump target step "${jumpTarget}" not found`);
+          }
+          pointer = targetIndex;
+          continue;
         }
-        pointer = targetIndex;
-        continue;
+
+        // Handle early termination (rejection, timeout)
+        if (
+          result !== undefined &&
+          typeof result === "object" &&
+          result !== null &&
+          "__terminate" in result
+        ) {
+          const termination = (result as { __terminate: FlowRunResult }).__terminate;
+          ctx.set("status", termination.status);
+          return termination;
+        }
+
+        // Store step output
+        const output = result;
+        flowCtx.steps[step.id] = { output };
+        flowCtx.prev = { output };
+
+        // Track completed action steps that declared a compensation
+        if (step.type === "action" && (step as ActionFlowStep).compensation) {
+          completedActionSteps.push({
+            stepId: step.id,
+            compensationAction: (step as ActionFlowStep).compensation as string,
+            compensationInput: (step as ActionFlowStep).compensationInput,
+            stepOutput: output,
+          });
+        }
+
+        pointer++;
+      }
+    } catch (err) {
+      // Run Saga compensations if onError === 'compensate'
+      if (definition.onError === "compensate" && completedActionSteps.length > 0) {
+        ctx.set("status", "compensating");
+        const compensationLog: CompensationLogEntry[] = [];
+
+        // Run compensations in reverse order (durable via ctx.run)
+        for (let i = completedActionSteps.length - 1; i >= 0; i--) {
+          const record = completedActionSteps[i];
+          if (!record) continue;
+
+          const resolvedInput: Record<string, unknown> =
+            record.compensationInput && typeof record.compensationInput === "object"
+              ? (record.compensationInput as Record<string, unknown>)
+              : typeof record.stepOutput === "object" && record.stepOutput !== null
+                ? (record.stepOutput as Record<string, unknown>)
+                : {};
+
+          const entry: CompensationLogEntry = {
+            stepId: record.stepId,
+            compensationAction: record.compensationAction,
+            status: "succeeded",
+            executedAt: new Date(),
+          };
+
+          try {
+            await ctx.run(`compensate_${record.stepId}`, () =>
+              stepContext.executeAction(record.compensationAction, resolvedInput),
+            );
+          } catch (compErr) {
+            entry.status = "failed";
+            entry.error = compErr instanceof Error ? compErr.message : String(compErr);
+          }
+
+          compensationLog.push(entry);
+        }
+
+        ctx.set("compensation_log", compensationLog);
+        ctx.set("status", "compensated");
+        return {
+          status: "completed",
+          output: { compensated: true, compensationLog },
+        };
       }
 
-      // Handle early termination (rejection, timeout)
-      if (
-        result !== undefined &&
-        typeof result === "object" &&
-        result !== null &&
-        "__terminate" in result
-      ) {
-        const termination = (result as { __terminate: FlowRunResult }).__terminate;
-        ctx.set("status", termination.status);
-        return termination;
-      }
-
-      // Store step output
-      const output = result;
-      flowCtx.steps[step.id] = { output };
-      flowCtx.prev = { output };
-
-      pointer++;
+      // Re-throw to let Restate handle retries / terminal error propagation
+      throw err;
     }
 
     ctx.set("status", "completed");
