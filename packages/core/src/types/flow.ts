@@ -43,6 +43,18 @@ interface FlowStepBase {
   description?: string;
 }
 
+/** Retry policy for a single action step */
+export interface StepRetryPolicy {
+  /** Maximum number of retry attempts (default: 0 — no retries) */
+  maxAttempts: number;
+  /** Initial delay between retries in milliseconds (default: 1000) */
+  initialDelayMs?: number;
+  /** Backoff multiplier applied to delay after each attempt (default: 2) */
+  backoffMultiplier?: number;
+  /** Maximum delay cap in milliseconds (default: 30000) */
+  maxDelayMs?: number;
+}
+
 /** Execute a LinchKit action */
 export interface ActionFlowStep extends FlowStepBase {
   type: "action";
@@ -50,6 +62,12 @@ export interface ActionFlowStep extends FlowStepBase {
   actionName: string;
   /** Static input object, or expression string (e.g., "$prev.output.id") */
   input?: Record<string, unknown> | string;
+  /** Compensation action to run if a later step fails (Saga pattern) */
+  compensation?: string;
+  /** Input for the compensation action; defaults to the step's own output */
+  compensationInput?: Record<string, unknown> | string;
+  /** Per-step retry policy (overrides flow-level maxRetries for this step) */
+  retryPolicy?: StepRetryPolicy;
 }
 
 /** Wait for human approval */
@@ -156,10 +174,33 @@ export interface FlowChainConfig {
   onStatus?: "completed" | "failed";
 }
 
+// ── Compensation log ───────────────────────────────────
+
+/** Result of a single compensation action execution */
+export interface CompensationLogEntry {
+  /** Step ID whose compensation was executed */
+  stepId: string;
+  /** Name of the compensation action that was invoked */
+  compensationAction: string;
+  /** Whether the compensation succeeded */
+  status: "succeeded" | "failed";
+  /** Error message if compensation failed */
+  error?: string;
+  /** When the compensation was executed */
+  executedAt: Date;
+}
+
 // ── Flow instance (runtime state) ──────────────────────
 
 /** Status of a flow instance */
-export type FlowInstanceStatus = "running" | "paused" | "completed" | "failed" | "cancelled";
+export type FlowInstanceStatus =
+  | "running"
+  | "paused"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "compensating"
+  | "compensated";
 
 /** Runtime state of a flow instance */
 export interface FlowInstance {
@@ -179,4 +220,6 @@ export interface FlowInstance {
   completedAt?: Date;
   /** Error details if the instance failed */
   error?: { stepId: string; message: string };
+  /** Log of compensation actions executed during Saga rollback */
+  compensationLog?: CompensationLogEntry[];
 }

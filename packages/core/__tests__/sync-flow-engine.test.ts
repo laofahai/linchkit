@@ -272,4 +272,229 @@ describe("SyncFlowEngine", () => {
       await expect(engine.sendSignal("id", "sig", {})).rejects.toThrow("does not support signals");
     });
   });
+
+  describe("Saga compensation", () => {
+    it("runs compensations in reverse order when a step fails and onError === 'compensate'", async () => {
+      const executedActions: string[] = [];
+
+      const ctx = createMockStepContext({
+        "create_inbound": (input) => {
+          executedActions.push("create_inbound");
+          return { inboundId: "ib-1", ...input };
+        },
+        "create_payment": () => {
+          executedActions.push("create_payment");
+          throw new Error("Payment gateway timeout");
+        },
+        "cancel_inbound": (input) => {
+          executedActions.push("cancel_inbound");
+          return { cancelled: true, ...input };
+        },
+      });
+
+      const flow: FlowDefinition = {
+        name: "purchase-saga",
+        trigger: { type: "manual" },
+        onError: "compensate",
+        steps: [
+          {
+            id: "step_inbound",
+            name: "Create Inbound",
+            type: "action",
+            actionName: "create_inbound",
+            input: { orderId: "ord-1" },
+            compensation: "cancel_inbound",
+          },
+          {
+            id: "step_payment",
+            name: "Create Payment",
+            type: "action",
+            actionName: "create_payment",
+            input: { amount: 500 },
+          },
+        ],
+      };
+
+      const engine = createSyncFlowEngine(ctx);
+      engine.registerFlow(flow);
+
+      const instance = await engine.startFlow("purchase-saga", {});
+
+      expect(instance.status).toBe("compensated");
+      expect(executedActions).toEqual(["create_inbound", "create_payment", "cancel_inbound"]);
+      expect(instance.compensationLog).toHaveLength(1);
+      expect(instance.compensationLog?.[0]?.stepId).toBe("step_inbound");
+      expect(instance.compensationLog?.[0]?.compensationAction).toBe("cancel_inbound");
+      expect(instance.compensationLog?.[0]?.status).toBe("succeeded");
+    });
+
+    it("logs compensation failure but continues compensating other steps", async () => {
+      const executedActions: string[] = [];
+
+      const ctx = createMockStepContext({
+        "step_a_action": () => {
+          executedActions.push("step_a_action");
+          return { result: "a" };
+        },
+        "step_b_action": () => {
+          executedActions.push("step_b_action");
+          return { result: "b" };
+        },
+        "step_c_action": () => {
+          executedActions.push("step_c_action");
+          throw new Error("C failed");
+        },
+        "compensate_b": () => {
+          executedActions.push("compensate_b");
+          throw new Error("compensate_b also failed");
+        },
+        "compensate_a": () => {
+          executedActions.push("compensate_a");
+          return { undone: true };
+        },
+      });
+
+      const flow: FlowDefinition = {
+        name: "multi-step-saga",
+        trigger: { type: "manual" },
+        onError: "compensate",
+        steps: [
+          {
+            id: "step_a",
+            name: "Step A",
+            type: "action",
+            actionName: "step_a_action",
+            compensation: "compensate_a",
+          },
+          {
+            id: "step_b",
+            name: "Step B",
+            type: "action",
+            actionName: "step_b_action",
+            compensation: "compensate_b",
+          },
+          {
+            id: "step_c",
+            name: "Step C",
+            type: "action",
+            actionName: "step_c_action",
+          },
+        ],
+      };
+
+      const engine = createSyncFlowEngine(ctx);
+      engine.registerFlow(flow);
+
+      const instance = await engine.startFlow("multi-step-saga", {});
+
+      expect(instance.status).toBe("compensated");
+      // Compensation runs in reverse: compensate_b then compensate_a
+      expect(executedActions).toEqual([
+        "step_a_action",
+        "step_b_action",
+        "step_c_action",
+        "compensate_b",
+        "compensate_a",
+      ]);
+
+      const log = instance.compensationLog ?? [];
+      expect(log).toHaveLength(2);
+      expect(log[0]?.stepId).toBe("step_b");
+      expect(log[0]?.status).toBe("failed");
+      expect(log[1]?.stepId).toBe("step_a");
+      expect(log[1]?.status).toBe("succeeded");
+    });
+
+    it("does not compensate when onError is not 'compensate'", async () => {
+      const executedActions: string[] = [];
+
+      const ctx = createMockStepContext({
+        "step_action": () => {
+          executedActions.push("step_action");
+          return {};
+        },
+        "fail_action": () => {
+          throw new Error("failed");
+        },
+        "compensate_step": () => {
+          executedActions.push("compensate_step");
+          return {};
+        },
+      });
+
+      const flow: FlowDefinition = {
+        name: "no-compensation-saga",
+        trigger: { type: "manual" },
+        // onError not set — default behaviour
+        steps: [
+          {
+            id: "step1",
+            name: "Step 1",
+            type: "action",
+            actionName: "step_action",
+            compensation: "compensate_step",
+          },
+          {
+            id: "step2",
+            name: "Step 2",
+            type: "action",
+            actionName: "fail_action",
+          },
+        ],
+      };
+
+      const engine = createSyncFlowEngine(ctx);
+      engine.registerFlow(flow);
+
+      const instance = await engine.startFlow("no-compensation-saga", {});
+
+      expect(instance.status).toBe("failed");
+      expect(executedActions).toEqual(["step_action"]);
+      expect(instance.compensationLog).toBeUndefined();
+    });
+
+    it("uses custom compensationInput when provided", async () => {
+      let compensationCallInput: Record<string, unknown> = {};
+
+      const ctx = createMockStepContext({
+        "do_work": () => ({ workId: "w-1" }),
+        "fail_step": () => {
+          throw new Error("boom");
+        },
+        "undo_work": (input) => {
+          compensationCallInput = input;
+          return { undone: true };
+        },
+      });
+
+      const flow: FlowDefinition = {
+        name: "custom-input-saga",
+        trigger: { type: "manual" },
+        onError: "compensate",
+        steps: [
+          {
+            id: "step_work",
+            name: "Do Work",
+            type: "action",
+            actionName: "do_work",
+            compensation: "undo_work",
+            compensationInput: { reason: "rollback" },
+          },
+          {
+            id: "step_fail",
+            name: "Fail Step",
+            type: "action",
+            actionName: "fail_step",
+          },
+        ],
+      };
+
+      const engine = createSyncFlowEngine(ctx);
+      engine.registerFlow(flow);
+
+      await engine.startFlow("custom-input-saga", {});
+
+      expect(compensationCallInput).toEqual({ reason: "rollback" });
+    });
+  });
 });
