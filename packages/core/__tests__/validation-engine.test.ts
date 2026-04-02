@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { validatePhase1, validateProposal } from "../src/engine/validation-engine";
+import type { ActionDefinition } from "../src/types/action";
 import type { ProposalChange } from "../src/types/proposal";
+import type { RuleDefinition } from "../src/types/rule";
 import type { SchemaDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
-import type { ActionDefinition } from "../src/types/action";
-import type { RuleDefinition } from "../src/types/rule";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -172,7 +172,11 @@ describe("validatePhase1", () => {
         changes: [
           makeSchemaChange("enum_schema", {
             fields: {
-              status: { type: "enum", options: [{ value: "a", label: "A" }], required: false } as never,
+              status: {
+                type: "enum",
+                options: [{ value: "a", label: "A" }],
+                required: false,
+              } as never,
             },
           }),
         ],

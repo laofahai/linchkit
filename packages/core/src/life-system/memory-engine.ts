@@ -70,9 +70,7 @@ export class MemoryEngine {
 
     // Use extended getSignals if available (InMemoryMemoryStore), otherwise fall back
     const extStore = this.store as Partial<InMemoryMemoryStore>;
-    const signals = extStore.getSignals
-      ? await extStore.getSignals({ schema, since })
-      : [];
+    const signals = extStore.getSignals ? await extStore.getSignals({ schema, since }) : [];
 
     const values = signals
       .map((s) => {
@@ -81,10 +79,7 @@ export class MemoryEngine {
       })
       .filter((v): v is number => v !== null);
 
-    const avg =
-      values.length > 0
-        ? values.reduce((sum, v) => sum + v, 0) / values.length
-        : 0;
+    const avg = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
 
     const baseline: Baseline = {
       schema,
@@ -104,9 +99,7 @@ export class MemoryEngine {
    * Drift formula: |value - baseline| / max(baseline, 1)
    * Returns drifted=false when no baseline exists yet (first observation).
    */
-  async detectDrift(
-    signal: SensorSignal,
-  ): Promise<{ drifted: boolean; deviation: number }> {
+  async detectDrift(signal: SensorSignal): Promise<{ drifted: boolean; deviation: number }> {
     const schema = (signal.context.schema as string | undefined) ?? signal.sensor;
     const metric = (signal.context.metric as string | undefined) ?? "value";
 

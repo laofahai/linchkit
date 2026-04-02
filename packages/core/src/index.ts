@@ -91,8 +91,8 @@ export {
   defineConfigSchema,
   InMemoryConfigStore,
   queueConfig,
-  resolveWithCascade,
   RuntimeConfigRegistry,
+  resolveWithCascade,
   securityConfig,
   serverConfig,
 } from "./config";
@@ -184,6 +184,21 @@ export type {
   FlowStepContextDeps,
   TriggerBinding,
 } from "./flow";
+// i18n — shared types and locale utilities
+export {
+  type I18nConfig,
+  parseAcceptLanguage,
+  resolveLocale,
+  type SupportedLanguage,
+} from "./i18n";
+export type {
+  SensorDefinitionConfig,
+  SignalBus,
+  SignalBusOptions,
+  SignalHandler,
+} from "./life-system";
+// Life-system — Sense layer (Spec 55)
+export { createSignalBus, defineSensor } from "./life-system";
 export type {
   AlertCondition,
   AlertEffect,
@@ -207,14 +222,6 @@ export type {
   SchemaDescriptor,
 } from "./ontology";
 export { buildRelationGraph, inferSemanticRelations } from "./ontology";
-export type {
-  RelationGraph,
-  SemanticRelation,
-  SemanticRelationEndpoint,
-  SemanticRelationSource,
-  SemanticRelationType,
-} from "./types/semantic-relation";
-export { defineRelation } from "./types/semantic-relation";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
 export {
   applyOverride,
@@ -275,21 +282,14 @@ export {
 } from "./types";
 export type { Logger } from "./types/logger";
 export type { PermissionGroupDefinition } from "./types/permission";
-// Life-system — Sense layer (Spec 55)
-export { createSignalBus, defineSensor } from "./life-system";
 export type {
-  SensorDefinitionConfig,
-  SignalBus,
-  SignalBusOptions,
-  SignalHandler,
-} from "./life-system";
-// i18n — shared types and locale utilities
-export {
-  parseAcceptLanguage,
-  resolveLocale,
-  type I18nConfig,
-  type SupportedLanguage,
-} from "./i18n";
+  RelationGraph,
+  SemanticRelation,
+  SemanticRelationEndpoint,
+  SemanticRelationSource,
+  SemanticRelationType,
+} from "./types/semantic-relation";
+export { defineRelation } from "./types/semantic-relation";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";

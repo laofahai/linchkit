@@ -30,7 +30,11 @@ import type {
   SubscriptionConfig,
   ViewDefinition,
 } from "@linchkit/core";
-import type { CacheManager, HealthCheckRegistry, InMemoryMetricsCollector } from "@linchkit/core/server";
+import type {
+  CacheManager,
+  HealthCheckRegistry,
+  InMemoryMetricsCollector,
+} from "@linchkit/core/server";
 import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";

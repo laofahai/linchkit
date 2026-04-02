@@ -29,9 +29,7 @@ function readTemplates(schemaName: string): RecordTemplate[] {
 
 function writeTemplates(schemaName: string, templates: RecordTemplate[]): void {
   localStorage.setItem(storageKey(schemaName), JSON.stringify(templates));
-  window.dispatchEvent(
-    new CustomEvent("linchkit:record-templates-change", { detail: schemaName }),
-  );
+  window.dispatchEvent(new CustomEvent("linchkit:record-templates-change", { detail: schemaName }));
 }
 
 function generateId(): string {
@@ -90,7 +88,10 @@ export function useRecordTemplates(schemaName: string) {
   );
 
   const updateTemplate = useCallback(
-    (templateId: string, updates: Partial<Omit<RecordTemplate, "id" | "schemaName" | "createdAt">>): void => {
+    (
+      templateId: string,
+      updates: Partial<Omit<RecordTemplate, "id" | "schemaName" | "createdAt">>,
+    ): void => {
       const current = readTemplates(schemaName);
       const updated = current.map((t) =>
         t.id === templateId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t,

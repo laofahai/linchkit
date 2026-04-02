@@ -11,14 +11,24 @@ import { Button, Skeleton, toast } from "@linchkit/ui-kit/components";
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { startOfMonth } from "date-fns";
-import { Calendar, Kanban, List, ListTree, Pencil, Plus, RefreshCw, ServerCrash, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Kanban,
+  List,
+  ListTree,
+  Pencil,
+  Plus,
+  RefreshCw,
+  ServerCrash,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoCalendar, CalendarNavControls } from "../components/auto-calendar";
 import { AutoKanban } from "../components/auto-kanban";
-import type { TreeNodeAction } from "../components/auto-tree";
 import { buildFilterColumns } from "../components/auto-list/filter-columns";
 import type { AutoListViewDefinition } from "../components/auto-list/types";
+import type { TreeNodeAction } from "../components/auto-tree";
 import { AutoTree } from "../components/auto-tree";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { useDataTableFilters } from "../components/data-table-filter";

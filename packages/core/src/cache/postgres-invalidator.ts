@@ -113,14 +113,9 @@ export class PostgresCacheInvalidator {
     const payloadStr = JSON.stringify(payload);
     try {
       await this.sql.notify(CACHE_INVALIDATION_CHANNEL, payloadStr);
-      this.logger.debug?.(
-        `[PostgresCacheInvalidator] NOTIFY sent: ${payloadStr}`,
-      );
+      this.logger.debug?.(`[PostgresCacheInvalidator] NOTIFY sent: ${payloadStr}`);
     } catch (err) {
-      this.logger.error?.(
-        `[PostgresCacheInvalidator] NOTIFY failed: ${payloadStr}`,
-        err,
-      );
+      this.logger.error?.(`[PostgresCacheInvalidator] NOTIFY failed: ${payloadStr}`, err);
       // Non-fatal: TTL will ensure eventual consistency
     }
   }
@@ -184,9 +179,7 @@ export class PostgresCacheInvalidator {
         break;
       }
       default: {
-        this.logger.error?.(
-          `[PostgresCacheInvalidator] Unknown invalidation type: ${type}`,
-        );
+        this.logger.error?.(`[PostgresCacheInvalidator] Unknown invalidation type: ${type}`);
       }
     }
   }

@@ -14,6 +14,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import type { AIServiceConfig } from "@linchkit/core";
 import {
   createAIService,
   defaultAIConfig,
@@ -21,7 +22,6 @@ import {
   resolveModelRoute,
   resolveTenantConfig,
 } from "../src/ai-service";
-import type { AIServiceConfig } from "@linchkit/core";
 
 // ── Minimal valid config ───────────────────────────────────────
 
@@ -193,7 +193,7 @@ describe("resolveModel", () => {
   });
 
   it("throws for unknown provider", () => {
-    expect(() => resolveModel(config, "nonexistent")).toThrow('Unknown AI provider');
+    expect(() => resolveModel(config, "nonexistent")).toThrow("Unknown AI provider");
   });
 });
 

@@ -111,10 +111,7 @@ const bridgeCap: CapabilityDefinition = {
   type: "bridge",
   category: "business",
   version: "1.0.0",
-  bridges: [
-    { capability: "hr_management" },
-    { capability: "project_management" },
-  ],
+  bridges: [{ capability: "hr_management" }, { capability: "project_management" }],
   schemas: [],
   actions: [],
 };
@@ -155,9 +152,7 @@ describe("inferSemanticRelations", () => {
     const rels = inferSemanticRelations({ capabilities: caps });
     const ref = rels.find(
       (r) =>
-        r.type === "references" &&
-        r.from.schema === "leave_request" &&
-        r.to.schema === "employee",
+        r.type === "references" && r.from.schema === "leave_request" && r.to.schema === "employee",
     );
     expect(ref).toBeDefined();
     expect(ref?.source).toBe("schema_ref");
@@ -168,9 +163,7 @@ describe("inferSemanticRelations", () => {
     const rels = inferSemanticRelations({ capabilities: caps });
     const contains = rels.find(
       (r) =>
-        r.type === "contains" &&
-        r.from.schema === "leave_request" &&
-        r.to.schema === "project",
+        r.type === "contains" && r.from.schema === "leave_request" && r.to.schema === "project",
     );
     expect(contains).toBeDefined();
     expect(contains?.source).toBe("schema_has_many");
@@ -293,8 +286,7 @@ describe("buildRelationGraph", () => {
     const all = graph.forCapability("hr_management");
     expect(all.length).toBeGreaterThan(0);
     for (const r of all) {
-      const involved =
-        r.from.capability === "hr_management" || r.to.capability === "hr_management";
+      const involved = r.from.capability === "hr_management" || r.to.capability === "hr_management";
       expect(involved).toBe(true);
     }
   });
@@ -304,8 +296,7 @@ describe("buildRelationGraph", () => {
     const all = graph.forSchema("leave_request");
     expect(all.length).toBeGreaterThan(0);
     for (const r of all) {
-      const involved =
-        r.from.schema === "leave_request" || r.to.schema === "leave_request";
+      const involved = r.from.schema === "leave_request" || r.to.schema === "leave_request";
       expect(involved).toBe(true);
     }
   });

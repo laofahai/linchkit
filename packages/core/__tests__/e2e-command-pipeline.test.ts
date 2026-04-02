@@ -13,7 +13,7 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createActionExecutor } from "../src/engine/action-engine";
-import { type CommandLayer, PipelineError, createCommandLayer } from "../src/engine/command-layer";
+import { type CommandLayer, createCommandLayer, PipelineError } from "../src/engine/command-layer";
 import type { ActionDefinition, Actor } from "../src/types/action";
 
 // ── Minimal in-memory data provider ───────────────────────────

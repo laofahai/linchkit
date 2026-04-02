@@ -4,12 +4,12 @@
 
 import { describe, expect, it } from "bun:test";
 import {
+  type I18nConfig,
+  normalizeTranslatableValue,
   parseAcceptLanguage,
   resolveLocale,
-  type I18nConfig,
-  type SupportedLanguage,
   resolveTranslatableValue,
-  normalizeTranslatableValue,
+  type SupportedLanguage,
 } from "../src/i18n";
 
 describe("parseAcceptLanguage", () => {
@@ -39,15 +39,13 @@ describe("parseAcceptLanguage", () => {
 
 describe("resolveLocale", () => {
   it("uses explicit locale when provided", () => {
-    expect(
-      resolveLocale({ locale: "zh-CN", acceptLanguage: "en", defaultLocale: "en" }),
-    ).toBe("zh-CN");
+    expect(resolveLocale({ locale: "zh-CN", acceptLanguage: "en", defaultLocale: "en" })).toBe(
+      "zh-CN",
+    );
   });
 
   it("falls back to Accept-Language when no explicit locale", () => {
-    expect(
-      resolveLocale({ acceptLanguage: "fr-FR,en;q=0.9", defaultLocale: "en" }),
-    ).toBe("fr-FR");
+    expect(resolveLocale({ acceptLanguage: "fr-FR,en;q=0.9", defaultLocale: "en" })).toBe("fr-FR");
   });
 
   it("falls back to defaultLocale when no explicit locale or Accept-Language", () => {

@@ -387,8 +387,7 @@ export interface SchemaInfo {
   internal?: boolean;
 }
 
-import type { LinkDefinition, StateDefinition } from "@linchkit/core/types";
-import type { SemanticRelation } from "@linchkit/core/types";
+import type { LinkDefinition, SemanticRelation, StateDefinition } from "@linchkit/core/types";
 
 /** Full schema bundle with views (from GET /api/schemas/:name) */
 export interface SchemaBundle {

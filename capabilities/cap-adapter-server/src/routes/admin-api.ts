@@ -17,7 +17,12 @@
  * - GET /internal/cache/stats — cache hit rate, eviction rate, memory usage (spec §9)
  */
 
-import type { ExecutionStatus, FlowDefinition, LinkDefinition, StateDefinition } from "@linchkit/core";
+import type {
+  ExecutionStatus,
+  FlowDefinition,
+  LinkDefinition,
+  StateDefinition,
+} from "@linchkit/core";
 import { buildRelationGraph } from "@linchkit/core";
 import { type CacheManager, DrizzleDataProvider, InMemoryStore } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
@@ -421,11 +426,7 @@ export function mountAdminRoutes(
     })
     // ── Link REST endpoints ─────────────────────────────────
     .get("/api/links", () => {
-      const allLinks = collectFromCapabilities<LinkDefinition>(
-        undefined,
-        capabilities,
-        "links",
-      );
+      const allLinks = collectFromCapabilities<LinkDefinition>(undefined, capabilities, "links");
       return { success: true, data: allLinks };
     })
     // ── Semantic relation endpoint ──────────────────────────
@@ -446,9 +447,8 @@ export function mountAdminRoutes(
 
       // Compute eviction rate: evictions / (hits + misses + evictions) — fraction of all operations
       const l1Total = l1.hits + l1.misses;
-      const l1EvictionRate = l1.evictions + l1Total > 0
-        ? l1.evictions / (l1.evictions + l1Total)
-        : 0;
+      const l1EvictionRate =
+        l1.evictions + l1Total > 0 ? l1.evictions / (l1.evictions + l1Total) : 0;
 
       const result: Record<string, unknown> = {
         l1: {
@@ -464,9 +464,8 @@ export function mountAdminRoutes(
 
       if (l2) {
         const l2Total = l2.hits + l2.misses;
-        const l2EvictionRate = l2.evictions + l2Total > 0
-          ? l2.evictions / (l2.evictions + l2Total)
-          : 0;
+        const l2EvictionRate =
+          l2.evictions + l2Total > 0 ? l2.evictions / (l2.evictions + l2Total) : 0;
         result.l2 = {
           hits: l2.hits,
           misses: l2.misses,

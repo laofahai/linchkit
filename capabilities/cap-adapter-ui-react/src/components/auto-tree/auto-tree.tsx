@@ -18,15 +18,15 @@
 
 import {
   DndContext,
+  type DragEndEvent,
+  type DragOverEvent,
   DragOverlay,
+  type DragStartEvent,
   PointerSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-  type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -55,8 +55,8 @@ import {
   filterTree,
   getSearchExpandIds,
   reparentRecord,
-  wouldCreateCycle,
   type TreeNode,
+  wouldCreateCycle,
 } from "./tree-utils";
 
 /** An action that can be performed on a tree node. */
@@ -282,8 +282,7 @@ export function AutoTree({
         // before/after: same parent as target node
         const targetRecord = localRecords.find((r) => String(r.id) === targetId);
         const targetParent = targetRecord?.[parentField];
-        newParentId =
-          targetParent == null || targetParent === "" ? null : String(targetParent);
+        newParentId = targetParent == null || targetParent === "" ? null : String(targetParent);
       }
 
       // Cycle check
@@ -308,9 +307,7 @@ export function AutoTree({
   // §3.3: Compute child list records for selected node
   const filteredChildList = useMemo(() => {
     if (!selectedNodeId || !childListForeignKey) return [];
-    return childListRecords.filter(
-      (r) => String(r[childListForeignKey]) === selectedNodeId,
-    );
+    return childListRecords.filter((r) => String(r[childListForeignKey]) === selectedNodeId);
   }, [selectedNodeId, childListForeignKey, childListRecords]);
 
   const showHybrid = Boolean(childListSchema && childListForeignKey);
@@ -564,7 +561,12 @@ function TreeNodeRow({
   const isDragging = activeDragId === id;
 
   // §3.2: Draggable
-  const { attributes, listeners, setNodeRef: setDragRef, transform } = useDraggable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+  } = useDraggable({
     id,
     disabled: !enableDnD,
   });

@@ -21,9 +21,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@linchkit/ui-kit/components";
-import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
-import type { UIMessage, UIMessagePart } from "ai";
 import { useParams } from "@tanstack/react-router";
+import type { UIMessage, UIMessagePart } from "ai";
+import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
 import {
   BotIcon,
   ExternalLinkIcon,
@@ -34,13 +34,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { type ActionResult, type IntentResolution, isAiEnabled, resolveIntent } from "../lib/api";
 import { ActionProposalCard } from "./action-proposal-card";
-import {
-  isAiEnabled,
-  resolveIntent,
-  type ActionResult,
-  type IntentResolution,
-} from "../lib/api";
 
 // ── Proposal state ───────────────────────────────────────
 
@@ -84,14 +79,7 @@ export function AIAssistant({
   );
 
   // Vercel AI SDK useChat — manages conversation history, streaming, and tool calls
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    error,
-    stop,
-  } = useChat({
+  const { messages, setMessages, sendMessage, status, error, stop } = useChat({
     transport,
     onError: (err) => {
       console.error("[AI Assistant] Error:", err);
@@ -121,12 +109,9 @@ export function AIAssistant({
   }, []);
 
   // Remove proposal after execution completes (success or error)
-  const handleProposalComplete = useCallback(
-    (_proposalId: string, _result: ActionResult) => {
-      setProposals((prev) => prev.filter((p) => p.id !== _proposalId));
-    },
-    [],
-  );
+  const handleProposalComplete = useCallback((_proposalId: string, _result: ActionResult) => {
+    setProposals((prev) => prev.filter((p) => p.id !== _proposalId));
+  }, []);
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
   const handleSend = useCallback(() => {
@@ -174,11 +159,7 @@ export function AIAssistant({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col p-0 sm:max-w-md"
-        showCloseButton
-      >
+      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md" showCloseButton>
         {/* Header */}
         <SheetHeader className="border-b px-4 py-3">
           <div className="flex items-center justify-between">
@@ -229,25 +210,23 @@ export function AIAssistant({
                 <BotIcon className="size-10 opacity-30" />
                 <p className="text-sm">{t("ai.welcomeMessage")}</p>
                 <div className="flex flex-wrap justify-center gap-1.5">
-                  {[
-                    t("ai.quickPrompt1"),
-                    t("ai.quickPrompt2"),
-                    t("ai.quickPrompt3"),
-                  ].map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
-                      onClick={() => {
-                        if (inputRef.current) {
-                          inputRef.current.value = prompt;
-                          inputRef.current.focus();
-                        }
-                      }}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
+                  {[t("ai.quickPrompt1"), t("ai.quickPrompt2"), t("ai.quickPrompt3")].map(
+                    (prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
+                        onClick={() => {
+                          if (inputRef.current) {
+                            inputRef.current.value = prompt;
+                            inputRef.current.focus();
+                          }
+                        }}
+                      >
+                        {prompt}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             )}
@@ -312,11 +291,7 @@ export function AIAssistant({
               style={{ maxHeight: "120px" }}
               disabled={isLoading}
             />
-            <Button
-              size="icon-sm"
-              onClick={handleSend}
-              disabled={isLoading}
-            >
+            <Button size="icon-sm" onClick={handleSend} disabled={isLoading}>
               <SendIcon className="size-3.5" />
             </Button>
           </div>
@@ -343,9 +318,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
         }`}
       >
         {message.parts.map((part, index) => {

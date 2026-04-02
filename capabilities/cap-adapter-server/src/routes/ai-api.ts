@@ -758,7 +758,11 @@ Rules:
     })
     // ── AI Execute-Intent endpoint — execute a confirmed AI-proposed action ──
     .post("/api/ai/execute-intent", async ({ body, set, request }) => {
-      const { action: actionName, input, source } = (body ?? {}) as {
+      const {
+        action: actionName,
+        input,
+        source,
+      } = (body ?? {}) as {
         action?: string;
         input?: Record<string, unknown>;
         source?: string;

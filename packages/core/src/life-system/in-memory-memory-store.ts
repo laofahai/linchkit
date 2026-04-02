@@ -27,11 +27,7 @@ export class InMemoryMemoryStore implements MemoryStore {
    * Query recorded signals with optional filtering.
    * Extension beyond MemoryStore interface — used internally by MemoryEngine.
    */
-  async getSignals(opts?: {
-    schema?: string;
-    since?: Date;
-    limit?: number;
-  }): Promise<Signal[]> {
+  async getSignals(opts?: { schema?: string; since?: Date; limit?: number }): Promise<Signal[]> {
     let result = this.signals;
 
     if (opts?.schema) {

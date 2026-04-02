@@ -25,17 +25,17 @@ import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
 import { ConfigCenterPage } from "./pages/config-center";
+import { DashboardPage } from "./pages/dashboard";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { HealthMonitorPage } from "./pages/health-monitor";
+import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
 import { SettingsPage } from "./pages/settings";
 import { StateMachineDetailPage } from "./pages/state-machines";
-import { DashboardPage } from "./pages/dashboard";
-import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 
 // ── Root route (no layout) ────────────────────────────────────────
 

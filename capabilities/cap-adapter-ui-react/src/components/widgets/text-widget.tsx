@@ -47,7 +47,8 @@ export function TextInput({
 }: WidgetInputProps) {
   const { resolveLabel } = useSchemaLabel();
   const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
-  const placeholder = fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : undefined);
+  const placeholder =
+    fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : undefined);
   return (
     <div className="space-y-1">
       <Textarea

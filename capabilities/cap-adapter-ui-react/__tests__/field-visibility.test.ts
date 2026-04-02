@@ -218,17 +218,29 @@ describe("evaluateVisibility", () => {
   // ── contains ──
 
   test("contains: returns true when string field contains substring (case-insensitive)", () => {
-    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "sec" };
+    const cond: FieldVisibilityCondition = {
+      field: "category",
+      operator: "contains",
+      value: "sec",
+    };
     expect(evaluateVisibility(cond, data)).toBe(true);
   });
 
   test("contains: returns true for exact match", () => {
-    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "security" };
+    const cond: FieldVisibilityCondition = {
+      field: "category",
+      operator: "contains",
+      value: "security",
+    };
     expect(evaluateVisibility(cond, data)).toBe(true);
   });
 
   test("contains: returns false when substring not found", () => {
-    const cond: FieldVisibilityCondition = { field: "category", operator: "contains", value: "billing" };
+    const cond: FieldVisibilityCondition = {
+      field: "category",
+      operator: "contains",
+      value: "billing",
+    };
     expect(evaluateVisibility(cond, data)).toBe(false);
   });
 

@@ -25,7 +25,8 @@ export function NumberInput({
 }: WidgetInputProps) {
   const { resolveLabel } = useSchemaLabel();
   const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
-  const placeholder = fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "0");
+  const placeholder =
+    fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "0");
   return (
     <div className="space-y-1">
       <Input

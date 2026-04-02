@@ -70,7 +70,13 @@ describe("AIResponseCache", () => {
     it("does not cache tool-calling requests", () => {
       const cache = new AIResponseCache({ enabled: true });
       const opts = makeOptions({
-        tools: [{ name: "search", description: "search tool", parameters: { type: "object", properties: {} } }],
+        tools: [
+          {
+            name: "search",
+            description: "search tool",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
       });
       cache.set(opts, makeResult());
       expect(cache.get(opts)).toBeUndefined();

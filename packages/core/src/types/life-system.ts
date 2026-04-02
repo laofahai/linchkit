@@ -115,7 +115,7 @@ export interface SignalBus {
 }
 
 // -- Usage Importance Graph (Spec 55 §5.2) --
-export type UsageNodeKind = 'schema' | 'action' | 'field';
+export type UsageNodeKind = "schema" | "action" | "field";
 
 export interface UsageNode {
   kind: UsageNodeKind;
@@ -144,17 +144,30 @@ export interface AttentionBudgetConfig {
 export interface ScoredCandidate<T = unknown> {
   item: T;
   score: number;
-  breakdown: { confidence: number; impact: number; importance: number; typeWeight: number; };
+  breakdown: { confidence: number; impact: number; importance: number; typeWeight: number };
 }
 
 export interface AttentionBudget {
-  rank<T>(candidates: Array<{ item: T; confidence: number; impact: number; schema?: string; type?: string; }>): ScoredCandidate<T>[];
+  rank<T>(
+    candidates: Array<{
+      item: T;
+      confidence: number;
+      impact: number;
+      schema?: string;
+      type?: string;
+    }>,
+  ): ScoredCandidate<T>[];
   recordIgnore(type: string): void;
   recordEndorse(type: string): void;
 }
 
 // -- Structural Check (Spec 55 §5.4) --
-export type StructuralIssueKind = 'schema_no_view' | 'action_never_called' | 'link_no_records' | 'rule_never_triggered' | 'field_constant_value';
+export type StructuralIssueKind =
+  | "schema_no_view"
+  | "action_never_called"
+  | "link_no_records"
+  | "rule_never_triggered"
+  | "field_constant_value";
 
 export interface StructuralIssue {
   kind: StructuralIssueKind;

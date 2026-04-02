@@ -1,4 +1,9 @@
-import type { AttentionBudget, AttentionBudgetConfig, ScoredCandidate, UsageImportanceGraph } from '../types/life-system';
+import type {
+  AttentionBudget,
+  AttentionBudgetConfig,
+  ScoredCandidate,
+  UsageImportanceGraph,
+} from "../types/life-system";
 
 const DEFAULT_CONFIG: AttentionBudgetConfig = {
   maxInsightsPerCycle: 10,
@@ -22,13 +27,18 @@ export function createAttentionBudget(
 
   return {
     rank<T>(
-      candidates: Array<{ item: T; confidence: number; impact: number; schema?: string; type?: string }>,
+      candidates: Array<{
+        item: T;
+        confidence: number;
+        impact: number;
+        schema?: string;
+        type?: string;
+      }>,
     ): ScoredCandidate<T>[] {
-      const scored: ScoredCandidate<T>[] = candidates.map(c => {
-        const typeWeight = typeWeights.get(c.type ?? '') ?? 1.0;
-        const importance = usageGraph && c.schema
-          ? (usageGraph.getImportance('schema', c.schema) || 0.5)
-          : 0.5;
+      const scored: ScoredCandidate<T>[] = candidates.map((c) => {
+        const typeWeight = typeWeights.get(c.type ?? "") ?? 1.0;
+        const importance =
+          usageGraph && c.schema ? usageGraph.getImportance("schema", c.schema) || 0.5 : 0.5;
         const impact = impactNumeric(c.impact);
         const score = c.confidence * impact * importance * typeWeight;
         return {
@@ -38,9 +48,7 @@ export function createAttentionBudget(
         };
       });
 
-      return scored
-        .sort((a, b) => b.score - a.score)
-        .slice(0, cfg.maxInsightsPerCycle);
+      return scored.sort((a, b) => b.score - a.score).slice(0, cfg.maxInsightsPerCycle);
     },
 
     recordIgnore(type: string): void {

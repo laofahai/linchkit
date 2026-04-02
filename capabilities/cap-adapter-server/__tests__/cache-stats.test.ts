@@ -4,9 +4,8 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { SchemaDefinition } from "@linchkit/core";
-import { CacheManager, InMemoryStore } from "@linchkit/core/server";
+import { CacheManager, createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
-import { createActionExecutor } from "@linchkit/core/server";
 import { createServer } from "../src/server";
 
 const taskSchema: SchemaDefinition = {
@@ -84,9 +83,9 @@ describe("/internal/cache/stats endpoint", () => {
     const body = (await res.json()) as { success: boolean; data: Record<string, unknown> };
 
     const l1 = body.data.l1 as Record<string, unknown>;
-    expect((l1.hits as number)).toBeGreaterThanOrEqual(1);
-    expect((l1.misses as number)).toBeGreaterThanOrEqual(1);
-    expect((l1.hitRate as number)).toBeGreaterThan(0);
+    expect(l1.hits as number).toBeGreaterThanOrEqual(1);
+    expect(l1.misses as number).toBeGreaterThanOrEqual(1);
+    expect(l1.hitRate as number).toBeGreaterThan(0);
   });
 
   test("returns error when cacheManager is not configured", async () => {

@@ -2,11 +2,8 @@
  * Tests for InMemoryConfigStore (spec 42 §9.1)
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
-import {
-  InMemoryConfigStore,
-  resolveWithCascade,
-} from "../src/config/config-store";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { InMemoryConfigStore, resolveWithCascade } from "../src/config/config-store";
 
 describe("InMemoryConfigStore", () => {
   let store: InMemoryConfigStore;

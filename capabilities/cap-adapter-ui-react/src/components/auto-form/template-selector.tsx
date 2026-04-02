@@ -43,9 +43,7 @@ export function TemplateSelector({
   return (
     <div className="mb-4 flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2">
       <LayoutTemplate className="size-4 shrink-0 text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">
-        {t("form.template.label", "Template")}:
-      </span>
+      <span className="text-sm text-muted-foreground">{t("form.template.label", "Template")}:</span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-sm bg-background">

@@ -27,11 +27,7 @@ export class DrizzleConfigStore implements ConfigStore {
     private readonly eventBus?: EventBusLike & { emit?: (event: unknown) => Promise<void> },
   ) {}
 
-  async get(
-    namespace: string,
-    key: string,
-    scope?: ConfigScopeRef,
-  ): Promise<unknown | undefined> {
+  async get(namespace: string, key: string, scope?: ConfigScopeRef): Promise<unknown | undefined> {
     const scopeType = scope?.type ?? "global";
     const scopeId = scope?.id ?? null;
 
@@ -161,11 +157,7 @@ export class DrizzleConfigStore implements ConfigStore {
     await this._emitChanged(namespace, key, scopeType, scopeId ?? undefined, value);
   }
 
-  async history(
-    namespace: string,
-    key: string,
-    scope?: ConfigScopeRef,
-  ): Promise<ConfigVersion[]> {
+  async history(namespace: string, key: string, scope?: ConfigScopeRef): Promise<ConfigVersion[]> {
     const scopeType = scope?.type ?? "global";
     const scopeId = scope?.id ?? null;
 
@@ -270,9 +262,7 @@ export class DrizzleConfigStore implements ConfigStore {
     } else {
       await this.db
         .delete(configTable)
-        .where(
-          and(eq(configTable.namespace, namespace), eq(configTable.key, key)),
-        );
+        .where(and(eq(configTable.namespace, namespace), eq(configTable.key, key)));
     }
 
     await this._emitChanged(namespace, key, scope?.type ?? "global", scope?.id, undefined);

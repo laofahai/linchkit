@@ -186,9 +186,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
 
       // Find this flow's "home" schema from its trigger
       const triggerSchema =
-        flow.trigger.type === "event"
-          ? schemaFromEventType(flow.trigger.eventType)
-          : undefined;
+        flow.trigger.type === "event" ? schemaFromEventType(flow.trigger.eventType) : undefined;
 
       for (const step of flow.steps ?? []) {
         if (step.type !== "action") continue;
@@ -201,14 +199,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
         if (triggerSchema && targetSchema !== triggerSchema) {
           const targetCap = findCapabilityForSchema(capabilities, targetSchema);
           add({
-            id: makeId(
-              cap.name,
-              triggerSchema,
-              "orchestrates",
-              targetCap,
-              targetSchema,
-              flow.name,
-            ),
+            id: makeId(cap.name, triggerSchema, "orchestrates", targetCap, targetSchema, flow.name),
             type: "orchestrates",
             from: { capability: cap.name, schema: triggerSchema },
             to: { capability: targetCap ?? undefined, schema: targetSchema },
@@ -294,9 +285,7 @@ export function buildRelationGraph(
     },
 
     forSchema(schemaName: string): SemanticRelation[] {
-      return allRelations.filter(
-        (r) => r.from.schema === schemaName || r.to.schema === schemaName,
-      );
+      return allRelations.filter((r) => r.from.schema === schemaName || r.to.schema === schemaName);
     },
   };
 }

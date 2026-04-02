@@ -2,7 +2,7 @@
  * Tests for InMemoryStore translatable field locale resolution
  */
 
-import { describe, expect, test, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { InMemoryStore } from "../src/persistence/in-memory-store";
 import type { SchemaDefinition } from "../src/types/schema";
 

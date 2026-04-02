@@ -260,7 +260,13 @@ export function MetricsDashboardPage() {
               value={metrics.actions.totalCount.toLocaleString()}
               sub={`${t("metrics.errorRate", "Error rate")}: ${formatRate(metrics.actions.errorRate)}`}
               icon={<ZapIcon className="size-5" />}
-              accent={metrics.actions.errorRate > 0.1 ? "red" : metrics.actions.errorRate > 0.05 ? "amber" : "green"}
+              accent={
+                metrics.actions.errorRate > 0.1
+                  ? "red"
+                  : metrics.actions.errorRate > 0.05
+                    ? "amber"
+                    : "green"
+              }
             />
 
             <StatCard
@@ -274,9 +280,11 @@ export function MetricsDashboardPage() {
             <StatCard
               title={t("metrics.activeFlows", "Active Flows")}
               value={metrics.flows.activeCount.toLocaleString()}
-              sub={metrics.flows.completionTimeP50 > 0
-                ? `${t("metrics.completionP50", "Completion p50")}: ${formatDuration(metrics.flows.completionTimeP50)}`
-                : undefined}
+              sub={
+                metrics.flows.completionTimeP50 > 0
+                  ? `${t("metrics.completionP50", "Completion p50")}: ${formatDuration(metrics.flows.completionTimeP50)}`
+                  : undefined
+              }
               icon={<GitBranchIcon className="size-5" />}
               accent="blue"
             />
@@ -284,9 +292,11 @@ export function MetricsDashboardPage() {
             <StatCard
               title={t("metrics.outboxPending", "Outbox Pending")}
               value={metrics.outbox.pending.toLocaleString()}
-              sub={metrics.outbox.processingDurationP50 > 0
-                ? `${t("metrics.processingP50", "Processing p50")}: ${formatDuration(metrics.outbox.processingDurationP50)}`
-                : undefined}
+              sub={
+                metrics.outbox.processingDurationP50 > 0
+                  ? `${t("metrics.processingP50", "Processing p50")}: ${formatDuration(metrics.outbox.processingDurationP50)}`
+                  : undefined
+              }
               icon={<InboxIcon className="size-5" />}
               accent={metrics.outbox.pending > 100 ? "amber" : "green"}
             />
@@ -347,10 +357,7 @@ export function MetricsDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <PerfRow
-                  label="p50"
-                  value={formatDuration(metrics.rules.evaluationDurationP50)}
-                />
+                <PerfRow label="p50" value={formatDuration(metrics.rules.evaluationDurationP50)} />
                 <PerfRow
                   label={t("metrics.blockCount", "Block count")}
                   value={metrics.rules.blockCount.toLocaleString()}

@@ -278,15 +278,15 @@ describe("SyncFlowEngine", () => {
       const executedActions: string[] = [];
 
       const ctx = createMockStepContext({
-        "create_inbound": (input) => {
+        create_inbound: (input) => {
           executedActions.push("create_inbound");
           return { inboundId: "ib-1", ...input };
         },
-        "create_payment": () => {
+        create_payment: () => {
           executedActions.push("create_payment");
           throw new Error("Payment gateway timeout");
         },
-        "cancel_inbound": (input) => {
+        cancel_inbound: (input) => {
           executedActions.push("cancel_inbound");
           return { cancelled: true, ...input };
         },
@@ -332,23 +332,23 @@ describe("SyncFlowEngine", () => {
       const executedActions: string[] = [];
 
       const ctx = createMockStepContext({
-        "step_a_action": () => {
+        step_a_action: () => {
           executedActions.push("step_a_action");
           return { result: "a" };
         },
-        "step_b_action": () => {
+        step_b_action: () => {
           executedActions.push("step_b_action");
           return { result: "b" };
         },
-        "step_c_action": () => {
+        step_c_action: () => {
           executedActions.push("step_c_action");
           throw new Error("C failed");
         },
-        "compensate_b": () => {
+        compensate_b: () => {
           executedActions.push("compensate_b");
           throw new Error("compensate_b also failed");
         },
-        "compensate_a": () => {
+        compensate_a: () => {
           executedActions.push("compensate_a");
           return { undone: true };
         },
@@ -409,14 +409,14 @@ describe("SyncFlowEngine", () => {
       const executedActions: string[] = [];
 
       const ctx = createMockStepContext({
-        "step_action": () => {
+        step_action: () => {
           executedActions.push("step_action");
           return {};
         },
-        "fail_action": () => {
+        fail_action: () => {
           throw new Error("failed");
         },
-        "compensate_step": () => {
+        compensate_step: () => {
           executedActions.push("compensate_step");
           return {};
         },
@@ -457,11 +457,11 @@ describe("SyncFlowEngine", () => {
       let compensationCallInput: Record<string, unknown> = {};
 
       const ctx = createMockStepContext({
-        "do_work": () => ({ workId: "w-1" }),
-        "fail_step": () => {
+        do_work: () => ({ workId: "w-1" }),
+        fail_step: () => {
           throw new Error("boom");
         },
-        "undo_work": (input) => {
+        undo_work: (input) => {
           compensationCallInput = input;
           return { undone: true };
         },

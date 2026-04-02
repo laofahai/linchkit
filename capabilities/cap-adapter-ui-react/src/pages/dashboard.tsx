@@ -45,8 +45,8 @@ import {
   BarChart,
   Cell,
   Line,
-  LineChart as RechartsLineChart,
   Pie,
+  LineChart as RechartsLineChart,
   PieChart as RechartsPieChart,
   ResponsiveContainer,
   Tooltip,
@@ -55,19 +55,19 @@ import {
 } from "recharts";
 import { useSchemas } from "@/hooks/use-schemas";
 import { useSchemaLabel } from "@/i18n/use-schema-label";
-import {
-  type ExecutionLogEntry,
-  graphql,
-  queryExecutionLogs,
-  type SchemaInfo,
-} from "@/lib/api";
+import { type ExecutionLogEntry, graphql, queryExecutionLogs, type SchemaInfo } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 // CSS for react-grid-layout drag/resize handles
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DashboardWidgetType = "stat_card" | "chart" | "recent_activity" | "record_list" | "quick_actions";
+type DashboardWidgetType =
+  | "stat_card"
+  | "chart"
+  | "recent_activity"
+  | "record_list"
+  | "quick_actions";
 
 type ChartType = "bar" | "line" | "pie";
 
@@ -179,28 +179,40 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
   switch (status) {
     case "succeeded":
       return (
-        <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50 dark:text-green-400 dark:border-green-800 dark:bg-green-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-green-600 border-green-200 bg-green-50 dark:text-green-400 dark:border-green-800 dark:bg-green-950"
+        >
           <CheckCircle2 className="h-3 w-3" />
           OK
         </Badge>
       );
     case "failed":
       return (
-        <Badge variant="outline" className="gap-1 text-red-600 border-red-200 bg-red-50 dark:text-red-400 dark:border-red-800 dark:bg-red-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-red-600 border-red-200 bg-red-50 dark:text-red-400 dark:border-red-800 dark:bg-red-950"
+        >
           <XCircle className="h-3 w-3" />
           Failed
         </Badge>
       );
     case "blocked":
       return (
-        <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-200 bg-yellow-50 dark:text-yellow-400 dark:border-yellow-800 dark:bg-yellow-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-yellow-600 border-yellow-200 bg-yellow-50 dark:text-yellow-400 dark:border-yellow-800 dark:bg-yellow-950"
+        >
           <AlertTriangle className="h-3 w-3" />
           Blocked
         </Badge>
       );
     case "pending_approval":
       return (
-        <Badge variant="outline" className="gap-1 text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950">
+        <Badge
+          variant="outline"
+          className="gap-1 text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950"
+        >
           <Hourglass className="h-3 w-3" />
           Pending
         </Badge>
@@ -269,14 +281,11 @@ function StatCardWidget({
   }, [logs, config.schema]);
 
   const label = config.schema
-    ? resolveLabel(
-        schemas.find((s) => s.name === config.schema)?.label,
-        config.schema,
-      )
-    : config.label ?? "Total Records";
+    ? resolveLabel(schemas.find((s) => s.name === config.schema)?.label, config.schema)
+    : (config.label ?? "Total Records");
 
   const Icon = config.schema
-    ? getLucideIcon(schemas.find((s) => s.name === config.schema)?.icon) ?? Database
+    ? (getLucideIcon(schemas.find((s) => s.name === config.schema)?.icon) ?? Database)
     : Database;
 
   return (
@@ -341,7 +350,9 @@ function ChartWidget({ config, logs }: { config: WidgetConfig; logs: ExecutionLo
 
   return (
     <div className="h-full w-full">
-      <p className="text-xs font-medium text-muted-foreground mb-1">{config.label ?? "Activity Overview"}</p>
+      <p className="text-xs font-medium text-muted-foreground mb-1">
+        {config.label ?? "Activity Overview"}
+      </p>
       <ResponsiveContainer width="100%" height="85%">
         {chartType === "pie" ? (
           <RechartsPieChart>
@@ -355,7 +366,10 @@ function ChartWidget({ config, logs }: { config: WidgetConfig; logs: ExecutionLo
               label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`}
             >
               {pieData.map((entry) => (
-                <Cell key={`cell-${entry.name}`} fill={CHART_COLORS[pieData.indexOf(entry) % CHART_COLORS.length]} />
+                <Cell
+                  key={`cell-${entry.name}`}
+                  fill={CHART_COLORS[pieData.indexOf(entry) % CHART_COLORS.length]}
+                />
               ))}
             </Pie>
             <Tooltip />
@@ -382,13 +396,7 @@ function ChartWidget({ config, logs }: { config: WidgetConfig; logs: ExecutionLo
 
 // ── Widget: Recent Activity ───────────────────────────────────────────────────
 
-function RecentActivityWidget({
-  logs,
-  loading,
-}: {
-  logs: ExecutionLogEntry[];
-  loading: boolean;
-}) {
+function RecentActivityWidget({ logs, loading }: { logs: ExecutionLogEntry[]; loading: boolean }) {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -403,9 +411,7 @@ function RecentActivityWidget({
   }
 
   if (logs.length === 0) {
-    return (
-      <p className="text-center text-xs text-muted-foreground py-4">No recent activity</p>
-    );
+    return <p className="text-center text-xs text-muted-foreground py-4">No recent activity</p>;
   }
 
   return (
@@ -432,13 +438,7 @@ function RecentActivityWidget({
 
 // ── Widget: Record List ───────────────────────────────────────────────────────
 
-function RecordListWidget({
-  config,
-  schemas,
-}: {
-  config: WidgetConfig;
-  schemas: SchemaInfo[];
-}) {
+function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: SchemaInfo[] }) {
   const { resolveLabel } = useSchemaLabel();
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -478,13 +478,19 @@ function RecordListWidget({
           <Icon className="h-3.5 w-3.5 text-primary" />
           {label}
         </div>
-        <Link to="/schemas/$name" params={{ name: schema }} className="text-[10px] text-muted-foreground hover:text-foreground">
+        <Link
+          to="/schemas/$name"
+          params={{ name: schema }}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
           View all →
         </Link>
       </div>
       {loading ? (
         <div className="space-y-1.5">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-6 w-full" />)}
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
         </div>
       ) : records.length === 0 ? (
         <p className="text-center text-xs text-muted-foreground py-2">No records</p>
@@ -594,22 +600,25 @@ function AddWidgetPanel({
           <DialogTitle>Add Widget</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-4">
-          {(Object.entries(WIDGET_TYPE_LABELS) as [DashboardWidgetType, typeof WIDGET_TYPE_LABELS[DashboardWidgetType]][]).map(
-            ([type, meta]) => (
-              <button
-                key={type}
-                type="button"
-                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors cursor-pointer text-sm font-medium"
-                onClick={() => {
-                  onAdd(type);
-                  onClose();
-                }}
-              >
-                {meta.icon}
-                {meta.label}
-              </button>
-            ),
-          )}
+          {(
+            Object.entries(WIDGET_TYPE_LABELS) as [
+              DashboardWidgetType,
+              (typeof WIDGET_TYPE_LABELS)[DashboardWidgetType],
+            ][]
+          ).map(([type, meta]) => (
+            <button
+              key={type}
+              type="button"
+              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors cursor-pointer text-sm font-medium"
+              onClick={() => {
+                onAdd(type);
+                onClose();
+              }}
+            >
+              {meta.icon}
+              {meta.label}
+            </button>
+          ))}
         </div>
       </DialogContent>
     </Dialog>
@@ -804,12 +813,7 @@ function DashboardWidgetCard({
         )}
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden px-3 py-2">
-        <WidgetRenderer
-          widget={widget}
-          schemas={schemas}
-          logs={logs}
-          logsLoading={logsLoading}
-        />
+        <WidgetRenderer widget={widget} schemas={schemas} logs={logs} logsLoading={logsLoading} />
       </CardContent>
     </Card>
   );
@@ -862,7 +866,17 @@ export function DashboardPage() {
 
   // Grid layout change handler (Layout = readonly LayoutItem[])
   const handleGridChange = useCallback(
-    (newGrid: readonly { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }[]) => {
+    (
+      newGrid: readonly {
+        i: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        minW?: number;
+        minH?: number;
+      }[],
+    ) => {
       setLayout((prev) => {
         const next = { ...prev, grid: [...newGrid] as GridItem[] };
         saveLayout(next);
@@ -883,7 +897,10 @@ export function DashboardPage() {
       };
 
       // Default grid sizes by type
-      const defaultSizes: Record<DashboardWidgetType, Pick<GridItem, "w" | "h" | "minW" | "minH">> = {
+      const defaultSizes: Record<
+        DashboardWidgetType,
+        Pick<GridItem, "w" | "h" | "minW" | "minH">
+      > = {
         stat_card: { w: 4, h: 2, minW: 3, minH: 2 },
         chart: { w: 8, h: 4, minW: 4, minH: 3 },
         recent_activity: { w: 8, h: 5, minW: 4, minH: 3 },
@@ -926,9 +943,7 @@ export function DashboardPage() {
       if (!configuringWidget) return;
       persistLayout({
         ...layout,
-        widgets: layout.widgets.map((w) =>
-          w.id === configuringWidget.id ? { ...w, config } : w,
-        ),
+        widgets: layout.widgets.map((w) => (w.id === configuringWidget.id ? { ...w, config } : w)),
       });
       setConfiguringWidget(null);
     },
@@ -948,7 +963,9 @@ export function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{t("workspace.title", { defaultValue: "Dashboard" })}</h1>
+          <h1 className="text-xl font-semibold">
+            {t("workspace.title", { defaultValue: "Dashboard" })}
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {t("workspace.subtitle", { defaultValue: "Your customizable workspace" })}
           </p>

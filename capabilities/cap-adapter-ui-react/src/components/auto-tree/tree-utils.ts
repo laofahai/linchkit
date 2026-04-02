@@ -106,7 +106,11 @@ export function filterTree(nodes: TreeNode[], query: string, labelField: string)
  * Collect ids of all nodes that should be expanded when a search query is active.
  * Expands all ancestor nodes of matching nodes so they are visible.
  */
-export function getSearchExpandIds(nodes: TreeNode[], query: string, labelField: string): Set<string> {
+export function getSearchExpandIds(
+  nodes: TreeNode[],
+  query: string,
+  labelField: string,
+): Set<string> {
   if (!query.trim()) return new Set();
 
   const lowerQuery = query.toLowerCase();

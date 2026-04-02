@@ -5,9 +5,7 @@ import type { SensorSignal } from "../../types/life-system";
 
 // ── Helpers ───────────────────────────────────────────────
 
-function makeSensorSignal(
-  overrides: Partial<SensorSignal> = {},
-): SensorSignal {
+function makeSensorSignal(overrides: Partial<SensorSignal> = {}): SensorSignal {
   return {
     sensor: "test_sensor",
     source: "event_bus",
@@ -127,8 +125,18 @@ describe("InMemoryMemoryStore", () => {
 
   it("distinguishes baselines by schema", async () => {
     const store = new InMemoryMemoryStore();
-    await store.updateBaseline({ schema: "order", metric: "count", value: 10, calculatedAt: new Date() });
-    await store.updateBaseline({ schema: "invoice", metric: "count", value: 20, calculatedAt: new Date() });
+    await store.updateBaseline({
+      schema: "order",
+      metric: "count",
+      value: 10,
+      calculatedAt: new Date(),
+    });
+    await store.updateBaseline({
+      schema: "invoice",
+      metric: "count",
+      value: 20,
+      calculatedAt: new Date(),
+    });
 
     expect((await store.getBaseline("order", "count"))?.value).toBe(10);
     expect((await store.getBaseline("invoice", "count"))?.value).toBe(20);
@@ -236,7 +244,12 @@ describe("MemoryEngine", () => {
       const store = new InMemoryMemoryStore();
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
-      await store.updateBaseline({ schema: "order", metric: "count", value: 100, calculatedAt: new Date() });
+      await store.updateBaseline({
+        schema: "order",
+        metric: "count",
+        value: 100,
+        calculatedAt: new Date(),
+      });
       // 10% deviation — below 30% threshold
       const result = await engine.detectDrift(makeSensorSignal({ value: 110 }));
       expect(result.drifted).toBe(false);
@@ -247,7 +260,12 @@ describe("MemoryEngine", () => {
       const store = new InMemoryMemoryStore();
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
-      await store.updateBaseline({ schema: "order", metric: "count", value: 100, calculatedAt: new Date() });
+      await store.updateBaseline({
+        schema: "order",
+        metric: "count",
+        value: 100,
+        calculatedAt: new Date(),
+      });
       // 50% deviation — above 30% threshold
       const result = await engine.detectDrift(makeSensorSignal({ value: 150 }));
       expect(result.drifted).toBe(true);
@@ -258,7 +276,12 @@ describe("MemoryEngine", () => {
       const store = new InMemoryMemoryStore();
       const engine = new MemoryEngine({ store });
 
-      await store.updateBaseline({ schema: "order", metric: "count", value: 0, calculatedAt: new Date() });
+      await store.updateBaseline({
+        schema: "order",
+        metric: "count",
+        value: 0,
+        calculatedAt: new Date(),
+      });
       const result = await engine.detectDrift(makeSensorSignal({ value: 5 }));
       // denominator falls back to 1, so deviation = 5/1 = 5
       expect(result.deviation).toBe(5);
@@ -269,7 +292,12 @@ describe("MemoryEngine", () => {
       const store = new InMemoryMemoryStore();
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
-      await store.updateBaseline({ schema: "order", metric: "count", value: 100, calculatedAt: new Date() });
+      await store.updateBaseline({
+        schema: "order",
+        metric: "count",
+        value: 100,
+        calculatedAt: new Date(),
+      });
       // value dropped to 50 — 50% drop
       const result = await engine.detectDrift(makeSensorSignal({ value: 50 }));
       expect(result.drifted).toBe(true);
@@ -288,7 +316,12 @@ describe("MemoryEngine", () => {
       const store = new InMemoryMemoryStore();
       const engine = new MemoryEngine({ store });
 
-      await store.updateBaseline({ schema: "order", metric: "count", value: 77, calculatedAt: new Date() });
+      await store.updateBaseline({
+        schema: "order",
+        metric: "count",
+        value: 77,
+        calculatedAt: new Date(),
+      });
       const b = await engine.getBaseline("order", "count");
       expect(b?.value).toBe(77);
     });

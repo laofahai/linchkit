@@ -23,9 +23,13 @@
 
 import type { FieldDefinition } from "../types/schema";
 
+// Re-export aggregate engine
+export { computeAggregate, resolveAggregateValue } from "./aggregate-engine";
+// Re-export registry and engine
+export type { CascadeTarget, DerivedFieldInfo } from "./derived-registry";
+export { createDerivedPropertyEngine, DerivedPropertyEngine } from "./derived-registry";
 // Re-export expression parser
 export { evaluateExpression } from "./expression-parser";
-
 // Re-export type definitions and sync evaluator
 export type {
   AggregateDerived,
@@ -35,13 +39,6 @@ export type {
   FunctionDerived,
 } from "./safe-evaluator";
 export { resolveDerivedValue } from "./safe-evaluator";
-
-// Re-export aggregate engine
-export { computeAggregate, resolveAggregateValue } from "./aggregate-engine";
-
-// Re-export registry and engine
-export type { CascadeTarget, DerivedFieldInfo } from "./derived-registry";
-export { createDerivedPropertyEngine, DerivedPropertyEngine } from "./derived-registry";
 
 // ── Helpers ──────────────────────────────────────────────────
 

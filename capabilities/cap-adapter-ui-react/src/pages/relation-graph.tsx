@@ -13,25 +13,24 @@ import {
   type Edge,
   EdgeLabelRenderer,
   type EdgeProps,
+  getBezierPath,
   Handle,
   MiniMap,
   type Node,
   type NodeProps,
   Position,
   ReactFlow,
-  getBezierPath,
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import type { LinkDefinition, SemanticRelation } from "@linchkit/core/types";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import dagre from "dagre";
 import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "@tanstack/react-router";
-import type { LinkDefinition } from "@linchkit/core/types";
-import type { SemanticRelation } from "@linchkit/core/types";
-import { useQuery } from "@tanstack/react-query";
 import { fetchLinks, fetchSchemas, fetchSemanticRelations, type SchemaInfo } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
@@ -767,14 +766,29 @@ function SemanticLegend({ activeTypes }: SemanticLegendProps) {
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
       }}
     >
-      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#94a3b8", letterSpacing: "0.05em", marginBottom: 2 }}>
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          color: "#94a3b8",
+          letterSpacing: "0.05em",
+          marginBottom: 2,
+        }}
+      >
         {t("relationGraph.legend.title", "Semantic relations")}
       </div>
       {[...activeTypes].map((type) => {
         const color = SEMANTIC_EDGE_COLOR[type] ?? "#94a3b8";
         return (
           <div key={type} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <svg width="20" height="10" style={{ flexShrink: 0 }} aria-hidden="true" focusable="false">
+            <svg
+              width="20"
+              height="10"
+              style={{ flexShrink: 0 }}
+              aria-hidden="true"
+              focusable="false"
+            >
               <line
                 x1="0"
                 y1="5"
@@ -952,12 +966,9 @@ export function RelationGraphPage() {
   const links = linksQuery.data ?? [];
   const semanticRelations = semanticQuery.data ?? [];
 
-  const handleSelect = useCallback(
-    (name: string) => {
-      setSelectedNode((prev) => (prev === name ? null : name));
-    },
-    [],
-  );
+  const handleSelect = useCallback((name: string) => {
+    setSelectedNode((prev) => (prev === name ? null : name));
+  }, []);
 
   const handleNavigate = useCallback(
     (name: string) => {

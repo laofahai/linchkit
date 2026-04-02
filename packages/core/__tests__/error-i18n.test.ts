@@ -3,12 +3,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import {
-  LinchKitError,
-  ValidationError,
-  NotFoundError,
-  BusinessRuleError,
-} from "../src/errors";
+import { BusinessRuleError, LinchKitError, NotFoundError, ValidationError } from "../src/errors";
 
 describe("LinchKitError messageKey / messageParams", () => {
   it("should accept messageKey and messageParams in constructor", () => {

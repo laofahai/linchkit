@@ -200,7 +200,8 @@ export function RichTextInput({
   const { resolveLabel } = useSchemaLabel();
   const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
   const placeholder =
-    fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "Start typing...");
+    fieldDef.description ??
+    (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "Start typing...");
 
   // Track whether external value updates should be applied
   const isInternalUpdate = useRef(false);

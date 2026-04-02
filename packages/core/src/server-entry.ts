@@ -146,7 +146,9 @@ export { createPersistentEventBus, PersistentEventBus } from "./event/persistent
 // === Cache ===
 
 export {
+  CACHE_INVALIDATION_CHANNEL,
   type CacheEntry,
+  type CacheInvalidationPayload,
   CacheManager,
   type CacheManagerOptions,
   type CacheProvider,
@@ -155,8 +157,6 @@ export {
   type InMemoryCacheOptions,
   InMemoryCacheProvider,
   type NamespacedCache,
-  type CacheInvalidationPayload,
-  CACHE_INVALIDATION_CHANNEL,
   PostgresCacheInvalidator,
   type PostgresCacheInvalidatorOptions,
 } from "./cache";
@@ -379,15 +379,20 @@ export {
 
 // === Life-system: Sense layer (Spec 55) ===
 
-export { createSignalBus, defineSensor } from "./life-system";
 export type {
+  AwarenessEngineOptions,
   SensorDefinitionConfig,
   SignalBus,
   SignalBusOptions,
   SignalHandler,
 } from "./life-system";
-export { createUsageImportanceGraph, createAttentionBudget, createAwarenessEngine } from "./life-system";
-export type { AwarenessEngineOptions } from "./life-system";
+export {
+  createAttentionBudget,
+  createAwarenessEngine,
+  createSignalBus,
+  createUsageImportanceGraph,
+  defineSensor,
+} from "./life-system";
 
 // === Deployment: health checks, graceful shutdown, environment ===
 

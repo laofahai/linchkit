@@ -33,16 +33,8 @@ import {
 import { CheckCircleIcon, ClockIcon, RefreshCwIcon, SaveIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  ConfigHistoryEntry,
-  ConfigItem,
-} from "../lib/api";
-import {
-  fetchConfig,
-  fetchConfigHistory,
-  fetchConfigs,
-  updateConfigValues,
-} from "../lib/api";
+import type { ConfigHistoryEntry, ConfigItem } from "../lib/api";
+import { fetchConfig, fetchConfigHistory, fetchConfigs, updateConfigValues } from "../lib/api";
 
 // ── Config field editor ──────────────────────────────────
 
@@ -59,11 +51,7 @@ function FieldEditor({ name, field, value, onChange }: FieldEditorProps) {
   if (field.type === "boolean") {
     return (
       <div className="flex items-center gap-2">
-        <Switch
-          id={name}
-          checked={Boolean(value)}
-          onCheckedChange={onChange}
-        />
+        <Switch id={name} checked={Boolean(value)} onCheckedChange={onChange} />
         <Label htmlFor={name}>{field.label ?? name}</Label>
       </div>
     );
@@ -208,13 +196,13 @@ function HistoryTable({ entries }: HistoryTableProps) {
           <TableRow key={idx}>
             <TableCell className="font-mono text-sm">{entry.fieldName}</TableCell>
             <TableCell className="text-muted-foreground text-sm">
-              {entry.oldValue === undefined
-                ? <em>{t("config.noValue", "(none)")}</em>
-                : String(entry.oldValue)}
+              {entry.oldValue === undefined ? (
+                <em>{t("config.noValue", "(none)")}</em>
+              ) : (
+                String(entry.oldValue)
+              )}
             </TableCell>
-            <TableCell className="text-sm font-medium">
-              {String(entry.newValue)}
-            </TableCell>
+            <TableCell className="text-sm font-medium">{String(entry.newValue)}</TableCell>
             <TableCell className="text-sm text-muted-foreground">
               {new Date(entry.changedAt).toLocaleString()}
             </TableCell>
@@ -272,9 +260,7 @@ function ConfigNamespaceCard({ config, onSaved }: ConfigNamespaceCardProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-semibold">
-              {config.label ?? config.name}
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">{config.label ?? config.name}</CardTitle>
             <CardDescription>
               <code className="text-xs">{config.name}</code>
               {config.schema !== config.name && (
@@ -344,15 +330,12 @@ export function ConfigCenterPage() {
     load();
   }, [load]);
 
-  const refreshConfig = useCallback(
-    async (name: string) => {
-      const updated = await fetchConfig(name);
-      if (updated) {
-        setConfigs((prev) => prev.map((c) => (c.name === name ? updated : c)));
-      }
-    },
-    [],
-  );
+  const refreshConfig = useCallback(async (name: string) => {
+    const updated = await fetchConfig(name);
+    if (updated) {
+      setConfigs((prev) => prev.map((c) => (c.name === name ? updated : c)));
+    }
+  }, []);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">

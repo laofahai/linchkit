@@ -54,13 +54,10 @@ function makeCtx(
 describe("Permission middleware cache", () => {
   let registry: PermissionRegistry;
   let cacheManager: CacheManager;
-  let checkCount: number;
-
   beforeEach(() => {
     registry = new PermissionRegistry();
     registry.register(group1);
     cacheManager = new CacheManager();
-    checkCount = 0;
   });
 
   it("caches permission result on second call for same actor+command", async () => {
@@ -69,7 +66,9 @@ describe("Permission middleware cache", () => {
     const ctx = makeCtx(actor, "create_task", "task");
 
     let callCount = 0;
-    const next = async () => { callCount++; };
+    const next = async () => {
+      callCount++;
+    };
 
     await middleware(ctx, next);
     await middleware(ctx, next);

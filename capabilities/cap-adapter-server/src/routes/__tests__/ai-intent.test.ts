@@ -97,7 +97,10 @@ const noopAIService: AIService = {
 
 // ── Server builder (returns server + store) ───────────────
 
-function buildTestServer(aiService: AIService): { server: ReturnType<typeof createServer>; store: InMemoryStore } {
+function buildTestServer(aiService: AIService): {
+  server: ReturnType<typeof createServer>;
+  store: InMemoryStore;
+} {
   const store = new InMemoryStore();
   const executor = createActionExecutor({ dataProvider: store });
 
@@ -108,10 +111,10 @@ function buildTestServer(aiService: AIService): { server: ReturnType<typeof crea
   schemaRegistry.register(purchaseRequestSchema);
   schemaRegistry.register(confidentialSchema);
 
-  const graphqlSchema = buildGraphQLSchema(
-    [purchaseRequestSchema, confidentialSchema],
-    { executor, dataProvider: store },
-  );
+  const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema, confidentialSchema], {
+    executor,
+    dataProvider: store,
+  });
 
   const server = createServer(graphqlSchema, {
     executor,
@@ -161,7 +164,7 @@ async function post(path: string, body: unknown, port = PORT) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return { status: res.status, body: await res.json() as Record<string, unknown> };
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
 // ── Tests: resolve-intent ─────────────────────────────────
@@ -213,7 +216,11 @@ describe("POST /api/ai/resolve-intent", () => {
     const { server: noAIApp } = buildTestServer(noopAIService);
     noAIApp.listen(PORT2);
     try {
-      const { body } = await post("/api/ai/resolve-intent", { message: "Create a purchase request" }, PORT2);
+      const { body } = await post(
+        "/api/ai/resolve-intent",
+        { message: "Create a purchase request" },
+        PORT2,
+      );
       const result = body as { success: boolean; data: unknown };
       expect(result.success).toBe(true);
       expect(result.data).toBeNull();
@@ -241,7 +248,11 @@ describe("POST /api/ai/execute-intent", () => {
       source: "ai",
     });
     expect(status).toBe(200);
-    const result = body as { success: boolean; data: Record<string, unknown>; meta: Record<string, unknown> };
+    const result = body as {
+      success: boolean;
+      data: Record<string, unknown>;
+      meta: Record<string, unknown>;
+    };
     expect(result.success).toBe(true);
     expect(result.meta?.source).toBe("ai");
     expect(result.meta?.executionId).toBeTruthy();

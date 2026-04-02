@@ -529,7 +529,9 @@ export class DerivedPropertyEngine {
       // Check if any dependency is an aggregate field
       const depNames = this.getDependencyFieldNames(info.derived);
       const hasAggDep = depNames.some(
-        (d) => result[d] !== undefined && this.fields.get(`${schemaName}.${d}`)?.derived.type === "aggregate",
+        (d) =>
+          result[d] !== undefined &&
+          this.fields.get(`${schemaName}.${d}`)?.derived.type === "aggregate",
       );
       if (hasAggDep) {
         const value = resolveDerivedValue(info.derived, working);
@@ -562,7 +564,13 @@ export class DerivedPropertyEngine {
     options?: { maxCascadeDepth?: number },
   ): Promise<Map<string, Record<string, unknown>>> {
     const maxDepth = options?.maxCascadeDepth ?? 5;
-    return this._cascadeRecalculateInternal(childSchemaName, childRecord, dataProvider, maxDepth, 0);
+    return this._cascadeRecalculateInternal(
+      childSchemaName,
+      childRecord,
+      dataProvider,
+      maxDepth,
+      0,
+    );
   }
 
   /**
@@ -600,12 +608,7 @@ export class DerivedPropertyEngine {
       }
 
       // Recalculate the aggregate field
-      const value = await resolveAggregateValue(
-        target.derived,
-        parentRecord,
-        target.link,
-        dp,
-      );
+      const value = await resolveAggregateValue(target.derived, parentRecord, target.link, dp);
 
       // Collect update for this parent
       const updateKey = `${target.parentSchema}.${parentId}`;

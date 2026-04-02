@@ -486,7 +486,9 @@ export function AutoForm({
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
 
-    const hasCondition = !!(node.visibleWhen ?? view.fields.find((f) => f.field === node.field)?.visibleWhen);
+    const hasCondition = !!(
+      node.visibleWhen ?? view.fields.find((f) => f.field === node.field)?.visibleWhen
+    );
 
     // Fields with visibleWhen: keep in DOM for CSS transition; fields without: skip entirely when invisible
     if (!visible && !hasCondition) return null;
@@ -508,15 +510,16 @@ export function AutoForm({
       />
     );
 
-    const suggestionBadge = suggestion && !isViewMode ? (
-      <div className="col-span-full px-1 -mt-1 mb-1">
-        <AiSuggestionBadge
-          suggestion={suggestion}
-          onAccept={() => externalAiAccept?.(node.field)}
-          onReject={() => onAiReject?.(node.field)}
-        />
-      </div>
-    ) : null;
+    const suggestionBadge =
+      suggestion && !isViewMode ? (
+        <div className="col-span-full px-1 -mt-1 mb-1">
+          <AiSuggestionBadge
+            suggestion={suggestion}
+            onAccept={() => externalAiAccept?.(node.field)}
+            onReject={() => onAiReject?.(node.field)}
+          />
+        </div>
+      ) : null;
 
     if (!hasCondition) {
       return (

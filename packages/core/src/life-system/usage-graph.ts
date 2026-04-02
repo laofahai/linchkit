@@ -1,7 +1,7 @@
-import type { UsageImportanceGraph, UsageNode, UsageNodeKind } from '../types/life-system';
+import type { UsageImportanceGraph, UsageNode, UsageNodeKind } from "../types/life-system";
 
 function nodeKey(kind: UsageNodeKind, schema: string, name?: string): string {
-  return `${kind}:${schema}:${name ?? ''}`;
+  return `${kind}:${schema}:${name ?? ""}`;
 }
 
 export function createUsageImportanceGraph(): UsageImportanceGraph {
@@ -46,12 +46,12 @@ export function createUsageImportanceGraph(): UsageImportanceGraph {
 
     topN(n: number, kind?: UsageNodeKind): UsageNode[] {
       let all = Array.from(nodes.values());
-      if (kind !== undefined) all = all.filter(node => node.kind === kind);
+      if (kind !== undefined) all = all.filter((node) => node.kind === kind);
       return all.sort((a, b) => b.importance - a.importance).slice(0, n);
     },
 
     nodesFor(schema: string): UsageNode[] {
-      return Array.from(nodes.values()).filter(node => node.schema === schema);
+      return Array.from(nodes.values()).filter((node) => node.schema === schema);
     },
 
     toArray(): UsageNode[] {

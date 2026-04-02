@@ -73,11 +73,7 @@ export interface ConfigStore {
   /**
    * List version history for a config key (most recent first).
    */
-  history(
-    namespace: string,
-    key: string,
-    scope?: ConfigScopeRef,
-  ): Promise<ConfigVersion[]>;
+  history(namespace: string, key: string, scope?: ConfigScopeRef): Promise<ConfigVersion[]>;
 
   /**
    * Rollback a config key to a specific version number.
@@ -217,11 +213,7 @@ export class InMemoryConfigStore implements ConfigStore {
     this.versions.set(sk, versionList);
   }
 
-  async history(
-    namespace: string,
-    key: string,
-    scope?: ConfigScopeRef,
-  ): Promise<ConfigVersion[]> {
+  async history(namespace: string, key: string, scope?: ConfigScopeRef): Promise<ConfigVersion[]> {
     const sk = makeScopeKey(namespace, key, scope?.type ?? "global", scope?.id);
     const list = this.versions.get(sk) ?? [];
     // Return most recent first

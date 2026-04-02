@@ -14,16 +14,16 @@
  * Manual types must be declared explicitly via defineRelation().
  */
 export type SemanticRelationType =
-  | "depends_on"    // A depends on B existing (from capability.dependencies)
-  | "contains"      // A contains B records (from has_many fields)
-  | "references"    // A references B (from ref fields)
-  | "affects"       // A changes affect B (from Bridge/EventHandler cross-module)
-  | "triggers"      // A triggers events in B (from EventHandler cross-module)
-  | "orchestrates"  // A orchestrates B actions (from Flow cross-module steps)
-  | "reads_from"    // A reads B data (from Rule context queries)
-  | "bridges"       // A bridges B (from Bridge capability.bridges)
+  | "depends_on" // A depends on B existing (from capability.dependencies)
+  | "contains" // A contains B records (from has_many fields)
+  | "references" // A references B (from ref fields)
+  | "affects" // A changes affect B (from Bridge/EventHandler cross-module)
+  | "triggers" // A triggers events in B (from EventHandler cross-module)
+  | "orchestrates" // A orchestrates B actions (from Flow cross-module steps)
+  | "reads_from" // A reads B data (from Rule context queries)
+  | "bridges" // A bridges B (from Bridge capability.bridges)
   | "conflicts_with" // A and B conflict (manual only)
-  | "replaces"      // A replaces B (manual only)
+  | "replaces" // A replaces B (manual only)
   | "derived_from"; // A derives from B (manual only)
 
 /** Source of inference — which mechanism detected this relation */

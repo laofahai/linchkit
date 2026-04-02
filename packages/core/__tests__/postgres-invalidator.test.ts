@@ -28,8 +28,9 @@ function createTestInvalidator(cacheManager: CacheManager): {
   });
 
   // Access private method for unit testing
-  const handleNotification = (invalidator as unknown as { handleNotification: (p: string) => void })
-    .handleNotification.bind(invalidator);
+  const handleNotification = (
+    invalidator as unknown as { handleNotification: (p: string) => void }
+  ).handleNotification.bind(invalidator);
 
   return { invalidator, handleNotification };
 }
@@ -102,9 +103,7 @@ describe("PostgresCacheInvalidator", () => {
 
       const { handleNotification } = createTestInvalidator(manager);
 
-      handleNotification(
-        JSON.stringify({ type: "definition", target: "schema", tenantId: "t1" }),
-      );
+      handleNotification(JSON.stringify({ type: "definition", target: "schema", tenantId: "t1" }));
 
       expect(manager.get("override:t1:schema:orders")).toBeUndefined();
       expect(manager.get("override:t1:schema:products")).toBeUndefined();
@@ -115,7 +114,7 @@ describe("PostgresCacheInvalidator", () => {
   describe("handleNotification — error cases", () => {
     it("ignores invalid JSON payload without throwing", () => {
       const manager = new CacheManager();
-      const logs: string[] = [];
+      const _logs: string[] = [];
       const { handleNotification } = createTestInvalidator(manager);
       // Should not throw
       expect(() => handleNotification("not-json")).not.toThrow();

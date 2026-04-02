@@ -50,9 +50,27 @@ describe("GracefulShutdownManager", () => {
         exitOnComplete: false,
         logger: silentLogger as never,
       });
-      mgr.register("db", async () => { order.push("db"); }, 90);
-      mgr.register("drain", async () => { order.push("drain"); }, 10);
-      mgr.register("flush", async () => { order.push("flush"); }, 50);
+      mgr.register(
+        "db",
+        async () => {
+          order.push("db");
+        },
+        90,
+      );
+      mgr.register(
+        "drain",
+        async () => {
+          order.push("drain");
+        },
+        10,
+      );
+      mgr.register(
+        "flush",
+        async () => {
+          order.push("flush");
+        },
+        50,
+      );
       await mgr.shutdown();
       expect(order).toEqual(["drain", "flush", "db"]);
     });
@@ -101,8 +119,20 @@ describe("GracefulShutdownManager", () => {
         exitOnComplete: false,
         logger: silentLogger as never,
       });
-      mgr.register("first", async () => { throw new Error("fail"); }, 10);
-      mgr.register("second", async () => { executed.push("second"); }, 20);
+      mgr.register(
+        "first",
+        async () => {
+          throw new Error("fail");
+        },
+        10,
+      );
+      mgr.register(
+        "second",
+        async () => {
+          executed.push("second");
+        },
+        20,
+      );
       await mgr.shutdown();
       expect(executed).toContain("second");
     });
@@ -113,7 +143,9 @@ describe("GracefulShutdownManager", () => {
         exitOnComplete: false,
         logger: silentLogger as never,
       });
-      mgr.register("counter", async () => { callCount++; });
+      mgr.register("counter", async () => {
+        callCount++;
+      });
       await Promise.all([mgr.shutdown(), mgr.shutdown(), mgr.shutdown()]);
       expect(callCount).toBe(1);
     });

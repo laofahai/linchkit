@@ -11,8 +11,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { AIResponseCache } from "../src/response-cache";
 import type { AICompletionOptions, AICompletionResult } from "@linchkit/core";
+import { AIResponseCache } from "../src/response-cache";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -161,7 +161,13 @@ describe("AIResponseCache", () => {
     it("does not cache requests with tools (non-deterministic)", () => {
       const cache = new AIResponseCache({ maxEntries: 100, ttlMs: 60_000 });
       const opts = makeOptions({
-        tools: [{ name: "search", description: "Search", parameters: { type: "object", properties: {}, required: [] } }],
+        tools: [
+          {
+            name: "search",
+            description: "Search",
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        ],
       });
 
       cache.set(opts, makeResult("with-tools"));

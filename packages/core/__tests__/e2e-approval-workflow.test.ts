@@ -15,9 +15,9 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createActionExecutor } from "../src/engine/action-engine";
 import {
-  InMemoryApprovalStore,
   createApprovalEngine,
   createApprovalVerifier,
+  InMemoryApprovalStore,
 } from "../src/engine/approval-engine";
 import { createCommandLayer } from "../src/engine/command-layer";
 import { createEventBus } from "../src/event/event-bus";
@@ -221,10 +221,7 @@ describe("E2E: Approval workflow", () => {
         triggerRules: ["require_manager_approval"],
       });
 
-      const result = await approvalEngine.approve(
-        { approvalId: pending.approvalId },
-        manager,
-      );
+      const result = await approvalEngine.approve({ approvalId: pending.approvalId }, manager);
 
       expect(result.success).toBe(true);
 
@@ -382,9 +379,9 @@ describe("E2E: Approval workflow", () => {
     it("throws when approving a non-existent request", async () => {
       const { approvalEngine } = setup;
 
-      await expect(
-        approvalEngine.approve({ approvalId: "nonexistent" }, manager),
-      ).rejects.toThrow("not found");
+      await expect(approvalEngine.approve({ approvalId: "nonexistent" }, manager)).rejects.toThrow(
+        "not found",
+      );
     });
 
     it("throws when approving an already-approved request (double approve)", async () => {
@@ -441,10 +438,7 @@ describe("E2E: Approval workflow", () => {
         triggerRules: ["require_manager_approval"],
       });
 
-      const cancelled = await approvalEngine.cancel(
-        { approvalId: pending.approvalId },
-        requestor,
-      );
+      const cancelled = await approvalEngine.cancel({ approvalId: pending.approvalId }, requestor);
 
       expect(cancelled.status).toBe("cancelled");
       expect(approvalStore.getById(pending.approvalId)?.status).toBe("cancelled");

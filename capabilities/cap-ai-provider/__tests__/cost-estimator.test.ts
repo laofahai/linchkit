@@ -117,7 +117,10 @@ describe("CostEstimator", () => {
       const est = new CostEstimator();
       expect(est.hasPricing("runtime-model")).toBe(false);
 
-      est.registerPricing("runtime-model", { inputPerToken: 0.5 / 1_000_000, outputPerToken: 1.5 / 1_000_000 });
+      est.registerPricing("runtime-model", {
+        inputPerToken: 0.5 / 1_000_000,
+        outputPerToken: 1.5 / 1_000_000,
+      });
 
       expect(est.hasPricing("runtime-model")).toBe(true);
       const cost = est.estimateCost("runtime-model", 1_000_000, 1_000_000);

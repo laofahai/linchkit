@@ -104,9 +104,7 @@ export function SchemaFormPage() {
   const _printView = useMemo(() => {
     if (!bundle?.views || !schemaName) return undefined;
     const printViewName = `${schemaName}-print`;
-    return Object.values(bundle.views).find(
-      (v) => v.name === printViewName && v.type === "form",
-    );
+    return Object.values(bundle.views).find((v) => v.name === printViewName && v.type === "form");
   }, [bundle?.views, schemaName]);
 
   // Status bar steps derived from schema, with i18n label resolution
@@ -223,7 +221,10 @@ export function SchemaFormPage() {
         fetchCloneSource();
       } else if (isCreate && parentId && bundle.schema) {
         // Pre-fill the parent field when creating a child record
-        const schemaFields = bundle.schema.fields as Record<string, { type?: string; target?: string }>;
+        const schemaFields = bundle.schema.fields as Record<
+          string,
+          { type?: string; target?: string }
+        >;
         const selfRefField = Object.entries(schemaFields).find(
           ([, def]) => def.type === "ref" && def.target === bundle.schema?.name,
         )?.[0];
