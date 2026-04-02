@@ -2,7 +2,14 @@
  * RelationGraphPage — /admin/graph
  *
  * Interactive schema relationship diagram.
- * Renders schemas as nodes and links as edges using ReactFlow + dagre auto-layout.
+ * Renders schemas as nodes and relationships as edges using ReactFlow + dagre auto-layout.
+ *
+ * Visual hierarchy:
+ * - SemanticRelation edges are primary (colored solid lines, labeled by relation type)
+ * - Link edges are secondary — merged onto semantic edges as cardinality annotations,
+ *   or shown as gray dashed "structural-only" edges when no semantic match exists.
+ * - Non-schema endpoints (actions, capabilities) from semantic relations are filtered out.
+ *
  * Single-click a node to select it and view impact analysis.
  * Double-click a node to navigate to its schema list page.
  */
@@ -31,6 +38,7 @@ import dagre from "dagre";
 import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import { fetchLinks, fetchSchemas, fetchSemanticRelations, type SchemaInfo } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
@@ -76,6 +84,22 @@ const CARDINALITY_LABEL: Record<string, string> = {
   many_to_many: "N:M",
 };
 
+// ── Colors per semantic relation type ────────────────────
+
+const SEMANTIC_EDGE_COLOR: Record<string, string> = {
+  depends_on: "#6366f1",
+  contains: "#0ea5e9",
+  references: "#10b981",
+  affects: "#f59e0b",
+  triggers: "#ef4444",
+  orchestrates: "#8b5cf6",
+  reads_from: "#ec4899",
+  bridges: "#64748b",
+  conflicts_with: "#dc2626",
+  replaces: "#a855f7",
+  derived_from: "#14b8a6",
+};
+
 // ── Custom node ──────────────────────────────────────────
 
 interface SchemaNodeData {
@@ -84,13 +108,14 @@ interface SchemaNodeData {
   internal: boolean;
   selected: boolean;
   dimmed: boolean;
+  linkCount?: number;
   onSelect: (name: string) => void;
   onNavigate: (name: string) => void;
   [key: string]: unknown;
 }
 
 function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
-  const { label, name, internal, selected, dimmed, onSelect, onNavigate } = data;
+  const { label, name, internal, selected, dimmed, linkCount, onSelect, onNavigate } = data;
 
   const borderColor = selected ? "#6366f1" : internal ? "#94a3b8" : "#e2e8f0";
   const borderStyle = internal ? "dashed" : "solid";
@@ -100,12 +125,18 @@ function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
     ? "0 0 0 3px rgba(99,102,241,0.18), 0 1px 4px rgba(0,0,0,0.08)"
     : "0 1px 4px rgba(0,0,0,0.08)";
 
+  // Tooltip with schema details
+  const tooltipParts = [name];
+  if (linkCount !== undefined && linkCount > 0) tooltipParts.push(`Relations: ${linkCount}`);
+  tooltipParts.push("Click to select \u00B7 Double-click to navigate");
+  const tooltip = tooltipParts.join("\n");
+
   return (
     <button
       type="button"
       onClick={() => onSelect(name)}
       onDoubleClick={() => onNavigate(name)}
-      title="Click to select · Double-click to navigate"
+      title={tooltip}
       style={{
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
@@ -161,97 +192,15 @@ function SchemaNode({ data }: NodeProps<Node<SchemaNodeData>>) {
   );
 }
 
-// ── Custom edge with cardinality label ───────────────────
-
-interface RelationEdgeData {
-  cardinality: string;
-  linkName: string;
-  dimmed: boolean;
-  [key: string]: unknown;
-}
-
-function RelationEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  data,
-}: EdgeProps<Edge<RelationEdgeData>>) {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
-
-  const cardinalityLabel = CARDINALITY_LABEL[data?.cardinality ?? ""] ?? data?.cardinality ?? "";
-  const opacity = data?.dimmed ? 0.1 : 1;
-
-  return (
-    <>
-      <path
-        id={id}
-        d={edgePath}
-        fill="none"
-        stroke="#94a3b8"
-        strokeWidth={1.5}
-        markerEnd="url(#relation-arrow)"
-        style={{ opacity, transition: "opacity 0.15s" }}
-      />
-      {cardinalityLabel && !data?.dimmed && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              pointerEvents: "none",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: "#64748b",
-                backgroundColor: "#f1f5f9",
-                padding: "1px 6px",
-                borderRadius: 9999,
-                border: "1px solid #e2e8f0",
-                whiteSpace: "nowrap",
-                lineHeight: "16px",
-                display: "inline-block",
-              }}
-            >
-              {cardinalityLabel}
-            </span>
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
-  );
-}
-
-// ── Semantic relation edge ───────────────────────────────
-
-// Colors per semantic relation type
-const SEMANTIC_EDGE_COLOR: Record<string, string> = {
-  depends_on: "#6366f1",
-  contains: "#0ea5e9",
-  references: "#10b981",
-  affects: "#f59e0b",
-  triggers: "#ef4444",
-  orchestrates: "#8b5cf6",
-  reads_from: "#ec4899",
-  bridges: "#64748b",
-};
+// ── Semantic edge (primary — colored solid lines) ────────
 
 interface SemanticEdgeData {
   relationType: string;
   inferredFrom?: string;
+  /** Merged cardinality from a matching Link (if any) */
+  cardinality?: string;
+  /** Matching Link name (if any) */
+  linkName?: string;
   dimmed: boolean;
   [key: string]: unknown;
 }
@@ -277,7 +226,14 @@ function SemanticEdge({
 
   const relType = data?.relationType ?? "";
   const color = SEMANTIC_EDGE_COLOR[relType] ?? "#94a3b8";
-  const opacity = data?.dimmed ? 0.08 : 0.7;
+  const opacity = data?.dimmed ? 0.08 : 0.85;
+  const cardLabel = data?.cardinality ? (CARDINALITY_LABEL[data.cardinality] ?? "") : "";
+
+  // Build hover tooltip
+  const tooltipParts = [`Type: ${relType.replace(/_/g, " ")}`];
+  if (data?.inferredFrom) tooltipParts.push(`Inferred from: ${data.inferredFrom}`);
+  if (cardLabel) tooltipParts.push(`Cardinality: ${cardLabel}`);
+  if (data?.linkName) tooltipParts.push(`Link: ${data.linkName}`);
 
   return (
     <>
@@ -286,36 +242,120 @@ function SemanticEdge({
         d={edgePath}
         fill="none"
         stroke={color}
-        strokeWidth={1.5}
-        strokeDasharray="5,3"
+        strokeWidth={2}
         markerEnd={`url(#semantic-arrow-${relType})`}
         style={{ opacity, transition: "opacity 0.15s" }}
-      />
+      >
+        <title>{tooltipParts.join("\n")}</title>
+      </path>
       {!data?.dimmed && (
         <EdgeLabelRenderer>
           <div
             style={{
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              pointerEvents: "none",
+              pointerEvents: "all",
             }}
+            title={tooltipParts.join("\n")}
           >
             <span
               style={{
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: 600,
                 color,
                 backgroundColor: "white",
-                padding: "1px 5px",
+                padding: "1px 6px",
                 borderRadius: 9999,
                 border: `1px solid ${color}`,
                 whiteSpace: "nowrap",
                 lineHeight: "16px",
                 display: "inline-block",
-                opacity: 0.9,
               }}
             >
               {relType.replace(/_/g, " ")}
+              {cardLabel && (
+                <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>{cardLabel}</span>
+              )}
+            </span>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+// ── Structural edge (secondary — orphan links only, gray dashed) ─
+
+interface StructuralEdgeData {
+  cardinality: string;
+  linkName: string;
+  dimmed: boolean;
+  [key: string]: unknown;
+}
+
+function StructuralEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+}: EdgeProps<Edge<StructuralEdgeData>>) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const cardinalityLabel = CARDINALITY_LABEL[data?.cardinality ?? ""] ?? data?.cardinality ?? "";
+  const opacity = data?.dimmed ? 0.1 : 0.5;
+
+  const tooltipParts = [`Link: ${data?.linkName ?? ""}`, `Cardinality: ${cardinalityLabel}`];
+
+  return (
+    <>
+      <path
+        id={id}
+        d={edgePath}
+        fill="none"
+        stroke="#94a3b8"
+        strokeWidth={1}
+        strokeDasharray="6,4"
+        markerEnd="url(#relation-arrow)"
+        style={{ opacity, transition: "opacity 0.15s" }}
+      >
+        <title>{tooltipParts.join("\n")}</title>
+      </path>
+      {cardinalityLabel && !data?.dimmed && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: "all",
+            }}
+            title={tooltipParts.join("\n")}
+          >
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 500,
+                color: "#94a3b8",
+                backgroundColor: "#f8fafc",
+                padding: "1px 5px",
+                borderRadius: 9999,
+                border: "1px solid #e2e8f0",
+                whiteSpace: "nowrap",
+                lineHeight: "16px",
+                display: "inline-block",
+              }}
+            >
+              {cardinalityLabel}
             </span>
           </div>
         </EdgeLabelRenderer>
@@ -327,7 +367,25 @@ function SemanticEdge({
 // ── Node / Edge type maps (stable references outside component) ──
 
 const nodeTypes = { schema: SchemaNode };
-const edgeTypes = { relation: RelationEdge, semantic: SemanticEdge };
+const edgeTypes = { semantic: SemanticEdge, structural: StructuralEdge };
+
+// ── Merge helper: match Links to SemanticRelations ──────
+
+/**
+ * Find the Link that corresponds to a given semantic relation (same from/to schemas).
+ * Returns the matched link or undefined.
+ */
+function findMatchingLink(
+  rel: SemanticRelation,
+  links: LinkDefinition[],
+): LinkDefinition | undefined {
+  if (!rel.from.schema || !rel.to.schema) return undefined;
+  return links.find(
+    (l) =>
+      (l.from === rel.from.schema && l.to === rel.to.schema) ||
+      (l.from === rel.to.schema && l.to === rel.from.schema),
+  );
+}
 
 // ── Graph builder ────────────────────────────────────────
 
@@ -340,36 +398,57 @@ function buildGraph(
   selectedNode: string | null,
   onSelect: (name: string) => void,
   onNavigate: (name: string) => void,
+  resolveLabel: (label: string | undefined, fallback: string) => string,
 ): { nodes: Node[]; edges: Edge[] } {
+  const knownSchemaNames = new Set(schemas.map((s) => s.name));
+
   // Collect schemas that participate in at least one link or semantic relation
   const linkedSchemas = new Set<string>();
   for (const link of links) {
     linkedSchemas.add(link.from);
     linkedSchemas.add(link.to);
   }
+
+  // Track which links are covered by semantic relations (for deduplication)
+  const coveredLinks = new Set<string>();
+
   if (showSemantic) {
     for (const rel of semanticRelations) {
-      if (rel.from.schema) linkedSchemas.add(rel.from.schema);
-      if (rel.to.schema) linkedSchemas.add(rel.to.schema);
+      // Only include endpoints that are actual known schemas (filter out action/capability nodes)
+      if (rel.from.schema && knownSchemaNames.has(rel.from.schema)) {
+        linkedSchemas.add(rel.from.schema);
+      }
+      if (rel.to.schema && knownSchemaNames.has(rel.to.schema)) {
+        linkedSchemas.add(rel.to.schema);
+      }
     }
   }
 
-  // Filter: only schemas in links; respect internal toggle
+  // Filter: only known schemas that participate in links; respect internal toggle.
+  // No fallback for unknown endpoints — this prevents "action" ghost nodes.
   const visibleSchemas = schemas.filter(
     (s) => linkedSchemas.has(s.name) && (showInternal || !s.internal),
   );
+  const visibleSet = new Set(visibleSchemas.map((s) => s.name));
 
-  // Graceful fallback for link endpoints not in schema registry
-  const knownNames = new Set(schemas.map((s) => s.name));
-  for (const name of linkedSchemas) {
-    if (!knownNames.has(name)) {
-      visibleSchemas.push({ name, label: name });
+  // Count relations per schema for tooltip
+  const linkCountMap = new Map<string, number>();
+  for (const link of links) {
+    if (visibleSet.has(link.from)) linkCountMap.set(link.from, (linkCountMap.get(link.from) ?? 0) + 1);
+    if (visibleSet.has(link.to)) linkCountMap.set(link.to, (linkCountMap.get(link.to) ?? 0) + 1);
+  }
+  if (showSemantic) {
+    for (const rel of semanticRelations) {
+      if (rel.from.schema && visibleSet.has(rel.from.schema)) {
+        linkCountMap.set(rel.from.schema, (linkCountMap.get(rel.from.schema) ?? 0) + 1);
+      }
+      if (rel.to.schema && visibleSet.has(rel.to.schema)) {
+        linkCountMap.set(rel.to.schema, (linkCountMap.get(rel.to.schema) ?? 0) + 1);
+      }
     }
   }
 
-  const visibleSet = new Set(visibleSchemas.map((s) => s.name));
-
-  // Build connected set for dimming
+  // Build connected set for dimming when a node is selected
   const connectedNodes = new Set<string>();
   const connectedEdgeIds = new Set<string>();
 
@@ -379,7 +458,7 @@ function buildGraph(
       if (link.from === selectedNode || link.to === selectedNode) {
         connectedNodes.add(link.from);
         connectedNodes.add(link.to);
-        connectedEdgeIds.add(link.name);
+        connectedEdgeIds.add(`structural:${link.name}`);
       }
     }
     if (showSemantic) {
@@ -398,55 +477,69 @@ function buildGraph(
     type: "schema",
     position: { x: 0, y: 0 },
     data: {
-      label: s.label ?? s.name,
+      label: resolveLabel(s.label, s.name),
       name: s.name,
       internal: s.internal ?? false,
       selected: s.name === selectedNode,
       dimmed: selectedNode !== null && !connectedNodes.has(s.name),
+      linkCount: linkCountMap.get(s.name) ?? 0,
       onSelect,
       onNavigate,
     },
   }));
 
+  // Build semantic edges first (they are primary)
+  const semanticEdges: Edge[] = [];
+  if (showSemantic) {
+    for (const r of semanticRelations) {
+      // Only include edges where both endpoints are known visible schemas
+      if (
+        !r.from.schema ||
+        !r.to.schema ||
+        !visibleSet.has(r.from.schema) ||
+        !visibleSet.has(r.to.schema)
+      ) {
+        continue;
+      }
+
+      // Find matching Link for cardinality annotation
+      const matchedLink = findMatchingLink(r, links);
+      if (matchedLink) {
+        coveredLinks.add(matchedLink.name);
+      }
+
+      semanticEdges.push({
+        id: `sem:${r.id}`,
+        source: r.from.schema,
+        target: r.to.schema,
+        type: "semantic",
+        data: {
+          relationType: r.type,
+          inferredFrom: r.inferredFrom,
+          cardinality: matchedLink?.cardinality,
+          linkName: matchedLink?.name,
+          dimmed: selectedNode !== null && !connectedEdgeIds.has(`sem:${r.id}`),
+        },
+      });
+    }
+  }
+
+  // Build structural edges only for Links NOT covered by a semantic relation
   const structuralEdges: Edge[] = links
-    .filter((l) => visibleSet.has(l.from) && visibleSet.has(l.to))
+    .filter((l) => !coveredLinks.has(l.name) && visibleSet.has(l.from) && visibleSet.has(l.to))
     .map((l) => ({
-      id: l.name,
+      id: `structural:${l.name}`,
       source: l.from,
       target: l.to,
-      type: "relation",
+      type: "structural",
       data: {
         cardinality: l.cardinality,
         linkName: l.name,
-        dimmed: selectedNode !== null && !connectedEdgeIds.has(l.name),
+        dimmed: selectedNode !== null && !connectedEdgeIds.has(`structural:${l.name}`),
       },
     }));
 
-  const semanticEdges: Edge[] = showSemantic
-    ? semanticRelations
-        .filter(
-          (r) =>
-            r.from.schema &&
-            r.to.schema &&
-            visibleSet.has(r.from.schema) &&
-            visibleSet.has(r.to.schema),
-        )
-        .map((r) => ({
-          id: `sem:${r.id}`,
-          // biome-ignore lint/style/noNonNullAssertion: filtered above to guarantee schema is present
-          source: r.from.schema!,
-          // biome-ignore lint/style/noNonNullAssertion: filtered above to guarantee schema is present
-          target: r.to.schema!,
-          type: "semantic",
-          data: {
-            relationType: r.type,
-            inferredFrom: r.inferredFrom,
-            dimmed: selectedNode !== null && !connectedEdgeIds.has(`sem:${r.id}`),
-          },
-        }))
-    : [];
-
-  const edges = [...structuralEdges, ...semanticEdges];
+  const edges = [...semanticEdges, ...structuralEdges];
   const laidOutNodes = applyDagreLayout(nodes, edges);
   return { nodes: laidOutNodes, edges };
 }
@@ -467,48 +560,67 @@ function computeImpact(
   schemas: SchemaInfo[],
   links: LinkDefinition[],
   semanticRelations: SemanticRelation[],
+  resolveLabel: (label: string | undefined, fallback: string) => string,
 ): ImpactEntry[] {
-  const labelMap = new Map(schemas.map((s) => [s.name, s.label ?? s.name]));
+  const knownSchemaNames = new Set(schemas.map((s) => s.name));
+  const labelMap = new Map(schemas.map((s) => [s.name, resolveLabel(s.label, s.name)]));
   const entries: ImpactEntry[] = [];
 
-  for (const link of links) {
-    if (link.from === selectedSchema) {
+  // Track which link pairs are covered by semantic relations
+  const coveredPairs = new Set<string>();
+
+  // Semantic relations first (primary)
+  for (const rel of semanticRelations) {
+    if (rel.from.schema === selectedSchema && rel.to.schema && knownSchemaNames.has(rel.to.schema)) {
+      coveredPairs.add(`${rel.from.schema}->${rel.to.schema}`);
+      coveredPairs.add(`${rel.to.schema}->${rel.from.schema}`);
+      const matchedLink = findMatchingLink(rel, links);
+      const cardSuffix = matchedLink
+        ? ` (${CARDINALITY_LABEL[matchedLink.cardinality] ?? matchedLink.cardinality})`
+        : "";
       entries.push({
-        schema: link.to,
-        label: labelMap.get(link.to),
-        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} → ${link.name}`,
+        schema: rel.to.schema,
+        label: labelMap.get(rel.to.schema),
+        relationLabel: `${rel.type.replace(/_/g, " ")}${cardSuffix}`,
         direction: "outgoing",
-        edgeType: "structural",
+        edgeType: "semantic",
+        relationType: rel.type,
       });
-    } else if (link.to === selectedSchema) {
+    } else if (rel.to.schema === selectedSchema && rel.from.schema && knownSchemaNames.has(rel.from.schema)) {
+      coveredPairs.add(`${rel.from.schema}->${rel.to.schema}`);
+      coveredPairs.add(`${rel.to.schema}->${rel.from.schema}`);
+      const matchedLink = findMatchingLink(rel, links);
+      const cardSuffix = matchedLink
+        ? ` (${CARDINALITY_LABEL[matchedLink.cardinality] ?? matchedLink.cardinality})`
+        : "";
       entries.push({
-        schema: link.from,
-        label: labelMap.get(link.from),
-        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} ← ${link.name}`,
+        schema: rel.from.schema,
+        label: labelMap.get(rel.from.schema),
+        relationLabel: `${rel.type.replace(/_/g, " ")}${cardSuffix}`,
         direction: "incoming",
-        edgeType: "structural",
+        edgeType: "semantic",
+        relationType: rel.type,
       });
     }
   }
 
-  for (const rel of semanticRelations) {
-    if (rel.from.schema === selectedSchema && rel.to.schema) {
+  // Structural links not covered by semantic relations
+  for (const link of links) {
+    if (link.from === selectedSchema && !coveredPairs.has(`${link.from}->${link.to}`)) {
       entries.push({
-        schema: rel.to.schema,
-        label: labelMap.get(rel.to.schema),
-        relationLabel: rel.type.replace(/_/g, " "),
+        schema: link.to,
+        label: labelMap.get(link.to),
+        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} \u2192 ${link.name}`,
         direction: "outgoing",
-        edgeType: "semantic",
-        relationType: rel.type,
+        edgeType: "structural",
       });
-    } else if (rel.to.schema === selectedSchema && rel.from.schema) {
+    } else if (link.to === selectedSchema && !coveredPairs.has(`${link.to}->${link.from}`)) {
       entries.push({
-        schema: rel.from.schema,
-        label: labelMap.get(rel.from.schema),
-        relationLabel: rel.type.replace(/_/g, " "),
+        schema: link.from,
+        label: labelMap.get(link.from),
+        relationLabel: `${CARDINALITY_LABEL[link.cardinality] ?? link.cardinality} \u2190 ${link.name}`,
         direction: "incoming",
-        edgeType: "semantic",
-        relationType: rel.type,
+        edgeType: "structural",
       });
     }
   }
@@ -525,6 +637,7 @@ interface ImpactPanelProps {
   semanticRelations: SemanticRelation[];
   onNavigate: (name: string) => void;
   onClose: () => void;
+  resolveLabel: (label: string | undefined, fallback: string) => string;
 }
 
 function ImpactPanel({
@@ -534,12 +647,14 @@ function ImpactPanel({
   semanticRelations,
   onNavigate,
   onClose,
+  resolveLabel,
 }: ImpactPanelProps) {
   const { t } = useTranslation();
-  const schemaLabel = schemas.find((s) => s.name === selectedSchema)?.label ?? selectedSchema;
+  const schemaInfo = schemas.find((s) => s.name === selectedSchema);
+  const schemaLabel = resolveLabel(schemaInfo?.label, selectedSchema);
   const entries = useMemo(
-    () => computeImpact(selectedSchema, schemas, links, semanticRelations),
-    [selectedSchema, schemas, links, semanticRelations],
+    () => computeImpact(selectedSchema, schemas, links, semanticRelations, resolveLabel),
+    [selectedSchema, schemas, links, semanticRelations, resolveLabel],
   );
 
   const outgoing = entries.filter((e) => e.direction === "outgoing");
@@ -737,15 +852,16 @@ function ImpactSection({ title, entries }: ImpactSectionProps) {
   );
 }
 
-// ── Semantic legend ──────────────────────────────────────
+// ── Legend ───────────────────────────────────────────────
 
-interface SemanticLegendProps {
-  activeTypes: Set<string>;
+interface GraphLegendProps {
+  activeSemanticTypes: Set<string>;
+  hasOrphanLinks: boolean;
 }
 
-function SemanticLegend({ activeTypes }: SemanticLegendProps) {
+function GraphLegend({ activeSemanticTypes, hasOrphanLinks }: GraphLegendProps) {
   const { t } = useTranslation();
-  if (activeTypes.size === 0) return null;
+  if (activeSemanticTypes.size === 0 && !hasOrphanLinks) return null;
 
   return (
     <div
@@ -762,26 +878,71 @@ function SemanticLegend({ activeTypes }: SemanticLegendProps) {
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        maxWidth: 200,
+        maxWidth: 220,
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
       }}
     >
-      <div
-        style={{
-          fontSize: 9,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          color: "#94a3b8",
-          letterSpacing: "0.05em",
-          marginBottom: 2,
-        }}
-      >
-        {t("relationGraph.legend.title", "Semantic relations")}
-      </div>
-      {[...activeTypes].map((type) => {
-        const color = SEMANTIC_EDGE_COLOR[type] ?? "#94a3b8";
-        return (
-          <div key={type} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {activeSemanticTypes.size > 0 && (
+        <>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              color: "#94a3b8",
+              letterSpacing: "0.05em",
+              marginBottom: 2,
+            }}
+          >
+            {t("relationGraph.legend.title", "Semantic relations")}
+          </div>
+          {[...activeSemanticTypes].map((type) => {
+            const color = SEMANTIC_EDGE_COLOR[type] ?? "#94a3b8";
+            return (
+              <div key={type} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <svg
+                  width="20"
+                  height="10"
+                  style={{ flexShrink: 0 }}
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <line
+                    x1="0"
+                    y1="5"
+                    x2="16"
+                    y2="5"
+                    stroke={color}
+                    strokeWidth="2"
+                    opacity="0.85"
+                  />
+                </svg>
+                <span style={{ fontSize: 10, color: "#475569", whiteSpace: "nowrap" }}>
+                  {type.replace(/_/g, " ")}
+                </span>
+              </div>
+            );
+          })}
+        </>
+      )}
+      {hasOrphanLinks && (
+        <>
+          {activeSemanticTypes.size > 0 && (
+            <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 4 }} />
+          )}
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              color: "#94a3b8",
+              letterSpacing: "0.05em",
+              marginBottom: 2,
+            }}
+          >
+            {t("relationGraph.legend.structural", "Structural")}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <svg
               width="20"
               height="10"
@@ -794,18 +955,18 @@ function SemanticLegend({ activeTypes }: SemanticLegendProps) {
                 y1="5"
                 x2="16"
                 y2="5"
-                stroke={color}
-                strokeWidth="1.5"
+                stroke="#94a3b8"
+                strokeWidth="1"
                 strokeDasharray="4,2"
-                opacity="0.8"
+                opacity="0.5"
               />
             </svg>
-            <span style={{ fontSize: 10, color: "#475569", whiteSpace: "nowrap" }}>
-              {type.replace(/_/g, " ")}
+            <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>
+              {t("relationGraph.legend.linkOnly", "Link (no semantic)")}
             </span>
           </div>
-        );
-      })}
+        </>
+      )}
     </div>
   );
 }
@@ -821,6 +982,7 @@ interface GraphCanvasProps {
   selectedNode: string | null;
   onSelect: (name: string) => void;
   onNavigate: (name: string) => void;
+  resolveLabel: (label: string | undefined, fallback: string) => string;
 }
 
 function GraphCanvas({
@@ -832,6 +994,7 @@ function GraphCanvas({
   selectedNode,
   onSelect,
   onNavigate,
+  resolveLabel,
 }: GraphCanvasProps) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -846,6 +1009,7 @@ function GraphCanvas({
       selectedNode,
       onSelect,
       onNavigate,
+      resolveLabel,
     );
     setRfNodes(n);
     setRfEdges(e);
@@ -858,6 +1022,7 @@ function GraphCanvas({
     selectedNode,
     onSelect,
     onNavigate,
+    resolveLabel,
     setRfNodes,
     setRfEdges,
   ]);
@@ -865,12 +1030,26 @@ function GraphCanvas({
   // Compute which semantic relation types are actually visible for the legend
   const activeSemanticTypes = useMemo(() => {
     if (!showSemantic) return new Set<string>();
+    const knownNames = new Set(schemas.map((s) => s.name));
     const types = new Set<string>();
     for (const rel of semanticRelations) {
-      types.add(rel.type);
+      // Only count types that are actually rendered (both endpoints must be known schemas)
+      if (
+        rel.from.schema &&
+        rel.to.schema &&
+        knownNames.has(rel.from.schema) &&
+        knownNames.has(rel.to.schema)
+      ) {
+        types.add(rel.type);
+      }
     }
     return types;
-  }, [showSemantic, semanticRelations]);
+  }, [showSemantic, semanticRelations, schemas]);
+
+  // Check if there are orphan (structural-only) links displayed
+  const hasOrphanLinks = useMemo(() => {
+    return rfEdges.some((e) => e.type === "structural");
+  }, [rfEdges]);
 
   return (
     <div
@@ -892,7 +1071,7 @@ function GraphCanvas({
             refY="3.5"
             orient="auto"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" fillOpacity={0.5} />
           </marker>
           {Object.entries(SEMANTIC_EDGE_COLOR).map(([type, color]) => (
             <marker
@@ -904,7 +1083,7 @@ function GraphCanvas({
               refY="3"
               orient="auto"
             >
-              <polygon points="0 0, 8 3, 0 6" fill={color} fillOpacity={0.7} />
+              <polygon points="0 0, 8 3, 0 6" fill={color} fillOpacity={0.85} />
             </marker>
           ))}
         </defs>
@@ -937,7 +1116,7 @@ function GraphCanvas({
           maskColor="rgba(248,250,252,0.7)"
         />
       </ReactFlow>
-      {showSemantic && <SemanticLegend activeTypes={activeSemanticTypes} />}
+      <GraphLegend activeSemanticTypes={activeSemanticTypes} hasOrphanLinks={hasOrphanLinks} />
     </div>
   );
 }
@@ -947,16 +1126,17 @@ function GraphCanvas({
 export function RelationGraphPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { resolveLabel } = useSchemaLabel();
   const [showInternal, setShowInternal] = useState(false);
-  const [showSemantic, setShowSemantic] = useState(false);
+  const [showSemantic, setShowSemantic] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchSchemas });
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
+  // Always fetch semantic relations (not gated by showSemantic toggle)
   const semanticQuery = useQuery({
     queryKey: ["semantic-relations"],
     queryFn: fetchSemanticRelations,
-    enabled: showSemantic,
   });
 
   const loading = schemasQuery.isLoading || linksQuery.isLoading;
@@ -1001,7 +1181,7 @@ export function RelationGraphPage() {
     );
   }
 
-  const hasLinks = links.length > 0;
+  const hasLinks = links.length > 0 || semanticRelations.length > 0;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -1057,6 +1237,7 @@ export function RelationGraphPage() {
               selectedNode={selectedNode}
               onSelect={handleSelect}
               onNavigate={handleNavigate}
+              resolveLabel={resolveLabel}
             />
           </div>
           {selectedNode && (
@@ -1067,6 +1248,7 @@ export function RelationGraphPage() {
               semanticRelations={semanticRelations}
               onNavigate={handleNavigate}
               onClose={handleClosePanel}
+              resolveLabel={resolveLabel}
             />
           )}
         </div>
