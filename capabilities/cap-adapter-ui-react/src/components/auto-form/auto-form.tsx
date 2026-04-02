@@ -37,7 +37,13 @@ import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
 import { FormNotebook } from "./form-notebook";
 import { TemplateSelector } from "./template-selector";
-import type { AutoFormProps, SubmitResult } from "./types";
+import type {
+  AutoFormProps,
+  ChildCommand,
+  EnrichedSubmitData,
+  SubmitResult,
+  VirtualRecord,
+} from "./types";
 
 export function AutoForm({
   schema,
@@ -417,9 +423,92 @@ export function AutoForm({
       collectHiddenLayoutFields(view.layout.nodes);
     }
 
+    // Collect virtual ref records and has_many child commands
+    const virtualRefs: Record<string, VirtualRecord> = {};
+    const childCommands: Record<string, ChildCommand[]> = {};
+
+    for (const [key, val] of Object.entries(submitData)) {
+      const fieldDef = schema.fields[key];
+      if (!fieldDef) continue;
+
+      // Detect virtual ref records (ref fields holding an object with _virtual flag)
+      if (
+        fieldDef.type === "ref" &&
+        typeof val === "object" &&
+        val !== null &&
+        "_virtual" in val &&
+        (val as Record<string, unknown>)._virtual === true
+      ) {
+        const record = val as Record<string, unknown>;
+        virtualRefs[key] = {
+          _virtual: true,
+          _tempId: String(record.id ?? record._tempId ?? ""),
+          ...record,
+        };
+      }
+
+      // Collect has_many child record commands
+      if (fieldDef.type === "has_many" && Array.isArray(val)) {
+        const commands: ChildCommand[] = [];
+        const existingRecords = Array.isArray(data?.[key])
+          ? (data[key] as Array<Record<string, unknown>>)
+          : [];
+        const existingIds = new Set(existingRecords.map((r) => String(r.id)));
+        const currentIds = new Set<string>();
+
+        for (const child of val as Array<Record<string, unknown>>) {
+          const childId = String(child.id ?? "");
+          const isVirtual = childId.startsWith("_virtual_");
+
+          if (isVirtual) {
+            // New child record
+            const values = { ...child };
+            delete values.id;
+            delete values._virtual;
+            commands.push({ type: "create", tempId: childId, values });
+          } else {
+            // Existing child — check if modified
+            currentIds.add(childId);
+            const original = existingRecords.find((r) => String(r.id) === childId);
+            if (original) {
+              const changes: Record<string, unknown> = {};
+              let hasChanges = false;
+              for (const [field, fieldVal] of Object.entries(child)) {
+                if (field === "id" || field === "_virtual") continue;
+                if (fieldVal !== original[field]) {
+                  changes[field] = fieldVal;
+                  hasChanges = true;
+                }
+              }
+              if (hasChanges) {
+                commands.push({ type: "update", id: childId, values: changes });
+              }
+            }
+          }
+        }
+
+        // Detect deleted children (present in original data but missing from current)
+        for (const existingId of existingIds) {
+          if (!currentIds.has(existingId)) {
+            commands.push({ type: "delete", id: existingId });
+          }
+        }
+
+        if (commands.length > 0) {
+          childCommands[key] = commands;
+        }
+      }
+    }
+
+    const enriched: EnrichedSubmitData = {
+      values: submitData,
+      virtualRefs,
+      childCommands,
+    };
+
     setSubmitting(true);
     try {
-      const result = await onSubmit?.(submitData);
+      const result = await onSubmit?.(submitData, enriched);
 
       // Handle server-side errors returned by onSubmit
       if (result) {

@@ -43,6 +43,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
+import type { EnrichedSubmitData } from "../components/auto-form/types";
 import { ChatterPanel } from "../components/chatter-panel";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
@@ -385,17 +386,97 @@ export function SchemaFormPage() {
     return input;
   }
 
-  async function handleSubmit(data: Record<string, unknown>): Promise<undefined> {
+  async function handleSubmit(
+    data: Record<string, unknown>,
+    enriched?: EnrichedSubmitData,
+  ): Promise<undefined> {
     if (!schemaName) return;
     setSaving(true);
-    const mutationInput = prepareMutationInput(data);
     try {
+      // Step 1: Create virtual ref records first (quick-created related records)
+      const virtualRefIdMap = new Map<string, string>(); // tempId -> real ID
+      if (enriched?.virtualRefs) {
+        for (const [fieldName, virtualRecord] of Object.entries(enriched.virtualRefs)) {
+          const fieldDef = schema?.fields[fieldName];
+          if (!fieldDef || fieldDef.type !== "ref") continue;
+          const targetSchema = (fieldDef as { target?: string }).target;
+          if (!targetSchema) continue;
+
+          // Build input from virtual record, stripping internal fields
+          const refInput: Record<string, unknown> = {};
+          for (const [key, val] of Object.entries(virtualRecord)) {
+            if (key === "_virtual" || key === "_tempId" || key === "id") continue;
+            refInput[key] = val;
+          }
+
+          const created = await createRecord<{ id: string }>(targetSchema, refInput, ["id"]);
+          virtualRefIdMap.set(virtualRecord._tempId, created.id);
+        }
+      }
+
+      // Step 2: Prepare mutation input, replacing virtual ref IDs with real ones
+      const mutationData = { ...data };
+      for (const [fieldName, virtualRecord] of Object.entries(enriched?.virtualRefs ?? {})) {
+        const realId = virtualRefIdMap.get(virtualRecord._tempId);
+        if (realId) {
+          mutationData[fieldName] = realId;
+        }
+      }
+
+      const mutationInput = prepareMutationInput(mutationData);
+
+      // Step 3: Create/update parent record
+      let parentId = params.id;
       if (isCreate) {
-        await createRecord(schemaName, mutationInput, recordFields);
+        const created = await createRecord<{ id: string }>(schemaName, mutationInput, [
+          "id",
+          ...recordFields,
+        ]);
+        parentId = created.id;
+      } else if (parentId) {
+        await updateRecord(schemaName, parentId, mutationInput, recordFields);
+      }
+
+      // Step 4: Process child commands (has_many inline records)
+      if (enriched?.childCommands && parentId) {
+        for (const [fieldName, commands] of Object.entries(enriched.childCommands)) {
+          const fieldDef = schema?.fields[fieldName];
+          if (!fieldDef || fieldDef.type !== "has_many") continue;
+          const targetSchema = (fieldDef as { target?: string }).target;
+          if (!targetSchema) continue;
+
+          // Find the FK column name from links
+          const link = bundle?.links?.find(
+            (l) =>
+              (l.cardinality === "one_to_many" && l.from === schemaName && l.to === targetSchema) ||
+              (l.cardinality === "many_to_one" && l.to === schemaName && l.from === targetSchema),
+          );
+          const fkColumn = link ? `${schemaName}_id` : `${schemaName}_id`;
+
+          for (const cmd of commands) {
+            switch (cmd.type) {
+              case "create": {
+                const childInput = { ...cmd.values, [fkColumn]: parentId };
+                await createRecord(targetSchema, childInput, ["id"]);
+                break;
+              }
+              case "update": {
+                await updateRecord(targetSchema, cmd.id, cmd.values, ["id"]);
+                break;
+              }
+              case "delete": {
+                await deleteRecord(targetSchema, cmd.id);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (isCreate) {
         toast.success(t("toast.recordCreated", "Record created successfully"));
         navigate({ to: "/schemas/$name", params: { name: schemaName } });
-      } else if (params.id) {
-        await updateRecord(schemaName, params.id, mutationInput, recordFields);
+      } else {
         toast.success(t("toast.recordUpdated", "Record updated successfully"));
         await fetchRecord();
         setFormMode("view");

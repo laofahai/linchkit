@@ -20,6 +20,29 @@ export interface SubmitResult {
   formError?: string;
 }
 
+/** A virtual record created in-memory (not yet persisted) */
+export interface VirtualRecord {
+  _virtual: true;
+  _tempId: string;
+  [field: string]: unknown;
+}
+
+/** Child record command for batch submission (Odoo-inspired) */
+export type ChildCommand =
+  | { type: "create"; tempId: string; values: Record<string, unknown> }
+  | { type: "update"; id: string; values: Record<string, unknown> }
+  | { type: "delete"; id: string };
+
+/** Data payload emitted on form submit, enriched with virtual record metadata */
+export interface EnrichedSubmitData {
+  /** Regular form field values */
+  values: Record<string, unknown>;
+  /** Virtual ref records that need to be created first (field name -> virtual record) */
+  virtualRefs: Record<string, VirtualRecord>;
+  /** Child record commands for has_many fields (field name -> commands) */
+  childCommands: Record<string, ChildCommand[]>;
+}
+
 export interface AutoFormProps {
   schema: SchemaDefinition;
   view: ViewDefinition;
@@ -32,6 +55,7 @@ export interface AutoFormProps {
    */
   onSubmit?: (
     data: Record<string, unknown>,
+    enriched?: EnrichedSubmitData,
   ) => undefined | SubmitResult | Promise<undefined | SubmitResult | undefined>;
   onCancel?: () => void;
   onAction?: (actionName: string) => void;
