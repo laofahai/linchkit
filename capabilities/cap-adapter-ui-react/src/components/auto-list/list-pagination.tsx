@@ -12,14 +12,16 @@ import { useTranslation } from "react-i18next";
 
 interface ListPaginationProps {
   table: Table<Record<string, unknown>>;
+  /** Server-side total row count. When provided, overrides client-side row count. */
+  serverTotal?: number;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-export function ListPagination({ table }: ListPaginationProps) {
+export function ListPagination({ table, serverTotal }: ListPaginationProps) {
   const { t } = useTranslation();
   const pageCount = table.getPageCount();
-  const totalRows = table.getFilteredRowModel().rows.length;
+  const totalRows = serverTotal ?? table.getFilteredRowModel().rows.length;
   const { pageIndex, pageSize } = table.getState().pagination;
 
   if (pageCount <= 1 && totalRows <= (PAGE_SIZE_OPTIONS[0] ?? 10)) return null;

@@ -79,7 +79,8 @@ export function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition)
     if (f.field.includes(".")) continue;
     const fieldDef = schema?.fields?.[f.field];
     if (fieldDef && RELATION_FIELD_TYPES.has(fieldDef.type ?? "")) {
-      fields.add(`${f.field} { id }`);
+      // Include display fields so the UI can show a human-readable label
+      fields.add(`${f.field} { id name }`);
     } else {
       fields.add(f.field);
     }

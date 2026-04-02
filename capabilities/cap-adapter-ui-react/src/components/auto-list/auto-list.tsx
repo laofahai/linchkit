@@ -174,10 +174,12 @@ interface TableShellProps {
   columns: ColumnDef<Record<string, unknown>, unknown>[];
   onRowClick?: (recordId: string) => void;
   hasActiveFilters: boolean;
+  /** Server-side total row count for pagination display. */
+  serverTotal?: number;
 }
 
 /** Shared table + pagination rendering with fixed-height scroll and sticky header. */
-function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShellProps) {
+function TableShell({ table, columns, onRowClick, hasActiveFilters, serverTotal }: TableShellProps) {
   const { t } = useTranslation();
   return (
     <>
@@ -258,7 +260,7 @@ function TableShell({ table, columns, onRowClick, hasActiveFilters }: TableShell
       </div>
 
       {/* Full pagination below the table */}
-      <ListPagination table={table} />
+      <ListPagination table={table} serverTotal={serverTotal} />
     </>
   );
 }
@@ -692,7 +694,7 @@ export function AutoList({
   // Compose toolbar extra: mini pagination + caller's extra content
   const composedToolbarExtra = (
     <>
-      <MiniPagination table={table} />
+      <MiniPagination table={table} serverTotal={serverTotal} />
       {toolbarExtra}
     </>
   );
@@ -729,6 +731,7 @@ export function AutoList({
         columns={columns}
         onRowClick={onRowClick}
         hasActiveFilters={hasActiveFilters}
+        serverTotal={serverTotal}
       />
 
       {isSchemaMode && (

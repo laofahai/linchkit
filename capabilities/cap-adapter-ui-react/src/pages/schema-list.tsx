@@ -125,8 +125,9 @@ function getQueryFields(
       (!fieldDef && !SYSTEM_FIELDS.has(f.field));
 
     if (isRelation) {
-      // Request id subfield for object/list types
-      fields.add(`${f.field} { id }`);
+      // Request id + display fields for object/list types so the UI can
+      // show a human-readable label instead of a raw UUID.
+      fields.add(`${f.field} { id name }`);
     } else {
       fields.add(f.field);
     }
@@ -261,6 +262,7 @@ export function SchemaListPage() {
   const calendarViewDef = getPrimaryView(bundle?.views, "calendar") as ViewDefinition | undefined;
 
   const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [serverTotal, setServerTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -269,6 +271,12 @@ export function SchemaListPage() {
   // Track whether at least one successful fetch has been completed, to distinguish
   // "no records exist" from "data not yet loaded" for the empty state message.
   const [_hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+  // ── Server-side pagination + sorting state ──────────────────────
+  const [serverPage, setServerPage] = useState(1);
+  const [serverPageSize, setServerPageSize] = useState(20);
+  const [serverSortField, setServerSortField] = useState<string | undefined>(undefined);
+  const [serverSortOrder, setServerSortOrder] = useState<"asc" | "desc" | undefined>(undefined);
 
   // ── Saved views (localStorage-backed) ──────────────────────────
   const { views: savedViews, createView, renameView, deleteView } = useSavedViews(schemaName ?? "");
@@ -515,10 +523,21 @@ export function SchemaListPage() {
   treeLabelFieldRef.current = treeLabelField;
   const treeSummaryFieldsRef = useRef(treeSummaryFields);
   treeSummaryFieldsRef.current = treeSummaryFields;
+  const serverPageRef = useRef(serverPage);
+  serverPageRef.current = serverPage;
+  const serverPageSizeRef = useRef(serverPageSize);
+  serverPageSizeRef.current = serverPageSize;
+  const serverSortFieldRef = useRef(serverSortField);
+  serverSortFieldRef.current = serverSortField;
+  const serverSortOrderRef = useRef(serverSortOrder);
+  serverSortOrderRef.current = serverSortOrder;
+  const globalFilterRef = useRef(globalFilter);
+  globalFilterRef.current = globalFilter;
 
   // Reset data when navigating to a different schema to avoid stale results
   useEffect(() => {
     setData([]);
+    setServerTotal(0);
     setDataError(null);
     setLoading(true);
     setActiveSavedViewId(null);
@@ -527,6 +546,11 @@ export function SchemaListPage() {
     setGlobalFilter("");
     setBazzaFilters([]);
     clearAISearch();
+    // Reset server pagination/sorting
+    setServerPage(1);
+    setServerPageSize(20);
+    setServerSortField(undefined);
+    setServerSortOrder(undefined);
     // Reset view type and calendar position so a previously selected calendar
     // view does not persist when navigating to a different schema.
     setActiveView("list");
@@ -588,12 +612,19 @@ export function SchemaListPage() {
         for (const sf of treeSummaryFieldsRef.current ?? []) {
           if (!fields.includes(sf)) fields.push(sf);
         }
+        // When a text search is active, fetch all records for client-side filtering
+        // because the server does not support text search natively.
+        const hasTextSearch = !!globalFilterRef.current;
         const result = await queryList({
           schema: schemaName,
           fields,
-          pageSize: currentListView.pageSize ?? 50,
+          page: hasTextSearch ? undefined : serverPageRef.current,
+          pageSize: hasTextSearch ? 1000 : serverPageSizeRef.current,
+          sortField: serverSortFieldRef.current,
+          sortOrder: serverSortOrderRef.current,
         });
         setData(result.items);
+        setServerTotal(result.total);
         setHasLoadedOnce(true);
       } catch (err) {
         const message =
@@ -699,6 +730,48 @@ export function SchemaListPage() {
       setRefreshing(false);
     }
   }, [fetchData]);
+
+  // Handle pagination change from AutoList (server-side mode)
+  const handlePaginationChange = useCallback(
+    (page: number, pageSize: number) => {
+      const pageChanged = page !== serverPageRef.current;
+      const sizeChanged = pageSize !== serverPageSizeRef.current;
+      if (!pageChanged && !sizeChanged) return;
+      setServerPage(page);
+      setServerPageSize(pageSize);
+      // Defer the fetch to the next tick so state updates are batched
+      setTimeout(() => fetchData({ background: true }), 0);
+    },
+    [fetchData],
+  );
+
+  // Handle sorting change from AutoList (server-side mode)
+  const handleSortingChange = useCallback(
+    (sorting: Array<{ id: string; desc: boolean }>) => {
+      const newField = sorting[0]?.id;
+      const newOrder = sorting[0] ? (sorting[0].desc ? "desc" : "asc") : undefined;
+      setServerSortField(newField);
+      setServerSortOrder(newOrder as "asc" | "desc" | undefined);
+      setServerPage(1); // Reset to first page on sort change
+      setTimeout(() => fetchData({ background: true }), 0);
+    },
+    [fetchData],
+  );
+
+  // Re-fetch when global text search changes (debounced via effect)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Skip the initial render
+    if (!bundleReady) return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setServerPage(1);
+      fetchData({ background: true });
+    }, 300);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [globalFilter, bundleReady, fetchData]);
 
   async function handleAction(actionName: string, recordId: string) {
     if (!schemaName) return;
@@ -1146,6 +1219,15 @@ export function SchemaListPage() {
       refreshing={refreshing}
       globalFilter={globalFilter}
       onGlobalFilterChange={setGlobalFilter}
+      // Server-side pagination + sorting (disabled when text search is active,
+      // because text search fetches all records for client-side filtering)
+      {...(globalFilter
+        ? {}
+        : {
+            serverTotal,
+            onPaginationChange: handlePaginationChange,
+            onSortingChange: handleSortingChange,
+          })}
       savedViews={{
         views: savedViews,
         activeViewId: activeSavedViewId,
