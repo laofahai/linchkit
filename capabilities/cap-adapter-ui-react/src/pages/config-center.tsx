@@ -436,7 +436,6 @@ export function ConfigCenterPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

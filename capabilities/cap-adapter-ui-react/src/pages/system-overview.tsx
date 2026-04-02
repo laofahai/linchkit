@@ -293,7 +293,7 @@ export function SystemOverviewPage() {
           </span>
           <span className="ml-auto flex items-center gap-3 shrink-0">
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              {lastRefresh && lastRefresh.toLocaleTimeString()}
+              {lastRefresh?.toLocaleTimeString()}
             </span>
             <Button
               variant="ghost"
