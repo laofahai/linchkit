@@ -1,15 +1,23 @@
 /**
- * HasMany widget — Display and inline-editable table for one_to_many relationship fields.
+ * HasMany widget — List table with dialog editing for one_to_many relationship fields.
  *
  * Display: Shows count badge in list view, or first few related record labels as chips.
- * Input: Inline-editable table with add/delete rows. Child records are managed as virtual
- *        records in client memory until the parent form is saved (Odoo-style).
+ * Input: Read-only table showing child records. Click a row to edit in a Dialog.
+ *        Click "Add Line" to create a new child in a Dialog. All changes are held
+ *        in client memory until the parent form is saved (Odoo-style).
  */
 
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -23,7 +31,7 @@ import {
   TableRow,
 } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
@@ -33,11 +41,6 @@ import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 /** Generate a virtual temporary ID */
 function generateTempId(): string {
   return `_virtual_${crypto.randomUUID()}`;
-}
-
-/** Check if a record is a virtual (unsaved) record */
-function isVirtualRecord(record: RelatedRecord): boolean {
-  return typeof record.id === "string" && record.id.startsWith("_virtual_");
 }
 
 /** Infer input type from field definition type */
@@ -52,6 +55,15 @@ function getInputType(fieldType: string): string {
     default:
       return "text";
   }
+}
+
+/** Editable field descriptor resolved from target schema */
+interface EditableField {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options?: Array<{ value: string; label?: string }>;
 }
 
 export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
@@ -103,7 +115,7 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
 
   // Resolve editable fields from target schema (exclude system fields and FK back-ref)
-  const editableFields = useMemo(() => {
+  const editableFields = useMemo((): EditableField[] => {
     if (!targetBundle?.schema?.fields) return [];
     const systemFields = new Set([
       "id",
@@ -144,24 +156,43 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
     return value as RelatedRecord[];
   }, [value]);
 
-  // Track which row is being edited (for existing records)
-  const [editingRow, setEditingRow] = useState<string | null>(null);
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<RelatedRecord | null>(null);
+  const [dialogFormData, setDialogFormData] = useState<Record<string, unknown>>({});
 
-  const handleAddRow = useCallback(() => {
-    const newRecord: RelatedRecord = { id: generateTempId(), _virtual: true };
-    // Set defaults for required fields
+  /** Build default values for a new record */
+  const buildDefaults = useCallback((): Record<string, unknown> => {
+    const defaults: Record<string, unknown> = {};
     for (const field of editableFields) {
       if (field.type === "number") {
-        newRecord[field.name] = field.required ? 0 : null;
+        defaults[field.name] = field.required ? 0 : null;
       } else if (field.type === "boolean") {
-        newRecord[field.name] = false;
+        defaults[field.name] = false;
       } else {
-        newRecord[field.name] = "";
+        defaults[field.name] = "";
       }
     }
-    const updated = [...records, newRecord];
-    onChange(updated);
-  }, [records, editableFields, onChange]);
+    return defaults;
+  }, [editableFields]);
+
+  const handleAddRow = useCallback(() => {
+    setEditingRecord(null);
+    setDialogFormData(buildDefaults());
+    setDialogOpen(true);
+  }, [buildDefaults]);
+
+  const handleEditRow = useCallback((record: RelatedRecord) => {
+    setEditingRecord(record);
+    // Clone record data into dialog form
+    const data: Record<string, unknown> = {};
+    for (const key of Object.keys(record)) {
+      if (key === "id" || key === "_virtual") continue;
+      data[key] = record[key];
+    }
+    setDialogFormData(data);
+    setDialogOpen(true);
+  }, []);
 
   const handleDeleteRow = useCallback(
     (recordId: string) => {
@@ -171,16 +202,42 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
     [records, onChange],
   );
 
-  const handleCellChange = useCallback(
-    (recordId: string, fieldName: string, cellValue: unknown) => {
+  const handleDialogSave = useCallback(() => {
+    if (editingRecord) {
+      // Update existing record
       const updated = records.map((r) => {
-        if (r.id !== recordId) return r;
-        return { ...r, [fieldName]: cellValue };
+        if (r.id !== editingRecord.id) return r;
+        return { ...r, ...dialogFormData };
       });
       onChange(updated);
-    },
-    [records, onChange],
-  );
+    } else {
+      // Create new record
+      const newRecord: RelatedRecord = {
+        id: generateTempId(),
+        _virtual: true,
+        ...dialogFormData,
+      };
+      onChange([...records, newRecord]);
+    }
+    setDialogOpen(false);
+    setEditingRecord(null);
+    setDialogFormData({});
+  }, [editingRecord, records, dialogFormData, onChange]);
+
+  const handleDialogFieldChange = useCallback((fieldName: string, fieldValue: unknown) => {
+    setDialogFormData((prev) => ({ ...prev, [fieldName]: fieldValue }));
+  }, []);
+
+  /** Format a cell value for display in the table */
+  function formatCellValue(record: RelatedRecord, field: EditableField): string {
+    const val = record[field.name];
+    if (val == null || val === "") return "--";
+    if (field.type === "enum" && field.options) {
+      const opt = field.options.find((o) => o.value === String(val));
+      return opt?.label ?? String(val);
+    }
+    return String(val);
+  }
 
   if (readonly) {
     // Read-only mode: show records as a simple list
@@ -207,7 +264,7 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
                   <TableRow key={record.id}>
                     {editableFields.map((field) => (
                       <TableCell key={field.name} className="text-sm">
-                        {record[field.name] != null ? String(record[field.name]) : "--"}
+                        {formatCellValue(record, field)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -220,7 +277,7 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
     );
   }
 
-  // Editable mode: inline table with add/delete
+  // Editable mode: read-only table + click row to edit in dialog
   return (
     <div className="space-y-2">
       {editableFields.length > 0 && (
@@ -228,69 +285,56 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8" />
                 {editableFields.map((field) => (
                   <TableHead key={field.name} className="text-xs">
                     {field.label}
                     {field.required && <span className="text-destructive ml-0.5">*</span>}
                   </TableHead>
                 ))}
-                <TableHead className="w-10" />
+                <TableHead className="w-20" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {records.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={editableFields.length + 2}
+                    colSpan={editableFields.length + 1}
                     className="text-center text-sm text-muted-foreground py-6"
                   >
                     {t("widget.hasManyEmpty", 'No items yet. Click "Add Line" to add one.')}
                   </TableCell>
                 </TableRow>
               )}
-              {records.map((record) => {
-                const isVirtual = isVirtualRecord(record);
-                const isEditing = isVirtual || editingRow === record.id;
-                return (
-                  <TableRow
-                    key={record.id}
-                    className={cn(
-                      "group",
-                      isVirtual && "bg-muted/30",
-                      !isEditing && "cursor-pointer hover:bg-muted/50",
-                    )}
-                    onClick={() => {
-                      if (!isVirtual && !isEditing) {
-                        setEditingRow(record.id);
-                      }
-                    }}
-                  >
-                    <TableCell className="w-8 px-1">
-                      <GripVertical className="size-3.5 text-muted-foreground/50" />
+              {records.map((record) => (
+                <TableRow
+                  key={record.id}
+                  className="group cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleEditRow(record)}
+                >
+                  {editableFields.map((field) => (
+                    <TableCell key={field.name} className="text-sm">
+                      {formatCellValue(record, field)}
                     </TableCell>
-                    {editableFields.map((field) => (
-                      <TableCell key={field.name} className="py-1 px-1">
-                        {isEditing ? (
-                          <InlineCell
-                            value={record[field.name]}
-                            fieldType={field.type}
-                            options={field.options}
-                            onChange={(v) => handleCellChange(record.id, field.name, v)}
-                          />
-                        ) : (
-                          <span className="text-sm px-2">
-                            {record[field.name] != null ? String(record[field.name]) : "--"}
-                          </span>
-                        )}
-                      </TableCell>
-                    ))}
-                    <TableCell className="w-10 px-1">
+                  ))}
+                  <TableCell className="w-20 px-1">
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="size-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="size-7 text-muted-foreground hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditRow(record);
+                        }}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteRow(record.id);
@@ -298,10 +342,10 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
                       >
                         <Trash2 className="size-3.5" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
@@ -311,63 +355,120 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
         <Plus className="size-3.5" />
         {t("widget.addLine", "Add Line")}
       </Button>
+
+      {/* Edit / Create Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingRecord
+                ? t("widget.editItem", "Edit Item")
+                : t("widget.addItem", "Add Item")}
+            </DialogTitle>
+            <DialogDescription>
+              {editingRecord
+                ? t("widget.editItemDesc", "Modify the fields below and save.")
+                : t("widget.addItemDesc", "Fill in the fields below to add a new item.")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            {editableFields.map((field) => (
+              <DialogFieldInput
+                key={field.name}
+                field={field}
+                value={dialogFormData[field.name]}
+                onChange={(v) => handleDialogFieldChange(field.name, v)}
+              />
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" onClick={handleDialogSave}>
+              {t("common.confirm", "Confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// ── Inline cell editor ──────────────────────────────────
+// ── Dialog field input ──────────────────────────────────
 
-interface InlineCellProps {
+interface DialogFieldInputProps {
+  field: EditableField;
   value: unknown;
-  fieldType: string;
-  options?: Array<{ value: string; label?: string }>;
   onChange: (value: unknown) => void;
 }
 
-function InlineCell({ value, fieldType, options, onChange }: InlineCellProps) {
-  if (fieldType === "enum" && options) {
+function DialogFieldInput({ field, value, onChange }: DialogFieldInputProps) {
+  if (field.type === "enum" && field.options) {
     return (
-      <Select value={value != null ? String(value) : undefined} onValueChange={(v) => onChange(v)}>
-        <SelectTrigger className="h-7 text-xs border-0 shadow-none bg-transparent focus:ring-1">
-          <SelectValue placeholder="--" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label ?? opt.value}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="grid gap-2">
+        <Label>
+          {field.label}
+          {field.required && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
+        <Select
+          value={value != null ? String(value) : undefined}
+          onValueChange={(v) => onChange(v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="--" />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label ?? opt.value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     );
   }
 
-  if (fieldType === "boolean") {
+  if (field.type === "boolean") {
     return (
-      <input
-        type="checkbox"
-        checked={!!value}
-        onChange={(e) => onChange(e.target.checked)}
-        className="ml-2"
-      />
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id={`dialog-field-${field.name}`}
+          checked={!!value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <Label htmlFor={`dialog-field-${field.name}`}>
+          {field.label}
+          {field.required && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
+      </div>
     );
   }
 
-  const inputType = getInputType(fieldType);
+  const inputType = getInputType(field.type);
   return (
-    <Input
-      type={inputType}
-      value={value != null ? String(value) : ""}
-      onChange={(e) => {
-        const v =
-          inputType === "number"
-            ? e.target.value === ""
-              ? null
-              : Number(e.target.value)
-            : e.target.value;
-        onChange(v);
-      }}
-      className="h-7 text-xs border-0 shadow-none bg-transparent focus:ring-1 focus:ring-ring rounded-sm"
-    />
+    <div className="grid gap-2">
+      <Label>
+        {field.label}
+        {field.required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      <Input
+        type={inputType}
+        value={value != null ? String(value) : ""}
+        onChange={(e) => {
+          const v =
+            inputType === "number"
+              ? e.target.value === ""
+                ? null
+                : Number(e.target.value)
+              : e.target.value;
+          onChange(v);
+        }}
+      />
+    </div>
   );
 }

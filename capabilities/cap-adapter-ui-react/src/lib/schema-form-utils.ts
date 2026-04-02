@@ -72,6 +72,9 @@ export function getTransitionActionNames(
 /** Relationship field types that require subfield selection in GraphQL */
 const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
 
+/** has_many / many_to_many are only available on query types, not mutation return types */
+const COLLECTION_RELATION_TYPES = new Set(["has_many", "many_to_many"]);
+
 /** Extract GraphQL field names from view fields, always including the state field */
 export function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition): string[] {
   const fields = new Set<string>(["id"]);
@@ -90,6 +93,25 @@ export function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition)
     if (stateFieldName) fields.add(stateFieldName);
   }
   return Array.from(fields);
+}
+
+/**
+ * Filter record fields safe for mutation return types.
+ * Excludes has_many/many_to_many fields which are only available on query types,
+ * not on create/update mutation return types.
+ */
+export function getMutationReturnFields(
+  recordFields: string[],
+  schema?: SchemaDefinition,
+): string[] {
+  if (!schema) return recordFields;
+  return recordFields.filter((f) => {
+    // Extract field name from "fieldName { subfields }" format
+    const fieldName = f.split(" ")[0] ?? f;
+    const fieldDef = schema.fields[fieldName];
+    if (!fieldDef) return true;
+    return !COLLECTION_RELATION_TYPES.has(fieldDef.type ?? "");
+  });
 }
 
 export function getPrimaryView<TView extends { type: string }>(

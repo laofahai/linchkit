@@ -69,6 +69,7 @@ import {
   CLONE_STRIP_FIELDS,
   deriveStatusSteps,
   generateFallbackFormView,
+  getMutationReturnFields,
   getPrimaryView,
   getRecordFields,
   getTransitionActionNames,
@@ -426,15 +427,17 @@ export function SchemaFormPage() {
       const mutationInput = prepareMutationInput(mutationData);
 
       // Step 3: Create/update parent record
+      // Filter out has_many/many_to_many fields — they exist on query types but not mutation return types
+      const mutationFields = getMutationReturnFields(recordFields, schema);
       let parentId = params.id;
       if (isCreate) {
         const created = await createRecord<{ id: string }>(schemaName, mutationInput, [
           "id",
-          ...recordFields,
+          ...mutationFields,
         ]);
         parentId = created.id;
       } else if (parentId) {
-        await updateRecord(schemaName, parentId, mutationInput, recordFields);
+        await updateRecord(schemaName, parentId, mutationInput, mutationFields);
       }
 
       // Step 4: Process child commands (has_many inline records)
