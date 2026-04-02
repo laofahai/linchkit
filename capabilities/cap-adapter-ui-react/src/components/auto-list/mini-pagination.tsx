@@ -4,17 +4,20 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface MiniPaginationProps {
   table: Table<Record<string, unknown>>;
+  /** Server-side total row count. When provided, overrides client-side row count. */
+  serverTotal?: number;
 }
 
 /**
  * MiniPagination — Compact Odoo-style pagination indicator.
  *
  * Shows "1-20 / 156" with prev/next arrows. Designed to sit in the toolbar
- * area next to action buttons.
+ * area next to action buttons. Supports both client-side and server-side
+ * pagination via the optional `serverTotal` prop.
  */
-export function MiniPagination({ table }: MiniPaginationProps) {
+export function MiniPagination({ table, serverTotal }: MiniPaginationProps) {
   const { pageIndex, pageSize } = table.getState().pagination;
-  const totalRows = table.getFilteredRowModel().rows.length;
+  const totalRows = serverTotal ?? table.getFilteredRowModel().rows.length;
 
   if (totalRows === 0) return null;
 
