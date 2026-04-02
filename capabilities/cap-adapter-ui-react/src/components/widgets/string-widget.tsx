@@ -1,6 +1,7 @@
 import { Input } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useEffect, useRef, useState } from "react";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 
@@ -44,8 +45,9 @@ export function StringInput({
   dirty,
   required,
 }: WidgetInputProps) {
-  const placeholder =
-    fieldDef.description ?? (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : undefined);
+  const { resolveLabel } = useSchemaLabel();
+  const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
+  const placeholder = fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : undefined);
   return (
     <div className="space-y-1">
       <Input

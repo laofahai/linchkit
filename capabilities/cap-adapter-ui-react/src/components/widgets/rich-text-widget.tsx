@@ -25,6 +25,7 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 
@@ -196,9 +197,10 @@ export function RichTextInput({
   dirty,
   required,
 }: WidgetInputProps) {
+  const { resolveLabel } = useSchemaLabel();
+  const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
   const placeholder =
-    fieldDef.description ??
-    (fieldDef.label ? `Enter ${fieldDef.label.toLowerCase()}` : "Start typing...");
+    fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "Start typing...");
 
   // Track whether external value updates should be applied
   const isInternalUpdate = useRef(false);

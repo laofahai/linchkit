@@ -26,6 +26,7 @@ import type {
   ViewAction,
 } from "@linchkit/core/types";
 import { Button } from "@linchkit/ui-kit/components";
+import { cn } from "@linchkit/ui-kit/lib/utils";
 import { AlertCircle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -490,47 +491,52 @@ export function AutoForm({
     // Fields with visibleWhen: keep in DOM for CSS transition; fields without: skip entirely when invisible
     if (!visible && !hasCondition) return null;
 
+    const fieldRow = (
+      <FormFieldRow
+        key={node.field}
+        node={node}
+        fieldDef={fieldDef}
+        viewField={vf ?? { field: node.field }}
+        value={formData[node.field]}
+        isViewMode={isViewMode}
+        required={required}
+        readonly={readonly}
+        error={errors[node.field]}
+        isDirty={dirtyFields.has(node.field)}
+        onChange={(val) => handleChange(node.field, val)}
+        onBlur={() => handleBlur(node.field)}
+      />
+    );
+
+    const suggestionBadge = suggestion && !isViewMode ? (
+      <div className="col-span-full px-1 -mt-1 mb-1">
+        <AiSuggestionBadge
+          suggestion={suggestion}
+          onAccept={() => externalAiAccept?.(node.field)}
+          onReject={() => onAiReject?.(node.field)}
+        />
+      </div>
+    ) : null;
+
+    if (!hasCondition) {
+      return (
+        <>
+          {fieldRow}
+          {suggestionBadge}
+        </>
+      );
+    }
+
     return (
       <div
-        style={
-          hasCondition
-            ? {
-                display: "grid",
-                gridTemplateRows: visible ? "1fr" : "0fr",
-                opacity: visible ? 1 : 0,
-                transition: "grid-template-rows 200ms ease-in-out, opacity 200ms ease-in-out",
-                pointerEvents: visible ? undefined : "none",
-              }
-            : undefined
-        }
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-in-out",
+          visible ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none",
+        )}
       >
-        <div style={hasCondition ? { overflow: "hidden" } : undefined}>
-          <FormFieldRow
-            key={node.field}
-            node={node}
-            fieldDef={fieldDef}
-            viewField={vf ?? { field: node.field }}
-            value={formData[node.field]}
-            isViewMode={isViewMode}
-            required={required}
-            readonly={readonly}
-            error={errors[node.field]}
-            isDirty={dirtyFields.has(node.field)}
-            onChange={(val) => handleChange(node.field, val)}
-            onBlur={() => handleBlur(node.field)}
-          />
-          {suggestion && !isViewMode && (
-            <div style={{ gridColumn: "1 / -1" }} className="px-1 -mt-1 mb-1">
-              <AiSuggestionBadge
-                suggestion={suggestion}
-                onAccept={() => {
-                  // Delegate to parent — value application happens via the registered setter
-                  externalAiAccept?.(node.field);
-                }}
-                onReject={() => onAiReject?.(node.field)}
-              />
-            </div>
-          )}
+        <div className="overflow-hidden">
+          {fieldRow}
+          {suggestionBadge}
         </div>
       </div>
     );

@@ -34,7 +34,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
           </div>
         )}
         <div
-          className="grid gap-y-0 items-center max-md:!grid-cols-1"
+          className="grid gap-y-2 items-center max-md:!grid-cols-1"
           style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}
         >
           {node.children.map((child, i) => (
@@ -65,7 +65,7 @@ export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
           <div
             key={getGroupChildKey(child, i)}
             className={
-              child.type === "field" ? "grid gap-y-0 items-center max-md:!grid-cols-1" : undefined
+              child.type === "field" ? "grid gap-y-2 items-center max-md:!grid-cols-1" : undefined
             }
             style={
               child.type === "field" ? { gridTemplateColumns: "auto minmax(0, 1fr)" } : undefined
