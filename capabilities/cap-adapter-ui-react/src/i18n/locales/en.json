@@ -787,7 +787,12 @@
   },
   "systemOverview": {
     "title": "System Overview",
-    "subtitle": "Health monitoring, system information, and configuration overview."
+    "subtitle": "Health monitoring, system KPIs, and capability overview.",
+    "links": "Links",
+    "eventHandlers": "Event Handlers",
+    "semanticRelations": "Semantic Relations",
+    "capabilityPanels": "Capability Modules",
+    "noResources": "No registered resources"
   },
   "configCenter": {
     "title": "Config Center"

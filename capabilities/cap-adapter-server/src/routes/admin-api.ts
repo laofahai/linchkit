@@ -132,6 +132,11 @@ export function mountAdminRoutes(
       const dp = options.dataProvider;
       const uptimeMs = Date.now() - serverStartedAt;
       const actionCount = capabilities.reduce((sum, c) => sum + (c.actions?.length ?? 0), 0);
+      const linkCount = capabilities.reduce((sum, c) => sum + (c.links?.length ?? 0), 0);
+      const eventHandlerCount = capabilities.reduce(
+        (sum, c) => sum + (c.eventHandlers?.length ?? 0),
+        0,
+      );
 
       // Determine real database status from the actual DataProvider instance
       let dbConnected = false;
@@ -147,6 +152,23 @@ export function mountAdminRoutes(
         dbConnected = true;
       }
 
+      // Build per-capability resource breakdown
+      const capabilityDetails = capabilities.map((c) => ({
+        name: c.name,
+        type: c.type ?? "standard",
+        label: c.label,
+        description: c.description,
+        schemas: c.schemas?.length ?? 0,
+        actions: c.actions?.length ?? 0,
+        rules: c.rules?.length ?? 0,
+        flows: c.flows?.length ?? 0,
+        states: c.states?.length ?? 0,
+        links: c.links?.length ?? 0,
+        eventHandlers: c.eventHandlers?.length ?? 0,
+        pages: c.pages?.length ?? 0,
+        menuItems: c.extensions?.menuItems?.length ?? 0,
+      }));
+
       // Sanitize: never expose secrets, tokens, passwords, connection URLs
       const settings = {
         general: {
@@ -161,8 +183,11 @@ export function mountAdminRoutes(
           registeredStates:
             options.states?.length ??
             capabilities.reduce((sum, c) => sum + (c.states?.length ?? 0), 0),
+          registeredLinks: linkCount,
+          registeredEventHandlers: eventHandlerCount,
           capabilityCount: capabilities.length,
           capabilities: capabilities.map((c) => c.name),
+          capabilityDetails,
         },
         database: {
           configured: dbConnected,

@@ -787,7 +787,12 @@
   },
   "systemOverview": {
     "title": "系统概览",
-    "subtitle": "健康监控、系统信息和配置概览。"
+    "subtitle": "健康监控、系统 KPI 和能力模块概览。",
+    "links": "关联",
+    "eventHandlers": "事件处理器",
+    "semanticRelations": "语义关系",
+    "capabilityPanels": "能力模块",
+    "noResources": "未注册资源"
   },
   "configCenter": {
     "title": "配置中心"
