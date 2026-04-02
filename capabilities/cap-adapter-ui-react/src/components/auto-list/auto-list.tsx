@@ -179,7 +179,13 @@ interface TableShellProps {
 }
 
 /** Shared table + pagination rendering with fixed-height scroll and sticky header. */
-function TableShell({ table, columns, onRowClick, hasActiveFilters, serverTotal }: TableShellProps) {
+function TableShell({
+  table,
+  columns,
+  onRowClick,
+  hasActiveFilters,
+  serverTotal,
+}: TableShellProps) {
   const { t } = useTranslation();
   return (
     <>

@@ -612,14 +612,15 @@ export function SchemaListPage() {
         for (const sf of treeSummaryFieldsRef.current ?? []) {
           if (!fields.includes(sf)) fields.push(sf);
         }
-        // When a text search is active, fetch all records for client-side filtering
+        // When a text search is active, fetch max records for client-side filtering
         // because the server does not support text search natively.
+        // Server caps at MAX_PAGE_SIZE=100, so we request that.
         const hasTextSearch = !!globalFilterRef.current;
         const result = await queryList({
           schema: schemaName,
           fields,
-          page: hasTextSearch ? undefined : serverPageRef.current,
-          pageSize: hasTextSearch ? 1000 : serverPageSizeRef.current,
+          page: hasTextSearch ? 1 : serverPageRef.current,
+          pageSize: hasTextSearch ? 100 : serverPageSizeRef.current,
           sortField: serverSortFieldRef.current,
           sortOrder: serverSortOrderRef.current,
         });
@@ -737,6 +738,9 @@ export function SchemaListPage() {
       const pageChanged = page !== serverPageRef.current;
       const sizeChanged = pageSize !== serverPageSizeRef.current;
       if (!pageChanged && !sizeChanged) return;
+      // Update refs immediately so fetchData reads current values
+      serverPageRef.current = page;
+      serverPageSizeRef.current = pageSize;
       setServerPage(page);
       setServerPageSize(pageSize);
       // Defer the fetch to the next tick so state updates are batched
@@ -750,9 +754,13 @@ export function SchemaListPage() {
     (sorting: Array<{ id: string; desc: boolean }>) => {
       const newField = sorting[0]?.id;
       const newOrder = sorting[0] ? (sorting[0].desc ? "desc" : "asc") : undefined;
+      // Update refs immediately so fetchData reads current values
+      serverSortFieldRef.current = newField;
+      serverSortOrderRef.current = newOrder;
+      serverPageRef.current = 1;
       setServerSortField(newField);
       setServerSortOrder(newOrder as "asc" | "desc" | undefined);
-      setServerPage(1); // Reset to first page on sort change
+      setServerPage(1);
       setTimeout(() => fetchData({ background: true }), 0);
     },
     [fetchData],
@@ -760,9 +768,11 @@ export function SchemaListPage() {
 
   // Re-fetch when global text search changes (debounced via effect)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bundleReadyRef = useRef(bundleReady);
+  bundleReadyRef.current = bundleReady;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: globalFilter triggers debounced re-fetch
   useEffect(() => {
-    // Skip the initial render
-    if (!bundleReady) return;
+    if (!bundleReadyRef.current) return;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       setServerPage(1);
@@ -771,7 +781,7 @@ export function SchemaListPage() {
     return () => {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     };
-  }, [globalFilter, bundleReady, fetchData]);
+  }, [globalFilter, fetchData]);
 
   async function handleAction(actionName: string, recordId: string) {
     if (!schemaName) return;
