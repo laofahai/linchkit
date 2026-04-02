@@ -86,6 +86,7 @@ export const capAdapterServer = defineCapability({
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,
             derivedPropertyEngine: ctx.derivedPropertyEngine,
+            stateDefinitions: ctx.states ?? [],
             cacheManager: ctx.cacheManager,
             internalSchemas: INTERNAL_SCHEMA_NAMES,
           });

@@ -15,6 +15,18 @@ export const ANONYMOUS_ACTOR: Actor = {
 };
 
 /**
+ * Elevated anonymous actor for no-auth mode.
+ * When auth is not enabled, the anonymous actor gets admin privileges
+ * so all actions (including permission-gated ones) can be executed
+ * during development and demo scenarios.
+ */
+export const NO_AUTH_ACTOR: Actor = {
+  type: "human",
+  id: "anonymous",
+  groups: ["admin", "manager", "user"],
+};
+
+/**
  * Map structured error codes to HTTP status codes.
  * Preferred over message-text matching when a code is available.
  */
@@ -168,12 +180,17 @@ export function collectFromCapabilities<T>(
 }
 
 /**
- * Resolve the authenticated actor from a request, falling back to anonymous.
+ * Resolve the authenticated actor from a request.
+ * When no auth resolver is configured (no-auth mode), returns an elevated
+ * actor with admin/manager/user groups so permission-gated actions work
+ * in development and demo scenarios.
+ * When an auth resolver is configured but returns undefined, falls back to
+ * the restricted anonymous actor (no groups).
  */
 export async function resolveActor(
   request: Request,
   resolveRequestActor?: (request: Request) => Promise<Actor | undefined> | Actor | undefined,
 ): Promise<Actor> {
-  if (!resolveRequestActor) return ANONYMOUS_ACTOR;
+  if (!resolveRequestActor) return NO_AUTH_ACTOR;
   return (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR;
 }

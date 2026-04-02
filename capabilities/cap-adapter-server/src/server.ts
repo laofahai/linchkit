@@ -50,7 +50,7 @@ import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountSchemaRoutes } from "./routes/schema-api";
-import { ANONYMOUS_ACTOR, resolveRequestLocale } from "./routes/shared";
+import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
 
 export interface ServerOptions {
@@ -174,7 +174,7 @@ export function createServer(
     context: async ({ request }) => {
       const actor = resolveRequestActor
         ? ((await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR)
-        : ANONYMOUS_ACTOR;
+        : NO_AUTH_ACTOR;
       const tenantId = resolveRequestTenantId
         ? await resolveRequestTenantId(request, actor)
         : undefined;

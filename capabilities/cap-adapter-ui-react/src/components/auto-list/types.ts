@@ -107,4 +107,13 @@ export interface AutoListProps {
   pageSize?: number;
   /** Default sorting state (used when no view.defaultSort is available). */
   defaultSorting?: SortingState;
+
+  // ── Server-side pagination + sorting (optional) ──────────────────────────
+
+  /** Total row count from server. When provided, enables manual (server-side) pagination. */
+  serverTotal?: number;
+  /** Callback when pagination state changes (server-side pagination mode). */
+  onPaginationChange?: (page: number, pageSize: number) => void;
+  /** Callback when sorting state changes (server-side sorting mode). */
+  onSortingChange?: (sorting: SortingState) => void;
 }

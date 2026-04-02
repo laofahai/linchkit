@@ -220,4 +220,3 @@ console.log(`  CmdLayer:   enabled`);
 console.log(`  AI:         ${aiSummary}`);
 console.log(`  Logger:     InMemoryExecutionLogger enabled`);
 console.log(`───────────────────────────────────\n`);
-// reload trigger

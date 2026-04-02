@@ -291,6 +291,10 @@ export function AutoList({
   columns: columnsProp,
   pageSize: pageSizeProp,
   defaultSorting,
+  // Server-side pagination + sorting
+  serverTotal,
+  onPaginationChange,
+  onSortingChange: onSortingChangeProp,
 }: AutoListProps) {
   const { resolveLabel } = useSchemaLabel();
 
@@ -299,12 +303,22 @@ export function AutoList({
 
   // ── Sorting ─────────────────────────────────────────────────────────────
 
-  const [sorting, setSorting] = useState<SortingState>(() => {
+  const [sorting, setSortingInternal] = useState<SortingState>(() => {
     if (view?.defaultSort) {
       return [{ id: view.defaultSort.field, desc: view.defaultSort.order === "desc" }];
     }
     return defaultSorting ?? [];
   });
+  const setSorting = useCallback(
+    (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+      setSortingInternal((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        onSortingChangeProp?.(next);
+        return next;
+      });
+    },
+    [onSortingChangeProp],
+  );
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -529,6 +543,10 @@ export function AutoList({
   // ── Table ─────────────────────────────────────────────────────────────
 
   const effectivePageSize = pageSizeProp ?? view?.pageSize ?? 20;
+  const isServerPagination = serverTotal !== undefined;
+  const serverPageCount = isServerPagination
+    ? Math.ceil(serverTotal / effectivePageSize)
+    : undefined;
 
   const table = useReactTable({
     data: filteredData,
@@ -543,11 +561,29 @@ export function AutoList({
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    // Server-side: skip client sorting/filtering, use manual pagination
+    ...(isServerPagination
+      ? {
+          manualPagination: true,
+          manualSorting: true,
+          pageCount: serverPageCount,
+          rowCount: serverTotal,
+        }
+      : {
+          getSortedRowModel: getSortedRowModel(),
+          getFilteredRowModel: getFilteredRowModel(),
+        }),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: effectivePageSize } },
   });
+
+  // Notify parent of pagination changes in server-side mode
+  const { pageIndex, pageSize: currentPageSize } = table.getState().pagination;
+  useEffect(() => {
+    if (isServerPagination) {
+      onPaginationChange?.(pageIndex + 1, currentPageSize);
+    }
+  }, [isServerPagination, pageIndex, currentPageSize, onPaginationChange]);
 
   const hasActiveFilters =
     globalFilter !== "" || bazzaFilterState.length > 0 || !!aiSearchState.result;
