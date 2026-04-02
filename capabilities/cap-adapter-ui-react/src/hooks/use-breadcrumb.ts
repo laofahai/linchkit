@@ -25,7 +25,7 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
   flows: { i18nKey: "flows.title", linkable: true },
   rules: { i18nKey: "rules.title", linkable: true },
   states: { i18nKey: "stateMachines.title", linkable: true },
-  // settings breadcrumb removed — merged into /admin/system
+  config: { i18nKey: "configCenter.title", linkable: true },
   new: { i18nKey: "common.create", linkable: true },
 };
 

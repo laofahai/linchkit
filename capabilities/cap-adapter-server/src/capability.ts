@@ -196,6 +196,14 @@ export const capAdapterServer = defineCapability({
         section: "admin",
         order: 90,
       },
+      {
+        id: "config-center",
+        label: "t:configCenter.title",
+        path: "/admin/config",
+        icon: "Settings",
+        section: "admin",
+        order: 95,
+      },
     ],
     commands: [
       {
