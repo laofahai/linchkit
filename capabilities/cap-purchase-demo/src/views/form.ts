@@ -68,6 +68,18 @@ export const purchaseRequestFormView: ViewDefinition = {
         children: [{ type: "field", field: "description", nolabel: true }],
       },
       {
+        type: "group",
+        columns: 1,
+        children: [
+          {
+            type: "field",
+            field: "notes",
+            nolabel: true,
+            visibleWhen: { field: "priority", operator: "in", value: ["high", "urgent"] },
+          },
+        ],
+      },
+      {
         type: "notebook",
         children: [
           {
@@ -78,17 +90,6 @@ export const purchaseRequestFormView: ViewDefinition = {
                 type: "group",
                 columns: 1,
                 children: [{ type: "field", field: "items", nolabel: true }],
-              },
-            ],
-          },
-          {
-            type: "page",
-            title: "t:schemas.purchase_request.fields.notes",
-            children: [
-              {
-                type: "group",
-                columns: 1,
-                children: [{ type: "field", field: "notes", nolabel: true }],
               },
             ],
           },
