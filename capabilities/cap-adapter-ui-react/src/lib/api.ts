@@ -848,3 +848,154 @@ export async function fetchConfigHistory(
   const json = await res.json();
   return json.data?.items ?? [];
 }
+
+// ── ConfigStore KV API (spec 42 — dynamic config with scope cascade) ──
+
+export type ConfigStoreScope = "global" | "tenant" | "department" | "user";
+
+export interface ConfigStoreScopeRef {
+  type: ConfigStoreScope;
+  id?: string;
+}
+
+export interface ConfigStoreEntry {
+  id: string;
+  namespace: string;
+  key: string;
+  value: unknown;
+  scope: ConfigStoreScope;
+  scopeId?: string;
+  encrypted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface ConfigStoreVersion {
+  id: string;
+  configId: string;
+  namespace: string;
+  key: string;
+  value: unknown;
+  scope: ConfigStoreScope;
+  scopeId?: string;
+  version: number;
+  changedBy?: string;
+  changedAt: string;
+  changeReason?: string;
+}
+
+/** List all entries in a ConfigStore namespace */
+export async function fetchConfigStoreEntries(
+  namespace: string,
+  scope?: ConfigStoreScopeRef,
+): Promise<ConfigStoreEntry[]> {
+  const params = new URLSearchParams();
+  if (scope?.type) params.set("scope", scope.type);
+  if (scope?.id) params.set("scopeId", scope.id);
+  const qs = params.toString();
+  const url = `/api/config-store/${encodeURIComponent(namespace)}${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data?.items ?? [];
+}
+
+/** Get a single ConfigStore value */
+export async function fetchConfigStoreValue(
+  namespace: string,
+  key: string,
+  scope?: ConfigStoreScopeRef,
+): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (scope?.type) params.set("scope", scope.type);
+  if (scope?.id) params.set("scopeId", scope.id);
+  const qs = params.toString();
+  const url = `/api/config-store/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data?.value;
+}
+
+/** Set a ConfigStore value */
+export async function setConfigStoreValue(
+  namespace: string,
+  key: string,
+  value: unknown,
+  options?: { scope?: ConfigStoreScopeRef; reason?: string },
+): Promise<void> {
+  const res = await fetch(
+    `/api/config-store/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        value,
+        scope: options?.scope,
+        reason: options?.reason,
+      }),
+    },
+  );
+  handleUnauthorized(res);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error?.message ?? "Failed to set config value");
+}
+
+/** Delete a ConfigStore entry */
+export async function deleteConfigStoreEntry(
+  namespace: string,
+  key: string,
+  scope?: ConfigStoreScopeRef,
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (scope?.type) params.set("scope", scope.type);
+  if (scope?.id) params.set("scopeId", scope.id);
+  const qs = params.toString();
+  const url = `/api/config-store/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error?.message ?? "Failed to delete config entry");
+}
+
+/** Get version history for a ConfigStore key */
+export async function fetchConfigStoreHistory(
+  namespace: string,
+  key: string,
+  scope?: ConfigStoreScopeRef,
+): Promise<ConfigStoreVersion[]> {
+  const params = new URLSearchParams();
+  if (scope?.type) params.set("scope", scope.type);
+  if (scope?.id) params.set("scopeId", scope.id);
+  const qs = params.toString();
+  const url = `/api/config-store/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/history${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  handleUnauthorized(res);
+  const json = await res.json();
+  return json.data?.items ?? [];
+}
+
+/** Rollback a ConfigStore key to a specific version */
+export async function rollbackConfigStoreEntry(
+  namespace: string,
+  key: string,
+  version: number,
+  options?: { scope?: ConfigStoreScopeRef; reason?: string },
+): Promise<void> {
+  const res = await fetch(
+    `/api/config-store/${encodeURIComponent(namespace)}/${encodeURIComponent(key)}/rollback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        version,
+        scope: options?.scope,
+        reason: options?.reason,
+      }),
+    },
+  );
+  handleUnauthorized(res);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error?.message ?? "Failed to rollback config");
+}

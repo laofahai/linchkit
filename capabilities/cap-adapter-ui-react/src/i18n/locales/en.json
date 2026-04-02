@@ -785,6 +785,10 @@
     "capabilitiesDesc": "Installed capability modules in this runtime.",
     "noCapabilities": "No capabilities loaded."
   },
+  "systemOverview": {
+    "title": "System Overview",
+    "subtitle": "Health monitoring, system information, and configuration overview."
+  },
   "rules": {
     "title": "Rules",
     "subtitle": "Business rule definitions — event-driven adjudicators that validate, block, enrich, or require approval.",

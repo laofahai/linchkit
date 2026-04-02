@@ -23,7 +23,6 @@ import {
 import { useTheme } from "@linchkit/ui-kit/hooks";
 import {
   DatabaseIcon,
-  HeartPulseIcon,
   LayoutDashboardIcon,
   Loader2Icon,
   MonitorIcon,
@@ -238,9 +237,9 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <ScrollTextIcon />
                 <span>{t("executionLog.title")}</span>
               </CommandItem>
-              <CommandItem onSelect={() => navigate("/admin/health")}>
-                <HeartPulseIcon />
-                <span>{t("health.title")}</span>
+              <CommandItem onSelect={() => navigate("/admin/system")}>
+                <MonitorIcon />
+                <span>{t("systemOverview.title")}</span>
               </CommandItem>
               <CommandItem onSelect={() => navigate("/schemas/rule")}>
                 <ShieldCheckIcon />

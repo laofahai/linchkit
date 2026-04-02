@@ -19,13 +19,13 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
   admin: { i18nKey: "nav.administration", linkable: false },
   approvals: { i18nKey: "approvals.title", linkable: true },
   executions: { i18nKey: "executionLog.title", linkable: true },
-  health: { i18nKey: "health.title", linkable: true },
+  system: { i18nKey: "systemOverview.title", linkable: true },
   proposals: { i18nKey: "proposals.title", linkable: true },
   evolution: { i18nKey: "evolution.title", linkable: true },
   flows: { i18nKey: "flows.title", linkable: true },
   rules: { i18nKey: "rules.title", linkable: true },
   states: { i18nKey: "stateMachines.title", linkable: true },
-  settings: { i18nKey: "settings.title", linkable: true },
+  // settings breadcrumb removed — merged into /admin/system
   new: { i18nKey: "common.create", linkable: true },
 };
 

@@ -14,6 +14,7 @@ import type {
   ApprovalEngine,
   CapabilityDefinition,
   CommandLayer,
+  ConfigStore,
   DataProvider,
   EventBus,
   ExecutionLogger,
@@ -46,6 +47,7 @@ import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
+import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountSchemaRoutes } from "./routes/schema-api";
 import { ANONYMOUS_ACTOR, resolveRequestLocale } from "./routes/shared";
@@ -132,6 +134,8 @@ export interface ServerOptions {
   approvalEngine?: ApprovalEngine;
   /** Runtime config registry — when provided, enables /api/configs REST endpoints */
   runtimeConfigRegistry?: RuntimeConfigRegistry;
+  /** ConfigStore — dynamic KV config with scope cascade and versioning (spec 42) */
+  configStore?: ConfigStore;
   /** Cache manager — when provided, enables /internal/cache/stats endpoint */
   cacheManager?: CacheManager;
 }
@@ -230,6 +234,7 @@ export function createServer(
   mountImportRoutes(app, opts);
   mountApprovalRoutes(app, opts);
   mountConfigRoutes(app, opts);
+  mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
 
   // Mount graphql-yoga — handle all methods on the graphql path

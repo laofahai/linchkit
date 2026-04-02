@@ -28,14 +28,13 @@ import { ConfigCenterPage } from "./pages/config-center";
 import { DashboardPage } from "./pages/dashboard";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
-import { HealthMonitorPage } from "./pages/health-monitor";
 import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
 import { SchemaFormPage } from "./pages/schema-form";
 import { SchemaListPage } from "./pages/schema-list";
-import { SettingsPage } from "./pages/settings";
 import { StateMachineDetailPage } from "./pages/state-machines";
+import { SystemOverviewPage } from "./pages/system-overview";
 
 // ── Root route (no layout) ────────────────────────────────────────
 
@@ -163,10 +162,10 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
-  const healthMonitorRoute = createRoute({
+  const systemOverviewRoute = createRoute({
     getParentRoute: () => shellRoute,
-    path: "/admin/health",
-    component: HealthMonitorPage,
+    path: "/admin/system",
+    component: SystemOverviewPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
@@ -198,12 +197,7 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
-  const settingsRoute = createRoute({
-    getParentRoute: () => shellRoute,
-    path: "/admin/settings",
-    component: SettingsPage,
-    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
-  });
+  // Settings route removed — merged into /admin/system (SystemOverviewPage)
 
   const configCenterRoute = createRoute({
     getParentRoute: () => shellRoute,
@@ -235,12 +229,11 @@ function buildRouter(appConfig: AppConfig) {
       schemaListRoute,
       schemaFormNewRoute,
       schemaFormEditRoute,
-      healthMonitorRoute,
+      systemOverviewRoute,
       flowDetailRoute,
       stateMachineDetailRoute,
       evolutionRoute,
       ruleDetailRoute,
-      settingsRoute,
       configCenterRoute,
       relationGraphRoute,
       metricsDashboardRoute,

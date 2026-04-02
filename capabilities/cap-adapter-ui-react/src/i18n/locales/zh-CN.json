@@ -785,6 +785,10 @@
     "capabilitiesDesc": "当前运行时已安装的能力模块。",
     "noCapabilities": "未加载任何能力模块。"
   },
+  "systemOverview": {
+    "title": "系统概览",
+    "subtitle": "健康监控、系统信息和配置概览。"
+  },
   "rules": {
     "title": "规则",
     "subtitle": "业务规则定义 — 事件驱动的裁决器，用于验证、拦截、数据补充或要求审批。",
