@@ -34,6 +34,7 @@ import { Check, ChevronsUpDown, PlusCircle } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import type { RelatedRecord } from "./relation-utils";
@@ -233,6 +234,8 @@ export function RefInput({
     quickCreateFormRef.current = {};
   }, [titleField, quickCreateName, onChange]);
 
+  const { resolveLabel } = useSchemaLabel();
+
   // Resolve editable fields for create-and-edit dialog
   const dialogFields = useMemo(() => {
     if (!bundle?.schema?.fields) return [];
@@ -252,18 +255,25 @@ export function RefInput({
         const fieldType = (def as { type?: string }).type;
         if (fieldType === "state" || fieldType === "computed") return false;
         if ((def as { derived?: unknown }).derived) return false;
-        // Skip back-reference fields
         if (fieldType === "has_many" || fieldType === "many_to_many") return false;
         return true;
       })
       .map(([name, def]) => ({
         name,
-        label: (def as { label?: string }).label ?? name,
+        label: resolveLabel((def as { label?: string }).label, name),
         type: (def as { type?: string }).type ?? "string",
         required: !!(def as { required?: boolean }).required,
         options: (def as { options?: Array<{ value: string; label?: string }> }).options,
       }));
-  }, [bundle]);
+  }, [bundle, resolveLabel]);
+
+  // Count required fields (excluding titleField) to determine if quick create is safe
+  const requiredFieldCount = useMemo(() => {
+    return dialogFields.filter((f) => f.required).length;
+  }, [dialogFields]);
+
+  // Only allow quick create (name-only) if there's at most 1 required field (the title itself)
+  const allowQuickCreate = requiredFieldCount <= 1;
 
   if (readonly) {
     return (
@@ -357,15 +367,17 @@ export function RefInput({
                 <>
                   <CommandSeparator />
                   <CommandGroup>
-                    <CommandItem
-                      onSelect={() => handleQuickCreate(searchQuery.trim())}
-                      className="gap-2"
-                    >
-                      <PlusCircle className="size-3.5" />
-                      {t("widget.quickCreate", 'Create "{{name}}"', {
-                        name: searchQuery.trim(),
-                      })}
-                    </CommandItem>
+                    {allowQuickCreate && (
+                      <CommandItem
+                        onSelect={() => handleQuickCreate(searchQuery.trim())}
+                        className="gap-2"
+                      >
+                        <PlusCircle className="size-3.5" />
+                        {t("widget.quickCreate", 'Create "{{name}}"', {
+                          name: searchQuery.trim(),
+                        })}
+                      </CommandItem>
+                    )}
                     <CommandItem
                       onSelect={() => handleOpenCreateAndEdit(searchQuery.trim())}
                       className="gap-2"
@@ -403,7 +415,7 @@ export function RefInput({
         fields={dialogFields}
         initialName={quickCreateName}
         titleField={titleField ?? "name"}
-        targetLabel={bundle?.schema.label ?? targetSchema}
+        targetLabel={resolveLabel(bundle?.schema.label, targetSchema)}
         formRef={quickCreateFormRef}
         onConfirm={handleConfirmCreateAndEdit}
       />

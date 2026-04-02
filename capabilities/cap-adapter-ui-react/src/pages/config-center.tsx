@@ -4,7 +4,6 @@
  * Layout (full-width):
  *   - Left sidebar: capability/namespace grouping navigation
  *   - Right content: structured config items with inline editing
- *   - Bottom collapsible: static config (read-only, from linchkit.config.ts)
  *
  * Config items come from capability `defineConfigSchema()` declarations.
  * Editing persists through the ConfigStore API (with versioning).
@@ -14,16 +13,11 @@
 import {
   Alert,
   AlertDescription,
-  Badge,
   Button,
   Card,
   CardContent,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   Input,
   Label,
-  Separator,
   Switch,
   Table,
   TableBody,
@@ -35,11 +29,8 @@ import {
 } from "@linchkit/ui-kit/components";
 import {
   CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   ClockIcon,
   HistoryIcon,
-  LockIcon,
   RefreshCwIcon,
   SaveIcon,
   SettingsIcon,
@@ -48,19 +39,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ConfigHistoryEntry, ConfigItem } from "../lib/api";
 import { fetchConfig, fetchConfigHistory, fetchConfigs, updateConfigValues } from "../lib/api";
-
-// ── Types ─────────────────────────────────────────────────
-
-interface StaticConfigData {
-  general: Record<string, unknown>;
-  database: Record<string, unknown>;
-  ai: Record<string, unknown>;
-  auth: Record<string, unknown>;
-  tenancy: Record<string, unknown>;
-  server: Record<string, unknown>;
-  subscription: Record<string, unknown>;
-  flow: Record<string, unknown>;
-}
 
 // ── Field Editor (reused for inline editing) ──────────────
 
@@ -308,101 +286,6 @@ function ConfigNamespaceEditor({ config, onSaved }: { config: ConfigItem; onSave
   );
 }
 
-// ── Static Config (read-only, collapsible) ────────────────
-
-function StaticConfigSection({ label, data }: { label: string; data: Record<string, unknown> }) {
-  const { t } = useTranslation();
-  return (
-    <Collapsible>
-      <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm font-medium hover:text-foreground text-muted-foreground">
-        <ChevronDownIcon className="size-4 transition-transform [[data-state=closed]_&]:-rotate-90" />
-        <LockIcon className="size-3" />
-        {label}
-        <Badge variant="secondary" className="ml-auto text-xs">
-          {t("config.readOnly", "Read-only")}
-        </Badge>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pl-6 pb-3 space-y-1">
-          {Object.entries(data).map(([key, val]) => (
-            <div
-              key={key}
-              className="flex items-center justify-between py-1 border-b border-border/30 last:border-0"
-            >
-              <span className="text-sm text-muted-foreground">{key}</span>
-              <span className="text-sm font-mono truncate max-w-[60%]">
-                {val === null || val === undefined
-                  ? "null"
-                  : typeof val === "object"
-                    ? JSON.stringify(val)
-                    : String(val)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function StaticConfigPanel() {
-  const { t } = useTranslation();
-  const [data, setData] = useState<StaticConfigData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/settings");
-        const json = await res.json();
-        setData(json.data);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  if (loading || !data) return null;
-
-  const sections: Array<{ label: string; data: Record<string, unknown> }> = [
-    { label: t("config.static.general", "General"), data: data.general },
-    { label: t("config.static.database", "Database"), data: data.database },
-    { label: t("config.static.ai", "AI Service"), data: data.ai },
-    { label: t("config.static.auth", "Authentication"), data: data.auth },
-    { label: t("config.static.tenancy", "Tenancy"), data: data.tenancy },
-    { label: t("config.static.server", "Server"), data: data.server },
-    {
-      label: t("config.static.subscription", "Subscriptions"),
-      data: data.subscription,
-    },
-    { label: t("config.static.flow", "Flow Engine"), data: data.flow },
-  ];
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-sm font-medium hover:text-foreground text-muted-foreground border-t mt-4">
-        {open ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
-        <LockIcon className="size-3.5" />
-        {t("config.staticConfig", "Static Configuration")}
-        <span className="text-xs text-muted-foreground font-normal ml-2">
-          {t(
-            "config.staticConfigDesc",
-            "Loaded from linchkit.config.ts at startup. Requires restart to change.",
-          )}
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="space-y-1 pl-4 pb-4">
-          {sections.map((s) => (
-            <StaticConfigSection key={s.label} label={s.label} data={s.data} />
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────
 
 export function ConfigCenterPage() {
@@ -554,9 +437,6 @@ export function ConfigCenterPage() {
         </div>
       )}
 
-      {/* Static config — collapsible at bottom */}
-      <Separator />
-      <StaticConfigPanel />
     </div>
   );
 }

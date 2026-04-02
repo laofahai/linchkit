@@ -792,7 +792,17 @@
     "eventHandlers": "事件处理器",
     "semanticRelations": "语义关系",
     "capabilityPanels": "能力模块",
-    "noResources": "未注册资源"
+    "noResources": "未注册资源",
+    "startupConfig": "启动配置",
+    "startupConfigHint": "配置文件: linchkit.config.ts · 修改后需重启服务器",
+    "startupConfigGeneral": "概要",
+    "startupConfigDatabase": "数据库",
+    "startupConfigAi": "AI 服务",
+    "startupConfigAuth": "认证",
+    "startupConfigTenancy": "租户",
+    "startupConfigServer": "服务器",
+    "startupConfigSubscription": "订阅推送",
+    "startupConfigFlow": "流程引擎"
   },
   "configCenter": {
     "title": "配置中心"

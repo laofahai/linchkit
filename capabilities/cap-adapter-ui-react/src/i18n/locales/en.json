@@ -792,7 +792,17 @@
     "eventHandlers": "Event Handlers",
     "semanticRelations": "Semantic Relations",
     "capabilityPanels": "Capability Modules",
-    "noResources": "No registered resources"
+    "noResources": "No registered resources",
+    "startupConfig": "Startup Configuration",
+    "startupConfigHint": "Config file: linchkit.config.ts · Restart required after changes",
+    "startupConfigGeneral": "General",
+    "startupConfigDatabase": "Database",
+    "startupConfigAi": "AI Service",
+    "startupConfigAuth": "Authentication",
+    "startupConfigTenancy": "Tenancy",
+    "startupConfigServer": "Server",
+    "startupConfigSubscription": "Subscriptions",
+    "startupConfigFlow": "Flow Engine"
   },
   "configCenter": {
     "title": "Config Center"

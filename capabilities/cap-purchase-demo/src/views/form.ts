@@ -34,6 +34,7 @@ export const purchaseRequestFormView: ViewDefinition = {
     { field: "approved_at", readonly: true },
     { field: "approved_by", readonly: true },
     { field: "audit_notes" },
+    { field: "items" },
   ],
   layout: {
     nodes: [
@@ -69,6 +70,17 @@ export const purchaseRequestFormView: ViewDefinition = {
       {
         type: "notebook",
         children: [
+          {
+            type: "page",
+            title: "t:schemas.purchase_request.fields.items",
+            children: [
+              {
+                type: "group",
+                columns: 1,
+                children: [{ type: "field", field: "items", nolabel: true }],
+              },
+            ],
+          },
           {
             type: "page",
             title: "t:schemas.purchase_request.fields.notes",

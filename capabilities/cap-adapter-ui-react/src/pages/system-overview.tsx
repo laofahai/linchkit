@@ -33,6 +33,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   DatabaseIcon,
+  FileCode2Icon,
   HardDriveIcon,
   HeartIcon,
   LayersIcon,
@@ -101,6 +102,13 @@ interface CapabilityDetail {
 
 interface SettingsData {
   general: SettingsGeneral;
+  database?: Record<string, unknown>;
+  ai?: Record<string, unknown>;
+  auth?: Record<string, unknown>;
+  tenancy?: Record<string, unknown>;
+  server?: Record<string, unknown>;
+  subscription?: Record<string, unknown>;
+  flow?: Record<string, unknown>;
 }
 
 // ── Constants ────────────────────────────────────────────
@@ -190,6 +198,9 @@ export function SystemOverviewPage() {
 
   // Capability detail dialog
   const [selectedCap, setSelectedCap] = useState<CapabilityDetail | null>(null);
+
+  // Startup config dialog
+  const [configOpen, setConfigOpen] = useState(false);
 
   const fetchHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -284,6 +295,15 @@ export function SystemOverviewPage() {
             <span className="text-xs text-muted-foreground hidden sm:inline">
               {lastRefresh && lastRefresh.toLocaleTimeString()}
             </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfigOpen(true)}
+              className="h-7 px-2"
+              title={t("systemOverview.startupConfig")}
+            >
+              <FileCode2Icon className="size-3.5" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -426,6 +446,10 @@ export function SystemOverviewPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Startup Config Dialog ─────────────────────── */}
+
+      <StartupConfigDialog open={configOpen} onOpenChange={setConfigOpen} settings={settings} />
+
       {/* ── Footer ──────────────────────────────────────── */}
 
       <p className="text-[11px] text-muted-foreground text-center pt-2">
@@ -460,5 +484,111 @@ function StatRow({ label, value }: { label: string; value: number }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="font-mono font-medium">{value}</span>
     </div>
+  );
+}
+
+// ── Startup Config Dialog ──────────────────────────────
+
+interface ConfigSectionDef {
+  key: keyof SettingsData;
+  labelKey: string;
+}
+
+const CONFIG_SECTIONS: ConfigSectionDef[] = [
+  { key: "database", labelKey: "systemOverview.startupConfigDatabase" },
+  { key: "ai", labelKey: "systemOverview.startupConfigAi" },
+  { key: "auth", labelKey: "systemOverview.startupConfigAuth" },
+  { key: "tenancy", labelKey: "systemOverview.startupConfigTenancy" },
+  { key: "server", labelKey: "systemOverview.startupConfigServer" },
+  { key: "subscription", labelKey: "systemOverview.startupConfigSubscription" },
+  { key: "flow", labelKey: "systemOverview.startupConfigFlow" },
+];
+
+function ConfigValue({ value }: { value: unknown }) {
+  if (typeof value === "boolean") {
+    return (
+      <span
+        className={`inline-block size-2 rounded-full ${value ? "bg-emerald-500" : "bg-red-500"}`}
+      />
+    );
+  }
+  if (Array.isArray(value)) {
+    return (
+      <span className="flex flex-wrap gap-1 justify-end">
+        {value.map((item, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: simple display list
+          <Badge key={i} variant="secondary" className="text-[10px] h-4 px-1.5">
+            {String(item)}
+          </Badge>
+        ))}
+      </span>
+    );
+  }
+  if (value === null || value === undefined) {
+    return <span className="text-muted-foreground italic">null</span>;
+  }
+  if (typeof value === "object") {
+    return <span className="font-mono text-xs truncate max-w-[60%]">{JSON.stringify(value)}</span>;
+  }
+  return <span className="font-mono text-xs">{String(value)}</span>;
+}
+
+function StartupConfigDialog({
+  open,
+  onOpenChange,
+  settings,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  settings: SettingsData | null;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileCode2Icon className="size-4" />
+            {t("systemOverview.startupConfig")}
+          </DialogTitle>
+        </DialogHeader>
+
+        {!settings ? (
+          <p className="text-sm text-muted-foreground text-center py-6">{t("common.loading")}</p>
+        ) : (
+          <div className="space-y-4">
+            {CONFIG_SECTIONS.map(({ key, labelKey }) => {
+              const data = settings[key];
+              if (!data || typeof data !== "object") return null;
+              const entries = Object.entries(data as Record<string, unknown>);
+              if (entries.length === 0) return null;
+              return (
+                <div key={key}>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    {t(labelKey)}
+                  </h4>
+                  <div className="space-y-0.5">
+                    {entries.map(([k, v]) => (
+                      <div
+                        key={k}
+                        className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50 text-sm"
+                      >
+                        <span className="text-muted-foreground">{k}</span>
+                        <ConfigValue value={v} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground text-center pt-2 border-t mt-2">
+          {t("systemOverview.startupConfigHint")}
+        </p>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -107,6 +107,13 @@ export const purchaseRequestSchema: SchemaDefinition = {
       ui: { importance: "detail" },
     },
 
+    // Has-many: inline purchase items
+    items: {
+      type: "has_many",
+      target: "purchase_item",
+      label: "t:schemas.purchase_request.fields.items",
+    },
+
     // Derived properties — computed, not user-input
     total_amount: {
       type: "number",
