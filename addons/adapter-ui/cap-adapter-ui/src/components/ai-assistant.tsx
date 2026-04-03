@@ -336,8 +336,8 @@ const TOOL_LABELS: Record<string, string> = {
   getRecord: "Fetching record...",
   executeAction: "Executing action...",
   describeSchema: "Loading schema info...",
-  listSchemas: "Listing schemas...",
-  searchSchemas: "Searching schemas...",
+  listEntities: "Listing entities...",
+  searchEntities: "Searching entities...",
 };
 
 /**

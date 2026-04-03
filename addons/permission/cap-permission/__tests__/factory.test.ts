@@ -19,8 +19,8 @@ describe("createCapPermission", () => {
     });
 
     it("includes 2 schemas (permission_group, permission_assignment)", () => {
-      expect(def.schemas).toHaveLength(2);
-      const names = def.schemas?.map((s) => s.name) ?? [];
+      expect(def.entities).toHaveLength(2);
+      const names = def.entities?.map((s) => s.name) ?? [];
       expect(names).toContain("permission_group");
       expect(names).toContain("permission_assignment");
     });
@@ -77,7 +77,7 @@ describe("createCapPermission", () => {
     });
 
     it("still includes schemas and actions", () => {
-      expect(def.schemas).toHaveLength(2);
+      expect(def.entities).toHaveLength(2);
       expect(def.actions).toHaveLength(4);
     });
   });

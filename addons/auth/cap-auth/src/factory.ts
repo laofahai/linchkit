@@ -125,7 +125,7 @@ export function createCapAuth(options?: CapAuthOptions): CapabilityDefinition {
 
     dependencies: [],
 
-    schemas: [userSchema, sessionSchema, apiKeySchema, tokenSchema],
+    entities: [userSchema, sessionSchema, apiKeySchema, tokenSchema],
     actions,
     states: [userLifecycleState],
 

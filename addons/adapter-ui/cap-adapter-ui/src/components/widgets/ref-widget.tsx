@@ -33,7 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, PlusCircle } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "@/hooks/use-entity-bundle";
+import { useEntityBundle } from "@/hooks/use-entity-bundle";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
@@ -66,7 +66,7 @@ function generateTempId(): string {
 
 export function RefDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
-  const { bundle } = useSchemaBundle(targetSchema);
+  const { bundle } = useEntityBundle(targetSchema);
 
   if (value == null) return <span className="text-muted-foreground">--</span>;
   const titleField = bundle?.schema.presentation?.titleField;
@@ -105,7 +105,7 @@ export function RefInput({
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
 
   // Fetch target schema bundle to resolve titleField
-  const { bundle } = useSchemaBundle(targetSchema);
+  const { bundle } = useEntityBundle(targetSchema);
   const titleField = bundle?.schema.presentation?.titleField;
 
   // Determine which fields to fetch: id + titleField (or heuristic candidates)

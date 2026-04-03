@@ -922,7 +922,7 @@ describe("E2E: Schema Interface + Inheritance", () => {
     expect(resolved.implements).toEqual(["auditable", "timestamped"]);
   });
 
-  test("OntologyRegistry.schemasImplementing() returns correct results", () => {
+  test("OntologyRegistry.entitiesImplementing() returns correct results", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(auditableInterface);
     ifaceRegistry.register(timestampedInterface);
@@ -962,19 +962,19 @@ describe("E2E: Schema Interface + Inheritance", () => {
     });
 
     // Both invoice and contract implement auditable
-    const auditableSchemas = ontology.schemasImplementing("auditable");
+    const auditableSchemas = ontology.entitiesImplementing("auditable");
     expect(auditableSchemas).toContain("invoice");
     expect(auditableSchemas).toContain("contract");
     expect(auditableSchemas).not.toContain("note");
 
     // Only contract implements timestamped
-    const timestampedSchemas = ontology.schemasImplementing("timestamped");
+    const timestampedSchemas = ontology.entitiesImplementing("timestamped");
     expect(timestampedSchemas).toContain("contract");
     expect(timestampedSchemas).not.toContain("invoice");
     expect(timestampedSchemas).not.toContain("note");
 
     // Non-existent interface returns empty
-    expect(ontology.schemasImplementing("nonexistent")).toEqual([]);
+    expect(ontology.entitiesImplementing("nonexistent")).toEqual([]);
   });
 
   test("interface + inheritance work together", () => {

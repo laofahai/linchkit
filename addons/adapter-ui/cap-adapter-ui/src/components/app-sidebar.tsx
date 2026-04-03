@@ -18,14 +18,14 @@ import { useTranslation } from "react-i18next";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
-import { useSchemas } from "@/hooks/use-entities";
+import { useEntities } from "@/hooks/use-entities";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { getMenuItems } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
-  const { schemas } = useSchemas();
+  const { schemas } = useEntities();
   const { resolveLabel } = useSchemaLabel();
 
   const data = useMemo(() => {

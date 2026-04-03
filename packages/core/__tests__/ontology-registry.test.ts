@@ -129,7 +129,7 @@ function createMockActionRegistry(actions: ActionDefinition[]) {
 
 function createMockRelationRegistry(links: RelationDefinition[]) {
   return {
-    linksFor: (schemaName: string) => {
+    relationsFor: (schemaName: string) => {
       const result: Array<{
         link: RelationDefinition;
         direction: "outgoing" | "incoming";
@@ -192,10 +192,10 @@ function buildDeps(overrides?: Partial<OntologyRegistryDeps>): OntologyRegistryD
 // ── Tests ──────────────────────────────────────────────
 
 describe("OntologyRegistry", () => {
-  describe("listSchemas", () => {
+  describe("listEntities", () => {
     test("returns all schema names", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const names = registry.listSchemas();
+      const names = registry.listEntities();
       expect(names).toContain("department");
       expect(names).toContain("purchase_request");
       expect(names).toHaveLength(2);
@@ -367,14 +367,14 @@ describe("OntologyRegistry", () => {
   describe("relatedSchemas", () => {
     test("returns relations for a schema", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const relations = registry.relatedSchemas("purchase_request");
+      const relations = registry.relatedEntities("purchase_request");
       expect(relations).toHaveLength(1);
       expect(relations[0].targetSchema).toBe("department");
     });
 
     test("returns empty for unknown schema", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const relations = registry.relatedSchemas("nonexistent");
+      const relations = registry.relatedEntities("nonexistent");
       expect(relations).toHaveLength(0);
     });
   });
@@ -382,34 +382,34 @@ describe("OntologyRegistry", () => {
   describe("searchSchemas", () => {
     test("matches by schema name", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const results = registry.searchSchemas("purchase");
+      const results = registry.searchEntities("purchase");
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("purchase_request");
     });
 
     test("matches by label", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const results = registry.searchSchemas("Company departments");
+      const results = registry.searchEntities("Company departments");
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("department");
     });
 
     test("matches by field name", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const results = registry.searchSchemas("amount");
+      const results = registry.searchEntities("amount");
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("purchase_request");
     });
 
     test("case insensitive search", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const results = registry.searchSchemas("PURCHASE");
+      const results = registry.searchEntities("PURCHASE");
       expect(results).toHaveLength(1);
     });
 
     test("returns empty for no match", () => {
       const registry = createOntologyRegistry(buildDeps());
-      const results = registry.searchSchemas("nonexistent_xyz");
+      const results = registry.searchEntities("nonexistent_xyz");
       expect(results).toHaveLength(0);
     });
   });

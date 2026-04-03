@@ -15,7 +15,7 @@ import {
   type GraphQLOutputType,
 } from "graphql";
 import { generateGraphQLObjectType } from "../../../addons/adapter-server/cap-adapter-server/src/graphql/schema-to-graphql";
-import { generateDrizzleTable, generateLinkColumns } from "../src/schema/entity-to-drizzle";
+import { generateDrizzleTable, generateRelationColumns } from "../src/entity/entity-to-drizzle";
 import type { RelationDefinition, EntityDefinition } from "../src/types";
 
 // ── Test fixtures ──────────────────────────────────────────
@@ -88,7 +88,7 @@ function unwrapType(type: GraphQLOutputType): {
 // Part 1: Drizzle Schema Generation
 // ══════════════════════════════════════════════════════════════
 
-describe("generateLinkColumns", () => {
+describe("generateRelationColumns", () => {
   // Pre-generate base tables for FK references
   const tables = {
     department: generateDrizzleTable(departmentSchema),
@@ -108,7 +108,7 @@ describe("generateLinkColumns", () => {
     };
 
     test("generates FK column {to}_id on the 'from' table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       // FK column should be on employee table
       expect(result.fkColumns.employee).toBeDefined();
@@ -119,7 +119,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("FK column is varchar(128)", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       const col = result.fkColumns.employee.department_id;
 
       // Column should be a varchar type (Drizzle column object)
@@ -127,7 +127,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("does not add FK on the 'to' table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       // department table should not get any FK columns
       expect(result.fkColumns.department).toBeUndefined();
@@ -145,7 +145,7 @@ describe("generateLinkColumns", () => {
     };
 
     test("generates FK column {from}_id on the 'to' table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       // FK column should be on employee table (the 'to' side)
       expect(result.fkColumns.employee).toBeDefined();
@@ -170,14 +170,14 @@ describe("generateLinkColumns", () => {
     };
 
     test("generates FK column {to}_id on the 'from' table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       expect(result.fkColumns.employee).toBeDefined();
       expect(result.fkColumns.employee.profile_id).toBeDefined();
     });
 
     test("FK column has unique constraint", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.profile_id as any;
 
@@ -186,7 +186,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("no junction table created", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       expect(result.junctionTables).toHaveLength(0);
     });
   });
@@ -202,7 +202,7 @@ describe("generateLinkColumns", () => {
     };
 
     test("creates a junction table named _link_{name}", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       expect(result.junctionTables).toHaveLength(1);
       const jt = result.junctionTables[0];
@@ -210,7 +210,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("junction table has composite PK on both FK columns", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -229,14 +229,14 @@ describe("generateLinkColumns", () => {
     });
 
     test("does not add FK columns to either from or to table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
 
       expect(result.fkColumns.employee).toBeUndefined();
       expect(result.fkColumns.project).toBeUndefined();
     });
 
     test("junction table has foreign keys referencing both tables", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -260,7 +260,7 @@ describe("generateLinkColumns", () => {
     };
 
     test("properties become columns on the junction table", () => {
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -286,7 +286,7 @@ describe("generateLinkColumns", () => {
         cardinality: "many_to_one",
         cascade: "delete",
       };
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -305,7 +305,7 @@ describe("generateLinkColumns", () => {
         cardinality: "many_to_one",
         cascade: "nullify",
       };
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -323,7 +323,7 @@ describe("generateLinkColumns", () => {
         cardinality: "one_to_many",
         cascade: "delete",
       };
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -341,7 +341,7 @@ describe("generateLinkColumns", () => {
         cardinality: "many_to_many",
         cascade: "delete",
       };
-      const result = generateLinkColumns([link], tables);
+      const result = generateRelationColumns([link], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -362,7 +362,7 @@ describe("generateLinkColumns", () => {
         to: "department",
         cardinality: "many_to_one",
       };
-      const result = generateLinkColumns([link], tables, {
+      const result = generateRelationColumns([link], tables, {
         tablePrefix: "app",
       });
 
@@ -378,7 +378,7 @@ describe("generateLinkColumns", () => {
         to: "project",
         cardinality: "many_to_many",
       };
-      const result = generateLinkColumns([link], tables, {
+      const result = generateRelationColumns([link], tables, {
         tablePrefix: "app",
       });
 
@@ -397,7 +397,7 @@ describe("generateLinkColumns", () => {
       cardinality: "many_to_one",
       required: true,
     };
-    const result = generateLinkColumns([link], tables);
+    const result = generateRelationColumns([link], tables);
     // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
     const col = result.fkColumns.employee.department_id as any;
 
@@ -414,7 +414,7 @@ describe("generateLinkColumns", () => {
       to: "nonexistent",
       cardinality: "many_to_one",
     };
-    const result = generateLinkColumns([link], tables);
+    const result = generateRelationColumns([link], tables);
 
     // Should produce no FK columns and no junction tables
     expect(Object.keys(result.fkColumns)).toHaveLength(0);

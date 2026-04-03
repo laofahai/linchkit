@@ -9,7 +9,7 @@ export type {
 } from "./build-schema";
 export { buildGraphQLSchema, generateCrudActions } from "./build-schema";
 export { buildSubscriptionFields, buildTopic, createEventBusPubSub } from "./build-subscriptions";
-export type { LinkResolverContext } from "./schema-to-graphql";
+export type { RelationResolverContext } from "./schema-to-graphql";
 export {
   clearEnumTypeCache,
   generateActionInputType,

@@ -17,7 +17,7 @@ describe("validateCapability", () => {
       type: "standard",
       category: "business",
       version: "1.0.0",
-      schemas: [
+      entities: [
         defineEntity({
           name: "purchase_request",
           fields: {

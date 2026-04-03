@@ -97,5 +97,5 @@ export interface RelationGraph {
   /** Find all relations involving a capability (either direction) */
   forCapability(capabilityName: string): SemanticRelation[];
   /** Find all relations involving a schema (either direction) */
-  forSchema(schemaName: string): SemanticRelation[];
+  forEntity(schemaName: string): SemanticRelation[];
 }

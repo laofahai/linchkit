@@ -14,8 +14,8 @@ describe("cap-permission capability", () => {
   });
 
   it("should define 2 schemas", () => {
-    expect(capPermission.schemas).toHaveLength(2);
-    const names = capPermission.schemas?.map((s) => s.name) ?? [];
+    expect(capPermission.entities).toHaveLength(2);
+    const names = capPermission.entities?.map((s) => s.name) ?? [];
     expect(names).toContain("permission_group");
     expect(names).toContain("permission_assignment");
   });

@@ -29,7 +29,7 @@ import {
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "@/hooks/use-entity-bundle";
+import { useEntityBundle } from "@/hooks/use-entity-bundle";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { generateChildFormView } from "@/lib/entity-form-utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
@@ -53,7 +53,7 @@ interface EditableField {
 export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
-  const { bundle: targetBundle } = useSchemaBundle(targetSchema);
+  const { bundle: targetBundle } = useEntityBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
 
   // If value is already an array of expanded objects (server-side resolution)
@@ -100,7 +100,7 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
-  const { bundle: targetBundle } = useSchemaBundle(targetSchema);
+  const { bundle: targetBundle } = useEntityBundle(targetSchema);
 
   // Resolve editable fields from target schema for table columns
   // (exclude system fields, relation back-refs, state, derived)

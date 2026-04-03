@@ -54,12 +54,12 @@ describe("parseDateValue", () => {
 // ── detectTitleField ─────────────────────────────────
 
 describe("detectTitleField", () => {
-  function makeSchema(fields: Record<string, { type: string }>): EntityDefinition {
+  function makeEntity(fields: Record<string, { type: string }>): EntityDefinition {
     return { name: "test", fields } as unknown as EntityDefinition;
   }
 
   test("prefers 'title' field", () => {
-    const schema = makeSchema({
+    const schema = makeEntity({
       description: { type: "text" },
       title: { type: "string" },
       name: { type: "string" },
@@ -68,7 +68,7 @@ describe("detectTitleField", () => {
   });
 
   test("prefers 'name' if no 'title'", () => {
-    const schema = makeSchema({
+    const schema = makeEntity({
       code: { type: "string" },
       name: { type: "string" },
     });
@@ -76,7 +76,7 @@ describe("detectTitleField", () => {
   });
 
   test("falls back to first string field", () => {
-    const schema = makeSchema({
+    const schema = makeEntity({
       amount: { type: "number" },
       description: { type: "string" },
     });
@@ -84,7 +84,7 @@ describe("detectTitleField", () => {
   });
 
   test("falls back to 'id' if no text fields", () => {
-    const schema = makeSchema({
+    const schema = makeEntity({
       amount: { type: "number" },
       active: { type: "boolean" },
     });

@@ -77,7 +77,7 @@ export function createCapPermission(options?: CapPermissionOptions): CapabilityD
 
     dependencies: ["cap-auth"],
 
-    schemas: [permissionGroupSchema, permissionAssignmentSchema],
+    entities: [permissionGroupSchema, permissionAssignmentSchema],
     actions: [createGroupAction, assignUserAction, revokeUserAction, updatePermissionsAction],
 
     extensions: middlewares ? { middlewares } : undefined,

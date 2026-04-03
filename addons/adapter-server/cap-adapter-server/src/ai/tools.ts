@@ -176,13 +176,13 @@ export function buildTools(ctx: ToolContext) {
       },
     });
 
-    tools.listSchemas = tool({
+    tools.listEntities = tool({
       description:
         "List all available schemas in the system. " +
         "Use this to give the user an overview of what data types exist.",
       inputSchema: z.object({}),
       execute: async () => {
-        const names = ontology.listSchemas();
+        const names = ontology.listEntities();
         const schemas = names.map((name) => {
           const desc = ontology.describe(name);
           return {
@@ -197,14 +197,14 @@ export function buildTools(ctx: ToolContext) {
       },
     });
 
-    tools.searchSchemas = tool({
+    tools.searchEntities = tool({
       description:
         "Search schemas by keyword. Matches against schema names, labels, descriptions, and field names.",
       inputSchema: z.object({
         query: z.string().describe("Search keyword"),
       }),
       execute: async (input: { query: string }) => {
-        const results = ontology.searchSchemas(input.query);
+        const results = ontology.searchEntities(input.query);
         return {
           results: results.map((d) => ({
             name: d.name,

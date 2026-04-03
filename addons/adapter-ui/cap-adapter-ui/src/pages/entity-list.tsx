@@ -1,5 +1,5 @@
 /**
- * SchemaListPage — Dynamic schema view with List/Calendar toggle.
+ * EntityListPage — Dynamic schema view with List/Calendar toggle.
  *
  * Fetches schema + view definitions from server. Shows error states
  * when API is unavailable — no silent demo data fallback.
@@ -39,7 +39,7 @@ import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
 import { pushNotification } from "../hooks/use-notifications";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
-import { useSchemaBundle } from "../hooks/use-entity-bundle";
+import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { useSchemaLabel } from "../i18n/use-entity-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
@@ -235,7 +235,7 @@ function findSelfRefField(
   return null;
 }
 
-export function SchemaListPage() {
+export function EntityListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { resolveLabel } = useSchemaLabel();
@@ -247,7 +247,7 @@ export function SchemaListPage() {
     loading: bundleLoading,
     error: bundleError,
     reload: reloadBundle,
-  } = useSchemaBundle(schemaName ?? "");
+  } = useEntityBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
   const explicitListView = getPrimaryView(bundle?.views, "list") as

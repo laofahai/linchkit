@@ -291,9 +291,9 @@ describe("buildRelationGraph", () => {
     }
   });
 
-  it("forSchema() returns all relations involving the schema", () => {
+  it("forEntity() returns all relations involving the schema", () => {
     const graph = buildRelationGraph(caps);
-    const all = graph.forSchema("leave_request");
+    const all = graph.forEntity("leave_request");
     expect(all.length).toBeGreaterThan(0);
     for (const r of all) {
       const involved = r.from.schema === "leave_request" || r.to.schema === "leave_request";

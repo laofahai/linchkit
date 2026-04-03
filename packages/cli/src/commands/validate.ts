@@ -80,10 +80,10 @@ export const validateCommand = defineCommand({
     const automations: AutomationDefinition[] = [];
 
     for (const cap of capabilities) {
-      if (cap.schemas) schemas.push(...cap.schemas);
+      if (cap.entities) schemas.push(...cap.entities);
       if (cap.actions) actions.push(...cap.actions);
       if (cap.interfaces) interfaces.push(...cap.interfaces);
-      if (cap.links) links.push(...cap.links);
+      if (cap.relations) links.push(...cap.relations);
       if (cap.automations) automations.push(...cap.automations);
     }
 

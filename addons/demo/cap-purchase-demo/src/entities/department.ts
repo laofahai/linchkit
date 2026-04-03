@@ -8,7 +8,7 @@
 
 import type { EntityDefinition } from "@linchkit/core";
 
-export const departmentSchema: EntityDefinition = {
+export const departmentEntity: EntityDefinition = {
   name: "department",
   label: "t:schemas.department._label",
   description: "Organizational department that owns purchase requests",

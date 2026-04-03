@@ -1,5 +1,5 @@
 /**
- * SchemaFormPage — Dynamic record view powered by schema bundle from API.
+ * EntityFormPage — Dynamic record view powered by schema bundle from API.
  *
  * Control panel: [← back] ............... [business actions | edit/save]
  * Sheet card:    [Record Title]  [Status Bar]
@@ -20,7 +20,7 @@ import { RelatedRecordsTab } from "../components/related-records-tab";
 import { StatusBar, type StatusBarStep, type StateTransitionInfo } from "../components/status-bar";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
-import { useSchemaBundle } from "../hooks/use-entity-bundle";
+import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useSchemaLabel } from "../i18n/use-entity-label";
 import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
@@ -33,7 +33,7 @@ import {
   getTransitionActionNames,
 } from "../lib/entity-form-utils";
 import { useFormActions } from "./entity-form-actions";
-import { SchemaFormHeader } from "./entity-form-header";
+import { EntityFormHeader } from "./entity-form-header";
 import {
   BundleErrorState,
   FormLoadingSkeleton,
@@ -41,7 +41,7 @@ import {
   RecordErrorState,
 } from "./entity-form-states";
 
-export function SchemaFormPage() {
+export function EntityFormPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const params = useParams({ strict: false }) as { name?: string; id?: string };
@@ -58,7 +58,7 @@ export function SchemaFormPage() {
     loading: bundleLoading,
     error: bundleError,
     reload: reloadBundle,
-  } = useSchemaBundle(schemaName ?? "");
+  } = useEntityBundle(schemaName ?? "");
 
   const schema = bundle?.schema;
   const formView = useMemo(
@@ -360,7 +360,7 @@ export function SchemaFormPage() {
   return (
     <div className="bg-muted/30 min-h-full">
       {/* Sticky control panel */}
-      <SchemaFormHeader
+      <EntityFormHeader
         t={t}
         schemaName={schemaName}
         recordId={params.id}

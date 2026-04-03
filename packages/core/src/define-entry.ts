@@ -39,6 +39,6 @@ export {
   ValidationError,
 } from "./errors";
 // Zod schema generator (depends only on zod, browser-safe)
-export { generateZodSchema } from "./schema/entity-to-zod";
+export { generateZodSchema } from "./entity/entity-to-zod";
 // Re-export all types for convenience
 export * from "./types-entry";

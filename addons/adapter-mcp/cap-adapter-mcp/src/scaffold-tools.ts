@@ -35,8 +35,8 @@ export const ${name}_capability: CapabilityDefinition = {
   category: "business",
   version: "0.1.0",
 
-  schemas: [
-    // Define schemas here
+  entities: [
+    // Define entities here
     // {
     //   name: "${name}",
     //   label: "${pascalName}",

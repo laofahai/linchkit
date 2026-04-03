@@ -117,11 +117,11 @@ export {
 export {
   createDerivedPropertyEngine,
   DerivedPropertyEngine,
-} from "./schema/derived-property";
-export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
-export { createRelationRegistry, RelationRegistry } from "./schema/relation-registry";
-export { createInterfaceRegistry, InterfaceRegistry } from "./schema/entity-interface";
-export { createEntityRegistry, EntityRegistry } from "./schema/entity-registry";
+} from "./entity/derived-property";
+export { generateDrizzleSchemaFile } from "./entity/generate-drizzle-schema";
+export { createRelationRegistry, RelationRegistry } from "./entity/relation-registry";
+export { createInterfaceRegistry, InterfaceRegistry } from "./entity/entity-interface";
+export { createEntityRegistry, EntityRegistry } from "./entity/entity-registry";
 export {
   buildColumn,
   buildSystemColumns,
@@ -129,9 +129,9 @@ export {
   convertSchemaRelationshipFieldsToImplicitLinks,
   type DrizzleGeneratorOptions,
   generateDrizzleTable,
-  generateLinkColumns,
-  type LinkColumnsResult,
-} from "./schema/entity-to-drizzle";
+  generateRelationColumns,
+  type RelationColumnsResult,
+} from "./entity/entity-to-drizzle";
 
 // === Event bus ===
 

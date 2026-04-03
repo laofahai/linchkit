@@ -47,6 +47,6 @@ export function SchemasProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useSchemas() {
+export function useEntities() {
   return useContext(SchemasContext);
 }

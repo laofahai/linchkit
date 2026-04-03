@@ -411,7 +411,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     handlers: eventHandlerRegistry,
     interfaces: interfaceRegistry,
   });
-  console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listSchemas().length} schemas)`);
+  console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
 
   // ── Health check registry ──
   const healthCheckRegistry = new HealthCheckRegistry();

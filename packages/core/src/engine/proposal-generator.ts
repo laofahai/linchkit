@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { BusinessRuleError } from "../errors";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
-import type { EntityRegistry } from "../schema/entity-registry";
+import type { EntityRegistry } from "../entity/entity-registry";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
 import type {

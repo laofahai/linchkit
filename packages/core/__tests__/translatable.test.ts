@@ -11,7 +11,7 @@ import {
   resolveTranslation,
   validateTranslatableSchema,
   wrapTranslatableValue,
-} from "../src/schema/translatable";
+} from "../src/entity/translatable";
 import type { EntityDefinition } from "../src/types/entity";
 
 describe("resolveTranslatableValue", () => {

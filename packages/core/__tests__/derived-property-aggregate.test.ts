@@ -19,8 +19,8 @@ import {
   computeAggregate,
   createDerivedPropertyEngine,
   resolveAggregateValue,
-} from "../src/schema/derived-property";
-import { createRelationRegistry } from "../src/schema/relation-registry";
+} from "../src/entity/derived-property";
+import { createRelationRegistry } from "../src/entity/relation-registry";
 import type { RelationDefinition } from "../src/types/relation";
 import type { EntityDefinition } from "../src/types/entity";
 

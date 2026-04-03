@@ -37,7 +37,7 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
 
     structuralCheck(): StructuralIssue[] {
       const issues: StructuralIssue[] = [];
-      const schemas = opts.ontology.listSchemas();
+      const schemas = opts.ontology.listEntities();
 
       for (const schemaName of schemas) {
         const descriptor = opts.ontology.describe(schemaName);

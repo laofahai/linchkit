@@ -26,7 +26,7 @@ export class RelationRegistry implements RelationRegistryInterface {
   /**
    * Get all links for a schema (both outgoing and incoming) as LinkInfo[].
    */
-  linksFor(schemaName: string): LinkInfo[] {
+  relationsFor(schemaName: string): LinkInfo[] {
     const result: LinkInfo[] = [];
 
     for (const link of this.links.values()) {
@@ -64,7 +64,7 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /** Get all outgoing links from a schema */
-  outgoingLinks(schemaName: string): RelationDefinition[] {
+  outgoingRelations(schemaName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
     for (const link of this.links.values()) {
       if (link.from === schemaName) {
@@ -75,7 +75,7 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /** Get all incoming links to a schema */
-  incomingLinks(schemaName: string): RelationDefinition[] {
+  incomingRelations(schemaName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
     for (const link of this.links.values()) {
       if (link.to === schemaName) {

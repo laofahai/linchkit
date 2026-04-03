@@ -23,7 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "@/hooks/use-entity-bundle";
+import { useEntityBundle } from "@/hooks/use-entity-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";
@@ -31,7 +31,7 @@ import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 export function ManyToManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
-  const { bundle: targetBundle } = useSchemaBundle(targetSchema);
+  const { bundle: targetBundle } = useEntityBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
 
   // If value is already an array of expanded objects (server-side resolution)
@@ -82,7 +82,7 @@ export function ManyToManyInput({
 }: WidgetInputProps) {
   const { t } = useTranslation();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
-  const { bundle: targetBundle } = useSchemaBundle(targetSchema);
+  const { bundle: targetBundle } = useEntityBundle(targetSchema);
   const titleField = targetBundle?.schema.presentation?.titleField;
   const [open, setOpen] = useState(false);
 

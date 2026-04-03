@@ -120,8 +120,8 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   // Register capabilities (schemas + actions from each)
   if (options?.capabilities) {
     for (const cap of options.capabilities) {
-      if (cap.schemas) {
-        for (const schema of cap.schemas) {
+      if (cap.entities) {
+        for (const schema of cap.entities) {
           entityRegistry.register(schema);
         }
       }

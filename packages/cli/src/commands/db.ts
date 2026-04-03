@@ -41,8 +41,8 @@ async function loadSchemasAndLinks(): Promise<{
   const schemas: EntityDefinition[] = [];
   const links: RelationDefinition[] = [];
   for (const cap of capabilities) {
-    if (cap.schemas) schemas.push(...cap.schemas);
-    if (cap.links) links.push(...cap.links);
+    if (cap.entities) schemas.push(...cap.entities);
+    if (cap.relations) links.push(...cap.relations);
   }
 
   // Auto-promote schema relationship fields to implicit links (same as dev.ts)

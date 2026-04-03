@@ -8,15 +8,15 @@ import { buildSystemPrompt } from "../src/ai/system-prompt";
 function createMockOntologyRegistry(schemas: EntityDescriptor[]): OntologyRegistry {
   return {
     describe: (name: string) => schemas.find((s) => s.name === name),
-    listSchemas: () => schemas.map((s) => s.name),
-    searchSchemas: () => [],
+    listEntities: () => schemas.map((s) => s.name),
+    searchEntities: () => [],
     actionsFor: () => [],
     rulesFor: () => [],
     stateFor: () => undefined,
     viewsFor: () => [],
     flowsFor: () => [],
     handlersFor: () => [],
-    relatedSchemas: () => [],
+    relatedEntities: () => [],
     toJSON: () => ({}),
   } as OntologyRegistry;
 }

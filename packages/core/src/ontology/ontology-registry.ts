@@ -96,7 +96,7 @@ interface ActionRegistryLike {
 
 /** Minimal interface for RelationRegistry */
 interface RelationRegistryLike {
-  linksFor(schemaName: string): Array<{
+  relationsFor(schemaName: string): Array<{
     link: {
       name: string;
       from: string;
@@ -148,35 +148,35 @@ export interface OntologyRegistry {
   /** Get complete descriptor for a schema */
   describe(schemaName: string): EntityDescriptor | undefined;
 
-  /** List all schema names in the ontology */
-  listSchemas(): string[];
+  /** List all entity names in the ontology */
+  listEntities(): string[];
 
-  /** Search schemas by keyword (matches name, label, description, field names) */
-  searchSchemas(query: string): EntityDescriptor[];
+  /** Search entities by keyword (matches name, label, description, field names) */
+  searchEntities(query: string): EntityDescriptor[];
 
-  /** Get all actions operating on a schema */
-  actionsFor(schemaName: string): ActionDefinition[];
+  /** Get all actions operating on an entity */
+  actionsFor(entityName: string): ActionDefinition[];
 
-  /** Get all rules affecting a schema */
-  rulesFor(schemaName: string): RuleDefinition[];
+  /** Get all rules affecting an entity */
+  rulesFor(entityName: string): RuleDefinition[];
 
-  /** Get the state machine for a schema (if any) */
-  stateFor(schemaName: string): StateDefinition | undefined;
+  /** Get the state machine for an entity (if any) */
+  stateFor(entityName: string): StateDefinition | undefined;
 
-  /** Get all views for a schema */
-  viewsFor(schemaName: string): ViewDefinition[];
+  /** Get all views for an entity */
+  viewsFor(entityName: string): ViewDefinition[];
 
-  /** Get all flows related to a schema */
-  flowsFor(schemaName: string): FlowDefinition[];
+  /** Get all flows related to an entity */
+  flowsFor(entityName: string): FlowDefinition[];
 
-  /** Get all event handlers related to a schema */
-  handlersFor(schemaName: string): EventHandlerDefinition[];
+  /** Get all event handlers related to an entity */
+  handlersFor(entityName: string): EventHandlerDefinition[];
 
-  /** Get all relations for a schema */
-  relatedSchemas(schemaName: string): RelationDescriptor[];
+  /** Get all relations for an entity */
+  relatedEntities(entityName: string): RelationDescriptor[];
 
-  /** Get all schema names that implement a given interface */
-  schemasImplementing(interfaceName: string): string[];
+  /** Get all entity names that implement a given interface */
+  entitiesImplementing(interfaceName: string): string[];
 
   /** Export full ontology as JSON */
   toJSON(): Record<string, EntityDescriptor>;
@@ -288,7 +288,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
     const relations: RelationDescriptor[] = [];
     if (deps.links) {
-      for (const info of deps.links.linksFor(schemaName)) {
+      for (const info of deps.links.relationsFor(schemaName)) {
         relations.push({
           linkName: info.link.name,
           direction: info.direction,
@@ -371,11 +371,11 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       return getOrBuild(schemaName);
     },
 
-    listSchemas(): string[] {
+    listEntities(): string[] {
       return deps.schemas.getAll().map((s) => s.name);
     },
 
-    searchSchemas(query: string): EntityDescriptor[] {
+    searchEntities(query: string): EntityDescriptor[] {
       const q = query.toLowerCase();
       const results: EntityDescriptor[] = [];
 
@@ -429,12 +429,12 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       return handlersBySchema.get(schemaName) ?? [];
     },
 
-    relatedSchemas(schemaName: string): RelationDescriptor[] {
-      const desc = getOrBuild(schemaName);
+    relatedEntities(entityName: string): RelationDescriptor[] {
+      const desc = getOrBuild(entityName);
       return desc?.relations ?? [];
     },
 
-    schemasImplementing(interfaceName: string): string[] {
+    entitiesImplementing(interfaceName: string): string[] {
       return deps.interfaces ? deps.interfaces.implementors(interfaceName) : [];
     },
 

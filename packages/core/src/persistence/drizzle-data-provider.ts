@@ -25,7 +25,7 @@ import {
   getTranslatableFields,
   normalizeTranslatableValue,
   resolveTranslatableValue,
-} from "../schema/translatable";
+} from "../entity/translatable";
 import type { EntityDefinition } from "../types/entity";
 import type { TableRegistry } from "./table-registry";
 

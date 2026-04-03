@@ -39,7 +39,7 @@ export const capAuth = defineCapability({
 
   dependencies: [],
 
-  schemas: [userSchema, sessionSchema, apiKeySchema, tokenSchema],
+  entities: [userSchema, sessionSchema, apiKeySchema, tokenSchema],
   actions: [loginAction, logoutAction, createApiKeyAction, refreshTokenAction, resetPasswordAction],
   states: [userLifecycleState],
 

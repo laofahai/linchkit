@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { generateDrizzleTable } from "../src/schema/entity-to-drizzle";
+import { generateDrizzleTable } from "../src/entity/entity-to-drizzle";
 import type { EntityDefinition } from "../src/types/entity";
 
 /** Helper: get column config by name from a table */

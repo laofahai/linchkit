@@ -10,7 +10,7 @@
  *   - Naming convention checks (no duplicates, valid format)
  */
 
-import type { EntityRegistry } from "../schema/entity-registry";
+import type { EntityRegistry } from "../entity/entity-registry";
 import type { ActionDefinition } from "../types/action";
 import type {
   ChangeDefinition,
@@ -27,7 +27,7 @@ import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────
 // Relationship fields (ref/has_many/many_to_many) are valid but virtual
-// They don't produce data columns — FK columns are added by generateLinkColumns
+// They don't produce data columns — FK columns are added by generateRelationColumns
 
 const VALID_FIELD_TYPES = new Set<FieldType>([
   "string",

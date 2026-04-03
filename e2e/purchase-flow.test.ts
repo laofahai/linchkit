@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { approveAction, purchaseRequestSchema, submitAction } from "@linchkit/cap-purchase-demo";
+import { approveAction, purchaseRequestEntity, submitAction } from "@linchkit/cap-purchase-demo";
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
@@ -23,11 +23,11 @@ const BASE = `http://localhost:${PORT}`;
 const store = new InMemoryStore();
 const executionLogger = new InMemoryExecutionLogger();
 const entityRegistry = new EntityRegistry();
-entityRegistry.register(purchaseRequestSchema);
+entityRegistry.register(purchaseRequestEntity);
 
 const executor = createActionExecutor({ dataProvider: store, executionLogger });
 const allActions = [
-  ...generateCrudActions(purchaseRequestSchema),
+  ...generateCrudActions(purchaseRequestEntity),
   e2eSubmitAction,
   e2eApproveAction,
 ];
@@ -35,7 +35,7 @@ for (const action of allActions) {
   executor.registry.register(action);
 }
 
-const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
+const graphqlSchema = buildGraphQLSchema([purchaseRequestEntity], {
   executor,
   dataProvider: store,
   actions: [e2eSubmitAction, e2eApproveAction],

@@ -22,9 +22,9 @@ import {
 import { purchaseApprovalFlow } from "./flows/purchase-approval";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./relations";
-import { departmentSchema } from "./schemas/department";
-import { purchaseItemSchema } from "./schemas/purchase-item";
-import { purchaseRequestSchema } from "./schemas/purchase-request";
+import { purchaseRequestEntity } from "./entities/purchase-request";
+import { departmentEntity } from "./entities/department";
+import { purchaseItemEntity } from "./entities/purchase-item";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";
@@ -42,11 +42,11 @@ export const capPurchaseDemo = defineCapability({
   version: "0.1.0",
 
   interfaces: [auditableInterface],
-  schemas: [purchaseRequestSchema, departmentSchema, purchaseItemSchema],
+  entities: [purchaseRequestEntity, departmentEntity, purchaseItemEntity],
   actions: [submitAction, approveAction, rejectAction],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
-  links: [requestToDepartment, requestToItems],
+  relations: [requestToDepartment, requestToItems],
   flows: [purchaseApprovalFlow],
   automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 

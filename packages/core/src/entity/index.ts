@@ -26,8 +26,8 @@ export { createEntityRegistry, EntityRegistry } from "./entity-registry";
 export {
   type DrizzleGeneratorOptions,
   generateDrizzleTable,
-  generateLinkColumns,
-  type LinkColumnsResult,
+  generateRelationColumns,
+  type RelationColumnsResult,
 } from "./entity-to-drizzle";
 export { generateZodSchema, type ZodGeneratorOptions } from "./entity-to-zod";
 export {

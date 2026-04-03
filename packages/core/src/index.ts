@@ -246,13 +246,13 @@ export {
   isDerivedField,
   resolveAggregateValue,
   resolveDerivedValue,
-} from "./schema/derived-property";
-export type { RelationRegistry } from "./schema/relation-registry";
-export { createRelationRegistry } from "./schema/relation-registry";
-export type { InterfaceRegistry } from "./schema/entity-interface";
-export { createInterfaceRegistry } from "./schema/entity-interface";
-export type { EntityRegistry } from "./schema/entity-registry";
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema/entity-to-zod";
+} from "./entity/derived-property";
+export type { RelationRegistry } from "./entity/relation-registry";
+export { createRelationRegistry } from "./entity/relation-registry";
+export type { InterfaceRegistry } from "./entity/entity-interface";
+export { createInterfaceRegistry } from "./entity/entity-interface";
+export type { EntityRegistry } from "./entity/entity-registry";
+export { generateZodSchema, type ZodGeneratorOptions } from "./entity/entity-to-zod";
 export {
   createTranslatableValue,
   getTranslatableFields,
@@ -267,7 +267,7 @@ export {
   type TranslatableValue,
   validateTranslatableSchema,
   wrapTranslatableValue,
-} from "./schema/translatable";
+} from "./entity/translatable";
 // Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
 export type { MaskRecordOptions } from "./security";
 // Type exports

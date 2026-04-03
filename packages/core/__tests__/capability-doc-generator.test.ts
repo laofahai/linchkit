@@ -24,7 +24,7 @@ const purchaseCapability: CapabilityDefinition = {
   category: "business",
   version: "1.2.0",
   dependencies: ["cap-employee"],
-  schemas: [
+  entities: [
     {
       name: "purchase_request",
       label: "Purchase Request",
@@ -110,7 +110,7 @@ const purchaseCapability: CapabilityDefinition = {
       fields: [{ field: "title" }, { field: "amount" }, { field: "department_id" }],
     },
   ],
-  links: [
+  relations: [
     {
       name: "dept_purchase",
       from: "department",
@@ -128,7 +128,7 @@ const employeeCapability: CapabilityDefinition = {
   type: "standard",
   category: "business",
   version: "1.0.0",
-  schemas: [
+  entities: [
     {
       name: "employee",
       label: "Employee",

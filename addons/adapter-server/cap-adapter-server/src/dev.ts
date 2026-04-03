@@ -97,11 +97,11 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   const extraMutationFields: Record<string, unknown> = {};
 
   for (const cap of capabilities) {
-    if (cap.schemas) schemas.push(...cap.schemas);
+    if (cap.entities) schemas.push(...cap.entities);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.states) states.push(...cap.states);
     if (cap.views) views.push(...cap.views);
-    if (cap.links) links.push(...cap.links);
+    if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
 
     // Collect seed data from capabilities

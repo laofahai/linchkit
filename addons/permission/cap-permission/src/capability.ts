@@ -26,7 +26,7 @@ export const capPermission = defineCapability({
 
   dependencies: ["cap-auth"],
 
-  schemas: [permissionGroupSchema, permissionAssignmentSchema],
+  entities: [permissionGroupSchema, permissionAssignmentSchema],
   actions: [createGroupAction, assignUserAction, revokeUserAction, updatePermissionsAction],
 
   systemPermissions: ["database.read", "database.write", "event.emit"],

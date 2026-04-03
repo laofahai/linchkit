@@ -32,7 +32,7 @@ export interface CapabilityValidationResult {
  */
 export function validateCapability(capability: CapabilityDefinition): CapabilityValidationResult {
   const issues: ValidationIssue[] = [];
-  const schemaNames = new Set((capability.schemas ?? []).map((s) => s.name));
+  const schemaNames = new Set((capability.entities ?? []).map((s) => s.name));
   const actionNames = new Set((capability.actions ?? []).map((a) => a.name));
   const stateNames = new Map<string, Set<string>>();
 
@@ -122,7 +122,7 @@ export function validateCapability(capability: CapabilityDefinition): Capability
     valid: !hasErrors,
     capability: capability.name,
     issues,
-    schemas: { valid: true, count: capability.schemas?.length ?? 0 },
+    schemas: { valid: true, count: capability.entities?.length ?? 0 },
     actions: {
       valid: !issues.some((i) => i.category === "action" && i.type === "error"),
       count: capability.actions?.length ?? 0,

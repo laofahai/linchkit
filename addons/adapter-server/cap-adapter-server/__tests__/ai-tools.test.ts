@@ -36,8 +36,8 @@ function createMockDataProvider(data: Record<string, Record<string, unknown>[]>)
 function createMockOntologyRegistry(schemas: EntityDescriptor[]): OntologyRegistry {
   return {
     describe: (name: string) => schemas.find((s) => s.name === name),
-    listSchemas: () => schemas.map((s) => s.name),
-    searchSchemas: (query: string) =>
+    listEntities: () => schemas.map((s) => s.name),
+    searchEntities: (query: string) =>
       schemas.filter(
         (s) => s.name.includes(query) || s.label?.includes(query) || s.description?.includes(query),
       ),
@@ -47,7 +47,7 @@ function createMockOntologyRegistry(schemas: EntityDescriptor[]): OntologyRegist
     viewsFor: () => [],
     flowsFor: () => [],
     handlersFor: () => [],
-    relatedSchemas: () => [],
+    relatedEntities: () => [],
     toJSON: () => ({}),
   } as OntologyRegistry;
 }
@@ -160,8 +160,8 @@ describe("buildTools — tool registration", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
     expect(tools.describeSchema).toBeDefined();
-    expect(tools.listSchemas).toBeDefined();
-    expect(tools.searchSchemas).toBeDefined();
+    expect(tools.listEntities).toBeDefined();
+    expect(tools.searchEntities).toBeDefined();
   });
 
   test("falls back to entityRegistry describeSchema when no ontologyRegistry", () => {
@@ -169,8 +169,8 @@ describe("buildTools — tool registration", () => {
     const tools = buildTools({ entityRegistry: sr });
     expect(tools.describeSchema).toBeDefined();
     // listSchemas and searchSchemas are NOT available without ontology
-    expect(tools.listSchemas).toBeUndefined();
-    expect(tools.searchSchemas).toBeUndefined();
+    expect(tools.listEntities).toBeUndefined();
+    expect(tools.searchEntities).toBeUndefined();
   });
 });
 
@@ -411,7 +411,7 @@ describe("listSchemas tool", () => {
   test("lists all available schemas", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    const result = await tools.listSchemas.execute({});
+    const result = await tools.listEntities.execute({});
 
     expect(result.total).toBe(2);
     expect(result.schemas).toHaveLength(2);
@@ -428,7 +428,7 @@ describe("searchSchemas tool", () => {
   test("searches schemas by keyword", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    const result = await tools.searchSchemas.execute({ query: "product" });
+    const result = await tools.searchEntities.execute({ query: "product" });
 
     expect(result.total).toBe(1);
     expect(result.results[0].name).toBe("product");
@@ -437,7 +437,7 @@ describe("searchSchemas tool", () => {
   test("returns empty results when nothing matches", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    const result = await tools.searchSchemas.execute({ query: "nonexistent_xyz" });
+    const result = await tools.searchEntities.execute({ query: "nonexistent_xyz" });
 
     expect(result.total).toBe(0);
     expect(result.results).toHaveLength(0);

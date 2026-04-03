@@ -35,7 +35,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
-import { useSchemas } from "@/hooks/use-entities";
+import { useEntities } from "@/hooks/use-entities";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { aiSearch } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
@@ -49,7 +49,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const { t } = useTranslation();
-  const { schemas } = useSchemas();
+  const { schemas } = useEntities();
   const { resolveLabel } = useSchemaLabel();
   const { theme, setTheme } = useTheme();
 

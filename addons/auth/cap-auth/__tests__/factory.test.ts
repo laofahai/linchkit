@@ -52,7 +52,7 @@ describe("createCapAuth factory", () => {
 
   it("should produce 4 schemas", () => {
     const cap = createCapAuth({ provider: createMockProvider() });
-    expect(cap.schemas).toHaveLength(4);
+    expect(cap.entities).toHaveLength(4);
   });
 
   it("should produce 6 actions WITH handlers when provider is supplied", () => {

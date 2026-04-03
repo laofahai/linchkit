@@ -40,7 +40,7 @@ import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/s
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
-import { createLinkDataLoaders } from "./graphql/relation-dataloader";
+import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
@@ -186,7 +186,7 @@ export function createServer(
           ? createTenantAwareDataProvider(dataProvider, tenantId)
           : dataProvider;
       // Create per-request DataLoaders for batched link resolution (avoids N+1)
-      const linkLoaders = scopedProvider ? createLinkDataLoaders(scopedProvider) : undefined;
+      const relationLoaders = scopedProvider ? createRelationDataLoaders(scopedProvider) : undefined;
       return {
         actor,
         tenantId,
@@ -194,7 +194,7 @@ export function createServer(
         dataProvider: scopedProvider,
         permissionGroups,
         schemaMap,
-        linkLoaders,
+        relationLoaders,
       };
     },
   });

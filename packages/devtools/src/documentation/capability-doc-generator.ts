@@ -106,7 +106,7 @@ export interface CapabilityRelationDoc {
  */
 export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpecDoc {
   // Extract schema docs
-  const schemas: CapabilitySchemaDoc[] = (cap.schemas ?? []).map((s) => ({
+  const schemas: CapabilitySchemaDoc[] = (cap.entities ?? []).map((s) => ({
     name: s.name,
     label: s.label,
     description: s.description,
@@ -151,7 +151,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   }));
 
   // Extract relation docs
-  const relations: CapabilityRelationDoc[] = (cap.links ?? []).map((l) => ({
+  const relations: CapabilityRelationDoc[] = (cap.relations ?? []).map((l) => ({
     linkName: l.name,
     from: l.from,
     to: l.to,

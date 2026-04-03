@@ -16,7 +16,7 @@ import type {
 import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core/server";
 
-export type { LinkResolverContext } from "./relation-resolvers";
+export type { RelationResolverContext } from "./relation-resolvers";
 
 import {
   GraphQLBoolean,
@@ -32,8 +32,8 @@ import {
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
-import type { LinkResolverContext } from "./relation-resolvers";
-import { buildLinkFields } from "./relation-resolvers";
+import type { RelationResolverContext } from "./relation-resolvers";
+import { buildRelationFields } from "./relation-resolvers";
 
 // Cache for reusing GraphQLEnumType instances across output and input types
 const enumTypeCache = new Map<string, GraphQLEnumType>();
@@ -260,7 +260,7 @@ export function generateGraphQLObjectType(
           resolve?: (
             obj: Record<string, unknown>,
             args: Record<string, unknown>,
-            ctx: LinkResolverContext,
+            ctx: RelationResolverContext,
           ) => unknown;
         }
       > = {};
@@ -327,7 +327,7 @@ export function generateGraphQLObjectType(
             resolve: (
               obj: Record<string, unknown>,
               _args: Record<string, unknown>,
-              ctx: LinkResolverContext & { locale?: string },
+              ctx: RelationResolverContext & { locale?: string },
             ) => {
               const raw = obj[name];
               if (raw === null || raw === undefined) return null;
@@ -385,8 +385,8 @@ export function generateGraphQLObjectType(
 
       // Link-based relation fields
       if (links && typeMap) {
-        const linkFields = buildLinkFields(schema.name, links, typeMap, moduleLogger);
-        for (const [name, fieldConfig] of Object.entries(linkFields)) {
+        const relationFields = buildRelationFields(schema.name, links, typeMap, moduleLogger);
+        for (const [name, fieldConfig] of Object.entries(relationFields)) {
           // Avoid overwriting existing fields (e.g., if a schema has a field named same as relation)
           if (!fields[name]) {
             fields[name] = fieldConfig;

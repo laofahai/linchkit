@@ -24,7 +24,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AIInsightsPanel } from "@/components/ai-insights-panel";
-import { useSchemas } from "@/hooks/use-entities";
+import { useEntities } from "@/hooks/use-entities";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import {
   type ExecutionLogEntry,
@@ -493,7 +493,7 @@ function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading:
 /** Workspace page — data-driven dashboard with schema stats and recent activity */
 export function WorkspacePage() {
   const { t } = useTranslation();
-  const { schemas, loading: schemasLoading } = useSchemas();
+  const { schemas, loading: schemasLoading } = useEntities();
 
   const [summaries, setSummaries] = useState<Record<string, SchemaSummary>>({});
   const [summariesLoading, setSummariesLoading] = useState(true);

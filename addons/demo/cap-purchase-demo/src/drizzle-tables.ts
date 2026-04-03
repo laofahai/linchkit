@@ -7,6 +7,6 @@
  */
 
 import { generateDrizzleTable } from "@linchkit/core/server";
-import { purchaseRequestSchema } from "./schemas/purchase-request";
+import { purchaseRequestEntity } from "./entities/purchase-request";
 
-export const purchaseRequestTable = generateDrizzleTable(purchaseRequestSchema);
+export const purchaseRequestTable = generateDrizzleTable(purchaseRequestEntity);

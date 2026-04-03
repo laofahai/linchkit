@@ -8,7 +8,7 @@ function makeOntology(schemas: Record<string, Partial<EntityDescriptor>>): Ontol
     describe(name: string) {
       return schemas[name] as EntityDescriptor | undefined;
     },
-    listSchemas() {
+    listEntities() {
       return Object.keys(schemas);
     },
   } as unknown as OntologyRegistry;

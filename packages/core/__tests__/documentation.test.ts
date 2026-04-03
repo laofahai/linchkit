@@ -137,7 +137,7 @@ function createTestDeps(): OntologyRegistryDeps {
     states: [purchaseState],
     views: [purchaseListView],
     links: {
-      linksFor(schemaName: string) {
+      relationsFor(schemaName: string) {
         const results: Array<{
           link: RelationDefinition;
           direction: "outgoing" | "incoming";

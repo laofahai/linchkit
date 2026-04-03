@@ -223,7 +223,7 @@ describe("defineCapability", () => {
       type: "standard",
       category: "business",
       version: "1.0.0",
-      schemas: [
+      entities: [
         defineEntity({
           name: "purchase_request",
           fields: { title: { type: "string" } },
@@ -253,7 +253,7 @@ describe("defineCapability", () => {
 
     expect(cap.name).toBe("purchase_management");
     expect(cap.type).toBe("standard");
-    expect(cap.schemas).toHaveLength(1);
+    expect(cap.entities).toHaveLength(1);
     expect(cap.actions).toHaveLength(1);
     expect(cap.rules).toHaveLength(1);
     expect(cap.ui?.styles).toEqual(["@linchkit/cap-purchase/styles.css"]);

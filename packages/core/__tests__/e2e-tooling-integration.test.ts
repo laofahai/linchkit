@@ -256,7 +256,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     expect(md).toContain("| email |");
 
     // Mermaid diagram: only appears when schemas have outgoing relations
-    // Links registered in RelationRegistry are surfaced via OntologyRegistry.relatedSchemas()
+    // Links registered in RelationRegistry are surfaced via OntologyRegistry.relatedEntities()
     // The ER diagram is generated only from outgoing relations in SchemaDoc.relations
   });
 
@@ -337,7 +337,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     const ontology = buildOntology();
 
     // Department has outgoing link to employee
-    const deptRelations = ontology.relatedSchemas("department");
+    const deptRelations = ontology.relatedEntities("department");
     expect(deptRelations.length).toBeGreaterThan(0);
     const empRelation = deptRelations.find((r) => r.targetSchema === "employee");
     expect(empRelation).toBeDefined();
@@ -955,7 +955,7 @@ describe("E2E: Full tooling pipeline", () => {
       links: relationRegistry,
     });
 
-    expect(ontology.listSchemas()).toHaveLength(3);
+    expect(ontology.listEntities()).toHaveLength(3);
     expect(ontology.describe("employee")).toBeDefined();
     expect(ontology.actionsFor("employee")).toHaveLength(2);
 

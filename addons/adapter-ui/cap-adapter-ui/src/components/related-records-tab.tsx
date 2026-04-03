@@ -12,7 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "../hooks/use-entity-bundle";
+import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { queryList } from "../lib/api";
 import type { AutoListViewDefinition } from "./auto-list/types";
 import { ListView } from "./list-view";
@@ -44,7 +44,7 @@ const SYSTEM_FIELDS = new Set([
 
 /**
  * Derive the FK column name on the child table pointing to parent.
- * Convention matches schema-to-drizzle.ts generateLinkColumns():
+ * Convention matches schema-to-drizzle.ts generateRelationColumns():
  * - one_to_many: FK = `{from}_id` on the `to` (child) table
  * - many_to_one: FK = `{to}_id` on the `from` (child) table
  */
@@ -99,7 +99,7 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
   const childSchemaName = deriveChildSchema(link, parentSchema);
   const fkField = deriveFkField(link, parentSchema);
 
-  const { bundle: childBundle, loading: bundleLoading } = useSchemaBundle(childSchemaName);
+  const { bundle: childBundle, loading: bundleLoading } = useEntityBundle(childSchemaName);
   const childSchema = childBundle?.schema;
 
   // Build or use existing list view

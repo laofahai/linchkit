@@ -100,8 +100,8 @@ export interface ExtensionResolver {
  * 2. Call resolveSchemas/resolveActions/resolveRules before registering into registries
  */
 export function createExtensionResolver(): ExtensionResolver {
-  const schemaExtensions: EntityExtensionEntry[] = [];
-  const schemaOverrides: EntityOverrideEntry[] = [];
+  const entityExtensions: EntityExtensionEntry[] = [];
+  const entityOverrides: EntityOverrideEntry[] = [];
   const actionOverrides: ActionOverrideEntry[] = [];
   const ruleOverrides: RuleOverrideEntry[] = [];
   const conflicts: ResolutionConflict[] = [];
@@ -112,7 +112,7 @@ export function createExtensionResolver(): ExtensionResolver {
     source: string,
     priority: number,
   ): void {
-    schemaExtensions.push({ target, extension, source, priority });
+    entityExtensions.push({ target, extension, source, priority });
   }
 
   function addEntityOverride(
@@ -121,7 +121,7 @@ export function createExtensionResolver(): ExtensionResolver {
     source: string,
     priority: number,
   ): void {
-    schemaOverrides.push({ target, override, source, priority });
+    entityOverrides.push({ target, override, source, priority });
   }
 
   function addActionOverride(
@@ -151,7 +151,7 @@ export function createExtensionResolver(): ExtensionResolver {
     }
 
     // Apply extensions: add new fields, sorted by priority (lower first)
-    const sortedExtensions = [...schemaExtensions].sort((a, b) => a.priority - b.priority);
+    const sortedExtensions = [...entityExtensions].sort((a, b) => a.priority - b.priority);
     for (const entry of sortedExtensions) {
       const schema = schemaMap.get(entry.target);
       if (!schema) continue;
@@ -177,7 +177,7 @@ export function createExtensionResolver(): ExtensionResolver {
     }
 
     // Apply overrides: modify existing field constraints, sorted by priority (lower first, higher wins)
-    const sortedOverrides = [...schemaOverrides].sort((a, b) => a.priority - b.priority);
+    const sortedOverrides = [...entityOverrides].sort((a, b) => a.priority - b.priority);
     for (const entry of sortedOverrides) {
       const schema = schemaMap.get(entry.target);
       if (!schema) continue;

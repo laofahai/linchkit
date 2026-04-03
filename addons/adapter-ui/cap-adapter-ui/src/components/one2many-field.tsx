@@ -31,7 +31,7 @@ import {
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "../hooks/use-entity-bundle";
+import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { createRecord, deleteRecord, graphql, updateRecord } from "../lib/api";
 
 // ── Types ────────────────────────────────────────────────
@@ -98,7 +98,7 @@ function toCamelCase(name: string): string {
 }
 
 /** Derive the FK column name on the child table pointing to parent.
- *  Must match the convention in schema-to-drizzle.ts generateLinkColumns():
+ *  Must match the convention in schema-to-drizzle.ts generateRelationColumns():
  *  - one_to_many: FK = `{from}_id` on the `to` (child) table
  *  - many_to_one: FK = `{to}_id` on the `from` (child) table
  */
@@ -167,7 +167,7 @@ export function One2ManyField({
 }: One2ManyFieldProps) {
   const { t } = useTranslation();
   const childSchemaName = link.cardinality === "one_to_many" ? link.to : link.from;
-  const { bundle: childBundle, loading: bundleLoading } = useSchemaBundle(childSchemaName);
+  const { bundle: childBundle, loading: bundleLoading } = useEntityBundle(childSchemaName);
 
   const [records, setRecords] = useState<ChildRecord[]>([]);
   const [loading, setLoading] = useState(true);

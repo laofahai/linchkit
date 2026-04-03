@@ -42,7 +42,7 @@ export function useSchemaLabel() {
  * Non-hook utility for resolving schema labels outside React components.
  * Uses the i18n instance directly.
  */
-export function resolveSchemaLabel(
+export function resolveEntityLabel(
   i18n: { t: (key: string, options?: Record<string, unknown>) => string },
   label: string | undefined,
   fallback: string,

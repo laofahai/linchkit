@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import type { TFunction } from "i18next";
 
-export interface SchemaFormHeaderProps {
+export interface EntityFormHeaderProps {
   t: TFunction;
   schemaName: string;
   recordId: string | undefined;
@@ -55,7 +55,7 @@ export interface SchemaFormHeaderProps {
   onAiFill: () => void;
 }
 
-export function SchemaFormHeader({
+export function EntityFormHeader({
   t,
   isCreate,
   isEditing,
@@ -74,7 +74,7 @@ export function SchemaFormHeader({
   aiEnabled,
   aiLoading,
   onAiFill,
-}: SchemaFormHeaderProps) {
+}: EntityFormHeaderProps) {
   return (
     <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
       <div className="flex items-center justify-between gap-2">

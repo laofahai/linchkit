@@ -10,9 +10,9 @@ import {
   getDerivedStrategy,
   isDerivedField,
   resolveDerivedValue,
-} from "../src/schema/derived-property";
-import { buildTableColumns } from "../src/schema/entity-to-drizzle";
-import { generateZodSchema } from "../src/schema/entity-to-zod";
+} from "../src/entity/derived-property";
+import { buildTableColumns } from "../src/entity/entity-to-drizzle";
+import { generateZodSchema } from "../src/entity/entity-to-zod";
 import type { EntityDefinition } from "../src/types/entity";
 
 // ── evaluateExpression ────────────────────────────────────────

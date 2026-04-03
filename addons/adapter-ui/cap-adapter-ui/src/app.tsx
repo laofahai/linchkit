@@ -32,8 +32,8 @@ import { FlowDetailPage } from "./pages/flow-detail";
 import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
-import { SchemaFormPage } from "./pages/entity-form";
-import { SchemaListPage } from "./pages/entity-list";
+import { EntityFormPage } from "./pages/entity-form";
+import { EntityListPage } from "./pages/entity-list";
 import { StateMachineDetailPage } from "./pages/state-machines";
 import { SystemOverviewPage } from "./pages/system-overview";
 
@@ -141,14 +141,14 @@ function buildRouter(appConfig: AppConfig) {
   const schemaListRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/schemas/$name",
-    component: SchemaListPage,
+    component: EntityListPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
   const schemaFormNewRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/schemas/$name/new",
-    component: SchemaFormPage,
+    component: EntityFormPage,
     validateSearch: (search: Record<string, unknown>) => ({
       clone: (search.clone as string) || undefined,
       parent: (search.parent as string) || undefined,
@@ -159,7 +159,7 @@ function buildRouter(appConfig: AppConfig) {
   const schemaFormEditRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/schemas/$name/$id",
-    component: SchemaFormPage,
+    component: EntityFormPage,
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 

@@ -131,11 +131,11 @@ export interface CapabilityDefinition {
   bridges?: Array<{ capability: string }>;
 
   interfaces?: InterfaceDefinition[];
-  schemas?: EntityDefinition[];
+  entities?: EntityDefinition[];
   actions?: ActionDefinition[];
   rules?: RuleDefinition[];
   states?: StateDefinition[];
-  links?: RelationDefinition[];
+  relations?: RelationDefinition[];
   events?: EventDefinition[];
   eventHandlers?: EventHandlerDefinition[];
   views?: ViewDefinition[];
@@ -177,9 +177,9 @@ export interface GraphQLExtensionRegistration {
 
 /** Extension points a capability can register */
 export interface CapabilityExtensions {
-  /** Schema extensions (for Bridge / Adapter) */
-  schemas?: Array<{ target: string; extension: EntityExtension }>;
-  schemaOverrides?: Array<{ target: string; override: EntityOverride }>;
+  /** Entity extensions (for Bridge / Adapter) */
+  entities?: Array<{ target: string; extension: EntityExtension }>;
+  entityOverrides?: Array<{ target: string; override: EntityOverride }>;
   actions?: Array<{ target: string; override: ActionOverride }>;
   rules?: Array<{ target: string; override: RuleOverride }>;
   states?: Array<{ target: string; extension: StateExtension }>;

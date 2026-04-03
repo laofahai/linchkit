@@ -237,8 +237,8 @@ export function validateCapabilityDoc(manifest: CapabilityDefinition): DocComple
   }
 
   // Check each schema within the capability
-  if (manifest.schemas) {
-    for (const schema of manifest.schemas) {
+  if (manifest.entities) {
+    for (const schema of manifest.entities) {
       totalItems++;
       if (schema.description) {
         documentedItems++;

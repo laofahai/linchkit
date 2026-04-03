@@ -132,7 +132,7 @@ export function mountAdminRoutes(
       const dp = options.dataProvider;
       const uptimeMs = Date.now() - serverStartedAt;
       const actionCount = capabilities.reduce((sum, c) => sum + (c.actions?.length ?? 0), 0);
-      const linkCount = capabilities.reduce((sum, c) => sum + (c.links?.length ?? 0), 0);
+      const linkCount = capabilities.reduce((sum, c) => sum + (c.relations?.length ?? 0), 0);
       const eventHandlerCount = capabilities.reduce(
         (sum, c) => sum + (c.eventHandlers?.length ?? 0),
         0,
@@ -158,12 +158,12 @@ export function mountAdminRoutes(
         type: c.type ?? "standard",
         label: c.label,
         description: c.description,
-        schemas: c.schemas?.length ?? 0,
+        entities: c.entities?.length ?? 0,
         actions: c.actions?.length ?? 0,
         rules: c.rules?.length ?? 0,
         flows: c.flows?.length ?? 0,
         states: c.states?.length ?? 0,
-        links: c.links?.length ?? 0,
+        relations: c.relations?.length ?? 0,
         eventHandlers: c.eventHandlers?.length ?? 0,
         pages: c.pages?.length ?? 0,
         menuItems: c.extensions?.menuItems?.length ?? 0,
@@ -451,7 +451,7 @@ export function mountAdminRoutes(
     })
     // ── Link REST endpoints ─────────────────────────────────
     .get("/api/links", () => {
-      const allLinks = collectFromCapabilities<RelationDefinition>(undefined, capabilities, "links");
+      const allLinks = collectFromCapabilities<RelationDefinition>(undefined, capabilities, "relations");
       return { success: true, data: allLinks };
     })
     // ── Semantic relation endpoint ──────────────────────────

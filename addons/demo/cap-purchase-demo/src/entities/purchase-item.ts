@@ -8,7 +8,7 @@
 
 import type { EntityDefinition } from "@linchkit/core";
 
-export const purchaseItemSchema: EntityDefinition = {
+export const purchaseItemEntity: EntityDefinition = {
   name: "purchase_item",
   label: "t:schemas.purchase_item._label",
   presentation: {

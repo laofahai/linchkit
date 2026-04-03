@@ -190,7 +190,7 @@ export function generateApiDoc(
   ontology: OntologyRegistry,
   options?: ApiDocGeneratorOptions,
 ): SystemDoc {
-  const schemaNames = ontology.listSchemas();
+  const schemaNames = ontology.listEntities();
   const schemas: SchemaDoc[] = [];
 
   for (const name of schemaNames) {

@@ -53,7 +53,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useSchemas } from "@/hooks/use-entities";
+import { useEntities } from "@/hooks/use-entities";
 import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { type ExecutionLogEntry, graphql, queryExecutionLogs, type SchemaInfo } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
@@ -823,7 +823,7 @@ function DashboardWidgetCard({
 
 export function DashboardPage() {
   const { t } = useTranslation();
-  const { schemas } = useSchemas();
+  const { schemas } = useEntities();
 
   const [layout, setLayout] = useState<DashboardLayout>(loadLayout);
   const [editMode, setEditMode] = useState(false);

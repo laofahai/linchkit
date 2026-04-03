@@ -75,8 +75,8 @@ export const checkQualityCommand = defineCommand({
     consola.start("Checking schema definitions...");
     const schemas: SchemaInfo[] = [];
     for (const cap of capabilities) {
-      if (cap.schemas) {
-        for (const s of cap.schemas as EntityDefinition[]) {
+      if (cap.entities) {
+        for (const s of cap.entities as EntityDefinition[]) {
           schemas.push({
             name: s.name,
             fields: Object.entries(s.fields).map(([name, field]) => ({

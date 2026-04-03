@@ -104,7 +104,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
  * Hook to fetch a schema bundle by name.
  * Returns loading state, bundle data, and error state.
  */
-export function useSchemaBundle(name: string) {
+export function useEntityBundle(name: string) {
   const { getBundle, fetchBundle } = useContext(SchemaBundleCacheContext);
   const [bundle, setBundle] = useState<ResolvedSchemaBundle | undefined>(() => getBundle(name));
   const [loading, setLoading] = useState(!getBundle(name));

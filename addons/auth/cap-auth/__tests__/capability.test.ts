@@ -10,8 +10,8 @@ describe("cap-auth capability (static contract)", () => {
   });
 
   it("should define 4 schemas", () => {
-    expect(capAuth.schemas).toHaveLength(4);
-    const names = capAuth.schemas?.map((s) => s.name) ?? [];
+    expect(capAuth.entities).toHaveLength(4);
+    const names = capAuth.entities?.map((s) => s.name) ?? [];
     expect(names).toContain("user");
     expect(names).toContain("session");
     expect(names).toContain("api_key");

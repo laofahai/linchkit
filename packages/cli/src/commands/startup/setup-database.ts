@@ -18,7 +18,7 @@ import {
   DrizzleDataProvider,
   generateDrizzleSchemaFile,
   generateDrizzleTable,
-  generateLinkColumns,
+  generateRelationColumns,
   InMemoryStore,
   TableRegistry,
 } from "@linchkit/core/server";
@@ -98,7 +98,7 @@ export async function setupDatabase(opts: {
 
     // Collect FK columns that need to be added to existing tables from links
     if (links.length > 0) {
-      const { fkColumns, junctionTables } = generateLinkColumns(links, baseTableMap);
+      const { fkColumns, junctionTables } = generateRelationColumns(links, baseTableMap);
 
       // Merge collected FK columns into extraFkColumns map
       for (const [tableName, cols] of Object.entries(fkColumns)) {

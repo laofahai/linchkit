@@ -2,7 +2,7 @@ import { useMatches } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSchemaLabel } from "../i18n/use-entity-label";
 import { useBreadcrumbTitle } from "./use-breadcrumb-title";
-import { useSchemas } from "./use-entities";
+import { useEntities } from "./use-entities";
 
 export interface BreadcrumbItem {
   label: string;
@@ -44,7 +44,7 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
 export function useBreadcrumb(): BreadcrumbItem[] {
   const matches = useMatches();
   const { t } = useTranslation();
-  const { schemas } = useSchemas();
+  const { schemas } = useEntities();
   const { resolveLabel } = useSchemaLabel();
   const { title: customTitle } = useBreadcrumbTitle();
 

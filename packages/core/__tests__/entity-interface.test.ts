@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import { createInterfaceRegistry } from "../src/schema/entity-interface";
-import { createEntityRegistry } from "../src/schema/entity-registry";
+import { createInterfaceRegistry } from "../src/entity/entity-interface";
+import { createEntityRegistry } from "../src/entity/entity-registry";
 import type { InterfaceDefinition, EntityDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 
@@ -535,9 +535,9 @@ describe("OntologyRegistry with interfaces", () => {
       interfaces: ifaceRegistry,
     });
 
-    const implementors = ontology.schemasImplementing("approvable");
+    const implementors = ontology.entitiesImplementing("approvable");
     expect(implementors).toEqual(expect.arrayContaining(["purchase_request", "leave_request"]));
-    expect(ontology.schemasImplementing("nonexistent")).toEqual([]);
+    expect(ontology.entitiesImplementing("nonexistent")).toEqual([]);
   });
 
   it("works without interfaces (backward compatible)", () => {
@@ -559,7 +559,7 @@ describe("OntologyRegistry with interfaces", () => {
     const desc = ontology.describe("simple");
     expect(desc).toBeDefined();
     expect(desc?.interfaces).toEqual([]);
-    expect(ontology.schemasImplementing("anything")).toEqual([]);
+    expect(ontology.entitiesImplementing("anything")).toEqual([]);
   });
 });
 

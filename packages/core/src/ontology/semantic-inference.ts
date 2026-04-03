@@ -90,7 +90,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
     }
 
     // ── 2. Schema ref / has_many → references / contains ─────
-    for (const schema of cap.schemas ?? []) {
+    for (const schema of cap.entities ?? []) {
       for (const [fieldName, field] of Object.entries(schema.fields ?? {})) {
         if (field.type === "ref" && "target" in field && field.target) {
           add({
@@ -284,7 +284,7 @@ export function buildRelationGraph(
       );
     },
 
-    forSchema(schemaName: string): SemanticRelation[] {
+    forEntity(schemaName: string): SemanticRelation[] {
       return allRelations.filter((r) => r.from.schema === schemaName || r.to.schema === schemaName);
     },
   };
@@ -307,7 +307,7 @@ function findCapabilityForSchema(
   schemaName: string,
 ): string | undefined {
   for (const cap of capabilities) {
-    if ((cap.schemas ?? []).some((s) => s.name === schemaName)) {
+    if ((cap.entities ?? []).some((s) => s.name === schemaName)) {
       return cap.name;
     }
   }

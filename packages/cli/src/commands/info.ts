@@ -47,22 +47,22 @@ export const infoCommand = defineCommand({
     const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
     // Collect statistics
-    let schemaCount = 0;
+    let entityCount = 0;
     let actionCount = 0;
     let viewCount = 0;
     let ruleCount = 0;
-    let linkCount = 0;
+    let relationCount = 0;
     let flowCount = 0;
     let stateCount = 0;
     let eventHandlerCount = 0;
     const transportNames: string[] = [];
 
     for (const cap of capabilities) {
-      if (cap.schemas) schemaCount += cap.schemas.length;
+      if (cap.entities) entityCount += cap.entities.length;
       if (cap.actions) actionCount += cap.actions.length;
       if (cap.views) viewCount += cap.views.length;
       if (cap.rules) ruleCount += cap.rules.length;
-      if (cap.links) linkCount += cap.links.length;
+      if (cap.relations) relationCount += cap.relations.length;
       if (cap.flows) flowCount += cap.flows.length;
       if (cap.states) stateCount += cap.states.length;
       if (cap.eventHandlers) eventHandlerCount += cap.eventHandlers.length;
@@ -114,11 +114,11 @@ export const infoCommand = defineCommand({
         })),
         counts: {
           capabilities: capabilities.length,
-          schemas: schemaCount,
+          schemas: entityCount,
           actions: actionCount,
           views: viewCount,
           rules: ruleCount,
-          links: linkCount,
+          links: relationCount,
           flows: flowCount,
           states: stateCount,
           eventHandlers: eventHandlerCount,
@@ -166,11 +166,11 @@ export const infoCommand = defineCommand({
 
     console.log("");
     console.log("  Registered resources:");
-    console.log(`    Schemas:         ${schemaCount}`);
+    console.log(`    Schemas:         ${entityCount}`);
     console.log(`    Actions:         ${actionCount}`);
     console.log(`    Views:           ${viewCount}`);
     console.log(`    Rules:           ${ruleCount}`);
-    console.log(`    Links:           ${linkCount}`);
+    console.log(`    Links:           ${relationCount}`);
     console.log(`    States:          ${stateCount}`);
     console.log(`    Flows:           ${flowCount}`);
     console.log(`    Event Handlers:  ${eventHandlerCount}`);

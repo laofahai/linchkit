@@ -29,12 +29,12 @@ import {
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
-import type { LinkDataLoaders } from "./relation-dataloader";
+import type { RelationDataLoaders } from "./relation-dataloader";
 
 // ── Types ──────────────────────────────────────────────────
 
 /** Context for resolving link relation fields */
-export interface LinkResolverContext {
+export interface RelationResolverContext {
   /** Data provider for fetching related records (optional — resolvers degrade gracefully) */
   dataProvider?: DataProvider;
   /** Tenant ID for data isolation */
@@ -46,7 +46,7 @@ export interface LinkResolverContext {
   /** Schema definitions map for data masking lookups */
   schemaMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (created in context factory) */
-  linkLoaders?: LinkDataLoaders;
+  relationLoaders?: RelationDataLoaders;
 }
 
 // ── Masking helpers ────────────────────────────────────────
@@ -61,7 +61,7 @@ const NON_STRING_FIELD_TYPES = new Set(["number", "boolean", "date", "datetime",
 function applyLinkMasking(
   record: Record<string, unknown>,
   schemaName: string,
-  ctx: LinkResolverContext,
+  ctx: RelationResolverContext,
 ): Record<string, unknown> {
   if (!ctx.actor || !ctx.schemaMap) return record;
   const schemaDef = ctx.schemaMap.get(schemaName);
@@ -91,7 +91,7 @@ function applyLinkMasking(
 function applyLinkMaskingArray(
   records: Record<string, unknown>[],
   schemaName: string,
-  ctx: LinkResolverContext,
+  ctx: RelationResolverContext,
 ): Record<string, unknown>[] {
   return records.map((r) => applyLinkMasking(r, schemaName, ctx));
 }
@@ -104,10 +104,10 @@ function applyLinkMaskingArray(
 async function fetchOne(
   schema: string,
   id: string,
-  ctx: LinkResolverContext,
+  ctx: RelationResolverContext,
 ): Promise<Record<string, unknown> | null> {
-  if (ctx.linkLoaders) {
-    return ctx.linkLoaders.getLoader.load({ schema, id, tenantId: ctx.tenantId });
+  if (ctx.relationLoaders) {
+    return ctx.relationLoaders.getLoader.load({ schema, id, tenantId: ctx.tenantId });
   }
   // Fallback: direct dataProvider call (backward compatible)
   if (!ctx.dataProvider) return null;
@@ -122,10 +122,10 @@ async function fetchByFK(
   schema: string,
   fkColumn: string,
   fkValue: string,
-  ctx: LinkResolverContext,
+  ctx: RelationResolverContext,
 ): Promise<Record<string, unknown>[]> {
-  if (ctx.linkLoaders) {
-    return ctx.linkLoaders.queryLoader.load({ schema, fkColumn, fkValue, tenantId: ctx.tenantId });
+  if (ctx.relationLoaders) {
+    return ctx.relationLoaders.queryLoader.load({ schema, fkColumn, fkValue, tenantId: ctx.tenantId });
   }
   // Fallback: direct dataProvider call (backward compatible)
   if (!ctx.dataProvider) return [];
@@ -233,14 +233,14 @@ function getOrCreateEdgeType(
 
 // ── Link field builder ─────────────────────────────────────
 
-/** Link field definition returned by buildLinkFields */
+/** Link field definition returned by buildRelationFields */
 export type LinkFieldDef = {
   type: GraphQLOutputType;
   description?: string;
   resolve: (
     obj: Record<string, unknown>,
     args: Record<string, unknown>,
-    ctx: LinkResolverContext,
+    ctx: RelationResolverContext,
   ) => Promise<unknown>;
 };
 
@@ -252,7 +252,7 @@ export type LinkFieldDef = {
  * - one_to_many: `{from}_id` column on `to` table
  * - many_to_many: junction table `_link_{name}` with `{from}_id` and `{to}_id`
  */
-export function buildLinkFields(
+export function buildRelationFields(
   schemaName: string,
   links: RelationDefinition[],
   typeMap: Map<string, GraphQLObjectType>,
@@ -280,7 +280,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.to, fkValue, ctx);
                 return record ? applyLinkMasking(record, link.to, ctx) : null;
@@ -305,7 +305,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from} records`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 const records = await fetchByFK(link.from, fkColumn, id, ctx);
                 return applyLinkMaskingArray(records, link.from, ctx);
@@ -334,7 +334,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to} records`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 const records = await fetchByFK(link.to, fkColumn, id, ctx);
                 return applyLinkMaskingArray(records, link.to, ctx);
@@ -359,7 +359,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.from, fkValue, ctx);
                 return record ? applyLinkMasking(record, link.from, ctx) : null;
@@ -387,7 +387,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.to}`,
             resolve: async (obj, _args, ctx) => {
               const fkValue = obj[fkColumn] as string | undefined;
-              if (!fkValue || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
+              if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.to, fkValue, ctx);
                 return record ? applyLinkMasking(record, link.to, ctx) : null;
@@ -412,7 +412,7 @@ export function buildLinkFields(
             description: label ?? `Related ${link.from}`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return null;
+              if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const results = await fetchByFK(link.from, fkColumn, id, ctx);
                 const first = results[0] ?? null;
@@ -458,7 +458,7 @@ export function buildLinkFields(
             description: label ?? `Related ${otherSchema} edges with properties`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 // Query junction table for matching rows
                 const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);
@@ -502,7 +502,7 @@ export function buildLinkFields(
             description: label ?? `Related ${otherSchema} records`,
             resolve: async (obj, _args, ctx) => {
               const id = obj.id as string;
-              if (!id || (!ctx.dataProvider && !ctx.linkLoaders)) return [];
+              if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 // Query junction table for matching rows
                 const junctionRows = await fetchByFK(junctionTable, thisFkCol, id, ctx);

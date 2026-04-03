@@ -46,7 +46,7 @@ function queryKeyStr(k: QueryLoaderKey): string {
  *
  * Must be created once per GraphQL request to ensure proper cache scoping.
  */
-export interface LinkDataLoaders {
+export interface RelationDataLoaders {
   /** Batch-load individual records by (schema, id) */
   getLoader: DataLoader<GetLoaderKey, Record<string, unknown> | null>;
   /** Batch-load query results by (schema, fkColumn, fkValue) */
@@ -58,7 +58,7 @@ export interface LinkDataLoaders {
  *
  * Call this once per GraphQL request (inside the yoga context factory).
  */
-export function createLinkDataLoaders(dataProvider: DataProvider): LinkDataLoaders {
+export function createRelationDataLoaders(dataProvider: DataProvider): RelationDataLoaders {
   // ── GET loader: batch individual record fetches ───────────
   //
   // NOTE on batching semantics:

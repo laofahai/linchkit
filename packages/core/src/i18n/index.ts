@@ -114,4 +114,4 @@ export {
   TRANSLATABLE_FIELD_TYPES,
   validateTranslatableSchema,
   wrapTranslatableValue,
-} from "../schema/translatable";
+} from "../entity/translatable";

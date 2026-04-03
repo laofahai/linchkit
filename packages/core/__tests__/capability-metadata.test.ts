@@ -23,7 +23,7 @@ const validFull = {
   description: "Model Context Protocol transport for LinchKit",
   dependencies: ["@linchkit/cap-auth"],
   extensions: {
-    schemas: ["mcp_connections"],
+    entities: ["mcp_connections"],
     actions: ["mcp:connect", "mcp:disconnect"],
     transports: ["mcp"],
     services: ["mcp-client"],
@@ -52,7 +52,7 @@ describe("capabilityMetadataSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.extensions?.transports).toEqual(["mcp"]);
-      expect(result.data.extensions?.schemas).toEqual(["mcp_connections"]);
+      expect(result.data.extensions?.entities).toEqual(["mcp_connections"]);
       expect(result.data.extensions?.actions).toEqual(["mcp:connect", "mcp:disconnect"]);
       expect(result.data.linchkit?.minVersion).toBe("0.1.0");
       expect(result.data.author).toBe("LinchKit Team");
@@ -167,13 +167,13 @@ describe("capabilityMetadataSchema", () => {
     const result = capabilityMetadataSchema.safeParse({
       ...validMinimal,
       extensions: {
-        schemas: ["users", "sessions"],
+        entities: ["users", "sessions"],
         actions: ["auth:login", "auth:logout"],
       },
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.extensions?.schemas).toEqual(["users", "sessions"]);
+      expect(result.data.extensions?.entities).toEqual(["users", "sessions"]);
       expect(result.data.extensions?.actions).toEqual(["auth:login", "auth:logout"]);
     }
   });

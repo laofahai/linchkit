@@ -15,7 +15,7 @@ describe("scaffold_capability", () => {
     expect(code).toContain('type: "standard"');
     expect(code).toContain('category: "business"');
     expect(code).toContain("inventory_capability");
-    expect(code).toContain("schemas:");
+    expect(code).toContain("entities:");
     expect(code).toContain("actions:");
     expect(code).toContain("rules:");
   });

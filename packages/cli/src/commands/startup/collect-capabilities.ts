@@ -60,11 +60,11 @@ export function collectCapabilityDefinitions(
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
-    if (cap.schemas) schemas.push(...cap.schemas);
+    if (cap.entities) schemas.push(...cap.entities);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.views) views.push(...cap.views);
     if (cap.states) states.push(...cap.states);
-    if (cap.links) links.push(...cap.links);
+    if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
     if (cap.eventHandlers) eventHandlers.push(...cap.eventHandlers);
     if (cap.automations) automations.push(...cap.automations);

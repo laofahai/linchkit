@@ -33,12 +33,12 @@ export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcr
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
-export { resolveSchemaLabel, useSchemaLabel } from "./i18n/use-entity-label";
+export { resolveEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
 // Page components
-export { SchemaFormPage } from "./pages/entity-form";
-export { SchemaListPage } from "./pages/entity-list";
+export { EntityFormPage } from "./pages/entity-form";
+export { EntityListPage } from "./pages/entity-list";
 export { WorkspacePage } from "./pages/workspace";
 
 // Admin route registry

@@ -88,7 +88,7 @@ export interface GraphQLContext {
   /** Schema definitions map for link resolver data masking */
   schemaMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (avoids N+1 queries) */
-  linkLoaders?: import("./relation-dataloader").LinkDataLoaders;
+  relationLoaders?: import("./relation-dataloader").RelationDataLoaders;
 }
 
 /** Maximum page size for list queries */

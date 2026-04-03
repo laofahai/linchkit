@@ -7,7 +7,7 @@
  */
 
 import type { PgTable } from "drizzle-orm/pg-core";
-import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../schema/entity-to-drizzle";
+import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../entity/entity-to-drizzle";
 import type { EntityDefinition } from "../types/entity";
 
 export class TableRegistry {

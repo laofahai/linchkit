@@ -11,7 +11,7 @@
 
 import type { EntityDefinition } from "@linchkit/core";
 
-export const purchaseRequestSchema: EntityDefinition = {
+export const purchaseRequestEntity: EntityDefinition = {
   name: "purchase_request",
   label: "t:schemas.purchase_request._label",
   description: "A purchase request submitted for approval",

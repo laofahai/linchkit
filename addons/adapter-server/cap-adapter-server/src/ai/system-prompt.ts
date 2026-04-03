@@ -92,7 +92,7 @@ export function buildSystemPrompt(options: {
 
   // 2. System overview — list available schemas
   if (ontologyRegistry) {
-    const schemaNames = ontologyRegistry.listSchemas();
+    const schemaNames = ontologyRegistry.listEntities();
     if (schemaNames.length > 0) {
       parts.push(
         "\n## Available Schemas",

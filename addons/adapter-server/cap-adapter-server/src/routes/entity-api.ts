@@ -58,7 +58,7 @@ export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
       );
       // Collect all links related to this schema (from or to)
       const schemaLinks = capabilities.flatMap((cap) =>
-        (cap.links ?? []).filter((l) => l.from === params.name || l.to === params.name),
+        (cap.relations ?? []).filter((l) => l.from === params.name || l.to === params.name),
       );
       const internal = entityRegistry.isInternal(params.name) || undefined;
       return {

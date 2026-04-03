@@ -26,7 +26,7 @@ export interface DrizzleGeneratorOptions {
 }
 
 // Field types that are virtual and should not produce columns
-// Relationship fields (ref/has_many/many_to_many) are handled by generateLinkColumns
+// Relationship fields (ref/has_many/many_to_many) are handled by generateRelationColumns
 const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
 
 /**
@@ -289,7 +289,7 @@ export function generateDrizzleTable(
 // ── Link-based FK and junction table generation ──────────────────────────
 
 /** Result of generating link columns: FK columns to add to existing tables + junction tables */
-export interface LinkColumnsResult {
+export interface RelationColumnsResult {
   /** FK columns keyed by table name → column name → column definition */
   fkColumns: Record<string, Record<string, unknown>>;
   /** Junction tables for many_to_many links */
@@ -307,11 +307,11 @@ export interface LinkColumnsResult {
  * @param tableMap - Map of schema name → generated pgTable (needed for `.references()`)
  * @param options - Generator options (table prefix, etc.)
  */
-export function generateLinkColumns(
+export function generateRelationColumns(
   links: RelationDefinition[],
   tableMap: Record<string, ReturnType<typeof pgTable>>,
   options?: DrizzleGeneratorOptions,
-): LinkColumnsResult {
+): RelationColumnsResult {
   const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
 
   const fkColumns: Record<string, Record<string, unknown>> = {};

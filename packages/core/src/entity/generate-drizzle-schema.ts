@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import type { RelationDefinition } from "../types/relation";
 import type { FieldDefinition, EntityDefinition } from "../types/entity";
-import { generateDrizzleTable, generateLinkColumns } from "./entity-to-drizzle";
+import { generateDrizzleTable, generateRelationColumns } from "./entity-to-drizzle";
 
 const DEFAULT_OUTPUT_DIR = ".linchkit";
 const DEFAULT_OUTPUT_FILE = "drizzle-schema.generated.ts";
@@ -93,7 +93,7 @@ export function generateDrizzleSchemaFile(
   let needsPrimaryKey = false;
 
   if (links.length > 0) {
-    const { fkColumns, junctionTables } = generateLinkColumns(links, tableMap);
+    const { fkColumns, junctionTables } = generateRelationColumns(links, tableMap);
 
     // Append FK columns to existing table exports
     for (const [tableName, cols] of Object.entries(fkColumns)) {
