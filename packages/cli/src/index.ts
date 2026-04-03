@@ -227,7 +227,7 @@ async function run() {
 			},
 		},
 		subCommands: { ...builtinCommands, ...capCommands },
-		run({ args, cmd }) {
+		run({ args, cmd, rawArgs }) {
 			if (args.commands) {
 				const manifest = buildCommandsManifest(
 					Object.keys(builtinCommands),
@@ -236,8 +236,13 @@ async function run() {
 				console.log(JSON.stringify(manifest, null, 2));
 				return;
 			}
-			// No subcommand given → show help
-			showUsage(cmd);
+			// Only show help when no subcommand was given
+			const subCmd = rawArgs.find(
+				(a: string) => !a.startsWith("-") && a !== "linch",
+			);
+			if (!subCmd) {
+				showUsage(cmd);
+			}
 		},
 	});
 
