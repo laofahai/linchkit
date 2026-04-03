@@ -163,6 +163,10 @@ export interface BuildGraphQLSchemaOptions {
   stateDefinitions?: StateDefinition[];
   /** Schema names that are internal (read-only) — skip mutation generation for these */
   internalSchemas?: Set<string>;
+  /** Extra query fields from capability graphqlExtensions */
+  extraQueryFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
+  /** Extra mutation fields from capability graphqlExtensions */
+  extraMutationFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
 }
 
 /**
@@ -258,17 +262,28 @@ export function buildGraphQLSchema(
   };
 
   if (schemas.length === 0) {
-    // Return a minimal valid schema with a placeholder query
+    // Return a minimal valid schema with a placeholder query (plus any extra fields)
+    const minimalQueryFields: Record<string, GraphQLFieldConfig<unknown, unknown>> = {
+      _empty: {
+        type: GraphQLString,
+        resolve: () => "No schemas registered",
+      },
+      ...options?.extraQueryFields,
+    };
+    const minimalMutationFields = options?.extraMutationFields;
     return new GraphQLSchema({
       query: new GraphQLObjectType({
         name: "Query",
-        fields: {
-          _empty: {
-            type: GraphQLString,
-            resolve: () => "No schemas registered",
-          },
-        },
+        fields: minimalQueryFields,
       }),
+      ...(minimalMutationFields && Object.keys(minimalMutationFields).length > 0
+        ? {
+            mutation: new GraphQLObjectType({
+              name: "Mutation",
+              fields: minimalMutationFields,
+            }),
+          }
+        : {}),
     });
   }
 
@@ -912,6 +927,14 @@ export function buildGraphQLSchema(
           executionId: null,
         }),
   };
+
+  // Merge capability-contributed GraphQL fields (Spec 57 graphqlExtensions)
+  if (options?.extraQueryFields) {
+    Object.assign(queryFields, options.extraQueryFields);
+  }
+  if (options?.extraMutationFields) {
+    Object.assign(mutationFields, options.extraMutationFields);
+  }
 
   const query = new GraphQLObjectType({
     name: "Query",
