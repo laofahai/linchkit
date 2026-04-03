@@ -22,7 +22,7 @@
         "drizzle-kit": "^0.31.10",
       },
     },
-    "capabilities/cap-adapter-mcp": {
+    "addons/adapter-mcp/cap-adapter-mcp": {
       "name": "@linchkit/cap-adapter-mcp",
       "version": "0.0.1",
       "dependencies": {
@@ -34,7 +34,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "capabilities/cap-adapter-server": {
+    "addons/adapter-server/cap-adapter-server": {
       "name": "@linchkit/cap-adapter-server",
       "version": "0.0.1",
       "dependencies": {
@@ -49,7 +49,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "capabilities/cap-adapter-ui-react": {
+    "addons/adapter-ui-react/cap-adapter-ui-react": {
       "name": "@linchkit/cap-adapter-ui-react",
       "version": "0.0.1",
       "dependencies": {
@@ -97,7 +97,7 @@
         "vite": "^8.0.1",
       },
     },
-    "capabilities/cap-adapter-ui-react/ui-kit": {
+    "addons/adapter-ui-react/cap-adapter-ui-react/ui-kit": {
       "name": "@linchkit/ui-kit",
       "version": "0.0.1",
       "dependencies": {
@@ -116,7 +116,7 @@
         "react-dom": "^19.0.0",
       },
     },
-    "capabilities/cap-ai-provider": {
+    "addons/ai-provider/cap-ai-provider": {
       "name": "@linchkit/cap-ai-provider",
       "version": "0.0.1",
       "dependencies": {
@@ -130,7 +130,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "capabilities/cap-auth": {
+    "addons/auth/cap-auth": {
       "name": "@linchkit/cap-auth",
       "version": "0.0.1",
       "dependencies": {
@@ -150,7 +150,7 @@
         "react",
       ],
     },
-    "capabilities/cap-auth-better-auth": {
+    "addons/auth/cap-auth-better-auth": {
       "name": "@linchkit/cap-auth-better-auth",
       "version": "0.0.1",
       "dependencies": {
@@ -167,7 +167,7 @@
         "drizzle-orm": ">=0.41.0",
       },
     },
-    "capabilities/cap-chatter": {
+    "addons/chatter/cap-chatter": {
       "name": "@linchkit/cap-chatter",
       "version": "0.0.1",
       "devDependencies": {
@@ -179,7 +179,7 @@
         "graphql": "^16.13.1",
       },
     },
-    "capabilities/cap-flow-restate": {
+    "addons/flow-restate/cap-flow-restate": {
       "name": "@linchkit/cap-flow-restate",
       "version": "0.0.1",
       "dependencies": {
@@ -190,7 +190,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "capabilities/cap-migration": {
+    "addons/migration/cap-migration": {
       "name": "@linchkit/cap-migration",
       "version": "0.0.1",
       "peerDependencies": {
@@ -198,7 +198,7 @@
         "drizzle-orm": "*",
       },
     },
-    "capabilities/cap-permission": {
+    "addons/permission/cap-permission": {
       "name": "@linchkit/cap-permission",
       "version": "0.0.1",
       "dependencies": {
@@ -211,7 +211,7 @@
         "@linchkit/core": "^0.0.1",
       },
     },
-    "capabilities/cap-purchase-demo": {
+    "addons/purchase-demo/cap-purchase-demo": {
       "name": "@linchkit/cap-purchase-demo",
       "version": "0.0.1",
       "peerDependencies": {
@@ -507,27 +507,27 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "https://registry.npmmirror.com/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@linchkit/cap-adapter-mcp": ["@linchkit/cap-adapter-mcp@workspace:capabilities/cap-adapter-mcp"],
+    "@linchkit/cap-adapter-mcp": ["@linchkit/cap-adapter-mcp@workspace:addons/adapter-mcp/cap-adapter-mcp"],
 
-    "@linchkit/cap-adapter-server": ["@linchkit/cap-adapter-server@workspace:capabilities/cap-adapter-server"],
+    "@linchkit/cap-adapter-server": ["@linchkit/cap-adapter-server@workspace:addons/adapter-server/cap-adapter-server"],
 
-    "@linchkit/cap-adapter-ui-react": ["@linchkit/cap-adapter-ui-react@workspace:capabilities/cap-adapter-ui-react"],
+    "@linchkit/cap-adapter-ui-react": ["@linchkit/cap-adapter-ui-react@workspace:addons/adapter-ui-react/cap-adapter-ui-react"],
 
-    "@linchkit/cap-ai-provider": ["@linchkit/cap-ai-provider@workspace:capabilities/cap-ai-provider"],
+    "@linchkit/cap-ai-provider": ["@linchkit/cap-ai-provider@workspace:addons/ai-provider/cap-ai-provider"],
 
-    "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:capabilities/cap-auth"],
+    "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:addons/auth/cap-auth"],
 
-    "@linchkit/cap-auth-better-auth": ["@linchkit/cap-auth-better-auth@workspace:capabilities/cap-auth-better-auth"],
+    "@linchkit/cap-auth-better-auth": ["@linchkit/cap-auth-better-auth@workspace:addons/auth/cap-auth-better-auth"],
 
-    "@linchkit/cap-chatter": ["@linchkit/cap-chatter@workspace:capabilities/cap-chatter"],
+    "@linchkit/cap-chatter": ["@linchkit/cap-chatter@workspace:addons/chatter/cap-chatter"],
 
-    "@linchkit/cap-flow-restate": ["@linchkit/cap-flow-restate@workspace:capabilities/cap-flow-restate"],
+    "@linchkit/cap-flow-restate": ["@linchkit/cap-flow-restate@workspace:addons/flow-restate/cap-flow-restate"],
 
-    "@linchkit/cap-migration": ["@linchkit/cap-migration@workspace:capabilities/cap-migration"],
+    "@linchkit/cap-migration": ["@linchkit/cap-migration@workspace:addons/migration/cap-migration"],
 
-    "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:capabilities/cap-permission"],
+    "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:addons/permission/cap-permission"],
 
-    "@linchkit/cap-purchase-demo": ["@linchkit/cap-purchase-demo@workspace:capabilities/cap-purchase-demo"],
+    "@linchkit/cap-purchase-demo": ["@linchkit/cap-purchase-demo@workspace:addons/purchase-demo/cap-purchase-demo"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 
@@ -535,7 +535,7 @@
 
     "@linchkit/devtools": ["@linchkit/devtools@workspace:packages/devtools"],
 
-    "@linchkit/ui-kit": ["@linchkit/ui-kit@workspace:capabilities/cap-adapter-ui-react/ui-kit"],
+    "@linchkit/ui-kit": ["@linchkit/ui-kit@workspace:addons/adapter-ui-react/cap-adapter-ui-react/ui-kit"],
 
     "@mermaid-js/parser": ["@mermaid-js/parser@1.0.1", "", { "dependencies": { "langium": "^4.0.0" } }, "sha512-opmV19kN1JsK0T6HhhokHpcVkqKpF+x2pPDKKM2ThHtZAB5F4PROopk0amuVYK5qMrIA4erzpNm8gmPNJgMDxQ=="],
 

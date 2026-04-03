@@ -340,6 +340,14 @@ export function getMenuItems(): MenuItemConfig[] {
   return cachedAppConfig?.menuItems ?? [];
 }
 
+/**
+ * Get active capability names from cached app config.
+ * Returns empty array before config is fetched.
+ */
+export function getActiveCapabilities(): string[] {
+  return cachedAppConfig?.capabilities ?? [];
+}
+
 // ── AI Auto-Fill ────────────────────────────────────────
 
 /** Single AI suggestion for a field */

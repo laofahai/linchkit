@@ -3,8 +3,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "capabilities/*",
-    "capabilities/cap-adapter-ui-react/ui-kit"
+    "addons/*/cap-*",
+    "addons/adapter-ui-react/cap-adapter-ui-react/ui-kit"
   ],
   "scripts": {
     "check": "bunx @biomejs/biome check .",

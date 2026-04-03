@@ -18,6 +18,7 @@ const queryClient = new QueryClient({
   },
 });
 import "./i18n"; // Initialize i18n before rendering
+import "./lib/builtin-panels"; // Register built-in record panels
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
 import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";

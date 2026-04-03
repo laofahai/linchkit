@@ -8,6 +8,7 @@
 import type { CapabilityDefinition } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
 import { createChatterAutoLog } from "./event-handler";
+import { buildChatterGraphQLExtension } from "./graphql";
 import { DrizzleChatterService, InMemoryChatterService } from "./service";
 import type { ChatterService } from "./types";
 
@@ -56,6 +57,7 @@ export function createCapChatter(options?: CapChatterOptions): CapabilityDefinit
     type: "standard",
     category: "system",
     version: "0.1.0",
+    group: "chatter",
 
     eventHandlers: [autoLogHandler],
 
@@ -66,6 +68,7 @@ export function createCapChatter(options?: CapChatterOptions): CapabilityDefinit
           factory: () => service,
         },
       ],
+      graphqlExtensions: buildChatterGraphQLExtension({ service }),
     },
   });
 

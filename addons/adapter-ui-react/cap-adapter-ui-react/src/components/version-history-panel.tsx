@@ -665,3 +665,5 @@ export function VersionHistoryPanel({
     </div>
   );
 }
+
+export default VersionHistoryPanel;

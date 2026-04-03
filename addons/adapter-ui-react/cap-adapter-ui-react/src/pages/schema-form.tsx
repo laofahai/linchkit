@@ -40,7 +40,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
@@ -48,7 +48,6 @@ import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
 import { StatusBar, type StatusBarStep } from "../components/status-bar";
-import { VersionHistoryPanel } from "../components/version-history-panel";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { pushNotification } from "../hooks/use-notifications";
@@ -59,11 +58,13 @@ import {
   createRecord,
   deleteRecord,
   executeAction,
+  getActiveCapabilities,
   isAiEnabled,
   queryRecord,
   transitionRecord,
   updateRecord,
 } from "../lib/api";
+import { getRecordPanels } from "../lib/panel-registry";
 import {
   CLONE_STRIP_FIELDS,
   deriveStatusSteps,
@@ -884,10 +885,20 @@ export function SchemaFormPage() {
             />
           </div>
 
-          {/* Bottom tabs: relation tabs + other panels */}
-          {!isCreate && params.id && (
+          {/* Bottom tabs: relation tabs + registered panels */}
+          {!isCreate && params.id && (() => {
+            const activeCapabilities = getActiveCapabilities();
+            const recordPanels = getRecordPanels();
+            const activePanels = recordPanels.filter(
+              (p) => p.capability === "__builtin__" || activeCapabilities.includes(p.capability),
+            );
+            return (
             <Tabs
-              defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]?.name}` : "version-history"}
+              defaultValue={
+                one2manyLinks.length > 0
+                  ? `link-${one2manyLinks[0]?.name}`
+                  : activePanels[0]?.id ?? "version-history"
+              }
             >
               <TabsList variant="line">
                 {/* One_to_many relationship tabs */}
@@ -908,10 +919,12 @@ export function SchemaFormPage() {
                     {t("detail.relatedRecords", "Related Records")}
                   </TabsTrigger>
                 )}
-                {/* Version history tab */}
-                <TabsTrigger value="version-history">
-                  {t("versionHistory.title", "Version History")}
-                </TabsTrigger>
+                {/* Registered panels (version history, chatter, etc.) */}
+                {activePanels.map((panel) => (
+                  <TabsTrigger key={panel.id} value={panel.id}>
+                    {t(panel.label, panel.label)}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               {/* One_to_many tab content */}
@@ -937,25 +950,31 @@ export function SchemaFormPage() {
                 </TabsContent>
               )}
 
-              {/* Version history tab content */}
-              <TabsContent value="version-history">
-                <VersionHistoryPanel
-                  schemaName={schemaName}
-                  recordId={params.id ?? ""}
-                  currentRecord={record}
-                  fields={schema.fields}
-                  recordFields={recordFields}
-                  onRestore={() => {
-                    fetchRecord();
-                    toast.success(
-                      t("versionHistory.restoreSuccess", "Record restored to selected version"),
-                    );
-                  }}
-                />
-              </TabsContent>
+              {/* Registered panel content (lazy-loaded) */}
+              {activePanels.map((panel) => {
+                const LazyPanel = lazy(panel.component);
+                return (
+                  <TabsContent key={panel.id} value={panel.id}>
+                    <Suspense fallback={<div className="p-4 text-muted-foreground">{t("common.loading", "Loading...")}</div>}>
+                      <LazyPanel
+                        schemaName={schemaName}
+                        recordId={params.id ?? ""}
+                        record={record}
+                        fields={schema.fields}
+                        recordFields={recordFields}
+                        onRestore={() => {
+                          fetchRecord();
+                          toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
+                        }}
+                      />
+                    </Suspense>
+                  </TabsContent>
+                );
+              })}
 
             </Tabs>
-          )}
+            );
+          })()}
         </div>
       </div>
 

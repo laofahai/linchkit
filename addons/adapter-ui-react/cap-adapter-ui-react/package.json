@@ -6,7 +6,10 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./panel-registry": "./src/lib/panel-registry.ts",
+    "./hooks/use-subscription": "./src/hooks/use-subscription.ts",
+    "./lib/api": "./src/lib/api.ts"
   },
   "scripts": {
     "dev": "vite --configLoader runner",
