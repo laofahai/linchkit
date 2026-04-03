@@ -367,7 +367,15 @@ export class DrizzleDataProvider implements DataProvider {
     const columns = getTableColumns(table);
 
     // Build WHERE conditions from filter (excluding pagination/sort meta keys)
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     for (const [key, value] of Object.entries(filter)) {
@@ -732,7 +740,15 @@ export class DrizzleDataProvider implements DataProvider {
     const table = this.resolveTable(schema);
     const columns = getTableColumns(table);
 
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     if (filter) {

@@ -489,7 +489,7 @@ export function SchemaListPage() {
     }
 
     return result;
-  }, [data, globalFilter, bazzaFilterState, aiSearchState.result]);
+  }, [data, bazzaFilterState, aiSearchState.result]);
 
   // Use refs for values needed inside fetchData to keep its identity stable.
   // This prevents the useCallback from changing on every render, which would

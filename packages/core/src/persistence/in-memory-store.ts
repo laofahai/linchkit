@@ -91,7 +91,15 @@ export class InMemoryStore implements DataProvider {
     options?: DataQueryOptions,
   ): Promise<Array<Record<string, unknown>>> {
     // Extract meta keys (pagination/sort/search) from filter, pass the rest as data filter
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const dataFilter: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(filter)) {
       if (!metaKeys.has(k)) {
@@ -250,9 +258,7 @@ export class InMemoryStore implements DataProvider {
     if (options?.search) {
       const keyword = options.search.toLowerCase();
       records = records.filter((r) =>
-        Object.values(r).some(
-          (v) => typeof v === "string" && v.toLowerCase().includes(keyword),
-        ),
+        Object.values(r).some((v) => typeof v === "string" && v.toLowerCase().includes(keyword)),
       );
     }
 
@@ -283,7 +289,15 @@ export class InMemoryStore implements DataProvider {
     options?: DataQueryOptions,
   ): Promise<number> {
     // Strip pagination/sort/search meta keys to match Drizzle behavior
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const dataFilter: Record<string, unknown> = {};
     let search: string | undefined;
     if (filter) {
