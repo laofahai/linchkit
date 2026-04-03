@@ -8,7 +8,7 @@ import { generateCapabilityStylesheet } from "../src/utils/generate-capability-s
 describe("generateCapabilityStylesheet", () => {
   it("generates capability imports in config order after ui-kit base styles", () => {
     const root = mkdtempSync(join(tmpdir(), "linchkit-cap-styles-"));
-    const uiPackageDir = join(root, "capabilities/cap-adapter-ui-react");
+    const uiPackageDir = join(root, "addons/adapter-ui-react/cap-adapter-ui-react");
     const uiSrcDir = join(uiPackageDir, "src");
 
     mkdirSync(uiSrcDir, { recursive: true });

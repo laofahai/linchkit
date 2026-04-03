@@ -228,7 +228,7 @@ describe("validateCapabilityStructure", () => {
       { path: "package.json", isDirectory: false },
     ];
 
-    const report = validateCapabilityStructure("capabilities/cap-purchase-demo", entries);
+    const report = validateCapabilityStructure("addons/purchase-demo/cap-purchase-demo", entries);
     expect(report.passed).toBe(true);
   });
 
@@ -238,14 +238,14 @@ describe("validateCapabilityStructure", () => {
       { path: "package.json", isDirectory: false },
     ];
 
-    const report = validateCapabilityStructure("capabilities/purchase-demo", entries);
+    const report = validateCapabilityStructure("addons/purchase-demo/purchase-demo", entries);
     expect(report.issues.some((i) => i.rule === "capability-naming")).toBe(true);
   });
 
   it("errors when package.json is missing", () => {
     const entries: DirectoryEntry[] = [{ path: "src", isDirectory: true }];
 
-    const report = validateCapabilityStructure("capabilities/cap-foo", entries);
+    const report = validateCapabilityStructure("addons/foo/cap-foo", entries);
     expect(report.passed).toBe(false);
     expect(report.issues.some((i) => i.message.includes("package.json"))).toBe(true);
   });

@@ -1,0 +1,12 @@
+{
+  "name": "@linchkit/cap-migration",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "@linchkit/core": "workspace:*",
+    "drizzle-orm": "*"
+  }
+}

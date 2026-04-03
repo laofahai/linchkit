@@ -38,12 +38,12 @@ export const initCommand = defineCommand({
 
     // Create directory structure
     mkdirSync(projectDir, { recursive: true });
-    mkdirSync(resolve(projectDir, "capabilities"), { recursive: true });
+    mkdirSync(resolve(projectDir, "addons"), { recursive: true });
     mkdirSync(resolve(projectDir, "migrations"), { recursive: true });
     mkdirSync(resolve(projectDir, "tests"), { recursive: true });
 
     // Write .gitkeep files
-    writeFileSync(resolve(projectDir, "capabilities/.gitkeep"), "");
+    writeFileSync(resolve(projectDir, "addons/.gitkeep"), "");
     writeFileSync(resolve(projectDir, "migrations/.gitkeep"), "");
     writeFileSync(resolve(projectDir, "tests/.gitkeep"), "");
 
@@ -63,7 +63,7 @@ export const initCommand = defineCommand({
     console.log("    ├── linchkit.config.ts");
     console.log("    ├── package.json");
     console.log("    ├── tsconfig.json");
-    console.log("    ├── capabilities/");
+    console.log("    ├── addons/");
     console.log("    ├── migrations/");
     console.log("    ├── tests/");
     console.log("    ├── CLAUDE.md");

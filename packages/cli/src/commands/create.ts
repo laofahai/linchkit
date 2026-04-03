@@ -210,7 +210,7 @@ export const createCapabilityCommand = defineCommand({
     },
     dir: {
       type: "string",
-      description: "Output directory (default: capabilities/<name>)",
+      description: "Output directory (default: addons/<name>/cap-<name>)",
     },
     bare: {
       type: "boolean",
@@ -256,7 +256,7 @@ export const createCapabilityCommand = defineCommand({
 
     const outputDir = args.dir
       ? resolve(process.cwd(), args.dir as string)
-      : resolve(process.cwd(), "capabilities", name);
+      : resolve(process.cwd(), "addons", name, `cap-${name}`);
 
     if (existsSync(outputDir)) {
       console.error(`Error: Directory "${outputDir}" already exists.`);

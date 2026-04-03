@@ -1,0 +1,61 @@
+{
+  "name": "@linchkit/cap-adapter-ui-react",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
+  },
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "^3.0.140",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@fontsource-variable/geist": "^5.2.8",
+    "@linchkit/core": "workspace:*",
+    "@linchkit/ui-kit": "workspace:*",
+    "@tanstack/react-query": "^5.95.2",
+    "@tanstack/react-router": "^1.168.2",
+    "@tiptap/extension-link": "^3.20.5",
+    "@tiptap/extension-placeholder": "^3.20.5",
+    "@tiptap/pm": "^3.20.5",
+    "@tiptap/react": "^3.20.5",
+    "@tiptap/starter-kit": "^3.20.5",
+    "@types/dagre": "^0.7.54",
+    "@types/react-grid-layout": "^2.1.0",
+    "@xyflow/react": "^12.10.1",
+    "cmdk": "^1.1.1",
+    "dagre": "^0.8.5",
+    "date-fns": "^4.1.0",
+    "i18next": "^25.10.4",
+    "lucide-react": "^0.577.0",
+    "mermaid": "^11.6.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.4",
+    "react-day-picker": "^9.14.0",
+    "react-dom": "^19.2.4",
+    "react-grid-layout": "^2.2.3",
+    "react-i18next": "^16.6.1",
+    "recharts": "^3.8.1",
+    "shadcn": "^4.1.0",
+    "sonner": "^2.0.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "vite": "^8.0.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.2",
+    "@tailwindcss/vite": "^4.2.2",
+    "autoprefixer": "^10.4.27"
+  }
+}

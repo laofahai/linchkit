@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@linchkit/core": ["../../packages/core/src"],
+      "@linchkit/ui-kit": ["./ui-kit/src"],
+      "@linchkit/ui-kit/components": ["./ui-kit/src/components"],
+      "@linchkit/ui-kit/hooks": ["./ui-kit/src/hooks"],
+      "@linchkit/ui-kit/lib/utils": ["./ui-kit/src/lib/utils"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -103,7 +103,7 @@ bun test             # Run tests
 ## Project Structure
 
 - \`linchkit.config.ts\` — Project configuration
-- \`capabilities/\` — Capability definitions (Schema, Action, Rule, State, Event, View)
+- \`addons/\` — Capability definitions (Schema, Action, Rule, State, Event, View)
 - \`migrations/\` — Database migrations
 - \`tests/\` — Test files
 `;
@@ -127,7 +127,7 @@ This project uses LinchKit, an AI-Native Software Capability Runtime.
 
 ## Development Workflow
 
-1. Define capabilities in \`capabilities/\` directory
+1. Define capabilities in \`addons/\` directory
 2. Run \`linch dev\` to start the development server
 3. The framework auto-detects changes and applies migrations
 

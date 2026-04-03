@@ -85,7 +85,7 @@ describe("linch init (integration)", () => {
     expect(existsSync(resolve(projectDir, "linchkit.config.ts"))).toBe(true);
     expect(existsSync(resolve(projectDir, "package.json"))).toBe(true);
     expect(existsSync(resolve(projectDir, "tsconfig.json"))).toBe(true);
-    expect(existsSync(resolve(projectDir, "capabilities/.gitkeep"))).toBe(true);
+    expect(existsSync(resolve(projectDir, "addons/.gitkeep"))).toBe(true);
     expect(existsSync(resolve(projectDir, "migrations/.gitkeep"))).toBe(true);
     expect(existsSync(resolve(projectDir, "tests/.gitkeep"))).toBe(true);
     expect(existsSync(resolve(projectDir, "CLAUDE.md"))).toBe(true);

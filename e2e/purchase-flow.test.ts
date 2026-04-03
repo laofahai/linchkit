@@ -9,8 +9,8 @@ import {
 import {
   buildGraphQLSchema,
   generateCrudActions,
-} from "../capabilities/cap-adapter-server/src/graphql/build-schema";
-import { createServer } from "../capabilities/cap-adapter-server/src/server";
+} from "../addons/adapter-server/cap-adapter-server/src/graphql/build-schema";
+import { createServer } from "../addons/adapter-server/cap-adapter-server/src/server";
 
 // Strip permission restrictions for E2E testing with anonymous actor
 const e2eSubmitAction = { ...submitAction, permissions: undefined };

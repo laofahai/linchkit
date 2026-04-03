@@ -14,7 +14,7 @@ import {
   type GraphQLObjectType,
   type GraphQLOutputType,
 } from "graphql";
-import { generateGraphQLObjectType } from "../../../capabilities/cap-adapter-server/src/graphql/schema-to-graphql";
+import { generateGraphQLObjectType } from "../../../addons/adapter-server/cap-adapter-server/src/graphql/schema-to-graphql";
 import { generateDrizzleTable, generateLinkColumns } from "../src/schema/schema-to-drizzle";
 import type { LinkDefinition, SchemaDefinition } from "../src/types";
 
