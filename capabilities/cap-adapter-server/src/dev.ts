@@ -82,6 +82,8 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   rules: RuleDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
+  extraQueryFields: Record<string, unknown>;
+  extraMutationFields: Record<string, unknown>;
 } {
   const schemas: SchemaDefinition[] = [];
   const actions: ActionDefinition[] = [];
@@ -91,6 +93,8 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   const rules: RuleDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
+  const extraQueryFields: Record<string, unknown> = {};
+  const extraMutationFields: Record<string, unknown> = {};
 
   for (const cap of capabilities) {
     if (cap.schemas) schemas.push(...cap.schemas);
@@ -119,9 +123,26 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
         });
       }
     }
+    if (cap.extensions?.graphqlExtensions?.queryFields) {
+      Object.assign(extraQueryFields, cap.extensions.graphqlExtensions.queryFields);
+    }
+    if (cap.extensions?.graphqlExtensions?.mutationFields) {
+      Object.assign(extraMutationFields, cap.extensions.graphqlExtensions.mutationFields);
+    }
   }
 
-  return { schemas, actions, states, views, links, rules, middlewares, seed };
+  return {
+    schemas,
+    actions,
+    states,
+    views,
+    links,
+    rules,
+    middlewares,
+    seed,
+    extraQueryFields,
+    extraMutationFields,
+  };
 }
 
 const capContributions = extractCapabilities(config.capabilities);
@@ -171,6 +192,8 @@ const graphqlSchema = buildGraphQLSchema(allSchemas, {
   actions: customActions,
   links: capContributions.links,
   stateDefinitions: capContributions.states,
+  extraQueryFields: capContributions.extraQueryFields as Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>,
+  extraMutationFields: capContributions.extraMutationFields as Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>,
 });
 
 const port = config.server?.port ?? 3001;
