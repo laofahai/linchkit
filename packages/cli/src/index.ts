@@ -6,8 +6,15 @@
  * capability-registered CLI commands via extensions.commands.
  */
 
+// Suppress i18next sponsorship banner (hardcoded console.info in i18next v25+)
+const _origInfo = console.info;
+console.info = (...args: unknown[]) => {
+	if (typeof args[0] === "string" && args[0].includes("i18next")) return;
+	_origInfo(...args);
+};
+
 import type { CliCommand, CliCommandContext } from "@linchkit/core";
-import { defineCommand, runMain } from "citty";
+import { defineCommand, runMain, showUsage } from "citty";
 import { changelogCommand } from "./commands/changelog";
 import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
@@ -220,7 +227,7 @@ async function run() {
 			},
 		},
 		subCommands: { ...builtinCommands, ...capCommands },
-		run({ args }) {
+		run({ args, cmd }) {
 			if (args.commands) {
 				const manifest = buildCommandsManifest(
 					Object.keys(builtinCommands),
@@ -229,6 +236,8 @@ async function run() {
 				console.log(JSON.stringify(manifest, null, 2));
 				return;
 			}
+			// No subcommand given → show help
+			showUsage(cmd);
 		},
 	});
 
