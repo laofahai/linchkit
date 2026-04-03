@@ -7,6 +7,7 @@ import type {
   ActionDefinition,
   AutomationDefinition,
   CapabilityDefinition,
+  CliCommand,
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
   InterfaceDefinition,
@@ -32,6 +33,7 @@ export interface CollectedDefinitions {
   middlewares: MiddlewareRegistration[];
   transports: TransportAdapterDefinition[];
   graphqlExtensions: GraphQLExtensionRegistration[];
+  commands: CliCommand[];
 }
 
 /**
@@ -54,6 +56,7 @@ export function collectCapabilityDefinitions(
   const middlewares: MiddlewareRegistration[] = [];
   const transports: TransportAdapterDefinition[] = [];
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
+  const commands: CliCommand[] = [];
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
@@ -79,6 +82,7 @@ export function collectCapabilityDefinitions(
     if (cap.extensions?.graphqlExtensions) {
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
     }
+    if (cap.extensions?.commands) commands.push(...cap.extensions.commands);
   }
 
   return {
@@ -94,5 +98,6 @@ export function collectCapabilityDefinitions(
     middlewares,
     transports,
     graphqlExtensions,
+    commands,
   };
 }

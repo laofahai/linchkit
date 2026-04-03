@@ -29,6 +29,10 @@ export interface CliCommand {
   isDefault?: boolean;
   /** If true, command is hidden in production mode */
   devOnly?: boolean;
+  /** Usage examples for help output and AI discovery */
+  examples?: string[];
+  /** If true, command uses interactive prompts (not suitable for CI/headless) */
+  interactive?: boolean;
 }
 
 /** CLI argument definition */
@@ -37,6 +41,8 @@ export interface CliArgDefinition {
   description: string;
   default?: string | boolean | number;
   required?: boolean;
+  /** Short flag alias (e.g. "p" for --port → -p) */
+  alias?: string;
 }
 
 /** Context passed to CLI command handlers */
