@@ -123,9 +123,9 @@ export const purchaseRequestSchema: SchemaDefinition = {
       derived: {
         type: "aggregate",
         strategy: "compute",
-        source: "purchase_item",
-        operation: "sum",
-        expression: "quantity * unit_price",
+        source: { link: "request_to_items", schema: "purchase_item" },
+        op: "sum",
+        field: "line_total",
         deps: ["purchase_item.quantity", "purchase_item.unit_price"],
       },
     },

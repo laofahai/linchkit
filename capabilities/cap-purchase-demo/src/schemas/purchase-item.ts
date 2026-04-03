@@ -50,7 +50,7 @@ export const purchaseItemSchema: SchemaDefinition = {
       ui: { importance: "primary", format: "currency", width: 4 },
       derived: {
         type: "expression",
-        strategy: "compute",
+        strategy: "store",
         expr: "quantity * unit_price",
         deps: ["quantity", "unit_price"],
       },

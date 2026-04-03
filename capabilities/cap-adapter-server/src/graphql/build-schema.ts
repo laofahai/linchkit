@@ -332,9 +332,9 @@ export function buildGraphQLSchema(
                   Object.keys(opts).length > 0 ? opts : undefined,
                 );
                 if (!record) return null;
-                // Resolve compute-strategy derived fields on read
+                // Resolve compute-strategy derived fields on read (async to support aggregates)
                 if (derivedEngine) {
-                  derivedEngine.resolveComputeFields(schemaName, record as Record<string, unknown>);
+                  await derivedEngine.resolveComputeFieldsAsync(schemaName, record as Record<string, unknown>);
                 }
                 // Resolve translatable JSONB → plain strings BEFORE masking,
                 // so masking always operates on strings, not locale-map objects.
@@ -386,6 +386,10 @@ export function buildGraphQLSchema(
           type: GraphQLString,
           description: "JSON-encoded filter object",
         },
+        search: {
+          type: GraphQLString,
+          description: "Full-text search keyword (ILIKE across all string fields)",
+        },
         sortField: { type: GraphQLString, description: "Field to sort by (default: created_at)" },
         sortOrder: {
           type: GraphQLString,
@@ -404,6 +408,7 @@ export function buildGraphQLSchema(
             _root: unknown,
             args: {
               filter?: string;
+              search?: string;
               sortField?: string;
               sortOrder?: string;
               page?: number;
@@ -441,20 +446,27 @@ export function buildGraphQLSchema(
                 limit: pageSize,
                 sortField,
                 sortOrder,
+                ...(args.search ? { search: args.search } : {}),
+              };
+
+              // Count filter includes search but not pagination/sort
+              const countFilter: Record<string, unknown> = {
+                ...filter,
+                ...(args.search ? { search: args.search } : {}),
               };
 
               const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
-              const total = await dataProvider.count(schemaName, filter, optsOrUndefined);
+              const total = await dataProvider.count(schemaName, countFilter, optsOrUndefined);
               // Resolve compute-strategy derived fields on read, then resolve
               // translatable JSONB → plain strings BEFORE masking so masking
               // always operates on strings, not locale-map objects.
-              const items = (rawItems as Record<string, unknown>[]).map((r) => {
+              const items = await Promise.all((rawItems as Record<string, unknown>[]).map(async (r) => {
                 if (derivedEngine) {
-                  derivedEngine.resolveComputeFields(schemaName, r);
+                  await derivedEngine.resolveComputeFieldsAsync(schemaName, r);
                 }
                 const resolved = resolveTranslatableRow(r, schema, locale);
                 return applyMasking(resolved, schemaName, ctx);
-              });
+              }));
               const hasMore = offset + items.length < total;
               return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
             });
@@ -520,7 +532,15 @@ export function buildGraphQLSchema(
             ctx: GraphQLContext,
           ) => {
             const locale = ctx.locale;
-            const normalizedArgs = normalizeTranslatableRow(args.input, schema, locale);
+            // Strip state-type fields — status changes must go through
+            // action engine / state machine transitions, not raw CRUD updates.
+            const sanitizedInput: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(args.input)) {
+              const fieldDef = schema.fields[key];
+              if (fieldDef && fieldDef.type === "state") continue;
+              sanitizedInput[key] = value;
+            }
+            const normalizedArgs = normalizeTranslatableRow(sanitizedInput, schema, locale);
             const input: Record<string, unknown> = { id: args.id, ...normalizedArgs };
             // Pass _version through for optimistic locking when provided
             if (args._version !== undefined && args._version !== null) {

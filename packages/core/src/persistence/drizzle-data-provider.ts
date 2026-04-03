@@ -10,7 +10,7 @@
  * - Count queries with filter support
  */
 
-import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
+import { and, count, eq, getTableColumns, ilike, isNull, or, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
@@ -103,6 +103,39 @@ export class DrizzleDataProvider implements DataProvider {
   private getColumn(table: PgTable, columnName: string): PgColumn | undefined {
     const columns = getTableColumns(table);
     return columns[columnName] as PgColumn | undefined;
+  }
+
+  /** String-like field types eligible for full-text search */
+  private static readonly SEARCHABLE_FIELD_TYPES = new Set(["string", "text", "email", "url"]);
+
+  /**
+   * Build an ILIKE OR condition across all string-like columns for full-text search.
+   * Returns undefined when no searchable columns exist or search is empty.
+   */
+  private buildSearchCondition(
+    schemaName: string,
+    table: PgTable,
+    search: string,
+  ): ReturnType<typeof or> | undefined {
+    if (!search) return undefined;
+    const schemaDef = this.schemaDefinitions.get(schemaName);
+    if (!schemaDef) return undefined;
+
+    const columns = getTableColumns(table);
+    const pattern = `%${search}%`;
+    const ilikeConditions: ReturnType<typeof ilike>[] = [];
+
+    for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+      if (DrizzleDataProvider.SEARCHABLE_FIELD_TYPES.has(fieldDef.type)) {
+        const col = columns[fieldName] as PgColumn | undefined;
+        if (col) {
+          ilikeConditions.push(ilike(col, pattern));
+        }
+      }
+    }
+
+    if (ilikeConditions.length === 0) return undefined;
+    return or(...ilikeConditions);
   }
 
   /**
@@ -334,7 +367,7 @@ export class DrizzleDataProvider implements DataProvider {
     const columns = getTableColumns(table);
 
     // Build WHERE conditions from filter (excluding pagination/sort meta keys)
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     for (const [key, value] of Object.entries(filter)) {
@@ -344,6 +377,15 @@ export class DrizzleDataProvider implements DataProvider {
       const col = columns[key] as PgColumn | undefined;
       if (col) {
         conditions.push(eq(col, value));
+      }
+    }
+
+    // Full-text search across string-like columns
+    const searchTerm = filter.search as string | undefined;
+    if (searchTerm) {
+      const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+      if (searchCond) {
+        conditions.push(searchCond);
       }
     }
 
@@ -690,7 +732,7 @@ export class DrizzleDataProvider implements DataProvider {
     const table = this.resolveTable(schema);
     const columns = getTableColumns(table);
 
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     if (filter) {
@@ -701,6 +743,15 @@ export class DrizzleDataProvider implements DataProvider {
         const col = columns[key] as PgColumn | undefined;
         if (col) {
           conditions.push(eq(col, value));
+        }
+      }
+
+      // Full-text search across string-like columns
+      const searchTerm = filter.search as string | undefined;
+      if (searchTerm) {
+        const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+        if (searchCond) {
+          conditions.push(searchCond);
         }
       }
     }

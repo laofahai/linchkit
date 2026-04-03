@@ -86,7 +86,7 @@ async function gql(query: string, variables?: Record<string, unknown>) {
 // ── Tests ────────────────────────────────────────────────
 
 describe("GraphQL state transition validation", () => {
-  test("update mutation rejects invalid state transition", async () => {
+  test("update mutation silently strips state fields (security: bypass prevention)", async () => {
     // Create an order in draft state
     await store.create("order", {
       id: "order_1",
@@ -95,25 +95,25 @@ describe("GraphQL state transition validation", () => {
       status: "draft",
     });
 
-    // Try to transition directly from draft to approved (not allowed)
+    // Try to change status via update mutation — should be silently stripped
     const result = await gql(`
       mutation {
-        updateOrder(id: "order_1", input: { title: "Test Order", status: "approved" }) {
+        updateOrder(id: "order_1", input: { title: "Updated Title", status: "approved" }) {
           id
+          title
           status
         }
       }
     `);
 
-    expect(result.errors).toBeDefined();
-    expect(result.errors?.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors?.[0] as { message: string }).message;
-    expect(errorMsg).toContain("State transition not allowed");
-    expect(errorMsg).toContain("draft");
-    expect(errorMsg).toContain("approved");
+    // Update succeeds but status is unchanged — state field was stripped
+    expect(result.errors).toBeUndefined();
+    const order = result.data.updateOrder as Record<string, unknown>;
+    expect(order.title).toBe("Updated Title");
+    expect(order.status).toBe("draft"); // status unchanged
   });
 
-  test("update mutation allows valid state transition", async () => {
+  test("update mutation ignores even valid state values (must use transition mutation)", async () => {
     await store.create("order", {
       id: "order_2",
       title: "Valid Transition",
@@ -121,7 +121,7 @@ describe("GraphQL state transition validation", () => {
       status: "draft",
     });
 
-    // draft -> submitted is allowed
+    // Even a valid transition (draft -> submitted) is stripped from update mutation
     const result = await gql(`
       mutation {
         updateOrder(id: "order_2", input: { title: "Valid Transition", status: "submitted" }) {
@@ -133,7 +133,8 @@ describe("GraphQL state transition validation", () => {
 
     expect(result.errors).toBeUndefined();
     const order = result.data.updateOrder as Record<string, unknown>;
-    expect(order.status).toBe("submitted");
+    // Status remains draft — state changes must go through transitionOrder mutation
+    expect(order.status).toBe("draft");
   });
 
   test("update mutation allows non-state field changes without state validation", async () => {

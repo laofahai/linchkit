@@ -165,14 +165,43 @@ describe("REST action endpoint — status codes", () => {
   });
 
   test("(c) permission denied → 403", async () => {
-    // Anonymous actor has no groups, but the action requires "manager"
-    const { status, body } = await postAction("do_restricted", {});
+    // Create a separate server with a custom actor resolver that returns
+    // an actor without the required "manager" group, so the permission
+    // check rejects the request.
+    const restrictedGraphqlSchema = buildGraphQLSchema([itemSchema]);
+    const restrictedExecutor = createActionExecutor({
+      dataProvider: new InMemoryStore(),
+      executionLogger: new InMemoryExecutionLogger(),
+    });
+    restrictedExecutor.registry.register(restrictedAction);
 
-    expect(status).toBe(403);
-    expect(body.success).toBe(false);
-    const err = body.error as Record<string, unknown>;
-    expect(err.code).toBe("ACTION.EXECUTION.FAILED");
-    expect(err.message as string).toContain("does not belong to");
+    const restrictedApp = createServer(restrictedGraphqlSchema, {
+      executor: restrictedExecutor,
+      resolveRequestActor: () => ({
+        type: "human" as const,
+        id: "unprivileged_user",
+        groups: [],
+      }),
+    });
+    const restrictedPort = 4012;
+    restrictedApp.listen(restrictedPort);
+
+    try {
+      const res = await fetch(`http://localhost:${restrictedPort}/api/actions/do_restricted`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = (await res.json()) as Record<string, unknown>;
+
+      expect(res.status).toBe(403);
+      expect(json.success).toBe(false);
+      const err = json.error as Record<string, unknown>;
+      expect(err.code).toBe("ACTION.EXECUTION.FAILED");
+      expect(err.message as string).toContain("does not belong to");
+    } finally {
+      restrictedApp.stop();
+    }
   });
 
   test("(d) input validation failure → 400", async () => {

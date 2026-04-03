@@ -66,6 +66,8 @@ function throwOnErrors(res: GraphQLResponse): void {
 export interface ListQueryOptions {
   schema: string;
   filter?: Record<string, unknown>;
+  /** Full-text search keyword (server-side ILIKE across string fields) */
+  search?: string;
   sortField?: string;
   sortOrder?: "asc" | "desc";
   page?: number;

@@ -21,6 +21,8 @@ export interface FindManyOptions {
   tenantId?: string;
   /** Include soft-deleted records (default: false) */
   includeDeleted?: boolean;
+  /** Full-text search keyword — matches against all string fields (case-insensitive) */
+  search?: string;
 }
 
 export class InMemoryStore implements DataProvider {
@@ -88,14 +90,16 @@ export class InMemoryStore implements DataProvider {
     filter: Record<string, unknown>,
     options?: DataQueryOptions,
   ): Promise<Array<Record<string, unknown>>> {
-    // Extract meta keys (pagination/sort) from filter, pass the rest as data filter
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    // Extract meta keys (pagination/sort/search) from filter, pass the rest as data filter
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
     const dataFilter: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(filter)) {
       if (!metaKeys.has(k)) {
         dataFilter[k] = v;
       }
     }
+
+    const search = filter.search as string | undefined;
 
     const sortField = filter.sortField as string | undefined;
     const sortOrder = (filter.sortOrder as string | undefined) ?? "asc";
@@ -121,6 +125,7 @@ export class InMemoryStore implements DataProvider {
       limit,
       tenantId: options?.tenantId,
       includeDeleted: options?.includeDeleted,
+      search,
     });
     if (!options?.locale) return rows;
     return rows.map((row) => this.resolveLocale(schema, row, options.locale));
@@ -241,6 +246,16 @@ export class InMemoryStore implements DataProvider {
       }
     }
 
+    // Full-text search across all string values
+    if (options?.search) {
+      const keyword = options.search.toLowerCase();
+      records = records.filter((r) =>
+        Object.values(r).some(
+          (v) => typeof v === "string" && v.toLowerCase().includes(keyword),
+        ),
+      );
+    }
+
     // Sort
     if (options?.sort) {
       const { field, order } = options.sort;
@@ -267,12 +282,15 @@ export class InMemoryStore implements DataProvider {
     filter?: Record<string, unknown>,
     options?: DataQueryOptions,
   ): Promise<number> {
-    // Strip pagination/sort meta keys to match Drizzle behavior
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    // Strip pagination/sort/search meta keys to match Drizzle behavior
+    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit", "search"]);
     const dataFilter: Record<string, unknown> = {};
+    let search: string | undefined;
     if (filter) {
       for (const [k, v] of Object.entries(filter)) {
-        if (!metaKeys.has(k)) {
+        if (k === "search") {
+          search = v as string | undefined;
+        } else if (!metaKeys.has(k)) {
           dataFilter[k] = v;
         }
       }
@@ -281,6 +299,7 @@ export class InMemoryStore implements DataProvider {
       filter: Object.keys(dataFilter).length > 0 ? dataFilter : undefined,
       tenantId: options?.tenantId,
       includeDeleted: options?.includeDeleted,
+      search,
     }).length;
   }
 

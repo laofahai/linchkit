@@ -244,7 +244,7 @@ describe("E2E state machine transitions", () => {
     expect((getResult.data.purchaseRequest as Record<string, unknown>).status).toBe("approved");
   });
 
-  test("4. Invalid transition: approved → draft should fail", async () => {
+  test("4. Update mutation strips state fields (security: bypass prevention)", async () => {
     // Create, submit, approve
     const createResult = await gql(`
       mutation {
@@ -255,21 +255,22 @@ describe("E2E state machine transitions", () => {
     await restAction("submit_purchase_request", { id });
     await restAction("approve_purchase_request", { id });
 
-    // Try invalid transition via updateMutation (approved → draft)
+    // Try to change status via update mutation — state field is silently stripped
     const result = await gql(`
       mutation {
-        updatePurchaseRequest(id: "${id}", input: { title: "Desk", amount: 800, status: "draft" }) {
-          id status
+        updatePurchaseRequest(id: "${id}", input: { title: "Desk Updated", amount: 800, status: "draft" }) {
+          id title status
         }
       }
     `);
 
-    expect(result.errors).toBeDefined();
-    expect(result.errors?.length).toBeGreaterThan(0);
-    const errorMsg = (result.errors?.[0] as { message: string }).message;
-    expect(errorMsg).toContain("State transition not allowed");
+    // Update succeeds but status is unchanged — state field was stripped
+    expect(result.errors).toBeUndefined();
+    const pr = result.data.updatePurchaseRequest as Record<string, unknown>;
+    expect(pr.title).toBe("Desk Updated");
+    expect(pr.status).toBe("approved"); // status unchanged
 
-    // Verify status unchanged
+    // Verify status unchanged in store
     const getResult = await gql(`
       query { purchaseRequest(id: "${id}") { status } }
     `);
