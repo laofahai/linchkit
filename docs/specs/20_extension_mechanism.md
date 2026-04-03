@@ -659,12 +659,12 @@ CLI is designed as a first-class interface for AI agents (Claude Code, Cursor, C
 - Commands marked `interactive: true` print a warning and exit in non-interactive mode unless all required args are provided via flags
 - Error output includes machine-parseable error codes
 
-**Introspection** (`linch --skills`):
+**Introspection** (`linch --commands`):
 
 Returns a structured JSON manifest of all available commands, suitable for AI agent self-discovery:
 
 ```bash
-linch --skills
+linch --commands
 ```
 
 ```json
@@ -694,7 +694,7 @@ linch --skills
 }
 ```
 
-AI agents use `linch --skills` once to understand available operations, then call specific commands with `--json` output.
+AI agents use `linch --commands` once to understand available operations, then call specific commands with `--json` output.
 
 **Relationship with MCP:**
 - MCP tools and CLI commands share the same CommandLayer backend.

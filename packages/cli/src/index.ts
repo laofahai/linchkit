@@ -132,9 +132,9 @@ async function discoverCapabilityCommands(): Promise<{
 }
 
 /**
- * Build the skills manifest (JSON) for AI agent discovery.
+ * Build the commands manifest (JSON) for AI agent discovery.
  */
-function buildSkillsManifest(
+function buildCommandsManifest(
 	builtinNames: string[],
 	capabilityCommands: CliCommand[],
 ): Record<string, unknown> {
@@ -212,7 +212,7 @@ async function run() {
 			description: "LinchKit CLI — AI-Native Software Capability Runtime",
 		},
 		args: {
-			skills: {
+			commands: {
 				type: "boolean",
 				description:
 					"Show all available commands as JSON (for AI agents)",
@@ -221,8 +221,8 @@ async function run() {
 		},
 		subCommands: { ...builtinCommands, ...capCommands },
 		run({ args }) {
-			if (args.skills) {
-				const manifest = buildSkillsManifest(
+			if (args.commands) {
+				const manifest = buildCommandsManifest(
 					Object.keys(builtinCommands),
 					capCommandList,
 				);
