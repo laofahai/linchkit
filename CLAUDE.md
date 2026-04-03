@@ -78,18 +78,33 @@ Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flo
 
 ```
 packages/ (core infrastructure):
-  @linchkit/core       — Types, engines, pipeline — ✅
-  @linchkit/cli        — CLI launcher (citty) — ✅
-  @linchkit/devtools   — Test utilities — ✅
+  @linchkit/core       — Types, engines, pipeline
+  @linchkit/cli        — CLI launcher (citty)
+  @linchkit/devtools   — Test utilities
 
-capabilities/ (pluggable):
-  @linchkit/cap-adapter-server    — Elysia + graphql-yoga + REST + CommandLayer — 🔧
-  @linchkit/cap-adapter-mcp       — MCP transport (adapter capability) — 🔧
-  @linchkit/cap-adapter-ui-react  — React + Shadcn + TanStack (official UI shell) — 🔧
-  @linchkit/cap-auth              — Authentication (JWT, sessions) — 🔧
-  @linchkit/cap-auth-better-auth  — Auth provider (Better Auth) — 🔧
-  @linchkit/cap-permission        — Permission (RBAC) — 🔧
-  @linchkit/cap-purchase-demo     — Demo: purchase management scenario (private)
+addons/ (grouped capabilities — OCA model, see Spec 57):
+  adapter-server/
+    @linchkit/cap-adapter-server    — Elysia + graphql-yoga + REST + CommandLayer
+  adapter-ui-react/
+    @linchkit/cap-adapter-ui-react  — React + Shadcn + TanStack (official UI shell)
+  adapter-mcp/
+    @linchkit/cap-adapter-mcp       — MCP transport (adapter capability)
+  chatter/
+    @linchkit/cap-chatter           — Record timeline: messages, audit log, GraphQL
+    @linchkit/cap-ui-react-chatter  — Chatter React UI panel (autoInstall)
+  auth/
+    @linchkit/cap-auth              — Authentication (JWT, sessions)
+    @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
+  permission/
+    @linchkit/cap-permission        — Permission (RBAC)
+  ai-provider/
+    @linchkit/cap-ai-provider       — AI provider SDK implementations
+  flow-restate/
+    @linchkit/cap-flow-restate      — Restate durable execution
+  migration/
+    @linchkit/cap-migration         — Data migration tooling
+  demo/
+    @linchkit/cap-purchase-demo     — Demo: purchase management scenario (private)
 ```
 
 ## Dev Commands
@@ -160,6 +175,8 @@ bun ./packages/cli/src/index.ts db studio
 - **Capability Hub**: Spec 21b — capability discovery, registry, installation, and dependency resolution.
 - **Data Masking & Tenant Isolation**: Spec 41b + spec 30 — field-level data masking rules, tenant isolation via `tenant_id` scoping, row-level security.
 - **AI Boundary & AI Security**: Spec 22 + spec 27 — AI rule boundaries (what AI can/cannot modify), AI security hardening (prompt injection defense, output validation, audit trail).
+- **Addon Architecture**: OCA-inspired capability grouping (Spec 57). `addons/` directory contains addon groups, each a potential independent repo. Capabilities are the activation unit (`defineCapability()`). `autoInstall: true` auto-activates when all `dependencies` are met. `graphqlExtensions` in `CapabilityExtensions` lets capabilities declare GraphQL types/resolvers. `registerRecordPanel()` in UI adapter enables lazy panel injection. `addons_path` in config for discovery.
+- **UI Panel Registry**: `addons/adapter-ui-react/cap-adapter-ui-react/src/lib/panel-registry.ts` — `registerRecordPanel()` / `getRecordPanels()`. Capability UI packages register panels at import time. Schema-form renders panels conditionally based on `app-config.capabilities`. Built-in panels use `capability: "__builtin__"`.
 
 ## Test Coverage
 
@@ -196,8 +213,8 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 
 ## Specs
 
-Full specs in project: `docs/specs/` (54 files, 00–50).
-Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`.
+Full specs in project: `docs/specs/` (55+ files, 00–57).
+Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`, `57_addon_architecture`.
 
 ## Research
 
