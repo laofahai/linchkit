@@ -95,7 +95,7 @@ linchkit/                                ← 主 monorepo
   capabilities/
     cap-adapter-server/                  ← @linchkit/cap-adapter-server
     cap-adapter-mcp/                     ← @linchkit/cap-adapter-mcp
-    cap-adapter-ui-react/                ← @linchkit/cap-adapter-ui-react
+    cap-adapter-ui/                ← @linchkit/cap-adapter-ui
     cap-auth/                            ← @linchkit/cap-auth
     cap-auth-better-auth/                ← @linchkit/cap-auth-better-auth
     cap-permission/                      ← @linchkit/cap-permission
@@ -221,7 +221,7 @@ $ linch install some-random-package
 | 类别 | 内容 |
 |------|------|
 | 框架 | `@linchkit/core`, `@linchkit/cli`, `@linchkit/devtools` |
-| 官方适配器 | `cap-adapter-server`, `cap-adapter-mcp`, `cap-adapter-ui-react` |
+| 官方适配器 | `cap-adapter-server`, `cap-adapter-mcp`, `cap-adapter-ui` |
 | 基础能力 | `cap-auth`, `cap-auth-better-auth`, `cap-permission` |
 | 社区生态 | 所有社区 Capability |
 

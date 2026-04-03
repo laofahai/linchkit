@@ -15,6 +15,13 @@
       "when": 1774532840670,
       "tag": "0001_fluffy_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775202494136,
+      "tag": "0002_chunky_longshot",
+      "breakpoints": true
     }
   ]
 }

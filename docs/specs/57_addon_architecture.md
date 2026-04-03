@@ -35,8 +35,8 @@ addons/                                # All capabilities, grouped
   adapter-server/                      # Addon group: HTTP/GraphQL server
     cap-adapter-server/                #   Package: @linchkit/cap-adapter-server
 
-  adapter-ui-react/                    # Addon group: React UI shell
-    cap-adapter-ui-react/              #   Package: @linchkit/cap-adapter-ui-react
+  adapter-ui/                    # Addon group: React UI shell
+    cap-adapter-ui/              #   Package: @linchkit/cap-adapter-ui
       ui-kit/                          #   Nested: @linchkit/ui-kit
 
   adapter-mcp/                         # Addon group: MCP transport
@@ -44,7 +44,7 @@ addons/                                # All capabilities, grouped
 
   chatter/                             # Addon group: record timeline
     cap-chatter/                       #   Backend: service, graphql, events
-    cap-ui-react-chatter/              #   React UI: ChatterPanel
+    cap-chatter-ui/              #   React UI: ChatterPanel
 
   auth/                                # Addon group: authentication
     cap-auth/                          #   Core auth (JWT, sessions)
@@ -72,7 +72,7 @@ addons/                                # All capabilities, grouped
 | Type | Pattern | Example |
 |------|---------|---------|
 | Backend capability | `cap-{feature}` | `cap-chatter` |
-| React UI extension | `cap-ui-react-{feature}` | `cap-ui-react-chatter` |
+| React UI extension | `cap-ui-react-{feature}` | `cap-chatter-ui` |
 | MCP extension | `cap-mcp-{feature}` | `cap-mcp-chatter` |
 | Auth provider | `cap-auth-{provider}` | `cap-auth-better-auth` |
 | Adapter | `cap-adapter-{protocol}` | `cap-adapter-server` |
@@ -85,7 +85,7 @@ addons/                                # All capabilities, grouped
   "workspaces": [
     "packages/*",
     "addons/*/cap-*",
-    "addons/adapter-ui-react/cap-adapter-ui-react/ui-kit"
+    "addons/adapter-ui/cap-adapter-ui/ui-kit"
   ]
 }
 ```
@@ -211,13 +211,13 @@ This handles transitive autoInstall chains (A autoInstalls B, B autoInstalls C).
 
 ## 6. UI Panel Registry
 
-`cap-adapter-ui-react` provides a panel registration API.
-UI extension capabilities (e.g., `cap-ui-react-chatter`) register panels at import time.
+`cap-adapter-ui` provides a panel registration API.
+UI extension capabilities (e.g., `cap-chatter-ui`) register panels at import time.
 
 ### Registry API
 
 ```typescript
-// In cap-adapter-ui-react/src/lib/panel-registry.ts
+// In cap-adapter-ui/src/lib/panel-registry.ts
 
 export interface RecordPanelRegistration {
   /** ID — must be unique */
@@ -271,11 +271,11 @@ const activePanels = panels.filter(p =>
 ))}
 ```
 
-### cap-ui-react-chatter Registration
+### cap-chatter-ui Registration
 
 ```typescript
-// addons/chatter/cap-ui-react-chatter/src/index.ts
-import { registerRecordPanel } from "@linchkit/cap-adapter-ui-react/panel-registry";
+// addons/chatter/cap-chatter-ui/src/index.ts
+import { registerRecordPanel } from "@linchkit/cap-adapter-ui/panel-registry";
 
 registerRecordPanel({
   id: "chatter",
@@ -312,7 +312,7 @@ export default {
 | Source | Target |
 |--------|--------|
 | `capabilities/cap-adapter-server/` | `addons/adapter-server/cap-adapter-server/` |
-| `capabilities/cap-adapter-ui-react/` | `addons/adapter-ui-react/cap-adapter-ui-react/` |
+| `capabilities/cap-adapter-ui/` | `addons/adapter-ui/cap-adapter-ui/` |
 | `capabilities/cap-adapter-mcp/` | `addons/adapter-mcp/cap-adapter-mcp/` |
 | `capabilities/cap-chatter/` | `addons/chatter/cap-chatter/` |
 | `capabilities/cap-auth/` | `addons/auth/cap-auth/` |
@@ -328,7 +328,7 @@ export default {
 1. Root `package.json` workspaces → `addons/*/cap-*`
 2. `config/capabilities.ts` import paths → `@linchkit/cap-*` (unchanged, workspace resolves)
 3. Any `tsconfig.json` path mappings referencing `capabilities/`
-4. Vite config in cap-adapter-ui-react (proxy, aliases)
+4. Vite config in cap-adapter-ui (proxy, aliases)
 5. Biome config (include/exclude paths)
 6. CI/CD scripts referencing `capabilities/`
 7. CLAUDE.md documentation
@@ -353,33 +353,33 @@ extensions: {
 }
 ```
 
-### cap-ui-react-chatter: New Package
+### cap-chatter-ui: New Package
 
 ```
-addons/chatter/cap-ui-react-chatter/
-  package.json          → @linchkit/cap-ui-react-chatter
+addons/chatter/cap-chatter-ui/
+  package.json          → @linchkit/cap-chatter-ui
   src/
     index.ts            → registerRecordPanel() call
-    chatter-panel.tsx   → moved from cap-adapter-ui-react
+    chatter-panel.tsx   → moved from cap-adapter-ui
 ```
 
 ```typescript
 // capability.ts
 defineCapability({
-  name: "cap-ui-react-chatter",
+  name: "cap-chatter-ui",
   label: "Chatter UI",
   group: "chatter",
   type: "standard",
   category: "system",
   version: "0.1.0",
-  dependencies: ["cap-adapter-ui-react", "cap-chatter"],
+  dependencies: ["cap-adapter-ui", "cap-chatter"],
   autoInstall: true,
 });
 ```
 
 ### Version History Panel
 
-`VersionHistoryPanel` stays in `cap-adapter-ui-react` — it depends only on core
+`VersionHistoryPanel` stays in `cap-adapter-ui` — it depends only on core
 execution logs (system table), not a separate capability. It's a built-in panel,
 not a capability-provided panel. But it should also use the panel registry
 for consistency. Register it as a built-in with `capability: "__builtin__"`.

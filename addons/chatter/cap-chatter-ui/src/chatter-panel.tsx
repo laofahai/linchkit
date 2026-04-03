@@ -9,6 +9,12 @@
  * Falls back gracefully when cap-chatter is not installed (shows empty state).
  */
 
+import { useSubscription } from "@linchkit/cap-adapter-ui/hooks/use-subscription";
+import {
+  addChatterMessage,
+  type ChatterMessage,
+  queryChatterMessages,
+} from "@linchkit/cap-adapter-ui/lib/api";
 import { Badge, Button, Textarea } from "@linchkit/ui-kit/components";
 import {
   ArrowRight,
@@ -25,8 +31,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSubscription } from "@linchkit/cap-adapter-ui-react/hooks/use-subscription";
-import { addChatterMessage, type ChatterMessage, queryChatterMessages } from "@linchkit/cap-adapter-ui-react/lib/api";
 
 interface ChatterPanelProps {
   schemaName: string;

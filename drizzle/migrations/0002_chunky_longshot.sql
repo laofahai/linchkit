@@ -1,0 +1,1 @@
+ALTER TABLE "purchase_item" ADD COLUMN "line_total" numeric;

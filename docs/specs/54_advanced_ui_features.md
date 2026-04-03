@@ -19,9 +19,9 @@
 
 ## Overview
 
-This spec defines advanced UI features that build on top of the existing view system ([Spec 13](./13_view_and_ui.md)) and schema-driven rendering in `cap-adapter-ui-react`. These features enhance form interactivity, list flexibility, data visualization, and content editing without changing the core meta-model.
+This spec defines advanced UI features that build on top of the existing view system ([Spec 13](./13_view_and_ui.md)) and schema-driven rendering in `cap-adapter-ui`. These features enhance form interactivity, list flexibility, data visualization, and content editing without changing the core meta-model.
 
-All features follow the existing architecture principle: **declarations live in `@linchkit/core` types, rendering lives in `cap-adapter-ui-react`**.
+All features follow the existing architecture principle: **declarations live in `@linchkit/core` types, rendering lives in `cap-adapter-ui`**.
 
 ---
 
@@ -191,11 +191,11 @@ type Mutation {
 
 ## 3. Tree View Enhancements
 
-> The `tree` view type is defined in [Spec 13](./13_view_and_ui.md) §6 (milestone M2). An `AutoTree` component already exists in `cap-adapter-ui-react`. This section defines enhancements to that existing implementation.
+> The `tree` view type is defined in [Spec 13](./13_view_and_ui.md) §6 (milestone M2). An `AutoTree` component already exists in `cap-adapter-ui`. This section defines enhancements to that existing implementation.
 
 ### Current State
 
-An `AutoTree` component already exists (`capabilities/cap-adapter-ui-react/src/components/auto-tree/`). It supports:
+An `AutoTree` component already exists (`capabilities/cap-adapter-ui/src/components/auto-tree/`). It supports:
 
 - `parentField` for self-referencing hierarchy
 - `labelField` for node display
@@ -425,7 +425,7 @@ Users need to print form records (invoices, purchase orders, reports) with clean
   - Clean typography, proper page breaks
   - Form fields render as labeled values (no input borders)
   - Respect `@page` margin/size settings
-- Print CSS lives in `capabilities/cap-adapter-ui-react/src/styles/print.css`
+- Print CSS lives in `capabilities/cap-adapter-ui/src/styles/print.css`
 
 #### Print Layout Configuration
 

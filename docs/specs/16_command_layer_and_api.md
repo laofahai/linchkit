@@ -16,7 +16,7 @@ UI ───────┘         │
 >
 > - `cap-adapter-server` — 注册 HTTP REST + GraphQL transport
 > - `cap-adapter-mcp` — 注册 MCP transport（stdio + Streamable HTTP）
-> - `cap-adapter-ui-react` — 注册 UI Shell（通过 cap-adapter-server 的 HTTP 服务静态文件）
+> - `cap-adapter-ui` — 注册 UI Shell（通过 cap-adapter-server 的 HTTP 服务静态文件）
 >
 > 不同部署场景只需加载不同的 adapter Capability，Core 代码不变。
 

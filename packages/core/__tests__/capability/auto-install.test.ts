@@ -15,27 +15,27 @@ function cap(name: string, opts?: Partial<CapabilityDefinition>): CapabilityDefi
 
 describe("resolveAutoInstall", () => {
   test("activates autoInstall cap when all deps are met", () => {
-    const explicit = [cap("cap-chatter"), cap("cap-adapter-ui-react")];
+    const explicit = [cap("cap-chatter"), cap("cap-adapter-ui")];
     const discovered = [
-      cap("cap-ui-react-chatter", {
+      cap("cap-chatter-ui", {
         autoInstall: true,
-        dependencies: ["cap-chatter", "cap-adapter-ui-react"],
+        dependencies: ["cap-chatter", "cap-adapter-ui"],
       }),
     ];
     const result = resolveAutoInstall(explicit, discovered);
-    expect(result.map((c) => c.name)).toContain("cap-ui-react-chatter");
+    expect(result.map((c) => c.name)).toContain("cap-chatter-ui");
   });
 
   test("does NOT activate when deps are missing", () => {
     const explicit = [cap("cap-chatter")];
     const discovered = [
-      cap("cap-ui-react-chatter", {
+      cap("cap-chatter-ui", {
         autoInstall: true,
-        dependencies: ["cap-chatter", "cap-adapter-ui-react"],
+        dependencies: ["cap-chatter", "cap-adapter-ui"],
       }),
     ];
     const result = resolveAutoInstall(explicit, discovered);
-    expect(result.map((c) => c.name)).not.toContain("cap-ui-react-chatter");
+    expect(result.map((c) => c.name)).not.toContain("cap-chatter-ui");
   });
 
   test("handles transitive autoInstall chains", () => {

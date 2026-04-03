@@ -1,5 +1,5 @@
 /**
- * @linchkit/cap-adapter-ui-react — Frontend UI components + Headless hooks
+ * @linchkit/cap-adapter-ui — Frontend UI components + Headless hooks
  *
  * Shadcn + React + TanStack Router/Query/Table
  */
@@ -10,7 +10,7 @@ export { useTheme } from "@linchkit/ui-kit/hooks";
 // Utilities
 export { cn } from "@linchkit/ui-kit/lib/utils";
 // Capability definition
-export { capAdapterUiReact } from "./capability";
+export { capAdapterUi } from "./capability";
 // UI components
 export { AppSidebar } from "./components/app-sidebar";
 export type { AutoFormProps } from "./components/auto-form";
@@ -26,7 +26,7 @@ export { FieldDisplay, FieldInput } from "./components/field-renderer";
 export { LanguageSwitcher } from "./components/language-switcher";
 export { ThemeToggle } from "./components/theme-toggle";
 // Config schema
-export { capAdapterUiReactConfig } from "./config";
+export { capAdapterUiConfig } from "./config";
 // Hooks
 export { useBreadcrumb } from "./hooks/use-breadcrumb";
 export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcrumb-title";
@@ -40,3 +40,8 @@ export { ShellLayout } from "./layouts/shell";
 export { SchemaFormPage } from "./pages/schema-form";
 export { SchemaListPage } from "./pages/schema-list";
 export { WorkspacePage } from "./pages/workspace";
+
+// Admin route registry
+export { registerAdminRoute, getAdminRoutes } from "./lib/route-registry";
+export type { AdminRouteRegistration } from "./lib/route-registry";
+export { AdminLayout } from "./pages/admin-layout";

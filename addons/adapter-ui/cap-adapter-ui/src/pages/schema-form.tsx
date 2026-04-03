@@ -7,73 +7,39 @@
  */
 
 import type { ViewAction } from "@linchkit/core/types";
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Separator,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  toast,
-} from "@linchkit/ui-kit/components";
+import { Button, toast } from "@linchkit/ui-kit/components";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Check,
-  Copy,
-  Loader2,
-  MoreHorizontal,
-  Pencil,
-  Printer,
-  RefreshCw,
-  ServerCrash,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
-import type { EnrichedSubmitData } from "../components/auto-form/types";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
-import { StatusBar, type StatusBarStep } from "../components/status-bar";
+import { StatusBar, type StatusBarStep, type StateTransitionInfo } from "../components/status-bar";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
-import { pushNotification } from "../hooks/use-notifications";
 import { useSchemaBundle } from "../hooks/use-schema-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useSchemaLabel } from "../i18n/use-schema-label";
-import {
-  createRecord,
-  deleteRecord,
-  executeAction,
-  getActiveCapabilities,
-  isAiEnabled,
-  queryRecord,
-  transitionRecord,
-  updateRecord,
-} from "../lib/api";
+import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
 import { getRecordPanels } from "../lib/panel-registry";
 import {
-  CLONE_STRIP_FIELDS,
   deriveStatusSteps,
   generateFallbackFormView,
-  getMutationReturnFields,
   getPrimaryView,
   getRecordFields,
   getTransitionActionNames,
 } from "../lib/schema-form-utils";
+import { useFormActions } from "./schema-form-actions";
+import { SchemaFormHeader } from "./schema-form-header";
+import {
+  BundleErrorState,
+  FormLoadingSkeleton,
+  MissingSchemaState,
+  RecordErrorState,
+} from "./schema-form-states";
 
 export function SchemaFormPage() {
   const navigate = useNavigate();
@@ -121,10 +87,8 @@ export function SchemaFormPage() {
   );
   const [record, setRecord] = useState<Record<string, unknown> | undefined>(undefined);
   const [loading, setLoading] = useState(!isCreate || !!cloneId);
-  const [saving, setSaving] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [stateTransitions, setStateTransitions] = useState<StateTransitionInfo[]>([]);
 
   // AI auto-fill — always call hook (React rules), but only use when schema is loaded
   const aiEnabled = isAiEnabled();
@@ -134,7 +98,6 @@ export function SchemaFormPage() {
   const aiAutoFill = useAiAutoFill(
     (schema ?? dummySchema) as import("@linchkit/core/types").SchemaDefinition,
     (fieldName, value) => {
-      // Apply value to AutoForm via the registered setter
       autoFormSetFieldRef.current?.(fieldName, value);
     },
   );
@@ -168,95 +131,6 @@ export function SchemaFormPage() {
       setLoading(false);
     }
   }, [isCreate, params.id, schemaName, formView, t]);
-
-  // Fetch source record for cloning
-  const fetchCloneSource = useCallback(async () => {
-    if (!cloneId || !schemaName || !formView) return;
-    setLoading(true);
-    setRecordError(null);
-    try {
-      const result = await queryRecord(schemaName, cloneId, recordFieldsRef.current);
-      if (result) {
-        // Strip system fields from cloned data
-        const cloned = { ...(result as Record<string, unknown>) };
-        for (const field of CLONE_STRIP_FIELDS) {
-          delete cloned[field];
-        }
-        // Reset state fields to initial value (first state in the machine)
-        if (schema) {
-          for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-            if (fieldDef.type === "state" && "machine" in fieldDef) {
-              const machine = (bundle?.states ?? []).find(
-                (s) => s.name === fieldDef.machine && s.schema === schema.name,
-              );
-              if (machine && machine.states.length > 0) {
-                cloned[fieldName] = machine.initial ?? machine.states[0];
-              }
-            }
-          }
-        }
-        setRecord(cloned);
-      } else {
-        // Clone source not found — proceed with empty form
-        console.warn(`Clone source record "${cloneId}" not found, starting with empty form.`);
-      }
-    } catch (err) {
-      console.warn("Failed to load clone source:", err);
-      toast.error(
-        t(
-          "toast.cloneSourceFailed",
-          "Failed to load clone source. You can fill the form manually.",
-        ),
-      );
-      // Non-fatal — user can still fill the form manually
-    } finally {
-      setLoading(false);
-    }
-  }, [cloneId, schemaName, formView, schema, bundle?.states, t]);
-
-  // Sync form mode when navigating between create/edit via URL changes
-  useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
-
-  useEffect(() => {
-    if (!bundleLoading && bundle) {
-      if (isCreate && cloneId) {
-        fetchCloneSource();
-      } else if (isCreate && parentId && bundle.schema) {
-        // Pre-fill the parent field when creating a child record
-        const schemaFields = bundle.schema.fields as Record<
-          string,
-          { type?: string; target?: string }
-        >;
-        const selfRefField = Object.entries(schemaFields).find(
-          ([, def]) => def.type === "ref" && def.target === bundle.schema?.name,
-        )?.[0];
-        if (selfRefField) {
-          setRecord({ [selfRefField]: parentId });
-        }
-        setLoading(false);
-      } else {
-        fetchRecord();
-      }
-    } else if (!bundleLoading && !bundle) {
-      setLoading(false);
-    }
-  }, [fetchRecord, fetchCloneSource, bundleLoading, bundle, isCreate, cloneId, parentId]);
-
-  // Update breadcrumb title with the record's display name
-  useEffect(() => {
-    if (isCreate) {
-      setBreadcrumbTitle(null);
-      return;
-    }
-    if (record && schema) {
-      const titleFld = schema.presentation?.titleField as string | undefined;
-      const title = String(
-        (titleFld && record[titleFld]) ?? record.title ?? record.name ?? params.id ?? "",
-      );
-      setBreadcrumbTitle(title || null);
-    }
-    return () => setBreadcrumbTitle(null);
-  }, [record, schema, isCreate, params.id, setBreadcrumbTitle]);
 
   // Dynamically find the state field name from the schema
   const stateFieldName = useMemo(
@@ -328,11 +202,8 @@ export function SchemaFormPage() {
     // Transition action: check permission from availableTransitions query
     const perm = transitionPermMap.get(actionName);
     if (!perm) {
-      // Not in available transitions — either still loading or invalid transition
-      // Disable while loading to prevent premature clicks
       return { enabled: false };
     }
-    // Explicitly check for true — if server doesn't return `allowed`, treat as disabled
     if (perm.allowed !== true) {
       return { enabled: false, reason: perm.reason ?? undefined };
     }
@@ -342,336 +213,131 @@ export function SchemaFormPage() {
   const isInternal = !!bundle?.internal;
   const isEditing = formMode === "edit" || formMode === "create";
 
-  /** Prepare mutation input by stripping non-input fields and converting ref values to FK columns. */
-  function prepareMutationInput(data: Record<string, unknown>): Record<string, unknown> {
-    if (!schema) return data;
-    const input: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(data)) {
-      const fieldDef = schema.fields[key];
-      if (!fieldDef) continue;
-      // Skip derived fields — they are computed, not user input
-      if (fieldDef.derived) continue;
-      // Convert ref field values to FK column format (e.g., department → department_id)
-      if (fieldDef.type === "ref") {
-        const target = (fieldDef as { target?: string }).target;
-        if (target) {
-          // Check bundle.links for actual FK column name, fall back to convention
-          const link = bundle?.links?.find(
-            (l) =>
-              (l.from === schemaName &&
-                l.to === target &&
-                (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
-              (l.to === schemaName && l.from === target && l.cardinality === "one_to_many"),
-          );
-          const fkKey = link
-            ? link.from === schemaName
-              ? `${link.to}_id`
-              : `${link.from}_id`
-            : `${target}_id`;
-          // Extract ID from expanded object or use raw value
-          const refValue =
-            typeof value === "object" && value !== null && "id" in value
-              ? (value as { id: string }).id
-              : value;
-          // Only send if the value is not empty
-          if (refValue != null && refValue !== "") {
-            input[fkKey] = refValue;
-          }
-        }
-        continue;
+  // --- Actions hook ---
+  const actions = useFormActions({
+    schemaName,
+    recordId: params.id,
+    isCreate,
+    schema,
+    bundle,
+    recordFields,
+    recordFieldsRef,
+    availableTransitions,
+    navigate,
+    fetchRecord,
+    refetchTransitions,
+    t,
+  });
+
+  // Wrap handleAction to update local record state on transition
+  const handleAction = useCallback(
+    async (actionName: string) => {
+      const result = await actions.handleAction(actionName);
+      if (result) {
+        setRecord(result);
+        await refetchTransitions();
       }
-      // Skip has_many and many_to_many — they are managed via junction tables, not direct input
-      if (fieldDef.type === "has_many" || fieldDef.type === "many_to_many") continue;
-      input[key] = value;
-    }
-    return input;
-  }
+    },
+    [actions, refetchTransitions],
+  );
 
-  async function handleSubmit(
-    data: Record<string, unknown>,
-    enriched?: EnrichedSubmitData,
-  ): Promise<undefined> {
-    if (!schemaName) return;
-    setSaving(true);
-    try {
-      // Step 1: Create virtual ref records first (quick-created related records)
-      const virtualRefIdMap = new Map<string, string>(); // tempId -> real ID
-      if (enriched?.virtualRefs) {
-        for (const [fieldName, virtualRecord] of Object.entries(enriched.virtualRefs)) {
-          const fieldDef = schema?.fields[fieldName];
-          if (!fieldDef || fieldDef.type !== "ref") continue;
-          const targetSchema = (fieldDef as { target?: string }).target;
-          if (!targetSchema) continue;
-
-          // Build input from virtual record, stripping internal fields
-          const refInput: Record<string, unknown> = {};
-          for (const [key, val] of Object.entries(virtualRecord)) {
-            if (key === "_virtual" || key === "_tempId" || key === "id") continue;
-            refInput[key] = val;
-          }
-
-          const created = await createRecord<{ id: string }>(targetSchema, refInput, ["id"]);
-          virtualRefIdMap.set(virtualRecord._tempId, created.id);
-        }
-      }
-
-      // Step 2: Prepare mutation input, replacing virtual ref IDs with real ones
-      const mutationData = { ...data };
-      for (const [fieldName, virtualRecord] of Object.entries(enriched?.virtualRefs ?? {})) {
-        const realId = virtualRefIdMap.get(virtualRecord._tempId);
-        if (realId) {
-          mutationData[fieldName] = realId;
-        }
-      }
-
-      const mutationInput = prepareMutationInput(mutationData);
-
-      // Step 3: Create/update parent record
-      // Filter out has_many/many_to_many fields — they exist on query types but not mutation return types
-      const mutationFields = getMutationReturnFields(recordFields, schema);
-      let parentId = params.id;
-      if (isCreate) {
-        const created = await createRecord<{ id: string }>(schemaName, mutationInput, [
-          "id",
-          ...mutationFields,
-        ]);
-        parentId = created.id;
-      } else if (parentId) {
-        await updateRecord(schemaName, parentId, mutationInput, mutationFields);
-      }
-
-      // Step 4: Process child commands (has_many inline records)
-      if (enriched?.childCommands && parentId) {
-        for (const [fieldName, commands] of Object.entries(enriched.childCommands)) {
-          const fieldDef = schema?.fields[fieldName];
-          if (!fieldDef || fieldDef.type !== "has_many") continue;
-          const targetSchema = (fieldDef as { target?: string }).target;
-          if (!targetSchema) continue;
-
-          // Find the FK column name from links
-          const link = bundle?.links?.find(
-            (l) =>
-              (l.cardinality === "one_to_many" && l.from === schemaName && l.to === targetSchema) ||
-              (l.cardinality === "many_to_one" && l.to === schemaName && l.from === targetSchema),
-          );
-          const fkColumn = link ? `${schemaName}_id` : `${schemaName}_id`;
-
-          for (const cmd of commands) {
-            switch (cmd.type) {
-              case "create": {
-                const childInput = { ...cmd.values, [fkColumn]: parentId };
-                await createRecord(targetSchema, childInput, ["id"]);
-                break;
-              }
-              case "update": {
-                await updateRecord(targetSchema, cmd.id, cmd.values, ["id"]);
-                break;
-              }
-              case "delete": {
-                await deleteRecord(targetSchema, cmd.id);
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      if (isCreate) {
-        toast.success(t("toast.recordCreated", "Record created successfully"));
-        navigate({ to: "/schemas/$name", params: { name: schemaName } });
-      } else {
-        toast.success(t("toast.recordUpdated", "Record updated successfully"));
+  // Wrap handleSubmit to set formMode on update success
+  const handleSubmit = useCallback(
+    async (data: Record<string, unknown>, enriched?: import("../components/auto-form/types").EnrichedSubmitData): Promise<undefined> => {
+      await actions.handleSubmit(data, enriched);
+      if (!isCreate) {
         await fetchRecord();
         setFormMode("view");
       }
-    } catch (err) {
-      const msg = isCreate
-        ? t("toast.createFailed", "Failed to create record")
-        : t("toast.updateFailed", "Failed to update record");
-      toast.error(msg);
-      // Re-throw so AutoForm's built-in server error parser handles display
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
+      return undefined;
+    },
+    [actions, isCreate, fetchRecord],
+  );
 
-  function handleCancel() {
-    if (!schemaName) return;
-    if (isCreate) {
-      navigate({ to: "/schemas/$name", params: { name: schemaName } });
-    } else {
+  // Wrap handleCancel to also set formMode
+  const handleCancel = useCallback(() => {
+    actions.handleCancel();
+    if (!isCreate) {
       setFormMode("view");
     }
-  }
+  }, [actions, isCreate]);
 
-  async function handleAction(actionName: string) {
-    setSaving(true);
-    try {
-      if (!params.id) return;
+  // Sync form mode when navigating between create/edit via URL changes
+  useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
 
-      // If it's a transition action, use transitionRecord instead of executeAction
-      const transition = availableTransitions.find((tr) => tr.action === actionName);
-      if (transition) {
-        const updated = await transitionRecord(
-          schemaName ?? "",
-          params.id,
-          transition.to,
-          recordFields,
-        );
-        toast.success(t("toast.transitionSuccess", "Status changed successfully"));
-        setRecord(updated as Record<string, unknown>);
-        await refetchTransitions();
-        return;
-      }
-
-      const result = await executeAction(actionName, { id: params.id });
-      if (result.success) {
-        toast.success(t("toast.actionSuccess", "Action executed successfully"));
-        pushNotification({
-          type: "action_success",
-          message: t("notifications.actionSucceeded", { action: actionName }),
-          schema: schemaName,
-          recordId: params.id,
+  // Data loading effects
+  useEffect(() => {
+    if (!bundleLoading && bundle) {
+      if (isCreate && cloneId) {
+        setLoading(true);
+        actions.fetchCloneSource(cloneId, formView).then((cloned) => {
+          if (cloned) setRecord(cloned);
+          setLoading(false);
         });
-        await fetchRecord();
+      } else if (isCreate && parentId && bundle.schema) {
+        // Pre-fill the parent field when creating a child record
+        const schemaFields = bundle.schema.fields as Record<
+          string,
+          { type?: string; target?: string }
+        >;
+        const selfRefField = Object.entries(schemaFields).find(
+          ([, def]) => def.type === "ref" && def.target === bundle.schema?.name,
+        )?.[0];
+        if (selfRefField) {
+          setRecord({ [selfRefField]: parentId });
+        }
+        setLoading(false);
       } else {
-        toast.error(t("toast.actionFailed", "Action failed"));
-        pushNotification({
-          type: "action_failure",
-          message: t("notifications.actionFailed", { action: actionName }),
-          schema: schemaName,
-          recordId: params.id,
+        fetchRecord().then(() => {
+          // Fetch state transitions after record loads (non-blocking)
+          if (!isCreate && params.id) {
+            actions.fetchStateTransitions(params.id).then(setStateTransitions);
+          }
         });
       }
-    } catch (_err) {
-      toast.error(t("toast.actionFailed", "Action failed"));
-      pushNotification({
-        type: "action_failure",
-        message: t("notifications.actionFailed", { action: actionName }),
-        schema: schemaName,
-      });
-    } finally {
-      setSaving(false);
+    } else if (!bundleLoading && !bundle) {
+      setLoading(false);
     }
-  }
+  }, [fetchRecord, bundleLoading, bundle, isCreate, cloneId, parentId, formView, params.id, actions]);
 
-  async function executeDelete() {
-    if (!schemaName || !params.id) return;
-    setDeleting(true);
-    try {
-      await deleteRecord(schemaName, params.id);
-      toast.success(t("toast.recordDeleted", "Record deleted successfully"));
-      navigate({ to: "/schemas/$name", params: { name: schemaName } });
-    } catch (_err) {
-      toast.error(t("toast.deleteFailed", "Failed to delete record"));
-    } finally {
-      setDeleting(false);
-      setDeleteOpen(false);
+  // Update breadcrumb title with the record's display name
+  useEffect(() => {
+    if (isCreate) {
+      setBreadcrumbTitle(null);
+      return;
     }
-  }
+    if (record && schema) {
+      const titleFld = schema.presentation?.titleField as string | undefined;
+      const title = String(
+        (titleFld && record[titleFld]) ?? record.title ?? record.name ?? params.id ?? "",
+      );
+      setBreadcrumbTitle(title || null);
+    }
+    return () => setBreadcrumbTitle(null);
+  }, [record, schema, isCreate, params.id, setBreadcrumbTitle]);
 
-  function handleBack() {
-    if (!schemaName) return;
-    navigate({ to: "/schemas/$name", params: { name: schemaName } });
-  }
+  // --- Early returns for loading/error states ---
 
-  function handlePrint() {
-    window.print();
-  }
-
-  // Missing schema name in route
   if (!schemaName) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="size-10" />
-        <p className="text-sm">
-          {t("errors.missingSchemaName", "No schema specified in the URL.")}
-        </p>
-      </div>
-    );
+    return <MissingSchemaState t={t} />;
   }
 
-  // Loading bundle or record — show form skeleton matching final layout
   if (bundleLoading || loading) {
-    return (
-      <div className="bg-muted/30 min-h-full">
-        {/* Sticky control panel skeleton */}
-        <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-8 rounded" />
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-16" />
-            </div>
-          </div>
-        </div>
-        {/* Sheet card skeleton */}
-        <div className="flex gap-6 my-4 px-4">
-          <div className="flex-1 min-w-0 space-y-4">
-            <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4 space-y-6">
-              {/* Title + status bar */}
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-5 w-64" />
-              </div>
-              {/* Form field rows */}
-              {Array.from({ length: 5 }, (_, i) => `skel-field-${i}`).map((key) => (
-                <div key={key} className="space-y-2">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-9 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <FormLoadingSkeleton />;
   }
 
-  // Bundle fetch error
   if (bundleError || !schema || !formView) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <ServerCrash className="size-10" />
-        <p className="text-sm font-medium">
-          {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
-        </p>
-        <p className="text-xs">
-          {t(
-            "errors.checkServer",
-            "Check that the server is running and the schema is registered.",
-          )}
-        </p>
-        <Button variant="outline" size="sm" onClick={reloadBundle}>
-          <RefreshCw className="mr-1.5 size-3.5" />
-          {t("common.retry", "Retry")}
-        </Button>
-      </div>
-    );
+    return <BundleErrorState t={t} schemaName={schemaName} onRetry={reloadBundle} />;
   }
 
-  // Record fetch error (not create mode)
   if (recordError && !isCreate) {
     return (
-      <div className="bg-muted/30 min-h-full">
-        <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
-          <Button variant="ghost" size="icon" onClick={handleBack}>
-            <ArrowLeft className="size-4" />
-          </Button>
-        </div>
-        <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-          <ServerCrash className="size-10" />
-          <p className="text-sm font-medium">
-            {t("errors.recordLoadFailed", "Failed to load record.")}
-          </p>
-          <p className="text-xs text-destructive">{recordError}</p>
-          <Button variant="outline" size="sm" onClick={fetchRecord}>
-            <RefreshCw className="mr-1.5 size-3.5" />
-            {t("common.retry", "Retry")}
-          </Button>
-        </div>
-      </div>
+      <RecordErrorState
+        t={t}
+        error={recordError}
+        onBack={actions.handleBack}
+        onRetry={fetchRecord}
+      />
     );
   }
 
@@ -694,124 +360,34 @@ export function SchemaFormPage() {
   return (
     <div className="bg-muted/30 min-h-full">
       {/* Sticky control panel */}
-      <div className="sticky top-0 z-10 bg-background border-b px-4 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0" onClick={handleBack}>
-            <ArrowLeft className="size-4" />
-          </Button>
-
-          <TooltipProvider delayDuration={300}>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {businessActions.map((a) => {
-                const { enabled, reason } = isActionEnabled(a.action);
-                const isDisabled = saving || !enabled;
-                const btn = (
-                  <Button
-                    key={a.action}
-                    size="sm"
-                    variant={
-                      a.variant === "destructive"
-                        ? "destructive"
-                        : a.variant === "ghost"
-                          ? "ghost"
-                          : "default"
-                    }
-                    disabled={isDisabled}
-                    onClick={() => handleAction(a.action)}
-                  >
-                    {resolveLabel(a.label, a.action)}
-                  </Button>
-                );
-                if (isDisabled && reason) {
-                  return (
-                    <Tooltip key={a.action}>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex">{btn}</span>
-                      </TooltipTrigger>
-                      <TooltipContent>{reason}</TooltipContent>
-                    </Tooltip>
-                  );
-                }
-                return btn;
-              })}
-
-              {!isCreate && !isEditing && businessActions.length > 0 && (
-                <Separator orientation="vertical" className="!self-auto h-5 mx-1 hidden md:block" />
-              )}
-
-              {!isCreate && !isEditing && !isInternal && (
-                <>
-                  <Button size="sm" variant="outline" onClick={handlePrint}>
-                    <Printer className="mr-1.5 size-3.5" />
-                    {t("common.print", "Print")}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setFormMode("edit")}>
-                    <Pencil className="mr-1.5 size-3.5" />
-                    {t("common.edit", "Edit")}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="sm" variant="ghost" className="size-8 p-0">
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() =>
-                          navigate({
-                            to: "/schemas/$name/new",
-                            params: { name: schemaName },
-                            search: { clone: params.id },
-                          })
-                        }
-                      >
-                        <Copy className="mr-2 size-3.5" />
-                        {t("common.duplicate", "Duplicate")}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteOpen(true)}
-                      >
-                        <Trash2 className="mr-2 size-3.5" />
-                        {t("common.delete", "Delete")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
-              )}
-              {isEditing && (
-                <>
-                  {aiEnabled && schema && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      disabled={saving || aiAutoFill.state.loading}
-                      onClick={() => aiAutoFill.requestSuggestions(formValuesRef.current)}
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                    >
-                      {aiAutoFill.state.loading ? (
-                        <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="mr-1.5 size-3.5" />
-                      )}
-                      {t("ai.fill", "AI Fill")}
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={handleCancel} disabled={saving}>
-                    {t("common.cancel", "Cancel")}
-                  </Button>
-                  <Button size="sm" type="submit" form="auto-form" disabled={saving}>
-                    {saving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-                    {t("common.save", "Save")}
-                  </Button>
-                </>
-              )}
-            </div>
-          </TooltipProvider>
-        </div>
-      </div>
+      <SchemaFormHeader
+        t={t}
+        schemaName={schemaName}
+        recordId={params.id}
+        isCreate={isCreate}
+        isEditing={isEditing}
+        isInternal={isInternal}
+        saving={actions.saving}
+        businessActions={businessActions}
+        isActionEnabled={isActionEnabled}
+        resolveLabel={resolveLabel}
+        onBack={actions.handleBack}
+        onAction={handleAction}
+        onEdit={() => setFormMode("edit")}
+        onCancel={handleCancel}
+        onPrint={actions.handlePrint}
+        onDuplicate={() =>
+          navigate({
+            to: "/schemas/$name/new",
+            params: { name: schemaName },
+            search: { clone: params.id },
+          })
+        }
+        onDeleteOpen={() => actions.setDeleteOpen(true)}
+        aiEnabled={aiEnabled && !!schema}
+        aiLoading={aiAutoFill.state.loading}
+        onAiFill={() => aiAutoFill.requestSuggestions(formValuesRef.current)}
+      />
 
       {/* Sheet card */}
       <div className="flex gap-6 my-4 px-2 md:px-4">
@@ -820,7 +396,7 @@ export function SchemaFormPage() {
             <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
               <h1 className="text-xl font-semibold text-foreground truncate">{recordTitle}</h1>
               {!isCreate && recordStatus && statusSteps && (
-                <StatusBar steps={statusSteps} current={recordStatus} />
+                <StatusBar steps={statusSteps} current={recordStatus} transitions={stateTransitions} />
               )}
             </div>
 
@@ -980,15 +556,15 @@ export function SchemaFormPage() {
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        open={actions.deleteOpen}
+        onOpenChange={actions.setDeleteOpen}
         title={t("confirm.deleteTitle", "Delete record")}
         description={t(
           "confirm.deleteDescription",
           "Are you sure you want to delete this record? This action cannot be undone.",
         )}
-        onConfirm={executeDelete}
-        loading={deleting}
+        onConfirm={actions.executeDelete}
+        loading={actions.deleting}
       />
     </div>
   );

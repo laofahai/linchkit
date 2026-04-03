@@ -7,33 +7,29 @@
  *
  * Introspection tools allow AI agents to discover the full system
  * capabilities: schemas, actions, rules, state machines, and GraphQL queries.
+ *
+ * Note: We use `as any` casts when passing Zod schemas to the MCP SDK because
+ * the SDK bundles its own zod v3 (3.25.x) while the project uses zod v4.
+ * TypeScript sees them as incompatible types despite being structurally identical.
+ * The MCP SDK's zod-compat layer handles both v3 and v4 at runtime.
  */
 
 import type {
   ActionRegistry,
   Actor,
-  CapabilityDefinition,
   CommandLayer,
-  OntologyRegistry,
   RuleDefinition,
-  SchemaDescriptor,
   SchemaRegistry,
   StateDefinition,
 } from "@linchkit/core";
-import type { AIAuditLogger, AIBoundary } from "@linchkit/core/server";
-import {
-  createDocSearchIndex,
-  generateCapabilityDoc,
-  renderCapabilityDoc,
-} from "@linchkit/devtools";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { OperationTypeNode, parse } from "graphql";
 import { z } from "zod";
-import { registerAISecurityTools } from "./ai-security-tools";
+import type { McpClientRegistry } from "./client-registry";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
+import { registerManagementTools } from "./management-tools";
 import { registerScaffoldTools } from "./scaffold-tools";
 import { generateActionTools } from "./tool-registry";
-import { toMcpShape } from "./zod-compat";
+import type { McpClient, ToolPolicy } from "./types";
 
 export interface McpAdapterOptions {
   commandLayer: CommandLayer;
@@ -47,16 +43,8 @@ export interface McpAdapterOptions {
   graphqlEndpoint?: string;
   /** Tenant ID for multi-tenant scoping (forwarded as x-tenant-id to GraphQL) */
   tenantId?: string;
-  /** Ontology registry for unified schema introspection (optional, backwards compatible) */
-  ontologyRegistry?: OntologyRegistry;
-  /** Capability definitions for documentation tools (optional) */
-  capabilities?: CapabilityDefinition[];
   name?: string;
   version?: string;
-  /** AI boundary engine for pre-flight safety checks (optional) */
-  aiBoundary?: AIBoundary;
-  /** AI audit logger for compliance tracking (optional) */
-  aiAuditLogger?: AIAuditLogger;
   /**
    * Bearer token for Phase 1 auth.
    *
@@ -67,6 +55,12 @@ export interface McpAdapterOptions {
    *   level (see M1b 1.4).
    */
   bearerToken?: string;
+  /**
+   * Client registry for multi-client auth and per-client tool filtering.
+   * When provided, resolveActor() uses the registry first, falling back
+   * to simple bearerToken comparison for backward compatibility.
+   */
+  clientRegistry?: McpClientRegistry;
 }
 
 /**
@@ -81,6 +75,16 @@ export interface McpAdapterResult {
   validateAuth: (token: string | undefined) => boolean;
   /** Whether bearer token auth is configured */
   authEnabled: boolean;
+  /**
+   * Resolve an actor from a bearer token.
+   * Uses client registry if available, falls back to simple token match.
+   * Returns the resolved actor and optional client info.
+   */
+  resolveActor: (token: string | undefined) => Promise<{
+    actor: Actor;
+    client?: McpClient;
+    toolPolicy?: ToolPolicy;
+  } | null>;
 }
 
 /** Default actor for MCP clients */
@@ -104,22 +108,76 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     name = "linchkit",
     version = "1.0.0",
     bearerToken,
-    ontologyRegistry,
-    capabilities = [],
-    aiBoundary,
-    aiAuditLogger,
+    clientRegistry,
   } = options;
 
   const server = new McpServer({ name, version });
 
   // Build auth validator.
-  // When no token is configured, auth is not enforced (open access).
+  // When no token is configured and no registry, auth is not enforced (open access).
   // When a token is configured, the provided token must match exactly.
-  const authEnabled = typeof bearerToken === "string" && bearerToken.length > 0;
+  // When a client registry is configured, token is resolved via the registry first.
+  const authEnabled =
+    clientRegistry !== undefined || (typeof bearerToken === "string" && bearerToken.length > 0);
+
   const validateAuth = (token: string | undefined): boolean => {
     if (!authEnabled) return true;
-    return token === bearerToken;
+    // With client registry, validation happens async via resolveActor.
+    // validateAuth is synchronous, so we only do simple bearer check here.
+    if (!clientRegistry) return token === bearerToken;
+    // When registry is present, accept any non-empty token for sync check.
+    // Actual validation happens in resolveActor.
+    return token !== undefined && token.length > 0;
   };
+
+  // Actor resolver: tries client registry first, falls back to simple bearer token
+  const resolveActor = async (
+    token: string | undefined,
+  ): Promise<{
+    actor: Actor;
+    client?: McpClient;
+    toolPolicy?: ToolPolicy;
+  } | null> => {
+    // Try client registry first
+    if (clientRegistry && token) {
+      const resolved = await clientRegistry.resolveActor(token);
+      if (resolved) {
+        return {
+          actor: resolved.actor,
+          client: resolved.client,
+          toolPolicy: resolved.client.toolPolicy,
+        };
+      }
+    }
+
+    // Fall back to simple bearer token comparison
+    if (bearerToken && token === bearerToken) {
+      return { actor: MCP_ACTOR };
+    }
+
+    // No auth configured = default actor (open access)
+    if (!authEnabled) {
+      return { actor: MCP_ACTOR };
+    }
+
+    return null;
+  };
+
+  // Per-session actor state — set by SSE transport auth before tool calls.
+  // For stdio transport, defaults to MCP_ACTOR.
+  let sessionActor: Actor = MCP_ACTOR;
+  let sessionToolPolicy: ToolPolicy | undefined;
+
+  /**
+   * Set the session actor and tool policy (called by SSE transport after auth).
+   */
+  const setSessionAuth = (actor: Actor, toolPolicy?: ToolPolicy) => {
+    sessionActor = actor;
+    sessionToolPolicy = toolPolicy;
+  };
+
+  // Collect all tool names for filtering
+  const allToolNames: Array<{ name: string; category?: string }> = [];
 
   // Register action tools
   const actionTools = generateActionTools(actionRegistry);
@@ -127,19 +185,38 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     const action = actionRegistry.get(tool.name);
     if (!action) continue;
 
+    allToolNames.push({ name: tool.name, category: "actions" });
+
     // Build zod schema for tool parameters
     const zodShape = buildZodShape(action.input);
 
+    // Cast needed: project zod v4 types differ from SDK's bundled zod types
     server.tool(
       tool.name,
       tool.description,
-      toMcpShape(zodShape),
+      // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+      zodShape as any,
       async (args: Record<string, unknown>) => {
+        // Defense-in-depth: verify tool is allowed for current session
+        if (sessionToolPolicy && clientRegistry) {
+          if (!clientRegistry.isToolAllowed(tool.name, sessionToolPolicy, "actions")) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify({ error: "Tool not allowed by client policy" }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
         const result = await commandLayer.execute({
           command: tool.name,
           input: args as Record<string, unknown>,
           channel: "mcp",
-          actor: MCP_ACTOR,
+          actor: sessionActor,
           tenantId,
         });
 
@@ -165,20 +242,51 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     graphqlEndpoint,
     bearerToken,
     tenantId,
-    ontologyRegistry,
-    capabilities,
+  );
+
+  allToolNames.push(
+    { name: "list_schemas", category: "introspection" },
+    { name: "get_schema", category: "introspection" },
+    { name: "list_actions", category: "introspection" },
+    { name: "get_rules", category: "introspection" },
+    { name: "get_state_machine", category: "introspection" },
+    { name: "query", category: "query" },
   );
 
   // Register scaffold tools for AI code generation
   registerScaffoldTools(server);
 
-  // Register AI security tools (boundary checks, audit, prompt sanitization)
-  registerAISecurityTools({ server, aiBoundary, aiAuditLogger });
+  // Register management tools if client registry is available
+  if (clientRegistry) {
+    registerManagementTools(server, clientRegistry);
+    allToolNames.push(
+      { name: "mcp_list_clients", category: "management" },
+      { name: "mcp_create_client", category: "management" },
+      { name: "mcp_update_client", category: "management" },
+      { name: "mcp_toggle_client", category: "management" },
+      { name: "mcp_rotate_secret", category: "management" },
+      { name: "mcp_usage_stats", category: "management" },
+    );
+  }
 
   // Register resources
   registerResources(server, schemaRegistry);
 
-  return { server, validateAuth, authEnabled };
+  const result: McpAdapterResult & {
+    /** Set per-session auth (used by SSE transport after authentication) */
+    setSessionAuth: (actor: Actor, toolPolicy?: ToolPolicy) => void;
+    /** All registered tool names with categories (for filtering) */
+    allToolNames: Array<{ name: string; category?: string }>;
+  } = {
+    server,
+    validateAuth,
+    authEnabled,
+    resolveActor,
+    setSessionAuth,
+    allToolNames,
+  };
+
+  return result;
 }
 
 /** Build a Zod shape from FieldDefinition input record */
@@ -255,23 +363,41 @@ function serializeRule(rule: RuleDefinition): Record<string, unknown> {
 }
 
 /**
- * Validate a GraphQL query string using AST parsing and return the operation types.
+ * Extract the operation type from a GraphQL query string.
  *
- * Uses the `graphql` package's `parse()` for robust, spec-compliant parsing.
- * Returns the set of operation types found in the document, or throws if
- * the query is malformed.
+ * Handles bypass vectors like leading comments, fragment definitions before
+ * the operation, and named operations. Returns "query", "mutation",
+ * "subscription", or "query" as default for shorthand queries like `{ ... }`.
+ *
+ * Algorithm:
+ * 1. Strip all comments (`# ... \n`)
+ * 2. Strip all fragment definitions (`fragment Name on Type { ... }`) with balanced braces
+ * 3. Trim leading whitespace
+ * 4. Check if the remaining text starts with mutation/subscription/query keyword
  */
-function extractGraphQLOperationTypes(query: string): Set<OperationTypeNode> {
-  const document = parse(query);
-  const types = new Set<OperationTypeNode>();
+function extractGraphQLOperationType(query: string): "query" | "mutation" | "subscription" {
+  // Step 1: Strip single-line comments (# to end of line)
+  let cleaned = query.replace(/#[^\n]*/g, "");
 
-  for (const definition of document.definitions) {
-    if (definition.kind === "OperationDefinition") {
-      types.add(definition.operation);
-    }
+  // Step 2: Strip fragment definitions (fragment Name on Type { ... }) with balanced braces
+  // Repeat until no more fragment definitions are found (handles multiple fragments)
+  let prev: string;
+  do {
+    prev = cleaned;
+    cleaned = cleaned.replace(/fragment\s+\w+\s+on\s+\w+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "");
+  } while (cleaned !== prev);
+
+  // Step 3: Trim leading whitespace
+  cleaned = cleaned.trim();
+
+  // Step 4: Check the operation type
+  const match = cleaned.match(/^(mutation|subscription|query)\b/i);
+  if (match) {
+    return match[1]?.toLowerCase() as "query" | "mutation" | "subscription";
   }
 
-  return types;
+  // Shorthand query: `{ ... }` with no keyword
+  return "query";
 }
 
 /** Register built-in introspection tools */
@@ -284,8 +410,6 @@ function registerBuiltinTools(
   graphqlEndpoint?: string,
   bearerToken?: string,
   tenantId?: string,
-  ontologyRegistry?: OntologyRegistry,
-  capabilities: CapabilityDefinition[] = [],
 ): void {
   // list_schemas — returns schema summaries with field names
   server.tool(
@@ -310,7 +434,8 @@ function registerBuiltinTools(
   server.tool(
     "get_schema",
     "Get the full definition of a schema by name, including all fields with types and constraints",
-    toMcpShape(getSchemaShape),
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+    getSchemaShape as any,
     async (args: { name: string }) => {
       const schema = schemaRegistry.get(args.name);
       if (!schema) {
@@ -340,55 +465,15 @@ function registerBuiltinTools(
     },
   );
 
-  // describe_schema — detailed schema information with presentation, fields, related actions, rules, and state machines
-  const describeSchemaShape = { name: z.string().describe("Schema name") };
+  // list_actions — returns MCP-exposed action summaries with input field names
   server.tool(
-    "describe_schema",
-    "Get detailed schema information including fields with types and constraints, presentation metadata, related actions, rules, state machines, relations, views, and flows",
-    toMcpShape(describeSchemaShape),
-    async (args: { name: string }) => {
-      // Prefer OntologyRegistry when available — unified, richer descriptor
-      if (ontologyRegistry) {
-        const descriptor = ontologyRegistry.describe(args.name);
-        if (!descriptor) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
-              },
-            ],
-            isError: true,
-          };
-        }
-        const result = serializeSchemaDescriptor(descriptor);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      // Fallback: manual matching logic (backwards compatible when OntologyRegistry is absent)
-      const schema = schemaRegistry.get(args.name);
-      if (!schema) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Full field details as JSON Schema
-      const fieldSchemas = fieldsToJsonSchema(schema.fields);
-
-      // Related actions (MCP-exposed only)
-      const relatedActions = actionRegistry
+    "list_actions",
+    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries",
+    async () => {
+      const actions = actionRegistry
         .getAll()
         .filter((a) => {
-          if (a.schema !== args.name) return false;
+          // Only show actions exposed to MCP (consistent with tool registration)
           if (a.exposure === undefined || a.exposure === "all") return true;
           return a.exposure.mcp !== false;
         })
@@ -396,85 +481,12 @@ function registerBuiltinTools(
           name: a.name,
           label: a.label,
           description: a.description,
+          schema: a.schema,
           inputFields: a.input ? Object.keys(a.input) : [],
         }));
 
-      // Related rules
-      const relatedRules = rules
-        .filter((r) => {
-          const trigger = r.trigger;
-          if ("stateChange" in trigger && trigger.stateChange.schema === args.name) return true;
-          if ("fieldChange" in trigger && trigger.fieldChange.schema === args.name) return true;
-          if ("action" in trigger) {
-            // Check if the action belongs to this schema
-            const actionNames = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
-            return actionNames.some((an) => {
-              const act = actionRegistry.get(an);
-              return act?.schema === args.name;
-            });
-          }
-          return false;
-        })
-        .map(serializeRule);
-
-      // Related state machines
-      const relatedStateMachines = states
-        .filter((s) => s.schema === args.name)
-        .map((sm) => ({
-          name: sm.name,
-          field: sm.field,
-          initial: sm.initial,
-          states: sm.states,
-          transitions: sm.transitions,
-          meta: sm.meta,
-        }));
-
-      const result: Record<string, unknown> = {
-        name: schema.name,
-        label: schema.label,
-        description: schema.description,
-        fields: fieldSchemas,
-        presentation: schema.presentation ?? null,
-        actions: relatedActions,
-        rules: relatedRules,
-        stateMachines: relatedStateMachines,
-      };
-
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
-
-  // list_actions — returns MCP-exposed action summaries with input field names
-  const listActionsShape = {
-    schema: z.string().describe("Filter actions by schema name").optional(),
-  };
-  server.tool(
-    "list_actions",
-    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries. Optionally filter by schema name.",
-    toMcpShape(listActionsShape),
-    async (args: { schema?: string }) => {
-      let actions = actionRegistry.getAll().filter((a) => {
-        // Only show actions exposed to MCP (consistent with tool registration)
-        if (a.exposure === undefined || a.exposure === "all") return true;
-        return a.exposure.mcp !== false;
-      });
-
-      if (args.schema) {
-        actions = actions.filter((a) => a.schema === args.schema);
-      }
-
-      const result = actions.map((a) => ({
-        name: a.name,
-        label: a.label,
-        description: a.description,
-        schema: a.schema,
-        inputFields: a.input ? Object.keys(a.input) : [],
-      }));
-
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(actions, null, 2) }],
       };
     },
   );
@@ -487,7 +499,8 @@ function registerBuiltinTools(
   server.tool(
     "get_rules",
     "List business rules, optionally filtered by schema or action name",
-    toMcpShape(getRulesShape),
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+    getRulesShape as any,
     async (args: { schema?: string; action?: string }) => {
       let filtered = rules;
 
@@ -528,7 +541,8 @@ function registerBuiltinTools(
   server.tool(
     "get_state_machine",
     "Get the state machine definition for a schema, including states, transitions, and metadata",
-    toMcpShape(getStateMachineShape),
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+    getStateMachineShape as any,
     async (args: { schema: string }) => {
       const matching = states.filter((s) => s.schema === args.schema);
 
@@ -571,7 +585,8 @@ function registerBuiltinTools(
   server.tool(
     "query",
     "Execute a read-only GraphQL query against the LinchKit server. Mutations are blocked — use action tools instead.",
-    toMcpShape(queryShape),
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
+    queryShape as any,
     async (args: { query: string; variables?: Record<string, unknown> }) => {
       if (!graphqlEndpoint) {
         return {
@@ -590,28 +605,10 @@ function registerBuiltinTools(
 
       // Block mutation/subscription operations — MCP writes must go through action tools
       // which pass through the CommandLayer middleware pipeline.
-      // Uses AST parsing via graphql's parse() for spec-compliant operation type detection.
-      let operationTypes: Set<OperationTypeNode>;
-      try {
-        operationTypes = extractGraphQLOperationTypes(args.query);
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify({
-                error: `Invalid GraphQL query: ${err instanceof Error ? err.message : String(err)}`,
-              }),
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      if (
-        operationTypes.has(OperationTypeNode.MUTATION) ||
-        operationTypes.has(OperationTypeNode.SUBSCRIPTION)
-      ) {
+      // We use extractGraphQLOperationType() to robustly detect the operation type even
+      // when queries contain leading comments, fragment definitions, or named operations.
+      const operationType = extractGraphQLOperationType(args.query);
+      if (operationType === "mutation" || operationType === "subscription") {
         return {
           content: [
             {
@@ -680,247 +677,6 @@ function registerBuiltinTools(
       }
     },
   );
-
-  // ── Ontology-powered tools (only registered when OntologyRegistry is available) ──
-
-  if (ontologyRegistry) {
-    // ontology_overview — full system introspection for AI agents
-    const ontologyOverviewShape = {
-      format: z
-        .enum(["markdown", "json"])
-        .describe(
-          "Output format: 'markdown' for human-readable summary, 'json' for structured data",
-        )
-        .optional(),
-    };
-    server.tool(
-      "ontology_overview",
-      "Get a full overview of the system ontology — all schemas, actions, rules, state machines, relations, views, and flows. Use 'markdown' for a concise summary or 'json' for structured data.",
-      toMcpShape(ontologyOverviewShape),
-      async (args: { format?: "markdown" | "json" }) => {
-        const format = args.format ?? "markdown";
-
-        if (format === "markdown") {
-          const markdown = ontologyRegistry.toMarkdown();
-          return {
-            content: [{ type: "text" as const, text: markdown }],
-          };
-        }
-
-        // JSON format — serialize all descriptors with field JSON schemas
-        const allDescriptors = ontologyRegistry.toJSON();
-        const serialized: Record<string, unknown> = {};
-        for (const [name, descriptor] of Object.entries(allDescriptors)) {
-          serialized[name] = serializeSchemaDescriptor(descriptor);
-        }
-
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(serialized, null, 2) }],
-        };
-      },
-    );
-
-    // search_ontology — keyword search across schemas
-    const searchOntologyShape = {
-      query: z
-        .string()
-        .describe(
-          "Search query — matches against schema names, labels, descriptions, and field names",
-        ),
-    };
-    server.tool(
-      "search_ontology",
-      "Search the system ontology by keyword. Returns matching schemas with their full descriptors (actions, rules, states, relations).",
-      toMcpShape(searchOntologyShape),
-      async (args: { query: string }) => {
-        const results = ontologyRegistry.searchSchemas(args.query);
-
-        if (results.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  results: [],
-                  message: `No schemas matched query '${args.query}'`,
-                }),
-              },
-            ],
-          };
-        }
-
-        const serialized = results.map(serializeSchemaDescriptor);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(serialized, null, 2) }],
-        };
-      },
-    );
-  }
-
-  // ── Documentation tools (spec 25 §5/§6 M2) ──
-
-  if (capabilities.length > 0) {
-    // get_capability_docs — retrieve full auto-generated capability spec
-    const getCapDocsShape = {
-      capability: z.string().describe("Capability name to get documentation for"),
-      format: z
-        .enum(["markdown", "json"])
-        .describe("Output format: 'markdown' for readable, 'json' for structured")
-        .optional(),
-    };
-    server.tool(
-      "get_capability_docs",
-      "Get the auto-generated capability specification document, including schemas, actions, rules, state machines, views, dependencies, and relations.",
-      toMcpShape(getCapDocsShape),
-      async (args: { capability: string; format?: "markdown" | "json" }) => {
-        const cap = capabilities.find((c) => c.name === args.capability);
-        if (!cap) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  error: `Capability '${args.capability}' not found`,
-                  available: capabilities.map((c) => c.name),
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        const doc = generateCapabilityDoc(cap);
-        const format = args.format ?? "markdown";
-
-        if (format === "markdown") {
-          return {
-            content: [{ type: "text" as const, text: renderCapabilityDoc(doc) }],
-          };
-        }
-
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(doc, null, 2) }],
-        };
-      },
-    );
-
-    // search_docs — search across all capability documentation
-    const searchDocsShape = {
-      query: z.string().describe("Search keyword"),
-      type: z
-        .enum(["capability", "schema", "action", "rule", "state_machine", "view", "relation"])
-        .describe("Filter results by element type")
-        .optional(),
-      capability: z.string().describe("Filter results by capability name").optional(),
-      limit: z.number().describe("Maximum number of results (default: 20)").optional(),
-    };
-    server.tool(
-      "search_docs",
-      "Search across all capability documentation by keyword. Returns matching schemas, actions, rules, views, and other elements with relevance scores.",
-      toMcpShape(searchDocsShape),
-      async (args: {
-        query: string;
-        type?: "capability" | "schema" | "action" | "rule" | "state_machine" | "view" | "relation";
-        capability?: string;
-        limit?: number;
-      }) => {
-        const index = createDocSearchIndex(capabilities);
-        const results = index.search(args.query, {
-          type: args.type,
-          capability: args.capability,
-          limit: args.limit,
-        });
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  query: args.query,
-                  count: results.length,
-                  results,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      },
-    );
-  }
-}
-
-/** Serialize a SchemaDescriptor to a JSON-safe MCP output format */
-function serializeSchemaDescriptor(descriptor: SchemaDescriptor): Record<string, unknown> {
-  // Convert FieldDefinition records to JSON Schema for MCP consumers
-  const fieldSchemas = fieldsToJsonSchema(descriptor.fields);
-
-  // Serialize actions (MCP-safe subset)
-  const actions = descriptor.actions.map((a) => ({
-    name: a.name,
-    label: a.label,
-    description: a.description,
-    inputFields: a.input ? Object.keys(a.input) : [],
-  }));
-
-  // Serialize rules (strip code conditions)
-  const rules = descriptor.rules.map(serializeRule);
-
-  // Serialize state machine (if present)
-  const stateMachines = descriptor.states
-    ? [
-        {
-          name: descriptor.states.name,
-          field: descriptor.states.field,
-          initial: descriptor.states.initial,
-          states: descriptor.states.states,
-          transitions: descriptor.states.transitions,
-          meta: descriptor.states.meta,
-        },
-      ]
-    : [];
-
-  // Serialize relations
-  const relations = descriptor.relations.map((r) => ({
-    linkName: r.linkName,
-    direction: r.direction,
-    targetSchema: r.targetSchema,
-    cardinality: r.cardinality,
-    label: r.label,
-  }));
-
-  // Serialize views
-  const views = descriptor.views.map((v) => ({
-    name: v.name,
-    type: v.type,
-    schema: v.schema,
-    label: v.label,
-  }));
-
-  // Serialize flows
-  const flows = descriptor.flows.map((f) => ({
-    name: f.name,
-    label: f.label,
-    description: f.description,
-    trigger: f.trigger,
-    stepCount: f.steps.length,
-  }));
-
-  return {
-    name: descriptor.name,
-    label: descriptor.label,
-    description: descriptor.description,
-    fields: fieldSchemas,
-    presentation: descriptor.presentation ?? null,
-    relations,
-    actions,
-    rules,
-    stateMachines,
-    views,
-    flows,
-  };
 }
 
 /** Register MCP resources */

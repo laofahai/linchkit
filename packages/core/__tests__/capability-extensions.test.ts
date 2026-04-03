@@ -22,11 +22,11 @@ describe("CapabilityDefinition extensions", () => {
       type: "standard",
       category: "system",
       version: "0.1.0",
-      dependencies: ["cap-adapter-ui-react", "test-cap"],
+      dependencies: ["cap-adapter-ui", "test-cap"],
       autoInstall: true,
     });
     expect(cap.autoInstall).toBe(true);
-    expect(cap.dependencies).toEqual(["cap-adapter-ui-react", "test-cap"]);
+    expect(cap.dependencies).toEqual(["cap-adapter-ui", "test-cap"]);
   });
 
   test("autoInstall defaults to undefined (falsy)", () => {

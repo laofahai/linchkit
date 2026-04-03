@@ -1,5 +1,5 @@
 {
-  "name": "@linchkit/cap-adapter-ui-react",
+  "name": "@linchkit/cap-adapter-ui",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts",
     "./panel-registry": "./src/lib/panel-registry.ts",
+    "./route-registry": "./src/lib/route-registry.ts",
     "./hooks/use-subscription": "./src/hooks/use-subscription.ts",
     "./lib/api": "./src/lib/api.ts"
   },

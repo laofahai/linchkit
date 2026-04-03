@@ -1,0 +1,63 @@
+{
+  "mcp": {
+    "admin": {
+      "title": "MCP Management",
+      "clients": "Clients",
+      "clientDetail": "Client Detail",
+      "dashboard": {
+        "subtitle": "Manage MCP clients and monitor activity",
+        "activeClients": "Active Clients",
+        "totalClients": "{{count}} total registered",
+        "totalRequests": "Requests (24h)",
+        "requestsStub": "Stats coming soon",
+        "activeSessions": "Active Sessions",
+        "sessionsStub": "Stats coming soon",
+        "recentActivity": "Recent Activity",
+        "noActivity": "No recent activity"
+      },
+      "client": {
+        "create": "Create Client",
+        "createDescription": "Create a new MCP client credential for external tools.",
+        "name": "Name",
+        "clientId": "Client ID",
+        "description": "Description",
+        "actorType": "Actor Type",
+        "actorGroups": "Actor Groups",
+        "status": "Status",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "lastUsed": "Last Used",
+        "createdAt": "Created",
+        "never": "Never",
+        "noClients": "No MCP clients registered",
+        "secretWarning": "This secret will only be shown once. Copy it now.",
+        "secretCopied": "Secret copied to clipboard",
+        "rotateSecret": "Rotate Secret",
+        "rotateConfirm": "This will invalidate the current secret. The client will need to use the new secret.",
+        "deleteConfirm": "Are you sure you want to delete this client?",
+        "save": "Save Changes",
+        "saved": "Client updated successfully",
+        "security": "Security",
+        "usage": "Usage Statistics",
+        "usageStub": "Usage statistics coming soon."
+      },
+      "toolPolicy": {
+        "title": "Tool Policy",
+        "allowAll": "Allow All",
+        "categories": "By Category",
+        "custom": "Custom",
+        "allowlist": "Allowlist",
+        "denylist": "Denylist",
+        "introspection": "Introspection",
+        "query": "GraphQL Query",
+        "actions": "Actions",
+        "ai_security": "AI Security",
+        "scaffold": "Scaffold",
+        "ontology": "Ontology",
+        "docs": "Documentation",
+        "management": "Management",
+        "addTool": "Add tool name..."
+      }
+    }
+  }
+}

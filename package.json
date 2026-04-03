@@ -4,7 +4,7 @@
   "workspaces": [
     "packages/*",
     "addons/*/cap-*",
-    "addons/adapter-ui-react/cap-adapter-ui-react/ui-kit"
+    "addons/adapter-ui/cap-adapter-ui/ui-kit"
   ],
   "scripts": {
     "check": "bunx @biomejs/biome check .",
@@ -13,9 +13,9 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "build": "bun run --filter '*' build",
-    "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui-react' dev",
+    "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui' dev",
     "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
-    "dev:ui": "bun run --filter @linchkit/cap-adapter-ui-react dev",
+    "dev:ui": "bun run --filter @linchkit/cap-adapter-ui dev",
     "db:generate": "bun ./packages/cli/src/index.ts db generate",
     "db:migrate": "bun ./node_modules/.bin/drizzle-kit migrate",
     "db:studio": "bun ./node_modules/.bin/drizzle-kit studio"

@@ -1,5 +1,5 @@
 {
-  "name": "@linchkit/cap-ui-react-chatter",
+  "name": "@linchkit/cap-chatter-ui",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -10,7 +10,7 @@
   },
   "peerDependencies": {
     "@linchkit/core": "workspace:*",
-    "@linchkit/cap-adapter-ui-react": "workspace:*",
+    "@linchkit/cap-adapter-ui": "workspace:*",
     "@linchkit/ui-kit": "workspace:*",
     "react": "^19.0.0"
   },

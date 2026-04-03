@@ -5,7 +5,7 @@
  * - Layout with groups, notebooks, and pages
  * - Derived fields displayed as readonly
  * - State-dependent action visibility
- * - Audit trail fields in a dedicated tab
+ * - has_many child records in notebook tab
  */
 
 import type { ViewDefinition } from "@linchkit/core";
@@ -30,10 +30,6 @@ export const purchaseRequestFormView: ViewDefinition = {
     },
     { field: "requester" },
     { field: "requester_email" },
-    { field: "submitted_at", readonly: true },
-    { field: "approved_at", readonly: true },
-    { field: "approved_by", readonly: true },
-    { field: "audit_notes" },
     { field: "items" },
   ],
   layout: {
@@ -90,21 +86,6 @@ export const purchaseRequestFormView: ViewDefinition = {
                 type: "group",
                 columns: 1,
                 children: [{ type: "field", field: "items", nolabel: true }],
-              },
-            ],
-          },
-          {
-            type: "page",
-            title: "t:schemas.purchase_request.tabs.audit_trail",
-            children: [
-              {
-                type: "group",
-                children: [
-                  { type: "field", field: "submitted_at" },
-                  { type: "field", field: "approved_at" },
-                  { type: "field", field: "approved_by" },
-                  { type: "field", field: "audit_notes" },
-                ],
               },
             ],
           },

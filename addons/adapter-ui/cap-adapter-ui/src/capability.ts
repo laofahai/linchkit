@@ -1,21 +1,21 @@
 /**
- * Capability definition for cap-adapter-ui-react
+ * Capability definition for cap-adapter-ui
  *
  * Registers the Vite dev server transport so `linch dev` starts the UI automatically.
  */
 
 import { defineCapability } from "@linchkit/core/define";
 import type { CliCommandContext, TransportContext } from "@linchkit/core/types";
-import { capAdapterUiReactConfig } from "./config";
+import { capAdapterUiConfig } from "./config";
 
-export const capAdapterUiReact = defineCapability({
-  name: "cap-adapter-ui-react",
+export const capAdapterUi = defineCapability({
+  name: "cap-adapter-ui",
   label: "React UI Shell",
   type: "adapter",
   category: "integration",
   version: "0.0.1",
 
-  configSchema: capAdapterUiReactConfig.schema,
+  configSchema: capAdapterUiConfig.schema,
 
   extensions: {
     transports: [
@@ -33,14 +33,14 @@ export const capAdapterUiReact = defineCapability({
           return {
             start: () => {
               // Read port from typed config (falls back to default via Zod)
-              const { port } = capAdapterUiReactConfig.from(ctx);
+              const { port } = capAdapterUiConfig.from(ctx);
 
               proc = Bun.spawn(
                 ["bunx", "vite", "--configLoader", "runner", "--port", String(port)],
                 { cwd: uiDir, stdin: "ignore", stdout: "inherit", stderr: "inherit" },
               );
 
-              console.log(`[cap-adapter-ui-react] UI: http://localhost:${port}`);
+              console.log(`[cap-adapter-ui] UI: http://localhost:${port}`);
             },
             stop: () => {
               if (proc) {
@@ -74,7 +74,7 @@ export const capAdapterUiReact = defineCapability({
           },
         },
         handler: async (_ctx: CliCommandContext) => {
-          console.log("[cap-adapter-ui-react] Starting UI dev server...");
+          console.log("[cap-adapter-ui] Starting UI dev server...");
         },
       },
     ],

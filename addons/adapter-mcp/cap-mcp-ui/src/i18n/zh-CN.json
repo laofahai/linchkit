@@ -1,0 +1,63 @@
+{
+  "mcp": {
+    "admin": {
+      "title": "MCP 管理",
+      "clients": "客户端",
+      "clientDetail": "客户端详情",
+      "dashboard": {
+        "subtitle": "管理 MCP 客户端并监控活动",
+        "activeClients": "活跃客户端",
+        "totalClients": "共 {{count}} 个已注册",
+        "totalRequests": "请求量 (24h)",
+        "requestsStub": "统计即将推出",
+        "activeSessions": "活跃会话",
+        "sessionsStub": "统计即将推出",
+        "recentActivity": "最近活动",
+        "noActivity": "暂无最近活动"
+      },
+      "client": {
+        "create": "创建客户端",
+        "createDescription": "为外部工具创建新的 MCP 客户端凭据。",
+        "name": "名称",
+        "clientId": "客户端 ID",
+        "description": "描述",
+        "actorType": "角色类型",
+        "actorGroups": "角色分组",
+        "status": "状态",
+        "enabled": "已启用",
+        "disabled": "已禁用",
+        "lastUsed": "最后使用",
+        "createdAt": "创建时间",
+        "never": "从未使用",
+        "noClients": "暂无已注册的 MCP 客户端",
+        "secretWarning": "此密钥仅显示一次，请立即复制。",
+        "secretCopied": "密钥已复制到剪贴板",
+        "rotateSecret": "轮换密钥",
+        "rotateConfirm": "此操作将使当前密钥失效。客户端需要使用新密钥。",
+        "deleteConfirm": "确定要删除此客户端吗？",
+        "save": "保存更改",
+        "saved": "客户端已更新",
+        "security": "安全",
+        "usage": "使用统计",
+        "usageStub": "使用统计即将推出。"
+      },
+      "toolPolicy": {
+        "title": "工具策略",
+        "allowAll": "允许全部",
+        "categories": "按分类",
+        "custom": "自定义",
+        "allowlist": "白名单",
+        "denylist": "黑名单",
+        "introspection": "自省",
+        "query": "GraphQL 查询",
+        "actions": "操作",
+        "ai_security": "AI 安全",
+        "scaffold": "脚手架",
+        "ontology": "本体",
+        "docs": "文档",
+        "management": "管理",
+        "addTool": "添加工具名称..."
+      }
+    }
+  }
+}

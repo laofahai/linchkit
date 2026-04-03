@@ -95,6 +95,7 @@ Capability 的定义、扩展、组合与分发。
 | [27](./27_ai_security.md) | AI 安全 | Prompt 注入防御，输出校验，审计链，限流 | M1 | 设计 |
 | [36](./36_ai_service.md) | AI 服务层 | `ctx.ai.complete()` — 多 Provider、模型别名、成本控制、BYOK、Vercel AI SDK | M1 | 完成 |
 | [52](./52_ai_deep_integration.md) | AI 深度集成 | AI 作为主要交互界面 — 自然语言 → defineXxx()，意图解析，对话式 Flow | M2+ | 设计 |
+| [58](./58_mcp_client_registry.md) | MCP Client Registry | AI Agent 接入管理 — Client 注册、per-client 授权、工具可见性策略、管理 UI | M2 | 设计 |
 
 ## 前端与视图
 

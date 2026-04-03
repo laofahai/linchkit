@@ -245,6 +245,8 @@ function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
       e.completedAt instanceof Date
         ? e.completedAt.toISOString()
         : (e.completedAt ?? new Date().toISOString()),
+    state_transition_from: e.stateTransition?.from ?? null,
+    state_transition_to: e.stateTransition?.to ?? null,
     parent_execution_id: e.parentExecutionId ?? null,
     idempotency_key: e.idempotencyKey ?? null,
     tenant_id: e.tenantId ?? null,

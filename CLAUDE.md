@@ -85,13 +85,13 @@ packages/ (core infrastructure):
 addons/ (grouped capabilities — OCA model, see Spec 57):
   adapter-server/
     @linchkit/cap-adapter-server    — Elysia + graphql-yoga + REST + CommandLayer
-  adapter-ui-react/
-    @linchkit/cap-adapter-ui-react  — React + Shadcn + TanStack (official UI shell)
+  adapter-ui/
+    @linchkit/cap-adapter-ui  — React + Shadcn + TanStack (official UI shell)
   adapter-mcp/
     @linchkit/cap-adapter-mcp       — MCP transport (adapter capability)
   chatter/
     @linchkit/cap-chatter           — Record timeline: messages, audit log, GraphQL
-    @linchkit/cap-ui-react-chatter  — Chatter React UI panel (autoInstall)
+    @linchkit/cap-chatter-ui  — Chatter React UI panel (autoInstall)
   auth/
     @linchkit/cap-auth              — Authentication (JWT, sessions)
     @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
@@ -176,7 +176,7 @@ bun ./packages/cli/src/index.ts db studio
 - **Data Masking & Tenant Isolation**: Spec 41b + spec 30 — field-level data masking rules, tenant isolation via `tenant_id` scoping, row-level security.
 - **AI Boundary & AI Security**: Spec 22 + spec 27 — AI rule boundaries (what AI can/cannot modify), AI security hardening (prompt injection defense, output validation, audit trail).
 - **Addon Architecture**: OCA-inspired capability grouping (Spec 57). `addons/` directory contains addon groups, each a potential independent repo. Capabilities are the activation unit (`defineCapability()`). `autoInstall: true` auto-activates when all `dependencies` are met. `graphqlExtensions` in `CapabilityExtensions` lets capabilities declare GraphQL types/resolvers. `registerRecordPanel()` in UI adapter enables lazy panel injection. `addons_path` in config for discovery.
-- **UI Panel Registry**: `addons/adapter-ui-react/cap-adapter-ui-react/src/lib/panel-registry.ts` — `registerRecordPanel()` / `getRecordPanels()`. Capability UI packages register panels at import time. Schema-form renders panels conditionally based on `app-config.capabilities`. Built-in panels use `capability: "__builtin__"`.
+- **UI Panel Registry**: `addons/adapter-ui/cap-adapter-ui/src/lib/panel-registry.ts` — `registerRecordPanel()` / `getRecordPanels()`. Capability UI packages register panels at import time. Schema-form renders panels conditionally based on `app-config.capabilities`. Built-in panels use `capability: "__builtin__"`.
 
 ## Test Coverage
 

@@ -433,7 +433,8 @@
         "approved_at": "审批时间",
         "approved_by": "审批人",
         "total_amount": "总金额",
-        "display_title": "显示标题"
+        "display_title": "显示标题",
+        "items": "采购明细"
       },
       "enums": {
         "priority": { "low": "低", "medium": "中", "high": "高", "urgent": "紧急" }

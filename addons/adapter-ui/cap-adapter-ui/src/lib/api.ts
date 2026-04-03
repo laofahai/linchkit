@@ -784,6 +784,54 @@ export async function queryExecutionLogs(options: {
   return { items, total: raw.total };
 }
 
+// ── State Transition History ────────────────────────────
+
+export interface StateTransitionEntry {
+  from: string;
+  to: string;
+  action: string;
+  actorId: string;
+  startedAt: string;
+}
+
+/**
+ * Query state transition history for a specific record.
+ * Returns execution log entries that have state_transition data,
+ * ordered by time ascending (oldest first).
+ */
+export async function queryStateTransitions(
+  schemaName: string,
+  recordId: string,
+): Promise<StateTransitionEntry[]> {
+  const filter = JSON.stringify({ schema_name: schemaName, record_id: recordId });
+  const query = `
+    query ($filter: String) {
+      executionLogList(filter: $filter, pageSize: 50, sortField: "started_at", sortOrder: "asc") {
+        items {
+          action_name actor_id started_at
+          state_transition_from state_transition_to
+        }
+      }
+    }
+  `;
+  const res = await graphql<{
+    executionLogList: {
+      items: Array<Record<string, unknown>>;
+    };
+  }>(query, { filter });
+  const items = res.data?.executionLogList?.items ?? [];
+  // Only return entries that have state transition data
+  return items
+    .filter((r) => r.state_transition_to)
+    .map((r) => ({
+      from: (r.state_transition_from as string) ?? "",
+      to: r.state_transition_to as string,
+      action: r.action_name as string,
+      actorId: (r.actor_id as string) ?? "system",
+      startedAt: r.started_at as string,
+    }));
+}
+
 // ── Runtime Config API ──────────────────────────────────
 
 export interface ConfigFieldDef {

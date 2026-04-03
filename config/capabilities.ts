@@ -7,7 +7,8 @@
  */
 
 import { capAdapterServer } from "@linchkit/cap-adapter-server";
-import { capAdapterUiReact } from "@linchkit/cap-adapter-ui-react";
+import { createCapAdapterMcp } from "@linchkit/cap-adapter-mcp";
+import { capAdapterUi } from "@linchkit/cap-adapter-ui";
 // import { createCapAuth } from "@linchkit/cap-auth";
 // import { capAuthBetterAuth } from "@linchkit/cap-auth-better-auth";
 // import { createCapPermission } from "@linchkit/cap-permission";
@@ -15,13 +16,15 @@ import { createCapChatter } from "@linchkit/cap-chatter";
 import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
 import type { CapabilityDefinition } from "@linchkit/core";
 
-// Side-effect import: registers chatter UI panel in the panel registry
-import "@linchkit/cap-ui-react-chatter";
+// Side-effect imports: register UI panels in the panel/route registry
+import "@linchkit/cap-chatter-ui";
+import "@linchkit/cap-mcp-ui";
 
 export const capabilities: CapabilityDefinition[] = [
   // Protocol adapters
   capAdapterServer,
-  capAdapterUiReact,
+  createCapAdapterMcp({ config: { transport: "sse", ssePort: 3002 } }),
+  capAdapterUi,
 
   // Authentication & authorization
   // createCapAuth({

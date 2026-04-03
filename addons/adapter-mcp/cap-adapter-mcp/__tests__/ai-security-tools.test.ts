@@ -1,32 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { defineAction, defineSchema } from "@linchkit/core";
 import {
-  ActionRegistry,
   AIAuditLogger,
   AIBoundary,
-  createSchemaRegistry,
 } from "@linchkit/core/server";
-import { createMcpAdapter } from "../src/mcp-server";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAISecurityTools } from "../src/ai-security-tools";
 
 // ── Test fixtures ────────────────────────────────────────────
-
-const testSchema = defineSchema({
-  name: "order",
-  label: "Order",
-  fields: {
-    customer_name: { type: "string", label: "Customer", required: true },
-  },
-});
-
-const testAction = defineAction({
-  name: "create_order",
-  schema: "order",
-  label: "Create Order",
-  input: { customer_name: { type: "string", required: true } },
-  policy: { mode: "sync", transaction: false },
-  exposure: "all",
-});
 
 interface RegisteredTool {
   handler: (
@@ -44,19 +24,6 @@ function getTools(server: unknown): ToolsMap {
   return (server as { _registeredTools: ToolsMap })._registeredTools;
 }
 
-const mockCommandLayer: CommandLayer = {
-  execute: async () => ({ success: true }) as ActionResult,
-  use: () => {},
-} as unknown as CommandLayer;
-
-function createRegistries() {
-  const schemaRegistry = createSchemaRegistry();
-  schemaRegistry.register(testSchema);
-  const actionRegistry = new ActionRegistry();
-  actionRegistry.register(testAction);
-  return { schemaRegistry, actionRegistry };
-}
-
 const noopAIService = {
   configured: true,
   defaultProvider: "mock",
@@ -72,13 +39,9 @@ const noopAIService = {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("AI Security MCP Tools", () => {
-  test("does not register AI tools when no AI components provided", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-    });
+  test("does not register AI tools when no AI components provided", () => {
+    const server = new McpServer({ name: "test", version: "1.0.0" });
+    registerAISecurityTools({ server });
     const tools = getTools(server);
 
     expect(tools.check_ai_boundary).toBeUndefined();
@@ -89,16 +52,11 @@ describe("AI Security MCP Tools", () => {
     expect(tools.sanitize_prompt).toBeUndefined();
   });
 
-  test("registers boundary tools when aiBoundary is provided", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+  test("registers boundary tools when aiBoundary is provided", () => {
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     expect(tools.check_ai_boundary).toBeDefined();
@@ -108,16 +66,11 @@ describe("AI Security MCP Tools", () => {
     expect(tools.ai_audit_summary).toBeUndefined();
   });
 
-  test("registers audit tools when aiAuditLogger is provided", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+  test("registers audit tools when aiAuditLogger is provided", () => {
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiAuditLogger = new AIAuditLogger();
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiAuditLogger,
-    });
+    registerAISecurityTools({ server, aiAuditLogger });
     const tools = getTools(server);
 
     expect(tools.ai_audit_summary).toBeDefined();
@@ -128,15 +81,10 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("check_ai_boundary returns allowed for safe operations", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     const result = await tools.check_ai_boundary.handler(
@@ -150,15 +98,10 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("check_ai_boundary blocks data modification by default policy", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     const result = await tools.check_ai_boundary.handler({ isDataModification: true }, {});
@@ -169,15 +112,10 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("get_ai_usage returns budget summary", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     const result = await tools.get_ai_usage.handler({}, {});
@@ -191,15 +129,10 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("sanitize_prompt detects injection attempts", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     const result = await tools.sanitize_prompt.handler(
@@ -214,15 +147,10 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("sanitize_prompt redacts PII", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiBoundary = new AIBoundary({ aiService: noopAIService });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiBoundary,
-    });
+    registerAISecurityTools({ server, aiBoundary });
     const tools = getTools(server);
 
     const result = await tools.sanitize_prompt.handler(
@@ -238,7 +166,7 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("ai_audit_summary returns summary with entries", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiAuditLogger = new AIAuditLogger();
 
     // Log some entries
@@ -252,12 +180,7 @@ describe("AI Security MCP Tools", () => {
       reason: "Not allowed",
     });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiAuditLogger,
-    });
+    registerAISecurityTools({ server, aiAuditLogger });
     const tools = getTools(server);
 
     const result = await tools.ai_audit_summary.handler({}, {});
@@ -272,7 +195,7 @@ describe("AI Security MCP Tools", () => {
   });
 
   test("ai_audit_summary filters by tenantId", async () => {
-    const { schemaRegistry, actionRegistry } = createRegistries();
+    const server = new McpServer({ name: "test", version: "1.0.0" });
     const aiAuditLogger = new AIAuditLogger();
 
     aiAuditLogger.logCall({
@@ -286,12 +209,7 @@ describe("AI Security MCP Tools", () => {
       tenantId: "tenant-b",
     });
 
-    const { server } = await createMcpAdapter({
-      commandLayer: mockCommandLayer,
-      schemaRegistry,
-      actionRegistry,
-      aiAuditLogger,
-    });
+    registerAISecurityTools({ server, aiAuditLogger });
     const tools = getTools(server);
 
     const result = await tools.ai_audit_summary.handler({ tenantId: "tenant-a" }, {});

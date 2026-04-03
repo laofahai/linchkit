@@ -433,7 +433,8 @@
         "approved_at": "Approved At",
         "approved_by": "Approved By",
         "total_amount": "Total Amount",
-        "display_title": "Display Title"
+        "display_title": "Display Title",
+        "items": "Items"
       },
       "enums": {
         "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }

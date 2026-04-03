@@ -86,7 +86,7 @@ interface SubscriptionEvent {
 ### 4.3 客户端 Hook
 
 ```typescript
-import { useSubscription } from '@linchkit/cap-adapter-ui-react'
+import { useSubscription } from '@linchkit/cap-adapter-ui'
 
 function PurchaseRequestList() {
   const { data, refetch } = useSchemaData('purchase_request')
@@ -228,7 +228,7 @@ export default defineConfig({
 
 ### M2
 - SSE 端点（`/api/subscribe`）— cap-adapter-server
-- `useSubscription` Hook — cap-adapter-ui-react
+- `useSubscription` Hook — cap-adapter-ui
 - Schema 级别订阅（订阅某个 Schema 的所有变更）
 - 与现有数据 Hook 集成自动 refetch
 - 心跳 + 重连

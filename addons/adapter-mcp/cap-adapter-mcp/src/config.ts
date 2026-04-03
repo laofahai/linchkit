@@ -19,4 +19,10 @@ export const capAdapterMcpConfig = defineConfigSchema("cap-adapter-mcp", {
     .string()
     .optional()
     .describe("GraphQL endpoint URL for query proxy (e.g. http://localhost:3001/graphql)"),
+  clientRegistry: z
+    .object({
+      enabled: z.boolean().optional().describe("Enable MCP client registry for multi-client auth"),
+    })
+    .optional()
+    .describe("Client registry configuration"),
 });

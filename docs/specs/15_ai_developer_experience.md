@@ -295,7 +295,7 @@ LinchKit 场景：
 - 审批流程中的 Human-in-the-Loop（AI 提交 Proposal → UI 展示 → 用户确认）
 - Agent 操作进度的实时流式展示
 
-实现方式：`cap-adapter-ag-ui`（adapter capability），基于 SSE 与 cap-adapter-ui-react 集成。
+实现方式：`cap-adapter-ag-ui`（adapter capability），基于 SSE 与 cap-adapter-ui 集成。
 
 #### A2A (Agent-to-Agent Protocol)
 

@@ -23,7 +23,9 @@ import type {
 } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
 import type { z } from "zod";
+import type { McpClientRegistry } from "./client-registry";
 import { capAdapterMcpConfig } from "./config";
+import { buildMcpGraphQLExtension } from "./graphql";
 
 export interface CapAdapterMcpOptions {
   /** Server name reported in MCP handshake (programmatic dependency) */
@@ -33,6 +35,9 @@ export interface CapAdapterMcpOptions {
 
   /** Declarative configuration — validated by capAdapterMcpConfig schema */
   config?: Partial<z.infer<typeof capAdapterMcpConfig.schema>>;
+
+  /** Pre-built MCP client registry. When provided, wires up GraphQL extensions. */
+  clientRegistry?: McpClientRegistry;
 }
 
 /**
@@ -45,6 +50,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
   const serverName = options?.name ?? "linchkit";
   const serverVersion = options?.version ?? "1.0.0";
   const cfg = options?.config;
+  const clientRegistry = options?.clientRegistry;
 
   const transport: TransportAdapterDefinition = {
     name: "mcp",
@@ -202,6 +208,9 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
           },
         },
       ],
+      ...(clientRegistry
+        ? { graphqlExtensions: buildMcpGraphQLExtension({ registry: clientRegistry }) }
+        : {}),
     },
 
     systemPermissions: ["network:outbound"],

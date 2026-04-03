@@ -1,6 +1,6 @@
-import { registerRecordPanel } from "@linchkit/cap-adapter-ui-react/panel-registry";
+import { registerRecordPanel } from "@linchkit/cap-adapter-ui/panel-registry";
 
-export { capUiReactChatter } from "./capability";
+export { capChatterUi } from "./capability";
 
 registerRecordPanel({
   id: "chatter",

@@ -124,7 +124,7 @@ packages/ (core infrastructure):
 capabilities/ (pluggable):
   @linchkit/cap-adapter-server    — HTTP/GraphQL transport（Elysia + graphql-yoga + REST + CommandLayer）
   @linchkit/cap-adapter-mcp       — MCP transport（AI 代理接入）
-  @linchkit/cap-adapter-ui-react  — 官方 UI shell（React + Shadcn + TanStack）
+  @linchkit/cap-adapter-ui  — 官方 UI shell（React + Shadcn + TanStack）
   @linchkit/cap-auth              — 认证（JWT, sessions）
   @linchkit/cap-auth-better-auth  — Auth provider（Better Auth 集成）
   @linchkit/cap-permission        — 权限引擎（RBAC）

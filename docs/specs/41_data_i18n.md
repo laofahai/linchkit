@@ -306,7 +306,7 @@ type ProductNameI18n {
 ### 8.3 Hook
 
 ```typescript
-import { useTranslatableField } from '@linchkit/cap-adapter-ui-react'
+import { useTranslatableField } from '@linchkit/cap-adapter-ui'
 
 function ProductNameField({ value }: { value: TranslatableValue }) {
   const { currentValue, allLocales, setLocaleValue } = useTranslatableField(value)

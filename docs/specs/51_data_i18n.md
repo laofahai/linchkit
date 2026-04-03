@@ -434,7 +434,7 @@ This is handled by the Schema metadata i18n layer (react-i18next), NOT by data i
 ### 11.2 React Hook
 
 ```typescript
-import { useTranslatableField } from '@linchkit/cap-adapter-ui-react'
+import { useTranslatableField } from '@linchkit/cap-adapter-ui'
 
 function TranslatableInput({ value, onChange }) {
   const {

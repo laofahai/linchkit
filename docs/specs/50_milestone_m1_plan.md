@@ -119,10 +119,10 @@ M1b: Ecosystem + AI (~6 weeks)
 
 | Task | Description | File | Size |
 |------|-------------|------|------|
-| 0.7 | Create `useAuth()` hook + AuthContext (decode token → user info) | `cap-adapter-ui-react/src/hooks/use-auth.tsx` (new) | M |
-| 0.8 | NavUser reads from `useAuth()` instead of hardcoded props | `cap-adapter-ui-react/src/components/nav-user.tsx` | S |
-| 0.9 | Fix `loginWithPassword` error swallowing (propagate to UI) | `cap-adapter-ui-react/src/lib/auth-client.ts` | S |
-| 0.10 | API 401 interceptor: clear token + redirect to `/login` | `cap-adapter-ui-react/src/lib/api.ts` | S |
+| 0.7 | Create `useAuth()` hook + AuthContext (decode token → user info) | `cap-adapter-ui/src/hooks/use-auth.tsx` (new) | M |
+| 0.8 | NavUser reads from `useAuth()` instead of hardcoded props | `cap-adapter-ui/src/components/nav-user.tsx` | S |
+| 0.9 | Fix `loginWithPassword` error swallowing (propagate to UI) | `cap-adapter-ui/src/lib/auth-client.ts` | S |
+| 0.10 | API 401 interceptor: clear token + redirect to `/login` | `cap-adapter-ui/src/lib/api.ts` | S |
 
 #### Tests
 

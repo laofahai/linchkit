@@ -868,7 +868,7 @@ extensions: {
 }
 ```
 
-`cap-adapter-ui-react` 读取所有已安装 Capability 的 `formPanels` 扩展，在表单页面的适当位置渲染。不需要修改 core 表单布局逻辑。
+`cap-adapter-ui` 读取所有已安装 Capability 的 `formPanels` 扩展，在表单页面的适当位置渲染。不需要修改 core 表单布局逻辑。
 
 ### 10.4 @提及自动完成
 

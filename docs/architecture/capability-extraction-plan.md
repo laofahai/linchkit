@@ -1,7 +1,7 @@
 # Capability Extraction Plan
 
 > **Principle:** Core provides only engines + types + pipeline. ALL concrete implementations are Capabilities.
-> The adapter capabilities (`cap-adapter-server`, `cap-adapter-ui-react`) should ONLY handle protocol adaptation.
+> The adapter capabilities (`cap-adapter-server`, `cap-adapter-ui`) should ONLY handle protocol adaptation.
 
 ## 1. Audit Results
 
@@ -24,7 +24,7 @@
 | `routes/schema-api.ts` | Schema metadata REST endpoint | **KEEP** | Core REST transport for schema discovery |
 | `routes/action-api.ts` | Action execution REST endpoint | **KEEP** | Core REST transport for action dispatch |
 
-### 1.2 cap-adapter-ui-react violations
+### 1.2 cap-adapter-ui violations
 
 | File | Feature | Classification | Rationale |
 |------|---------|---------------|-----------|
@@ -81,7 +81,7 @@
 | `ai/system-prompt.ts` | `cap-ai/src/server/system-prompt.ts` |
 | `ai/tools.ts` | `cap-ai/src/server/tools.ts` |
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -129,7 +129,7 @@ defineCapability({
 |--------|-------------|
 | `proposal-api.ts` | `cap-ai-evolution/src/server/proposal-api.ts` |
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -175,7 +175,7 @@ defineCapability({
 |--------|-------------|
 | `routes/approval-api.ts` | `cap-approval/src/server/approval-api.ts` |
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -219,7 +219,7 @@ defineCapability({
 
 **Retained in `cap-adapter-server`:** `/health`, `/api/metrics`, `/api/app-config`, `/api/tenants`, `/api/settings` (server infrastructure).
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -269,7 +269,7 @@ defineCapability({
 
 **Scope:** Real-time notification bell, notification popover, notification state management.
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -294,7 +294,7 @@ defineCapability({
 });
 ```
 
-**Dependencies:** `@linchkit/core` (EventBus subscription types), SSE hook from `cap-adapter-ui-react`
+**Dependencies:** `@linchkit/core` (EventBus subscription types), SSE hook from `cap-adapter-ui`
 
 **Note:** This is purely a UI capability — it consumes SSE events from the transport layer (which stays in `cap-adapter-server`).
 
@@ -310,7 +310,7 @@ defineCapability({
 |--------|-------------|
 | `routes/import-api.ts` | `cap-import/src/server/import-api.ts` |
 
-**UI-side files to extract from `cap-adapter-ui-react`:**
+**UI-side files to extract from `cap-adapter-ui`:**
 
 | Source | Destination |
 |--------|-------------|
@@ -382,7 +382,7 @@ For this plan to work, the following extension points need to be formalized:
 6. `cap-ai-evolution` — Small, depends on `cap-ai`
 
 ### Phase 3: Adapter cleanup
-1. Remove extracted files from `cap-adapter-server` and `cap-adapter-ui-react`
+1. Remove extracted files from `cap-adapter-server` and `cap-adapter-ui`
 2. Update the adapters to discover and wire capabilities via extension points
 3. Verify all tests pass after each extraction
 
@@ -393,7 +393,7 @@ For this plan to work, the following extension points need to be formalized:
 | Metric | Before | After |
 |--------|--------|-------|
 | Files in `cap-adapter-server/src/` | 15+ | ~8 (transport-only) |
-| Files in `cap-adapter-ui-react/src/` | 40+ pages/components | ~25 (core views + shell) |
+| Files in `cap-adapter-ui/src/` | 40+ pages/components | ~25 (core views + shell) |
 | New capabilities | 0 | 6 (`cap-ai`, `cap-ai-evolution`, `cap-approval`, `cap-admin`, `cap-notification`, `cap-import`) |
 | Files moved to core | 0 | 1 (`default-views.ts`) |
 
@@ -409,7 +409,7 @@ For this plan to work, the following extension points need to be formalized:
 - `routes/admin-api.ts` — Only `/health`, `/api/metrics`, `/api/app-config`, `/api/tenants`, `/api/settings`
 - `config-loader.ts` — Config loading
 
-### What remains in `cap-adapter-ui-react` after extraction:
+### What remains in `cap-adapter-ui` after extraction:
 - Core shell: `app.tsx`, `main.tsx`, layouts, sidebar, header
 - Core views: `auto-list/`, `auto-form/`, `auto-kanban/`, `auto-tree/`, `auto-calendar/`
 - Core widgets: `widgets/` (all field type renderers)

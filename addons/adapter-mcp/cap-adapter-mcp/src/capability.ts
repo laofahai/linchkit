@@ -8,7 +8,14 @@
 
 import type { CliCommandContext, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
+import { McpClientRegistry } from "./client-registry";
+import { InMemoryMcpClientStore } from "./client-store-memory";
 import { capAdapterMcpConfig } from "./config";
+import { buildMcpGraphQLExtension } from "./graphql";
+
+// Default registry for the static export (in-memory, dev/test only)
+const defaultStore = new InMemoryMcpClientStore();
+const defaultRegistry = new McpClientRegistry(defaultStore);
 
 export const capAdapterMcp = defineCapability({
   name: "cap-adapter-mcp",
@@ -102,6 +109,7 @@ export const capAdapterMcp = defineCapability({
         },
       },
     ],
+    graphqlExtensions: buildMcpGraphQLExtension({ registry: defaultRegistry }),
   },
 
   systemPermissions: ["network:outbound"],

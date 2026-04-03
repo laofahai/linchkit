@@ -82,6 +82,14 @@ export const executionLogSchema: SchemaDefinition = {
       type: "json",
       label: "t:schemas.execution_log.fields.output",
     },
+    state_transition_from: {
+      type: "string",
+      label: "t:schemas.execution_log.fields.state_transition_from",
+    },
+    state_transition_to: {
+      type: "string",
+      label: "t:schemas.execution_log.fields.state_transition_to",
+    },
     started_at: {
       type: "datetime",
       required: true,

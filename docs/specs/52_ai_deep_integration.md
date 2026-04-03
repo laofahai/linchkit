@@ -779,7 +779,7 @@ packages/core/src/ai/
 capabilities/cap-adapter-server/src/
   ai-deep-routes.ts         — New API endpoints for deep integration
 
-capabilities/cap-adapter-ui-react/src/components/
+capabilities/cap-adapter-ui/src/components/
   action-proposal-card.tsx  — Action confirmation UI
   record-insights.tsx       — Insight panel for record detail
   data-quality-widget.tsx   — Dashboard quality score widget
