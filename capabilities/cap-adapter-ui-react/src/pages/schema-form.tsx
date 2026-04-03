@@ -44,7 +44,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
-import { ChatterPanel } from "../components/chatter-panel";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
@@ -888,7 +887,7 @@ export function SchemaFormPage() {
           {/* Bottom tabs: relation tabs + other panels */}
           {!isCreate && params.id && (
             <Tabs
-              defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]?.name}` : "chatter"}
+              defaultValue={one2manyLinks.length > 0 ? `link-${one2manyLinks[0]?.name}` : "version-history"}
             >
               <TabsList variant="line">
                 {/* One_to_many relationship tabs */}
@@ -913,8 +912,6 @@ export function SchemaFormPage() {
                 <TabsTrigger value="version-history">
                   {t("versionHistory.title", "Version History")}
                 </TabsTrigger>
-                {/* Chatter tab */}
-                <TabsTrigger value="chatter">{t("chatter.title", "Chatter")}</TabsTrigger>
               </TabsList>
 
               {/* One_to_many tab content */}
@@ -957,10 +954,6 @@ export function SchemaFormPage() {
                 />
               </TabsContent>
 
-              {/* Chatter tab content */}
-              <TabsContent value="chatter">
-                <ChatterPanel schemaName={schemaName} recordId={params.id ?? ""} />
-              </TabsContent>
             </Tabs>
           )}
         </div>

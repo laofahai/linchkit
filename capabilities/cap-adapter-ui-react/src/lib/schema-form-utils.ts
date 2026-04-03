@@ -195,6 +195,80 @@ export function generateFallbackFormView(schema: {
   };
 }
 
+/** Field types excluded from child-record form views (relation back-refs, state, derived) */
+const CHILD_EXCLUDED_TYPES = new Set(["ref", "has_many", "many_to_many", "state", "computed"]);
+
+/**
+ * Generate a form view for child records in a has_many dialog.
+ * Filters out system fields, relation back-references, state, and derived fields.
+ */
+export function generateChildFormView(schema: {
+  name: string;
+  label?: string;
+  fields: Record<string, { label?: string; type?: string; derived?: unknown }>;
+}): ViewDefinition {
+  const fieldNames = Object.keys(schema.fields).filter((f) => {
+    if (SYSTEM_FIELDS.has(f)) return false;
+    const def = schema.fields[f];
+    if (def?.type && CHILD_EXCLUDED_TYPES.has(def.type)) return false;
+    if (def?.derived) return false;
+    return true;
+  });
+
+  const fields = fieldNames.map((field) => ({
+    field,
+    label: schema.fields[field]?.label,
+  }));
+
+  const shortFields: string[] = [];
+  const wideFields: string[] = [];
+  for (const name of fieldNames) {
+    const fieldType = schema.fields[name]?.type;
+    if (fieldType && WIDE_FIELD_TYPES.has(fieldType)) {
+      wideFields.push(name);
+    } else {
+      shortFields.push(name);
+    }
+  }
+
+  const mid = Math.ceil(shortFields.length / 2);
+  const leftFields = shortFields.slice(0, mid);
+  const rightFields = shortFields.slice(mid);
+
+  const layoutNodes: FormLayoutNode[] = [];
+
+  if (shortFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      children: [
+        { type: "group", children: leftFields.map((f) => ({ type: "field" as const, field: f })) },
+        {
+          type: "group",
+          children: rightFields.map((f) => ({ type: "field" as const, field: f })),
+        },
+      ],
+    });
+  }
+
+  if (wideFields.length > 0) {
+    layoutNodes.push({
+      type: "group",
+      columns: 1,
+      children: wideFields.map((f) => ({ type: "field" as const, field: f })),
+    });
+  }
+
+  return {
+    name: `${schema.name}_child_form_auto`,
+    schema: schema.name,
+    type: "form",
+    label: schema.label ?? schema.name,
+    fields,
+    layout: layoutNodes.length > 0 ? { nodes: layoutNodes } : undefined,
+    actions: [],
+  };
+}
+
 /** Fields to strip when cloning a record */
 export const CLONE_STRIP_FIELDS = new Set([
   "id",

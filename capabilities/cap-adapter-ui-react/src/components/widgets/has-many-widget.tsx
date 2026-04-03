@@ -5,6 +5,9 @@
  * Input: Read-only table showing child records. Click a row to edit in a Dialog.
  *        Click "Add Line" to create a new child in a Dialog. All changes are held
  *        in client memory until the parent form is saved (Odoo-style).
+ *
+ * The edit dialog reuses AutoForm so that child record editing gets the same
+ * widget registry, Zod validation, i18n, and visibleWhen support as the main form.
  */
 
 import {
@@ -16,13 +19,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Table,
   TableBody,
   TableCell,
@@ -30,12 +26,14 @@ import {
   TableHeader,
   TableRow,
 } from "@linchkit/ui-kit/components";
-import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSchemaBundle } from "@/hooks/use-schema-bundle";
+import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { generateChildFormView } from "@/lib/schema-form-utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
+import { AutoForm } from "../auto-form/auto-form";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 
 /** Generate a virtual temporary ID */
@@ -43,21 +41,7 @@ function generateTempId(): string {
   return `_virtual_${crypto.randomUUID()}`;
 }
 
-/** Infer input type from field definition type */
-function getInputType(fieldType: string): string {
-  switch (fieldType) {
-    case "number":
-      return "number";
-    case "date":
-      return "date";
-    case "datetime":
-      return "datetime-local";
-    default:
-      return "text";
-  }
-}
-
-/** Editable field descriptor resolved from target schema */
+/** Editable field descriptor resolved from target schema (used for table columns) */
 interface EditableField {
   name: string;
   label: string;
@@ -109,12 +93,17 @@ export function HasManyDisplay({ value, fieldDef }: WidgetDisplayProps) {
   return <span className="text-muted-foreground">--</span>;
 }
 
+/** Unique form ID for the child-record dialog to avoid collision with parent AutoForm */
+const CHILD_FORM_ID = "has-many-child-form";
+
 export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInputProps) {
   const { t } = useTranslation();
+  const { resolveLabel } = useSchemaLabel();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useSchemaBundle(targetSchema);
 
-  // Resolve editable fields from target schema (exclude system fields and FK back-ref)
+  // Resolve editable fields from target schema for table columns
+  // (exclude system fields, relation back-refs, state, derived)
   const editableFields = useMemo((): EditableField[] => {
     if (!targetBundle?.schema?.fields) return [];
     const systemFields = new Set([
@@ -131,23 +120,26 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
       .filter(([name, def]) => {
         if (systemFields.has(name)) return false;
         const fieldType = (def as { type?: string }).type;
-        // Skip ref fields that point back to the parent (the FK column)
         if (fieldType === "ref" || fieldType === "has_many" || fieldType === "many_to_many")
           return false;
-        // Skip state fields
         if (fieldType === "state") return false;
-        // Skip derived/computed fields
         if ((def as { derived?: unknown }).derived) return false;
         if (fieldType === "computed") return false;
         return true;
       })
       .map(([name, def]) => ({
         name,
-        label: (def as { label?: string }).label ?? name,
+        label: resolveLabel((def as { label?: string }).label, name),
         type: (def as { type?: string }).type ?? "string",
         required: !!(def as { required?: boolean }).required,
         options: (def as { options?: Array<{ value: string; label?: string }> }).options,
       }));
+  }, [targetBundle, resolveLabel]);
+
+  // Generate a child form view for the AutoForm dialog
+  const childView = useMemo(() => {
+    if (!targetBundle?.schema) return null;
+    return generateChildFormView(targetBundle.schema);
   }, [targetBundle]);
 
   // Records state: merge existing records (from server) with virtual records
@@ -159,38 +151,19 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<RelatedRecord | null>(null);
-  const [dialogFormData, setDialogFormData] = useState<Record<string, unknown>>({});
 
-  /** Build default values for a new record */
-  const buildDefaults = useCallback((): Record<string, unknown> => {
-    const defaults: Record<string, unknown> = {};
-    for (const field of editableFields) {
-      if (field.type === "number") {
-        defaults[field.name] = field.required ? 0 : null;
-      } else if (field.type === "boolean") {
-        defaults[field.name] = false;
-      } else {
-        defaults[field.name] = "";
-      }
-    }
-    return defaults;
-  }, [editableFields]);
+  // Ref to capture the latest form data from the child AutoForm
+  const pendingFormDataRef = useRef<Record<string, unknown> | null>(null);
 
   const handleAddRow = useCallback(() => {
     setEditingRecord(null);
-    setDialogFormData(buildDefaults());
+    pendingFormDataRef.current = null;
     setDialogOpen(true);
-  }, [buildDefaults]);
+  }, []);
 
   const handleEditRow = useCallback((record: RelatedRecord) => {
     setEditingRecord(record);
-    // Clone record data into dialog form
-    const data: Record<string, unknown> = {};
-    for (const key of Object.keys(record)) {
-      if (key === "id" || key === "_virtual") continue;
-      data[key] = record[key];
-    }
-    setDialogFormData(data);
+    pendingFormDataRef.current = null;
     setDialogOpen(true);
   }, []);
 
@@ -202,31 +175,32 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
     [records, onChange],
   );
 
-  const handleDialogSave = useCallback(() => {
-    if (editingRecord) {
-      // Update existing record
-      const updated = records.map((r) => {
-        if (r.id !== editingRecord.id) return r;
-        return { ...r, ...dialogFormData };
-      });
-      onChange(updated);
-    } else {
-      // Create new record
-      const newRecord: RelatedRecord = {
-        id: generateTempId(),
-        _virtual: true,
-        ...dialogFormData,
-      };
-      onChange([...records, newRecord]);
-    }
-    setDialogOpen(false);
-    setEditingRecord(null);
-    setDialogFormData({});
-  }, [editingRecord, records, dialogFormData, onChange]);
-
-  const handleDialogFieldChange = useCallback((fieldName: string, fieldValue: unknown) => {
-    setDialogFormData((prev) => ({ ...prev, [fieldName]: fieldValue }));
-  }, []);
+  /** Called by AutoForm's onSubmit — captures validated data and closes dialog */
+  const handleChildFormSubmit = useCallback(
+    (formData: Record<string, unknown>): undefined => {
+      if (editingRecord) {
+        // Update existing record
+        const updated = records.map((r) => {
+          if (r.id !== editingRecord.id) return r;
+          return { ...r, ...formData };
+        });
+        onChange(updated);
+      } else {
+        // Create new record
+        const newRecord: RelatedRecord = {
+          id: generateTempId(),
+          _virtual: true,
+          ...formData,
+        };
+        onChange([...records, newRecord]);
+      }
+      setDialogOpen(false);
+      setEditingRecord(null);
+      pendingFormDataRef.current = null;
+      return undefined;
+    },
+    [editingRecord, records, onChange],
+  );
 
   /** Format a cell value for display in the table */
   function formatCellValue(record: RelatedRecord, field: EditableField): string {
@@ -238,6 +212,17 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
     }
     return String(val);
   }
+
+  /** Build initial data for the child form (clone record without id/_virtual) */
+  const childFormData = useMemo((): Record<string, unknown> | undefined => {
+    if (!editingRecord) return undefined;
+    const data: Record<string, unknown> = {};
+    for (const key of Object.keys(editingRecord)) {
+      if (key === "id" || key === "_virtual") continue;
+      data[key] = editingRecord[key];
+    }
+    return data;
+  }, [editingRecord]);
 
   if (readonly) {
     // Read-only mode: show records as a simple list
@@ -356,14 +341,12 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
         {t("widget.addLine", "Add Line")}
       </Button>
 
-      {/* Edit / Create Dialog */}
+      {/* Edit / Create Dialog — uses AutoForm for consistent widget rendering and validation */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingRecord
-                ? t("widget.editItem", "Edit Item")
-                : t("widget.addItem", "Add Item")}
+              {editingRecord ? t("widget.editItem", "Edit Item") : t("widget.addItem", "Add Item")}
             </DialogTitle>
             <DialogDescription>
               {editingRecord
@@ -372,103 +355,30 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2">
-            {editableFields.map((field) => (
-              <DialogFieldInput
-                key={field.name}
-                field={field}
-                value={dialogFormData[field.name]}
-                onChange={(v) => handleDialogFieldChange(field.name, v)}
+          {targetBundle?.schema && childView && (
+            <div className="py-2">
+              <AutoForm
+                formId={CHILD_FORM_ID}
+                schema={targetBundle.schema}
+                view={childView}
+                data={childFormData}
+                mode={editingRecord ? "edit" : "create"}
+                onSubmit={handleChildFormSubmit}
+                hideFooter
               />
-            ))}
-          </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="button" onClick={handleDialogSave}>
+            <Button type="submit" form={CHILD_FORM_ID}>
               {t("common.confirm", "Confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ── Dialog field input ──────────────────────────────────
-
-interface DialogFieldInputProps {
-  field: EditableField;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}
-
-function DialogFieldInput({ field, value, onChange }: DialogFieldInputProps) {
-  if (field.type === "enum" && field.options) {
-    return (
-      <div className="grid gap-2">
-        <Label>
-          {field.label}
-          {field.required && <span className="text-destructive ml-0.5">*</span>}
-        </Label>
-        <Select
-          value={value != null ? String(value) : undefined}
-          onValueChange={(v) => onChange(v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="--" />
-          </SelectTrigger>
-          <SelectContent>
-            {field.options.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label ?? opt.value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  }
-
-  if (field.type === "boolean") {
-    return (
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id={`dialog-field-${field.name}`}
-          checked={!!value}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        <Label htmlFor={`dialog-field-${field.name}`}>
-          {field.label}
-          {field.required && <span className="text-destructive ml-0.5">*</span>}
-        </Label>
-      </div>
-    );
-  }
-
-  const inputType = getInputType(field.type);
-  return (
-    <div className="grid gap-2">
-      <Label>
-        {field.label}
-        {field.required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      <Input
-        type={inputType}
-        value={value != null ? String(value) : ""}
-        onChange={(e) => {
-          const v =
-            inputType === "number"
-              ? e.target.value === ""
-                ? null
-                : Number(e.target.value)
-              : e.target.value;
-          onChange(v);
-        }}
-      />
     </div>
   );
 }

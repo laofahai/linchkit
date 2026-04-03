@@ -63,8 +63,10 @@ export function AutoForm({
   onValuesChange,
   registerSetField,
   templates,
+  formId: customFormId,
 }: AutoFormProps) {
   const { t } = useTranslation();
+  const formId = customFormId ?? "auto-form";
   const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
 
   const [formData, setFormData] = useState<Record<string, unknown>>(() => {
@@ -714,7 +716,7 @@ export function AutoForm({
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <form id="auto-form" ref={formRef} onSubmit={handleSubmit} noValidate>
+    <form id={formId} ref={formRef} onSubmit={handleSubmit} noValidate>
       {/* Template selector — create mode only */}
       {mode === "create" && templates && templates.length > 0 && (
         <TemplateSelector

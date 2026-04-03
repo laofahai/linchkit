@@ -48,6 +48,8 @@ export interface AutoFormProps {
   view: ViewDefinition;
   data?: Record<string, unknown>;
   recordStatus?: string;
+  /** Custom HTML form id — required when multiple AutoForms coexist on a page (e.g. dialog inside parent form) */
+  formId?: string;
   /**
    * Called on form submit after client validation passes.
    * Return a SubmitResult to display server-side errors on the form.
