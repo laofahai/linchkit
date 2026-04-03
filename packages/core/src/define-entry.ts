@@ -15,7 +15,7 @@ export {
   defineEventHandler,
   definePermissionGroup,
   defineRule,
-  defineSchema,
+  defineEntity,
   defineState,
   defineView,
   disableRule,

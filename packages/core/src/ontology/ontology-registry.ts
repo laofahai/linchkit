@@ -1,8 +1,8 @@
 /**
  * Ontology Registry — Unified semantic facade over all registries
  *
- * Read-only aggregator that combines SchemaRegistry, ActionRegistry,
- * LinkRegistry, and raw definition arrays to provide unified introspection
+ * Read-only aggregator that combines EntityRegistry, ActionRegistry,
+ * RelationRegistry, and raw definition arrays to provide unified introspection
  * for AI agents, MCP tools, and documentation generation.
  *
  * See spec: docs/specs/43_ontology_layer.md
@@ -16,7 +16,7 @@ import type { RuleDefinition } from "../types/rule";
 import type {
   FieldDefinition,
   InterfaceDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   SchemaPresentation,
 } from "../types/schema";
 import type { StateDefinition } from "../types/state";
@@ -41,7 +41,7 @@ export interface RelationDescriptor {
 // ── Schema descriptor ──────────────────────────────────
 
 /** Complete picture of a schema — all metadata in one place */
-export interface SchemaDescriptor {
+export interface EntityDescriptor {
   /** Schema name */
   name: string;
   /** Human-readable label */
@@ -52,7 +52,7 @@ export interface SchemaDescriptor {
   fields: Record<string, FieldDefinition>;
   /** Presentation metadata */
   presentation?: SchemaPresentation;
-  /** Relations from LinkRegistry */
+  /** Relations from RelationRegistry */
   relations: RelationDescriptor[];
   /** Actions operating on this schema (includes inherited from parent) */
   actions: ActionDefinition[];
@@ -78,10 +78,10 @@ export interface SchemaDescriptor {
 
 // ── Registry dependencies ──────────────────────────────────
 
-/** Minimal interface for SchemaRegistry (avoids importing the class) */
-interface SchemaRegistryLike {
-  getAll(): SchemaDefinition[];
-  get(name: string): SchemaDefinition | undefined;
+/** Minimal interface for EntityRegistry (avoids importing the class) */
+interface EntityRegistryLike {
+  getAll(): EntityDefinition[];
+  get(name: string): EntityDefinition | undefined;
   has(name: string): boolean;
   /** Get the full inheritance chain (root to self) for inheritance-aware lookups */
   getInheritanceChain?(name: string): string[];
@@ -94,8 +94,8 @@ interface ActionRegistryLike {
   getAll(): ActionDefinition[];
 }
 
-/** Minimal interface for LinkRegistry */
-interface LinkRegistryLike {
+/** Minimal interface for RelationRegistry */
+interface RelationRegistryLike {
   linksFor(schemaName: string): Array<{
     link: {
       name: string;
@@ -130,7 +130,7 @@ interface InterfaceRegistryLike {
 // ── Dependencies for createOntologyRegistry ──────────────────
 
 export interface OntologyRegistryDeps {
-  schemas: SchemaRegistryLike;
+  schemas: EntityRegistryLike;
   actions: ActionRegistryLike;
   rules: RuleDefinition[];
   states: StateDefinition[];
@@ -138,7 +138,7 @@ export interface OntologyRegistryDeps {
   handlers?: EventHandlerRegistryLike;
   views: ViewDefinition[];
   flows?: FlowRegistryLike;
-  links?: LinkRegistryLike;
+  links?: RelationRegistryLike;
   interfaces?: InterfaceRegistryLike;
 }
 
@@ -146,13 +146,13 @@ export interface OntologyRegistryDeps {
 
 export interface OntologyRegistry {
   /** Get complete descriptor for a schema */
-  describe(schemaName: string): SchemaDescriptor | undefined;
+  describe(schemaName: string): EntityDescriptor | undefined;
 
   /** List all schema names in the ontology */
   listSchemas(): string[];
 
   /** Search schemas by keyword (matches name, label, description, field names) */
-  searchSchemas(query: string): SchemaDescriptor[];
+  searchSchemas(query: string): EntityDescriptor[];
 
   /** Get all actions operating on a schema */
   actionsFor(schemaName: string): ActionDefinition[];
@@ -179,7 +179,7 @@ export interface OntologyRegistry {
   schemasImplementing(interfaceName: string): string[];
 
   /** Export full ontology as JSON */
-  toJSON(): Record<string, SchemaDescriptor>;
+  toJSON(): Record<string, EntityDescriptor>;
 
   /** Export ontology as Markdown summary */
   toMarkdown(): string;
@@ -194,7 +194,7 @@ export interface OntologyRegistry {
  * Results are cached per schema name (immutable after construction).
  */
 export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegistry {
-  const cache = new Map<string, SchemaDescriptor>();
+  const cache = new Map<string, EntityDescriptor>();
 
   // Pre-index actions by schema
   const actionsBySchema = new Map<string, ActionDefinition[]>();
@@ -282,7 +282,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     return undefined;
   }
 
-  function buildDescriptor(schemaName: string): SchemaDescriptor | undefined {
+  function buildDescriptor(schemaName: string): EntityDescriptor | undefined {
     const schema = deps.schemas.get(schemaName);
     if (!schema) return undefined;
 
@@ -359,7 +359,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     };
   }
 
-  function getOrBuild(schemaName: string): SchemaDescriptor | undefined {
+  function getOrBuild(schemaName: string): EntityDescriptor | undefined {
     if (cache.has(schemaName)) return cache.get(schemaName);
     const desc = buildDescriptor(schemaName);
     if (desc) cache.set(schemaName, desc);
@@ -367,7 +367,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
   }
 
   return {
-    describe(schemaName: string): SchemaDescriptor | undefined {
+    describe(schemaName: string): EntityDescriptor | undefined {
       return getOrBuild(schemaName);
     },
 
@@ -375,9 +375,9 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       return deps.schemas.getAll().map((s) => s.name);
     },
 
-    searchSchemas(query: string): SchemaDescriptor[] {
+    searchSchemas(query: string): EntityDescriptor[] {
       const q = query.toLowerCase();
-      const results: SchemaDescriptor[] = [];
+      const results: EntityDescriptor[] = [];
 
       for (const schema of deps.schemas.getAll()) {
         const desc = getOrBuild(schema.name);
@@ -438,8 +438,8 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       return deps.interfaces ? deps.interfaces.implementors(interfaceName) : [];
     },
 
-    toJSON(): Record<string, SchemaDescriptor> {
-      const result: Record<string, SchemaDescriptor> = {};
+    toJSON(): Record<string, EntityDescriptor> {
+      const result: Record<string, EntityDescriptor> = {};
       for (const schema of deps.schemas.getAll()) {
         const desc = getOrBuild(schema.name);
         if (desc) result[schema.name] = desc;
@@ -590,7 +590,7 @@ function extractSchemasFromFlow(
 /** Extract schema names from an event handler's listen field */
 function extractSchemasFromHandler(
   handler: EventHandlerDefinition,
-  schemaRegistry: SchemaRegistryLike,
+  entityRegistry: EntityRegistryLike,
 ): string[] {
   const listen = Array.isArray(handler.listen) ? handler.listen : [handler.listen];
   const schemas: string[] = [];
@@ -599,7 +599,7 @@ function extractSchemasFromHandler(
     // Convention: event names like "purchase_request.submit.succeeded"
     const parts = eventType.split(".");
     const schemaName = parts[0];
-    if (parts.length >= 2 && schemaName && schemaRegistry.has(schemaName)) {
+    if (parts.length >= 2 && schemaName && entityRegistry.has(schemaName)) {
       schemas.push(schemaName);
     }
   }

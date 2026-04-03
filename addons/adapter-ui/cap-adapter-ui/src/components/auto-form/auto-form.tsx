@@ -5,7 +5,7 @@
  * (groups, notebooks, fields, separators).
  *
  * Validation features:
- * - Client-side: Zod schema generated from SchemaDefinition (required, min, max, format)
+ * - Client-side: Zod schema generated from EntityDefinition (required, min, max, format)
  * - Validates on blur (per-field) and on submit (all fields)
  * - Re-validates changed fields that previously had errors
  * - Server-side: parses GraphQL/API error responses and maps to field errors

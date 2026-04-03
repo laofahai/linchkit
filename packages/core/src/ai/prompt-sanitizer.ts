@@ -12,7 +12,7 @@
  */
 
 import { resolveFieldMasking } from "../security/masking-engine";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 
 // ── Prompt Injection Detection ──────────────────────────────
 
@@ -331,7 +331,7 @@ export function sanitizePII(text: string, config?: PIISanitizationConfig): PIISa
 /**
  * Sanitize a data record based on schema field definitions before sending to AI.
  *
- * Uses field-level `sensitive` and `secret` markers from SchemaDefinition
+ * Uses field-level `sensitive` and `secret` markers from EntityDefinition
  * (integrating with the existing masking engine) to determine which fields
  * need PII sanitization. Secret fields are completely removed. Sensitive
  * fields are PII-scanned and redacted.
@@ -340,7 +340,7 @@ export function sanitizePII(text: string, config?: PIISanitizationConfig): PIISa
  */
 export function sanitizeRecordForAI(
   record: Record<string, unknown>,
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   config?: PIISanitizationConfig & {
     /** Additional field names to always redact (beyond schema markers) */
     alwaysRedactFields?: string[];

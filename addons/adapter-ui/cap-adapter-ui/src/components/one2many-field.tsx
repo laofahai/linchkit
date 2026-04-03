@@ -10,7 +10,7 @@
  * - CRUD operations via GraphQL mutations
  */
 
-import type { FieldDefinition, LinkDefinition, SchemaDefinition } from "@linchkit/core/types";
+import type { FieldDefinition, RelationDefinition, EntityDefinition } from "@linchkit/core/types";
 import {
   Button,
   Input,
@@ -42,7 +42,7 @@ interface One2ManyFieldProps {
   /** Parent record ID */
   parentId: string;
   /** Link definition describing the relationship */
-  link: LinkDefinition;
+  link: RelationDefinition;
   /** Whether the form is in view (read-only) mode */
   readonly?: boolean;
 }
@@ -102,7 +102,7 @@ function toCamelCase(name: string): string {
  *  - one_to_many: FK = `{from}_id` on the `to` (child) table
  *  - many_to_one: FK = `{to}_id` on the `from` (child) table
  */
-function deriveFkField(link: LinkDefinition, parentSchema: string): string {
+function deriveFkField(link: RelationDefinition, parentSchema: string): string {
   if (link.cardinality === "one_to_many") {
     // Parent is `from`, child is `to`. FK on child table = `{from}_id`
     return `${link.from}_id`;
@@ -116,7 +116,7 @@ function deriveFkField(link: LinkDefinition, parentSchema: string): string {
 }
 
 /** Build column definitions from schema fields, excluding system/FK fields */
-function buildColumns(schema: SchemaDefinition, fkField: string): ColumnDef[] {
+function buildColumns(schema: EntityDefinition, fkField: string): ColumnDef[] {
   const cols: ColumnDef[] = [];
   for (const [name, def] of Object.entries(schema.fields)) {
     if (HIDDEN_FIELDS.has(name)) continue;

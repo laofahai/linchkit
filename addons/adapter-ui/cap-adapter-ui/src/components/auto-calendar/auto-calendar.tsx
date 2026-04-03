@@ -5,7 +5,7 @@
  * Clicking a day shows the records for that day. Clicking a record navigates to it.
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import {
   Badge,
   Button,
@@ -36,7 +36,7 @@ import { detectTitleField, groupRecordsByDate } from "./calendar-utils";
 // ── Types ────────────────────────────────────────────
 
 export interface AutoCalendarProps {
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   /** The date/datetime field to use for placing records on the calendar */
   dateField: string;
   /** Field used as display title for each record */

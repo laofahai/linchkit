@@ -6,13 +6,13 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import { InMemoryExecutionLogger, InMemoryStore } from "@linchkit/core/server";
 import { createRuntimeContext } from "../src/runtime-context";
 
 // ── Fixtures ──────────────────────────────────────────────
 
-const orderSchema: SchemaDefinition = {
+const orderSchema: EntityDefinition = {
   name: "order",
   label: "Order",
   fields: {
@@ -21,7 +21,7 @@ const orderSchema: SchemaDefinition = {
   },
 };
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -56,7 +56,7 @@ describe("createRuntimeContext", () => {
   test("creates a context with default (empty) options", () => {
     const ctx = createRuntimeContext();
 
-    expect(ctx.schemaRegistry).toBeDefined();
+    expect(ctx.entityRegistry).toBeDefined();
     expect(ctx.executor).toBeDefined();
     expect(ctx.dataProvider).toBeDefined();
     expect(ctx.executionLogger).toBeDefined();
@@ -77,11 +77,11 @@ describe("createRuntimeContext", () => {
       schemas: [orderSchema, productSchema],
     });
 
-    const order = ctx.schemaRegistry.get("order");
+    const order = ctx.entityRegistry.get("order");
     expect(order).toBeDefined();
     expect(order?.name).toBe("order");
 
-    const product = ctx.schemaRegistry.get("product");
+    const product = ctx.entityRegistry.get("product");
     expect(product).toBeDefined();
     expect(product?.name).toBe("product");
   });
@@ -146,8 +146,8 @@ describe("createRuntimeContext", () => {
       actions: [createOrderAction, cancelOrderAction],
     });
 
-    expect(ctx.schemaRegistry.get("order")).toBeDefined();
-    expect(ctx.schemaRegistry.get("product")).toBeDefined();
+    expect(ctx.entityRegistry.get("order")).toBeDefined();
+    expect(ctx.entityRegistry.get("product")).toBeDefined();
     expect(ctx.executor.registry.has("create_order")).toBe(true);
     expect(ctx.executor.registry.has("cancel_order")).toBe(true);
   });

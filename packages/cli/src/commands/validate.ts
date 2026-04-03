@@ -12,17 +12,17 @@ import type {
   CapabilityDefinition,
   InterfaceDefinition,
   LinchKitConfig,
-  LinkDefinition,
-  SchemaDefinition,
+  RelationDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import { createInterfaceRegistry, validateTranslatableSchema } from "@linchkit/core";
 import {
   convertSchemaRelationshipFieldsToImplicitLinks,
-  createLinkRegistry,
-  SchemaRegistry,
+  createRelationRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/devtools/methodology";
-import { checkActionDefinitions, checkSchemaDefinitions } from "@linchkit/devtools/methodology";
+import { checkActionDefinitions, checkEntityDefinitions } from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";
 import consola from "consola";
 import { loadConfig } from "../utils/load-config";
@@ -73,10 +73,10 @@ export const validateCommand = defineCommand({
     const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
     // ── Collect all definitions from capabilities ──
-    const schemas: SchemaDefinition[] = [];
+    const schemas: EntityDefinition[] = [];
     const actions: ActionDefinition[] = [];
     const interfaces: InterfaceDefinition[] = [];
-    const links: LinkDefinition[] = [];
+    const links: RelationDefinition[] = [];
     const automations: AutomationDefinition[] = [];
 
     for (const cap of capabilities) {
@@ -98,12 +98,12 @@ export const validateCommand = defineCommand({
     // ── 1. Schema inheritance validation ──
     {
       const issues: QualityIssue[] = [];
-      const schemaRegistry = new SchemaRegistry();
+      const entityRegistry = new EntityRegistry();
 
       // Register schemas in order, catching errors
       for (const schema of schemas) {
         try {
-          schemaRegistry.register(schema);
+          entityRegistry.register(schema);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           issues.push({
@@ -115,7 +115,7 @@ export const validateCommand = defineCommand({
       }
 
       // Run bulk inheritance validation on successfully registered schemas
-      const inheritanceErrors = schemaRegistry.validateInheritance();
+      const inheritanceErrors = entityRegistry.validateInheritance();
       for (const errMsg of inheritanceErrors) {
         issues.push({
           severity: "error",
@@ -201,7 +201,7 @@ export const validateCommand = defineCommand({
         issues.push({
           severity: "warning",
           rule: "link-implicit-conflict",
-          message: `Implicit link "${conflict.name}" from schema field conflicts with explicit defineLink — explicit link wins`,
+          message: `Implicit link "${conflict.name}" from schema field conflicts with explicit defineRelation — explicit link wins`,
         });
       }
 
@@ -215,7 +215,7 @@ export const validateCommand = defineCommand({
     {
       const issues: QualityIssue[] = [];
       const schemaNames = new Set(schemas.map((s) => s.name));
-      const linkRegistry = createLinkRegistry();
+      const relationRegistry = createRelationRegistry();
 
       for (const link of links) {
         // Check that both from and to schemas exist
@@ -236,7 +236,7 @@ export const validateCommand = defineCommand({
 
         // Check for duplicate link registration
         try {
-          linkRegistry.register(link);
+          relationRegistry.register(link);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           issues.push({
@@ -268,7 +268,7 @@ export const validateCommand = defineCommand({
           type: field.type,
         })),
       }));
-      const report = checkSchemaDefinitions(schemaInfos);
+      const report = checkEntityDefinitions(schemaInfos);
       categories.push({ name: "Schema Naming Conventions", issues: report.issues });
     }
 

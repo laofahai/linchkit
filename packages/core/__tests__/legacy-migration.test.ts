@@ -7,11 +7,11 @@ import {
   MigrationRunner,
   SchemaMapper,
 } from "@linchkit/cap-migration";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── Test schema ─────────────────────────────────────────────
 
-const employeeSchema: SchemaDefinition = {
+const employeeSchema: EntityDefinition = {
   name: "employee",
   label: "Employee",
   fields: {

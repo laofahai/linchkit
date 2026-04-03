@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type {
   Actor,
-  LinkDefinition,
+  RelationDefinition,
   PermissionGroupDefinition,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { graphql } from "graphql";
@@ -15,7 +15,7 @@ import {
 
 // ── Schema with sensitive and secret fields ──────────────
 
-const employeeSchema: SchemaDefinition = {
+const employeeSchema: EntityDefinition = {
   name: "employee",
   label: "Employee",
   fields: {
@@ -240,7 +240,7 @@ describe("GraphQL data masking", () => {
 
 // ── Link traversal masking tests ────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   fields: {
@@ -249,7 +249,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const linkedEmployeeSchema: SchemaDefinition = {
+const linkedEmployeeSchema: EntityDefinition = {
   name: "linked_employee",
   label: "Linked Employee",
   fields: {
@@ -260,7 +260,7 @@ const linkedEmployeeSchema: SchemaDefinition = {
   },
 };
 
-const deptEmployeeLink: LinkDefinition = {
+const deptEmployeeLink: RelationDefinition = {
   name: "dept_employee",
   from: "department",
   to: "linked_employee",
@@ -282,7 +282,7 @@ for (const action of generateCrudActions(linkedEmployeeSchema)) {
   linkExecutor.registry.register(action);
 }
 
-const linkSchemaMap = new Map<string, SchemaDefinition>();
+const linkSchemaMap = new Map<string, EntityDefinition>();
 linkSchemaMap.set("department", departmentSchema);
 linkSchemaMap.set("linked_employee", linkedEmployeeSchema);
 
@@ -409,7 +409,7 @@ describe("GraphQL link traversal masking", () => {
 
 // ── Translatable + masking interaction tests ────────────────
 
-const translatableSchema: SchemaDefinition = {
+const translatableSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   i18n: { defaultLocale: "en", supportedLocales: ["en", "zh-CN"] },

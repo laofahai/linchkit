@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, SchemaDefinition } from "@linchkit/core";
-import { SchemaRegistry } from "@linchkit/core/server";
+import type { AIService, EntityDefinition } from "@linchkit/core";
+import { EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   description: "A product in inventory",
@@ -24,8 +24,8 @@ const productSchema: SchemaDefinition = {
 
 const graphqlSchema = buildGraphQLSchema([productSchema]);
 
-const schemaRegistry = new SchemaRegistry();
-schemaRegistry.register(productSchema);
+const entityRegistry = new EntityRegistry();
+entityRegistry.register(productSchema);
 
 // ── No AI configured ─────────────────────────────────────
 
@@ -107,7 +107,7 @@ describe("POST /api/ai/chat — AI service but no aiConfig", () => {
     server = createServer(graphqlSchema, {
       port: PORT,
       aiService: mockAiService,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });

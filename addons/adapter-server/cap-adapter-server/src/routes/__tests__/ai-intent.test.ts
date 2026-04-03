@@ -10,14 +10,14 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { ActionDefinition, AIService, SchemaDefinition } from "@linchkit/core";
-import { createActionExecutor, InMemoryStore, SchemaRegistry } from "@linchkit/core/server";
+import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
+import { createActionExecutor, InMemoryStore, EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../../graphql/build-schema";
 import { createServer } from "../../server";
 
 // ── Schemas ───────────────────────────────────────────────
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   fields: {
@@ -28,7 +28,7 @@ const purchaseRequestSchema: SchemaDefinition = {
 };
 
 /** Schema with AI disabled — actions should not appear in resolve-intent */
-const confidentialSchema: SchemaDefinition = {
+const confidentialSchema: EntityDefinition = {
   name: "confidential_report",
   label: "Confidential Report",
   fields: {
@@ -107,9 +107,9 @@ function buildTestServer(aiService: AIService): {
   executor.registry.register(createPurchaseAction);
   executor.registry.register(createConfidentialAction);
 
-  const schemaRegistry = new SchemaRegistry();
-  schemaRegistry.register(purchaseRequestSchema);
-  schemaRegistry.register(confidentialSchema);
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.register(purchaseRequestSchema);
+  entityRegistry.register(confidentialSchema);
 
   const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema, confidentialSchema], {
     executor,
@@ -119,7 +119,7 @@ function buildTestServer(aiService: AIService): {
   const server = createServer(graphqlSchema, {
     executor,
     aiService,
-    schemaRegistry,
+    entityRegistry,
   });
 
   return { server, store };

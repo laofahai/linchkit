@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
@@ -17,7 +17,7 @@ import { createServer } from "../src/server";
 
 // ── Fixtures ──────────────────────────────────────────────
 
-const itemSchema: SchemaDefinition = {
+const itemSchema: EntityDefinition = {
   name: "item",
   label: "Item",
   fields: {

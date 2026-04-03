@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { BusinessRuleError } from "../errors";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
-import type { SchemaRegistry } from "../schema/schema-registry";
+import type { EntityRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
 import type {
@@ -26,7 +26,7 @@ import type {
   ProposalRequest,
   ProposalValidationResult,
 } from "../types/proposal";
-import type { FieldType, SchemaDefinition } from "../types/schema";
+import type { FieldType, EntityDefinition } from "../types/schema";
 import type { ActionRegistry } from "./action-engine";
 
 // ── Valid field types (for validation) ──────────────────────
@@ -59,7 +59,7 @@ function generateId(): string {
 
 export interface ProposalGeneratorDeps {
   aiService: AIService;
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   actionRegistry: ActionRegistry;
   /** Optional OntologyRegistry for richer context (relations, rules, states, flows) */
   ontologyRegistry?: OntologyRegistry;
@@ -90,7 +90,7 @@ interface AIProposalResponse {
 // ── System prompt builder ────────────────────────────────
 
 /** Base system prompt without ontology context (uses raw schema/action lists) */
-function buildBasicSystemPrompt(schemas: SchemaDefinition[], actions: ActionDefinition[]): string {
+function buildBasicSystemPrompt(schemas: EntityDefinition[], actions: ActionDefinition[]): string {
   const schemaList =
     schemas.length > 0
       ? schemas
@@ -121,7 +121,7 @@ function buildOntologyContext(ontology: OntologyRegistry): string {
 }
 
 function buildSystemPrompt(
-  schemas: SchemaDefinition[],
+  schemas: EntityDefinition[],
   actions: ActionDefinition[],
   ontology?: OntologyRegistry,
 ): string {
@@ -154,7 +154,7 @@ Rules for generating proposals:
 4. Schema definitions must have: name, fields (with type for each field)
 5. Action definitions must have: name, schema, label, policy (with mode and transaction)
 6. Enum fields must include an "options" array with {value, label} items
-7. Relationships between schemas are defined via defineLink(), not field types
+7. Relationships between schemas are defined via defineRelation(), not field types
 8. Always identify affected schemas, actions, rules, and dependents in impact
 9. Consider existing relations, rules, and states when proposing changes
 
@@ -246,12 +246,12 @@ export class ProposalGenerationError extends BusinessRuleError {
  * crashing with an opaque error.
  */
 export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGenerator {
-  const { aiService, schemaRegistry, actionRegistry, ontologyRegistry } = deps;
+  const { aiService, entityRegistry, actionRegistry, ontologyRegistry } = deps;
 
   return {
     async generate(request: ProposalRequest): Promise<ProposalDefinition> {
       // Gather current context
-      const schemas = schemaRegistry.getAll();
+      const schemas = entityRegistry.getAll();
       const actions = actionRegistry.getAll();
 
       const systemPrompt = buildSystemPrompt(schemas, actions, ontologyRegistry);
@@ -352,7 +352,7 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
       for (const change of proposal.changes) {
         validateChange(
           change,
-          schemaRegistry,
+          entityRegistry,
           actionRegistry,
           errors,
           warnings,
@@ -381,7 +381,7 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
 
 function validateChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   actionRegistry: ActionRegistry,
   errors: string[],
   warnings: string[],
@@ -389,12 +389,12 @@ function validateChange(
 ): void {
   switch (change.target) {
     case "schema":
-      validateSchemaChange(change, schemaRegistry, errors, warnings);
+      validateSchemaChange(change, entityRegistry, errors, warnings);
       break;
     case "action":
       validateActionChange(
         change,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         errors,
         warnings,
@@ -414,12 +414,12 @@ function validateChange(
 
 function validateSchemaChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   errors: string[],
   warnings: string[],
 ): void {
   if (change.operation === "delete") {
-    if (!schemaRegistry.has(change.name)) {
+    if (!entityRegistry.has(change.name)) {
       warnings.push(`Schema "${change.name}" does not exist (delete is a no-op)`);
     }
     return;
@@ -430,7 +430,7 @@ function validateSchemaChange(
     return;
   }
 
-  const def = change.definition as SchemaDefinition;
+  const def = change.definition as EntityDefinition;
 
   // Check name matches
   if (def.name && def.name !== change.name) {
@@ -460,19 +460,19 @@ function validateSchemaChange(
   }
 
   // Check for duplicate field names with existing schemas (for create)
-  if (change.operation === "create" && schemaRegistry.has(change.name)) {
+  if (change.operation === "create" && entityRegistry.has(change.name)) {
     errors.push(`Schema "${change.name}" already exists (use "update" operation instead)`);
   }
 
   // Check for update on non-existent schema
-  if (change.operation === "update" && !schemaRegistry.has(change.name)) {
+  if (change.operation === "update" && !entityRegistry.has(change.name)) {
     warnings.push(`Schema "${change.name}" does not exist yet (will be treated as create)`);
   }
 }
 
 function validateActionChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   _actionRegistry: ActionRegistry,
   errors: string[],
   _warnings: string[],
@@ -488,7 +488,7 @@ function validateActionChange(
   const def = change.definition as ActionDefinition;
 
   // Action must reference a valid schema (also accept schemas being created in the same proposal)
-  if (def.schema && !schemaRegistry.has(def.schema) && !proposedSchemaNames.has(def.schema)) {
+  if (def.schema && !entityRegistry.has(def.schema) && !proposedSchemaNames.has(def.schema)) {
     errors.push(`Action "${change.name}": references unknown schema "${def.schema}"`);
   }
 

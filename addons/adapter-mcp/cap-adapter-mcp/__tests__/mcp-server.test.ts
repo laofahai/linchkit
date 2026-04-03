@@ -1,10 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { defineAction, defineRule, defineSchema, defineState } from "@linchkit/core";
-import { ActionRegistry, createSchemaRegistry } from "@linchkit/core/server";
+import { defineAction, defineRule, defineEntity, defineState } from "@linchkit/core";
+import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "order",
   label: "Order",
   description: "Sales order",
@@ -76,8 +76,8 @@ function createMockCommandLayer(): CommandLayer {
 
 describe("createMcpAdapter", () => {
   test("creates an MCP server with registered tools", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -86,7 +86,7 @@ describe("createMcpAdapter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -99,8 +99,8 @@ describe("createMcpAdapter", () => {
   });
 
   test("does not register actions with mcp exposure disabled", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -110,7 +110,7 @@ describe("createMcpAdapter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -120,8 +120,8 @@ describe("createMcpAdapter", () => {
   });
 
   test("registered action tool handler calls commandLayer.execute with correct args", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -130,7 +130,7 @@ describe("createMcpAdapter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -162,15 +162,15 @@ describe("createMcpAdapter", () => {
   });
 
   test("list_schemas tool returns schema summaries", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -184,15 +184,15 @@ describe("createMcpAdapter", () => {
   });
 
   test("get_schema tool returns schema definition", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -206,13 +206,13 @@ describe("createMcpAdapter", () => {
   });
 
   test("get_schema tool returns error for unknown schema", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -225,8 +225,8 @@ describe("createMcpAdapter", () => {
   });
 
   test("list_actions tool returns action summaries", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -235,7 +235,7 @@ describe("createMcpAdapter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -249,13 +249,13 @@ describe("createMcpAdapter", () => {
   });
 
   test("uses custom name and version", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       name: "my-app",
       version: "2.0.0",
@@ -265,15 +265,15 @@ describe("createMcpAdapter", () => {
   });
 
   test("resources are registered", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -284,13 +284,13 @@ describe("createMcpAdapter", () => {
 
 describe("createMcpAdapter — bearer token auth", () => {
   test("authEnabled is false when no bearerToken is provided", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { authEnabled, validateAuth } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -301,13 +301,13 @@ describe("createMcpAdapter — bearer token auth", () => {
   });
 
   test("authEnabled is false when bearerToken is empty string", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { authEnabled, validateAuth } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       bearerToken: "",
     });
@@ -317,13 +317,13 @@ describe("createMcpAdapter — bearer token auth", () => {
   });
 
   test("authEnabled is true when bearerToken is provided", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { authEnabled } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       bearerToken: "my-secret-token",
     });
@@ -332,13 +332,13 @@ describe("createMcpAdapter — bearer token auth", () => {
   });
 
   test("validateAuth rejects missing token when auth is enabled", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { validateAuth } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       bearerToken: "my-secret-token",
     });
@@ -347,13 +347,13 @@ describe("createMcpAdapter — bearer token auth", () => {
   });
 
   test("validateAuth rejects wrong token when auth is enabled", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { validateAuth } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       bearerToken: "my-secret-token",
     });
@@ -362,13 +362,13 @@ describe("createMcpAdapter — bearer token auth", () => {
   });
 
   test("validateAuth accepts correct token when auth is enabled", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { validateAuth } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       bearerToken: "my-secret-token",
     });
@@ -379,13 +379,13 @@ describe("createMcpAdapter — bearer token auth", () => {
 
 describe("createMcpAdapter — query proxy security", () => {
   test("query tool blocks GraphQL mutations", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -402,13 +402,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool blocks GraphQL subscriptions", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -425,13 +425,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool blocks mutations preceded by fragment definitions", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -450,13 +450,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool blocks mutations preceded by comments", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -475,13 +475,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool blocks named mutations", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -500,13 +500,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool blocks subscriptions preceded by fragments", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       graphqlEndpoint: "http://localhost:3001/graphql",
     });
@@ -525,7 +525,7 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool forwards malformed GraphQL to endpoint and returns error", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
@@ -540,7 +540,7 @@ describe("createMcpAdapter — query proxy security", () => {
     try {
       const { server } = await createMcpAdapter({
         commandLayer,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         graphqlEndpoint: "http://localhost:3001/graphql",
       });
@@ -562,13 +562,13 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool returns error when graphqlEndpoint is not configured", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       // no graphqlEndpoint
     });
@@ -582,7 +582,7 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool allows regular queries when graphqlEndpoint is configured", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
@@ -599,7 +599,7 @@ describe("createMcpAdapter — query proxy security", () => {
     try {
       const { server } = await createMcpAdapter({
         commandLayer,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         graphqlEndpoint: "http://localhost:3001/graphql",
       });
@@ -616,7 +616,7 @@ describe("createMcpAdapter — query proxy security", () => {
   });
 
   test("query tool forwards x-tenant-id header when tenantId is configured", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
@@ -633,7 +633,7 @@ describe("createMcpAdapter — query proxy security", () => {
     try {
       const { server } = await createMcpAdapter({
         commandLayer,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         graphqlEndpoint: "http://localhost:3001/graphql",
         tenantId: "tenant-42",
@@ -655,8 +655,8 @@ describe("createMcpAdapter — query proxy security", () => {
 
 describe("createMcpAdapter — list_actions exposure filter", () => {
   test("list_actions excludes actions with exposure.mcp set to false", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -666,7 +666,7 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -681,8 +681,8 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
   });
 
   test("list_actions includes actions with exposure 'all'", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction); // exposure: "all"
@@ -691,7 +691,7 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -706,14 +706,14 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
 
 describe("createMcpAdapter — tenantId option", () => {
   test("tenantId option is accepted in McpAdapterOptions", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     // Should not throw — tenantId is a valid option
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       tenantId: "tenant-99",
     });
@@ -724,7 +724,7 @@ describe("createMcpAdapter — tenantId option", () => {
 
 // ── Additional test fixtures for introspection tools ──────────────────
 
-const productSchema = defineSchema({
+const productSchema = defineEntity({
   name: "product",
   label: "Product",
   description: "Product catalog",
@@ -806,9 +806,9 @@ const productStateMachine = defineState({
 
 describe("createMcpAdapter — list_actions with schema filter", () => {
   test("list_actions returns all actions when no schema filter", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
-    schemaRegistry.register(productSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
+    entityRegistry.register(productSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -818,7 +818,7 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -830,9 +830,9 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
   });
 
   test("list_actions returns all actions including schema info", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
-    schemaRegistry.register(productSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
+    entityRegistry.register(productSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -842,7 +842,7 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -857,14 +857,14 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
   });
 
   test("list_actions returns empty array when no actions registered", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
 
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -878,8 +878,8 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
 
 describe("createMcpAdapter — get_schema (detailed)", () => {
   test("get_schema returns full schema details with fields", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(productSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(productSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(createProductAction);
@@ -888,7 +888,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [productRule],
       states: [productStateMachine],
@@ -911,13 +911,13 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
   });
 
   test("get_schema returns error for unknown schema", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -930,15 +930,15 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
   });
 
   test("get_schema returns schema without presentation field", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema); // testSchema has no presentation
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema); // testSchema has no presentation
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 
@@ -952,8 +952,8 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
   });
 
   test("get_schema returns fields with correct JSON schema types", async () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(testSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testSchema);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -962,7 +962,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [testRule, productRule],
       states: [testStateMachine],
@@ -980,13 +980,13 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
 
 describe("createMcpAdapter — get_rules", () => {
   test("get_rules returns all rules when no filter", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [testRule, productRule],
     });
@@ -999,13 +999,13 @@ describe("createMcpAdapter — get_rules", () => {
   });
 
   test("get_rules filters by schema name (fieldChange trigger)", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [testRule, productRule],
     });
@@ -1019,13 +1019,13 @@ describe("createMcpAdapter — get_rules", () => {
   });
 
   test("get_rules filters by action name", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [testRule, productRule],
     });
@@ -1039,13 +1039,13 @@ describe("createMcpAdapter — get_rules", () => {
   });
 
   test("get_rules returns empty array when no matching rules", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       rules: [testRule],
     });
@@ -1060,13 +1060,13 @@ describe("createMcpAdapter — get_rules", () => {
 
 describe("createMcpAdapter — get_state_machine", () => {
   test("get_state_machine returns state machine for schema", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       states: [testStateMachine, productStateMachine],
     });
@@ -1088,13 +1088,13 @@ describe("createMcpAdapter — get_state_machine", () => {
   });
 
   test("get_state_machine returns error for schema with no state machine", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
       states: [testStateMachine],
     });
@@ -1108,13 +1108,13 @@ describe("createMcpAdapter — get_state_machine", () => {
   });
 
   test("introspection tools are registered", async () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
 
     const { server } = await createMcpAdapter({
       commandLayer,
-      schemaRegistry,
+      entityRegistry,
       actionRegistry,
     });
 

@@ -10,14 +10,14 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { ActionDefinition, RuleDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, RuleDefinition, EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, evaluateRules, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Schema ────────────────────────────────────────────────
 
-const purchaseSchema: SchemaDefinition = {
+const purchaseSchema: EntityDefinition = {
   name: "purchase",
   label: "Purchase",
   fields: {

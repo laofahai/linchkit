@@ -8,7 +8,7 @@ import {
 } from "../src/security/masking-engine";
 import type { Actor } from "../src/types/action";
 import type { PermissionGroupDefinition } from "../src/types/permission";
-import type { FieldDefinition, SchemaDefinition } from "../src/types/schema";
+import type { FieldDefinition, EntityDefinition } from "../src/types/schema";
 
 // ── maskValue tests ──────────────────────────────────────
 
@@ -179,7 +179,7 @@ describe("canUnmask", () => {
 // ── maskRecord tests ─────────────────────────────────────
 
 describe("maskRecord", () => {
-  const schema: SchemaDefinition = {
+  const schema: EntityDefinition = {
     name: "customer",
     fields: {
       name: { type: "string" },
@@ -299,7 +299,7 @@ describe("maskRecord", () => {
 // ── maskRecords tests ────────────────────────────────────
 
 describe("maskRecords", () => {
-  const schema: SchemaDefinition = {
+  const schema: EntityDefinition = {
     name: "user",
     fields: {
       name: { type: "string" },

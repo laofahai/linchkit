@@ -51,7 +51,7 @@
 - affects: inventory_management (via bridge)
 ```
 
-这份文档从 defineSchema / defineAction / defineRule / defineState / defineView 自动提取，每次部署后自动更新。**不需要人写，不会漂移。**
+这份文档从 defineEntity / defineAction / defineRule / defineState / defineView 自动提取，每次部署后自动更新。**不需要人写，不会漂移。**
 
 ### 2.2 Execution Trace（执行记录）
 

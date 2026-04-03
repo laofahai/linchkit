@@ -8,7 +8,7 @@
  * 4. Available schemas overview
  */
 
-import type { AIAssistantConfig, OntologyRegistry, SchemaRegistry } from "@linchkit/core";
+import type { AIAssistantConfig, OntologyRegistry, EntityRegistry } from "@linchkit/core";
 
 export interface SystemPromptContext {
   /** Current schema name the user is viewing */
@@ -71,10 +71,10 @@ Always respond in the same language the user writes in.`;
 export function buildSystemPrompt(options: {
   assistantConfig?: AIAssistantConfig;
   ontologyRegistry?: OntologyRegistry;
-  schemaRegistry?: SchemaRegistry;
+  entityRegistry?: EntityRegistry;
   context?: SystemPromptContext;
 }): string {
-  const { assistantConfig, ontologyRegistry, schemaRegistry, context } = options;
+  const { assistantConfig, ontologyRegistry, entityRegistry, context } = options;
 
   const parts: string[] = [];
 
@@ -145,9 +145,9 @@ export function buildSystemPrompt(options: {
           .join("\n");
         parts.push(`Relations:\n${relList}`);
       }
-    } else if (schemaRegistry) {
-      // Fallback to SchemaRegistry if OntologyRegistry is not available
-      const schema = schemaRegistry.get(context.schema);
+    } else if (entityRegistry) {
+      // Fallback to EntityRegistry if OntologyRegistry is not available
+      const schema = entityRegistry.get(context.schema);
       if (schema) {
         parts.push("\n## Current Schema Context");
         parts.push(`Schema: ${schema.name}${schema.label ? ` (${schema.label})` : ""}`);

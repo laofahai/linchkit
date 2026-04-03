@@ -8,7 +8,7 @@ import {
   sanitizeRecordForAI,
 } from "../src/ai/prompt-sanitizer";
 import type { Logger } from "../src/types/logger";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ function createMockLogger(): Logger {
   };
 }
 
-function createTestSchema(fields: SchemaDefinition["fields"]): SchemaDefinition {
+function createTestSchema(fields: EntityDefinition["fields"]): EntityDefinition {
   return {
     name: "test_schema",
     fields: {

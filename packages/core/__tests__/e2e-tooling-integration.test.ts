@@ -18,12 +18,12 @@ import {
   MigrationRegistry,
   validateUpgrade,
 } from "@linchkit/cap-migration";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import { type CapabilityManifest, createCapabilityHub } from "@linchkit/core";
 import {
-  createLinkRegistry,
+  createRelationRegistry,
   createOntologyRegistry,
-  createSchemaRegistry,
+  createEntityRegistry,
 } from "@linchkit/core/server";
 import {
   generateApiDoc,
@@ -42,13 +42,13 @@ import {
 import {
   checkActionDefinitions,
   checkCommitMessages,
-  checkSchemaDefinitions,
+  checkEntityDefinitions,
 } from "@linchkit/devtools/methodology";
-import type { LinkDefinition } from "../src/types/link";
+import type { RelationDefinition } from "../src/types/link";
 
 // ── Shared test data ──────────────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   description: "Organizational department",
@@ -70,7 +70,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const employeeSchema: SchemaDefinition = {
+const employeeSchema: EntityDefinition = {
   name: "employee",
   label: "Employee",
   description: "Company employee",
@@ -97,7 +97,7 @@ const employeeSchema: SchemaDefinition = {
   },
 };
 
-const projectSchema: SchemaDefinition = {
+const projectSchema: EntityDefinition = {
   name: "project",
   label: "Project",
   description: "Engineering project",
@@ -136,7 +136,7 @@ const approveAction: ActionDefinition = {
   handler: async () => ({}),
 };
 
-const deptEmpLink: LinkDefinition = {
+const deptEmpLink: RelationDefinition = {
   name: "department_employees",
   from: "department",
   to: "employee",
@@ -147,7 +147,7 @@ const deptEmpLink: LinkDefinition = {
   },
 };
 
-const projectEmpLink: LinkDefinition = {
+const projectEmpLink: RelationDefinition = {
   name: "project_members",
   from: "project",
   to: "employee",
@@ -164,24 +164,24 @@ const projectEmpLink: LinkDefinition = {
 
 describe("E2E: Documentation + OntologyRegistry", () => {
   function buildOntology() {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(departmentSchema);
-    schemaRegistry.register(employeeSchema);
-    schemaRegistry.register(projectSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(departmentSchema);
+    entityRegistry.register(employeeSchema);
+    entityRegistry.register(projectSchema);
 
-    const linkRegistry = createLinkRegistry();
-    linkRegistry.register(deptEmpLink);
-    linkRegistry.register(projectEmpLink);
+    const relationRegistry = createRelationRegistry();
+    relationRegistry.register(deptEmpLink);
+    relationRegistry.register(projectEmpLink);
 
     const actions = [submitAction, approveAction];
 
     return createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => actions },
       rules: [],
       states: [],
       views: [],
-      links: linkRegistry,
+      links: relationRegistry,
     });
   }
 
@@ -256,7 +256,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     expect(md).toContain("| email |");
 
     // Mermaid diagram: only appears when schemas have outgoing relations
-    // Links registered in LinkRegistry are surfaced via OntologyRegistry.relatedSchemas()
+    // Links registered in RelationRegistry are surfaced via OntologyRegistry.relatedSchemas()
     // The ER diagram is generated only from outgoing relations in SchemaDoc.relations
   });
 
@@ -350,7 +350,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
 
 describe("E2E: Governance + Documentation", () => {
   test("validateSchemaDoc reports issues for undocumented schemas", () => {
-    const bareSchema: SchemaDefinition = {
+    const bareSchema: EntityDefinition = {
       name: "bare_thing",
       label: "Bare Thing",
       fields: {
@@ -584,8 +584,8 @@ describe("E2E: Methodology + Project conventions", () => {
     expect(report.issues).toHaveLength(0);
   });
 
-  test("checkSchemaDefinitions validates naming conventions", () => {
-    const report = checkSchemaDefinitions([
+  test("checkEntityDefinitions validates naming conventions", () => {
+    const report = checkEntityDefinitions([
       { name: "department", fields: [{ name: "name", type: "string" }] },
       { name: "purchase_request", fields: [{ name: "total_amount", type: "number" }] },
       // Bad: PascalCase
@@ -636,8 +636,8 @@ describe("E2E: Methodology + Project conventions", () => {
     expect(dateIssue).toBeDefined();
   });
 
-  test("checkSchemaDefinitions passes well-named schemas", () => {
-    const report = checkSchemaDefinitions([
+  test("checkEntityDefinitions passes well-named schemas", () => {
+    const report = checkEntityDefinitions([
       {
         name: "purchase_request",
         fields: [
@@ -934,25 +934,25 @@ describe("E2E: Versioning + CapabilityHub", () => {
 describe("E2E: Full tooling pipeline", () => {
   test("end-to-end: register schemas → build ontology → generate docs → validate → changelog", () => {
     // Step 1: Register schemas
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(departmentSchema);
-    schemaRegistry.register(employeeSchema);
-    schemaRegistry.register(projectSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(departmentSchema);
+    entityRegistry.register(employeeSchema);
+    entityRegistry.register(projectSchema);
 
-    const linkRegistry = createLinkRegistry();
-    linkRegistry.register(deptEmpLink);
-    linkRegistry.register(projectEmpLink);
+    const relationRegistry = createRelationRegistry();
+    relationRegistry.register(deptEmpLink);
+    relationRegistry.register(projectEmpLink);
 
     const actions = [submitAction, approveAction];
 
     // Step 2: Build OntologyRegistry
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => actions },
       rules: [],
       states: [],
       views: [],
-      links: linkRegistry,
+      links: relationRegistry,
     });
 
     expect(ontology.listSchemas()).toHaveLength(3);
@@ -990,7 +990,7 @@ describe("E2E: Full tooling pipeline", () => {
     expect(submitValidation.coverage).toBe(100);
 
     // Step 7: Validate schema naming conventions
-    const schemaConventions = checkSchemaDefinitions([
+    const schemaConventions = checkEntityDefinitions([
       {
         name: departmentSchema.name,
         fields: Object.entries(departmentSchema.fields).map(([name, f]) => ({

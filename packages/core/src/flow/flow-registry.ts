@@ -2,7 +2,7 @@
  * Flow Registry
  *
  * Stores and retrieves FlowDefinitions. Validates flow structure on registration.
- * Follows the same pattern as SchemaRegistry.
+ * Follows the same pattern as EntityRegistry.
  */
 
 import type { ConditionFlowStep, FlowDefinition, FlowStep, ParallelFlowStep } from "../types/flow";

@@ -359,7 +359,7 @@ export interface FieldUIHints {
 #### Usage
 
 ```typescript
-defineSchema({
+defineEntity({
   name: "article",
   fields: {
     title: { type: "string", required: true },

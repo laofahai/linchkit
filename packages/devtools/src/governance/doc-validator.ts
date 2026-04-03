@@ -9,7 +9,7 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   FieldDefinition,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 
 // -- Types --------------------------------------------------------
@@ -41,7 +41,7 @@ export interface DocCompleteness {
 // -- Schema validation --------------------------------------------
 
 /**
- * Validate documentation completeness of a SchemaDefinition.
+ * Validate documentation completeness of a EntityDefinition.
  *
  * Checks:
  * - Schema has description
@@ -50,7 +50,7 @@ export interface DocCompleteness {
  * - Each field has label
  * - Enum fields have option labels
  */
-export function validateSchemaDoc(schema: SchemaDefinition): DocCompleteness {
+export function validateSchemaDoc(schema: EntityDefinition): DocCompleteness {
   const issues: DocIssue[] = [];
   let totalItems = 0;
   let documentedItems = 0;

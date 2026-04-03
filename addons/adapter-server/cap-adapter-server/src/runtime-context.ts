@@ -2,7 +2,7 @@
  * Runtime Context — assembles all core engines into a single context.
  *
  * Provides a convenient factory for creating a fully-wired runtime
- * with SchemaRegistry, ActionExecutor, EventBus, DataProvider, and ExecutionLogger.
+ * with EntityRegistry, ActionExecutor, EventBus, DataProvider, and ExecutionLogger.
  * When an external dataProvider is supplied (e.g. DrizzleDataProvider), it is used
  * for both the action executor AND GraphQL query resolvers.
  * Falls back to InMemoryStore only when no external provider is given.
@@ -19,7 +19,7 @@ import type {
   ExecutionLogger,
   InterfaceDefinition,
   MiddlewareRegistration,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
@@ -32,11 +32,11 @@ import {
   createStateMachine,
   InMemoryExecutionLogger,
   InMemoryStore,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 
 export interface RuntimeContext {
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   executor: ActionExecutor;
   commandLayer: CommandLayer;
   /** DataProvider used by both action executor and GraphQL query resolvers */
@@ -51,7 +51,7 @@ export interface RuntimeContext {
 }
 
 export interface RuntimeContextOptions {
-  schemas?: SchemaDefinition[];
+  schemas?: EntityDefinition[];
   actions?: ActionDefinition[];
   states?: StateDefinition[];
   views?: ViewDefinition[];
@@ -84,7 +84,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   // Use external data provider if provided, otherwise fall back to InMemoryStore
   const dataProvider: DataProvider = options?.dataProvider ?? new InMemoryStore();
   const executionLogger = new InMemoryExecutionLogger();
-  const schemaRegistry = new SchemaRegistry();
+  const entityRegistry = new EntityRegistry();
 
   // Register interfaces BEFORE schemas so field injection and validation happen during registration
   if (options?.interfaces?.length) {
@@ -92,13 +92,13 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     for (const iface of options.interfaces) {
       interfaceRegistry.register(iface);
     }
-    schemaRegistry.setInterfaceRegistry(interfaceRegistry);
+    entityRegistry.setInterfaceRegistry(interfaceRegistry);
   }
 
   // Register schemas
   if (options?.schemas) {
     for (const schema of options.schemas) {
-      schemaRegistry.register(schema);
+      entityRegistry.register(schema);
     }
   }
 
@@ -143,7 +143,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   }
 
   return {
-    schemaRegistry,
+    entityRegistry,
     executor,
     commandLayer,
     dataProvider,

@@ -26,7 +26,7 @@ import {
   normalizeTranslatableValue,
   resolveTranslatableValue,
 } from "../schema/translatable";
-import type { SchemaDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/schema";
 import type { TableRegistry } from "./table-registry";
 
 /** Extended query options that include locale for translatable field resolution */
@@ -37,16 +37,16 @@ export interface I18nQueryOptions extends DataQueryOptions {
 
 export class DrizzleDataProvider implements DataProvider {
   /** Schema definitions keyed by schema name, for translatable field metadata */
-  private readonly schemaDefinitions = new Map<string, SchemaDefinition>();
+  private readonly entityDefinitions = new Map<string, EntityDefinition>();
 
   constructor(
     private readonly db: PostgresJsDatabase,
     private readonly tableRegistry: TableRegistry,
-    schemaDefinitions?: SchemaDefinition[],
+    entityDefinitions?: EntityDefinition[],
   ) {
-    if (schemaDefinitions) {
-      for (const sd of schemaDefinitions) {
-        this.schemaDefinitions.set(sd.name, sd);
+    if (entityDefinitions) {
+      for (const sd of entityDefinitions) {
+        this.entityDefinitions.set(sd.name, sd);
       }
     }
   }
@@ -66,15 +66,15 @@ export class DrizzleDataProvider implements DataProvider {
   }
 
   /** Register or update schema definitions (e.g., when capabilities load after construction). */
-  registerSchemaDefinitions(schemas: SchemaDefinition[]): void {
+  registerEntityDefinitions(schemas: EntityDefinition[]): void {
     for (const sd of schemas) {
-      this.schemaDefinitions.set(sd.name, sd);
+      this.entityDefinitions.set(sd.name, sd);
     }
   }
 
   /** Get all registered schema definitions (used for creating transactional copies). */
-  getSchemaDefinitions(): SchemaDefinition[] {
-    return Array.from(this.schemaDefinitions.values());
+  getEntityDefinitions(): EntityDefinition[] {
+    return Array.from(this.entityDefinitions.values());
   }
 
   /**
@@ -82,7 +82,7 @@ export class DrizzleDataProvider implements DataProvider {
    * Used to create transactional copies (tx has the same API as db).
    */
   withConnection(conn: PostgresJsDatabase): DrizzleDataProvider {
-    return new DrizzleDataProvider(conn, this.tableRegistry, this.getSchemaDefinitions());
+    return new DrizzleDataProvider(conn, this.tableRegistry, this.getEntityDefinitions());
   }
 
   /** Resolve table from registry; throws if not registered. */
@@ -118,7 +118,7 @@ export class DrizzleDataProvider implements DataProvider {
     search: string,
   ): ReturnType<typeof or> | undefined {
     if (!search) return undefined;
-    const schemaDef = this.schemaDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(schemaName);
     if (!schemaDef) return undefined;
 
     const columns = getTableColumns(table);
@@ -272,7 +272,7 @@ export class DrizzleDataProvider implements DataProvider {
     data: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
-    const schemaDef = this.schemaDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(schemaName);
     if (!schemaDef?.i18n?.defaultLocale) return data;
 
     const translatableFields = getTranslatableFields(schemaDef);
@@ -302,7 +302,7 @@ export class DrizzleDataProvider implements DataProvider {
   ): Record<string, unknown> {
     if (!locale) return row;
 
-    const schemaDef = this.schemaDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(schemaName);
     if (!schemaDef?.i18n?.defaultLocale) return row;
 
     const translatableFields = getTranslatableFields(schemaDef);
@@ -519,7 +519,7 @@ export class DrizzleDataProvider implements DataProvider {
 
     // For translatable fields, merge with existing values to avoid
     // overwriting other locale entries. Fetch existing row once if needed.
-    const schemaDef = this.schemaDefinitions.get(schema);
+    const schemaDef = this.entityDefinitions.get(schema);
     const translatableFields = schemaDef ? getTranslatableFields(schemaDef) : new Set<string>();
     const translatableFieldsInUpdate = new Set<string>();
     for (const fieldName of translatableFields) {

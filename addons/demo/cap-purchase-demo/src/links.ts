@@ -4,10 +4,10 @@
  * Defines relationships between purchase-related schemas.
  */
 
-import { defineLink } from "@linchkit/core";
+import { defineRelation } from "@linchkit/core";
 
 /** Purchase request belongs to a department (many_to_one) */
-export const requestToDepartment = defineLink({
+export const requestToDepartment = defineRelation({
   name: "request_to_department",
   from: "purchase_request",
   to: "department",
@@ -16,7 +16,7 @@ export const requestToDepartment = defineLink({
 });
 
 /** Purchase request has many items (one_to_many, cascade delete) */
-export const requestToItems = defineLink({
+export const requestToItems = defineRelation({
   name: "request_to_items",
   from: "purchase_request",
   to: "purchase_item",

@@ -8,7 +8,7 @@
 
 import type { PgTable } from "drizzle-orm/pg-core";
 import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../schema/schema-to-drizzle";
-import type { SchemaDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/schema";
 
 export class TableRegistry {
   private tables = new Map<string, PgTable>();
@@ -43,11 +43,11 @@ export class TableRegistry {
 
   /**
    * Build Drizzle table definitions from a schema registry map.
-   * Generates pgTable definitions from SchemaDefinition fields
+   * Generates pgTable definitions from EntityDefinition fields
    * using the schema-to-drizzle generator.
    */
-  buildFromSchemaRegistry(
-    schemas: Map<string, SchemaDefinition>,
+  buildFromEntityRegistry(
+    schemas: Map<string, EntityDefinition>,
     options?: DrizzleGeneratorOptions,
   ): void {
     for (const [name, schema] of schemas) {

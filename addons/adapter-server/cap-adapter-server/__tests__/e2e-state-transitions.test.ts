@@ -12,7 +12,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition, StateDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition, StateDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -41,7 +41,7 @@ const purchaseLifecycle: StateDefinition = {
 
 // ── Schema definition ────────────────────────────────────
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   fields: {

@@ -22,7 +22,7 @@ export {
   resolveDerivedValue,
 } from "./derived-property";
 export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
-export { createSchemaRegistry, SchemaRegistry } from "./schema-registry";
+export { createEntityRegistry, EntityRegistry } from "./schema-registry";
 export {
   type DrizzleGeneratorOptions,
   generateDrizzleTable,

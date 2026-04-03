@@ -11,7 +11,7 @@
  * - Download CSV template with schema field headers
  */
 
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core/types";
+import type { FieldDefinition, EntityDefinition } from "@linchkit/core/types";
 import {
   Button,
   Dialog,
@@ -57,7 +57,7 @@ type ImportPhase = "upload" | "mapping" | "importing" | "done";
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   /** Callback after successful import to refresh the list. */
   onImported?: () => void;
 }
@@ -141,7 +141,7 @@ function parseJSONData(content: string): { headers: string[]; rows: Record<strin
 
 // ── Generate CSV template ────────────────────────────────────
 
-function downloadCSVTemplate(schema: SchemaDefinition) {
+function downloadCSVTemplate(schema: EntityDefinition) {
   const fields = Object.entries(schema.fields)
     .filter(([name]) => !SYSTEM_FIELDS.has(name))
     .map(([name]) => name);

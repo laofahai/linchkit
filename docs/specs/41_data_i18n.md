@@ -78,10 +78,10 @@ title jsonb  -- {"en": "Purchase Order", "zh-CN": "采购订单"}
 
 ### 4.1 标记可翻译字段
 
-在 `defineSchema` 中，通过 `translatable: true` 标记可翻译字段：
+在 `defineEntity` 中，通过 `translatable: true` 标记可翻译字段：
 
 ```typescript
-export const product = defineSchema({
+export const product = defineEntity({
   name: 'product',
   label: 't:schema.product',
 

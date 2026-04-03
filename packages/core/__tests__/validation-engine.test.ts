@@ -3,12 +3,12 @@ import { validatePhase1, validateProposal } from "../src/engine/validation-engin
 import type { ActionDefinition } from "../src/types/action";
 import type { ProposalChange } from "../src/types/proposal";
 import type { RuleDefinition } from "../src/types/rule";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 
 // ── Helpers ──────────────────────────────────────────────
 
-function makeSchemaChange(name: string, def: Partial<SchemaDefinition> = {}): ProposalChange {
+function makeSchemaChange(name: string, def: Partial<EntityDefinition> = {}): ProposalChange {
   return {
     target: "schema",
     operation: "create",
@@ -17,7 +17,7 @@ function makeSchemaChange(name: string, def: Partial<SchemaDefinition> = {}): Pr
       name,
       fields: { title: { type: "string", required: false } },
       ...def,
-    } as SchemaDefinition,
+    } as EntityDefinition,
   };
 }
 

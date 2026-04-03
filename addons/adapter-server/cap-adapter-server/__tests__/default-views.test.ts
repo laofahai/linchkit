@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import { generateDefaultViews } from "../src/default-views";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const minimalSchema: SchemaDefinition = {
+const minimalSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   fields: {
@@ -14,7 +14,7 @@ const minimalSchema: SchemaDefinition = {
   },
 };
 
-const schemaWithManyFields: SchemaDefinition = {
+const schemaWithManyFields: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -29,7 +29,7 @@ const schemaWithManyFields: SchemaDefinition = {
   },
 };
 
-const schemaWithSummaryFields: SchemaDefinition = {
+const schemaWithSummaryFields: EntityDefinition = {
   name: "order",
   label: "Order",
   fields: {
@@ -47,7 +47,7 @@ const schemaWithSummaryFields: SchemaDefinition = {
   },
 };
 
-const schemaWithSystemFields: SchemaDefinition = {
+const schemaWithSystemFields: EntityDefinition = {
   name: "item",
   label: "Item",
   fields: {
@@ -64,7 +64,7 @@ const schemaWithSystemFields: SchemaDefinition = {
   },
 };
 
-const schemaNoLabel: SchemaDefinition = {
+const schemaNoLabel: EntityDefinition = {
   name: "raw_entity",
   fields: {
     code: { type: "string" },
@@ -193,7 +193,7 @@ describe("generateDefaultViews", () => {
   });
 
   test("summaryFields referencing non-existent fields are filtered out", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "demo",
       label: "Demo",
       fields: {

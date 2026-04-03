@@ -17,7 +17,7 @@ export type LinkCascade = "none" | "delete" | "nullify";
 
 // ── Link definition ──────────────────────────────────────────
 
-export interface LinkDefinition {
+export interface RelationDefinition {
   /** Unique identifier for this link */
   name: string;
 
@@ -54,7 +54,7 @@ export interface LinkDefinition {
 
 export interface LinkInfo {
   /** The underlying link definition */
-  link: LinkDefinition;
+  link: RelationDefinition;
 
   /** Direction relative to the querying schema */
   direction: "outgoing" | "incoming";
@@ -68,22 +68,22 @@ export interface LinkInfo {
 
 // ── Link registry interface ──────────────────────────────────────────
 
-export interface LinkRegistryInterface {
+export interface RelationRegistryInterface {
   /** Register a link definition */
-  register(link: LinkDefinition): void;
+  register(link: RelationDefinition): void;
 
   /** Get all links for a schema (both outgoing and incoming) */
   linksFor(schemaName: string): LinkInfo[];
 
   /** Get the link between two schemas (if any) */
-  linkBetween(from: string, to: string): LinkDefinition | null;
+  linkBetween(from: string, to: string): RelationDefinition | null;
 
   /** Get all outgoing links from a schema */
-  outgoingLinks(schemaName: string): LinkDefinition[];
+  outgoingLinks(schemaName: string): RelationDefinition[];
 
   /** Get all incoming links to a schema */
-  incomingLinks(schemaName: string): LinkDefinition[];
+  incomingLinks(schemaName: string): RelationDefinition[];
 
   /** List all registered links */
-  list(): LinkDefinition[];
+  list(): RelationDefinition[];
 }

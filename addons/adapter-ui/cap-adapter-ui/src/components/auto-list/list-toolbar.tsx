@@ -1,4 +1,4 @@
-import type { SchemaDefinition, ViewAction } from "@linchkit/core/types";
+import type { EntityDefinition, ViewAction } from "@linchkit/core/types";
 import {
   Button,
   DropdownMenu,
@@ -31,7 +31,7 @@ import { SearchBar } from "./search-bar";
 
 interface ListToolbarProps {
   title?: string;
-  schema?: SchemaDefinition;
+  schema?: EntityDefinition;
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
   hasActiveFilters: boolean;

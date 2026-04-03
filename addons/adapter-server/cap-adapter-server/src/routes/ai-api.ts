@@ -56,7 +56,7 @@ function validateAIFilter(
 
 export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
   const aiService = options.aiService;
-  const schemaRegistry = options.schemaRegistry;
+  const entityRegistry = options.entityRegistry;
   const executor = options.executor;
 
   app
@@ -104,7 +104,7 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
 
       // ── Step 1: Gather data context from recent records ──
       const dataProvider = options.dataProvider;
-      const schemaDef = schemaRegistry?.get(schemaName);
+      const schemaDef = entityRegistry?.get(schemaName);
 
       let recentRecords: Array<Record<string, unknown>> = [];
       if (dataProvider) {
@@ -508,7 +508,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         const systemPrompt = buildSystemPrompt({
           assistantConfig,
           ontologyRegistry: options.ontologyRegistry,
-          schemaRegistry,
+          entityRegistry,
           context: {
             schema: context?.schema,
             recordId: context?.recordId,
@@ -521,7 +521,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         const tools = buildTools({
           dataProvider: scopedProvider,
           commandLayer: options.commandLayer,
-          schemaRegistry,
+          entityRegistry,
           ontologyRegistry: options.ontologyRegistry,
           actor,
         });
@@ -584,8 +584,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
       // Build set of AI-disabled schema names (ai.actionable === false)
       const aiDisabledSchemas = new Set<string>();
-      if (schemaRegistry) {
-        for (const schema of schemaRegistry.getAll()) {
+      if (entityRegistry) {
+        for (const schema of entityRegistry.getAll()) {
           if (schema.ai?.actionable === false) {
             aiDisabledSchemas.add(schema.name);
           }
@@ -633,8 +633,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
       // Build current page context
       let schemaContext = "";
-      if (context?.schema && schemaRegistry) {
-        const schema = schemaRegistry.get(context.schema);
+      if (context?.schema && entityRegistry) {
+        const schema = entityRegistry.get(context.schema);
         if (schema) {
           schemaContext = `\nCurrent schema context: ${schema.name}`;
           if (schema.label) schemaContext += ` (${schema.label})`;

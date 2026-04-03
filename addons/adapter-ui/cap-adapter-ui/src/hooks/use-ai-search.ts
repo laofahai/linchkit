@@ -5,7 +5,7 @@
  * sends it to the AI search endpoint, and returns DeclarativeCondition filters.
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type AISearchResult, aiSearch } from "../lib/api";
@@ -68,10 +68,10 @@ export function isNaturalLanguageQuery(query: string): boolean {
 }
 
 /**
- * Build field metadata from SchemaDefinition for the AI search API.
+ * Build field metadata from EntityDefinition for the AI search API.
  */
 function buildFieldMeta(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
 ): Record<string, { label?: string; type?: string; options?: string[] }> {
   const result: Record<string, { label?: string; type?: string; options?: string[] }> = {};
   for (const [name, field] of Object.entries(schema.fields)) {
@@ -97,7 +97,7 @@ function buildFieldMeta(
   return result;
 }
 
-export function useAISearch(schema: SchemaDefinition | undefined): UseAISearchReturn {
+export function useAISearch(schema: EntityDefinition | undefined): UseAISearchReturn {
   const { i18n } = useTranslation();
   const [state, setState] = useState<AISearchState>({
     loading: false,

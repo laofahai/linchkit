@@ -8,7 +8,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { ConflictError, defineSchema, NotFoundError } from "@linchkit/core";
+import { ConflictError, defineEntity, NotFoundError } from "@linchkit/core";
 import {
   closeDatabase,
   createDatabase,
@@ -25,7 +25,7 @@ const DATABASE_URL =
   process.env.DATABASE_TEST_URL ??
   "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "integration_test_item",
   label: "Test Item",
   fields: {

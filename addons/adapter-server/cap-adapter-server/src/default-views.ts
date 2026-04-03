@@ -7,7 +7,7 @@
 
 import type {
   FormLayoutNode,
-  SchemaDefinition,
+  EntityDefinition,
   ViewAction,
   ViewDefinition,
   ViewFieldConfig,
@@ -41,14 +41,14 @@ function toViewFields(fieldNames: string[]): ViewFieldConfig[] {
 /**
  * Get non-system field names from a schema in definition order.
  */
-function getNonSystemFields(schema: SchemaDefinition): string[] {
+function getNonSystemFields(schema: EntityDefinition): string[] {
   return Object.keys(schema.fields).filter((f) => !SYSTEM_FIELD_NAMES.has(f));
 }
 
 /**
  * Generate a default list view for a schema.
  */
-function generateDefaultListView(schema: SchemaDefinition): ViewDefinition {
+function generateDefaultListView(schema: EntityDefinition): ViewDefinition {
   const allFields = getNonSystemFields(schema);
 
   // Prefer summaryFields if available, otherwise take first N fields
@@ -87,7 +87,7 @@ function generateDefaultListView(schema: SchemaDefinition): ViewDefinition {
  * - Short fields (string, number, boolean, enum, state, date, ref) split into left/right groups
  * - Wide fields (text, json, html, richtext) placed full-width below the columns
  */
-function generateDefaultFormView(schema: SchemaDefinition): ViewDefinition {
+function generateDefaultFormView(schema: EntityDefinition): ViewDefinition {
   const formFields = getNonSystemFields(schema);
 
   const actions: ViewAction[] = [
@@ -157,7 +157,7 @@ function generateDefaultFormView(schema: SchemaDefinition): ViewDefinition {
  * Returns a record keyed by view name, suitable for merging into the
  * schema metadata response.
  */
-export function generateDefaultViews(schema: SchemaDefinition): Record<string, ViewDefinition> {
+export function generateDefaultViews(schema: EntityDefinition): Record<string, ViewDefinition> {
   const list = generateDefaultListView(schema);
   const form = generateDefaultFormView(schema);
   return {

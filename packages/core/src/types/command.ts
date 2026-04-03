@@ -8,7 +8,7 @@
 import type { ActionDefinition, ActionResult } from "./action";
 import type { CapabilityDefinition } from "./capability";
 import type { RuleDefinition } from "./rule";
-import type { SchemaDefinition } from "./schema";
+import type { EntityDefinition } from "./schema";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 
@@ -44,7 +44,7 @@ export interface CommandRegistry {
   // Capability queries
   list_capabilities: () => Promise<CapabilityDefinition[]>;
   get_capability: (name: string) => Promise<CapabilityDefinition>;
-  get_schema: (name: string) => Promise<SchemaDefinition>;
+  get_schema: (name: string) => Promise<EntityDefinition>;
   get_actions: (capability: string) => Promise<ActionDefinition[]>;
   get_rules: (capability: string) => Promise<RuleDefinition[]>;
   get_state_machine: (name: string) => Promise<StateDefinition>;

@@ -14,7 +14,7 @@ import {
   type VersionRegistry,
   validateUpgrade,
 } from "@linchkit/cap-migration";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 
 // ── SemVer parsing ─────────────────────────────────────────
 
@@ -111,7 +111,7 @@ describe("isCompatible", () => {
 // ── Breaking change detection ──────────────────────────────
 
 describe("getBreakingChanges", () => {
-  const baseSchema: SchemaDefinition = {
+  const baseSchema: EntityDefinition = {
     name: "order",
     fields: {
       title: { type: "string" },
@@ -126,7 +126,7 @@ describe("getBreakingChanges", () => {
   });
 
   it("detects field removal", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         title: { type: "string" },
@@ -142,7 +142,7 @@ describe("getBreakingChanges", () => {
   });
 
   it("detects field type change", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         title: { type: "string" },
@@ -158,7 +158,7 @@ describe("getBreakingChanges", () => {
   });
 
   it("detects new required field without default", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         ...baseSchema.fields,
@@ -173,7 +173,7 @@ describe("getBreakingChanges", () => {
   });
 
   it("does not flag new optional field", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         ...baseSchema.fields,
@@ -185,7 +185,7 @@ describe("getBreakingChanges", () => {
   });
 
   it("does not flag new required field with default", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         ...baseSchema.fields,
@@ -200,7 +200,7 @@ describe("getBreakingChanges", () => {
 // ── Release classification ─────────────────────────────────
 
 describe("classifyRelease", () => {
-  const baseSchema: SchemaDefinition = {
+  const baseSchema: EntityDefinition = {
     name: "order",
     fields: {
       title: { type: "string" },
@@ -213,7 +213,7 @@ describe("classifyRelease", () => {
   });
 
   it("returns expand when only new optional fields", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: { ...baseSchema.fields, notes: { type: "text" } },
     };
@@ -221,7 +221,7 @@ describe("classifyRelease", () => {
   });
 
   it("returns contract when field removed", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: { title: { type: "string" } },
     };
@@ -229,7 +229,7 @@ describe("classifyRelease", () => {
   });
 
   it("returns breaking when field type changed", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         title: { type: "number" }, // changed from string
@@ -243,7 +243,7 @@ describe("classifyRelease", () => {
 // ── analyzeCompatibility ───────────────────────────────────
 
 describe("analyzeCompatibility", () => {
-  const oldSchema: SchemaDefinition = {
+  const oldSchema: EntityDefinition = {
     name: "order",
     fields: {
       title: { type: "string" },
@@ -261,7 +261,7 @@ describe("analyzeCompatibility", () => {
   });
 
   it("returns expand result for new optional fields", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: { ...oldSchema.fields, notes: { type: "text" } },
     };
@@ -272,7 +272,7 @@ describe("analyzeCompatibility", () => {
   });
 
   it("includes blockers for breaking changes", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: {
         title: { type: "number" },
@@ -295,7 +295,7 @@ describe("analyzeCompatibility", () => {
   });
 
   it("flags requiresDualWrite for contract changes", () => {
-    const newSchema: SchemaDefinition = {
+    const newSchema: EntityDefinition = {
       name: "order",
       fields: { title: { type: "string" } }, // amount removed
     };

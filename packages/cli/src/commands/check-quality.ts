@@ -10,7 +10,7 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   LinchKitConfig,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import type {
   ActionInfo,
@@ -21,7 +21,7 @@ import type {
 } from "@linchkit/devtools/methodology";
 import {
   checkActionDefinitions,
-  checkSchemaDefinitions,
+  checkEntityDefinitions,
   validateProjectStructure,
 } from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";
@@ -76,7 +76,7 @@ export const checkQualityCommand = defineCommand({
     const schemas: SchemaInfo[] = [];
     for (const cap of capabilities) {
       if (cap.schemas) {
-        for (const s of cap.schemas as SchemaDefinition[]) {
+        for (const s of cap.schemas as EntityDefinition[]) {
           schemas.push({
             name: s.name,
             fields: Object.entries(s.fields).map(([name, field]) => ({
@@ -87,7 +87,7 @@ export const checkQualityCommand = defineCommand({
         }
       }
     }
-    const schemaReport = checkSchemaDefinitions(schemas);
+    const schemaReport = checkEntityDefinitions(schemas);
     reportSummaries.push({ name: "Schema Conventions", report: schemaReport });
     allIssues.push(...schemaReport.issues);
 

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { ActionDefinition, OntologyRegistry, SchemaDefinition } from "@linchkit/core";
-import type { SchemaDescriptor } from "@linchkit/core/server";
+import type { ActionDefinition, OntologyRegistry, EntityDefinition } from "@linchkit/core";
+import type { EntityDescriptor } from "@linchkit/core/server";
 import { buildSystemPrompt } from "../src/ai/system-prompt";
 
 // ── Mock factories ──────────────────────────────────────
 
-function createMockOntologyRegistry(schemas: SchemaDescriptor[]): OntologyRegistry {
+function createMockOntologyRegistry(schemas: EntityDescriptor[]): OntologyRegistry {
   return {
     describe: (name: string) => schemas.find((s) => s.name === name),
     listSchemas: () => schemas.map((s) => s.name),
@@ -21,7 +21,7 @@ function createMockOntologyRegistry(schemas: SchemaDescriptor[]): OntologyRegist
   } as OntologyRegistry;
 }
 
-function createMockSchemaRegistry(schemas: SchemaDefinition[]) {
+function createMockEntityRegistry(schemas: EntityDefinition[]) {
   return {
     get: (name: string) => schemas.find((s) => s.name === name),
     getAll: () => schemas,
@@ -31,7 +31,7 @@ function createMockSchemaRegistry(schemas: SchemaDefinition[]) {
 
 // ── Test data ───────────────────────────────────────────
 
-const productDescriptor: SchemaDescriptor = {
+const productDescriptor: EntityDescriptor = {
   name: "product",
   label: "Product",
   description: "A product in the catalog",
@@ -80,7 +80,7 @@ const productDescriptor: SchemaDescriptor = {
   interfaces: [],
 };
 
-const orderDescriptor: SchemaDescriptor = {
+const orderDescriptor: EntityDescriptor = {
   name: "order",
   label: "Order",
   fields: { amount: { type: "number" } },
@@ -158,8 +158,8 @@ describe("buildSystemPrompt — current schema context", () => {
     expect(prompt).toContain("one_to_many");
   });
 
-  test("falls back to SchemaRegistry when no OntologyRegistry", () => {
-    const sr = createMockSchemaRegistry([
+  test("falls back to EntityRegistry when no OntologyRegistry", () => {
+    const sr = createMockEntityRegistry([
       {
         name: "product",
         label: "Product",
@@ -168,7 +168,7 @@ describe("buildSystemPrompt — current schema context", () => {
     ]);
     const prompt = buildSystemPrompt({
       // biome-ignore lint/suspicious/noExplicitAny: test mock registry
-      schemaRegistry: sr as any,
+      entityRegistry: sr as any,
       context: { schema: "product" },
     });
 

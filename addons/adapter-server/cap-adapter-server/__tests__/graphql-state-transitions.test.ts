@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { SchemaDefinition, StateDefinition } from "@linchkit/core";
+import type { EntityDefinition, StateDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -29,7 +29,7 @@ const orderLifecycle: StateDefinition = {
 
 // ── Schema definition ────────────────────────────────────
 
-const orderSchema: SchemaDefinition = {
+const orderSchema: EntityDefinition = {
   name: "order",
   label: "Order",
   fields: {

@@ -56,8 +56,8 @@ export type {
   RegistrySearchOptions,
   ResolutionConflict,
   RuleOverrideEntry,
-  SchemaExtensionEntry,
-  SchemaOverrideEntry,
+  EntityExtensionEntry,
+  EntityOverrideEntry,
   TrustLevel,
   ValidationResult,
 } from "./capability";
@@ -106,10 +106,10 @@ export {
   defineEvent,
   defineEventHandler,
   defineInterface,
-  defineLink,
+  defineRelation,
   definePermissionGroup,
   defineRule,
-  defineSchema,
+  defineEntity,
   defineState,
   defineView,
   defineWatcher,
@@ -219,7 +219,7 @@ export type {
   OntologyRegistry,
   OntologyRegistryDeps,
   RelationDescriptor,
-  SchemaDescriptor,
+  EntityDescriptor,
 } from "./ontology";
 export { buildRelationGraph, inferSemanticRelations } from "./ontology";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
@@ -247,11 +247,11 @@ export {
   resolveAggregateValue,
   resolveDerivedValue,
 } from "./schema/derived-property";
-export type { LinkRegistry } from "./schema/link-registry";
-export { createLinkRegistry } from "./schema/link-registry";
+export type { RelationRegistry } from "./schema/link-registry";
+export { createRelationRegistry } from "./schema/link-registry";
 export type { InterfaceRegistry } from "./schema/schema-interface";
 export { createInterfaceRegistry } from "./schema/schema-interface";
-export type { SchemaRegistry } from "./schema/schema-registry";
+export type { EntityRegistry } from "./schema/schema-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
 export {
   createTranslatableValue,
@@ -289,7 +289,7 @@ export type {
   SemanticRelationSource,
   SemanticRelationType,
 } from "./types/semantic-relation";
-export { defineRelation } from "./types/semantic-relation";
+export { defineSemanticRelation } from "./types/semantic-relation";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";

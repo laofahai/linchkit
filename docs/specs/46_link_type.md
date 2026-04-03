@@ -9,7 +9,7 @@
 当前 LinchKit 的实体关系嵌在 Schema 字段中：
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'purchase_request',
   fields: {
     department_id: { type: 'ref', target: 'department' },        // 多对一
@@ -26,15 +26,15 @@ defineSchema({
 - **GraphQL 查询受限**：反向关联需要额外手写 resolver
 - **与 spec 24 割裂**：spec 24 的语义关联（`defineRelation`）和结构关联（Schema 字段）是两套体系
 
-## 2. 方案：defineLink 独立关联定义
+## 2. 方案：defineRelation 独立关联定义
 
-将关联提升为与 Schema 平级的一等公民。用 `defineLink` 独立声明，双向可导航，支持关联属性。
+将关联提升为与 Schema 平级的一等公民。用 `defineRelation` 独立声明，双向可导航，支持关联属性。
 
 ```typescript
-import { defineLink } from '@linchkit/core'
+import { defineRelation } from '@linchkit/core'
 
 // 多对一
-export const requestToDepartment = defineLink({
+export const requestToDepartment = defineRelation({
   name: 'request_to_department',
   from: 'purchase_request',
   to: 'department',
@@ -43,7 +43,7 @@ export const requestToDepartment = defineLink({
 })
 
 // 一对多
-export const requestToItems = defineLink({
+export const requestToItems = defineRelation({
   name: 'request_to_items',
   from: 'purchase_request',
   to: 'purchase_item',
@@ -52,7 +52,7 @@ export const requestToItems = defineLink({
 })
 
 // 多对多（带关联属性）
-export const orderToProducts = defineLink({
+export const orderToProducts = defineRelation({
   name: 'order_to_products',
   from: 'sales_order',
   to: 'product',
@@ -65,10 +65,10 @@ export const orderToProducts = defineLink({
 })
 ```
 
-## 3. LinkDefinition 完整结构
+## 3. RelationDefinition 完整结构
 
 ```typescript
-interface LinkDefinition {
+interface RelationDefinition {
   name: string                    // 唯一标识
   label?: {
     from?: string                 // 从 from 视角看的 label（如「所属部门」）
@@ -96,44 +96,44 @@ interface LinkDefinition {
 
 ### 4.1 共存策略
 
-`defineLink` 不废弃 Schema 内的 `ref` / `has_many` / `many_to_many` 字段。两者共存：
+`defineRelation` 不废弃 Schema 内的 `ref` / `has_many` / `many_to_many` 字段。两者共存：
 
 - **Schema 字段方式**：简单场景快速定义，系统自动推断为隐式 Link
-- **defineLink 方式**：需要双向导航、关联属性、或明确控制时使用
+- **defineRelation 方式**：需要双向导航、关联属性、或明确控制时使用
 
-系统启动时，将 Schema 字段中的关联自动提升为隐式 LinkDefinition，与显式 `defineLink` 合并到统一的 `LinkRegistry`。
+系统启动时，将 Schema 字段中的关联自动提升为隐式 RelationDefinition，与显式 `defineRelation` 合并到统一的 `RelationRegistry`。
 
 ### 4.2 冲突解决
 
-如果同一对 Schema 之间既有 Schema 字段定义，又有 `defineLink` 定义：
-- `defineLink` 优先（显式声明覆盖隐式推断）
+如果同一对 Schema 之间既有 Schema 字段定义，又有 `defineRelation` 定义：
+- `defineRelation` 优先（显式声明覆盖隐式推断）
 - 启动时输出警告日志
 
-## 5. LinkRegistry
+## 5. RelationRegistry
 
 ```typescript
-interface LinkRegistry {
+interface RelationRegistry {
   /** 注册一个 Link */
-  register(link: LinkDefinition): void
+  register(link: RelationDefinition): void
 
   /** 获取某个 Schema 的所有关联（出和入） */
   linksFor(schemaName: string): LinkInfo[]
 
   /** 获取从 A 到 B 的关联 */
-  linkBetween(from: string, to: string): LinkDefinition | null
+  linkBetween(from: string, to: string): RelationDefinition | null
 
   /** 获取某个 Schema 的所有出链 */
-  outgoingLinks(schemaName: string): LinkDefinition[]
+  outgoingLinks(schemaName: string): RelationDefinition[]
 
   /** 获取某个 Schema 的所有入链 */
-  incomingLinks(schemaName: string): LinkDefinition[]
+  incomingLinks(schemaName: string): RelationDefinition[]
 
   /** 列出所有 Link */
-  list(): LinkDefinition[]
+  list(): RelationDefinition[]
 }
 
 interface LinkInfo {
-  link: LinkDefinition
+  link: RelationDefinition
   direction: 'outgoing' | 'incoming'
   relatedSchema: string          // 对面的 Schema 名称
   label: string                  // 当前方向的 label
@@ -147,7 +147,7 @@ interface LinkInfo {
 在 `from` 表上生成外键列：
 
 ```sql
--- defineLink({ from: 'purchase_request', to: 'department', cardinality: 'many_to_one' })
+-- defineRelation({ from: 'purchase_request', to: 'department', cardinality: 'many_to_one' })
 ALTER TABLE purchase_request ADD COLUMN department_id TEXT REFERENCES department(id);
 CREATE INDEX idx_purchase_request_department ON purchase_request(department_id);
 ```
@@ -157,7 +157,7 @@ CREATE INDEX idx_purchase_request_department ON purchase_request(department_id);
 在 `to` 表上生成外键列（反向）：
 
 ```sql
--- defineLink({ from: 'purchase_request', to: 'purchase_item', cardinality: 'one_to_many' })
+-- defineRelation({ from: 'purchase_request', to: 'purchase_item', cardinality: 'one_to_many' })
 ALTER TABLE purchase_item ADD COLUMN purchase_request_id TEXT REFERENCES purchase_request(id);
 ```
 
@@ -166,7 +166,7 @@ ALTER TABLE purchase_item ADD COLUMN purchase_request_id TEXT REFERENCES purchas
 生成中间表：
 
 ```sql
--- defineLink({ from: 'sales_order', to: 'product', cardinality: 'many_to_many', properties: {...} })
+-- defineRelation({ from: 'sales_order', to: 'product', cardinality: 'many_to_many', properties: {...} })
 CREATE TABLE _link_order_to_products (
   sales_order_id TEXT REFERENCES sales_order(id),
   product_id TEXT REFERENCES product(id),
@@ -181,7 +181,7 @@ CREATE TABLE _link_order_to_products (
 
 ### 6.4 与 Drizzle Schema 生成集成
 
-`generateDrizzleSchemaFile()` 需要扩展，除了处理 SchemaDefinition 之外，还要处理 LinkDefinition：
+`generateDrizzleSchemaFile()` 需要扩展，除了处理 EntityDefinition 之外，还要处理 RelationDefinition：
 - 多对一/一对一：在表上添加外键列
 - 一对多：在子表上添加外键列
 - 多对多：生成中间表
@@ -192,10 +192,10 @@ CREATE TABLE _link_order_to_products (
 
 ```graphql
 type PurchaseRequest {
-  # 由 defineLink({ from: 'purchase_request', to: 'department' }) 生成
+  # 由 defineRelation({ from: 'purchase_request', to: 'department' }) 生成
   department: Department
 
-  # 由 defineLink({ from: 'purchase_request', to: 'purchase_item' }) 生成
+  # 由 defineRelation({ from: 'purchase_request', to: 'purchase_item' }) 生成
   items: [PurchaseItem!]!
 }
 
@@ -222,10 +222,10 @@ type SalesOrderProductEdge {
 
 ## 8. 与 Ontology 集成（spec 43）
 
-LinkRegistry 接入 OntologyRegistry：
+RelationRegistry 接入 OntologyRegistry：
 
 ```typescript
-// OntologyRegistry.describe('purchase_request') 返回的 SchemaDescriptor 包含:
+// OntologyRegistry.describe('purchase_request') 返回的 EntityDescriptor 包含:
 {
   relations: [
     { link: requestToDepartment, direction: 'outgoing', relatedSchema: 'department' },
@@ -241,7 +241,7 @@ AI 通过 Ontology 一次查询即可获得完整的关联图。
 | 维度 | spec 24 语义关系 | spec 46 Link Type |
 |------|-----------------|-------------------|
 | 层级 | 业务语义（depends_on, affects, triggers） | 数据结构（外键、中间表） |
-| 定义方式 | `defineRelation`（语义） | `defineLink`（结构） |
+| 定义方式 | `defineRelation`（语义） | `defineRelation`（结构） |
 | 存储 | 内存关系图 | 数据库外键/中间表 |
 | 用途 | AI 理解系统、影响分析 | 数据查询、GraphQL 导航 |
 
@@ -256,7 +256,7 @@ AI 通过 Ontology 一次查询即可获得完整的关联图。
 ## 11. 里程碑
 
 ### M2
-- `defineLink()` 类型定义 + `LinkRegistry` ✅
+- `defineRelation()` 类型定义 + `RelationRegistry` ✅
 - Drizzle schema 生成：多对一、一对多、一对一外键 ✅
 - Drizzle schema 生成：多对多中间表 + 关联属性 ✅ **(提前完成)**
 - GraphQL 双向 resolver 自动生成（所有 cardinality） ✅

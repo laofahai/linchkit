@@ -29,7 +29,7 @@ LinchKit 不只是"AI 能用"，而是"AI 天然知道怎么在上面开发"。
 这是一个 LinchKit 项目。
 
 ## 框架约定
-- 使用 defineSchema / defineAction / defineRule / defineState / defineView 定义能力
+- 使用 defineEntity / defineAction / defineRule / defineState / defineView 定义能力
 - Action 是唯一写入口，命名用 verb_noun 格式
 - Rule 声明式条件用 { field, operator, value } 格式
 - 所有变更通过 Proposal → PR → 部署

@@ -10,7 +10,7 @@
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import { ConflictError } from "../errors";
 import { resolveTranslatableRow } from "../schema/translatable";
-import type { SchemaDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/schema";
 
 export interface FindManyOptions {
   filter?: Record<string, unknown>;
@@ -28,14 +28,14 @@ export interface FindManyOptions {
 export class InMemoryStore implements DataProvider {
   private store = new Map<string, Map<string, Record<string, unknown>>>();
   /** Optional schema definitions for translatable field resolution */
-  private schemaMap = new Map<string, SchemaDefinition>();
+  private schemaMap = new Map<string, EntityDefinition>();
 
   /**
    * Register schema definitions to enable translatable field locale resolution.
    * When a schema is registered, get() and query() will resolve translatable
    * fields to the requested locale from DataQueryOptions.
    */
-  registerSchema(schema: SchemaDefinition): void {
+  registerSchema(schema: EntityDefinition): void {
     this.schemaMap.set(schema.name, schema);
   }
 

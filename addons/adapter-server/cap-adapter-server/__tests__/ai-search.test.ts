@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, SchemaDefinition } from "@linchkit/core";
+import type { AIService, EntityDefinition } from "@linchkit/core";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const orderSchema: SchemaDefinition = {
+const orderSchema: EntityDefinition = {
   name: "order",
   label: "Order",
   description: "A sales order",

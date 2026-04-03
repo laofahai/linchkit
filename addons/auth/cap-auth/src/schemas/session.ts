@@ -5,9 +5,9 @@
  * that is validated on subsequent requests.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const sessionSchema = defineSchema({
+export const sessionSchema = defineEntity({
   name: "session",
   label: "Session",
   description: "Active user session",
@@ -16,7 +16,7 @@ export const sessionSchema = defineSchema({
       type: "string",
       label: "User",
       required: true,
-      description: "Foreign key to user (relationship managed via defineLink)",
+      description: "Foreign key to user (relationship managed via defineRelation)",
     },
     token_hash: {
       type: "string",

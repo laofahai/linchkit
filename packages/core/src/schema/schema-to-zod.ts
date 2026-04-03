@@ -1,12 +1,12 @@
 /**
  * Schema-to-Zod generator
  *
- * Converts a LinchKit SchemaDefinition into a Zod object schema
+ * Converts a LinchKit EntityDefinition into a Zod object schema
  * for runtime input validation in Action Engine.
  */
 
 import { z } from "zod";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 import { TRANSLATABLE_FIELD_TYPES } from "./translatable";
 
 export interface ZodGeneratorOptions {
@@ -22,11 +22,11 @@ export interface ZodGeneratorOptions {
 const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
 
 /**
- * Generate a Zod schema from a LinchKit SchemaDefinition.
+ * Generate a Zod schema from a LinchKit EntityDefinition.
  * Used for runtime input validation in Action Engine.
  */
 export function generateZodSchema(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   options?: ZodGeneratorOptions,
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
   const shape: Record<string, z.ZodTypeAny> = {};

@@ -5,7 +5,7 @@
  * Implements the release compatibility protocol from spec 38.
  */
 
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
+import type { FieldDefinition, EntityDefinition } from "@linchkit/core";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -138,8 +138,8 @@ export function isCompatible(required: string, available: string): boolean {
  * - New nullable/defaulted field → expand (not breaking, not returned)
  */
 export function getBreakingChanges(
-  oldSchema: SchemaDefinition,
-  newSchema: SchemaDefinition,
+  oldSchema: EntityDefinition,
+  newSchema: EntityDefinition,
 ): BreakingChange[] {
   const changes: BreakingChange[] = [];
   const oldFields = oldSchema.fields;
@@ -192,8 +192,8 @@ export function getBreakingChanges(
  * Returns the most severe classification found.
  */
 export function classifyRelease(
-  oldSchema: SchemaDefinition,
-  newSchema: SchemaDefinition,
+  oldSchema: EntityDefinition,
+  newSchema: EntityDefinition,
 ): ReleaseType {
   const changes = getBreakingChanges(oldSchema, newSchema);
 
@@ -215,8 +215,8 @@ export function classifyRelease(
  * Generate a full ReleaseCompatibilityResult per spec 38 §9.
  */
 export function analyzeCompatibility(
-  oldSchema: SchemaDefinition,
-  newSchema: SchemaDefinition,
+  oldSchema: EntityDefinition,
+  newSchema: EntityDefinition,
   tenantOverrides?: TenantOverrideImpact[],
 ): ReleaseCompatibilityResult {
   const releaseType = classifyRelease(oldSchema, newSchema);

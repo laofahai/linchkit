@@ -12,15 +12,15 @@ import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { FlowDefinition } from "./flow";
 import type { Sensor } from "./life-system";
-import type { LinkDefinition } from "./link";
+import type { RelationDefinition } from "./link";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type {
   InterfaceDefinition,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
 } from "./schema";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
@@ -131,11 +131,11 @@ export interface CapabilityDefinition {
   bridges?: Array<{ capability: string }>;
 
   interfaces?: InterfaceDefinition[];
-  schemas?: SchemaDefinition[];
+  schemas?: EntityDefinition[];
   actions?: ActionDefinition[];
   rules?: RuleDefinition[];
   states?: StateDefinition[];
-  links?: LinkDefinition[];
+  links?: RelationDefinition[];
   events?: EventDefinition[];
   eventHandlers?: EventHandlerDefinition[];
   views?: ViewDefinition[];
@@ -178,8 +178,8 @@ export interface GraphQLExtensionRegistration {
 /** Extension points a capability can register */
 export interface CapabilityExtensions {
   /** Schema extensions (for Bridge / Adapter) */
-  schemas?: Array<{ target: string; extension: SchemaExtension }>;
-  schemaOverrides?: Array<{ target: string; override: SchemaOverride }>;
+  schemas?: Array<{ target: string; extension: EntityExtension }>;
+  schemaOverrides?: Array<{ target: string; override: EntityOverride }>;
   actions?: Array<{ target: string; override: ActionOverride }>;
   rules?: Array<{ target: string; override: RuleOverride }>;
   states?: Array<{ target: string; extension: StateExtension }>;

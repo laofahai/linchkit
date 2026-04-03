@@ -96,7 +96,7 @@ export function SchemaFormPage() {
   const autoFormSetFieldRef = useRef<((fieldName: string, value: unknown) => void) | null>(null);
   const dummySchema = useMemo(() => ({ name: "__dummy__", fields: {} }), []);
   const aiAutoFill = useAiAutoFill(
-    (schema ?? dummySchema) as import("@linchkit/core/types").SchemaDefinition,
+    (schema ?? dummySchema) as import("@linchkit/core/types").EntityDefinition,
     (fieldName, value) => {
       autoFormSetFieldRef.current?.(fieldName, value);
     },

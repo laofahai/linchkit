@@ -7,15 +7,15 @@ import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontolo
 import type { ActionDefinition } from "../src/types/action";
 import type { EventHandlerDefinition } from "../src/types/event";
 import type { FlowDefinition } from "../src/types/flow";
-import type { LinkDefinition } from "../src/types/link";
+import type { RelationDefinition } from "../src/types/link";
 import type { RuleDefinition } from "../src/types/rule";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 
 // ── Test data ──────────────────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   description: "Company departments",
@@ -25,7 +25,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   description: "Purchase request for procurement",
@@ -114,7 +114,7 @@ const approvalFlow: FlowDefinition = {
 
 // ── Helpers ──────────────────────────────────────────────
 
-function createMockSchemaRegistry(schemas: SchemaDefinition[]) {
+function createMockEntityRegistry(schemas: EntityDefinition[]) {
   const map = new Map(schemas.map((s) => [s.name, s]));
   return {
     getAll: () => schemas,
@@ -127,11 +127,11 @@ function createMockActionRegistry(actions: ActionDefinition[]) {
   return { getAll: () => actions };
 }
 
-function createMockLinkRegistry(links: LinkDefinition[]) {
+function createMockRelationRegistry(links: RelationDefinition[]) {
   return {
     linksFor: (schemaName: string) => {
       const result: Array<{
-        link: LinkDefinition;
+        link: RelationDefinition;
         direction: "outgoing" | "incoming";
         relatedSchema: string;
         label: string;
@@ -167,7 +167,7 @@ function createMockHandlerRegistry(handlers: EventHandlerDefinition[]) {
   return { getAll: () => handlers };
 }
 
-const deptPurchaseLink: LinkDefinition = {
+const deptPurchaseLink: RelationDefinition = {
   name: "department_purchase_request",
   from: "purchase_request",
   to: "department",
@@ -177,12 +177,12 @@ const deptPurchaseLink: LinkDefinition = {
 
 function buildDeps(overrides?: Partial<OntologyRegistryDeps>): OntologyRegistryDeps {
   return {
-    schemas: createMockSchemaRegistry([departmentSchema, purchaseRequestSchema]),
+    schemas: createMockEntityRegistry([departmentSchema, purchaseRequestSchema]),
     actions: createMockActionRegistry([submitAction, approveAction]),
     rules: [budgetRule],
     states: [purchaseState],
     views: [listView, formView],
-    links: createMockLinkRegistry([deptPurchaseLink]),
+    links: createMockRelationRegistry([deptPurchaseLink]),
     flows: createMockFlowRegistry([approvalFlow]),
     handlers: createMockHandlerRegistry([]),
     ...overrides,
@@ -481,7 +481,7 @@ describe("OntologyRegistry", () => {
   describe("works with minimal deps (no optional registries)", () => {
     test("works without links, flows, handlers", () => {
       const registry = createOntologyRegistry({
-        schemas: createMockSchemaRegistry([departmentSchema]),
+        schemas: createMockEntityRegistry([departmentSchema]),
         actions: createMockActionRegistry([]),
         rules: [],
         states: [],

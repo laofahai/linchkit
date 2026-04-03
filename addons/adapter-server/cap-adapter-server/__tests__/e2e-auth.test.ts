@@ -10,7 +10,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { ActionDefinition, Actor, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, Actor, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
@@ -21,7 +21,7 @@ import { createServer } from "../src/server";
 
 // ── Schema ────────────────────────────────────────────────
 
-const orderSchema: SchemaDefinition = {
+const orderSchema: EntityDefinition = {
   name: "order",
   label: "Order",
   fields: {

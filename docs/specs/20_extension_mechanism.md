@@ -92,7 +92,7 @@ extensions: {
 
 使用：
 ```typescript
-defineSchema({
+defineEntity({
   name: 'invoice',
   fields: {
     total: { type: 'money', label: '总金额' },           // 自动带 currency 字段
@@ -343,7 +343,7 @@ extensions: {
       factory: async (ctx) => {
         const server = createMcpServer({
           executor: ctx.executor,
-          schemaRegistry: ctx.schemaRegistry,
+          entityRegistry: ctx.entityRegistry,
           commandLayer: ctx.commandLayer,
         });
         return {

@@ -6,8 +6,8 @@
  */
 
 import type { DataProvider } from "../engine/action-engine";
-import type { LinkDefinition, LinkRegistryInterface } from "../types/link";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { RelationDefinition, RelationRegistryInterface } from "../types/link";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 import { resolveAggregateValue } from "./aggregate-engine";
 import { tokenize } from "./expression-parser";
 import { type DerivedConfig, resolveDerivedValue } from "./safe-evaluator";
@@ -32,7 +32,7 @@ export interface CascadeTarget {
   /** The aggregate derived config */
   derived: import("./safe-evaluator").AggregateDerived;
   /** The link definition connecting child to parent */
-  link: LinkDefinition;
+  link: RelationDefinition;
   /** FK column name on the child record pointing to the parent */
   fkColumn: string;
 }
@@ -112,7 +112,7 @@ export class DerivedPropertyEngine {
   private cascadeMap = new Map<string, CascadeTarget[]>();
 
   /** Optional link registry for aggregate resolution */
-  private linkRegistry?: LinkRegistryInterface;
+  private relationRegistry?: RelationRegistryInterface;
 
   /** Optional data provider for aggregate resolution */
   private dataProvider?: DataProvider;
@@ -121,11 +121,11 @@ export class DerivedPropertyEngine {
    * Wire the engine with a link registry and data provider for aggregate support.
    * Call this after register() once the link registry and data provider are available.
    */
-  wire(options: { linkRegistry?: LinkRegistryInterface; dataProvider?: DataProvider }): void {
-    this.linkRegistry = options.linkRegistry;
+  wire(options: { relationRegistry?: RelationRegistryInterface; dataProvider?: DataProvider }): void {
+    this.relationRegistry = options.relationRegistry;
     this.dataProvider = options.dataProvider;
     // Rebuild cascade map now that we have the link registry
-    if (this.linkRegistry) {
+    if (this.relationRegistry) {
       this.buildCascadeMap();
     }
   }
@@ -136,7 +136,7 @@ export class DerivedPropertyEngine {
    *
    * @throws Error if circular dependencies are detected
    */
-  register(schemas: SchemaDefinition[]): void {
+  register(schemas: EntityDefinition[]): void {
     this.fields.clear();
     this.depGraph.clear();
     this.topoOrder.clear();
@@ -173,7 +173,7 @@ export class DerivedPropertyEngine {
     this.buildTopoOrder(schemas);
 
     // Phase 3: build cascade map if link registry is available
-    if (this.linkRegistry) {
+    if (this.relationRegistry) {
       this.buildCascadeMap();
     }
   }
@@ -184,7 +184,7 @@ export class DerivedPropertyEngine {
    */
   private buildCascadeMap(): void {
     this.cascadeMap.clear();
-    if (!this.linkRegistry) return;
+    if (!this.relationRegistry) return;
 
     for (const info of this.fields.values()) {
       if (info.derived.type !== "aggregate") continue;
@@ -194,7 +194,7 @@ export class DerivedPropertyEngine {
       const childSchema = agg.source.schema;
 
       // Find the link definition
-      const allLinks = this.linkRegistry.list();
+      const allLinks = this.relationRegistry.list();
       const link = allLinks.find((l) => l.name === linkName);
       if (!link) continue;
 
@@ -246,7 +246,7 @@ export class DerivedPropertyEngine {
   /**
    * Build topological order per schema. Throws on cycles.
    */
-  private buildTopoOrder(schemas: SchemaDefinition[]): void {
+  private buildTopoOrder(schemas: EntityDefinition[]): void {
     for (const schema of schemas) {
       const schemaFields = new Map<string, Set<string>>();
 
@@ -419,7 +419,7 @@ export class DerivedPropertyEngine {
     this.resolveComputeFields(schemaName, record);
 
     // Then resolve aggregate compute fields asynchronously
-    if (this.dataProvider && this.linkRegistry) {
+    if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
           info.schemaName !== schemaName ||
@@ -429,7 +429,7 @@ export class DerivedPropertyEngine {
           continue;
         }
         const agg = info.derived;
-        const allLinks = this.linkRegistry.list();
+        const allLinks = this.relationRegistry.list();
         const link = allLinks.find((l) => l.name === agg.source.link);
         if (!link) continue;
 
@@ -499,7 +499,7 @@ export class DerivedPropertyEngine {
     const working = { ...record, ...result };
 
     // Then resolve aggregate store fields asynchronously
-    if (this.dataProvider && this.linkRegistry) {
+    if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
           info.schemaName !== schemaName ||
@@ -509,7 +509,7 @@ export class DerivedPropertyEngine {
           continue;
         }
         const agg = info.derived;
-        const allLinks = this.linkRegistry.list();
+        const allLinks = this.relationRegistry.list();
         const link = allLinks.find((l) => l.name === agg.source.link);
         if (!link) continue;
 

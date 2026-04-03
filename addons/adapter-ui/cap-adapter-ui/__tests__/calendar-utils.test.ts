@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import {
   detectTitleField,
   findDateField,
@@ -54,8 +54,8 @@ describe("parseDateValue", () => {
 // ── detectTitleField ─────────────────────────────────
 
 describe("detectTitleField", () => {
-  function makeSchema(fields: Record<string, { type: string }>): SchemaDefinition {
-    return { name: "test", fields } as unknown as SchemaDefinition;
+  function makeSchema(fields: Record<string, { type: string }>): EntityDefinition {
+    return { name: "test", fields } as unknown as EntityDefinition;
   }
 
   test("prefers 'title' field", () => {

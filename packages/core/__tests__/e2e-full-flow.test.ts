@@ -16,7 +16,7 @@ import type {
   Actor,
   FlowDefinition,
   RuleDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import {
@@ -28,7 +28,7 @@ import {
   createApprovalVerifier,
   createCommandLayer,
   createEventBus,
-  createSchemaRegistry,
+  createEntityRegistry,
   createStateMachine,
   createSyncFlowEngine,
   type DataProvider,
@@ -39,7 +39,7 @@ import {
 
 // ── Schema ───────────────────────────────────────────────
 
-const expenseSchema: SchemaDefinition = {
+const expenseSchema: EntityDefinition = {
   name: "expense_report",
   label: "Expense Report",
   fields: {
@@ -185,7 +185,7 @@ let dataProvider: DataProvider;
 let executor: ActionExecutor;
 let layer: CommandLayer;
 
-const schemaRegistry = createSchemaRegistry();
+const entityRegistry = createEntityRegistry();
 const executionLogger = new InMemoryExecutionLogger();
 const stateMachine = createStateMachine(expenseStateDef);
 const approvalStore = new InMemoryApprovalStore();
@@ -405,7 +405,7 @@ beforeAll(() => {
   // Wire executor into approval engine for re-execution on approve
   approvalEngine.setExecutor(executor);
 
-  schemaRegistry.register(expenseSchema);
+  entityRegistry.register(expenseSchema);
 
   layer = createCommandLayer({
     executor,
@@ -1265,7 +1265,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
 
   describe("9. Schema Registry", () => {
     test("9a. Schema is registered and retrievable", () => {
-      const schema = schemaRegistry.get("expense_report");
+      const schema = entityRegistry.get("expense_report");
       expect(schema).toBeDefined();
       expect(schema?.name).toBe("expense_report");
       expect(schema?.fields.title).toBeDefined();
@@ -1273,12 +1273,12 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
     });
 
     test("9b. Has check works", () => {
-      expect(schemaRegistry.has("expense_report")).toBe(true);
-      expect(schemaRegistry.has("nonexistent")).toBe(false);
+      expect(entityRegistry.has("expense_report")).toBe(true);
+      expect(entityRegistry.has("nonexistent")).toBe(false);
     });
 
     test("9c. All schemas are listed", () => {
-      const all = schemaRegistry.getAll();
+      const all = entityRegistry.getAll();
       expect(all.length).toBeGreaterThanOrEqual(1);
       expect(all.some((s) => s.name === "expense_report")).toBe(true);
     });

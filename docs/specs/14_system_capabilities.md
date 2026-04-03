@@ -243,7 +243,7 @@ View: import_wizard, export_wizard
 ### 自动增强（无需代码）
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'purchase_request',
   fields: {
     attachment: { type: 'file' },    // cap-file-storage 提供

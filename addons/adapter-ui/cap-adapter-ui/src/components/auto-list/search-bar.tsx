@@ -8,7 +8,7 @@
  * - All applied conditions as inline chips
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Loader2, Search, Sparkles, X } from "lucide-react";
@@ -25,7 +25,7 @@ import type {
 } from "../data-table-filter/core/types";
 
 export interface SearchBarProps {
-  schema?: SchemaDefinition;
+  schema?: EntityDefinition;
   /** Global text filter */
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;

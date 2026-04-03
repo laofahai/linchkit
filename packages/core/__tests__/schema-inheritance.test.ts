@@ -1,16 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import { ActionRegistry } from "../src/engine/action-engine";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import { createSchemaRegistry } from "../src/schema/schema-registry";
+import { createEntityRegistry } from "../src/schema/schema-registry";
 import type { ActionDefinition } from "../src/types/action";
 import type { RuleDefinition } from "../src/types/rule";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 
 // ── Test fixtures ───────────────────────────────────────
 
-const partySchema: SchemaDefinition = {
+const partySchema: EntityDefinition = {
   name: "party",
   label: "Party",
   abstract: true,
@@ -26,7 +26,7 @@ const partySchema: SchemaDefinition = {
   },
 };
 
-const customerSchema: SchemaDefinition = {
+const customerSchema: EntityDefinition = {
   name: "customer",
   extends: "party",
   label: "Customer",
@@ -36,7 +36,7 @@ const customerSchema: SchemaDefinition = {
   },
 };
 
-const supplierSchema: SchemaDefinition = {
+const supplierSchema: EntityDefinition = {
   name: "supplier",
   extends: "party",
   fields: {
@@ -50,7 +50,7 @@ const supplierSchema: SchemaDefinition = {
 describe("Schema Inheritance (spec 49)", () => {
   describe("field inheritance", () => {
     it("child schema inherits parent fields", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -71,7 +71,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("child fields override parent fields of same name", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register({
         name: "vip_customer",
@@ -95,7 +95,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("multi-level inheritance works (grandchild inherits from grandparent)", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register({
@@ -120,7 +120,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("child cannot change type of inherited field", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
 
       expect(() =>
@@ -136,7 +136,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("child can override non-structural properties (label, required, default)", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register({
         name: "strict_party",
@@ -154,7 +154,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("grandchild cannot change type of grandparent field", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -173,7 +173,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("abstract schemas", () => {
     it("abstract schema can be resolved", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
 
       const resolved = registry.resolve("party");
@@ -182,7 +182,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("getConcrete() excludes abstract schemas", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register(supplierSchema);
@@ -195,7 +195,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("getAll() includes abstract schemas", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -207,7 +207,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("resolved schema metadata", () => {
     it("resolved schema includes parent and children info", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register(supplierSchema);
@@ -223,7 +223,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("inherits parent presentation when child has none", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(supplierSchema); // no presentation defined
 
@@ -235,7 +235,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("validation", () => {
     it("throws when parent does not exist at registration time", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
 
       expect(() => registry.register(customerSchema)).toThrow(
         'Schema "customer" extends unknown schema "party"',
@@ -243,7 +243,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("detects circular inheritance", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
 
       // Register A -> B -> A cycle
       // We need to trick the registry by registering without extends first
@@ -262,7 +262,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("enforces maximum inheritance depth of 3", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({ name: "level1", fields: { x: { type: "string" } } });
       registry.register({
         name: "level2",
@@ -286,7 +286,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("allows exactly 3 levels of inheritance", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({ name: "root", fields: { a: { type: "string" } } });
       registry.register({
         name: "mid",
@@ -310,7 +310,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("validateInheritance returns errors for missing parents", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       // Register parent first, then child
       registry.register(partySchema);
       registry.register(customerSchema);
@@ -323,7 +323,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("interaction with extensions and overrides", () => {
     it("extensions on child schema work alongside inherited fields", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -342,7 +342,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("overrides on child schema can modify inherited fields", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -358,7 +358,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("getInheritanceChain", () => {
     it("returns single element for schema with no parent", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({ name: "standalone", fields: { x: { type: "string" } } });
 
       const chain = registry.getInheritanceChain("standalone");
@@ -366,7 +366,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("returns root-to-self order for 2-level chain", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -375,7 +375,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("returns root-to-self order for 3-level chain", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register({
@@ -391,7 +391,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("getChildren and getAllDescendants", () => {
     it("getChildren returns direct children only", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register(supplierSchema);
@@ -408,7 +408,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("getAllDescendants returns all descendants recursively", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register(supplierSchema);
@@ -426,7 +426,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("getAllDescendants returns empty for leaf schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -437,9 +437,9 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("action inheritance via ActionRegistry", () => {
     it("getBySchemaWithInheritance returns inherited + own actions", () => {
-      const schemaRegistry = createSchemaRegistry();
-      schemaRegistry.register(partySchema);
-      schemaRegistry.register(customerSchema);
+      const entityRegistry = createEntityRegistry();
+      entityRegistry.register(partySchema);
+      entityRegistry.register(customerSchema);
 
       const actionRegistry = new ActionRegistry();
       const parentAction: ActionDefinition = {
@@ -457,7 +457,7 @@ describe("Schema Inheritance (spec 49)", () => {
       actionRegistry.register(parentAction);
       actionRegistry.register(childAction);
 
-      const chain = schemaRegistry.getInheritanceChain("customer");
+      const chain = entityRegistry.getInheritanceChain("customer");
       const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
 
       expect(actions).toHaveLength(2);
@@ -466,9 +466,9 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("child action overrides parent action with same name", () => {
-      const schemaRegistry = createSchemaRegistry();
-      schemaRegistry.register(partySchema);
-      schemaRegistry.register(customerSchema);
+      const entityRegistry = createEntityRegistry();
+      entityRegistry.register(partySchema);
+      entityRegistry.register(customerSchema);
 
       const actionRegistry = new ActionRegistry();
       actionRegistry.register({
@@ -488,7 +488,7 @@ describe("Schema Inheritance (spec 49)", () => {
         { overwrite: true },
       );
 
-      const chain = schemaRegistry.getInheritanceChain("customer");
+      const chain = entityRegistry.getInheritanceChain("customer");
       const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
 
       // Only one "validate_party" action — child's version wins since it's in customer schema
@@ -498,10 +498,10 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("3-level chain inherits all ancestor actions", () => {
-      const schemaRegistry = createSchemaRegistry();
-      schemaRegistry.register(partySchema);
-      schemaRegistry.register(customerSchema);
-      schemaRegistry.register({
+      const entityRegistry = createEntityRegistry();
+      entityRegistry.register(partySchema);
+      entityRegistry.register(customerSchema);
+      entityRegistry.register({
         name: "premium_customer",
         extends: "customer",
         fields: { tier: { type: "string" } },
@@ -527,7 +527,7 @@ describe("Schema Inheritance (spec 49)", () => {
         handler: async () => ({}),
       });
 
-      const chain = schemaRegistry.getInheritanceChain("premium_customer");
+      const chain = entityRegistry.getInheritanceChain("premium_customer");
       const actions = actionRegistry.getBySchemaWithInheritance("premium_customer", chain);
 
       expect(actions).toHaveLength(3);
@@ -539,10 +539,10 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("OntologyRegistry inheritance integration", () => {
     function setupOntologyWithInheritance() {
-      const schemaRegistry = createSchemaRegistry();
-      schemaRegistry.register(partySchema);
-      schemaRegistry.register(customerSchema);
-      schemaRegistry.register(supplierSchema);
+      const entityRegistry = createEntityRegistry();
+      entityRegistry.register(partySchema);
+      entityRegistry.register(customerSchema);
+      entityRegistry.register(supplierSchema);
 
       const actionRegistry = new ActionRegistry();
       const parentAction: ActionDefinition = {
@@ -601,14 +601,14 @@ describe("Schema Inheritance (spec 49)", () => {
       };
 
       const ontology = createOntologyRegistry({
-        schemas: schemaRegistry,
+        schemas: entityRegistry,
         actions: actionRegistry,
         rules: [parentRule],
         states: [parentState],
         views: [parentView, customerView],
       });
 
-      return { schemaRegistry, actionRegistry, ontology };
+      return { entityRegistry, actionRegistry, ontology };
     }
 
     it("actionsFor returns inherited actions", () => {
@@ -639,9 +639,9 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("stateFor returns own state when child overrides", () => {
-      const schemaRegistry = createSchemaRegistry();
-      schemaRegistry.register(partySchema);
-      schemaRegistry.register(customerSchema);
+      const entityRegistry = createEntityRegistry();
+      entityRegistry.register(partySchema);
+      entityRegistry.register(customerSchema);
 
       const parentState: StateDefinition = {
         name: "party_status",
@@ -661,7 +661,7 @@ describe("Schema Inheritance (spec 49)", () => {
       };
 
       const ontology = createOntologyRegistry({
-        schemas: schemaRegistry,
+        schemas: entityRegistry,
         actions: new ActionRegistry(),
         rules: [],
         states: [parentState, customerState],
@@ -708,7 +708,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
   describe("edge cases", () => {
     it("schema without extends has empty inheritance chain", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({ name: "standalone", fields: { x: { type: "string" } } });
 
       const resolved = registry.resolve("standalone");
@@ -717,7 +717,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("multiple children of the same parent are independent", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
       registry.register(supplierSchema);
@@ -735,7 +735,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("system fields are present in both parent and child", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(partySchema);
       registry.register(customerSchema);
 
@@ -749,7 +749,7 @@ describe("Schema Inheritance (spec 49)", () => {
     });
 
     it("non-abstract parent can still be extended", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({
         name: "document",
         label: "Document",

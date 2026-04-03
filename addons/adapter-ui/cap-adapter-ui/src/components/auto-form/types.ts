@@ -2,7 +2,7 @@
  * AutoForm type definitions.
  */
 
-import type { RecordTemplate, SchemaDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { RecordTemplate, EntityDefinition, ViewDefinition } from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
 
 export type { RecordTemplate };
@@ -44,7 +44,7 @@ export interface EnrichedSubmitData {
 }
 
 export interface AutoFormProps {
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   view: ViewDefinition;
   data?: Record<string, unknown>;
   recordStatus?: string;

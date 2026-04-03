@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { generateZodSchema } from "../src/schema/schema-to-zod";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 describe("generateZodSchema", () => {
-  test("generates valid Zod schema from a simple SchemaDefinition", () => {
-    const schema: SchemaDefinition = {
+  test("generates valid Zod schema from a simple EntityDefinition", () => {
+    const schema: EntityDefinition = {
       name: "task",
       fields: {
         title: { type: "string", required: true, label: "Title" },
@@ -18,7 +18,7 @@ describe("generateZodSchema", () => {
   });
 
   test("string field with min/max becomes z.string().min().max()", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         code: { type: "string", required: true, min: 2, max: 10 },
@@ -34,7 +34,7 @@ describe("generateZodSchema", () => {
   });
 
   test("number field with min/max becomes z.number().min().max()", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         amount: { type: "number", required: true, min: 0, max: 100 },
@@ -50,7 +50,7 @@ describe("generateZodSchema", () => {
   });
 
   test("required fields are not optional", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         name: { type: "string", required: true },
@@ -64,7 +64,7 @@ describe("generateZodSchema", () => {
   });
 
   test("optional fields (required: false or missing) are optional", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         a: { type: "string", required: false },
@@ -79,7 +79,7 @@ describe("generateZodSchema", () => {
   });
 
   test("enum field generates z.enum()", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         priority: {
@@ -102,7 +102,7 @@ describe("generateZodSchema", () => {
   });
 
   test("computed fields are skipped", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string", required: true },
@@ -121,7 +121,7 @@ describe("generateZodSchema", () => {
   });
 
   test("format 'email' adds .email() validation", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         email: { type: "string", required: true, format: "email" },
@@ -135,7 +135,7 @@ describe("generateZodSchema", () => {
   });
 
   test("format 'url' adds .url() validation", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         website: { type: "string", required: true, format: "url" },
@@ -149,7 +149,7 @@ describe("generateZodSchema", () => {
   });
 
   test("state field uses stateResolver to get enum values", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         status: { type: "state", machine: "order_lifecycle", required: true },
@@ -171,7 +171,7 @@ describe("generateZodSchema", () => {
   });
 
   test("state field without resolver falls back to z.string()", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         status: { type: "state", machine: "order_lifecycle", required: true },
@@ -185,7 +185,7 @@ describe("generateZodSchema", () => {
   });
 
   test("generated schema validates correct input", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "purchase_request",
       fields: {
         title: { type: "string", required: true, min: 1 },
@@ -207,7 +207,7 @@ describe("generateZodSchema", () => {
   });
 
   test("generated schema rejects invalid input", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "purchase_request",
       fields: {
         title: { type: "string", required: true, min: 1 },
@@ -241,7 +241,7 @@ describe("generateZodSchema", () => {
   });
 
   test("boolean, date, datetime, json field mappings work", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         active: { type: "boolean", required: true },
@@ -280,7 +280,7 @@ describe("generateZodSchema", () => {
   });
 
   test("translatable string field accepts plain string", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -297,7 +297,7 @@ describe("generateZodSchema", () => {
   });
 
   test("translatable string field accepts locale map object", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -317,7 +317,7 @@ describe("generateZodSchema", () => {
   });
 
   test("translatable field rejects non-string/non-object values", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -333,7 +333,7 @@ describe("generateZodSchema", () => {
   });
 
   test("translatable text field behaves same as translatable string", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -356,7 +356,7 @@ describe("generateZodSchema", () => {
   });
 
   test("non-translatable string field rejects locale map object", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         sku: { type: "string", required: true },
@@ -370,7 +370,7 @@ describe("generateZodSchema", () => {
   });
 
   test("includeSystemFields adds optional system fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string", required: true },

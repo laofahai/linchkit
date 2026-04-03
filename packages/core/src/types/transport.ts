@@ -21,14 +21,14 @@ import type { EventBus } from "../event/event-bus";
 import type { FlowEngine, FlowRegistry } from "../flow/types";
 import type { OntologyRegistry } from "../ontology";
 import type { DerivedPropertyEngine } from "../schema/derived-property";
-import type { LinkRegistry } from "../schema/link-registry";
-import type { SchemaRegistry } from "../schema/schema-registry";
+import type { RelationRegistry } from "../schema/link-registry";
+import type { EntityRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "./action";
 import type { AIService, AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 import type { ExecutionLogger } from "./execution-log";
-import type { LinkDefinition } from "./link";
-import type { SchemaDefinition } from "./schema";
+import type { RelationDefinition } from "./link";
+import type { EntityDefinition } from "./schema";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 
@@ -36,8 +36,8 @@ import type { ViewDefinition } from "./view";
 export interface TransportContext {
   commandLayer: CommandLayer;
   executor: ActionExecutor;
-  schemaRegistry: SchemaRegistry;
-  schemas: SchemaDefinition[];
+  entityRegistry: EntityRegistry;
+  schemas: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];
@@ -53,9 +53,9 @@ export interface TransportContext {
   /** Approval engine — wired with DrizzleApprovalStore when DB is available */
   approvalEngine?: ApprovalEngine;
   /** Link definitions for generating bidirectional relation resolver fields */
-  links?: LinkDefinition[];
+  links?: RelationDefinition[];
   /** Link registry with all links (explicit + implicit) registered */
-  linkRegistry?: LinkRegistry;
+  relationRegistry?: RelationRegistry;
   /** Permission registry — auto-built from capabilities' extensions.permissionGroups */
   permissionRegistry?: PermissionRegistry;
   /** Loaded capability definitions — used by transports to inspect loaded capabilities */

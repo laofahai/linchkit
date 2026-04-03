@@ -6,8 +6,8 @@
  */
 
 import type {
-  LinkDefinition,
-  SchemaDefinition,
+  RelationDefinition,
+  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core/types";
@@ -15,10 +15,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { fetchSchemaBundle } from "@/lib/api";
 
 export interface ResolvedSchemaBundle {
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
-  links?: LinkDefinition[];
+  links?: RelationDefinition[];
   /** True for system-internal schemas (read-only, managed by core) */
   internal?: boolean;
 }
@@ -82,7 +82,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
         description: raw.description,
         fields: raw.fields,
         presentation: raw.presentation,
-      } as SchemaDefinition,
+      } as EntityDefinition,
       views: normalizeViews(raw.views),
       states: raw.states,
       links: raw.links,

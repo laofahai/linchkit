@@ -11,14 +11,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, AIService, SchemaDefinition } from "@linchkit/core";
-import { ActionRegistry, SchemaRegistry } from "@linchkit/core/server";
+import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
+import { ActionRegistry, EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Schema ────────────────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   description: "A project task",
@@ -235,8 +235,8 @@ describe("E2E AI endpoints — with mock AI service", () => {
   const actionRegistry = new ActionRegistry();
   actionRegistry.register(createTaskAction);
 
-  const schemaRegistry = new SchemaRegistry();
-  schemaRegistry.register(taskSchema);
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.register(taskSchema);
 
   const mockExecutor = {
     registry: actionRegistry,
@@ -253,7 +253,7 @@ describe("E2E AI endpoints — with mock AI service", () => {
       aiService: mockAiService,
       // biome-ignore lint/suspicious/noExplicitAny: mock for test
       executor: mockExecutor as any,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });
@@ -446,8 +446,8 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
 
   const actionRegistry = new ActionRegistry();
   actionRegistry.register(createTaskAction);
-  const schemaRegistry = new SchemaRegistry();
-  schemaRegistry.register(taskSchema);
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.register(taskSchema);
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
@@ -458,7 +458,7 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
         execute: async () => ({ success: true, data: {}, executionId: "x" }),
         // biome-ignore lint/suspicious/noExplicitAny: mock for test
       } as any,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });

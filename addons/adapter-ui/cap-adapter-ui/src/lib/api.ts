@@ -400,7 +400,7 @@ export interface SchemaInfo {
   internal?: boolean;
 }
 
-import type { LinkDefinition, SemanticRelation, StateDefinition } from "@linchkit/core/types";
+import type { RelationDefinition, SemanticRelation, StateDefinition } from "@linchkit/core/types";
 
 /** Full schema bundle with views (from GET /api/schemas/:name) */
 export interface SchemaBundle {
@@ -411,7 +411,7 @@ export interface SchemaBundle {
   presentation?: Record<string, unknown>;
   views: Record<string, unknown>;
   states?: StateDefinition[];
-  links?: LinkDefinition[];
+  links?: RelationDefinition[];
   /** True for system-internal schemas (read-only, managed by core) */
   internal?: boolean;
 }
@@ -440,7 +440,7 @@ export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | nu
 /**
  * Fetch all registered link definitions from the server.
  */
-export async function fetchLinks(): Promise<LinkDefinition[]> {
+export async function fetchLinks(): Promise<RelationDefinition[]> {
   const res = await fetch("/api/links", { headers: getAuthHeaders() });
   handleUnauthorized(res);
   const json = await res.json();

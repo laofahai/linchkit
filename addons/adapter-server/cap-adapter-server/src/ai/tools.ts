@@ -13,7 +13,7 @@ import type {
   CommandLayer,
   DataProvider,
   OntologyRegistry,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core";
 import { tool } from "ai";
 import { z } from "zod";
@@ -24,7 +24,7 @@ export interface ToolContext {
   /** Command layer for executing actions (permission-aware) */
   commandLayer?: CommandLayer;
   /** Schema registry for metadata lookups */
-  schemaRegistry?: SchemaRegistry;
+  entityRegistry?: EntityRegistry;
   /** Ontology registry for rich schema descriptions */
   ontologyRegistry?: OntologyRegistry;
   /** Current authenticated actor (for command layer execution) */
@@ -215,9 +215,9 @@ export function buildTools(ctx: ToolContext) {
         };
       },
     });
-  } else if (ctx.schemaRegistry) {
-    // Fallback: use SchemaRegistry directly if Ontology is not available
-    const sr = ctx.schemaRegistry;
+  } else if (ctx.entityRegistry) {
+    // Fallback: use EntityRegistry directly if Ontology is not available
+    const sr = ctx.entityRegistry;
 
     tools.describeSchema = tool({
       description: "Get information about a schema including its fields.",

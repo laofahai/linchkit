@@ -20,7 +20,7 @@
 import type {
   ExecutionStatus,
   FlowDefinition,
-  LinkDefinition,
+  RelationDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { buildRelationGraph } from "@linchkit/core";
@@ -40,7 +40,7 @@ export function mountAdminRoutes(
   options: ServerOptions,
   serverStartedAt: number,
 ): void {
-  const schemaRegistry = options.schemaRegistry;
+  const entityRegistry = options.entityRegistry;
   const capabilities = options.capabilities ?? [];
   const healthCheckRegistry = options.healthCheckRegistry;
   const metricsCollector = options.metricsCollector;
@@ -59,7 +59,7 @@ export function mountAdminRoutes(
         uptime: process.uptime(),
         nodeVersion: process.version,
         platform: process.platform,
-        schemaCount: schemaRegistry?.getAll().length ?? 0,
+        schemaCount: entityRegistry?.getAll().length ?? 0,
         capabilityCount: capabilities.length,
       };
       const metrics = metricsCollector
@@ -174,7 +174,7 @@ export function mountAdminRoutes(
         general: {
           version: "0.2.0",
           uptime: uptimeMs,
-          registeredSchemas: schemaRegistry?.getAll().length ?? 0,
+          registeredSchemas: entityRegistry?.getAll().length ?? 0,
           registeredActions: actionCount,
           registeredRules: rules.length,
           registeredFlows:
@@ -451,7 +451,7 @@ export function mountAdminRoutes(
     })
     // ── Link REST endpoints ─────────────────────────────────
     .get("/api/links", () => {
-      const allLinks = collectFromCapabilities<LinkDefinition>(undefined, capabilities, "links");
+      const allLinks = collectFromCapabilities<RelationDefinition>(undefined, capabilities, "links");
       return { success: true, data: allLinks };
     })
     // ── Semantic relation endpoint ──────────────────────────

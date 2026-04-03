@@ -6,19 +6,19 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
   InMemoryExecutionLogger,
   InMemoryStore,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Fixtures ──────────────────────────────────────────────
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -43,14 +43,14 @@ for (const action of crudActions) {
   executor.registry.register(action);
 }
 
-const schemaRegistry = new SchemaRegistry();
-schemaRegistry.register(productSchema);
+const entityRegistry = new EntityRegistry();
+entityRegistry.register(productSchema);
 
 const graphqlSchema = buildGraphQLSchema([productSchema]);
 const port = 4077;
 const app = createServer(graphqlSchema, {
   executor,
-  schemaRegistry,
+  entityRegistry,
 });
 
 function importUrl(schemaName: string): string {

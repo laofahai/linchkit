@@ -7,6 +7,6 @@ export {
   type OntologyRegistry,
   type OntologyRegistryDeps,
   type RelationDescriptor,
-  type SchemaDescriptor,
+  type EntityDescriptor,
 } from "./ontology-registry";
 export { buildRelationGraph, inferSemanticRelations } from "./semantic-inference";

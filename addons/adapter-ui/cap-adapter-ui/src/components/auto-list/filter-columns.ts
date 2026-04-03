@@ -1,11 +1,11 @@
 /**
- * Bridge: convert a SchemaDefinition's fields into bazza ColumnConfig array.
+ * Bridge: convert a EntityDefinition's fields into bazza ColumnConfig array.
  *
  * Maps LinchKit field types to bazza ColumnDataType and extracts
  * options / min / max from field definitions + data.
  */
 
-import type { EnumField, FieldDefinition, SchemaDefinition, StateMeta } from "@linchkit/core/types";
+import type { EnumField, FieldDefinition, EntityDefinition, StateMeta } from "@linchkit/core/types";
 import type { LucideIcon } from "lucide-react";
 import { CalendarIcon, HashIcon, ListIcon, TextIcon, ToggleLeftIcon, TypeIcon } from "lucide-react";
 import { createColumnConfigHelper } from "../data-table-filter/core/filters";
@@ -73,7 +73,7 @@ function fieldIcon(fieldType: string): LucideIcon {
 }
 
 /**
- * Build bazza ColumnConfig[] from a SchemaDefinition.
+ * Build bazza ColumnConfig[] from a EntityDefinition.
  *
  * Skips non-filterable field types (computed, json).
  * For enum / state fields, extracts options from field definition or data.
@@ -81,7 +81,7 @@ function fieldIcon(fieldType: string): LucideIcon {
  * For number fields, computes min / max from data.
  */
 export function buildFilterColumns(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   data: DataRow[],
   stateMeta?: Partial<Record<string, StateMeta>>,
   resolveLabel?: (label: string | undefined, fallback: string) => string,

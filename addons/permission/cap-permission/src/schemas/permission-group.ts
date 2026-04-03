@@ -5,9 +5,9 @@
  * what actions, data, and fields are accessible per capability/schema.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const permissionGroupSchema = defineSchema({
+export const permissionGroupSchema = defineEntity({
   name: "permission_group",
   label: "Permission Group",
   description: "Permission group definition with per-capability/schema access rules",

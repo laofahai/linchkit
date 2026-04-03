@@ -5,7 +5,7 @@
 import type {
   EnumField,
   FieldDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateMeta,
   ViewAction,
   ViewFieldConfig,
@@ -31,7 +31,7 @@ type DataRow = Record<string, unknown>;
 
 export interface BuildColumnsOptions {
   fields: ViewFieldConfig[];
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   rowActions: ViewAction[];
   onAction?: (actionName: string, recordId: string) => void;
   stateMeta?: Partial<Record<string, StateMeta>>;

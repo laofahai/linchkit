@@ -1,13 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import { mockAIService } from "@linchkit/devtools";
-import type { ProposalDefinition, SchemaDefinition } from "../src";
+import type { ProposalDefinition, EntityDefinition } from "../src";
 import { ProposalGenerationError } from "../src/engine/proposal-generator";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import { ActionRegistry, createProposalGenerator, createSchemaRegistry } from "../src/server-entry";
+import { ActionRegistry, createProposalGenerator, createEntityRegistry } from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   fields: {
@@ -17,7 +17,7 @@ const taskSchema: SchemaDefinition = {
   },
 };
 
-const projectSchema: SchemaDefinition = {
+const projectSchema: EntityDefinition = {
   name: "project",
   label: "Project",
   fields: {
@@ -168,9 +168,9 @@ const _invalidActionResponse = {
 
 function createDeps(responses: Record<string, unknown>) {
   const ai = mockAIService(responses);
-  const schemaRegistry = createSchemaRegistry();
+  const entityRegistry = createEntityRegistry();
   const actionRegistry = new ActionRegistry();
-  return { ai, schemaRegistry, actionRegistry };
+  return { ai, entityRegistry, actionRegistry };
 }
 
 // ── Tests ────────────────────────────────────────────────
@@ -178,14 +178,14 @@ function createDeps(responses: Record<string, unknown>) {
 describe("ProposalGenerator", () => {
   describe("generate()", () => {
     it("produces a valid Proposal structure with correct defaults", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -207,14 +207,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("always sets changeType to 'minor' in M1b", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -226,14 +226,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("populates changes array from AI response", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -249,14 +249,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("populates impact from AI response", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -269,13 +269,13 @@ describe("ProposalGenerator", () => {
     });
 
     it("uses targetCapability from request when provided", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Create a product": createProductResponse,
       });
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -288,14 +288,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("calls AIService with system prompt containing schema context", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -315,14 +315,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("includes ontology context in system prompt when OntologyRegistry is provided", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
-      schemaRegistry.register(projectSchema);
+      entityRegistry.register(taskSchema);
+      entityRegistry.register(projectSchema);
 
       const ontologyRegistry = createOntologyRegistry({
-        schemas: schemaRegistry,
+        schemas: entityRegistry,
         actions: actionRegistry,
         rules: [],
         states: [],
@@ -331,7 +331,7 @@ describe("ProposalGenerator", () => {
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         ontologyRegistry,
       });
@@ -356,7 +356,7 @@ describe("ProposalGenerator", () => {
     });
 
     it("throws ProposalGenerationError when AI service is not configured", async () => {
-      const schemaRegistry = createSchemaRegistry();
+      const entityRegistry = createEntityRegistry();
       const actionRegistry = new ActionRegistry();
 
       // Create an AI service that throws "not configured"
@@ -373,7 +373,7 @@ describe("ProposalGenerator", () => {
 
       const generator = createProposalGenerator({
         aiService: noopAI,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -388,7 +388,7 @@ describe("ProposalGenerator", () => {
     });
 
     it("throws ProposalGenerationError with descriptive message on generic AI failure", async () => {
-      const schemaRegistry = createSchemaRegistry();
+      const entityRegistry = createEntityRegistry();
       const actionRegistry = new ActionRegistry();
 
       const failingAI = {
@@ -402,7 +402,7 @@ describe("ProposalGenerator", () => {
 
       const generator = createProposalGenerator({
         aiService: failingAI,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -417,14 +417,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("includes example proposal in system prompt", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a priority field": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -439,14 +439,14 @@ describe("ProposalGenerator", () => {
     });
 
     it("includes additional context in user message", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({
+      const { ai, entityRegistry, actionRegistry } = createDeps({
         "Add a deadline": addPriorityResponse,
       });
-      schemaRegistry.register(taskSchema);
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -464,12 +464,12 @@ describe("ProposalGenerator", () => {
 
   describe("validate()", () => {
     it("passes validation for valid schema changes", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
-      schemaRegistry.register(taskSchema);
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -519,11 +519,11 @@ describe("ProposalGenerator", () => {
     });
 
     it("catches invalid field types", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -566,11 +566,11 @@ describe("ProposalGenerator", () => {
     });
 
     it("catches missing schema reference in action", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -612,11 +612,11 @@ describe("ProposalGenerator", () => {
     });
 
     it("catches enum field without options", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -660,12 +660,12 @@ describe("ProposalGenerator", () => {
     });
 
     it("warns on duplicate schema create", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
-      schemaRegistry.register(taskSchema);
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -702,12 +702,12 @@ describe("ProposalGenerator", () => {
     });
 
     it("builds impact summary string", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
-      schemaRegistry.register(taskSchema);
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
+      entityRegistry.register(taskSchema);
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 
@@ -751,11 +751,11 @@ describe("ProposalGenerator", () => {
     });
 
     it("validates action with schema created in same proposal", async () => {
-      const { ai, schemaRegistry, actionRegistry } = createDeps({});
+      const { ai, entityRegistry, actionRegistry } = createDeps({});
 
       const generator = createProposalGenerator({
         aiService: ai,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
       });
 

@@ -13,7 +13,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 import {
   closeDatabase,
   createActionExecutor,
@@ -37,7 +37,7 @@ const DATABASE_URL =
 const PORT = 3091;
 const GQL_URL = `http://localhost:${PORT}/graphql`;
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "e2e_item",
   label: "E2E Test Item",
   fields: {

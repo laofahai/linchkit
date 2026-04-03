@@ -37,7 +37,7 @@
 通过 `defineXxx()` 函数做声明式定义：
 
 ```typescript
-import { defineSchema, defineAction, defineRule, defineView } from '@linchkit/core'
+import { defineEntity, defineAction, defineRule, defineView } from '@linchkit/core'
 ```
 
 理由：
@@ -171,7 +171,7 @@ capabilities/ (pluggable):
 ## 7. Schema 多产物生成
 
 ```
-defineSchema()
+defineEntity()
     ├── Zod schema       → 运行时输入校验
     ├── Drizzle schema   → 数据库建表和查询
     ├── TypeScript type   → 开发时类型推导
@@ -216,7 +216,7 @@ M0 用行级隔离，后续按需升级。
 所有面向用户的文本支持 i18n key：
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'purchase_request',
   label: 't:purchase_request._label',  // 引用翻译 key
   fields: {

@@ -1,5 +1,5 @@
 import type {
-  SchemaDefinition,
+  EntityDefinition,
   StateMeta,
   ViewAction,
   ViewFieldConfig,
@@ -78,7 +78,7 @@ export interface AutoListProps {
   // ── Schema-driven props (optional) ────────────────────────────────────────
 
   /** Schema definition. When provided with `view`, enables schema-driven features. */
-  schema?: SchemaDefinition;
+  schema?: EntityDefinition;
   /** View definition. Required alongside `schema` for auto-column generation. */
   view?: AutoListViewDefinition;
   stateMeta?: Partial<Record<string, StateMeta>>;

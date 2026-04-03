@@ -3,7 +3,7 @@ import {
   defineAction,
   defineCapability,
   defineRule,
-  defineSchema,
+  defineEntity,
   defineState,
   defineView,
 } from "@linchkit/core";
@@ -18,7 +18,7 @@ describe("validateCapability", () => {
       category: "business",
       version: "1.0.0",
       schemas: [
-        defineSchema({
+        defineEntity({
           name: "purchase_request",
           fields: {
             title: { type: "string" },

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { createSchemaRegistry } from "../src/schema/schema-registry";
+import { createEntityRegistry } from "../src/schema/schema-registry";
 import type {
   FieldDefinition,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
 } from "../src/types/schema";
 
 // ── Test fixtures ───────────────────────────────────────
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   presentation: {
@@ -31,7 +31,7 @@ const productSchema: SchemaDefinition = {
   },
 };
 
-const categorySchema: SchemaDefinition = {
+const categorySchema: EntityDefinition = {
   name: "category",
   fields: {
     name: { type: "string", required: true },
@@ -40,22 +40,22 @@ const categorySchema: SchemaDefinition = {
 
 // ── Tests ───────────────────────────────────────────────
 
-describe("SchemaRegistry", () => {
+describe("EntityRegistry", () => {
   describe("register and get", () => {
     it("registers a schema and retrieves it", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       expect(registry.get("product")).toBe(productSchema);
     });
 
     it("returns undefined for unregistered schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       expect(registry.get("nonexistent")).toBeUndefined();
     });
 
     it("throws on duplicate registration", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       expect(() => registry.register(productSchema)).toThrow(
@@ -64,14 +64,14 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws on schema without name", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       expect(() => registry.register({ name: "", fields: { x: { type: "string" } } })).toThrow(
         "Schema must have a name",
       );
     });
 
     it("throws on schema without fields", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       expect(() => registry.register({ name: "empty", fields: {} })).toThrow(
         'Schema "empty" must have at least one field',
       );
@@ -80,20 +80,20 @@ describe("SchemaRegistry", () => {
 
   describe("has", () => {
     it("returns true for registered schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
       expect(registry.has("product")).toBe(true);
     });
 
     it("returns false for unregistered schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       expect(registry.has("product")).toBe(false);
     });
   });
 
   describe("getAll", () => {
     it("returns all registered schemas", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
       registry.register(categorySchema);
 
@@ -104,14 +104,14 @@ describe("SchemaRegistry", () => {
     });
 
     it("returns empty array when no schemas registered", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       expect(registry.getAll()).toEqual([]);
     });
   });
 
   describe("resolve", () => {
     it("resolves a schema with system fields injected", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       const resolved = registry.resolve("product");
@@ -132,7 +132,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("system fields have correct types", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       const resolved = registry.resolve("product");
@@ -148,7 +148,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("marks computed fields as non-storable", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       const resolved = registry.resolve("product");
@@ -157,7 +157,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("marks regular fields as storable", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       const resolved = registry.resolve("product");
@@ -171,7 +171,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("uses field label when defined", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       const resolved = registry.resolve("product");
@@ -181,7 +181,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("generates label from field name when not defined", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register({
         name: "test",
         fields: {
@@ -197,7 +197,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws when resolving non-existent schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
 
       expect(() => registry.resolve("nonexistent")).toThrow(
         'Schema "nonexistent" is not registered',
@@ -207,10 +207,10 @@ describe("SchemaRegistry", () => {
 
   describe("applyExtension", () => {
     it("adds new fields from extension", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
-      const extension: SchemaExtension = {
+      const extension: EntityExtension = {
         fields: {
           weight: { type: "number", label: "Weight" },
           color: { type: "string", label: "Color" },
@@ -227,7 +227,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws when extending non-existent schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
 
       expect(() =>
         registry.applyExtension("nonexistent", {
@@ -237,7 +237,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("supports multiple extensions", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       registry.applyExtension("product", {
@@ -255,10 +255,10 @@ describe("SchemaRegistry", () => {
 
   describe("applyOverride", () => {
     it("modifies field constraints", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
-      const override: SchemaOverride = {
+      const override: EntityOverride = {
         fields: {
           price: { max: 999999 },
           description: { required: true },
@@ -276,7 +276,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws when overriding non-existent schema", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
 
       expect(() =>
         registry.applyOverride("nonexistent", {
@@ -286,7 +286,7 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws when override references unknown field", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       registry.applyOverride("product", {
@@ -299,13 +299,13 @@ describe("SchemaRegistry", () => {
     });
 
     it("throws when override attempts to change field type", () => {
-      const registry = createSchemaRegistry();
+      const registry = createEntityRegistry();
       registry.register(productSchema);
 
       registry.applyOverride("product", {
         fields: {
           price: { type: "string" } as unknown as Partial<FieldDefinition>,
-        } as SchemaOverride["fields"],
+        } as EntityOverride["fields"],
       });
 
       expect(() => registry.resolve("product")).toThrow(

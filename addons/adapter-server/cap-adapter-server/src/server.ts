@@ -25,8 +25,8 @@ import type {
   PermissionGroupDefinition,
   RuleDefinition,
   RuntimeConfigRegistry,
-  SchemaDefinition,
-  SchemaRegistry,
+  EntityDefinition,
+  EntityRegistry,
   StateDefinition,
   SubscriptionConfig,
   ViewDefinition,
@@ -67,7 +67,7 @@ export interface ServerOptions {
   /** Execution logger for log query endpoints */
   executionLogger?: ExecutionLogger;
   /** Schema registry for metadata endpoints */
-  schemaRegistry?: SchemaRegistry;
+  entityRegistry?: EntityRegistry;
   /** View definitions grouped by schema name */
   views?: Map<string, ViewDefinition[]>;
   /**
@@ -105,7 +105,7 @@ export interface ServerOptions {
   /** Permission groups for data masking in link resolvers */
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for data masking in link resolvers */
-  schemaMap?: Map<string, SchemaDefinition>;
+  schemaMap?: Map<string, EntityDefinition>;
   /** Static tenant list for /api/tenants endpoint (used by TenantSwitcher UI) */
   tenants?: Array<{ id: string; name: string }>;
   /** Event bus for SSE subscription endpoint (/api/subscribe) */

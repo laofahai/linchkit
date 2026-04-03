@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Setup ────────────────────────────────────────────────
 
-const itemSchema: SchemaDefinition = {
+const itemSchema: EntityDefinition = {
   name: "item",
   label: "Item",
   fields: {

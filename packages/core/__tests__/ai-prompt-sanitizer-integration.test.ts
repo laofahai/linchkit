@@ -5,7 +5,7 @@ import {
   sanitizePrompt,
   sanitizeRecordForAI,
 } from "../src/ai/prompt-sanitizer";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── Prompt Injection Detection ──────────────────────────
 
@@ -203,7 +203,7 @@ describe("sanitizePrompt — full pipeline", () => {
 // ── Schema-aware record sanitization ────────────────────
 
 describe("sanitizeRecordForAI — schema-aware", () => {
-  const schema: SchemaDefinition = {
+  const schema: EntityDefinition = {
     name: "customer",
     fields: {
       name: { type: "string", label: "Name" },
@@ -265,7 +265,7 @@ describe("sanitizeRecordForAI — schema-aware", () => {
   });
 
   test("handles non-string sensitive values", () => {
-    const schemaWithNumber: SchemaDefinition = {
+    const schemaWithNumber: EntityDefinition = {
       name: "account",
       fields: {
         balance: { type: "number", label: "Balance", sensitive: true },

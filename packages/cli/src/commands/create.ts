@@ -89,9 +89,9 @@ export const ${safeId}: CapabilityDefinition = {
 }
 
 function exampleSchemaTemplate(domain: string): string {
-  return `import { defineSchema } from "@linchkit/core";
+  return `import { defineEntity } from "@linchkit/core";
 
-export const ${domain}Schema = defineSchema({
+export const ${domain}Schema = defineEntity({
   name: "${domain}",
   label: "${domain}",
   fields: {

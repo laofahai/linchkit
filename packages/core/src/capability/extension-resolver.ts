@@ -14,23 +14,23 @@ import type { RuleDefinition, RuleOverride } from "../types/rule";
 import type {
   FieldConstraints,
   FieldDefinition,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
 } from "../types/schema";
 
 // ── Collected entry types ──────────────────────────────────
 
-export interface SchemaExtensionEntry {
+export interface EntityExtensionEntry {
   target: string;
-  extension: SchemaExtension;
+  extension: EntityExtension;
   source: string;
   priority: number;
 }
 
-export interface SchemaOverrideEntry {
+export interface EntityOverrideEntry {
   target: string;
-  override: SchemaOverride;
+  override: EntityOverride;
   source: string;
   priority: number;
 }
@@ -63,15 +63,15 @@ export interface ResolutionConflict {
 
 export interface ExtensionResolver {
   // Collect extensions/overrides from capabilities
-  addSchemaExtension(
+  addEntityExtension(
     target: string,
-    extension: SchemaExtension,
+    extension: EntityExtension,
     source: string,
     priority: number,
   ): void;
-  addSchemaOverride(
+  addEntityOverride(
     target: string,
-    override: SchemaOverride,
+    override: EntityOverride,
     source: string,
     priority: number,
   ): void;
@@ -84,7 +84,7 @@ export interface ExtensionResolver {
   addRuleOverride(target: string, override: RuleOverride, source: string, priority: number): void;
 
   // Apply all collected extensions/overrides to definitions
-  resolveSchemas(schemas: SchemaDefinition[]): SchemaDefinition[];
+  resolveSchemas(schemas: EntityDefinition[]): EntityDefinition[];
   resolveActions(actions: ActionDefinition[]): ActionDefinition[];
   resolveRules(rules: RuleDefinition[]): RuleDefinition[];
 
@@ -100,24 +100,24 @@ export interface ExtensionResolver {
  * 2. Call resolveSchemas/resolveActions/resolveRules before registering into registries
  */
 export function createExtensionResolver(): ExtensionResolver {
-  const schemaExtensions: SchemaExtensionEntry[] = [];
-  const schemaOverrides: SchemaOverrideEntry[] = [];
+  const schemaExtensions: EntityExtensionEntry[] = [];
+  const schemaOverrides: EntityOverrideEntry[] = [];
   const actionOverrides: ActionOverrideEntry[] = [];
   const ruleOverrides: RuleOverrideEntry[] = [];
   const conflicts: ResolutionConflict[] = [];
 
-  function addSchemaExtension(
+  function addEntityExtension(
     target: string,
-    extension: SchemaExtension,
+    extension: EntityExtension,
     source: string,
     priority: number,
   ): void {
     schemaExtensions.push({ target, extension, source, priority });
   }
 
-  function addSchemaOverride(
+  function addEntityOverride(
     target: string,
-    override: SchemaOverride,
+    override: EntityOverride,
     source: string,
     priority: number,
   ): void {
@@ -144,8 +144,8 @@ export function createExtensionResolver(): ExtensionResolver {
 
   // ── Schema resolution ──────────────────────────────────
 
-  function resolveSchemas(schemas: SchemaDefinition[]): SchemaDefinition[] {
-    const schemaMap = new Map<string, SchemaDefinition>();
+  function resolveSchemas(schemas: EntityDefinition[]): EntityDefinition[] {
+    const schemaMap = new Map<string, EntityDefinition>();
     for (const s of schemas) {
       schemaMap.set(s.name, { ...s, fields: { ...s.fields } });
     }
@@ -304,8 +304,8 @@ export function createExtensionResolver(): ExtensionResolver {
   }
 
   return {
-    addSchemaExtension,
-    addSchemaOverride,
+    addEntityExtension,
+    addEntityOverride,
     addActionOverride,
     addRuleOverride,
     resolveSchemas,

@@ -5,9 +5,9 @@
  * that can be validated, refreshed, or revoked.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const tokenSchema = defineSchema({
+export const tokenSchema = defineEntity({
   name: "token",
   label: "Token",
   description: "JWT access and refresh token record",
@@ -16,7 +16,7 @@ export const tokenSchema = defineSchema({
       type: "string",
       label: "User",
       required: true,
-      description: "Foreign key to user (relationship managed via defineLink)",
+      description: "Foreign key to user (relationship managed via defineRelation)",
     },
     token_hash: {
       type: "string",

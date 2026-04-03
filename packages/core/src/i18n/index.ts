@@ -54,7 +54,7 @@ export type TranslatableValue = Record<string, string>;
 
 /**
  * Per-schema i18n configuration.
- * Placed on SchemaDefinition.i18n when the schema has translatable fields.
+ * Placed on EntityDefinition.i18n when the schema has translatable fields.
  */
 export interface I18nConfig {
   /** Default locale used when the requested locale has no translation */

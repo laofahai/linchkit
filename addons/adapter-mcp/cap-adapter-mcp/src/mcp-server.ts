@@ -18,8 +18,9 @@ import type {
   ActionRegistry,
   Actor,
   CommandLayer,
+  OntologyRegistry,
   RuleDefinition,
-  SchemaRegistry,
+  EntityRegistry,
   StateDefinition,
 } from "@linchkit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -33,8 +34,13 @@ import type { McpClient, ToolPolicy } from "./types";
 
 export interface McpAdapterOptions {
   commandLayer: CommandLayer;
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   actionRegistry: ActionRegistry;
+  ontologyRegistry?: OntologyRegistry;
+  /** AI boundary for permission checking */
+  aiBoundary?: unknown;
+  /** AI audit logger for tracking AI operations */
+  aiAuditLogger?: unknown;
   /** Rule definitions for introspection */
   rules?: RuleDefinition[];
   /** State machine definitions for introspection */
@@ -99,7 +105,7 @@ const MCP_ACTOR: Actor = {
 export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpAdapterResult> {
   const {
     commandLayer,
-    schemaRegistry,
+    entityRegistry,
     actionRegistry,
     rules = [],
     states = [],
@@ -235,7 +241,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
   // Register built-in introspection tools
   registerBuiltinTools(
     server,
-    schemaRegistry,
+    entityRegistry,
     actionRegistry,
     rules,
     states,
@@ -270,7 +276,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
   }
 
   // Register resources
-  registerResources(server, schemaRegistry);
+  registerResources(server, entityRegistry);
 
   const result: McpAdapterResult & {
     /** Set per-session auth (used by SSE transport after authentication) */
@@ -403,7 +409,7 @@ function extractGraphQLOperationType(query: string): "query" | "mutation" | "sub
 /** Register built-in introspection tools */
 function registerBuiltinTools(
   server: McpServer,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   actionRegistry: ActionRegistry,
   rules: RuleDefinition[],
   states: StateDefinition[],
@@ -416,7 +422,7 @@ function registerBuiltinTools(
     "list_schemas",
     "List all available schemas with their names, labels, descriptions, and field names",
     async () => {
-      const schemas = schemaRegistry.getAll().map((s) => ({
+      const schemas = entityRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
@@ -437,7 +443,7 @@ function registerBuiltinTools(
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getSchemaShape as any,
     async (args: { name: string }) => {
-      const schema = schemaRegistry.get(args.name);
+      const schema = entityRegistry.get(args.name);
       if (!schema) {
         return {
           content: [
@@ -680,13 +686,13 @@ function registerBuiltinTools(
 }
 
 /** Register MCP resources */
-function registerResources(server: McpServer, schemaRegistry: SchemaRegistry): void {
+function registerResources(server: McpServer, entityRegistry: EntityRegistry): void {
   server.resource(
     "schemas",
     "linchkit://schemas",
     { description: "List of all registered schemas", mimeType: "application/json" },
     async (uri) => {
-      const schemas = schemaRegistry.getAll().map((s) => ({
+      const schemas = entityRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,

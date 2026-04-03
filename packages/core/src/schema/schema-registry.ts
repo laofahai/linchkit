@@ -12,9 +12,9 @@ import type {
   FieldDefinition,
   ResolvedField,
   ResolvedSchema,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
 } from "../types/schema";
 import type { InterfaceRegistry } from "./schema-interface";
 
@@ -58,12 +58,12 @@ function resolveField(name: string, definition: FieldDefinition): ResolvedField 
   };
 }
 
-// ── SchemaRegistry ──────────────────────────────────────────────
+// ── EntityRegistry ──────────────────────────────────────────────
 
-export class SchemaRegistry {
-  private schemas = new Map<string, SchemaDefinition>();
-  private extensions = new Map<string, SchemaExtension[]>();
-  private overrides = new Map<string, SchemaOverride[]>();
+export class EntityRegistry {
+  private schemas = new Map<string, EntityDefinition>();
+  private extensions = new Map<string, EntityExtension[]>();
+  private overrides = new Map<string, EntityOverride[]>();
   private _interfaceRegistry: InterfaceRegistry | null = null;
   /** Schema names registered via registerInternal() — system-managed, read-only in UI */
   private _internalSchemas = new Set<string>();
@@ -84,7 +84,7 @@ export class SchemaRegistry {
    * Validates inheritance constraints (parent exists, no circular refs, depth limit).
    * Validates interface implementation if InterfaceRegistry is set.
    */
-  register(schema: SchemaDefinition): void {
+  register(schema: EntityDefinition): void {
     if (!schema.name) {
       throw new Error("Schema must have a name");
     }
@@ -104,7 +104,7 @@ export class SchemaRegistry {
 
       // Check inheritance depth (walk up the chain)
       let depth = 1;
-      let current: SchemaDefinition | undefined = parent;
+      let current: EntityDefinition | undefined = parent;
       const visited = new Set<string>([schema.name]);
       while (current?.extends) {
         if (visited.has(current.extends)) {
@@ -163,7 +163,7 @@ export class SchemaRegistry {
    * - Skip inheritance and interface validation (they are standalone)
    * - Do NOT get standard system fields injected (they define their own)
    */
-  registerInternal(schema: SchemaDefinition): void {
+  registerInternal(schema: EntityDefinition): void {
     if (!schema.name) {
       throw new Error("Schema must have a name");
     }
@@ -191,7 +191,7 @@ export class SchemaRegistry {
    * Apply an extension to a registered schema (adds new fields).
    * The extension is stored and merged at resolve time.
    */
-  applyExtension(name: string, extension: SchemaExtension): void {
+  applyExtension(name: string, extension: EntityExtension): void {
     if (!this.schemas.has(name)) {
       throw new Error(`Cannot extend unknown schema "${name}"`);
     }
@@ -204,7 +204,7 @@ export class SchemaRegistry {
    * Apply an override to a registered schema (modifies field constraints).
    * The override is stored and applied at resolve time.
    */
-  applyOverride(name: string, override: SchemaOverride): void {
+  applyOverride(name: string, override: EntityOverride): void {
     if (!this.schemas.has(name)) {
       throw new Error(`Cannot override unknown schema "${name}"`);
     }
@@ -366,12 +366,12 @@ export class SchemaRegistry {
   }
 
   /** Get the raw schema definition by name */
-  get(name: string): SchemaDefinition | undefined {
+  get(name: string): EntityDefinition | undefined {
     return this.schemas.get(name);
   }
 
   /** Get all registered schema definitions */
-  getAll(): SchemaDefinition[] {
+  getAll(): EntityDefinition[] {
     return Array.from(this.schemas.values());
   }
 
@@ -379,7 +379,7 @@ export class SchemaRegistry {
    * Get all concrete (non-abstract) schema definitions.
    * Useful for table generation, action registration, etc.
    */
-  getConcrete(): SchemaDefinition[] {
+  getConcrete(): EntityDefinition[] {
     return Array.from(this.schemas.values()).filter((s) => !s.abstract);
   }
 
@@ -407,7 +407,7 @@ export class SchemaRegistry {
 
       // Check for circular inheritance
       const visited = new Set<string>();
-      let current: SchemaDefinition | undefined = schema;
+      let current: EntityDefinition | undefined = schema;
       while (current?.extends) {
         if (visited.has(current.name)) {
           errors.push(`Circular inheritance detected involving schema "${current.name}"`);
@@ -433,7 +433,7 @@ export class SchemaRegistry {
 
 // ── Factory ─────────────────────────────────────────────────────
 
-/** Create a new SchemaRegistry instance */
-export function createSchemaRegistry(): SchemaRegistry {
-  return new SchemaRegistry();
+/** Create a new EntityRegistry instance */
+export function createEntityRegistry(): EntityRegistry {
+  return new EntityRegistry();
 }

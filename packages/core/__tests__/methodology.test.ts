@@ -6,7 +6,7 @@ import {
   checkCommitMessages,
   checkFileNaming,
   checkImportPatterns,
-  checkSchemaDefinitions,
+  checkEntityDefinitions,
   type DirectoryEntry,
   type FileContent,
   type SchemaInfo,
@@ -322,9 +322,9 @@ describe("checkCommitMessages", () => {
   });
 });
 
-// ── checkSchemaDefinitions ──────────────────────────────
+// ── checkEntityDefinitions ──────────────────────────────
 
-describe("checkSchemaDefinitions", () => {
+describe("checkEntityDefinitions", () => {
   it("passes for valid schema definitions", () => {
     const schemas: SchemaInfo[] = [
       {
@@ -338,30 +338,30 @@ describe("checkSchemaDefinitions", () => {
       },
     ];
 
-    const report = checkSchemaDefinitions(schemas);
+    const report = checkEntityDefinitions(schemas);
     expect(report.passed).toBe(true);
     expect(report.summary.warnings).toBe(0);
   });
 
   it("errors on non-snake_case schema name", () => {
-    const report = checkSchemaDefinitions([{ name: "PurchaseRequest" }]);
+    const report = checkEntityDefinitions([{ name: "PurchaseRequest" }]);
     expect(report.passed).toBe(false);
     expect(report.issues.some((i) => i.rule === "schema-naming")).toBe(true);
   });
 
   it("errors on reserved word schema name", () => {
-    const report = checkSchemaDefinitions([{ name: "order" }]);
+    const report = checkEntityDefinitions([{ name: "order" }]);
     expect(report.passed).toBe(false);
     expect(report.issues.some((i) => i.rule === "schema-reserved")).toBe(true);
   });
 
   it("warns on plural schema name", () => {
-    const report = checkSchemaDefinitions([{ name: "purchase_requests" }]);
+    const report = checkEntityDefinitions([{ name: "purchase_requests" }]);
     expect(report.issues.some((i) => i.rule === "schema-singular")).toBe(true);
   });
 
   it("does not warn on _status suffix", () => {
-    const report = checkSchemaDefinitions([{ name: "approval_status" }]);
+    const report = checkEntityDefinitions([{ name: "approval_status" }]);
     expect(report.issues.filter((i) => i.rule === "schema-singular")).toHaveLength(0);
   });
 
@@ -373,7 +373,7 @@ describe("checkSchemaDefinitions", () => {
       },
     ];
 
-    const report = checkSchemaDefinitions(schemas);
+    const report = checkEntityDefinitions(schemas);
     expect(report.issues.some((i) => i.rule === "boolean-prefix")).toBe(true);
   });
 
@@ -385,7 +385,7 @@ describe("checkSchemaDefinitions", () => {
       },
     ];
 
-    const report = checkSchemaDefinitions(schemas);
+    const report = checkEntityDefinitions(schemas);
     expect(report.issues.some((i) => i.rule === "datetime-suffix")).toBe(true);
   });
 });

@@ -10,7 +10,7 @@
  *   - Naming convention checks (no duplicates, valid format)
  */
 
-import type { SchemaRegistry } from "../schema/schema-registry";
+import type { EntityRegistry } from "../schema/schema-registry";
 import type { ActionDefinition } from "../types/action";
 import type {
   ChangeDefinition,
@@ -22,7 +22,7 @@ import type {
   ValidationWarning,
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
-import type { FieldType, SchemaDefinition } from "../types/schema";
+import type { FieldType, EntityDefinition } from "../types/schema";
 import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────
@@ -53,7 +53,7 @@ const NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 export interface ValidationContext {
   /** Existing schema registry (to check ref targets, etc.) */
-  schemaRegistry?: SchemaRegistry;
+  entityRegistry?: EntityRegistry;
   /** Existing action names (for duplicate/reference checks) */
   existingActions?: string[];
   /** Existing state machine names */
@@ -104,7 +104,7 @@ export function validatePhase1(options: {
   // Helper to check if a schema exists (in registry or proposed)
   const schemaExists = (name: string): boolean => {
     if (proposedSchemas.has(name)) return true;
-    if (context?.schemaRegistry?.has(name)) return true;
+    if (context?.entityRegistry?.has(name)) return true;
     return false;
   };
 
@@ -162,7 +162,7 @@ export function validatePhase1(options: {
 
     switch (change.target) {
       case "schema":
-        validateSchema(change.definition as SchemaDefinition, change.name, errors, warnings, {
+        validateSchema(change.definition as EntityDefinition, change.name, errors, warnings, {
           schemaExists,
         });
         break;
@@ -236,7 +236,7 @@ function resolveStateMachine(
 // ── Schema validation ────────────────────────────────────
 
 function validateSchema(
-  def: SchemaDefinition,
+  def: EntityDefinition,
   name: string,
   errors: ValidationError[],
   _warnings: ValidationWarning[],

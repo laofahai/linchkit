@@ -29,7 +29,7 @@
 在 Schema 字段定义中增加 `derived` 选项，声明该字段的计算逻辑。
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'sales_order',
   fields: {
     // 普通字段
@@ -261,7 +261,7 @@ type SalesOrder {
 
 ## 7. 与 Ontology 集成（spec 43）
 
-SchemaDescriptor 标注哪些字段是派生的：
+EntityDescriptor 标注哪些字段是派生的：
 
 ```typescript
 interface FieldInfo {

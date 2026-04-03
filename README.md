@@ -137,10 +137,10 @@ capabilities/ (pluggable):
 - [x] Full CLAUDE.md + AGENTS.md *(maintained throughout)*
 - [x] AI-assisted Proposal generation *(implemented in M1b)*
 - [x] OntologyRegistry — unified semantic layer across all registries
-- [x] Link Type — `defineLink()` with bidirectional navigation, FK/junction table generation, GraphQL resolvers
+- [x] Link Type — `defineRelation()` with bidirectional navigation, FK/junction table generation, GraphQL resolvers
 - [x] GraphQL Subscriptions — SSE-based real-time event streaming
 - [x] DataLoader integration — N+1 query optimization for link resolvers
-- [x] Schema Interface — `defineSchemaInterface()` reusable field contracts
+- [x] Schema Interface — `defineEntityInterface()` reusable field contracts
 - [x] Schema Inheritance — single-parent field/action/rule/state inheritance
 - [x] Derived Properties — computed fields evaluated at query time
 - [x] Reactive Automation — event-driven trigger bindings

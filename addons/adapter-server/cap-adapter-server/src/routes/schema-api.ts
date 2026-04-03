@@ -10,31 +10,31 @@ import { generateDefaultViews } from "../default-views";
 import type { ServerOptions } from "../server";
 
 export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
-  const schemaRegistry = options.schemaRegistry;
+  const entityRegistry = options.entityRegistry;
   const views = options.views;
   const capabilities = options.capabilities ?? [];
 
   app
     .get("/api/schemas", () => {
-      if (!schemaRegistry) {
+      if (!entityRegistry) {
         return { success: true, data: [] };
       }
       // Lightweight list — name/label/description/icon for navigation
-      const schemas = schemaRegistry.getAll().map((s) => ({
+      const schemas = entityRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
         icon: s.presentation?.icon,
-        internal: schemaRegistry.isInternal(s.name) || undefined,
+        internal: entityRegistry.isInternal(s.name) || undefined,
       }));
       return { success: true, data: schemas };
     })
     .get("/api/schemas/:name", ({ params, set }) => {
-      if (!schemaRegistry) {
+      if (!entityRegistry) {
         set.status = 404;
         return { success: false, error: { message: "Schema registry not configured." } };
       }
-      const schema = schemaRegistry.get(params.name);
+      const schema = entityRegistry.get(params.name);
       if (!schema) {
         set.status = 404;
         return { success: false, error: { message: `Schema "${params.name}" not found.` } };
@@ -60,7 +60,7 @@ export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
       const schemaLinks = capabilities.flatMap((cap) =>
         (cap.links ?? []).filter((l) => l.from === params.name || l.to === params.name),
       );
-      const internal = schemaRegistry.isInternal(params.name) || undefined;
+      const internal = entityRegistry.isInternal(params.name) || undefined;
       return {
         success: true,
         data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks, internal },

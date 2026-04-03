@@ -67,7 +67,7 @@ export const Approvable = defineInterface({
 ## 3. Schema 实现 Interface
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'purchase_request',
   implements: ['approvable', 'auditable'],   // 声明实现的接口
 
@@ -219,10 +219,10 @@ interface InterfaceRegistry {
 
 ## 10. 与 Ontology 集成（spec 43）
 
-SchemaDescriptor 增加 `interfaces` 字段：
+EntityDescriptor 增加 `interfaces` 字段：
 
 ```typescript
-interface SchemaDescriptor {
+interface EntityDescriptor {
   // ...existing fields...
   interfaces: InterfaceDefinition[]   // 此 Schema 实现的所有 Interface
 }

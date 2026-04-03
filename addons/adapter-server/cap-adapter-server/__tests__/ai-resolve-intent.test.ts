@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, AIService, SchemaDefinition } from "@linchkit/core";
-import { ActionRegistry, SchemaRegistry } from "@linchkit/core/server";
+import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
+import { ActionRegistry, EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const purchaseSchema: SchemaDefinition = {
+const purchaseSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   description: "A purchase request",
@@ -126,8 +126,8 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     }),
   };
 
-  const schemaRegistry = new SchemaRegistry();
-  schemaRegistry.register(purchaseSchema);
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.register(purchaseSchema);
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
@@ -135,7 +135,7 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
       aiService: mockAiService,
       // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
       executor: mockExecutor as any,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });
@@ -200,7 +200,7 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
       aiService: lowConfService,
       // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
       executor: mockExecutor as any,
-      schemaRegistry,
+      entityRegistry,
     });
     server2.listen(server2Port);
 

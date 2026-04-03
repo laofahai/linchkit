@@ -52,7 +52,7 @@ AI 被诱导生成：
 - AI 的查询结果不包含标记为 secret 的字段
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'employee',
   fields: {
     name: { type: 'string' },

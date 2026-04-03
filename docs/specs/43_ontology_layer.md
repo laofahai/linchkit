@@ -47,13 +47,13 @@ interface OntologyRegistry {
   // === 发现 ===
 
   /** 获取关于某个 Schema 的一切：字段、Action、Rule、状态机、View、Flow、关联 */
-  describe(schemaName: string): SchemaDescriptor              // ✅ Implemented
+  describe(schemaName: string): EntityDescriptor              // ✅ Implemented
 
   /** 列出 Ontology 中所有 Schema 名称 */
   listSchemas(): string[]                                      // ✅ Implemented
 
   /** 按关键词搜索 Schema（名称、label、字段名） */
-  searchSchemas(query: string): SchemaDescriptor[]             // ✅ Implemented
+  searchSchemas(query: string): EntityDescriptor[]             // ✅ Implemented
 
   // === 横切查询 ===
 
@@ -96,13 +96,13 @@ interface OntologyRegistry {
 }
 ```
 
-## 4. SchemaDescriptor
+## 4. EntityDescriptor
 
 `describe()` 方法返回某个 Schema 的完整画像：
 
 ```typescript
-interface SchemaDescriptor {
-  schema: SchemaDefinition
+interface EntityDescriptor {
+  schema: EntityDefinition
   fields: FieldDefinition[]
   relations: RelationInfo[]          // 结构关联（ref/has_many）+ 语义关联（spec 24）
   actions: ActionDefinition[]        // 操作此 Schema 的所有 Action
@@ -123,7 +123,7 @@ interface SchemaDescriptor {
 
 ```typescript
 function createOntologyRegistry(deps: {
-  schemas: SchemaRegistry
+  schemas: EntityRegistry
   actions: ActionRegistry
   rules: RuleDefinition[]
   states: StateDefinition[]
@@ -153,7 +153,7 @@ OntologyRegistry 驱动增强版 MCP 工具，供 AI 代理使用：
 ```typescript
 // MCP tool: describe_schema
 // 输入: { schema: "purchase_request" }
-// 输出: 完整 SchemaDescriptor（JSON）
+// 输出: 完整 EntityDescriptor（JSON）
 
 // MCP tool: search_ontology
 // 输入: { query: "approval" }

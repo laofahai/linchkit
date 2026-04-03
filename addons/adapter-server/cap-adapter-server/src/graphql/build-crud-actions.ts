@@ -1,5 +1,5 @@
 /**
- * Generate default CRUD action definitions for a SchemaDefinition.
+ * Generate default CRUD action definitions for a EntityDefinition.
  *
  * Extracted from build-schema.ts to keep each module focused on a single concern.
  */
@@ -7,7 +7,7 @@
 import type {
   ActionDefinition,
   DerivedPropertyEngine,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { createStateMachine, getAvailableTransitions } from "@linchkit/core/server";
@@ -24,7 +24,7 @@ export interface GenerateCrudActionsOptions {
  * Generate default CRUD action definitions for a schema.
  */
 export function generateCrudActions(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   options?: GenerateCrudActionsOptions,
 ): ActionDefinition[] {
   const name = schema.name;

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import { printSchema } from "graphql";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   description: "A project task",
@@ -19,7 +19,7 @@ const taskSchema: SchemaDefinition = {
   },
 };
 
-const userSchema: SchemaDefinition = {
+const userSchema: EntityDefinition = {
   name: "user",
   label: "User",
   fields: {

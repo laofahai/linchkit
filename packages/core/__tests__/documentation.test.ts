@@ -13,15 +13,15 @@ import {
 } from "@linchkit/devtools/documentation";
 import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 import type { ActionDefinition } from "../src/types/action";
-import type { LinkDefinition } from "../src/types/link";
+import type { RelationDefinition } from "../src/types/link";
 import type { RuleDefinition } from "../src/types/rule";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 
 // ── Test data ──────────────────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   description: "Company departments",
@@ -31,7 +31,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   description: "Purchase request for procurement",
@@ -109,7 +109,7 @@ const purchaseListView: ViewDefinition = {
   fields: [{ field: "title" }, { field: "amount" }, { field: "status" }],
 };
 
-const deptToPurchaseLink: LinkDefinition = {
+const deptToPurchaseLink: RelationDefinition = {
   name: "dept_purchase",
   from: "department",
   to: "purchase_request",
@@ -139,7 +139,7 @@ function createTestDeps(): OntologyRegistryDeps {
     links: {
       linksFor(schemaName: string) {
         const results: Array<{
-          link: LinkDefinition;
+          link: RelationDefinition;
           direction: "outgoing" | "incoming";
           relatedSchema: string;
           label: string;

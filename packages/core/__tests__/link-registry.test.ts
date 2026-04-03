@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import type { LinkRegistry } from "@linchkit/core";
-import { createLinkRegistry, defineLink } from "@linchkit/core";
+import type { RelationRegistry } from "@linchkit/core";
+import { createRelationRegistry, defineRelation } from "@linchkit/core";
 
 // ── Test fixtures ──────────────────────────────────────────
 
-const employeeDepartmentLink = defineLink({
+const employeeDepartmentLink = defineRelation({
   name: "employee_department",
   from: "employee",
   to: "department",
@@ -15,7 +15,7 @@ const employeeDepartmentLink = defineLink({
   },
 });
 
-const orderCustomerLink = defineLink({
+const orderCustomerLink = defineRelation({
   name: "order_customer",
   from: "order",
   to: "customer",
@@ -27,7 +27,7 @@ const orderCustomerLink = defineLink({
   cascade: "nullify",
 });
 
-const userProfileLink = defineLink({
+const userProfileLink = defineRelation({
   name: "user_profile",
   from: "user",
   to: "profile",
@@ -39,7 +39,7 @@ const userProfileLink = defineLink({
   required: true,
 });
 
-const departmentProjectsLink = defineLink({
+const departmentProjectsLink = defineRelation({
   name: "department_projects",
   from: "department",
   to: "project",
@@ -50,7 +50,7 @@ const departmentProjectsLink = defineLink({
   },
 });
 
-const studentCourseLink = defineLink({
+const studentCourseLink = defineRelation({
   name: "student_course",
   from: "student",
   to: "course",
@@ -67,11 +67,11 @@ const studentCourseLink = defineLink({
 
 // ── Tests ──────────────────────────────────────────────────
 
-describe("LinkRegistry", () => {
-  let registry: LinkRegistry;
+describe("RelationRegistry", () => {
+  let registry: RelationRegistry;
 
   beforeEach(() => {
-    registry = createLinkRegistry();
+    registry = createRelationRegistry();
   });
 
   // ── register() ───────────────────────────────────────────
@@ -99,7 +99,7 @@ describe("LinkRegistry", () => {
 
     it("throws on duplicate name even with different endpoints", () => {
       registry.register(employeeDepartmentLink);
-      const duplicate = defineLink({
+      const duplicate = defineRelation({
         name: "employee_department",
         from: "other_schema",
         to: "another_schema",
@@ -150,7 +150,7 @@ describe("LinkRegistry", () => {
     });
 
     it("uses schema name as fallback label when label is not set", () => {
-      const noLabelLink = defineLink({
+      const noLabelLink = defineRelation({
         name: "task_project",
         from: "task",
         to: "project",
@@ -167,7 +167,7 @@ describe("LinkRegistry", () => {
     });
 
     it("returns both directions for self-referencing link", () => {
-      const selfLink = defineLink({
+      const selfLink = defineRelation({
         name: "employee_manager",
         from: "employee",
         to: "employee",
@@ -356,7 +356,7 @@ describe("LinkRegistry", () => {
     });
 
     it("stores description field", () => {
-      const described = defineLink({
+      const described = defineRelation({
         name: "described_link",
         from: "a",
         to: "b",

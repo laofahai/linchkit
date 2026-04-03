@@ -1,11 +1,11 @@
 /**
  * Schema Mapper
  *
- * Maps external data structures to LinchKit SchemaDefinitions.
+ * Maps external data structures to LinchKit EntityDefinitions.
  * Provides field-level mapping with built-in transforms.
  */
 
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core";
+import type { FieldDefinition, EntityDefinition } from "@linchkit/core";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -98,9 +98,9 @@ function applyBuiltInTransform(value: unknown, transform: BuiltInTransform): unk
 
 export class SchemaMapper {
   private readonly mappings: FieldMapping[];
-  private readonly targetSchema: SchemaDefinition;
+  private readonly targetSchema: EntityDefinition;
 
-  constructor(options: { mappings: FieldMapping[]; targetSchema: SchemaDefinition }) {
+  constructor(options: { mappings: FieldMapping[]; targetSchema: EntityDefinition }) {
     this.mappings = options.mappings;
     this.targetSchema = options.targetSchema;
   }

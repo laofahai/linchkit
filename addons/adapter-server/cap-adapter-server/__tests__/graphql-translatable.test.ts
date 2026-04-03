@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Schema with translatable field ────────────────────────
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   i18n: { defaultLocale: "en" },

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AIService, DataProvider, SchemaDefinition } from "@linchkit/core";
-import { createSchemaRegistry, InMemoryStore } from "@linchkit/core/server";
+import type { AIService, DataProvider, EntityDefinition } from "@linchkit/core";
+import { createEntityRegistry, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Test fixtures ────────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   description: "A project task",
@@ -23,7 +23,7 @@ const taskSchema: SchemaDefinition = {
   },
 };
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   fields: {
@@ -57,7 +57,7 @@ async function createSeededDataProvider(): Promise<DataProvider> {
 }
 
 function createSchemaReg() {
-  const reg = createSchemaRegistry();
+  const reg = createEntityRegistry();
   reg.register(taskSchema);
   reg.register(departmentSchema);
   return reg;
@@ -121,11 +121,11 @@ describe("POST /api/ai/auto-fill — no AI, with data (statistical fallback)", (
 
   beforeAll(async () => {
     const dataProvider = await createSeededDataProvider();
-    const schemaRegistry = createSchemaReg();
+    const entityRegistry = createSchemaReg();
     server = createServer(graphqlSchema, {
       port: PORT,
       dataProvider,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });
@@ -175,7 +175,7 @@ describe("POST /api/ai/auto-fill — no AI, with data (statistical fallback)", (
     const srv = createServer(graphqlSchema, {
       port: PORT2,
       dataProvider: store,
-      schemaRegistry: createSchemaReg(),
+      entityRegistry: createSchemaReg(),
     });
     srv.listen(PORT2);
 
@@ -233,12 +233,12 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
 
   beforeAll(async () => {
     const dataProvider = await createSeededDataProvider();
-    const schemaRegistry = createSchemaReg();
+    const entityRegistry = createSchemaReg();
     server = createServer(graphqlSchema, {
       port: PORT,
       aiService: mockAiService,
       dataProvider,
-      schemaRegistry,
+      entityRegistry,
     });
     server.listen(PORT);
   });
@@ -349,7 +349,7 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
     const srv = createServer(graphqlSchema, {
       port: PORT2,
       aiService: lowConfAi,
-      schemaRegistry: createSchemaReg(),
+      entityRegistry: createSchemaReg(),
     });
     srv.listen(PORT2);
 
@@ -399,7 +399,7 @@ describe("POST /api/ai/auto-fill — with AI service", () => {
     const srv = createServer(graphqlSchema, {
       port: PORT2,
       aiService: badEnumAi,
-      schemaRegistry: createSchemaReg(),
+      entityRegistry: createSchemaReg(),
     });
     srv.listen(PORT2);
 

@@ -11,7 +11,7 @@
 /**
  * All possible semantic relation types.
  * Auto-inferred types come from scanning capability definitions.
- * Manual types must be declared explicitly via defineRelation().
+ * Manual types must be declared explicitly via defineSemanticRelation().
  */
 export type SemanticRelationType =
   | "depends_on" // A depends on B existing (from capability.dependencies)
@@ -72,7 +72,7 @@ export interface SemanticRelation {
  * Define a manual semantic relation that the framework cannot auto-infer.
  * Only use this for implicit business semantics (e.g., conflicts_with, replaces, derived_from).
  */
-export function defineRelation(
+export function defineSemanticRelation(
   def: Omit<SemanticRelation, "id" | "source"> & { source?: SemanticRelationSource },
 ): SemanticRelation {
   const fromKey = [def.from.capability ?? "", def.from.schema ?? ""].join(":");

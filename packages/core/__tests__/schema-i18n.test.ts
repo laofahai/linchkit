@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { defineSchema } from "../src";
+import { defineEntity } from "../src";
 
 describe("Schema i18n type definitions", () => {
   it("should allow translatable flag on fields", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "product",
       fields: {
         name: { type: "string", required: true, translatable: true },
@@ -20,7 +20,7 @@ describe("Schema i18n type definitions", () => {
   });
 
   it("should allow i18n config on schema", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "product",
       fields: {
         name: { type: "string", translatable: true },
@@ -36,7 +36,7 @@ describe("Schema i18n type definitions", () => {
   });
 
   it("should keep i18n config optional", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "simple",
       fields: {
         code: { type: "string" },
@@ -47,7 +47,7 @@ describe("Schema i18n type definitions", () => {
   });
 
   it("should allow partial i18n config", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "product",
       fields: {
         name: { type: "string", translatable: true },
@@ -61,8 +61,8 @@ describe("Schema i18n type definitions", () => {
     expect(schema.i18n?.supportedLocales).toBeUndefined();
   });
 
-  it("should work with defineSchema passthrough for all properties", () => {
-    const schema = defineSchema({
+  it("should work with defineEntity passthrough for all properties", () => {
+    const schema = defineEntity({
       name: "catalog",
       label: "Product Catalog",
       fields: {

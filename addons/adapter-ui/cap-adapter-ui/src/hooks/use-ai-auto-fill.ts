@@ -5,7 +5,7 @@
  * suggestion state (pending, accepted, rejected per field).
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AiFieldSuggestion } from "../lib/api";
@@ -53,10 +53,10 @@ const EXCLUDED_FIELDS = new Set([
 const EXCLUDED_FIELD_TYPES = new Set(["state", "has_many", "many_to_many"]);
 
 /**
- * Build the fields descriptor for the AI auto-fill endpoint from a SchemaDefinition.
+ * Build the fields descriptor for the AI auto-fill endpoint from a EntityDefinition.
  */
 function buildFieldDescriptors(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
 ): Record<
   string,
   { label?: string; type?: string; required?: boolean; options?: string[]; description?: string }
@@ -101,7 +101,7 @@ function buildFieldDescriptors(
 }
 
 export function useAiAutoFill(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   onAccept: (fieldName: string, value: unknown) => void,
 ): UseAiAutoFillReturn {
   const { i18n } = useTranslation();

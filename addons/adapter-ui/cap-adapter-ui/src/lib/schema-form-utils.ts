@@ -6,7 +6,7 @@
 
 import type {
   FormLayoutNode,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   StateMeta,
   ViewDefinition,
@@ -15,7 +15,7 @@ import type { StatusBarStep } from "../components/status-bar";
 
 /** Derive StatusBar steps from state machine meta in schema presentation */
 export function deriveStatusSteps(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   states?: StateDefinition[],
   resolve?: (label: string | undefined, fallback: string) => string,
 ): StatusBarStep[] | null {
@@ -44,7 +44,7 @@ export function deriveStatusSteps(
  * Get the set of action names that are valid transitions from the current state.
  */
 export function getTransitionActionNames(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   states: StateDefinition[] | undefined,
   currentState: string,
 ): Set<string> | null {
@@ -76,7 +76,7 @@ const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
 const COLLECTION_RELATION_TYPES = new Set(["has_many", "many_to_many"]);
 
 /** Extract GraphQL field names from view fields, always including the state field */
-export function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition): string[] {
+export function getRecordFields(view: ViewDefinition, schema?: EntityDefinition): string[] {
   const fields = new Set<string>(["id"]);
   for (const f of view.fields) {
     if (f.field.includes(".")) continue;
@@ -102,7 +102,7 @@ export function getRecordFields(view: ViewDefinition, schema?: SchemaDefinition)
  */
 export function getMutationReturnFields(
   recordFields: string[],
-  schema?: SchemaDefinition,
+  schema?: EntityDefinition,
 ): string[] {
   if (!schema) return recordFields;
   return recordFields.filter((f) => {

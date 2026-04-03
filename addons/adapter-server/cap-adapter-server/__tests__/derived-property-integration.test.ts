@@ -7,14 +7,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createDerivedPropertyEngine, type SchemaDefinition } from "@linchkit/core";
+import { createDerivedPropertyEngine, type EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Schema with derived fields ──────────────────────────────
 
-const employeeSchema: SchemaDefinition = {
+const employeeSchema: EntityDefinition = {
   name: "employee",
   label: "Employee",
   fields: {
@@ -49,7 +49,7 @@ const employeeSchema: SchemaDefinition = {
   },
 };
 
-const orderSchema: SchemaDefinition = {
+const orderSchema: EntityDefinition = {
   name: "order",
   label: "Order",
   fields: {

@@ -4,7 +4,7 @@ import {
   createActionExecutor,
   InMemoryExecutionLogger,
   InMemoryStore,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,
@@ -22,8 +22,8 @@ const BASE = `http://localhost:${PORT}`;
 
 const store = new InMemoryStore();
 const executionLogger = new InMemoryExecutionLogger();
-const schemaRegistry = new SchemaRegistry();
-schemaRegistry.register(purchaseRequestSchema);
+const entityRegistry = new EntityRegistry();
+entityRegistry.register(purchaseRequestSchema);
 
 const executor = createActionExecutor({ dataProvider: store, executionLogger });
 const allActions = [
@@ -44,7 +44,7 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
 const app = createServer(graphqlSchema, {
   executor,
   executionLogger,
-  schemaRegistry,
+  entityRegistry,
 });
 
 // ── Helper functions ─────────────────────────────────────

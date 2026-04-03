@@ -9,9 +9,9 @@
  * - Rich field types (enum, state, ref, datetime)
  */
 
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 
-export const purchaseRequestSchema: SchemaDefinition = {
+export const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "t:schemas.purchase_request._label",
   description: "A purchase request submitted for approval",

@@ -12,7 +12,7 @@ import {
   validateTranslatableSchema,
   wrapTranslatableValue,
 } from "../src/schema/translatable";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 describe("resolveTranslatableValue", () => {
   test("returns undefined for null/undefined input", () => {
@@ -159,7 +159,7 @@ describe("normalizeTranslatableValue", () => {
 
 describe("getTranslatableFields", () => {
   test("returns empty set for schema without translatable fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string" },
@@ -170,7 +170,7 @@ describe("getTranslatableFields", () => {
   });
 
   test("returns translatable field names", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -190,7 +190,7 @@ describe("getTranslatableFields", () => {
 
 // -- Row-level helpers --
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   i18n: { defaultLocale: "en", supportedLocales: ["en", "zh-CN"] },
   fields: {
@@ -201,7 +201,7 @@ const productSchema: SchemaDefinition = {
   },
 };
 
-const plainSchema: SchemaDefinition = {
+const plainSchema: EntityDefinition = {
   name: "counter",
   fields: {
     label: { type: "string" },
@@ -320,7 +320,7 @@ describe("normalizeTranslatableRow", () => {
   });
 
   test("falls back to 'en' when no locale and no schema default", () => {
-    const noI18nSchema: SchemaDefinition = {
+    const noI18nSchema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string", translatable: true },
@@ -388,7 +388,7 @@ describe("resolveTranslation", () => {
 
 describe("validateTranslatableSchema", () => {
   test("returns no errors for valid schema", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -401,7 +401,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("returns no errors for schema without translatable fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "counter",
       fields: {
         count: { type: "number" },
@@ -411,7 +411,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("returns error for non-translatable field type with translatable flag", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -425,7 +425,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("returns error for boolean field with translatable flag", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -439,7 +439,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("returns error when translatable fields exist but no defaultLocale", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         name: { type: "string", translatable: true },
@@ -451,7 +451,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("returns multiple errors", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         name: { type: "string", translatable: true },
@@ -465,7 +465,7 @@ describe("validateTranslatableSchema", () => {
   });
 
   test("allows enum field to be translatable", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {

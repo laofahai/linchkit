@@ -7,8 +7,8 @@ import { runMigrations } from "@linchkit/cap-migration";
 import type {
   ConfigRegistry,
   DataProvider,
-  LinkDefinition,
-  SchemaDefinition,
+  RelationDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import { databaseConfig } from "@linchkit/core";
 import {
@@ -37,8 +37,8 @@ export interface DatabaseSetupResult {
  */
 export async function setupDatabase(opts: {
   registry: ConfigRegistry;
-  schemas: SchemaDefinition[];
-  links: LinkDefinition[];
+  schemas: EntityDefinition[];
+  links: RelationDefinition[];
 }): Promise<DatabaseSetupResult> {
   const { registry, schemas, links } = opts;
 

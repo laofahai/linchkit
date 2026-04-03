@@ -19,10 +19,10 @@ import type {
   CapabilityDefinition,
   DataProvider,
   LinchKitConfig,
-  LinkDefinition,
+  RelationDefinition,
   MiddlewareRegistration,
   RuleDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   TransportContext,
   ViewDefinition,
@@ -46,7 +46,7 @@ import {
   createEventBusCheck,
   createFlowRegistry,
   createFlowStepContext,
-  type createLinkRegistry,
+  type createRelationRegistry,
   createNoopAIService,
   createOntologyRegistry,
   createOutboxWorker,
@@ -65,7 +65,7 @@ import {
   livenessCheck,
   type OutboxWorker,
   type PermissionRegistry,
-  type SchemaRegistry,
+  type EntityRegistry,
 } from "@linchkit/core/server";
 
 // ── Input types ─────────────────────────────────────────────
@@ -76,18 +76,18 @@ export interface WireDevEnginesInput {
   environment: ReturnType<typeof import("@linchkit/core/server").detectEnvironment>;
 
   // Registries already built during capability collection
-  schemaRegistry: InstanceType<typeof SchemaRegistry>;
+  entityRegistry: InstanceType<typeof EntityRegistry>;
   actionRegistry: InstanceType<typeof ActionRegistry>;
-  linkRegistry: ReturnType<typeof createLinkRegistry>;
+  relationRegistry: ReturnType<typeof createRelationRegistry>;
   interfaceRegistry?: ReturnType<typeof import("@linchkit/core/server").createInterfaceRegistry>;
   permissionRegistry: InstanceType<typeof PermissionRegistry>;
 
   // Collected definitions from capabilities
-  schemas: SchemaDefinition[];
+  schemas: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   rules: RuleDefinition[];
   automations: AutomationDefinition[];
   middlewares: MiddlewareRegistration[];
@@ -118,9 +118,9 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     config,
     registry,
     environment,
-    schemaRegistry,
+    entityRegistry,
     actionRegistry,
-    linkRegistry,
+    relationRegistry,
     interfaceRegistry,
     permissionRegistry,
     schemas,
@@ -401,12 +401,12 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
 
   // Build OntologyRegistry — unified semantic facade over all registries
   const ontologyRegistry = createOntologyRegistry({
-    schemas: schemaRegistry,
+    schemas: entityRegistry,
     actions: actionRegistry,
     rules,
     states,
     views,
-    links: linkRegistry,
+    links: relationRegistry,
     flows: flowRegistry,
     handlers: eventHandlerRegistry,
     interfaces: interfaceRegistry,
@@ -428,7 +428,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   }
   healthCheckRegistry.register(
     "schemas",
-    createSchemaCheck(() => schemaRegistry.getAll().length),
+    createSchemaCheck(() => entityRegistry.getAll().length),
   );
   healthCheckRegistry.register(
     "eventbus",
@@ -456,13 +456,13 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   const transportCtx: TransportContext = {
     commandLayer,
     executor,
-    schemaRegistry,
+    entityRegistry,
     schemas,
     actions,
     views,
     states,
     links,
-    linkRegistry,
+    relationRegistry,
     middlewares,
     config: registry,
     dataProvider,

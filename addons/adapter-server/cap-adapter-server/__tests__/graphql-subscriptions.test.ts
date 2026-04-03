@@ -3,7 +3,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import type { EventRecord, SchemaDefinition } from "@linchkit/core";
+import type { EventRecord, EntityDefinition } from "@linchkit/core";
 import { createEventBus } from "@linchkit/core/server";
 import { type GraphQLObjectType, printSchema } from "graphql";
 import { clearEnumTypeCache } from "../src/graphql";
@@ -22,7 +22,7 @@ afterEach(() => {
 
 // ── Test fixtures ────────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   fields: {
@@ -31,7 +31,7 @@ const taskSchema: SchemaDefinition = {
   },
 };
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   fields: {

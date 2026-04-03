@@ -6,7 +6,7 @@
  * with structure `{ [locale]: value }`.
  */
 
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 
 /** A locale-keyed map of translated values */
 export type TranslatableValue = Record<string, string>;
@@ -175,7 +175,7 @@ export const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
  *
  * Returns an array of validation error messages (empty = valid).
  */
-export function validateTranslatableSchema(schema: SchemaDefinition): string[] {
+export function validateTranslatableSchema(schema: EntityDefinition): string[] {
   const errors: string[] = [];
 
   const hasTranslatable = Object.entries(schema.fields).some(
@@ -201,9 +201,9 @@ export function validateTranslatableSchema(schema: SchemaDefinition): string[] {
 }
 
 /**
- * Get the set of translatable field names from a SchemaDefinition.
+ * Get the set of translatable field names from a EntityDefinition.
  */
-export function getTranslatableFields(schema: SchemaDefinition): Set<string> {
+export function getTranslatableFields(schema: EntityDefinition): Set<string> {
   const result = new Set<string>();
   for (const [name, field] of Object.entries(schema.fields)) {
     if ((field as FieldDefinition).translatable) {
@@ -234,7 +234,7 @@ export const I18N_RAW_KEY = "__i18n_raw__";
  */
 export function resolveTranslatableRow(
   row: Record<string, unknown>,
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   locale?: string,
 ): Record<string, unknown> {
   const translatableFields = getTranslatableFields(schema);
@@ -277,7 +277,7 @@ export function resolveTranslatableRow(
  */
 export function normalizeTranslatableRow(
   row: Record<string, unknown>,
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   locale?: string,
 ): Record<string, unknown> {
   const translatableFields = getTranslatableFields(schema);

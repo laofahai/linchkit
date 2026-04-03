@@ -240,7 +240,7 @@ The list view uses a **unified SearchBar** approach (inspired by Odoo Search Vie
 
 #### filter-columns.ts — Schema-to-Filter Bridge
 
-`components/auto-list/filter-columns.ts` — Converts `SchemaDefinition` fields into bazza `ColumnConfig[]`:
+`components/auto-list/filter-columns.ts` — Converts `EntityDefinition` fields into bazza `ColumnConfig[]`:
 
 | LinchKit Field Type | bazza ColumnDataType | Notes |
 |---------------------|---------------------|-------|

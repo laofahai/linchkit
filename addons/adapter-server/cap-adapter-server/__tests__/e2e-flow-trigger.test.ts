@@ -11,7 +11,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, SchemaDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
   createEventBus,
@@ -20,7 +20,7 @@ import {
   createTriggerBinding,
   InMemoryExecutionLogger,
   InMemoryStore,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 import { purchaseApprovalFlow } from "../../cap-purchase-demo/src/flows/purchase-approval";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -28,7 +28,7 @@ import { createServer } from "../src/server";
 
 // ── Schema ──────────────────────────────────────────────
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   fields: {
@@ -82,8 +82,8 @@ const approveAction: ActionDefinition = {
 
 const store = new InMemoryStore();
 const executionLogger = new InMemoryExecutionLogger();
-const schemaRegistry = new SchemaRegistry();
-schemaRegistry.register(purchaseRequestSchema);
+const entityRegistry = new EntityRegistry();
+entityRegistry.register(purchaseRequestSchema);
 
 const { bus: eventBus } = createEventBus();
 const executor = createActionExecutor({ dataProvider: store, executionLogger, eventBus });
@@ -124,7 +124,7 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
 const app = createServer(graphqlSchema, {
   executor,
   executionLogger,
-  schemaRegistry,
+  entityRegistry,
   flows: [purchaseApprovalFlow],
   flowEngine,
 });

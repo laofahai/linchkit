@@ -18,7 +18,7 @@ import type {
   AICompletionResult,
   AIService,
   InterfaceDefinition,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import { AuthorizationError } from "@linchkit/core";
 import {
@@ -31,7 +31,7 @@ import {
   createCommandLayer,
   createInterfaceRegistry,
   createOntologyRegistry,
-  createSchemaRegistry,
+  createEntityRegistry,
   createTenantAwareDataProvider,
   type DataProvider,
   InMemoryExecutionLogger,
@@ -169,7 +169,7 @@ function createMockAIService(result?: Partial<AICompletionResult>): AIService {
 // ═══════════════════════════════════════════════════════════
 
 describe("E2E: Data Masking + Command Pipeline", () => {
-  const sensitiveSchema: SchemaDefinition = {
+  const sensitiveSchema: EntityDefinition = {
     name: "employee",
     label: "Employee",
     fields: {
@@ -265,8 +265,8 @@ describe("E2E: Data Masking + Command Pipeline", () => {
     executor.registry.register(createAction);
     executor.registry.register(readAction);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(sensitiveSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(sensitiveSchema);
 
     layer = createCommandLayer({ executor });
   });
@@ -818,10 +818,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(auditableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "invoice",
       label: "Invoice",
       implements: ["auditable"],
@@ -830,9 +830,9 @@ describe("E2E: Schema Interface + Inheritance", () => {
         description: { type: "text" },
       },
     };
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
 
-    const resolved = schemaRegistry.resolve("invoice");
+    const resolved = entityRegistry.resolve("invoice");
 
     // Own fields
     expect(resolved.fields.amount).toBeDefined();
@@ -850,10 +850,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(auditableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const badSchema: SchemaDefinition = {
+    const badSchema: EntityDefinition = {
       name: "bad_record",
       label: "Bad Record",
       implements: ["auditable"],
@@ -864,17 +864,17 @@ describe("E2E: Schema Interface + Inheritance", () => {
       },
     };
 
-    expect(() => schemaRegistry.register(badSchema)).toThrow("audit_created_at");
+    expect(() => entityRegistry.register(badSchema)).toThrow("audit_created_at");
   });
 
   test("validation rejects schema implementing non-existent interface", () => {
     const ifaceRegistry = createInterfaceRegistry();
     // Do NOT register the interface
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "orphan",
       label: "Orphan",
       implements: ["nonexistent_interface"],
@@ -883,7 +883,7 @@ describe("E2E: Schema Interface + Inheritance", () => {
       },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("nonexistent_interface");
+    expect(() => entityRegistry.register(schema)).toThrow("nonexistent_interface");
   });
 
   test("schema can implement multiple interfaces", () => {
@@ -891,10 +891,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
     ifaceRegistry.register(auditableInterface);
     ifaceRegistry.register(timestampedInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "contract",
       label: "Contract",
       implements: ["auditable", "timestamped"],
@@ -903,9 +903,9 @@ describe("E2E: Schema Interface + Inheritance", () => {
         value: { type: "number" },
       },
     };
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
 
-    const resolved = schemaRegistry.resolve("contract");
+    const resolved = entityRegistry.resolve("contract");
 
     // From auditable
     expect(resolved.fields.audit_created_at).toBeDefined();
@@ -927,33 +927,33 @@ describe("E2E: Schema Interface + Inheritance", () => {
     ifaceRegistry.register(auditableInterface);
     ifaceRegistry.register(timestampedInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const invoiceSchema: SchemaDefinition = {
+    const invoiceSchema: EntityDefinition = {
       name: "invoice",
       label: "Invoice",
       implements: ["auditable"],
       fields: { amount: { type: "number" } },
     };
-    const contractSchema: SchemaDefinition = {
+    const contractSchema: EntityDefinition = {
       name: "contract",
       label: "Contract",
       implements: ["auditable", "timestamped"],
       fields: { title: { type: "string" } },
     };
-    const simpleSchema: SchemaDefinition = {
+    const simpleSchema: EntityDefinition = {
       name: "note",
       label: "Note",
       fields: { text: { type: "text" } },
     };
 
-    schemaRegistry.register(invoiceSchema);
-    schemaRegistry.register(contractSchema);
-    schemaRegistry.register(simpleSchema);
+    entityRegistry.register(invoiceSchema);
+    entityRegistry.register(contractSchema);
+    entityRegistry.register(simpleSchema);
 
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => [] },
       rules: [],
       states: [],
@@ -981,11 +981,11 @@ describe("E2E: Schema Interface + Inheritance", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(auditableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
     // Parent schema
-    const baseSchema: SchemaDefinition = {
+    const baseSchema: EntityDefinition = {
       name: "base_record",
       label: "Base Record",
       fields: {
@@ -993,10 +993,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
         active: { type: "boolean", default: true },
       },
     };
-    schemaRegistry.register(baseSchema);
+    entityRegistry.register(baseSchema);
 
     // Child schema that also implements an interface
-    const childSchema: SchemaDefinition = {
+    const childSchema: EntityDefinition = {
       name: "audited_record",
       label: "Audited Record",
       extends: "base_record",
@@ -1005,9 +1005,9 @@ describe("E2E: Schema Interface + Inheritance", () => {
         priority: { type: "number" },
       },
     };
-    schemaRegistry.register(childSchema);
+    entityRegistry.register(childSchema);
 
-    const resolved = schemaRegistry.resolve("audited_record");
+    const resolved = entityRegistry.resolve("audited_record");
 
     // Inherited from parent
     expect(resolved.fields.name).toBeDefined();
@@ -1029,10 +1029,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(auditableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "tracked_item",
       label: "Tracked Item",
       implements: ["auditable"],
@@ -1040,10 +1040,10 @@ describe("E2E: Schema Interface + Inheritance", () => {
         title: { type: "string", required: true },
       },
     };
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
 
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => [] },
       rules: [],
       states: [],

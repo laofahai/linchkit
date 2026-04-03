@@ -10,10 +10,10 @@ import { resolve } from "node:path";
 import type {
   ActionDefinition,
   CapabilityDefinition,
-  LinkDefinition,
+  RelationDefinition,
   MiddlewareRegistration,
   RuleDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
@@ -74,22 +74,22 @@ const config = await loadConfig({ root: projectRoot });
 // ── Extract capability contributions ────────────────────
 
 function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
-  schemas: SchemaDefinition[];
+  schemas: EntityDefinition[];
   actions: ActionDefinition[];
   states: StateDefinition[];
   views: ViewDefinition[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   rules: RuleDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
   extraQueryFields: Record<string, unknown>;
   extraMutationFields: Record<string, unknown>;
 } {
-  const schemas: SchemaDefinition[] = [];
+  const schemas: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const states: StateDefinition[] = [];
   const views: ViewDefinition[] = [];
-  const links: LinkDefinition[] = [];
+  const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
@@ -205,7 +205,7 @@ const server = createServer(graphqlSchema, {
   executor: runtime.executor,
   commandLayer: runtime.commandLayer,
   executionLogger: runtime.executionLogger,
-  schemaRegistry: runtime.schemaRegistry,
+  entityRegistry: runtime.entityRegistry,
   views: runtime.views,
   capabilities: config.capabilities,
   rules: capContributions.rules,

@@ -5,9 +5,9 @@
  * Permissions are merged using the explicit-deny-wins strategy.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const permissionAssignmentSchema = defineSchema({
+export const permissionAssignmentSchema = defineEntity({
   name: "permission_assignment",
   label: "Permission Assignment",
   description: "User-to-permission-group assignment",
@@ -16,7 +16,7 @@ export const permissionAssignmentSchema = defineSchema({
       type: "string",
       label: "User",
       required: true,
-      description: "Foreign key to user (relationship managed via defineLink)",
+      description: "Foreign key to user (relationship managed via defineRelation)",
     },
     group_name: {
       type: "string",
@@ -27,7 +27,7 @@ export const permissionAssignmentSchema = defineSchema({
     assigned_by: {
       type: "string",
       label: "Assigned By",
-      description: "Foreign key to user (relationship managed via defineLink)",
+      description: "Foreign key to user (relationship managed via defineRelation)",
     },
     assigned_at: {
       type: "datetime",

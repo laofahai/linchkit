@@ -139,7 +139,7 @@ export function checkCommitMessages(commits: CommitInfo[]): QualityReport {
  * - Boolean fields: should use is_ or has_ prefix
  * - Datetime fields: should use _at suffix
  */
-export function checkSchemaDefinitions(schemas: SchemaInfo[]): QualityReport {
+export function checkEntityDefinitions(schemas: SchemaInfo[]): QualityReport {
   const issues: QualityIssue[] = [];
 
   for (const schema of schemas) {

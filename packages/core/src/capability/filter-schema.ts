@@ -13,18 +13,18 @@
  * - UI form/list rendering: hide fields from AutoForm / AutoList
  */
 
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 
 /**
  * Filter schema fields based on available capabilities.
- * Returns a new SchemaDefinition with fields removed whose
+ * Returns a new EntityDefinition with fields removed whose
  * `requiresCapability` is not in the active capability set.
  *
  * The original schema is never mutated.
  */
 export function filterSchemaByCapabilities<
   TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
->(schema: SchemaDefinition<TFields>, activeCapabilities: Set<string>): SchemaDefinition {
+>(schema: EntityDefinition<TFields>, activeCapabilities: Set<string>): EntityDefinition {
   const filteredFields: Record<string, FieldDefinition> = {};
 
   for (const [name, field] of Object.entries(schema.fields)) {

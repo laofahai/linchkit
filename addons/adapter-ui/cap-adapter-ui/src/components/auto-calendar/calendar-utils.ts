@@ -2,7 +2,7 @@
  * Calendar utility functions — pure logic for date grouping and field detection.
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import { format, parseISO } from "date-fns";
 
 /** Parse a date value from a record field. Handles ISO strings, Date objects, and timestamps. */
@@ -24,7 +24,7 @@ export function parseDateValue(value: unknown): Date | null {
 }
 
 /** Detect the first text-like field name from schema to use as title fallback. */
-export function detectTitleField(schema: SchemaDefinition): string {
+export function detectTitleField(schema: EntityDefinition): string {
   const textFields = Object.entries(schema.fields).filter(
     ([, def]) => def.type === "string" || def.type === "text",
   );

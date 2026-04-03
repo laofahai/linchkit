@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
 import { createInterfaceRegistry } from "../src/schema/schema-interface";
-import { createSchemaRegistry } from "../src/schema/schema-registry";
-import type { InterfaceDefinition, SchemaDefinition } from "../src/types/schema";
+import { createEntityRegistry } from "../src/schema/schema-registry";
+import type { InterfaceDefinition, EntityDefinition } from "../src/types/schema";
 import type { StateDefinition } from "../src/types/state";
 
 // ── Test fixtures ───────────────────────────────────────
@@ -43,7 +43,7 @@ const archivableInterface: InterfaceDefinition = {
   },
 };
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   implements: ["approvable"],
@@ -53,7 +53,7 @@ const purchaseRequestSchema: SchemaDefinition = {
   },
 };
 
-const leaveRequestSchema: SchemaDefinition = {
+const leaveRequestSchema: EntityDefinition = {
   name: "leave_request",
   label: "Leave Request",
   implements: ["approvable", "archivable"],
@@ -188,7 +188,7 @@ describe("InterfaceRegistry", () => {
       const registry = createInterfaceRegistry();
       // Do not register the interface
 
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         implements: ["nonexistent"],
         fields: { x: { type: "string" } },
@@ -204,7 +204,7 @@ describe("InterfaceRegistry", () => {
       const registry = createInterfaceRegistry();
       registry.register(approvableInterface);
 
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "bad_schema",
         implements: ["approvable"],
         fields: {
@@ -234,7 +234,7 @@ describe("InterfaceRegistry", () => {
       };
       registry.register(conflictingInterface);
 
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         implements: ["approvable", "conflicting"],
         fields: { x: { type: "string" } },
@@ -249,7 +249,7 @@ describe("InterfaceRegistry", () => {
       const registry = createInterfaceRegistry();
       registry.register(approvableInterface);
 
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         implements: ["approvable"],
         fields: {
@@ -265,7 +265,7 @@ describe("InterfaceRegistry", () => {
 
     it("returns empty for schema without implements", () => {
       const registry = createInterfaceRegistry();
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         fields: { x: { type: "string" } },
       };
@@ -291,7 +291,7 @@ describe("InterfaceRegistry", () => {
       const registry = createInterfaceRegistry();
       registry.register(approvableInterface);
 
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         implements: ["approvable"],
         fields: {
@@ -319,7 +319,7 @@ describe("InterfaceRegistry", () => {
 
     it("returns empty for schema without implements", () => {
       const registry = createInterfaceRegistry();
-      const schema: SchemaDefinition = {
+      const schema: EntityDefinition = {
         name: "test",
         fields: { x: { type: "string" } },
       };
@@ -328,44 +328,44 @@ describe("InterfaceRegistry", () => {
   });
 });
 
-// ── SchemaRegistry + InterfaceRegistry integration ───────────────
+// ── EntityRegistry + InterfaceRegistry integration ───────────────
 
-describe("SchemaRegistry with InterfaceRegistry", () => {
+describe("EntityRegistry with InterfaceRegistry", () => {
   it("validates interface implementation on register", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(approvableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
     // This should not throw — valid implementation
-    schemaRegistry.register(purchaseRequestSchema);
+    entityRegistry.register(purchaseRequestSchema);
   });
 
   it("throws on register when interface does not exist", () => {
     const ifaceRegistry = createInterfaceRegistry();
     // Do not register any interfaces
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad",
       implements: ["nonexistent"],
       fields: { x: { type: "string" } },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("nonexistent");
+    expect(() => entityRegistry.register(schema)).toThrow("nonexistent");
   });
 
   it("throws on register when field type conflicts", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(approvableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad",
       implements: ["approvable"],
       fields: {
@@ -374,18 +374,18 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
       },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("status");
+    expect(() => entityRegistry.register(schema)).toThrow("status");
   });
 
   it("injects interface fields during resolve", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(approvableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
-    schemaRegistry.register(purchaseRequestSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
+    entityRegistry.register(purchaseRequestSchema);
 
-    const resolved = schemaRegistry.resolve("purchase_request");
+    const resolved = entityRegistry.resolve("purchase_request");
 
     // Interface fields should be present
     expect(resolved.fields.status).toBeDefined();
@@ -406,10 +406,10 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register(approvableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "custom",
       implements: ["approvable"],
       fields: {
@@ -417,9 +417,9 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
         status: { type: "string", default: "custom_default" },
       },
     };
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
 
-    const resolved = schemaRegistry.resolve("custom");
+    const resolved = entityRegistry.resolve("custom");
     // Schema's own definition wins
     expect(resolved.fields.status.definition.default).toBe("custom_default");
   });
@@ -429,11 +429,11 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
     ifaceRegistry.register(approvableInterface);
     ifaceRegistry.register(archivableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
-    schemaRegistry.register(leaveRequestSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
+    entityRegistry.register(leaveRequestSchema);
 
-    const resolved = schemaRegistry.resolve("leave_request");
+    const resolved = entityRegistry.resolve("leave_request");
 
     // From approvable
     expect(resolved.fields.status).toBeDefined();
@@ -455,10 +455,10 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
     ifaceRegistry.register(approvableInterface);
     ifaceRegistry.register(archivableInterface);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
-    schemaRegistry.register(purchaseRequestSchema);
-    schemaRegistry.register(leaveRequestSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
+    entityRegistry.register(purchaseRequestSchema);
+    entityRegistry.register(leaveRequestSchema);
 
     expect(ifaceRegistry.implementors("approvable")).toEqual(
       expect.arrayContaining(["purchase_request", "leave_request"]),
@@ -467,17 +467,17 @@ describe("SchemaRegistry with InterfaceRegistry", () => {
   });
 
   it("works without InterfaceRegistry set (backward compatible)", () => {
-    const schemaRegistry = createSchemaRegistry();
+    const entityRegistry = createEntityRegistry();
 
     // Schema with implements but no InterfaceRegistry — should register fine
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["approvable"],
       fields: { x: { type: "string" } },
     };
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
 
-    const resolved = schemaRegistry.resolve("test");
+    const resolved = entityRegistry.resolve("test");
     expect(resolved.fields.x).toBeDefined();
     expect(resolved.implements).toEqual(["approvable"]);
   });
@@ -493,12 +493,12 @@ describe("OntologyRegistry with interfaces", () => {
     ifaceRegistry.registerImplementor("purchase_request", ["approvable"]);
     ifaceRegistry.registerImplementor("leave_request", ["approvable", "archivable"]);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(purchaseRequestSchema);
-    schemaRegistry.register(leaveRequestSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(purchaseRequestSchema);
+    entityRegistry.register(leaveRequestSchema);
 
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => [] },
       rules: [],
       states: [],
@@ -522,12 +522,12 @@ describe("OntologyRegistry with interfaces", () => {
     ifaceRegistry.registerImplementor("purchase_request", ["approvable"]);
     ifaceRegistry.registerImplementor("leave_request", ["approvable"]);
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register(purchaseRequestSchema);
-    schemaRegistry.register(leaveRequestSchema);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(purchaseRequestSchema);
+    entityRegistry.register(leaveRequestSchema);
 
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => [] },
       rules: [],
       states: [],
@@ -541,14 +541,14 @@ describe("OntologyRegistry with interfaces", () => {
   });
 
   it("works without interfaces (backward compatible)", () => {
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.register({
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register({
       name: "simple",
       fields: { x: { type: "string" } },
     });
 
     const ontology = createOntologyRegistry({
-      schemas: schemaRegistry,
+      schemas: entityRegistry,
       actions: { getAll: () => [] },
       rules: [],
       states: [],
@@ -580,7 +580,7 @@ describe("InterfaceRegistry enum validation", () => {
     };
     registry.register(iface);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "my_schema",
       implements: ["statusable"],
       fields: {
@@ -606,7 +606,7 @@ describe("InterfaceRegistry enum validation", () => {
     };
     registry.register(iface);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "my_schema",
       implements: ["statusable"],
       fields: {
@@ -630,7 +630,7 @@ describe("InterfaceRegistry enum validation", () => {
     };
     registry.register(iface);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "task",
       implements: ["prioritizable"],
       fields: {
@@ -661,7 +661,7 @@ describe("InterfaceRegistry enum validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["iface_a", "iface_b"],
       fields: { x: { type: "string" } },
@@ -688,7 +688,7 @@ describe("InterfaceRegistry enum validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["iface_a", "iface_b"],
       fields: { x: { type: "string" } },
@@ -713,7 +713,7 @@ describe("InterfaceRegistry required constraint validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["named"],
       fields: {
@@ -737,7 +737,7 @@ describe("InterfaceRegistry required constraint validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["named"],
       fields: {
@@ -759,7 +759,7 @@ describe("InterfaceRegistry required constraint validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["named"],
       fields: {
@@ -797,7 +797,7 @@ describe("InterfaceRegistry state machine validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["workflow_a", "workflow_b"],
       fields: { x: { type: "string" } },
@@ -828,7 +828,7 @@ describe("InterfaceRegistry state machine validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["flow_a", "flow_b"],
       fields: { x: { type: "string" } },
@@ -862,7 +862,7 @@ describe("InterfaceRegistry state machine validation", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["flow_a", "flow_b"],
       fields: { x: { type: "string" } },
@@ -877,7 +877,7 @@ describe("InterfaceRegistry state machine validation", () => {
     registry.register(approvableInterface); // has state
     registry.register(archivableInterface); // no state
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       implements: ["approvable", "archivable"],
       fields: { x: { type: "string" } },
@@ -1159,7 +1159,7 @@ describe("InterfaceRegistry multiple validation errors", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad_schema",
       implements: ["strict_iface"],
       fields: {
@@ -1184,7 +1184,7 @@ describe("InterfaceRegistry multiple validation errors", () => {
       fields: { x: { type: "string" } },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad_schema",
       implements: ["nonexistent", "existing_iface"],
       fields: {
@@ -1199,9 +1199,9 @@ describe("InterfaceRegistry multiple validation errors", () => {
   });
 });
 
-// ── SchemaRegistry integration with new validation ──────────
+// ── EntityRegistry integration with new validation ──────────
 
-describe("SchemaRegistry integration with enhanced validation", () => {
+describe("EntityRegistry integration with enhanced validation", () => {
   it("throws on register when schema weakens required constraint", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register({
@@ -1212,10 +1212,10 @@ describe("SchemaRegistry integration with enhanced validation", () => {
       },
     });
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad",
       implements: ["named"],
       fields: {
@@ -1223,7 +1223,7 @@ describe("SchemaRegistry integration with enhanced validation", () => {
       },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("required");
+    expect(() => entityRegistry.register(schema)).toThrow("required");
   });
 
   it("throws on register when schema enum is missing interface-required values", () => {
@@ -1236,10 +1236,10 @@ describe("SchemaRegistry integration with enhanced validation", () => {
       },
     });
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "task",
       implements: ["prioritizable"],
       fields: {
@@ -1247,7 +1247,7 @@ describe("SchemaRegistry integration with enhanced validation", () => {
       },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("medium");
+    expect(() => entityRegistry.register(schema)).toThrow("medium");
   });
 
   it("throws on register when two interfaces have conflicting state machines", () => {
@@ -1271,16 +1271,16 @@ describe("SchemaRegistry integration with enhanced validation", () => {
       },
     });
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bad",
       implements: ["flow_a", "flow_b"],
       fields: { z: { type: "string" } },
     };
 
-    expect(() => schemaRegistry.register(schema)).toThrow("conflicting initial");
+    expect(() => entityRegistry.register(schema)).toThrow("conflicting initial");
   });
 });
 
@@ -1298,7 +1298,7 @@ describe("validateImplementation with inherited fields", () => {
     });
 
     // Schema does NOT define audit_note directly
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "child_schema",
       implements: ["auditable"],
       fields: {
@@ -1329,7 +1329,7 @@ describe("validateImplementation with inherited fields", () => {
       },
     });
 
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "child_schema",
       implements: ["auditable"],
       fields: {
@@ -1348,7 +1348,7 @@ describe("validateImplementation with inherited fields", () => {
     expect(errors[0]).toContain("text");
   });
 
-  it("SchemaRegistry passes inherited fields to interface validation", () => {
+  it("EntityRegistry passes inherited fields to interface validation", () => {
     const ifaceRegistry = createInterfaceRegistry();
     ifaceRegistry.register({
       name: "trackable",
@@ -1358,11 +1358,11 @@ describe("validateImplementation with inherited fields", () => {
       },
     });
 
-    const schemaRegistry = createSchemaRegistry();
-    schemaRegistry.setInterfaceRegistry(ifaceRegistry);
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.setInterfaceRegistry(ifaceRegistry);
 
     // Register parent schema with the required field
-    schemaRegistry.register({
+    entityRegistry.register({
       name: "parent",
       fields: {
         tracking_id: { type: "string", required: true },
@@ -1370,7 +1370,7 @@ describe("validateImplementation with inherited fields", () => {
     });
 
     // Child schema extends parent and implements interface, but doesn't define tracking_id itself
-    const childSchema: SchemaDefinition = {
+    const childSchema: EntityDefinition = {
       name: "child",
       extends: "parent",
       implements: ["trackable"],
@@ -1380,6 +1380,6 @@ describe("validateImplementation with inherited fields", () => {
     };
 
     // Should NOT throw — tracking_id is inherited from parent
-    expect(() => schemaRegistry.register(childSchema)).not.toThrow();
+    expect(() => entityRegistry.register(childSchema)).not.toThrow();
   });
 });

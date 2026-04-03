@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { filterSchemaByCapabilities } from "../src/capability/filter-schema";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
-const testSchema: SchemaDefinition = {
+const testSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -68,7 +68,7 @@ describe("filterSchemaByCapabilities", () => {
   });
 
   test("schema with no dependent fields passes through unchanged", () => {
-    const plain: SchemaDefinition = {
+    const plain: EntityDefinition = {
       name: "simple",
       fields: {
         title: { type: "string" },

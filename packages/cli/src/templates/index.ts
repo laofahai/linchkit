@@ -119,7 +119,7 @@ This project uses LinchKit, an AI-Native Software Capability Runtime.
 ## Key Concepts
 
 - **Capability**: A module that defines Schema, Actions, Rules, States, Events, and Views
-- **Schema**: Data model definition using \`defineSchema()\`
+- **Schema**: Data model definition using \`defineEntity()\`
 - **Action**: Write operations using \`defineAction()\`
 - **Rule**: Business rules using \`defineRule()\`
 - **State**: State machine lifecycle using \`defineState()\`

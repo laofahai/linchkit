@@ -13,13 +13,13 @@ import {
 } from "@linchkit/devtools/governance";
 import type { ActionDefinition } from "../src/types/action";
 import type { CapabilityDefinition } from "../src/types/capability";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── DocValidator: Schema ─────────────────────────────────
 
 describe("validateSchemaDoc", () => {
   it("returns 100% coverage for fully documented schema", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       label: "Product",
       description: "A product in the catalog",
@@ -37,7 +37,7 @@ describe("validateSchemaDoc", () => {
   });
 
   it("detects missing schema description as error", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "bare",
       label: "Bare",
       fields: {
@@ -53,7 +53,7 @@ describe("validateSchemaDoc", () => {
   });
 
   it("detects missing field description as warning", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       label: "Test",
       description: "Test schema",
@@ -69,7 +69,7 @@ describe("validateSchemaDoc", () => {
   });
 
   it("detects missing enum option labels as info", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "order",
       label: "Order",
       description: "Purchase order",
@@ -90,7 +90,7 @@ describe("validateSchemaDoc", () => {
   });
 
   it("handles schema with no fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "empty",
       label: "Empty",
       description: "Empty schema",

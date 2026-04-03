@@ -11,14 +11,14 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { LinkDefinition, SchemaDefinition } from "@linchkit/core";
+import type { RelationDefinition, EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
 // ── Schema definitions ────────────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   fields: {
@@ -27,7 +27,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const purchaseRequestSchema: SchemaDefinition = {
+const purchaseRequestSchema: EntityDefinition = {
   name: "purchase_request",
   label: "Purchase Request",
   fields: {
@@ -39,7 +39,7 @@ const purchaseRequestSchema: SchemaDefinition = {
 
 // ── Link definition ──────────────────────────────────────
 
-const deptPurchaseLink: LinkDefinition = {
+const deptPurchaseLink: RelationDefinition = {
   name: "department_purchase_requests",
   from: "department",
   to: "purchase_request",
@@ -69,7 +69,7 @@ beforeAll(() => {
     }
   }
 
-  const schemaMap = new Map<string, SchemaDefinition>();
+  const schemaMap = new Map<string, EntityDefinition>();
   schemaMap.set("department", departmentSchema);
   schemaMap.set("purchase_request", purchaseRequestSchema);
 

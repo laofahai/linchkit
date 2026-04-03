@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { defineAction, defineSchema } from "@linchkit/core";
-import { ActionRegistry, createSchemaRegistry } from "@linchkit/core/server";
+import { defineAction, defineEntity } from "@linchkit/core";
+import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 import { createMcpSseServer } from "../src/sse-transport";
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "order",
   label: "Order",
   description: "Sales order",
@@ -43,14 +43,14 @@ function mockCommandLayer(): CommandLayer {
 
 /** Helper to create a test MCP adapter */
 async function createTestAdapter(bearerToken?: string) {
-  const schemaRegistry = createSchemaRegistry();
-  schemaRegistry.register(testSchema);
+  const entityRegistry = createEntityRegistry();
+  entityRegistry.register(testSchema);
   const actionRegistry = new ActionRegistry();
   actionRegistry.register(testAction);
 
   return createMcpAdapter({
     commandLayer: mockCommandLayer(),
-    schemaRegistry,
+    entityRegistry,
     actionRegistry,
     name: "test-mcp",
     version: "1.0.0",

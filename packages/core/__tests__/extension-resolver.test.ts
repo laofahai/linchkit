@@ -6,18 +6,18 @@ import { describe, expect, test } from "bun:test";
 import { buildActionChain, createExtensionResolver } from "../src/capability/extension-resolver";
 import type { ActionContext, ActionDefinition } from "../src/types/action";
 import type { RuleDefinition } from "../src/types/rule";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── Helpers ──────────────────────────────────────────────
 
 function makeSchema(
   name: string,
   fields: Record<string, { type: string; label?: string; required?: boolean }>,
-): SchemaDefinition {
+): EntityDefinition {
   return {
     name,
     label: name,
-    fields: fields as SchemaDefinition["fields"],
+    fields: fields as EntityDefinition["fields"],
   };
 }
 
@@ -73,7 +73,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number" } })];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", label: "Notes" } as any } },
@@ -93,14 +93,14 @@ describe("ExtensionResolver — Schema Extensions", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number" } })];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { priority: { type: "number" } as any } },
       "cap-priority",
       10,
     );
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { tags: { type: "json" } as any } },
@@ -118,7 +118,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number" } })];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "nonexistent",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { foo: { type: "string" } as any } },
@@ -135,14 +135,14 @@ describe("ExtensionResolver — Schema Extensions", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", {})];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text" } as any } },
       "cap-a",
       10,
     );
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "string" } as any } },
@@ -162,14 +162,14 @@ describe("ExtensionResolver — Schema Extensions", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", {})];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", label: "From A" } as any } },
       "cap-a",
       10,
     );
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "string", label: "From B" } as any } },
@@ -191,7 +191,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number", required: false } })];
 
-    resolver.addSchemaOverride(
+    resolver.addEntityOverride(
       "order",
       { fields: { total: { required: true, min: 0 } } },
       "cap-validation",
@@ -210,8 +210,8 @@ describe("ExtensionResolver — Schema Overrides", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number", min: 0 } })];
 
-    resolver.addSchemaOverride("order", { fields: { total: { min: 10 } } }, "cap-a", 10);
-    resolver.addSchemaOverride("order", { fields: { total: { min: 50 } } }, "cap-b", 20);
+    resolver.addEntityOverride("order", { fields: { total: { min: 10 } } }, "cap-a", 10);
+    resolver.addEntityOverride("order", { fields: { total: { min: 50 } } }, "cap-b", 20);
 
     const resolved = resolver.resolveSchemas(schemas);
     // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
@@ -222,7 +222,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     const resolver = createExtensionResolver();
     const schemas = [makeSchema("order", { total: { type: "number" } })];
 
-    resolver.addSchemaOverride(
+    resolver.addEntityOverride(
       "order",
       { fields: { nonexistent: { required: true } } },
       "cap-x",
@@ -238,7 +238,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     const schemas = [makeSchema("order", { total: { type: "number" } })];
 
     // First add a field via extension
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text", required: false } as any } },
@@ -247,7 +247,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     );
 
     // Then override a constraint on an existing field
-    resolver.addSchemaOverride(
+    resolver.addEntityOverride(
       "order",
       { fields: { total: { required: true } } },
       "cap-validation",
@@ -705,7 +705,7 @@ describe("ExtensionResolver — Immutability", () => {
     const original = makeSchema("order", { total: { type: "number" } });
     const schemas = [original];
 
-    resolver.addSchemaExtension(
+    resolver.addEntityExtension(
       "order",
       // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
       { fields: { notes: { type: "text" } as any } },

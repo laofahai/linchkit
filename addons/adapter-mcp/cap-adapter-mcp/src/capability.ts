@@ -43,7 +43,7 @@ export const capAdapterMcp = defineCapability({
           const { bearerToken, tenantId, graphqlEndpoint } = mcpCfg;
           const { server: mcpServer } = await createMcpAdapter({
             commandLayer: ctx.commandLayer,
-            schemaRegistry: ctx.schemaRegistry,
+            entityRegistry: ctx.entityRegistry,
             actionRegistry: ctx.executor.registry,
             bearerToken,
             tenantId,

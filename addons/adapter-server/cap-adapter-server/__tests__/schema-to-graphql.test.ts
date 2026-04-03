@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { SchemaDefinition, StateDefinition } from "@linchkit/core";
+import type { EntityDefinition, StateDefinition } from "@linchkit/core";
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -25,7 +25,7 @@ afterEach(() => {
 
 // ── Test fixtures ────────────────────────────────────────
 
-const taskSchema: SchemaDefinition = {
+const taskSchema: EntityDefinition = {
   name: "task",
   label: "Task",
   description: "A project task",
@@ -175,7 +175,7 @@ describe("enum field generates GraphQLEnumType", () => {
   });
 
   test("enum field with labels preserves descriptions", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "ticket",
       fields: {
         severity: {
@@ -197,7 +197,7 @@ describe("enum field generates GraphQLEnumType", () => {
   });
 
   test("enum values with special characters are sanitized", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "item",
       fields: {
         category: {
@@ -218,7 +218,7 @@ describe("enum field generates GraphQLEnumType", () => {
   });
 
   test("enum field with empty options falls back to String", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "empty_enum",
       fields: {
         status: {
@@ -351,7 +351,7 @@ describe("enum type caching", () => {
 // ── All field types coverage ─────────────────────────────
 
 describe("all field types", () => {
-  const allTypesSchema: SchemaDefinition = {
+  const allTypesSchema: EntityDefinition = {
     name: "all_types",
     fields: {
       f_string: { type: "string", required: true },
@@ -403,7 +403,7 @@ describe("all field types", () => {
 // ── Update mutation _version arg ─────────────────────────
 
 describe("buildGraphQLSchema update mutation _version arg", () => {
-  const simpleSchema: SchemaDefinition = {
+  const simpleSchema: EntityDefinition = {
     name: "item",
     label: "Item",
     fields: {
@@ -448,7 +448,7 @@ describe("buildGraphQLSchema update mutation _version arg", () => {
 
 describe("i18n field name collision", () => {
   test("skips auto-generated _i18n field when name already exists in schema", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -478,7 +478,7 @@ describe("i18n field name collision", () => {
   });
 
   test("generates _i18n field when no collision exists", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "article",
       i18n: { defaultLocale: "en" },
       fields: {

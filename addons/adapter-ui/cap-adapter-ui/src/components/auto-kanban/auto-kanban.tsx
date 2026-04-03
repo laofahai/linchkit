@@ -6,7 +6,7 @@
  * Uses native HTML drag-and-drop API (no external library).
  */
 
-import type { SchemaDefinition, StateDefinition, StateMeta } from "@linchkit/core/types";
+import type { EntityDefinition, StateDefinition, StateMeta } from "@linchkit/core/types";
 import { Badge, Card, CardContent, CardHeader, Skeleton, toast } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
@@ -19,7 +19,7 @@ import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 // ── Types ────────────────────────────────────────────────
 
 export interface AutoKanbanProps {
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   stateDefinition: StateDefinition;
   data: Record<string, unknown>[];
   loading?: boolean;
@@ -66,7 +66,7 @@ interface KanbanColumnProps {
   stateValue: string;
   stateMeta?: StateMeta;
   records: Record<string, unknown>[];
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   isDragOver: boolean;
   isInvalidDrop: boolean;
   onDragStart: (recordId: string, fromState: string) => void;

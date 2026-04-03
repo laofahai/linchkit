@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { OntologyRegistry, SchemaDescriptor } from "../../ontology/ontology-registry";
+import type { OntologyRegistry, EntityDescriptor } from "../../ontology/ontology-registry";
 import type { SensorSignal } from "../../types/life-system";
 import { createAwarenessEngine } from "../awareness-engine";
 
-function makeOntology(schemas: Record<string, Partial<SchemaDescriptor>>): OntologyRegistry {
+function makeOntology(schemas: Record<string, Partial<EntityDescriptor>>): OntologyRegistry {
   return {
     describe(name: string) {
-      return schemas[name] as SchemaDescriptor | undefined;
+      return schemas[name] as EntityDescriptor | undefined;
     },
     listSchemas() {
       return Object.keys(schemas);

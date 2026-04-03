@@ -270,7 +270,7 @@ export interface SchemaI18nConfig {
   supportedLocales?: string[];
 }
 
-export interface SchemaDefinition<
+export interface EntityDefinition<
   TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
 > {
   name: string;
@@ -302,11 +302,11 @@ export interface SchemaDefinition<
 
 // ── Schema extension and override ─────────────────────────────────
 
-export interface SchemaExtension {
+export interface EntityExtension {
   fields: Record<string, FieldDefinition>;
 }
 
-export interface SchemaOverride {
+export interface EntityOverride {
   fields: Record<string, Partial<FieldConstraints>>;
 }
 
@@ -356,5 +356,5 @@ export interface ResolvedSchema {
   /** All fields including system fields, keyed by field name */
   fields: Record<string, ResolvedField>;
   /** Original schema definition reference */
-  source: SchemaDefinition;
+  source: EntityDefinition;
 }

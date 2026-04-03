@@ -83,7 +83,7 @@ Capabilities extend the framework via `extensions`:
 - **EventHandler** — Sync/async reactions to events (priority, filter)
 - **View** — UI rendering config (list, form, kanban) driven by schema
 - **Flow** — Multi-step durable workflows (Restate dual-mode: durable execution with Restate server, sync fallback without)
-- **Link** — First-class relationships between schemas (`defineLink()`, bidirectional navigation, FK/junction table generation)
+- **Link** — First-class relationships between schemas (`defineRelation()`, bidirectional navigation, FK/junction table generation)
 
 ## Command Layer
 

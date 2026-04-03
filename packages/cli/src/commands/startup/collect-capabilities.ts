@@ -11,10 +11,10 @@ import type {
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
   InterfaceDefinition,
-  LinkDefinition,
+  RelationDefinition,
   MiddlewareRegistration,
   RuleDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   TransportAdapterDefinition,
   ViewDefinition,
@@ -22,11 +22,11 @@ import type {
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
-  schemas: SchemaDefinition[];
+  schemas: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   rules: RuleDefinition[];
   eventHandlers: EventHandlerDefinition[];
   automations: AutomationDefinition[];
@@ -45,11 +45,11 @@ export function collectCapabilityDefinitions(
   capabilities: CapabilityDefinition[],
 ): CollectedDefinitions {
   const interfaces: InterfaceDefinition[] = [];
-  const schemas: SchemaDefinition[] = [];
+  const schemas: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
   const states: StateDefinition[] = [];
-  const links: LinkDefinition[] = [];
+  const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const eventHandlers: EventHandlerDefinition[] = [];
   const automations: AutomationDefinition[] = [];

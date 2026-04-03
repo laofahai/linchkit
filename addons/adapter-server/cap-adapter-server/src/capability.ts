@@ -32,8 +32,8 @@ export const capAdapterServer = defineCapability({
 
           // Register system schemas as internal (read-only, system-managed)
           for (const schema of systemSchemas) {
-            if (!ctx.schemaRegistry.has(schema.name)) {
-              ctx.schemaRegistry.registerInternal(schema);
+            if (!ctx.entityRegistry.has(schema.name)) {
+              ctx.entityRegistry.registerInternal(schema);
             }
           }
 
@@ -97,7 +97,7 @@ export const capAdapterServer = defineCapability({
           const host = serverCfg.host;
 
           // Build schema map for link resolver data masking
-          const schemaMap = new Map<string, import("@linchkit/core").SchemaDefinition>();
+          const schemaMap = new Map<string, import("@linchkit/core").EntityDefinition>();
           for (const s of ctx.schemas) {
             schemaMap.set(s.name, s);
           }
@@ -111,7 +111,7 @@ export const capAdapterServer = defineCapability({
             executor: ctx.executor,
             commandLayer: ctx.commandLayer,
             executionLogger: ctx.executionLogger,
-            schemaRegistry: ctx.schemaRegistry,
+            entityRegistry: ctx.entityRegistry,
             views: viewsMap,
             capabilities: ctx.capabilities,
             dataProvider: ctx.dataProvider,

@@ -2,11 +2,11 @@ import { describe, expect, it } from "bun:test";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { TableRegistry } from "../src/persistence/table-registry";
 import { generateDrizzleTable } from "../src/schema/schema-to-drizzle";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── Fixtures ─────────────────────────────────────────────
 
-function makeSchema(name: string, extra: Partial<SchemaDefinition> = {}): SchemaDefinition {
+function makeSchema(name: string, extra: Partial<EntityDefinition> = {}): EntityDefinition {
   return {
     name,
     fields: {
@@ -16,7 +16,7 @@ function makeSchema(name: string, extra: Partial<SchemaDefinition> = {}): Schema
   };
 }
 
-function makeTable(schema: SchemaDefinition): PgTable {
+function makeTable(schema: EntityDefinition): PgTable {
   return generateDrizzleTable(schema);
 }
 
@@ -61,14 +61,14 @@ describe("TableRegistry", () => {
     });
   });
 
-  describe("buildFromSchemaRegistry", () => {
+  describe("buildFromEntityRegistry", () => {
     it("generates and registers tables from schema map", () => {
       const registry = new TableRegistry();
-      const schemas = new Map<string, SchemaDefinition>([
+      const schemas = new Map<string, EntityDefinition>([
         ["order", makeSchema("order")],
         ["product", makeSchema("product")],
       ]);
-      registry.buildFromSchemaRegistry(schemas);
+      registry.buildFromEntityRegistry(schemas);
       expect(registry.has("order")).toBe(true);
       expect(registry.has("product")).toBe(true);
     });
@@ -79,8 +79,8 @@ describe("TableRegistry", () => {
       const manualTable = makeTable(schema);
       registry.register("order", manualTable);
 
-      const schemas = new Map<string, SchemaDefinition>([["order", schema]]);
-      registry.buildFromSchemaRegistry(schemas);
+      const schemas = new Map<string, EntityDefinition>([["order", schema]]);
+      registry.buildFromEntityRegistry(schemas);
 
       // The manually registered table should be preserved
       expect(registry.getTable("order")).toBe(manualTable);
@@ -90,11 +90,11 @@ describe("TableRegistry", () => {
       const registry = new TableRegistry();
       registry.register("order", makeTable(makeSchema("order")));
 
-      const schemas = new Map<string, SchemaDefinition>([
+      const schemas = new Map<string, EntityDefinition>([
         ["order", makeSchema("order")],
         ["product", makeSchema("product")],
       ]);
-      registry.buildFromSchemaRegistry(schemas);
+      registry.buildFromEntityRegistry(schemas);
 
       expect(registry.has("order")).toBe(true);
       expect(registry.has("product")).toBe(true);
@@ -103,16 +103,16 @@ describe("TableRegistry", () => {
 
     it("handles empty schema map", () => {
       const registry = new TableRegistry();
-      registry.buildFromSchemaRegistry(new Map());
+      registry.buildFromEntityRegistry(new Map());
       expect(registry.getRegisteredSchemas()).toHaveLength(0);
     });
 
     it("applies table prefix option", () => {
       const registry = new TableRegistry();
-      const schemas = new Map<string, SchemaDefinition>([["order", makeSchema("order")]]);
+      const schemas = new Map<string, EntityDefinition>([["order", makeSchema("order")]]);
       // Just verify it doesn't throw with prefix option
       expect(() =>
-        registry.buildFromSchemaRegistry(schemas, { tablePrefix: "test_" }),
+        registry.buildFromEntityRegistry(schemas, { tablePrefix: "test_" }),
       ).not.toThrow();
       expect(registry.has("order")).toBe(true);
     });

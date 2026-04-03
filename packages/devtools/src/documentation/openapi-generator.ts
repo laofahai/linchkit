@@ -1,7 +1,7 @@
 /**
  * OpenAPI 3.0 Generator
  *
- * Generates an OpenAPI 3.0 specification from SchemaDefinitions and ActionDefinitions
+ * Generates an OpenAPI 3.0 specification from EntityDefinitions and ActionDefinitions
  * via the structured SystemDoc intermediate representation.
  */
 

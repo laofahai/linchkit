@@ -6,9 +6,9 @@
  * - Field UI hints
  */
 
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 
-export const departmentSchema: SchemaDefinition = {
+export const departmentSchema: EntityDefinition = {
   name: "department",
   label: "t:schemas.department._label",
   description: "Organizational department that owns purchase requests",

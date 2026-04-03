@@ -19,7 +19,7 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
   const subscriptionConfig = options.subscriptionConfig;
   const resolveRequestActor = options.resolveRequestActor;
   const resolveRequestTenantId = options.resolveRequestTenantId;
-  const schemaRegistry = options.schemaRegistry;
+  const entityRegistry = options.entityRegistry;
 
   if (!eventBus) return;
 
@@ -27,10 +27,10 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
 
   // Wire permission checker: verify the actor can read the schema before delivering events.
   // Check schema exposure config — if GraphQL is explicitly disabled, deny SSE events too.
-  if (schemaRegistry) {
+  if (entityRegistry) {
     const permGroups = options.permissionGroups;
     subManager.setPermissionChecker((actor, schemaName) => {
-      const schemaDef = schemaRegistry.get(schemaName);
+      const schemaDef = entityRegistry.get(schemaName);
       if (!schemaDef) return false; // Unknown schema — deny
       // If exposure is configured and graphql is explicitly false, deny
       if (schemaDef.exposure?.graphql === false) return false;

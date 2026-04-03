@@ -1,16 +1,16 @@
 /**
  * Schema-to-GraphQL generator
  *
- * Converts a LinchKit SchemaDefinition into GraphQL object and input types
+ * Converts a LinchKit EntityDefinition into GraphQL object and input types
  * for use in a GraphQL API layer. Supports link-based relation resolvers.
  */
 
 import type {
   ActionDefinition,
   FieldDefinition,
-  LinkDefinition,
+  RelationDefinition,
   Logger,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";
@@ -56,7 +56,7 @@ function sanitizeEnumValue(value: string): string {
  * Build or retrieve a cached GraphQLEnumType for an enum field with options.
  */
 function getEnumTypeForField(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   fieldName: string,
   options: Array<{ value: string; label?: string }>,
 ): GraphQLEnumType {
@@ -78,7 +78,7 @@ function getEnumTypeForField(
  * Build or retrieve a cached GraphQLEnumType for a state field from a StateDefinition.
  */
 function getEnumTypeForState(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   fieldName: string,
   stateDef: StateDefinition,
 ): GraphQLEnumType {
@@ -110,7 +110,7 @@ type StateMachineMap = Map<string, StateDefinition>;
 function mapFieldToGraphQLType(
   field: FieldDefinition,
   fieldName: string,
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   stateMachines?: StateMachineMap,
 ): GraphQLOutputType | null {
   switch (field.type) {
@@ -156,7 +156,7 @@ function mapFieldToGraphQLType(
 export function mapFieldToGraphQLInputType(
   field: FieldDefinition,
   fieldName?: string,
-  schema?: SchemaDefinition,
+  schema?: EntityDefinition,
   stateMachines?: StateMachineMap,
 ): GraphQLInputType | null {
   // Translatable fields accept String input (plain string or JSON-encoded locale map)
@@ -235,15 +235,15 @@ function toPascalCase(name: string): string {
 }
 
 /**
- * Generate a GraphQL object type from a LinchKit SchemaDefinition.
+ * Generate a GraphQL object type from a LinchKit EntityDefinition.
  * Includes system fields (id, tenant_id, created_at, etc.) and user-defined fields.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
  * When links and typeMap are provided, adds link-based relation resolver fields.
  */
 export function generateGraphQLObjectType(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
-  links?: LinkDefinition[],
+  links?: RelationDefinition[],
   typeMap?: Map<string, GraphQLObjectType>,
 ): GraphQLObjectType {
   const typeName = toPascalCase(schema.name);
@@ -400,16 +400,16 @@ export function generateGraphQLObjectType(
 }
 
 /**
- * Generate a GraphQL input type from a LinchKit SchemaDefinition.
+ * Generate a GraphQL input type from a LinchKit EntityDefinition.
  * Excludes system fields — those are managed by the server.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
  * When links are provided, adds FK columns for many_to_one and one_to_one relationships
  * (e.g., department ref → department_id input field).
  */
 export function generateGraphQLInputType(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
-  links?: LinkDefinition[],
+  links?: RelationDefinition[],
 ): GraphQLInputObjectType {
   const typeName = `${toPascalCase(schema.name)}Input`;
 

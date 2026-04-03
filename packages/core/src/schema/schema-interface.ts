@@ -21,7 +21,7 @@ import type {
   FieldDefinition,
   InterfaceDefinition,
   InterfaceStateTemplate,
-  SchemaDefinition,
+  EntityDefinition,
 } from "../types/schema";
 import type { StateDefinition } from "../types/state";
 
@@ -87,7 +87,7 @@ export class InterfaceRegistry {
 
   /**
    * Register that a schema implements certain interfaces.
-   * Called by SchemaRegistry during schema registration.
+   * Called by EntityRegistry during schema registration.
    */
   registerImplementor(schemaName: string, interfaceNames: string[]): void {
     for (const ifaceName of interfaceNames) {
@@ -148,7 +148,7 @@ export class InterfaceRegistry {
    *   ensuring that fields inherited via `extends` are considered during validation.
    */
   validateImplementation(
-    schema: SchemaDefinition,
+    schema: EntityDefinition,
     resolvedFields?: Record<string, FieldDefinition>,
   ): string[] {
     const errors: string[] = [];
@@ -361,7 +361,7 @@ export class InterfaceRegistry {
    * @param resolvedFields - Optional pre-resolved fields including inherited fields
    */
   getInjectedFields(
-    schema: SchemaDefinition,
+    schema: EntityDefinition,
     resolvedFields?: Record<string, FieldDefinition>,
   ): Record<string, FieldDefinition> {
     const interfaceNames = schema.implements ?? [];

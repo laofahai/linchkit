@@ -5,7 +5,7 @@
  * state transitions, delete, and clone source fetching.
  */
 
-import type { SchemaDefinition } from "@linchkit/core/types";
+import type { EntityDefinition } from "@linchkit/core/types";
 import { toast } from "@linchkit/ui-kit/components";
 import type { NavigateOptions } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
@@ -38,7 +38,7 @@ export interface UseFormActionsOptions {
   schemaName: string | undefined;
   recordId: string | undefined;
   isCreate: boolean;
-  schema: SchemaDefinition | undefined;
+  schema: EntityDefinition | undefined;
   bundle: ResolvedSchemaBundle | undefined;
   recordFields: string[];
   recordFieldsRef: React.RefObject<string[]>;

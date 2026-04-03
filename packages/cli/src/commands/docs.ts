@@ -14,18 +14,18 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   LinchKitConfig,
-  LinkDefinition,
+  RelationDefinition,
   RuleDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
 import {
   ActionRegistry,
   convertSchemaRelationshipFieldsToImplicitLinks,
-  createLinkRegistry,
+  createRelationRegistry,
   createOntologyRegistry,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 import {
   createDocSearchIndex,
@@ -72,11 +72,11 @@ async function loadCapabilities(): Promise<{
  * Only constructs Schema, Action, and Link registries (no DB, no event bus).
  */
 function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
-  const schemas: SchemaDefinition[] = [];
+  const schemas: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
   const states: StateDefinition[] = [];
-  const links: LinkDefinition[] = [];
+  const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
 
   for (const cap of capabilities) {
@@ -93,14 +93,14 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   links.push(...implicitLinks);
 
   // Build registries
-  const schemaRegistry = new SchemaRegistry();
+  const entityRegistry = new EntityRegistry();
   for (const schema of schemas) {
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
   }
 
-  const linkRegistry = createLinkRegistry();
+  const relationRegistry = createRelationRegistry();
   for (const link of links) {
-    linkRegistry.register(link);
+    relationRegistry.register(link);
   }
 
   const actionRegistry = new ActionRegistry();
@@ -111,12 +111,12 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   }
 
   const ontology = createOntologyRegistry({
-    schemas: schemaRegistry,
+    schemas: entityRegistry,
     actions: actionRegistry,
     rules,
     states,
     views,
-    links: linkRegistry,
+    links: relationRegistry,
   });
 
   return { ontology, schemas, actions };

@@ -6,9 +6,9 @@
  * - Field UI hints (format: currency)
  */
 
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 
-export const purchaseItemSchema: SchemaDefinition = {
+export const purchaseItemSchema: EntityDefinition = {
   name: "purchase_item",
   label: "t:schemas.purchase_item._label",
   presentation: {

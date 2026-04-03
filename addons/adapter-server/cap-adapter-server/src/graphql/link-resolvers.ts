@@ -13,11 +13,11 @@ import type {
   Actor,
   DataProvider,
   FieldDefinition,
-  LinkDefinition,
+  RelationDefinition,
   Logger,
   MaskRecordOptions,
   PermissionGroupDefinition,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import { maskRecord } from "@linchkit/core/server";
 import {
@@ -44,7 +44,7 @@ export interface LinkResolverContext {
   /** Permission groups for data masking unmask checks */
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for data masking lookups */
-  schemaMap?: Map<string, SchemaDefinition>;
+  schemaMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (created in context factory) */
   linkLoaders?: LinkDataLoaders;
 }
@@ -186,7 +186,7 @@ const edgeTypeCache = new Map<string, GraphQLObjectType>();
  * - To side:   ProductSalesOrderEdge { salesOrder: SalesOrder!, quantity: Float!, ... }
  */
 function getOrCreateEdgeType(
-  link: LinkDefinition,
+  link: RelationDefinition,
   relatedType: GraphQLObjectType,
   relatedFieldName: string,
   relatedSchemaName: string,
@@ -254,7 +254,7 @@ export type LinkFieldDef = {
  */
 export function buildLinkFields(
   schemaName: string,
-  links: LinkDefinition[],
+  links: RelationDefinition[],
   typeMap: Map<string, GraphQLObjectType>,
   logger: Logger,
 ): Record<string, LinkFieldDef> {

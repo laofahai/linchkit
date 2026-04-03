@@ -10,7 +10,7 @@ import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
-import type { LinkDefinition } from "./types/link";
+import type { RelationDefinition } from "./types/link";
 import type {
   DataAccessDefinition,
   PermissionGroupDefinition,
@@ -20,9 +20,9 @@ import type { RuleDefinition, RuleOverride } from "./types/rule";
 import type {
   FieldDefinition,
   InterfaceDefinition,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
 } from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
 import type { ViewDefinition, ViewExtension } from "./types/view";
@@ -36,23 +36,23 @@ export function defineInterface(definition: InterfaceDefinition): InterfaceDefin
 
 // ── Schema ──────────────────────────────────────────
 
-export function defineSchema<TFields extends Record<string, FieldDefinition>>(
-  definition: SchemaDefinition<TFields>,
-): SchemaDefinition<TFields> {
+export function defineEntity<TFields extends Record<string, FieldDefinition>>(
+  definition: EntityDefinition<TFields>,
+): EntityDefinition<TFields> {
   return definition;
 }
 
 export function extendSchema(
   target: string,
-  extension: SchemaExtension,
-): { target: string; extension: SchemaExtension } {
+  extension: EntityExtension,
+): { target: string; extension: EntityExtension } {
   return { target, extension };
 }
 
 export function overrideSchema(
   target: string,
-  override: SchemaOverride,
-): { target: string; override: SchemaOverride } {
+  override: EntityOverride,
+): { target: string; override: EntityOverride } {
   return { target, override };
 }
 
@@ -145,7 +145,7 @@ export function extendPermissionGroup(
 
 // ── Link ───────────────────────────────────────────
 
-export function defineLink(definition: LinkDefinition): LinkDefinition {
+export function defineRelation(definition: RelationDefinition): RelationDefinition {
   return definition;
 }
 

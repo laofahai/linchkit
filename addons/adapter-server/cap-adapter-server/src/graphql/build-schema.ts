@@ -1,5 +1,5 @@
 /**
- * Build a complete GraphQL schema from LinchKit SchemaDefinitions.
+ * Build a complete GraphQL schema from LinchKit EntityDefinitions.
  *
  * Generates Query and Mutation types wired to the Action Engine
  * and an in-memory DataProvider. Includes CRUD mutations for each
@@ -14,10 +14,10 @@ import type {
   DataQueryOptions,
   DerivedPropertyEngine,
   EventBus,
-  LinkDefinition,
+  RelationDefinition,
   MaskRecordOptions,
   PermissionGroupDefinition,
-  SchemaDefinition,
+  EntityDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
@@ -86,7 +86,7 @@ export interface GraphQLContext {
   /** Permission groups for data masking unmask checks */
   permissionGroups?: PermissionGroupDefinition[];
   /** Schema definitions map for link resolver data masking */
-  schemaMap?: Map<string, SchemaDefinition>;
+  schemaMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (avoids N+1 queries) */
   linkLoaders?: import("./link-dataloader").LinkDataLoaders;
 }
@@ -150,7 +150,7 @@ export interface BuildGraphQLSchemaOptions {
   /** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
   actions?: ActionDefinition[];
   /** Link definitions for generating bidirectional relation resolver fields */
-  links?: LinkDefinition[];
+  links?: RelationDefinition[];
   /** Cache manager for caching query results (optional — queries go direct when absent) */
   cacheManager?: CacheManager;
   /** Event bus for wiring GraphQL subscriptions (real-time CRUD events via SSE) */
@@ -170,7 +170,7 @@ export interface BuildGraphQLSchemaOptions {
 }
 
 /**
- * Build a complete GraphQL schema from an array of SchemaDefinitions.
+ * Build a complete GraphQL schema from an array of EntityDefinitions.
  *
  * For each schema, generates:
  * - Query: `{camelName}(id: ID!): Type` and `{camelName}List: [Type!]!`
@@ -180,7 +180,7 @@ export interface BuildGraphQLSchemaOptions {
  * Otherwise falls back to stub/mock resolvers for backward compatibility.
  */
 export function buildGraphQLSchema(
-  schemas: SchemaDefinition[],
+  schemas: EntityDefinition[],
   options?: BuildGraphQLSchemaOptions,
 ): GraphQLSchema {
   const executor = options?.executor;
@@ -223,7 +223,7 @@ export function buildGraphQLSchema(
   }
 
   // Build schema lookup map for data masking
-  const schemaMap = new Map<string, SchemaDefinition>();
+  const schemaMap = new Map<string, EntityDefinition>();
   for (const s of schemas) {
     schemaMap.set(s.name, s);
   }
@@ -972,7 +972,7 @@ export function buildGraphQLSchema(
 /**
  * Build a mock record with system fields and default values.
  */
-function buildMockRecord(schema: SchemaDefinition): Record<string, unknown> {
+function buildMockRecord(schema: EntityDefinition): Record<string, unknown> {
   const now = new Date().toISOString();
   const record: Record<string, unknown> = {
     id: "mock_id",

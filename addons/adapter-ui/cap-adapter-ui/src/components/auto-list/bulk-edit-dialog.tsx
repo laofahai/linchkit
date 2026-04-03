@@ -9,7 +9,7 @@
  * - Summary on completion: X updated, Y failed
  */
 
-import type { FieldDefinition, SchemaDefinition } from "@linchkit/core/types";
+import type { FieldDefinition, EntityDefinition } from "@linchkit/core/types";
 import {
   Button,
   Checkbox,
@@ -41,7 +41,7 @@ interface BulkEditResult {
 interface BulkEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
   selectedIds: string[];
   /** Fields to return from the update mutation (for cache). */
   queryFields?: string[];

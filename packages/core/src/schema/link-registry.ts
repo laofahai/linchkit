@@ -5,18 +5,18 @@
  * Provides directional queries (outgoing, incoming, both) and lookup by endpoints.
  */
 
-import type { LinkDefinition, LinkInfo, LinkRegistryInterface } from "../types/link";
+import type { RelationDefinition, LinkInfo, RelationRegistryInterface } from "../types/link";
 
-// ── LinkRegistry ──────────────────────────────────────────────
+// ── RelationRegistry ──────────────────────────────────────────────
 
-export class LinkRegistry implements LinkRegistryInterface {
-  private links = new Map<string, LinkDefinition>();
+export class RelationRegistry implements RelationRegistryInterface {
+  private links = new Map<string, RelationDefinition>();
 
   /**
    * Register a link definition.
    * Throws if a link with the same name is already registered.
    */
-  register(link: LinkDefinition): void {
+  register(link: RelationDefinition): void {
     if (this.links.has(link.name)) {
       throw new Error(`Link "${link.name}" is already registered`);
     }
@@ -54,7 +54,7 @@ export class LinkRegistry implements LinkRegistryInterface {
   /**
    * Get the first link matching from → to (if any).
    */
-  linkBetween(from: string, to: string): LinkDefinition | null {
+  linkBetween(from: string, to: string): RelationDefinition | null {
     for (const link of this.links.values()) {
       if (link.from === from && link.to === to) {
         return link;
@@ -64,8 +64,8 @@ export class LinkRegistry implements LinkRegistryInterface {
   }
 
   /** Get all outgoing links from a schema */
-  outgoingLinks(schemaName: string): LinkDefinition[] {
-    const result: LinkDefinition[] = [];
+  outgoingLinks(schemaName: string): RelationDefinition[] {
+    const result: RelationDefinition[] = [];
     for (const link of this.links.values()) {
       if (link.from === schemaName) {
         result.push(link);
@@ -75,8 +75,8 @@ export class LinkRegistry implements LinkRegistryInterface {
   }
 
   /** Get all incoming links to a schema */
-  incomingLinks(schemaName: string): LinkDefinition[] {
-    const result: LinkDefinition[] = [];
+  incomingLinks(schemaName: string): RelationDefinition[] {
+    const result: RelationDefinition[] = [];
     for (const link of this.links.values()) {
       if (link.to === schemaName) {
         result.push(link);
@@ -86,14 +86,14 @@ export class LinkRegistry implements LinkRegistryInterface {
   }
 
   /** List all registered links */
-  list(): LinkDefinition[] {
+  list(): RelationDefinition[] {
     return Array.from(this.links.values());
   }
 }
 
 // ── Factory ─────────────────────────────────────────────────────
 
-/** Create a new LinkRegistry instance */
-export function createLinkRegistry(): LinkRegistry {
-  return new LinkRegistry();
+/** Create a new RelationRegistry instance */
+export function createRelationRegistry(): RelationRegistry {
+  return new RelationRegistry();
 }

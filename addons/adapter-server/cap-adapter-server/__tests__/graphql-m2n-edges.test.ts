@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { LinkDefinition, SchemaDefinition } from "@linchkit/core";
+import type { RelationDefinition, EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { clearEdgeTypeCache } from "../src/graphql/link-resolvers";
@@ -15,7 +15,7 @@ import { createServer } from "../src/server";
 
 // ── Schema definitions ────────────────────────────────────
 
-const salesOrderSchema: SchemaDefinition = {
+const salesOrderSchema: EntityDefinition = {
   name: "sales_order",
   label: "Sales Order",
   fields: {
@@ -24,7 +24,7 @@ const salesOrderSchema: SchemaDefinition = {
   },
 };
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -34,7 +34,7 @@ const productSchema: SchemaDefinition = {
   },
 };
 
-const tagSchema: SchemaDefinition = {
+const tagSchema: EntityDefinition = {
   name: "tag",
   label: "Tag",
   fields: {
@@ -42,7 +42,7 @@ const tagSchema: SchemaDefinition = {
   },
 };
 
-const articleSchema: SchemaDefinition = {
+const articleSchema: EntityDefinition = {
   name: "article",
   label: "Article",
   fields: {
@@ -53,7 +53,7 @@ const articleSchema: SchemaDefinition = {
 // ── Link definitions ──────────────────────────────────────
 
 /** M:N with properties — should generate edge types */
-const orderToProducts: LinkDefinition = {
+const orderToProducts: RelationDefinition = {
   name: "order_to_products",
   from: "sales_order",
   to: "product",
@@ -71,7 +71,7 @@ const orderToProducts: LinkDefinition = {
 };
 
 /** M:N without properties — should return plain arrays */
-const articleToTags: LinkDefinition = {
+const articleToTags: RelationDefinition = {
   name: "article_to_tags",
   from: "article",
   to: "tag",
@@ -102,7 +102,7 @@ beforeAll(() => {
     }
   }
 
-  const schemaMap = new Map<string, SchemaDefinition>();
+  const schemaMap = new Map<string, EntityDefinition>();
   for (const s of schemas) schemaMap.set(s.name, s);
 
   const graphqlSchema = buildGraphQLSchema(schemas, {

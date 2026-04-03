@@ -65,7 +65,7 @@ describe("linch create capability", () => {
     // Example schema
     expect(existsSync(resolve(capDir, "src/schemas/inventory.ts"))).toBe(true);
     const schemaContent = readFileSync(resolve(capDir, "src/schemas/inventory.ts"), "utf-8");
-    expect(schemaContent).toContain("defineSchema");
+    expect(schemaContent).toContain("defineEntity");
     expect(schemaContent).toContain("inventorySchema");
 
     // Example action

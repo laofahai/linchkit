@@ -6,7 +6,7 @@
  */
 
 import type { DataProvider } from "../engine/action-engine";
-import type { LinkDefinition } from "../types/link";
+import type { RelationDefinition } from "../types/link";
 import type { AggregateDerived } from "./safe-evaluator";
 
 /**
@@ -24,7 +24,7 @@ import type { AggregateDerived } from "./safe-evaluator";
 export async function resolveAggregateValue(
   derived: AggregateDerived,
   record: Record<string, unknown>,
-  link: LinkDefinition,
+  link: RelationDefinition,
   dataProvider: DataProvider,
 ): Promise<number> {
   const parentId = record.id as string;

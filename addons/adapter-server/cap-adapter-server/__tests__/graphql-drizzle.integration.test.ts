@@ -11,7 +11,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { defineLink, defineSchema } from "@linchkit/core";
+import { defineRelation, defineEntity } from "@linchkit/core";
 import {
   closeDatabase,
   createActionExecutor,
@@ -32,7 +32,7 @@ const DATABASE_URL =
   process.env.DATABASE_TEST_URL ??
   "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "gql_drizzle_test",
   label: "GraphQL Drizzle Test",
   fields: {
@@ -637,7 +637,7 @@ describe.skipIf(!dbAvailable)("GraphQL + DrizzleDataProvider (integration)", () 
 
 // ── Link resolver integration tests ─────────────────────────
 
-const deptSchema = defineSchema({
+const deptSchema = defineEntity({
   name: "link_dept",
   label: "Department",
   fields: {
@@ -645,7 +645,7 @@ const deptSchema = defineSchema({
   },
 });
 
-const prSchema = defineSchema({
+const prSchema = defineEntity({
   name: "link_pr",
   label: "Purchase Request",
   fields: {
@@ -659,7 +659,7 @@ const prSchema = defineSchema({
   },
 });
 
-const prToDeptLink = defineLink({
+const prToDeptLink = defineRelation({
   name: "link_pr_to_link_dept",
   from: "link_pr",
   to: "link_dept",

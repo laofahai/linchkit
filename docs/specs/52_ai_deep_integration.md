@@ -124,7 +124,7 @@ interface ActionProposalCardProps {
   intent: IntentResolution;
 
   /** Schema definition for rendering the form preview */
-  schema: SchemaDefinition;
+  schema: EntityDefinition;
 
   /** Callback when user confirms execution */
   onExecute: (input: Record<string, unknown>) => void;
@@ -570,7 +570,7 @@ AI formats result: "There are 12 purchase requests pending approval."
   + [filter_link] "View them →"
 ```
 
-The AI is given the GraphQL schema (auto-generated from SchemaDefinition) as context. The generated query is validated and executed server-side. The AI never returns raw GraphQL to the client.
+The AI is given the GraphQL schema (auto-generated from EntityDefinition) as context. The generated query is validated and executed server-side. The AI never returns raw GraphQL to the client.
 
 ---
 
@@ -723,7 +723,7 @@ A notification bell icon in the app header shows active suggestion count. Clicki
 Schema authors can control AI behavior per schema:
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'confidential_report',
   ai: {
     /** Whether AI can read records of this schema (for analysis, context) */

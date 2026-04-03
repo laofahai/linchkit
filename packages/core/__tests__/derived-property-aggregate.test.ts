@@ -20,9 +20,9 @@ import {
   createDerivedPropertyEngine,
   resolveAggregateValue,
 } from "../src/schema/derived-property";
-import { createLinkRegistry } from "../src/schema/link-registry";
-import type { LinkDefinition } from "../src/types/link";
-import type { SchemaDefinition } from "../src/types/schema";
+import { createRelationRegistry } from "../src/schema/link-registry";
+import type { RelationDefinition } from "../src/types/link";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── computeAggregate ──────────────────────────────────────────
 
@@ -91,7 +91,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
     await store.create("order_item", { id: "i3", order_id: "o2", amount: 50 });
 
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -115,7 +115,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i1", order_id: "o1", amount: 100 });
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
 
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -138,7 +138,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
     await store.create("order_item", { id: "i3", order_id: "o1", amount: 300 });
 
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -158,7 +158,7 @@ describe("resolveAggregateValue", () => {
 
   test("returns 0 when parent has no id", async () => {
     const store = new InMemoryStore();
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -178,7 +178,7 @@ describe("resolveAggregateValue", () => {
 
   test("returns 0 when no related records", async () => {
     const store = new InMemoryStore();
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -205,7 +205,7 @@ describe("resolveAggregateValue", () => {
     await store.create("employee", { id: "e3", department_id: "d2", salary: 7000 });
 
     // Link: employee.department_id → department
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "emp_to_dept",
       from: "employee",
       to: "department",
@@ -231,17 +231,17 @@ describe("resolveAggregateValue", () => {
 describe("DerivedPropertyEngine — aggregate store fields", () => {
   function createTestEnv() {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
     // Register link
-    linkRegistry.register({
+    relationRegistry.register({
       name: "order_to_items",
       from: "order",
       to: "order_item",
       cardinality: "one_to_many",
     });
 
-    const orderSchema: SchemaDefinition = {
+    const orderSchema: EntityDefinition = {
       name: "order",
       fields: {
         customer_name: { type: "string" },
@@ -267,7 +267,7 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
       },
     };
 
-    const orderItemSchema: SchemaDefinition = {
+    const orderItemSchema: EntityDefinition = {
       name: "order_item",
       fields: {
         order_id: { type: "string", required: true },
@@ -278,9 +278,9 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([orderSchema, orderItemSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
-    return { store, linkRegistry, engine, orderSchema, orderItemSchema };
+    return { store, relationRegistry, engine, orderSchema, orderItemSchema };
   }
 
   test("computeStoreFieldsAsync resolves aggregate fields", async () => {
@@ -322,16 +322,16 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
 describe("DerivedPropertyEngine — cascade recalculation", () => {
   function createTestEnv() {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "order_to_items",
       from: "order",
       to: "order_item",
       cardinality: "one_to_many",
     });
 
-    const orderSchema: SchemaDefinition = {
+    const orderSchema: EntityDefinition = {
       name: "order",
       fields: {
         customer_name: { type: "string" },
@@ -357,7 +357,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
       },
     };
 
-    const orderItemSchema: SchemaDefinition = {
+    const orderItemSchema: EntityDefinition = {
       name: "order_item",
       fields: {
         order_id: { type: "string", required: true },
@@ -368,7 +368,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([orderSchema, orderItemSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     return { store, engine };
   }
@@ -493,16 +493,16 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
 describe("DerivedPropertyEngine — chained fields with aggregates", () => {
   test("expression field depending on aggregate is recomputed after aggregate", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "order_to_items",
       from: "order",
       to: "order_item",
       cardinality: "one_to_many",
     });
 
-    const orderSchema: SchemaDefinition = {
+    const orderSchema: EntityDefinition = {
       name: "order",
       fields: {
         total_amount: {
@@ -538,7 +538,7 @@ describe("DerivedPropertyEngine — chained fields with aggregates", () => {
       },
     };
 
-    const orderItemSchema: SchemaDefinition = {
+    const orderItemSchema: EntityDefinition = {
       name: "order_item",
       fields: {
         order_id: { type: "string", required: true },
@@ -548,7 +548,7 @@ describe("DerivedPropertyEngine — chained fields with aggregates", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([orderSchema, orderItemSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     // Seed items
     await store.create("order_item", { id: "i1", order_id: "o1", amount: 100 });
@@ -566,16 +566,16 @@ describe("DerivedPropertyEngine — chained fields with aggregates", () => {
 describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
   test("resolveComputeFieldsAsync resolves aggregate on read", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "order_to_items",
       from: "order",
       to: "order_item",
       cardinality: "one_to_many",
     });
 
-    const orderSchema: SchemaDefinition = {
+    const orderSchema: EntityDefinition = {
       name: "order",
       fields: {
         live_total: {
@@ -591,7 +591,7 @@ describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
       },
     };
 
-    const orderItemSchema: SchemaDefinition = {
+    const orderItemSchema: EntityDefinition = {
       name: "order_item",
       fields: {
         order_id: { type: "string" },
@@ -601,7 +601,7 @@ describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([orderSchema, orderItemSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     await store.create("order_item", { id: "i1", order_id: "o1", amount: 100 });
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 250 });
@@ -617,16 +617,16 @@ describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
 describe("DerivedPropertyEngine — wire()", () => {
   test("wire after register rebuilds cascade map", () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "dept_to_emp",
       from: "department",
       to: "employee",
       cardinality: "one_to_many",
     });
 
-    const deptSchema: SchemaDefinition = {
+    const deptSchema: EntityDefinition = {
       name: "department",
       fields: {
         employee_count: {
@@ -641,7 +641,7 @@ describe("DerivedPropertyEngine — wire()", () => {
       },
     };
 
-    const empSchema: SchemaDefinition = {
+    const empSchema: EntityDefinition = {
       name: "employee",
       fields: {
         department_id: { type: "string" },
@@ -656,7 +656,7 @@ describe("DerivedPropertyEngine — wire()", () => {
     expect(engine.hasCascadeTargets("employee")).toBe(false);
 
     // Wire
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     // After wire: cascade targets exist
     expect(engine.hasCascadeTargets("employee")).toBe(true);
@@ -667,7 +667,7 @@ describe("DerivedPropertyEngine — wire()", () => {
   });
 
   test("computeStoreFieldsAsync falls back to sync when not wired", async () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         price: { type: "number" },
@@ -697,22 +697,22 @@ describe("DerivedPropertyEngine — wire()", () => {
 describe("DerivedPropertyEngine — multiple parent schemas", () => {
   test("cascade to multiple parent schemas", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "project_to_tasks",
       from: "project",
       to: "task",
       cardinality: "one_to_many",
     });
-    linkRegistry.register({
+    relationRegistry.register({
       name: "sprint_to_tasks",
       from: "sprint",
       to: "task",
       cardinality: "one_to_many",
     });
 
-    const projectSchema: SchemaDefinition = {
+    const projectSchema: EntityDefinition = {
       name: "project",
       fields: {
         task_count: {
@@ -727,7 +727,7 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
       },
     };
 
-    const sprintSchema: SchemaDefinition = {
+    const sprintSchema: EntityDefinition = {
       name: "sprint",
       fields: {
         total_effort: {
@@ -743,7 +743,7 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
       },
     };
 
-    const taskSchema: SchemaDefinition = {
+    const taskSchema: EntityDefinition = {
       name: "task",
       fields: {
         project_id: { type: "string" },
@@ -754,7 +754,7 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([projectSchema, sprintSchema, taskSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     // Create parents
     await store.create("project", { id: "p1", task_count: 0 });
@@ -784,16 +784,16 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
 describe("DerivedPropertyEngine — cascade updates dependent expression fields", () => {
   test("cascade recalculates expression fields that depend on aggregate fields", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
-    linkRegistry.register({
+    relationRegistry.register({
       name: "order_to_items",
       from: "order",
       to: "order_item",
       cardinality: "one_to_many",
     });
 
-    const orderSchema: SchemaDefinition = {
+    const orderSchema: EntityDefinition = {
       name: "order",
       fields: {
         total_amount: {
@@ -819,7 +819,7 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
       },
     };
 
-    const orderItemSchema: SchemaDefinition = {
+    const orderItemSchema: EntityDefinition = {
       name: "order_item",
       fields: {
         order_id: { type: "string" },
@@ -829,7 +829,7 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
 
     const engine = createDerivedPropertyEngine();
     engine.register([orderSchema, orderItemSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     // Create parent
     await store.create("order", {
@@ -857,23 +857,23 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
 describe("DerivedPropertyEngine — recursive cascade", () => {
   test("cascades recursively through multiple levels", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
     // Chain: company -> department -> employee
-    linkRegistry.register({
+    relationRegistry.register({
       name: "company_to_depts",
       from: "company",
       to: "department",
       cardinality: "one_to_many",
     });
-    linkRegistry.register({
+    relationRegistry.register({
       name: "dept_to_employees",
       from: "department",
       to: "employee",
       cardinality: "one_to_many",
     });
 
-    const companySchema: SchemaDefinition = {
+    const companySchema: EntityDefinition = {
       name: "company",
       fields: {
         total_departments: {
@@ -889,7 +889,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       },
     };
 
-    const departmentSchema: SchemaDefinition = {
+    const departmentSchema: EntityDefinition = {
       name: "department",
       fields: {
         company_id: { type: "string" },
@@ -905,7 +905,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       },
     };
 
-    const employeeSchema: SchemaDefinition = {
+    const employeeSchema: EntityDefinition = {
       name: "employee",
       fields: {
         department_id: { type: "string" },
@@ -915,7 +915,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([companySchema, departmentSchema, employeeSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     // Create company and department
     await store.create("company", { id: "c1", total_departments: 0 });
@@ -940,23 +940,23 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
 
   test("respects maxCascadeDepth limit", async () => {
     const store = new InMemoryStore();
-    const linkRegistry = createLinkRegistry();
+    const relationRegistry = createRelationRegistry();
 
     // Same chain as above
-    linkRegistry.register({
+    relationRegistry.register({
       name: "company_to_depts",
       from: "company",
       to: "department",
       cardinality: "one_to_many",
     });
-    linkRegistry.register({
+    relationRegistry.register({
       name: "dept_to_employees",
       from: "department",
       to: "employee",
       cardinality: "one_to_many",
     });
 
-    const companySchema: SchemaDefinition = {
+    const companySchema: EntityDefinition = {
       name: "company",
       fields: {
         total_departments: {
@@ -972,7 +972,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       },
     };
 
-    const departmentSchema: SchemaDefinition = {
+    const departmentSchema: EntityDefinition = {
       name: "department",
       fields: {
         company_id: { type: "string" },
@@ -988,7 +988,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       },
     };
 
-    const employeeSchema: SchemaDefinition = {
+    const employeeSchema: EntityDefinition = {
       name: "employee",
       fields: {
         department_id: { type: "string" },
@@ -998,7 +998,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
 
     const engine = createDerivedPropertyEngine();
     engine.register([companySchema, departmentSchema, employeeSchema]);
-    engine.wire({ linkRegistry, dataProvider: store });
+    engine.wire({ relationRegistry, dataProvider: store });
 
     await store.create("company", { id: "c1", total_departments: 0 });
     await store.create("department", { id: "d1", company_id: "c1", employee_count: 0 });

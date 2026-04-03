@@ -9,7 +9,7 @@
  * Uses graphql-yoga's built-in SSE-based subscription transport.
  */
 
-import type { EventBus, EventRecord, SchemaDefinition } from "@linchkit/core";
+import type { EventBus, EventRecord, EntityDefinition } from "@linchkit/core";
 import {
   type GraphQLFieldConfig,
   GraphQLID,
@@ -118,7 +118,7 @@ export function createEventBusPubSub(eventBus: EventBus): {
 
 export interface BuildSubscriptionFieldsOptions {
   /** Schemas to generate subscription fields for */
-  schemas: SchemaDefinition[];
+  schemas: EntityDefinition[];
   /** Pre-generated GraphQL object types by schema name (reused from build-schema) */
   schemaObjectTypes: Map<string, GraphQLObjectType>;
   /** PubSub instance wired to EventBus */

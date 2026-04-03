@@ -17,7 +17,7 @@ import type {
   FieldDefinition,
   MaskingConfig,
   MaskingStrategy,
-  SchemaDefinition,
+  EntityDefinition,
 } from "../types/schema";
 
 // ── Constants ────────────────────────────────────────────────
@@ -168,7 +168,7 @@ export interface MaskRecordOptions {
  */
 export function maskRecord(
   record: Record<string, unknown>,
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   options?: MaskRecordOptions,
 ): Record<string, unknown> {
   const result = { ...record };
@@ -204,7 +204,7 @@ export function maskRecord(
  */
 export function maskRecords(
   records: Record<string, unknown>[],
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   options?: MaskRecordOptions,
 ): Record<string, unknown>[] {
   return records.map((r) => maskRecord(r, schema, options));

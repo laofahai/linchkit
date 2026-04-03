@@ -94,9 +94,9 @@ name jsonb  -- {"en": "Purchase Order", "zh-CN": "采购订单"}
 ### 3.1 Marking Fields as Translatable
 
 ```typescript
-import { defineSchema } from '@linchkit/core'
+import { defineEntity } from '@linchkit/core'
 
-export const product = defineSchema({
+export const product = defineEntity({
   name: 'product',
   label: 't:schema.product',
 
@@ -121,7 +121,7 @@ export const product = defineSchema({
 Already implemented in `packages/core/src/types/schema.ts`:
 
 ```typescript
-// SchemaI18nConfig — on SchemaDefinition.i18n
+// SchemaI18nConfig — on EntityDefinition.i18n
 interface SchemaI18nConfig {
   defaultLocale?: string
   supportedLocales?: string[]

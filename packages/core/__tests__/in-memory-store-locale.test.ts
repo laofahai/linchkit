@@ -4,9 +4,9 @@
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { InMemoryStore } from "../src/persistence/in-memory-store";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   i18n: { defaultLocale: "en" },

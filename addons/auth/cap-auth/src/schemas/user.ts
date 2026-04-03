@@ -5,9 +5,9 @@
  * status (managed by user_lifecycle state machine), and group assignments.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const userSchema = defineSchema({
+export const userSchema = defineEntity({
   name: "user",
   label: "User",
   description: "System user account",

@@ -69,7 +69,7 @@ export {
   checkCommitMessages,
   checkFileNaming,
   checkImportPatterns,
-  checkSchemaDefinitions,
+  checkEntityDefinitions,
   type DirectoryEntry,
   type ExportBoundaryConfig,
   type FileContent,

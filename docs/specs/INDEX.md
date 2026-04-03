@@ -21,14 +21,14 @@ LinchKit 的 9 个一等公民构建块。
 
 | # | 标题 | 摘要 | 里程碑 | 状态 |
 |---|------|------|--------|------|
-| [03](./03_schema.md) | Schema | `defineSchema()` — 字段定义、系统字段、展示配置、用途 | M0 | 完成 |
+| [03](./03_schema.md) | Schema | `defineEntity()` — 字段定义、系统字段、展示配置、用途 | M0 | 完成 |
 | [04](./04_action.md) | Action | `defineAction()` — CRUD + 自定义操作、handler、限流、幂等 | M0 | 完成 |
 | [05](./05_rule.md) | Rule | `defineRule()` — 校验/门控/副作用/审批，条件表达式，优先级 | M0 | 完成 |
 | [06](./06_state.md) | State | `defineState()` — 状态机、转移、守卫 | M0 | 完成 |
 | [07](./07_event.md) | Event | `defineEvent()` — 领域事件、命名规范、Payload 定义 | M0 | 完成 |
 | [08](./08_event_handler_and_queue.md) | EventHandler 与队列 | `defineEventHandler()` — 同步/异步、重试、死信、顺序保证 | M0 | 完成 |
-| [46](./46_link_type.md) | Link 类型 | `defineLink()` — 关系作为一等公民，FK/中间表，双向导航 | M2 | 完成 |
-| [47](./47_schema_interface.md) | Schema 接口 | `defineSchemaInterface()` — 可复用字段契约，合规校验 | M2 | 完成 |
+| [46](./46_link_type.md) | Link 类型 | `defineRelation()` — 关系作为一等公民，FK/中间表，双向导航 | M2 | 完成 |
+| [47](./47_schema_interface.md) | Schema 接口 | `defineEntityInterface()` — 可复用字段契约，合规校验 | M2 | 完成 |
 | [48](./48_derived_properties.md) | 派生属性 | `derived` 配置的计算字段，查询时求值 | M2 | 完成 |
 | [49](./49_schema_inheritance.md) | Schema 继承 | 单父继承 `extends`，字段/Action/Rule/State 继承链 | M2 | 完成 |
 

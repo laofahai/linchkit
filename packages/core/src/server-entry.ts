@@ -4,7 +4,7 @@
  * Runtime engines, database, Drizzle ORM, event bus, flow, observability, AI.
  * NOT safe for browser — requires Node/Bun runtime.
  *
- * Usage: import { createActionExecutor, SchemaRegistry } from "@linchkit/core/server"
+ * Usage: import { createActionExecutor, EntityRegistry } from "@linchkit/core/server"
  */
 
 // === Automation engine ===
@@ -119,9 +119,9 @@ export {
   DerivedPropertyEngine,
 } from "./schema/derived-property";
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
-export { createLinkRegistry, LinkRegistry } from "./schema/link-registry";
+export { createRelationRegistry, RelationRegistry } from "./schema/link-registry";
 export { createInterfaceRegistry, InterfaceRegistry } from "./schema/schema-interface";
-export { createSchemaRegistry, SchemaRegistry } from "./schema/schema-registry";
+export { createEntityRegistry, EntityRegistry } from "./schema/schema-registry";
 export {
   buildColumn,
   buildSystemColumns,
@@ -374,7 +374,7 @@ export {
   type OntologyRegistry,
   type OntologyRegistryDeps,
   type RelationDescriptor,
-  type SchemaDescriptor,
+  type EntityDescriptor,
 } from "./ontology";
 
 // === Life-system: Sense layer (Spec 55) ===

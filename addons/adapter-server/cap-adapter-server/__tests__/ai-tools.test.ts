@@ -3,10 +3,10 @@ import type {
   ActionDefinition,
   DataProvider,
   OntologyRegistry,
-  SchemaDefinition,
-  SchemaRegistry,
+  EntityDefinition,
+  EntityRegistry,
 } from "@linchkit/core";
-import type { SchemaDescriptor } from "@linchkit/core/server";
+import type { EntityDescriptor } from "@linchkit/core/server";
 import { buildTools } from "../src/ai/tools";
 
 // ── Mock factories ──────────────────────────────────────
@@ -33,7 +33,7 @@ function createMockDataProvider(data: Record<string, Record<string, unknown>[]>)
   };
 }
 
-function createMockOntologyRegistry(schemas: SchemaDescriptor[]): OntologyRegistry {
+function createMockOntologyRegistry(schemas: EntityDescriptor[]): OntologyRegistry {
   return {
     describe: (name: string) => schemas.find((s) => s.name === name),
     listSchemas: () => schemas.map((s) => s.name),
@@ -52,17 +52,17 @@ function createMockOntologyRegistry(schemas: SchemaDescriptor[]): OntologyRegist
   } as OntologyRegistry;
 }
 
-function createMockSchemaRegistry(schemas: SchemaDefinition[]): SchemaRegistry {
+function createMockEntityRegistry(schemas: EntityDefinition[]): EntityRegistry {
   return {
     get: (name: string) => schemas.find((s) => s.name === name),
     getAll: () => schemas,
     has: (name: string) => schemas.some((s) => s.name === name),
-  } as unknown as SchemaRegistry;
+  } as unknown as EntityRegistry;
 }
 
 // ── Test data ───────────────────────────────────────────
 
-const productDescriptor: SchemaDescriptor = {
+const productDescriptor: EntityDescriptor = {
   name: "product",
   label: "Product",
   description: "A product in inventory",
@@ -94,7 +94,7 @@ const productDescriptor: SchemaDescriptor = {
   interfaces: [],
 };
 
-const orderDescriptor: SchemaDescriptor = {
+const orderDescriptor: EntityDescriptor = {
   name: "order",
   label: "Order",
   description: "A sales order",
@@ -111,7 +111,7 @@ const orderDescriptor: SchemaDescriptor = {
   interfaces: [],
 };
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   label: "Product",
   fields: {
@@ -164,9 +164,9 @@ describe("buildTools — tool registration", () => {
     expect(tools.searchSchemas).toBeDefined();
   });
 
-  test("falls back to schemaRegistry describeSchema when no ontologyRegistry", () => {
-    const sr = createMockSchemaRegistry([productSchema]);
-    const tools = buildTools({ schemaRegistry: sr });
+  test("falls back to entityRegistry describeSchema when no ontologyRegistry", () => {
+    const sr = createMockEntityRegistry([productSchema]);
+    const tools = buildTools({ entityRegistry: sr });
     expect(tools.describeSchema).toBeDefined();
     // listSchemas and searchSchemas are NOT available without ontology
     expect(tools.listSchemas).toBeUndefined();
@@ -383,12 +383,12 @@ describe("describeSchema tool — with OntologyRegistry", () => {
   });
 });
 
-// ── describeSchema tool (SchemaRegistry fallback) ────────
+// ── describeSchema tool (EntityRegistry fallback) ────────
 
-describe("describeSchema tool — SchemaRegistry fallback", () => {
-  test("returns basic schema info from SchemaRegistry", async () => {
-    const sr = createMockSchemaRegistry([productSchema]);
-    const tools = buildTools({ schemaRegistry: sr });
+describe("describeSchema tool — EntityRegistry fallback", () => {
+  test("returns basic schema info from EntityRegistry", async () => {
+    const sr = createMockEntityRegistry([productSchema]);
+    const tools = buildTools({ entityRegistry: sr });
     const result = await tools.describeSchema.execute({ name: "product" });
 
     expect(result.name).toBe("product");
@@ -397,8 +397,8 @@ describe("describeSchema tool — SchemaRegistry fallback", () => {
   });
 
   test("returns error for unknown schema", async () => {
-    const sr = createMockSchemaRegistry([]);
-    const tools = buildTools({ schemaRegistry: sr });
+    const sr = createMockEntityRegistry([]);
+    const tools = buildTools({ entityRegistry: sr });
     const result = await tools.describeSchema.execute({ name: "missing" });
 
     expect(result.error).toContain("not found");

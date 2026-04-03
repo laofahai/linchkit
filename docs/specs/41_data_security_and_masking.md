@@ -169,7 +169,7 @@ type MaskingFormat =
 ### 3.5 完整示例
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'customer',
   fields: {
     name: {
@@ -311,7 +311,7 @@ const customerTable = pgTable('customer', {
 - 支持精确匹配（eq），不支持范围、模糊查询
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'customer',
   fields: {
     id_number: {
@@ -355,7 +355,7 @@ interface MaskingEngine {
    */
   applyMasking(
     record: Record<string, unknown>,
-    schema: SchemaDefinition,
+    schema: EntityDefinition,
     actor: Actor,
   ): Record<string, unknown>
 

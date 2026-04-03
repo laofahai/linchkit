@@ -153,7 +153,7 @@ M1b: Ecosystem + AI (~6 weeks)
 | 1.3 | System tables definition (executions, events, approvals, outbox) in `_linchkit` PostgreSQL schema (`pgSchema("_linchkit")`) | `core/src/engine/system-tables.ts` (new) | S | 1.1 |
 | 1.4 | `DrizzleExecutionLogger` implementing `ExecutionLogger` interface | `core/src/engine/drizzle-execution-logger.ts` (new) | M | 1.1, 1.3 |
 | 1.5 | `DrizzleApprovalStore` implementing `ApprovalStore` interface | `core/src/engine/drizzle-approval-store.ts` (new) | M | 1.1, 1.3 |
-| 1.6 | `TableRegistry`: schema name → Drizzle table mapping, auto-build from SchemaRegistry | `core/src/engine/table-registry.ts` (new) | M | 1.2 |
+| 1.6 | `TableRegistry`: schema name → Drizzle table mapping, auto-build from EntityRegistry | `core/src/engine/table-registry.ts` (new) | M | 1.2 |
 
 **Architecture decisions:**
 - **Database**: PostgreSQL only (JSONB, partitioning, Outbox all depend on PG)
@@ -164,8 +164,8 @@ M1b: Ecosystem + AI (~6 weeks)
 
 | Task | Description | New/Modify | Size | Dep |
 |------|-------------|------------|------|-----|
-| 2.1 | Dev mode auto-sync: collect SchemaDefinitions → `drizzle-kit generate` + `migrate()` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
-| 2.2 | Dynamic drizzle config: generate `.generated/schema.ts` from SchemaDefinitions for drizzle-kit | Script or utility | S | 2.1 |
+| 2.1 | Dev mode auto-sync: collect EntityDefinitions → `drizzle-kit generate` + `migrate()` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
+| 2.2 | Dynamic drizzle config: generate `.generated/schema.ts` from EntityDefinitions for drizzle-kit | Script or utility | S | 2.1 |
 
 **Dev mode**: `drizzle-kit generate` → `migrate()` from `drizzle-orm/postgres-js/migrator` (dev can reset: drop DB + delete migrations + regenerate)
 **Production mode**: `drizzle-kit generate` → migration SQL → `migrate()` (append-only, never delete applied migrations)
@@ -257,7 +257,7 @@ Stage 4 (Events)                   │
 | 1.3 | Enhanced MCP tools: `list_capabilities`, `get_rules`, `get_state_machine`, `create_proposal`, `query` (GraphQL proxy) | M | 1.1 |
 | 1.4 | MCP SSE Transport via Elysia route | M | 1.1 |
 
-**Architecture decision**: Extend `TransportContext` to include all registries (schemaRegistry, actionRegistry, etc.) — MCP introspection tools need direct registry access.
+**Architecture decision**: Extend `TransportContext` to include all registries (entityRegistry, actionRegistry, etc.) — MCP introspection tools need direct registry access.
 
 ### Phase 2 — Flow Engine AI Integration
 
@@ -291,7 +291,7 @@ Stage 4 (Events)                   │
 
 | Task | Description | Size | Dep |
 |------|-------------|------|-----|
-| 5.1 | `BaseFieldDefinition.translatable?: boolean` + `SchemaDefinition.i18n` config | S | — |
+| 5.1 | `BaseFieldDefinition.translatable?: boolean` + `EntityDefinition.i18n` config | S | — |
 | 5.2 | Schema-to-Drizzle: translatable fields → JSONB column generation | M | 5.1 |
 | 5.3 | Action Engine: translatable value read/write (locale resolution + fallback chain) | M | 5.2 |
 | 5.4 | GraphQL: `_i18n` field type + `locale` query parameter for translatable fields | M | 5.3 |
@@ -347,6 +347,6 @@ Stage 4 (Events)                   │
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
 | Restate server unavailable in prod | Durable Flow unavailable | Low | Dual-mode: sync fallback executes flows without durability; Restate is a single binary with no external deps |
-| Drizzle dynamic table TypeScript issues | DrizzleDataProvider dev friction | Low | Use `any` bridge, runtime safety via SchemaDefinition |
+| Drizzle dynamic table TypeScript issues | DrizzleDataProvider dev friction | Low | Use `any` bridge, runtime safety via EntityDefinition |
 | PostgreSQL adds DX complexity | Slower onboarding | Low | `docker-compose.yml`; InMemory mode preserved for prototyping |
 | MCP SDK breaking changes | Adapter rework | Low | Pin SDK version; SSE as optional transport |

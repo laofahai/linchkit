@@ -1,7 +1,7 @@
 /**
  * Schema-to-Drizzle generator
  *
- * Converts a LinchKit SchemaDefinition into a Drizzle pgTable definition
+ * Converts a LinchKit EntityDefinition into a Drizzle pgTable definition
  * for database schema generation and query building.
  */
 
@@ -17,8 +17,8 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
-import type { LinkDefinition } from "../types/link";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { RelationDefinition } from "../types/link";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 
 export interface DrizzleGeneratorOptions {
   /** Table name prefix (e.g., for multi-tenancy) */
@@ -40,11 +40,11 @@ function isRelationshipField(
 
 /**
  * Convert relationship fields (ref, has_many, many_to_many) from Schema fields
- * to implicit LinkDefinition objects.
+ * to implicit RelationDefinition objects.
  *
  * This implements the "implicit link auto-promotion" feature: existing schema
  * field relationships are automatically promoted to first-class Link objects
- * and merged with explicit defineLink declarations.
+ * and merged with explicit defineRelation declarations.
  *
  * If there's a name conflict, explicit links win and a warning is logged.
  *
@@ -52,15 +52,15 @@ function isRelationshipField(
  * @param explicitLinks - Explicitly defined links (for conflict detection)
  */
 export function convertSchemaRelationshipFieldsToImplicitLinks(
-  schemas: SchemaDefinition[],
-  explicitLinks: LinkDefinition[],
+  schemas: EntityDefinition[],
+  explicitLinks: RelationDefinition[],
 ): {
-  implicitLinks: LinkDefinition[];
-  conflicts: Array<{ name: string; explicit: LinkDefinition; implicit: LinkDefinition }>;
+  implicitLinks: RelationDefinition[];
+  conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }>;
   missingTargets: Array<{ schemaName: string; fieldName: string; target: string }>;
 } {
-  const implicitLinks: LinkDefinition[] = [];
-  const conflicts: Array<{ name: string; explicit: LinkDefinition; implicit: LinkDefinition }> = [];
+  const implicitLinks: RelationDefinition[] = [];
+  const conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }> = [];
   const missingTargets: Array<{ schemaName: string; fieldName: string; target: string }> = [];
 
   // Build a set of existing explicit link names for conflict detection
@@ -74,7 +74,7 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
     for (const [fieldName, field] of Object.entries(schema.fields)) {
       if (!isRelationshipField(field)) continue;
 
-      const cardinality: LinkDefinition["cardinality"] =
+      const cardinality: RelationDefinition["cardinality"] =
         field.type === "ref"
           ? "many_to_one"
           : field.type === "has_many"
@@ -253,7 +253,7 @@ export function buildSystemColumns(): Record<string, any> {
  * passed to `pgTable()`.
  */
 // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
-export function buildTableColumns(schema: SchemaDefinition): Record<string, any> {
+export function buildTableColumns(schema: EntityDefinition): Record<string, any> {
   const columns = buildSystemColumns();
 
   for (const [fieldName, field] of Object.entries(schema.fields)) {
@@ -272,10 +272,10 @@ export function buildTableColumns(schema: SchemaDefinition): Record<string, any>
 }
 
 /**
- * Generate a Drizzle pgTable definition from a LinchKit SchemaDefinition.
+ * Generate a Drizzle pgTable definition from a LinchKit EntityDefinition.
  */
 export function generateDrizzleTable(
-  schema: SchemaDefinition,
+  schema: EntityDefinition,
   options?: DrizzleGeneratorOptions,
 ): ReturnType<typeof pgTable> {
   const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
@@ -297,7 +297,7 @@ export interface LinkColumnsResult {
 }
 
 /**
- * Generate FK columns and junction tables from LinkDefinitions.
+ * Generate FK columns and junction tables from RelationDefinitions.
  *
  * - many_to_one / one_to_one: adds `{to}_id` FK column on the `from` table
  * - one_to_many: adds `{from}_id` FK column on the `to` table
@@ -308,7 +308,7 @@ export interface LinkColumnsResult {
  * @param options - Generator options (table prefix, etc.)
  */
 export function generateLinkColumns(
-  links: LinkDefinition[],
+  links: RelationDefinition[],
   tableMap: Record<string, ReturnType<typeof pgTable>>,
   options?: DrizzleGeneratorOptions,
 ): LinkColumnsResult {

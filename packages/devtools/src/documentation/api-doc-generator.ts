@@ -11,7 +11,7 @@ import type {
   FieldDefinition,
   OntologyRegistry,
   RelationDescriptor,
-  SchemaDescriptor,
+  EntityDescriptor,
 } from "@linchkit/core";
 
 // -- Structured doc types -------------------------------------------------
@@ -142,8 +142,8 @@ export function actionToDoc(action: ActionDefinition): ActionDoc {
   };
 }
 
-/** Convert a SchemaDescriptor to a SchemaDoc */
-export function schemaToDoc(descriptor: SchemaDescriptor): SchemaDoc {
+/** Convert a EntityDescriptor to a SchemaDoc */
+export function schemaToDoc(descriptor: EntityDescriptor): SchemaDoc {
   const fields = Object.entries(descriptor.fields).map(([name, field]) => fieldToDoc(name, field));
 
   const actions = descriptor.actions.map(actionToDoc);

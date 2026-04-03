@@ -4,14 +4,14 @@ import {
   defineCapability,
   defineEventHandler,
   defineRule,
-  defineSchema,
+  defineEntity,
   defineState,
   defineView,
 } from "../src";
 
-describe("defineSchema", () => {
+describe("defineEntity", () => {
   it("should return schema definition with fields", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "purchase_request",
       label: "采购申请",
       fields: {
@@ -30,7 +30,7 @@ describe("defineSchema", () => {
   });
 
   it("should support exposure config", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "employee",
       fields: {
         name: { type: "string" },
@@ -224,7 +224,7 @@ describe("defineCapability", () => {
       category: "business",
       version: "1.0.0",
       schemas: [
-        defineSchema({
+        defineEntity({
           name: "purchase_request",
           fields: { title: { type: "string" } },
         }),

@@ -5,7 +5,7 @@
  * Clicking a record navigates to its detail page.
  */
 
-import type { LinkDefinition } from "@linchkit/core/types";
+import type { RelationDefinition } from "@linchkit/core/types";
 import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@linchkit/ui-kit/components";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -15,7 +15,7 @@ import { graphql } from "../lib/api";
 interface RelatedRecordsPanelProps {
   schemaName: string;
   recordId: string;
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   /** When true, renders without the outer card wrapper (for embedding in parent tabs). */
   bare?: boolean;
 }
@@ -29,7 +29,7 @@ interface LinkTab {
 }
 
 /** Derive tab definitions from link definitions for a given schema */
-function deriveLinkTabs(schemaName: string, links: LinkDefinition[]): LinkTab[] {
+function deriveLinkTabs(schemaName: string, links: RelationDefinition[]): LinkTab[] {
   const tabs: LinkTab[] = [];
 
   for (const link of links) {

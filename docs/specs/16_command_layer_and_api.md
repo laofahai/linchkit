@@ -37,7 +37,7 @@ interface CommandRegistry {
   // --- Capability 查询 ---
   list_capabilities: () => Capability[]
   get_capability: (name: string) => CapabilityDetail
-  get_schema: (name: string) => SchemaDefinition
+  get_schema: (name: string) => EntityDefinition
   get_actions: (capability: string) => ActionDefinition[]
   get_rules: (capability: string) => RuleDefinition[]
   get_state_machine: (name: string) => StateDefinition
@@ -408,7 +408,7 @@ CLI 启动时读取 `linchkit.config.ts`，从 capabilities 的 `extensions.comm
 Schema 定义自动生成 GraphQL types + queries：
 
 ```
-defineSchema('purchase_request', { fields: { ... } })
+defineEntity('purchase_request', { fields: { ... } })
     ↓ 自动生成
 type PurchaseRequest {
   id: ID!

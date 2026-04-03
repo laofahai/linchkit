@@ -51,7 +51,7 @@ describe("templates", () => {
   test("agentsMdTemplate includes project name", () => {
     const result = agentsMdTemplate("test-project");
     expect(result).toContain("# test-project");
-    expect(result).toContain("defineSchema()");
+    expect(result).toContain("defineEntity()");
   });
 });
 

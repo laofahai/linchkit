@@ -5,19 +5,19 @@
  * rules, flows, state machines, proposals) so they can be rendered through
  * the standard schema/view/extension UI mechanism.
  *
- * All system schemas are registered via `schemaRegistry.registerInternal()`,
+ * All system schemas are registered via `entityRegistry.registerInternal()`,
  * making them read-only in the UI. Data comes from system tables or
  * in-memory registries via SystemDataProvider.
  */
 
-import type { SchemaDefinition, ViewDefinition } from "@linchkit/core";
+import type { EntityDefinition, ViewDefinition } from "@linchkit/core";
 
 /** Shorthand to build enum options from plain string values */
 const opts = (...values: string[]) => values.map((value) => ({ value }));
 
 // ── Execution Log ─────────────────────────────────────────
 
-export const executionLogSchema: SchemaDefinition = {
+export const executionLogSchema: EntityDefinition = {
   name: "execution_log",
   label: "t:schemas.execution_log._label",
   description: "Action execution history with status, duration, and audit trail",
@@ -121,7 +121,7 @@ export const executionLogListView: ViewDefinition = {
 
 // ── Approval ──────────────────────────────────────────────
 
-export const approvalSchema: SchemaDefinition = {
+export const approvalSchema: EntityDefinition = {
   name: "approval",
   label: "t:schemas.approval._label",
   description: "Approval requests requiring human decision",
@@ -231,7 +231,7 @@ export const approvalListView: ViewDefinition = {
 
 // ── Rule ──────────────────────────────────────────────────
 
-export const ruleSchema: SchemaDefinition = {
+export const ruleSchema: EntityDefinition = {
   name: "rule",
   label: "t:schemas.rule._label",
   description: "Business rules that validate, guard, or enrich actions",
@@ -305,7 +305,7 @@ export const ruleListView: ViewDefinition = {
 
 // ── Flow ──────────────────────────────────────────────────
 
-export const flowSchema: SchemaDefinition = {
+export const flowSchema: EntityDefinition = {
   name: "flow",
   label: "t:schemas.flow._label",
   description: "Workflow definitions with steps and triggers",
@@ -375,7 +375,7 @@ export const flowListView: ViewDefinition = {
 
 // ── State Machine ─────────────────────────────────────────
 
-export const stateMachineSchema: SchemaDefinition = {
+export const stateMachineSchema: EntityDefinition = {
   name: "state_machine",
   label: "t:schemas.state_machine._label",
   description: "State machine definitions with states and transitions",
@@ -456,7 +456,7 @@ export const stateMachineListView: ViewDefinition = {
 
 // ── Proposal ──────────────────────────────────────────────
 
-export const proposalSchema: SchemaDefinition = {
+export const proposalSchema: EntityDefinition = {
   name: "proposal",
   label: "t:schemas.proposal._label",
   description: "AI evolution proposals for schema and capability changes",
@@ -577,7 +577,7 @@ export const INTERNAL_SCHEMA_NAMES = new Set([
 
 // ── Aggregated exports ────────────────────────────────────
 
-export const systemSchemas: SchemaDefinition[] = [
+export const systemSchemas: EntityDefinition[] = [
   executionLogSchema,
   approvalSchema,
   ruleSchema,

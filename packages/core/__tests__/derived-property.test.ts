@@ -13,7 +13,7 @@ import {
 } from "../src/schema/derived-property";
 import { buildTableColumns } from "../src/schema/schema-to-drizzle";
 import { generateZodSchema } from "../src/schema/schema-to-zod";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 // ── evaluateExpression ────────────────────────────────────────
 
@@ -174,7 +174,7 @@ describe("resolveDerivedValue", () => {
 // ── DerivedPropertyEngine ─────────────────────────────────────
 
 describe("DerivedPropertyEngine", () => {
-  function makeSchema(overrides?: Partial<SchemaDefinition>): SchemaDefinition {
+  function makeSchema(overrides?: Partial<EntityDefinition>): EntityDefinition {
     return {
       name: "order",
       fields: {
@@ -255,7 +255,7 @@ describe("DerivedPropertyEngine", () => {
   });
 
   test("circular dependency detection", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "circular",
       fields: {
         a: {
@@ -284,7 +284,7 @@ describe("DerivedPropertyEngine", () => {
   });
 
   test("topological ordering — chained derived fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "invoice",
       fields: {
         price: { type: "number" },
@@ -330,7 +330,7 @@ describe("DerivedPropertyEngine", () => {
   });
 
   test("function derived in compute strategy", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "task",
       fields: {
         status: { type: "string" },
@@ -361,7 +361,7 @@ describe("DerivedPropertyEngine", () => {
   });
 
   test("multiple schemas", () => {
-    const schemas: SchemaDefinition[] = [
+    const schemas: EntityDefinition[] = [
       {
         name: "product",
         fields: {
@@ -411,7 +411,7 @@ describe("DerivedPropertyEngine", () => {
   });
 
   test("default strategy is store", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         a: { type: "number" },
@@ -439,7 +439,7 @@ describe("DerivedPropertyEngine", () => {
 
 describe("Zod schema excludes derived fields", () => {
   test("derived fields not in Zod schema shape", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "order",
       fields: {
         price: { type: "number" },
@@ -470,7 +470,7 @@ describe("Zod schema excludes derived fields", () => {
 
 describe("Drizzle column generation for derived fields", () => {
   test("store-strategy derived fields get DB columns", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "order",
       fields: {
         price: { type: "number" },
@@ -491,7 +491,7 @@ describe("Drizzle column generation for derived fields", () => {
   });
 
   test("compute-strategy derived fields do NOT get DB columns", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "order",
       fields: {
         price: { type: "number" },

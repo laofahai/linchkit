@@ -5,7 +5,7 @@
  * Supports dry-run mode, resume from last processed offset, and progress tracking.
  */
 
-import type { SchemaDefinition } from "@linchkit/core";
+import type { EntityDefinition } from "@linchkit/core";
 import {
   DataImporter,
   type DataImporterOptions,
@@ -24,7 +24,7 @@ export interface MigrationPlan {
   /** The import source */
   source: ImportSource;
   /** Target schema definition */
-  targetSchema: SchemaDefinition;
+  targetSchema: EntityDefinition;
   /** Field mappings from source → target */
   mappings: FieldMapping[];
   /** Writer function that persists a mapped record */

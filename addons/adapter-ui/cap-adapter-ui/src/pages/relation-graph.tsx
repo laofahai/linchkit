@@ -31,7 +31,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { LinkDefinition, SemanticRelation } from "@linchkit/core/types";
+import type { RelationDefinition, SemanticRelation } from "@linchkit/core/types";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import dagre from "dagre";
@@ -377,8 +377,8 @@ const edgeTypes = { semantic: SemanticEdge, structural: StructuralEdge };
  */
 function findMatchingLink(
   rel: SemanticRelation,
-  links: LinkDefinition[],
-): LinkDefinition | undefined {
+  links: RelationDefinition[],
+): RelationDefinition | undefined {
   if (!rel.from.schema || !rel.to.schema) return undefined;
   return links.find(
     (l) =>
@@ -391,7 +391,7 @@ function findMatchingLink(
 
 function buildGraph(
   schemas: SchemaInfo[],
-  links: LinkDefinition[],
+  links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   showInternal: boolean,
   showSemantic: boolean,
@@ -558,7 +558,7 @@ interface ImpactEntry {
 function computeImpact(
   selectedSchema: string,
   schemas: SchemaInfo[],
-  links: LinkDefinition[],
+  links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   resolveLabel: (label: string | undefined, fallback: string) => string,
 ): ImpactEntry[] {
@@ -633,7 +633,7 @@ function computeImpact(
 interface ImpactPanelProps {
   selectedSchema: string;
   schemas: SchemaInfo[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   onNavigate: (name: string) => void;
   onClose: () => void;
@@ -975,7 +975,7 @@ function GraphLegend({ activeSemanticTypes, hasOrphanLinks }: GraphLegendProps) 
 
 interface GraphCanvasProps {
   schemas: SchemaInfo[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   showInternal: boolean;
   showSemantic: boolean;

@@ -16,11 +16,11 @@ import {
 } from "graphql";
 import { generateGraphQLObjectType } from "../../../addons/adapter-server/cap-adapter-server/src/graphql/schema-to-graphql";
 import { generateDrizzleTable, generateLinkColumns } from "../src/schema/schema-to-drizzle";
-import type { LinkDefinition, SchemaDefinition } from "../src/types";
+import type { RelationDefinition, EntityDefinition } from "../src/types";
 
 // ── Test fixtures ──────────────────────────────────────────
 
-const departmentSchema: SchemaDefinition = {
+const departmentSchema: EntityDefinition = {
   name: "department",
   label: "Department",
   fields: {
@@ -28,7 +28,7 @@ const departmentSchema: SchemaDefinition = {
   },
 };
 
-const employeeSchema: SchemaDefinition = {
+const employeeSchema: EntityDefinition = {
   name: "employee",
   label: "Employee",
   fields: {
@@ -37,7 +37,7 @@ const employeeSchema: SchemaDefinition = {
   },
 };
 
-const projectSchema: SchemaDefinition = {
+const projectSchema: EntityDefinition = {
   name: "project",
   label: "Project",
   fields: {
@@ -45,7 +45,7 @@ const projectSchema: SchemaDefinition = {
   },
 };
 
-const profileSchema: SchemaDefinition = {
+const profileSchema: EntityDefinition = {
   name: "profile",
   label: "Profile",
   fields: {
@@ -100,7 +100,7 @@ describe("generateLinkColumns", () => {
   // ── many_to_one ──────────────────────────────────────────
 
   describe("many_to_one", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",
@@ -137,7 +137,7 @@ describe("generateLinkColumns", () => {
   // ── one_to_many ──────────────────────────────────────────
 
   describe("one_to_many", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "department_employees",
       from: "department",
       to: "employee",
@@ -162,7 +162,7 @@ describe("generateLinkColumns", () => {
   // ── one_to_one ──────────────────────────────────────────
 
   describe("one_to_one", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_profile",
       from: "employee",
       to: "profile",
@@ -194,7 +194,7 @@ describe("generateLinkColumns", () => {
   // ── many_to_many ──────────────────────────────────────────
 
   describe("many_to_many", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_project",
       from: "employee",
       to: "project",
@@ -248,7 +248,7 @@ describe("generateLinkColumns", () => {
   // ── M:N properties ──────────────────────────────────────────
 
   describe("many_to_many with properties", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_project_with_role",
       from: "employee",
       to: "project",
@@ -279,7 +279,7 @@ describe("generateLinkColumns", () => {
 
   describe("cascade behavior", () => {
     test("cascade: 'delete' sets onDelete cascade on many_to_one FK", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "employee_department_cascade",
         from: "employee",
         to: "department",
@@ -298,7 +298,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("cascade: 'nullify' sets onDelete set null on many_to_one FK", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "employee_department_nullify",
         from: "employee",
         to: "department",
@@ -316,7 +316,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("cascade: 'delete' on one_to_many FK", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "dept_emp_cascade",
         from: "department",
         to: "employee",
@@ -334,7 +334,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("cascade: 'delete' on many_to_many junction table FKs", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "emp_proj_cascade",
         from: "employee",
         to: "project",
@@ -356,7 +356,7 @@ describe("generateLinkColumns", () => {
 
   describe("table prefix", () => {
     test("FK column table names include prefix", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "employee_department",
         from: "employee",
         to: "department",
@@ -372,7 +372,7 @@ describe("generateLinkColumns", () => {
     });
 
     test("junction table name includes prefix", () => {
-      const link: LinkDefinition = {
+      const link: RelationDefinition = {
         name: "emp_proj",
         from: "employee",
         to: "project",
@@ -390,7 +390,7 @@ describe("generateLinkColumns", () => {
   // ── required FK ──────────────────────────────────────────
 
   test("required: true makes FK column notNull", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_department_required",
       from: "employee",
       to: "department",
@@ -408,7 +408,7 @@ describe("generateLinkColumns", () => {
   // ── Missing table in tableMap ──────────────────────────────
 
   test("skips link when referenced table is not in tableMap", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_unknown",
       from: "employee",
       to: "nonexistent",
@@ -430,7 +430,7 @@ describe("GraphQL link field generation", () => {
   // ── many_to_one ──────────────────────────────────────────
 
   describe("many_to_one", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",
@@ -483,7 +483,7 @@ describe("GraphQL link field generation", () => {
   // ── one_to_many ──────────────────────────────────────────
 
   describe("one_to_many", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "department_employees",
       from: "department",
       to: "employee",
@@ -540,7 +540,7 @@ describe("GraphQL link field generation", () => {
   // ── one_to_one ──────────────────────────────────────────
 
   describe("one_to_one", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_profile",
       from: "employee",
       to: "profile",
@@ -578,7 +578,7 @@ describe("GraphQL link field generation", () => {
   // ── many_to_many ──────────────────────────────────────────
 
   describe("many_to_many", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_project",
       from: "employee",
       to: "project",
@@ -613,7 +613,7 @@ describe("GraphQL link field generation", () => {
   // ── Resolver graceful degradation ──────────────────────────
 
   describe("resolver behavior without dataProvider", () => {
-    const link: LinkDefinition = {
+    const link: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",

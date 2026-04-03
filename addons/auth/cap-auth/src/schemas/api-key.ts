@@ -5,9 +5,9 @@
  * scripts, and external systems. Per spec 10a_authentication.md ApiKeyRecord.
  */
 
-import { defineSchema } from "@linchkit/core";
+import { defineEntity } from "@linchkit/core";
 
-export const apiKeySchema = defineSchema({
+export const apiKeySchema = defineEntity({
   name: "api_key",
   label: "API Key",
   description: "API key for programmatic access",
@@ -36,7 +36,7 @@ export const apiKeySchema = defineSchema({
       type: "string",
       label: "Owner",
       required: true,
-      description: "Foreign key to user (relationship managed via defineLink)",
+      description: "Foreign key to user (relationship managed via defineRelation)",
     },
     tenant_id: {
       type: "string",

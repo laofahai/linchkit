@@ -71,7 +71,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         authEnabled,
       } = await createMcpAdapter({
         commandLayer: ctx.commandLayer,
-        schemaRegistry: ctx.schemaRegistry,
+        entityRegistry: ctx.entityRegistry,
         actionRegistry: ctx.executor.registry,
         ontologyRegistry: ctx.ontologyRegistry,
         aiBoundary: ctx.aiBoundary,
@@ -115,7 +115,7 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
 
       const adapterOptions = {
         commandLayer: ctx.commandLayer,
-        schemaRegistry: ctx.schemaRegistry,
+        entityRegistry: ctx.entityRegistry,
         actionRegistry: ctx.executor.registry,
         ontologyRegistry: ctx.ontologyRegistry,
         aiBoundary: ctx.aiBoundary,

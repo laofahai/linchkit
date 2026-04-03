@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { generateDrizzleTable } from "../src/schema/schema-to-drizzle";
-import type { SchemaDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/schema";
 
 /** Helper: get column config by name from a table */
 function getColumn(table: ReturnType<typeof generateDrizzleTable>, name: string) {
@@ -11,7 +11,7 @@ function getColumn(table: ReturnType<typeof generateDrizzleTable>, name: string)
 }
 
 describe("generateDrizzleTable", () => {
-  const simpleSchema: SchemaDefinition = {
+  const simpleSchema: EntityDefinition = {
     name: "task",
     fields: {
       title: { type: "string", required: true, label: "Title" },
@@ -25,7 +25,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("string field maps to varchar", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         code: { type: "string", required: true, max: 100 },
@@ -40,7 +40,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("string field without max defaults to varchar(255)", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         name: { type: "string" },
@@ -54,7 +54,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("text field maps to text", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         description: { type: "text" },
@@ -67,7 +67,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("number field maps to numeric", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         amount: { type: "number", required: true },
@@ -80,7 +80,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("boolean field maps to boolean", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         active: { type: "boolean" },
@@ -93,7 +93,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("date field maps to date", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         start_date: { type: "date" },
@@ -106,7 +106,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("datetime field maps to timestamp", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         event_time: { type: "datetime" },
@@ -119,7 +119,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("enum field maps to varchar", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         priority: {
@@ -135,7 +135,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("json field maps to jsonb", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         metadata: { type: "json" },
@@ -148,7 +148,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("state field maps to varchar", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         status: { type: "state", machine: "order_lifecycle" },
@@ -199,7 +199,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("computed fields are skipped", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string", required: true },
@@ -219,7 +219,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("required fields have notNull", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         name: { type: "string", required: true },
@@ -233,7 +233,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("unique fields have unique constraint", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         email: { type: "string", required: true, unique: true },
@@ -252,7 +252,7 @@ describe("generateDrizzleTable", () => {
   // ── Translatable field tests ──────────────────────────────
 
   test("translatable string field generates jsonb column", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         name: { type: "string", required: true, translatable: true },
@@ -266,7 +266,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("translatable text field generates jsonb column", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         description: { type: "text", translatable: true },
@@ -279,7 +279,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("translatable enum field generates jsonb column", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         category_label: {
@@ -296,7 +296,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("non-translatable fields remain unchanged alongside translatable ones", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         name: { type: "string", required: true, translatable: true },
@@ -328,7 +328,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("translatable field with unique constraint is preserved", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         slug: { type: "string", translatable: true, unique: true },
@@ -341,7 +341,7 @@ describe("generateDrizzleTable", () => {
   });
 
   test("translatable flag on non-text type (e.g. number) is ignored", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       fields: {
         price: { type: "number", translatable: true },

@@ -20,7 +20,7 @@ export {
   type CommitInfo,
   checkActionDefinitions,
   checkCommitMessages,
-  checkSchemaDefinitions,
+  checkEntityDefinitions,
   type SchemaInfo,
 } from "./convention-checker";
 export {

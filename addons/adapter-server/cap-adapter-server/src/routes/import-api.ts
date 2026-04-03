@@ -11,7 +11,7 @@ import { resolveActor, resolveRequestLocale } from "./shared";
 export function mountImportRoutes(app: Elysia, options: ServerOptions): void {
   const executor = options.executor;
   const commandLayer = options.commandLayer;
-  const schemaRegistry = options.schemaRegistry;
+  const entityRegistry = options.entityRegistry;
   const resolveRequestActor = options.resolveRequestActor;
 
   app
@@ -23,12 +23,12 @@ export function mountImportRoutes(app: Elysia, options: ServerOptions): void {
         return { success: false, error: { message: "Action executor not configured." } };
       }
 
-      if (!schemaRegistry) {
+      if (!entityRegistry) {
         set.status = 500;
         return { success: false, error: { message: "Schema registry not configured." } };
       }
 
-      const schema = schemaRegistry.get(params.name);
+      const schema = entityRegistry.get(params.name);
       if (!schema) {
         set.status = 404;
         return { success: false, error: { message: `Schema "${params.name}" not found.` } };

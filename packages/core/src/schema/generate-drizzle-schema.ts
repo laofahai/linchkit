@@ -1,7 +1,7 @@
 /**
  * Generate .linchkit/drizzle-schema.generated.ts
  *
- * Serializes SchemaDefinition[] → pgTable → .ts source file.
+ * Serializes EntityDefinition[] → pgTable → .ts source file.
  * This is the single bridge between LinchKit's capability-based schema
  * definitions and drizzle-kit's requirement for static .ts schema files.
  *
@@ -11,8 +11,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import type { LinkDefinition } from "../types/link";
-import type { FieldDefinition, SchemaDefinition } from "../types/schema";
+import type { RelationDefinition } from "../types/link";
+import type { FieldDefinition, EntityDefinition } from "../types/schema";
 import { generateDrizzleTable, generateLinkColumns } from "./schema-to-drizzle";
 
 const DEFAULT_OUTPUT_DIR = ".linchkit";
@@ -40,14 +40,14 @@ export interface GenerateSchemaFileOptions {
 }
 
 /**
- * Generate a Drizzle schema barrel file from SchemaDefinitions.
+ * Generate a Drizzle schema barrel file from EntityDefinitions.
  * Returns the absolute path to the generated file.
  */
 export function generateDrizzleSchemaFile(
-  schemas: SchemaDefinition[],
+  schemas: EntityDefinition[],
   projectRoot: string = process.cwd(),
   options?: GenerateSchemaFileOptions,
-  links: LinkDefinition[] = [],
+  links: RelationDefinition[] = [],
 ): string {
   const outDir = join(projectRoot, options?.outputDir ?? DEFAULT_OUTPUT_DIR);
   const outPath = join(outDir, options?.outputFile ?? DEFAULT_OUTPUT_FILE);
@@ -57,7 +57,7 @@ export function generateDrizzleSchemaFile(
   }
 
   // Build a lookup map for resolving parent schemas (spec 49 inheritance)
-  const schemaMap = new Map<string, SchemaDefinition>();
+  const schemaMap = new Map<string, EntityDefinition>();
   for (const s of schemas) {
     schemaMap.set(s.name, s);
   }
@@ -248,7 +248,7 @@ ${allExports.join("\n\n")}
  * Uses getSQLType() to determine the column's SQL type, then maps back to
  * the drizzle-orm builder function. This avoids duplicating the field-type
  * mapping logic from schema-to-drizzle.ts — we read what Drizzle already
- * computed rather than re-computing from SchemaDefinition.
+ * computed rather than re-computing from EntityDefinition.
  *
  * Known limitations (harmless for current architecture since generated file
  * is only consumed by drizzle-kit for DDL, not for runtime queries):
@@ -345,17 +345,17 @@ function extractSqlString(def: unknown): string | null {
  *
  * Walks up the inheritance chain and merges parent fields into the child.
  * Child fields override parent fields of the same name.
- * Returns a new SchemaDefinition with all inherited fields merged in.
+ * Returns a new EntityDefinition with all inherited fields merged in.
  */
 function flattenInheritedFields(
-  schema: SchemaDefinition,
-  schemaMap: Map<string, SchemaDefinition>,
-): SchemaDefinition {
+  schema: EntityDefinition,
+  schemaMap: Map<string, EntityDefinition>,
+): EntityDefinition {
   if (!schema.extends) return schema;
 
   // Collect the inheritance chain from root ancestor to direct parent
-  const chain: SchemaDefinition[] = [];
-  let current: SchemaDefinition | undefined = schemaMap.get(schema.extends);
+  const chain: EntityDefinition[] = [];
+  let current: EntityDefinition | undefined = schemaMap.get(schema.extends);
   while (current) {
     chain.unshift(current);
     current = current.extends ? schemaMap.get(current.extends) : undefined;

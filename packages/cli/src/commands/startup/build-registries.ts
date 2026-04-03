@@ -9,9 +9,9 @@ import type {
   ConfigRegistry,
   DataProvider,
   InterfaceDefinition,
-  LinkDefinition,
+  RelationDefinition,
   MiddlewareRegistration,
-  SchemaDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 
 interface EnvironmentInfo {
@@ -22,16 +22,16 @@ import {
   ActionRegistry,
   convertSchemaRelationshipFieldsToImplicitLinks,
   createInterfaceRegistry,
-  createLinkRegistry,
+  createRelationRegistry,
   createTenantIsolationMiddleware,
   PermissionRegistry,
-  SchemaRegistry,
+  EntityRegistry,
 } from "@linchkit/core/server";
 
 export interface RegistryBuildResult {
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   actionRegistry: ActionRegistry;
-  linkRegistry: ReturnType<typeof createLinkRegistry>;
+  relationRegistry: ReturnType<typeof createRelationRegistry>;
   interfaceRegistry: ReturnType<typeof createInterfaceRegistry>;
   permissionRegistry: PermissionRegistry;
   /** Implicit links auto-promoted from schema relationship fields */
@@ -41,9 +41,9 @@ export interface RegistryBuildResult {
 export interface RegistryBuildInput {
   capabilities: CapabilityDefinition[];
   interfaces: InterfaceDefinition[];
-  schemas: SchemaDefinition[];
+  schemas: EntityDefinition[];
   actions: ActionDefinition[];
-  links: LinkDefinition[];
+  links: RelationDefinition[];
   middlewares: MiddlewareRegistration[];
   registry: ConfigRegistry;
   environment: EnvironmentInfo;
@@ -102,17 +102,17 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     );
   }
 
-  // Build SchemaRegistry
-  const schemaRegistry = new SchemaRegistry();
-  schemaRegistry.setInterfaceRegistry(interfaceRegistry);
+  // Build EntityRegistry
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.setInterfaceRegistry(interfaceRegistry);
   for (const schema of schemas) {
-    schemaRegistry.register(schema);
+    entityRegistry.register(schema);
   }
 
-  // Build LinkRegistry (explicit + implicit)
-  const linkRegistry = createLinkRegistry();
+  // Build RelationRegistry (explicit + implicit)
+  const relationRegistry = createRelationRegistry();
   for (const link of links) {
-    linkRegistry.register(link);
+    relationRegistry.register(link);
   }
   if (links.length > 0) {
     console.log(
@@ -186,9 +186,9 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
   );
 
   return {
-    schemaRegistry,
+    entityRegistry,
     actionRegistry,
-    linkRegistry,
+    relationRegistry,
     interfaceRegistry,
     permissionRegistry,
     implicitLinkCount: implicitLinks.length,

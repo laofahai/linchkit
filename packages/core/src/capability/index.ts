@@ -27,8 +27,8 @@ export type {
   ExtensionResolver,
   ResolutionConflict,
   RuleOverrideEntry,
-  SchemaExtensionEntry,
-  SchemaOverrideEntry,
+  EntityExtensionEntry,
+  EntityOverrideEntry,
 } from "./extension-resolver";
 export {
   buildActionChain,

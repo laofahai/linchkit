@@ -6,7 +6,7 @@
  * that navigates to create form with FK pre-filled.
  */
 
-import type { LinkDefinition, SchemaDefinition } from "@linchkit/core/types";
+import type { RelationDefinition, EntityDefinition } from "@linchkit/core/types";
 import { Button, Skeleton } from "@linchkit/ui-kit/components";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -25,7 +25,7 @@ interface RelatedRecordsTabProps {
   /** Parent record ID */
   parentId: string;
   /** Link definition describing the one_to_many relationship */
-  link: LinkDefinition;
+  link: RelationDefinition;
 }
 
 // ── Helpers ──────────────────────────────────────────────
@@ -48,7 +48,7 @@ const SYSTEM_FIELDS = new Set([
  * - one_to_many: FK = `{from}_id` on the `to` (child) table
  * - many_to_one: FK = `{to}_id` on the `from` (child) table
  */
-function deriveFkField(link: LinkDefinition, _parentSchema: string): string {
+function deriveFkField(link: RelationDefinition, _parentSchema: string): string {
   if (link.cardinality === "one_to_many") {
     return `${link.from}_id`;
   }
@@ -59,7 +59,7 @@ function deriveFkField(link: LinkDefinition, _parentSchema: string): string {
 }
 
 /** Derive the child schema name from the link */
-function deriveChildSchema(link: LinkDefinition, parentSchema: string): string {
+function deriveChildSchema(link: RelationDefinition, parentSchema: string): string {
   if (link.cardinality === "one_to_many" && link.from === parentSchema) {
     return link.to;
   }
@@ -74,7 +74,7 @@ function deriveChildSchema(link: LinkDefinition, parentSchema: string): string {
  * Generate a list view from child schema fields when no explicit list view is defined.
  * Shows up to 6 fields excluding system and FK fields.
  */
-function generateChildListView(schema: SchemaDefinition, fkField: string): AutoListViewDefinition {
+function generateChildListView(schema: EntityDefinition, fkField: string): AutoListViewDefinition {
   const fieldNames = Object.keys(schema.fields)
     .filter((f) => !SYSTEM_FIELDS.has(f) && f !== fkField)
     .slice(0, 6);

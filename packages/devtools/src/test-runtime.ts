@@ -17,10 +17,10 @@ import type {
   CapabilityDefinition,
   DataProvider,
   EventBus,
-  SchemaDefinition,
-  SchemaRegistry,
+  EntityDefinition,
+  EntityRegistry,
 } from "@linchkit/core";
-import { createActionExecutor, createEventBus, createSchemaRegistry } from "@linchkit/core/server";
+import { createActionExecutor, createEventBus, createEntityRegistry } from "@linchkit/core/server";
 
 // ── InMemoryDataProvider ────────────────────────────────────
 
@@ -78,7 +78,7 @@ function createInMemoryDataProvider(): DataProvider {
 // ── TestRuntime ─────────────────────────────────────────────
 
 export interface TestRuntimeOptions {
-  schemas?: SchemaDefinition[];
+  schemas?: EntityDefinition[];
   actions?: ActionDefinition[];
   capabilities?: CapabilityDefinition[];
 }
@@ -86,7 +86,7 @@ export interface TestRuntimeOptions {
 export interface TestRuntime {
   executor: ActionExecutor;
   dataProvider: DataProvider;
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   eventBus: EventBus;
   actionRegistry: ActionRegistry;
 }
@@ -99,14 +99,14 @@ export interface TestRuntime {
  */
 export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   const dataProvider = createInMemoryDataProvider();
-  const schemaRegistry = createSchemaRegistry();
+  const entityRegistry = createEntityRegistry();
   const { bus: eventBus } = createEventBus();
   const executor = createActionExecutor({ dataProvider });
 
   // Register schemas
   if (options?.schemas) {
     for (const schema of options.schemas) {
-      schemaRegistry.register(schema);
+      entityRegistry.register(schema);
     }
   }
 
@@ -122,7 +122,7 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
     for (const cap of options.capabilities) {
       if (cap.schemas) {
         for (const schema of cap.schemas) {
-          schemaRegistry.register(schema);
+          entityRegistry.register(schema);
         }
       }
       if (cap.actions) {
@@ -136,7 +136,7 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   return {
     executor,
     dataProvider,
-    schemaRegistry,
+    entityRegistry,
     eventBus,
     actionRegistry: executor.registry,
   };

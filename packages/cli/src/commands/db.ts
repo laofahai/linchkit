@@ -2,7 +2,7 @@
  * linch db — Database schema management commands
  *
  * Wraps drizzle-kit with LinchKit's capability-aware schema generation.
- * Reads linchkit.config.ts, collects all SchemaDefinitions from capabilities,
+ * Reads linchkit.config.ts, collects all EntityDefinitions from capabilities,
  * generates a Drizzle schema barrel file, then delegates to drizzle-kit.
  */
 
@@ -10,8 +10,8 @@ import { runMigrations } from "@linchkit/cap-migration";
 import type {
   CapabilityDefinition,
   LinchKitConfig,
-  LinkDefinition,
-  SchemaDefinition,
+  RelationDefinition,
+  EntityDefinition,
 } from "@linchkit/core";
 import {
   closeDatabase,
@@ -24,8 +24,8 @@ import { loadConfig } from "../utils/load-config";
 
 /** Load schemas and links from linchkit.config.ts */
 async function loadSchemasAndLinks(): Promise<{
-  schemas: SchemaDefinition[];
-  links: LinkDefinition[];
+  schemas: EntityDefinition[];
+  links: RelationDefinition[];
 }> {
   let config: LinchKitConfig = {};
   try {
@@ -38,8 +38,8 @@ async function loadSchemasAndLinks(): Promise<{
   }
 
   const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
-  const schemas: SchemaDefinition[] = [];
-  const links: LinkDefinition[] = [];
+  const schemas: EntityDefinition[] = [];
+  const links: RelationDefinition[] = [];
   for (const cap of capabilities) {
     if (cap.schemas) schemas.push(...cap.schemas);
     if (cap.links) links.push(...cap.links);
