@@ -64,6 +64,14 @@ export interface LinchKitConfig {
 
   /** Installed capabilities loaded by the host project */
   capabilities?: CapabilityDefinition[];
+
+  /**
+   * Directories to scan for addon groups.
+   * Each path is scanned for cap-* subdirectories containing package.json.
+   * Discovered capabilities are merged with explicitly listed capabilities.
+   * @example ["./addons", "./community-addons"]
+   */
+  addons_path?: string[];
 }
 
 /** Configuration for the SSE realtime subscription system */

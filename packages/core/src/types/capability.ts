@@ -103,6 +103,21 @@ export interface CapabilityDefinition {
   dependencies?: string[];
 
   /**
+   * Addon group identifier. Capabilities with the same group are
+   * co-located in a directory and can be split into an independent repository.
+   * Purely organizational — runtime does not depend on it.
+   */
+  group?: string;
+
+  /**
+   * When true, this capability is automatically activated if ALL
+   * entries in `dependencies` are present in the active capability set.
+   * Analogous to Odoo's auto_install flag.
+   * @default false
+   */
+  autoInstall?: boolean;
+
+  /**
    * Bridge loading priority (higher number = later execution = outer layer in onion model).
    * Primarily used for bridge capabilities to control initialization order.
    * @default 0
@@ -150,6 +165,14 @@ export interface CapabilityDefinition {
 
   // System permission declarations
   systemPermissions?: SystemPermission[];
+}
+
+/** GraphQL schema extension contributed by a capability */
+export interface GraphQLExtensionRegistration {
+  /** Query fields to merge into the root Query type */
+  queryFields?: Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>;
+  /** Mutation fields to merge into the root Mutation type */
+  mutationFields?: Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>;
 }
 
 /** Extension points a capability can register */
@@ -200,6 +223,8 @@ export interface CapabilityExtensions {
   }>;
   /** Sensors registered by this capability for the Sense layer (Spec 55 §3.3) */
   sensors?: Sensor[];
+  /** GraphQL schema extensions — query/mutation fields merged into the main schema */
+  graphqlExtensions?: GraphQLExtensionRegistration;
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────
