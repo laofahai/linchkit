@@ -419,3 +419,8 @@ export {
   type ShutdownStatus,
   validateRequiredEnvVars,
 } from "./deployment";
+
+// === Addon discovery (Spec 57) ===
+
+export { scanAddonsPath } from "./capability/addon-scanner";
+export { resolveAutoInstall } from "./capability/auto-install";
