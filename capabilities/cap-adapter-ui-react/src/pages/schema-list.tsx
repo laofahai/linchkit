@@ -414,19 +414,8 @@ export function SchemaListPage() {
    * built-in filtering. The list view passes this state to AutoList as controlled props.
    */
   const pageFilteredData = useMemo(() => {
+    // Text search is now server-side — data already filtered by search keyword
     let result = data;
-
-    // Global text filter
-    if (globalFilter) {
-      const lower = globalFilter.toLowerCase();
-      result = result.filter((row) =>
-        Object.values(row).some((v) =>
-          String(v ?? "")
-            .toLowerCase()
-            .includes(lower),
-        ),
-      );
-    }
 
     // Bazza filters
     if (bazzaFilterState.length > 0) {
@@ -612,15 +601,14 @@ export function SchemaListPage() {
         for (const sf of treeSummaryFieldsRef.current ?? []) {
           if (!fields.includes(sf)) fields.push(sf);
         }
-        // When a text search is active, fetch max records for client-side filtering
-        // because the server does not support text search natively.
-        // Server caps at MAX_PAGE_SIZE=100, so we request that.
-        const hasTextSearch = !!globalFilterRef.current;
+        // Pass text search to server-side full-text search
+        const searchTerm = globalFilterRef.current || undefined;
         const result = await queryList({
           schema: schemaName,
           fields,
-          page: hasTextSearch ? 1 : serverPageRef.current,
-          pageSize: hasTextSearch ? 100 : serverPageSizeRef.current,
+          search: searchTerm,
+          page: serverPageRef.current,
+          pageSize: serverPageSizeRef.current,
           sortField: serverSortFieldRef.current,
           sortOrder: serverSortOrderRef.current,
         });

@@ -104,8 +104,8 @@ export async function queryList<T = Record<string, unknown>>(
   const fieldList = options.fields.join(" ");
 
   const query = `
-    query ($filter: String, $sortField: String, $sortOrder: String, $page: Int, $pageSize: Int) {
-      ${queryName}(filter: $filter, sortField: $sortField, sortOrder: $sortOrder, page: $page, pageSize: $pageSize) {
+    query ($filter: String, $search: String, $sortField: String, $sortOrder: String, $page: Int, $pageSize: Int) {
+      ${queryName}(filter: $filter, search: $search, sortField: $sortField, sortOrder: $sortOrder, page: $page, pageSize: $pageSize) {
         items { ${fieldList} }
         total
       }
@@ -118,6 +118,9 @@ export async function queryList<T = Record<string, unknown>>(
     page: options.page,
     pageSize: options.pageSize,
   };
+  if (options.search) {
+    variables.search = options.search;
+  }
   if (options.filter && Object.keys(options.filter).length > 0) {
     variables.filter = JSON.stringify(options.filter);
   }
