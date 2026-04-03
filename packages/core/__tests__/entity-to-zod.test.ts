@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { generateZodSchema } from "../src/schema/schema-to-zod";
-import type { EntityDefinition } from "../src/types/schema";
+import { generateZodSchema } from "../src/schema/entity-to-zod";
+import type { EntityDefinition } from "../src/types/entity";
 
 describe("generateZodSchema", () => {
   test("generates valid Zod schema from a simple EntityDefinition", () => {

@@ -23,7 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "@/hooks/use-schema-bundle";
+import { useSchemaBundle } from "@/hooks/use-entity-bundle";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";

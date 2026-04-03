@@ -22,14 +22,14 @@ export {
   resolveDerivedValue,
 } from "./derived-property";
 export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
-export { createEntityRegistry, EntityRegistry } from "./schema-registry";
+export { createEntityRegistry, EntityRegistry } from "./entity-registry";
 export {
   type DrizzleGeneratorOptions,
   generateDrizzleTable,
   generateLinkColumns,
   type LinkColumnsResult,
-} from "./schema-to-drizzle";
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema-to-zod";
+} from "./entity-to-drizzle";
+export { generateZodSchema, type ZodGeneratorOptions } from "./entity-to-zod";
 export {
   createTranslatableValue,
   getTranslatableFields,

@@ -247,12 +247,12 @@ export {
   resolveAggregateValue,
   resolveDerivedValue,
 } from "./schema/derived-property";
-export type { RelationRegistry } from "./schema/link-registry";
-export { createRelationRegistry } from "./schema/link-registry";
-export type { InterfaceRegistry } from "./schema/schema-interface";
-export { createInterfaceRegistry } from "./schema/schema-interface";
-export type { EntityRegistry } from "./schema/schema-registry";
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
+export type { RelationRegistry } from "./schema/relation-registry";
+export { createRelationRegistry } from "./schema/relation-registry";
+export type { InterfaceRegistry } from "./schema/entity-interface";
+export { createInterfaceRegistry } from "./schema/entity-interface";
+export type { EntityRegistry } from "./schema/entity-registry";
+export { generateZodSchema, type ZodGeneratorOptions } from "./schema/entity-to-zod";
 export {
   createTranslatableValue,
   getTranslatableFields,

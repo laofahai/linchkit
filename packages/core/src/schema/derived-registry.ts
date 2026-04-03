@@ -6,8 +6,8 @@
  */
 
 import type { DataProvider } from "../engine/action-engine";
-import type { RelationDefinition, RelationRegistryInterface } from "../types/link";
-import type { FieldDefinition, EntityDefinition } from "../types/schema";
+import type { RelationDefinition, RelationRegistryInterface } from "../types/relation";
+import type { FieldDefinition, EntityDefinition } from "../types/entity";
 import { resolveAggregateValue } from "./aggregate-engine";
 import { tokenize } from "./expression-parser";
 import { type DerivedConfig, resolveDerivedValue } from "./safe-evaluator";

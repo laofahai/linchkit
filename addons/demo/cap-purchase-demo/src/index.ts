@@ -17,7 +17,7 @@ export {
 export { capPurchaseDemo } from "./capability";
 export { purchaseApprovalFlow } from "./flows/purchase-approval";
 export { auditableInterface } from "./interfaces/auditable";
-export { requestToDepartment, requestToItems } from "./links";
+export { requestToDepartment, requestToItems } from "./relations";
 export { departmentSchema } from "./schemas/department";
 export { purchaseItemSchema } from "./schemas/purchase-item";
 export { purchaseRequestSchema } from "./schemas/purchase-request";

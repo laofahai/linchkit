@@ -38,7 +38,7 @@ import dagre from "dagre";
 import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { fetchLinks, fetchSchemas, fetchSemanticRelations, type SchemaInfo } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────

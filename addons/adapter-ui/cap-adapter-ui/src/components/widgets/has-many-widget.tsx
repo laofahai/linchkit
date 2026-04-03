@@ -29,9 +29,9 @@ import {
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "@/hooks/use-schema-bundle";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
-import { generateChildFormView } from "@/lib/schema-form-utils";
+import { useSchemaBundle } from "@/hooks/use-entity-bundle";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { generateChildFormView } from "@/lib/entity-form-utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { AutoForm } from "../auto-form/auto-form";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";

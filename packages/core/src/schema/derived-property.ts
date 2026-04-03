@@ -21,7 +21,7 @@
  * - derived-registry.ts: DerivedPropertyEngine, createDerivedPropertyEngine()
  */
 
-import type { FieldDefinition } from "../types/schema";
+import type { FieldDefinition } from "../types/entity";
 
 // Re-export aggregate engine
 export { computeAggregate, resolveAggregateValue } from "./aggregate-engine";

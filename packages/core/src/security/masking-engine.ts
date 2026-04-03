@@ -18,7 +18,7 @@ import type {
   MaskingConfig,
   MaskingStrategy,
   EntityDefinition,
-} from "../types/schema";
+} from "../types/entity";
 
 // ── Constants ────────────────────────────────────────────────
 

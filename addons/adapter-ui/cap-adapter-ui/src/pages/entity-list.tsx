@@ -39,9 +39,9 @@ import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
 import { pushNotification } from "../hooks/use-notifications";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
-import { useSchemaBundle } from "../hooks/use-schema-bundle";
+import { useSchemaBundle } from "../hooks/use-entity-bundle";
 import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
-import { useSchemaLabel } from "../i18n/use-schema-label";
+import { useSchemaLabel } from "../i18n/use-entity-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
 type ActiveView = "list" | "calendar" | "kanban" | "tree";

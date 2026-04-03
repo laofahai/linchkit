@@ -9,7 +9,7 @@
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Fragment } from "react";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 
 interface FormGroupProps {
   node: FormGroupNode;

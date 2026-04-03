@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { ActionRegistry } from "../src/engine/action-engine";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import { createEntityRegistry } from "../src/schema/schema-registry";
+import { createEntityRegistry } from "../src/schema/entity-registry";
 import type { ActionDefinition } from "../src/types/action";
 import type { RuleDefinition } from "../src/types/rule";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 

@@ -6,7 +6,7 @@
  * with structure `{ [locale]: value }`.
  */
 
-import type { FieldDefinition, EntityDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/entity";
 
 /** A locale-keyed map of translated values */
 export type TranslatableValue = Record<string, string>;

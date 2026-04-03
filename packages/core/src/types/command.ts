@@ -8,7 +8,7 @@
 import type { ActionDefinition, ActionResult } from "./action";
 import type { CapabilityDefinition } from "./capability";
 import type { RuleDefinition } from "./rule";
-import type { EntityDefinition } from "./schema";
+import type { EntityDefinition } from "./entity";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 

@@ -12,7 +12,7 @@ import type { CliCommand } from "./cli";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { FlowDefinition } from "./flow";
 import type { Sensor } from "./life-system";
-import type { RelationDefinition } from "./link";
+import type { RelationDefinition } from "./relation";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RuleDefinition, RuleOverride } from "./rule";
@@ -21,7 +21,7 @@ import type {
   EntityDefinition,
   EntityExtension,
   EntityOverride,
-} from "./schema";
+} from "./entity";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";

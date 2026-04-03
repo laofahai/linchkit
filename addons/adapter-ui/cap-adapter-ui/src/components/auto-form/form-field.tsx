@@ -11,7 +11,7 @@
 import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 
 export interface FormFieldRowProps {

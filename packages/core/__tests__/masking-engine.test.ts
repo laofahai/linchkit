@@ -8,7 +8,7 @@ import {
 } from "../src/security/masking-engine";
 import type { Actor } from "../src/types/action";
 import type { PermissionGroupDefinition } from "../src/types/permission";
-import type { FieldDefinition, EntityDefinition } from "../src/types/schema";
+import type { FieldDefinition, EntityDefinition } from "../src/types/entity";
 
 // ── maskValue tests ──────────────────────────────────────
 

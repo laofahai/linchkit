@@ -11,14 +11,14 @@
 import type { ActionDefinition } from "../types/action";
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
-import type { LinkCardinality } from "../types/link";
+import type { LinkCardinality } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type {
   FieldDefinition,
   InterfaceDefinition,
   EntityDefinition,
   SchemaPresentation,
-} from "../types/schema";
+} from "../types/entity";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
 

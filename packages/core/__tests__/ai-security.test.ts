@@ -8,7 +8,7 @@ import {
   sanitizeRecordForAI,
 } from "../src/ai/prompt-sanitizer";
 import type { Logger } from "../src/types/logger";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── Helpers ──────────────────────────────────────────────────
 

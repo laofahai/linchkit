@@ -24,7 +24,7 @@ import {
 import { AlertCircle, CheckCircle2, Pencil } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 import { updateRecord } from "../../lib/api";
 import { widgetRegistry } from "../../lib/widget-registry";
 

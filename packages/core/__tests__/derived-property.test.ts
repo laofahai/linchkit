@@ -11,9 +11,9 @@ import {
   isDerivedField,
   resolveDerivedValue,
 } from "../src/schema/derived-property";
-import { buildTableColumns } from "../src/schema/schema-to-drizzle";
-import { generateZodSchema } from "../src/schema/schema-to-zod";
-import type { EntityDefinition } from "../src/types/schema";
+import { buildTableColumns } from "../src/schema/entity-to-drizzle";
+import { generateZodSchema } from "../src/schema/entity-to-zod";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── evaluateExpression ────────────────────────────────────────
 

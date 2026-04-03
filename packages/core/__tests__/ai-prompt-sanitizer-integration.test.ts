@@ -5,7 +5,7 @@ import {
   sanitizePrompt,
   sanitizeRecordForAI,
 } from "../src/ai/prompt-sanitizer";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── Prompt Injection Detection ──────────────────────────
 

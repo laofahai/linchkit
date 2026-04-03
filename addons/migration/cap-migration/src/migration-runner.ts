@@ -12,7 +12,7 @@ import {
   type ImportResult,
   type ImportSource,
 } from "./data-importer";
-import { type FieldMapping, SchemaMapper } from "./schema-mapper";
+import { type FieldMapping, SchemaMapper } from "./entity-mapper";
 
 // ── Migration Plan ──────────────────────────────────────────
 

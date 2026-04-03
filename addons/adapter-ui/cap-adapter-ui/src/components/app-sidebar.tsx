@@ -18,8 +18,8 @@ import { useTranslation } from "react-i18next";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
-import { useSchemas } from "@/hooks/use-schemas";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemas } from "@/hooks/use-entities";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { getMenuItems } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 

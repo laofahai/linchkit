@@ -10,7 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { RelationDefinition, EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
-import { clearEdgeTypeCache } from "../src/graphql/link-resolvers";
+import { clearEdgeTypeCache } from "../src/graphql/relation-resolvers";
 import { createServer } from "../src/server";
 
 // ── Schema definitions ────────────────────────────────────

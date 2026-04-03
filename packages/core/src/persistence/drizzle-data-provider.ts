@@ -26,7 +26,7 @@ import {
   normalizeTranslatableValue,
   resolveTranslatableValue,
 } from "../schema/translatable";
-import type { EntityDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/entity";
 import type { TableRegistry } from "./table-registry";
 
 /** Extended query options that include locale for translatable field resolution */

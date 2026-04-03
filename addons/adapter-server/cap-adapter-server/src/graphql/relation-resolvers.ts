@@ -29,7 +29,7 @@ import {
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
-import type { LinkDataLoaders } from "./link-dataloader";
+import type { LinkDataLoaders } from "./relation-dataloader";
 
 // ── Types ──────────────────────────────────────────────────
 

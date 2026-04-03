@@ -5,7 +5,7 @@
  * Supports bidirectional navigation, cardinality declarations, and M:N junction table properties.
  */
 
-import type { FieldDefinition } from "./schema";
+import type { FieldDefinition } from "./entity";
 
 // ── Cardinality ──────────────────────────────────────────
 

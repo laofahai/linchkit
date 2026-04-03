@@ -4,7 +4,7 @@
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { InMemoryStore } from "../src/persistence/in-memory-store";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 const productSchema: EntityDefinition = {
   name: "product",

@@ -21,14 +21,14 @@ import type { EventBus } from "../event/event-bus";
 import type { FlowEngine, FlowRegistry } from "../flow/types";
 import type { OntologyRegistry } from "../ontology";
 import type { DerivedPropertyEngine } from "../schema/derived-property";
-import type { RelationRegistry } from "../schema/link-registry";
-import type { EntityRegistry } from "../schema/schema-registry";
+import type { RelationRegistry } from "../schema/relation-registry";
+import type { EntityRegistry } from "../schema/entity-registry";
 import type { ActionDefinition } from "./action";
 import type { AIService, AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 import type { ExecutionLogger } from "./execution-log";
-import type { RelationDefinition } from "./link";
-import type { EntityDefinition } from "./schema";
+import type { RelationDefinition } from "./relation";
+import type { EntityDefinition } from "./entity";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 

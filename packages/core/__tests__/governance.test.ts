@@ -13,7 +13,7 @@ import {
 } from "@linchkit/devtools/governance";
 import type { ActionDefinition } from "../src/types/action";
 import type { CapabilityDefinition } from "../src/types/capability";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── DocValidator: Schema ─────────────────────────────────
 

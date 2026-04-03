@@ -6,7 +6,7 @@
  * Widgets can be overridden at field, view, or capability level.
  */
 
-import type { FieldType } from "./schema";
+import type { FieldType } from "./entity";
 
 // ── Widget mode ──────────────────────────────────────
 

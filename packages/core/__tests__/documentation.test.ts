@@ -13,9 +13,9 @@ import {
 } from "@linchkit/devtools/documentation";
 import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 import type { ActionDefinition } from "../src/types/action";
-import type { RelationDefinition } from "../src/types/link";
+import type { RelationDefinition } from "../src/types/relation";
 import type { RuleDefinition } from "../src/types/rule";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 

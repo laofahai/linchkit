@@ -17,8 +17,8 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
-import type { RelationDefinition } from "../types/link";
-import type { FieldDefinition, EntityDefinition } from "../types/schema";
+import type { RelationDefinition } from "../types/relation";
+import type { FieldDefinition, EntityDefinition } from "../types/entity";
 
 export interface DrizzleGeneratorOptions {
   /** Table name prefix (e.g., for multi-tenancy) */

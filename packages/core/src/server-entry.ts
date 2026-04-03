@@ -119,9 +119,9 @@ export {
   DerivedPropertyEngine,
 } from "./schema/derived-property";
 export { generateDrizzleSchemaFile } from "./schema/generate-drizzle-schema";
-export { createRelationRegistry, RelationRegistry } from "./schema/link-registry";
-export { createInterfaceRegistry, InterfaceRegistry } from "./schema/schema-interface";
-export { createEntityRegistry, EntityRegistry } from "./schema/schema-registry";
+export { createRelationRegistry, RelationRegistry } from "./schema/relation-registry";
+export { createInterfaceRegistry, InterfaceRegistry } from "./schema/entity-interface";
+export { createEntityRegistry, EntityRegistry } from "./schema/entity-registry";
 export {
   buildColumn,
   buildSystemColumns,
@@ -131,7 +131,7 @@ export {
   generateDrizzleTable,
   generateLinkColumns,
   type LinkColumnsResult,
-} from "./schema/schema-to-drizzle";
+} from "./schema/entity-to-drizzle";
 
 // === Event bus ===
 

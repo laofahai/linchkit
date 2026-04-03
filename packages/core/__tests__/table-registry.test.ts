@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { TableRegistry } from "../src/persistence/table-registry";
-import { generateDrizzleTable } from "../src/schema/schema-to-drizzle";
-import type { EntityDefinition } from "../src/types/schema";
+import { generateDrizzleTable } from "../src/schema/entity-to-drizzle";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── Fixtures ─────────────────────────────────────────────
 

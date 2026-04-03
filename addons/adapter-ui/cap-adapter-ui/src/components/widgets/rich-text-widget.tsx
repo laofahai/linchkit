@@ -25,7 +25,7 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 

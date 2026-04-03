@@ -10,7 +10,7 @@ import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
-import type { RelationDefinition } from "./types/link";
+import type { RelationDefinition } from "./types/relation";
 import type {
   DataAccessDefinition,
   PermissionGroupDefinition,
@@ -23,7 +23,7 @@ import type {
   EntityDefinition,
   EntityExtension,
   EntityOverride,
-} from "./types/schema";
+} from "./types/entity";
 import type { StateDefinition, StateExtension } from "./types/state";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 import type { WatcherDefinition } from "./types/watcher";

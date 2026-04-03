@@ -35,8 +35,8 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
-import { useSchemas } from "@/hooks/use-schemas";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemas } from "@/hooks/use-entities";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import { aiSearch } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 

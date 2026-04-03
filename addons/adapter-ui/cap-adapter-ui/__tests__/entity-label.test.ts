@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveSchemaLabel } from "../src/i18n/use-schema-label";
+import { resolveSchemaLabel } from "../src/i18n/use-entity-label";
 
 describe("resolveSchemaLabel", () => {
   // Mock i18n instance

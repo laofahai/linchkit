@@ -7,7 +7,7 @@ import {
   MigrationRunner,
   SchemaMapper,
 } from "@linchkit/cap-migration";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 // ── Test schema ─────────────────────────────────────────────
 

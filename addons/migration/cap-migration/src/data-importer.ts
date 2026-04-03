@@ -6,7 +6,7 @@
  * batch processing and progress tracking.
  */
 
-import type { SchemaMapper } from "./schema-mapper";
+import type { SchemaMapper } from "./entity-mapper";
 
 // ── Import Source interface ─────────────────────────────────
 

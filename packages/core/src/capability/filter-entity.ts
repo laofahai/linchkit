@@ -13,7 +13,7 @@
  * - UI form/list rendering: hide fields from AutoForm / AutoList
  */
 
-import type { FieldDefinition, EntityDefinition } from "../types/schema";
+import type { FieldDefinition, EntityDefinition } from "../types/entity";
 
 /**
  * Filter schema fields based on available capabilities.

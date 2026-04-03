@@ -32,8 +32,8 @@ import { FlowDetailPage } from "./pages/flow-detail";
 import { MetricsDashboardPage } from "./pages/metrics-dashboard";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
-import { SchemaFormPage } from "./pages/schema-form";
-import { SchemaListPage } from "./pages/schema-list";
+import { SchemaFormPage } from "./pages/entity-form";
+import { SchemaListPage } from "./pages/entity-list";
 import { StateMachineDetailPage } from "./pages/state-machines";
 import { SystemOverviewPage } from "./pages/system-overview";
 

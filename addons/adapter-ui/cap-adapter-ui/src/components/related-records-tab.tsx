@@ -12,7 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaBundle } from "../hooks/use-schema-bundle";
+import { useSchemaBundle } from "../hooks/use-entity-bundle";
 import { queryList } from "../lib/api";
 import type { AutoListViewDefinition } from "./auto-list/types";
 import { ListView } from "./list-view";

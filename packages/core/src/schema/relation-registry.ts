@@ -5,7 +5,7 @@
  * Provides directional queries (outgoing, incoming, both) and lookup by endpoints.
  */
 
-import type { RelationDefinition, LinkInfo, RelationRegistryInterface } from "../types/link";
+import type { RelationDefinition, LinkInfo, RelationRegistryInterface } from "../types/relation";
 
 // ── RelationRegistry ──────────────────────────────────────────────
 

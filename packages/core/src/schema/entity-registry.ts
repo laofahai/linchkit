@@ -15,8 +15,8 @@ import type {
   EntityDefinition,
   EntityExtension,
   EntityOverride,
-} from "../types/schema";
-import type { InterfaceRegistry } from "./schema-interface";
+} from "../types/entity";
+import type { InterfaceRegistry } from "./entity-interface";
 
 // ── Non-storable field types ────────────────────────────────────
 

@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { BusinessRuleError } from "../errors";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
-import type { EntityRegistry } from "../schema/schema-registry";
+import type { EntityRegistry } from "../schema/entity-registry";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
 import type {
@@ -26,7 +26,7 @@ import type {
   ProposalRequest,
   ProposalValidationResult,
 } from "../types/proposal";
-import type { FieldType, EntityDefinition } from "../types/schema";
+import type { FieldType, EntityDefinition } from "../types/entity";
 import type { ActionRegistry } from "./action-engine";
 
 // ── Valid field types (for validation) ──────────────────────

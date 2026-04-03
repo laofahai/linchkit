@@ -24,8 +24,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AIInsightsPanel } from "@/components/ai-insights-panel";
-import { useSchemas } from "@/hooks/use-schemas";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemas } from "@/hooks/use-entities";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import {
   type ExecutionLogEntry,
   fetchSchemaBundle,

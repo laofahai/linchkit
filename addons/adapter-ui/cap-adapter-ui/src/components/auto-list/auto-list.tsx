@@ -36,7 +36,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery, useAISearch } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 import { useDataTableFilters } from "../data-table-filter";
 import type { FiltersState } from "../data-table-filter/core/types";
 import { EmptyState } from "../empty-state";

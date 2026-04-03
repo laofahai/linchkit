@@ -1,7 +1,7 @@
 import type { StateMeta } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { getStateBadgeClass, resolveStateColor } from "@/lib/state-colors";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 
 interface StatusBadgeProps {
   value: string;

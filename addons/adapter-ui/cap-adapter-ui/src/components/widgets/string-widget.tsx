@@ -1,7 +1,7 @@
 import { Input } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useEffect, useRef, useState } from "react";
-import { useSchemaLabel } from "@/i18n/use-schema-label";
+import { useSchemaLabel } from "@/i18n/use-entity-label";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { requiredBg } from "./utils";
 

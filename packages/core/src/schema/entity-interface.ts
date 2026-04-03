@@ -22,7 +22,7 @@ import type {
   InterfaceDefinition,
   InterfaceStateTemplate,
   EntityDefinition,
-} from "../types/schema";
+} from "../types/entity";
 import type { StateDefinition } from "../types/state";
 
 // ── Helpers ───────────────────────────────────────────────────

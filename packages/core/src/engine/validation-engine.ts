@@ -10,7 +10,7 @@
  *   - Naming convention checks (no duplicates, valid format)
  */
 
-import type { EntityRegistry } from "../schema/schema-registry";
+import type { EntityRegistry } from "../schema/entity-registry";
 import type { ActionDefinition } from "../types/action";
 import type {
   ChangeDefinition,
@@ -22,7 +22,7 @@ import type {
   ValidationWarning,
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
-import type { FieldType, EntityDefinition } from "../types/schema";
+import type { FieldType, EntityDefinition } from "../types/entity";
 import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────

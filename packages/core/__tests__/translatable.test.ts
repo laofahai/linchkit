@@ -12,7 +12,7 @@ import {
   validateTranslatableSchema,
   wrapTranslatableValue,
 } from "../src/schema/translatable";
-import type { EntityDefinition } from "../src/types/schema";
+import type { EntityDefinition } from "../src/types/entity";
 
 describe("resolveTranslatableValue", () => {
   test("returns undefined for null/undefined input", () => {

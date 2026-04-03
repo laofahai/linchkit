@@ -1,8 +1,8 @@
 import { useMatches } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../i18n/use-schema-label";
+import { useSchemaLabel } from "../i18n/use-entity-label";
 import { useBreadcrumbTitle } from "./use-breadcrumb-title";
-import { useSchemas } from "./use-schemas";
+import { useSchemas } from "./use-entities";
 
 export interface BreadcrumbItem {
   label: string;

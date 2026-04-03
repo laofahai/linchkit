@@ -17,7 +17,7 @@ import type {
   EntityDefinition,
   EntityExtension,
   EntityOverride,
-} from "../types/schema";
+} from "../types/entity";
 
 // ── Collected entry types ──────────────────────────────────
 

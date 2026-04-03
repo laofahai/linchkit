@@ -16,7 +16,7 @@ import type {
 import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";
 import { consoleLogger } from "@linchkit/core/server";
 
-export type { LinkResolverContext } from "./link-resolvers";
+export type { LinkResolverContext } from "./relation-resolvers";
 
 import {
   GraphQLBoolean,
@@ -32,8 +32,8 @@ import {
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
-import type { LinkResolverContext } from "./link-resolvers";
-import { buildLinkFields } from "./link-resolvers";
+import type { LinkResolverContext } from "./relation-resolvers";
+import { buildLinkFields } from "./relation-resolvers";
 
 // Cache for reusing GraphQLEnumType instances across output and input types
 const enumTypeCache = new Map<string, GraphQLEnumType>();

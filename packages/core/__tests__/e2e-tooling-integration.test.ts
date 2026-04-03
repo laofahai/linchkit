@@ -44,7 +44,7 @@ import {
   checkCommitMessages,
   checkEntityDefinitions,
 } from "@linchkit/devtools/methodology";
-import type { RelationDefinition } from "../src/types/link";
+import type { RelationDefinition } from "../src/types/relation";
 
 // ── Shared test data ──────────────────────────────────────
 

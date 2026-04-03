@@ -40,7 +40,7 @@ import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/s
 import { Elysia } from "elysia";
 import type { GraphQLSchema } from "graphql";
 import { createYoga } from "graphql-yoga";
-import { createLinkDataLoaders } from "./graphql/link-dataloader";
+import { createLinkDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
@@ -49,7 +49,7 @@ import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountImportRoutes } from "./routes/import-api";
-import { mountSchemaRoutes } from "./routes/schema-api";
+import { mountSchemaRoutes } from "./routes/entity-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
 

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
-import { useSchemaLabel } from "../../i18n/use-schema-label";
+import { useSchemaLabel } from "../../i18n/use-entity-label";
 import type {
   Column,
   DataTableFilterActions,

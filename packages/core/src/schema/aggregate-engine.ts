@@ -6,7 +6,7 @@
  */
 
 import type { DataProvider } from "../engine/action-engine";
-import type { RelationDefinition } from "../types/link";
+import type { RelationDefinition } from "../types/relation";
 import type { AggregateDerived } from "./safe-evaluator";
 
 /**

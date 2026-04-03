@@ -9,7 +9,7 @@
 import type { ActionDefinition } from "./action";
 import type { EventDefinition } from "./event";
 import type { RuleDefinition } from "./rule";
-import type { EntityDefinition } from "./schema";
+import type { EntityDefinition } from "./entity";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 

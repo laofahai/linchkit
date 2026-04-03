@@ -20,9 +20,9 @@ import { RelatedRecordsTab } from "../components/related-records-tab";
 import { StatusBar, type StatusBarStep, type StateTransitionInfo } from "../components/status-bar";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
-import { useSchemaBundle } from "../hooks/use-schema-bundle";
+import { useSchemaBundle } from "../hooks/use-entity-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
-import { useSchemaLabel } from "../i18n/use-schema-label";
+import { useSchemaLabel } from "../i18n/use-entity-label";
 import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
 import { getRecordPanels } from "../lib/panel-registry";
 import {
@@ -31,15 +31,15 @@ import {
   getPrimaryView,
   getRecordFields,
   getTransitionActionNames,
-} from "../lib/schema-form-utils";
-import { useFormActions } from "./schema-form-actions";
-import { SchemaFormHeader } from "./schema-form-header";
+} from "../lib/entity-form-utils";
+import { useFormActions } from "./entity-form-actions";
+import { SchemaFormHeader } from "./entity-form-header";
 import {
   BundleErrorState,
   FormLoadingSkeleton,
   MissingSchemaState,
   RecordErrorState,
-} from "./schema-form-states";
+} from "./entity-form-states";
 
 export function SchemaFormPage() {
   const navigate = useNavigate();

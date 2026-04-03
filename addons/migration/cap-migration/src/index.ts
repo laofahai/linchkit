@@ -52,14 +52,14 @@ export {
   type MappedRecord,
   type MappingValidationResult,
   SchemaMapper,
-} from "./schema-mapper";
+} from "./entity-mapper";
 // ── Schema migration transforms ────────────────────────────
 export type {
   MigrationResult as SchemaMigrationResult,
   MigrationTransform,
   SchemaMigration,
-} from "./schema-migration";
-export { applyMigration, MigrationRegistry, validateUpgrade } from "./schema-migration";
+} from "./entity-migration";
+export { applyMigration, MigrationRegistry, validateUpgrade } from "./entity-migration";
 // ── Version registry ───────────────────────────────────────
 export type {
   CompatibilityCheckResult,

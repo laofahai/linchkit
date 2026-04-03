@@ -21,8 +21,8 @@ import { HeaderActions } from "@/components/header-actions";
 import { useBreadcrumb } from "@/hooks/use-breadcrumb";
 import { BreadcrumbTitleProvider } from "@/hooks/use-breadcrumb-title";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { SchemaBundleCacheProvider } from "@/hooks/use-schema-bundle";
-import { SchemasProvider } from "@/hooks/use-schemas";
+import { SchemaBundleCacheProvider } from "@/hooks/use-entity-bundle";
+import { SchemasProvider } from "@/hooks/use-entities";
 
 /** App Shell layout: Shadcn sidebar + header with breadcrumb + main content */
 export function ShellLayout() {

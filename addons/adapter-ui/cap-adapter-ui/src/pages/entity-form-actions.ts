@@ -12,7 +12,7 @@ import { useCallback, useState } from "react";
 import type { TFunction } from "i18next";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
 import type { StateTransitionInfo } from "../components/status-bar";
-import type { ResolvedSchemaBundle } from "../hooks/use-schema-bundle";
+import type { ResolvedSchemaBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
 import {
   createRecord,
@@ -26,7 +26,7 @@ import {
 import {
   CLONE_STRIP_FIELDS,
   getMutationReturnFields,
-} from "../lib/schema-form-utils";
+} from "../lib/entity-form-utils";
 
 /** Transition descriptor from useTransitionPermissions */
 export interface TransitionInfo {

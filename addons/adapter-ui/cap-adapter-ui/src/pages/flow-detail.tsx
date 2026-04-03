@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoList, SortableHeader } from "@/components/auto-list";
 import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
-import { useSchemaLabel } from "../i18n/use-schema-label";
+import { useSchemaLabel } from "../i18n/use-entity-label";
 
 // ── Types ────────────────────────────────────────────────
 

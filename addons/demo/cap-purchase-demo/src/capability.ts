@@ -21,7 +21,7 @@ import {
 } from "./automations/purchase-status";
 import { purchaseApprovalFlow } from "./flows/purchase-approval";
 import { auditableInterface } from "./interfaces/auditable";
-import { requestToDepartment, requestToItems } from "./links";
+import { requestToDepartment, requestToItems } from "./relations";
 import { departmentSchema } from "./schemas/department";
 import { purchaseItemSchema } from "./schemas/purchase-item";
 import { purchaseRequestSchema } from "./schemas/purchase-request";

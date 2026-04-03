@@ -10,7 +10,7 @@
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import { ConflictError } from "../errors";
 import { resolveTranslatableRow } from "../schema/translatable";
-import type { EntityDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/entity";
 
 export interface FindManyOptions {
   filter?: Record<string, unknown>;
