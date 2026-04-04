@@ -67,8 +67,8 @@ export interface Sensor<TSignal = SensorSignal> {
   name: string;
   /** Which system channel this sensor observes. */
   source: SignalSource;
-  /** Schema this sensor is scoped to, if any. */
-  schema?: string;
+  /** Entity this sensor is scoped to, if any. */
+  entity?: string;
   detect(context: SensorContext): Promise<TSignal | null>;
 }
 
@@ -79,7 +79,7 @@ export interface Sensor<TSignal = SensorSignal> {
  * Used by Sensors to compute `deviation` and by Awareness to rank importance.
  */
 export interface Baseline {
-  schema: string;
+  entity: string;
   metric: string;
   value: number;
   calculatedAt: Date;
@@ -119,7 +119,7 @@ export type UsageNodeKind = "schema" | "action" | "field";
 
 export interface UsageNode {
   kind: UsageNodeKind;
-  schema: string;
+  entity: string;
   name?: string;
   importance: number;
   usageCount: number;
@@ -127,10 +127,10 @@ export interface UsageNode {
 }
 
 export interface UsageImportanceGraph {
-  recordUsage(kind: UsageNodeKind, schema: string, name?: string): void;
-  getImportance(kind: UsageNodeKind, schema: string, name?: string): number;
+  recordUsage(kind: UsageNodeKind, entity: string, name?: string): void;
+  getImportance(kind: UsageNodeKind, entity: string, name?: string): number;
   topN(n: number, kind?: UsageNodeKind): UsageNode[];
-  nodesFor(schema: string): UsageNode[];
+  nodesFor(entity: string): UsageNode[];
   toArray(): UsageNode[];
 }
 
@@ -153,7 +153,7 @@ export interface AttentionBudget {
       item: T;
       confidence: number;
       impact: number;
-      schema?: string;
+      entity?: string;
       type?: string;
     }>,
   ): ScoredCandidate<T>[];
@@ -171,7 +171,7 @@ export type StructuralIssueKind =
 
 export interface StructuralIssue {
   kind: StructuralIssueKind;
-  schema: string;
+  entity: string;
   target?: string;
   message: string;
 }

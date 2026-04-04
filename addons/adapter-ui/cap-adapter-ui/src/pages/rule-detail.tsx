@@ -46,8 +46,8 @@ interface SerializedCondition {
 
 interface RuleTrigger {
   action?: string | string[];
-  stateChange?: { schema: string; from?: string; to?: string };
-  fieldChange?: { schema: string; field: string };
+  stateChange?: { entity: string; from?: string; to?: string };
+  fieldChange?: { entity: string; field: string };
   event?: string;
   schedule?: string;
 }
@@ -108,7 +108,7 @@ function TriggerDisplay({
           {t("rules.triggerTypes.stateChange")}
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <Badge variant="outline">{sc.schema}</Badge>
+          <Badge variant="outline">{sc.entity}</Badge>
           {sc.from && <Badge variant="secondary">{sc.from}</Badge>}
           {(sc.from || sc.to) && <ChevronRightIcon className="size-3" />}
           {sc.to && <Badge variant="secondary">{sc.to}</Badge>}
@@ -125,7 +125,7 @@ function TriggerDisplay({
         </div>
         <div className="text-xs">
           <Badge variant="outline" className="font-mono">
-            {trigger.fieldChange.schema}.{trigger.fieldChange.field}
+            {trigger.fieldChange.entity}.{trigger.fieldChange.field}
           </Badge>
         </div>
       </div>

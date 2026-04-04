@@ -24,7 +24,7 @@ function makeEvent(type: string, overrides: Partial<EventRecord> = {}): EventRec
     actor: { type: "user", id: "user-001" },
     executionId: "exec-001",
     payload: {},
-    schema: "purchase_request",
+    entity: "purchase_request",
     recordId: "rec-001",
     ...overrides,
   };

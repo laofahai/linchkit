@@ -97,7 +97,7 @@ export const checkQualityCommand = defineCommand({
     for (const cap of capabilities) {
       if (cap.actions) {
         for (const a of cap.actions as ActionDefinition[]) {
-          actions.push({ name: a.name, schema: a.schema });
+          actions.push({ name: a.name, schema: a.entity });
         }
       }
     }

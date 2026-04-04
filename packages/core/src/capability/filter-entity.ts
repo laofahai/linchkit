@@ -24,10 +24,10 @@ import type { FieldDefinition, EntityDefinition } from "../types/entity";
  */
 export function filterSchemaByCapabilities<
   TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
->(schema: EntityDefinition<TFields>, activeCapabilities: Set<string>): EntityDefinition {
+>(entity: EntityDefinition<TFields>, activeCapabilities: Set<string>): EntityDefinition {
   const filteredFields: Record<string, FieldDefinition> = {};
 
-  for (const [name, field] of Object.entries(schema.fields)) {
+  for (const [name, field] of Object.entries(entity.fields)) {
     if (field.requiresCapability && !activeCapabilities.has(field.requiresCapability)) {
       continue;
     }
@@ -35,7 +35,7 @@ export function filterSchemaByCapabilities<
   }
 
   return {
-    ...schema,
+    ...entity,
     fields: filteredFields,
   };
 }

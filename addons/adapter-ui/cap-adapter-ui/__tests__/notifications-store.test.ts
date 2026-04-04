@@ -40,14 +40,14 @@ describe("notification store", () => {
     pushNotification({
       type: "created",
       message: "Record created",
-      schema: "order",
+      entity: "order",
     });
 
     // Push another
     pushNotification({
       type: "updated",
       message: "Record updated",
-      schema: "order",
+      entity: "order",
       recordId: "123",
     });
 

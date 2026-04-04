@@ -31,8 +31,8 @@ export interface WatcherAggregateConfig {
 }
 
 export interface WatchTarget {
-  /** Schema name to watch */
-  schema: string;
+  /** Entity name to watch */
+  entity: string;
   /** Optional declarative filter on records */
   filter?: DeclarativeCondition;
   /** Optional aggregation config (omit for single-record watchers) */

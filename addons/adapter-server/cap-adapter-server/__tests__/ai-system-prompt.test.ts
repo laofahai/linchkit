@@ -42,29 +42,30 @@ const productDescriptor: EntityDescriptor = {
   },
   relations: [
     {
-      linkName: "product_orders",
+      relationName: "product_orders",
       label: "Orders",
-      targetSchema: "order",
+      targetEntity: "order",
       cardinality: "one_to_many" as const,
+      direction: "outgoing" as const,
     },
   ],
   actions: [
     {
       name: "create_product",
       label: "Create Product",
-      schema: "product",
+      entity: "product",
       policy: "unrestricted",
     } as ActionDefinition,
     {
       name: "update_price",
       label: "Update Price",
-      schema: "product",
+      entity: "product",
       policy: "unrestricted",
     } as ActionDefinition,
   ],
   rules: [],
   states: {
-    schema: "product",
+    entity: "product",
     field: "status",
     initial: "active",
     states: {
@@ -131,7 +132,7 @@ describe("buildSystemPrompt — schema overview", () => {
 });
 
 describe("buildSystemPrompt — current schema context", () => {
-  test("includes detailed schema info when context.schema is set", () => {
+  test("includes detailed schema info when context.entity is set", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,

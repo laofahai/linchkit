@@ -300,7 +300,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         await logExecution({
           id: executionId,
           action: actionName,
-          schema: action.schema,
+          entity: action.entity,
           actor,
           input,
           status: "blocked",
@@ -322,7 +322,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         await logExecution({
           id: executionId,
           action: actionName,
-          schema: action.schema,
+          entity: action.entity,
           actor,
           input,
           status: "blocked",
@@ -343,7 +343,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -396,11 +396,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       config: configRegistry ?? ConfigRegistry.empty(),
       executionId,
       timestamp: startedAt,
-      get: (schema, id) => activeProvider.get(schema, id, queryOptions),
-      query: (schema, filter) => activeProvider.query(schema, filter, queryOptions),
-      create: (schema, data) => activeProvider.create(schema, data),
-      update: (schema, id, data) => activeProvider.update(schema, id, data, queryOptions),
-      delete: (schema, id) => activeProvider.delete(schema, id, queryOptions),
+      get: (entity, id) => activeProvider.get(entity, id, queryOptions),
+      query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
+      create: (entity, data) => activeProvider.create(entity, data),
+      update: (entity, id, data) => activeProvider.update(entity, id, data, queryOptions),
+      delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
       execute: async (childActionName, childInput) => {
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
@@ -431,7 +431,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -459,15 +459,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
       if (recordId) {
         try {
-          const record = await baseProvider.get(action.schema, recordId, queryOptions);
+          const record = await baseProvider.get(action.entity, recordId, queryOptions);
           currentState = record.status as string | undefined;
         } catch {
           // Record fetch failed — fail closed when state transition is required
-          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in schema "${action.schema}"`;
+          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "failed",
@@ -489,7 +489,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "blocked",
@@ -509,7 +509,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "blocked",
@@ -560,7 +560,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             }
 
             if (Object.keys(updates).length > 0) {
-              record = await dp.update(action.schema, recordId, updates, queryOptions);
+              record = await dp.update(action.entity, recordId, updates, queryOptions);
               resultData = record;
             }
           }
@@ -598,18 +598,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       const durationMs = Date.now() - startedAt.getTime();
       metrics.increment("action.executed", {
         action: actionName,
-        schema: action.schema ?? "",
+        entity: action.entity ?? "",
         status: "succeeded",
       });
       metrics.timing("action.duration_ms", durationMs, {
         action: actionName,
-        schema: action.schema ?? "",
+        entity: action.entity ?? "",
       });
 
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         output: resultData,
@@ -629,7 +629,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             category: "runtime",
             timestamp: new Date(),
             actor: { type: actor.type, id: actor.id },
-            schema: action.schema,
+            entity: action.entity,
             action: actionName,
             executionId,
             tenantId: execOptions?.tenantId,
@@ -657,7 +657,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 category: pe.type.startsWith("record.") ? "change" : "custom",
                 timestamp: new Date(),
                 actor: { type: actor.type, id: actor.id },
-                schema: typeof pe.payload.schema === "string" ? pe.payload.schema : undefined,
+                entity: typeof pe.payload.entity === "string" ? pe.payload.entity : undefined,
                 recordId: typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
                 tenantId: pe.tenantId,
                 executionId: pe.sourceExecutionId ?? executionId,
@@ -680,19 +680,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       const durationMs = Date.now() - startedAt.getTime();
       metrics.increment("action.executed", {
         action: actionName,
-        schema: action.schema ?? "",
+        entity: action.entity ?? "",
         status: "failed",
       });
       metrics.timing("action.duration_ms", durationMs, {
         action: actionName,
-        schema: action.schema ?? "",
+        entity: action.entity ?? "",
       });
 
       // On failure, pendingEvents were NOT persisted (transaction rolled back)
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -711,7 +711,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             category: "runtime",
             timestamp: new Date(),
             actor: { type: actor.type, id: actor.id },
-            schema: action.schema,
+            entity: action.entity,
             action: actionName,
             executionId,
             tenantId: execOptions?.tenantId,

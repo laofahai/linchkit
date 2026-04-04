@@ -82,7 +82,7 @@ describe("createEventBusPubSub", () => {
       timestamp: new Date(),
       actor: { type: "user", id: "user-1" },
       executionId: "exec-1",
-      schema: "task",
+      entity: "task",
       recordId: "task-1",
       payload: { title: "Test Task", description: "A test" },
     };
@@ -125,7 +125,7 @@ describe("createEventBusPubSub", () => {
       timestamp: new Date(),
       actor: { type: "user", id: "user-1" },
       executionId: "exec-2",
-      schema: "task",
+      entity: "task",
       recordId: "task-1",
       payload: { id: "task-1" },
     };

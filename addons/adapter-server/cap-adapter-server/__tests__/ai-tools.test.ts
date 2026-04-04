@@ -73,17 +73,18 @@ const productDescriptor: EntityDescriptor = {
   },
   relations: [
     {
-      linkName: "product_orders",
+      relationName: "product_orders",
       label: "Orders",
-      targetSchema: "order",
+      targetEntity: "order",
       cardinality: "one_to_many" as const,
+      direction: "outgoing" as const,
     },
   ],
   actions: [
     {
       name: "create_product",
       label: "Create Product",
-      schema: "product",
+      entity: "product",
       policy: "unrestricted",
     } as ActionDefinition,
   ],
@@ -371,7 +372,7 @@ describe("describeSchema tool — with OntologyRegistry", () => {
     expect(result.actions).toHaveLength(1);
     expect(result.actions[0].name).toBe("create_product");
     expect(result.relations).toHaveLength(1);
-    expect(result.relations[0].targetSchema).toBe("order");
+    expect(result.relations[0].targetEntity).toBe("order");
   });
 
   test("returns error for unknown schema", async () => {

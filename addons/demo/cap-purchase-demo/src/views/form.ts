@@ -12,7 +12,7 @@ import type { ViewDefinition } from "@linchkit/core";
 
 export const purchaseRequestFormView: ViewDefinition = {
   name: "purchase_request_form",
-  schema: "purchase_request",
+  entity: "purchase_request",
   type: "form",
   label: "t:schemas.purchase_request._label",
   fields: [

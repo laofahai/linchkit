@@ -6,7 +6,7 @@ import type { ActionDefinition } from "@linchkit/core";
 
 export const rejectAction: ActionDefinition = {
   name: "reject_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "t:schemas.purchase_request.actions.reject",
   description: "Reject a pending purchase request",
   input: {

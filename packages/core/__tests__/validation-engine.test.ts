@@ -28,7 +28,7 @@ function makeActionChange(name: string, def: Partial<ActionDefinition> = {}): Pr
     name,
     definition: {
       name,
-      schema: "order",
+      entity: "order",
       label: "Test Action",
       policy: { execution: "immediate" },
       ...def,
@@ -43,7 +43,7 @@ function makeStateChange(name: string, def: Partial<StateDefinition> = {}): Prop
     name,
     definition: {
       name,
-      schema: "order",
+      entity: "order",
       field: "status",
       initial: "pending",
       states: ["pending", "active", "done"],
@@ -236,21 +236,21 @@ describe("validatePhase1", () => {
   describe("action validation", () => {
     it("errors on action with no schema", () => {
       const result = validatePhase1({
-        changes: [makeActionChange("my_action", { schema: undefined as never })],
+        changes: [makeActionChange("my_action", { entity: undefined as never })],
       });
       expect(result.errors.some((e) => e.code === "ACTION_NO_SCHEMA")).toBe(true);
     });
 
     it("warns on action referencing unknown schema", () => {
       const result = validatePhase1({
-        changes: [makeActionChange("my_action", { schema: "nonexistent_schema" })],
+        changes: [makeActionChange("my_action", { entity: "nonexistent_schema" })],
       });
       expect(result.warnings.some((w) => w.code === "ACTION_UNKNOWN_SCHEMA")).toBe(true);
     });
 
     it("does not warn when schema is in the same proposal", () => {
       const result = validatePhase1({
-        changes: [makeSchemaChange("order"), makeActionChange("place_order", { schema: "order" })],
+        changes: [makeSchemaChange("order"), makeActionChange("place_order", { entity: "order" })],
       });
       expect(result.warnings.filter((w) => w.code === "ACTION_UNKNOWN_SCHEMA")).toHaveLength(0);
     });
@@ -280,7 +280,7 @@ describe("validatePhase1", () => {
       const result = validatePhase1({
         changes: [
           makeActionChange("approve", {
-            schema: "order",
+            entity: "order",
             stateTransition: { from: undefined as never, to: "approved" },
           }),
         ],
@@ -292,7 +292,7 @@ describe("validatePhase1", () => {
       const result = validatePhase1({
         changes: [
           makeActionChange("approve", {
-            schema: "order",
+            entity: "order",
             stateTransition: { from: "pending", to: undefined as never },
           }),
         ],
@@ -304,13 +304,13 @@ describe("validatePhase1", () => {
       const result = validatePhase1({
         changes: [
           makeStateChange("order_status", {
-            schema: "order",
+            entity: "order",
             states: ["pending", "active"],
             initial: "pending",
             transitions: [{ from: "pending", to: "active", action: "activate" }],
           }),
           makeActionChange("bad_action", {
-            schema: "order",
+            entity: "order",
             stateTransition: { from: "nonexistent", to: "active" },
           }),
         ],

@@ -32,7 +32,7 @@ export interface CascadeTarget {
   /** The aggregate derived config */
   derived: import("./safe-evaluator").AggregateDerived;
   /** The link definition connecting child to parent */
-  link: RelationDefinition;
+  relation: RelationDefinition;
   /** FK column name on the child record pointing to the parent */
   fkColumn: string;
 }
@@ -75,7 +75,7 @@ function parseDerivedConfig(field: FieldDefinition): DerivedConfig | undefined {
     case "aggregate":
       return {
         type: "aggregate",
-        source: raw.source as { link: string; schema: string; filter?: Record<string, unknown> },
+        source: raw.source as { link: string; entity: string; filter?: Record<string, unknown> },
         op: raw.op as "sum" | "count" | "avg" | "min" | "max",
         field: raw.field as string | undefined,
         strategy: raw.strategy,
@@ -190,27 +190,27 @@ export class DerivedPropertyEngine {
       if (info.derived.type !== "aggregate") continue;
 
       const agg = info.derived;
-      const linkName = agg.source.link;
-      const childSchema = agg.source.schema;
+      const relationName = agg.source.link;
+      const childSchema = agg.source.entity;
 
       // Find the link definition
       const allLinks = this.relationRegistry.list();
-      const link = allLinks.find((l) => l.name === linkName);
-      if (!link) continue;
+      const relation = allLinks.find((l) => l.name === relationName);
+      if (!relation) continue;
 
       // Determine FK column on the child record
       let fkColumn: string;
-      if (link.from === childSchema) {
-        fkColumn = `${link.to}_id`;
+      if (relation.from === childSchema) {
+        fkColumn = `${relation.to}_id`;
       } else {
-        fkColumn = `${link.from}_id`;
+        fkColumn = `${relation.from}_id`;
       }
 
       const target: CascadeTarget = {
         parentSchema: info.schemaName,
         parentField: info.fieldName,
         derived: agg,
-        link,
+        relation,
         fkColumn,
       };
 
@@ -608,7 +608,7 @@ export class DerivedPropertyEngine {
       }
 
       // Recalculate the aggregate field
-      const value = await resolveAggregateValue(target.derived, parentRecord, target.link, dp);
+      const value = await resolveAggregateValue(target.derived, parentRecord, target.relation, dp);
 
       // Collect update for this parent
       const updateKey = `${target.parentSchema}.${parentId}`;

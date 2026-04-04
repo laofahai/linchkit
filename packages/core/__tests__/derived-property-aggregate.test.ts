@@ -100,7 +100,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "sum",
       field: "amount",
     };
@@ -124,7 +124,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "count",
     };
 
@@ -147,7 +147,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "avg",
       field: "amount",
     };
@@ -167,7 +167,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "sum",
       field: "amount",
     };
@@ -187,7 +187,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "sum",
       field: "amount",
     };
@@ -214,7 +214,7 @@ describe("resolveAggregateValue", () => {
 
     const derived: AggregateDerived = {
       type: "aggregate",
-      source: { link: "emp_to_dept", schema: "employee" },
+      source: { link: "emp_to_dept", entity: "employee" },
       op: "sum",
       field: "salary",
     };
@@ -249,7 +249,7 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "sum",
             field: "amount",
             strategy: "store",
@@ -259,7 +259,7 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "count",
             strategy: "store",
           },
@@ -339,7 +339,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "sum",
             field: "amount",
             strategy: "store",
@@ -349,7 +349,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "count",
             strategy: "store",
           },
@@ -509,7 +509,7 @@ describe("DerivedPropertyEngine — chained fields with aggregates", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "sum",
             field: "amount",
             strategy: "store",
@@ -582,7 +582,7 @@ describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "sum",
             field: "amount",
             strategy: "compute",
@@ -633,7 +633,7 @@ describe("DerivedPropertyEngine — wire()", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "dept_to_emp", schema: "employee" },
+            source: { link: "dept_to_emp", entity: "employee" },
             op: "count",
             strategy: "store",
           },
@@ -719,7 +719,7 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "project_to_tasks", schema: "task" },
+            source: { link: "project_to_tasks", entity: "task" },
             op: "count",
             strategy: "store",
           },
@@ -734,7 +734,7 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "sprint_to_tasks", schema: "task" },
+            source: { link: "sprint_to_tasks", entity: "task" },
             op: "sum",
             field: "effort",
             strategy: "store",
@@ -800,7 +800,7 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "order_to_items", schema: "order_item" },
+            source: { link: "order_to_items", entity: "order_item" },
             op: "sum",
             field: "amount",
             strategy: "store",
@@ -880,7 +880,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "company_to_depts", schema: "department" },
+            source: { link: "company_to_depts", entity: "department" },
             op: "sum",
             field: "employee_count",
             strategy: "store",
@@ -897,7 +897,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "dept_to_employees", schema: "employee" },
+            source: { link: "dept_to_employees", entity: "employee" },
             op: "count",
             strategy: "store",
           },
@@ -963,7 +963,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "company_to_depts", schema: "department" },
+            source: { link: "company_to_depts", entity: "department" },
             op: "sum",
             field: "employee_count",
             strategy: "store",
@@ -980,7 +980,7 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
           type: "number",
           derived: {
             type: "aggregate",
-            source: { link: "dept_to_employees", schema: "employee" },
+            source: { link: "dept_to_employees", entity: "employee" },
             op: "count",
             strategy: "store",
           },

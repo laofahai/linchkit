@@ -61,12 +61,12 @@ function makeEvent(
 const sampleAutomation: AutomationDefinition = {
   name: "auto_submitted_at",
   description: "Set submitted_at on state change to pending",
-  trigger: { type: "stateChange", schema: "purchase_request", to: "pending" },
+  trigger: { type: "stateChange", entity: "purchase_request", to: "pending" },
   actions: [
     {
       type: "execute_action",
       action: "builtin:set_field",
-      input: { schema: "purchase_request", field: "submitted_at", value: "{{$now}}" },
+      input: { entity: "purchase_request", field: "submitted_at", value: "{{$now}}" },
     },
   ],
   enabled: true,
@@ -142,7 +142,7 @@ describe("AutomationEngine wiring (integration)", () => {
           _old: { _state: "draft" },
           _new: { _state: "pending" },
         },
-        { schema: "purchase_request" },
+        { entity: "purchase_request" },
       ),
     );
 
@@ -150,7 +150,7 @@ describe("AutomationEngine wiring (integration)", () => {
     expect(executedActions).toHaveLength(1);
     expect(executedActions[0]?.name).toBe("builtin:set_field");
     expect(executedActions[0]?.input).toMatchObject({
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "submitted_at",
     });
   });
@@ -182,7 +182,7 @@ describe("AutomationEngine wiring (integration)", () => {
       makeEvent(
         "record.updated",
         { _old: { _state: "draft" }, _new: { _state: "pending" } },
-        { schema: "purchase_request" },
+        { entity: "purchase_request" },
       ),
     );
 

@@ -8,7 +8,7 @@ import { defineAction } from "@linchkit/core";
 
 export const updatePermissionsAction = defineAction({
   name: "update_permissions",
-  schema: "permission_group",
+  entity: "permission_group",
   label: "Update Group Permissions",
   description: "Update the permission rules of an existing group",
   input: {

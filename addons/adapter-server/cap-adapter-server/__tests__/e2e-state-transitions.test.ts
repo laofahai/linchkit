@@ -21,7 +21,7 @@ import { createServer } from "../src/server";
 
 const purchaseLifecycle: StateDefinition = {
   name: "purchase_lifecycle",
-  schema: "purchase_request",
+  entity: "purchase_request",
   field: "status",
   initial: "draft",
   states: ["draft", "pending", "approved", "rejected"],
@@ -56,7 +56,7 @@ const purchaseRequestSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit",
   policy: { mode: "sync", transaction: true },
   exposure: "all",
@@ -72,7 +72,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Approve",
   policy: { mode: "sync", transaction: true },
   exposure: "all",
@@ -88,7 +88,7 @@ const approveAction: ActionDefinition = {
 
 const rejectAction: ActionDefinition = {
   name: "reject_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Reject",
   policy: { mode: "sync", transaction: true },
   exposure: "all",
@@ -104,7 +104,7 @@ const rejectAction: ActionDefinition = {
 
 const resubmitAction: ActionDefinition = {
   name: "resubmit_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Resubmit",
   policy: { mode: "sync", transaction: true },
   exposure: "all",

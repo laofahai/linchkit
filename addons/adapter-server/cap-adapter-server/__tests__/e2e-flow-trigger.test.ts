@@ -22,7 +22,7 @@ import {
   InMemoryStore,
   EntityRegistry,
 } from "@linchkit/core/server";
-import { purchaseApprovalFlow } from "../../cap-purchase-demo/src/flows/purchase-approval";
+import { purchaseApprovalFlow } from "../../../demo/cap-purchase-demo/src/flows/purchase-approval";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -45,7 +45,7 @@ const purchaseRequestSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit",
   policy: { mode: "sync", transaction: true },
   exposure: "all",
@@ -61,7 +61,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Approve",
   policy: { mode: "sync", transaction: true },
   exposure: "all",

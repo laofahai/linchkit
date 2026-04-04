@@ -61,7 +61,7 @@ function createTestSetup() {
 
   const echoAction: ActionDefinition = {
     name: "echo",
-    schema: "item",
+    entity: "item",
     label: "Echo",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -72,7 +72,7 @@ function createTestSetup() {
 
   const createAction: ActionDefinition = {
     name: "create_item",
-    schema: "item",
+    entity: "item",
     label: "Create Item",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -204,7 +204,7 @@ describe("E2E: CommandLayer 7-slot pipeline", () => {
       const exec = createActionExecutor({ dataProvider: dp });
       exec.registry.register({
         name: "guarded_action",
-        schema: "item",
+        entity: "item",
         label: "Guarded",
         policy: { mode: "sync", transaction: false },
         exposure: "all",

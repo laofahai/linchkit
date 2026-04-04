@@ -107,14 +107,14 @@ async function fetchSchemaSummaries(
 
   const query = `query { ${queryParts.join("\n    ")} }`;
 
-  // Step 3: Count recent activity per schema from execution logs (last 24h)
+  // Step 3: Count recent activity per entity from execution logs (last 24h)
   const recentCounts: Record<string, number> = {};
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const log of logs) {
-    if (!log.schema) continue;
+    if (!log.entity) continue;
     const logTime = new Date(log.startedAt).getTime();
     if (logTime >= cutoff) {
-      recentCounts[log.schema] = (recentCounts[log.schema] ?? 0) + 1;
+      recentCounts[log.entity] = (recentCounts[log.entity] ?? 0) + 1;
     }
   }
 
@@ -440,8 +440,8 @@ function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading:
   return (
     <div className="space-y-3">
       {logs.map((log) => {
-        const schemaLabel = log.schema
-          ? t(`schemas.${log.schema}._label`, { defaultValue: "" }) || log.schema
+        const schemaLabel = log.entity
+          ? t(`schemas.${log.entity}._label`, { defaultValue: "" }) || log.entity
           : "";
 
         return (

@@ -25,7 +25,7 @@ function makeEventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
     timestamp: new Date("2026-03-26T10:00:00Z"),
     actor: { type: "user", id: "user-1" },
     executionId: "exec-1",
-    schema: "task",
+    entity: "task",
     recordId: "task-1",
     payload: { title: "Test Task" },
     ...overrides,
@@ -99,7 +99,7 @@ describe("formatSSEEvent", () => {
   test("formats a subscription event as SSE", () => {
     const event: SubscriptionEvent = {
       type: "record.created",
-      schema: "task",
+      entity: "task",
       recordId: "task-1",
       actor: { type: "user", id: "user-1" },
       timestamp: "2026-03-26T10:00:00.000Z",
@@ -111,7 +111,7 @@ describe("formatSSEEvent", () => {
     // Verify JSON payload
     const dataLine = result.split("\n").find((l) => l.startsWith("data: "));
     const parsed = JSON.parse(dataLine?.slice(6));
-    expect(parsed.schema).toBe("task");
+    expect(parsed.entity).toBe("task");
     expect(parsed.recordId).toBe("task-1");
   });
 
@@ -123,7 +123,7 @@ describe("formatSSEEvent", () => {
   test("omits id field when eventId is not provided", () => {
     const event: SubscriptionEvent = {
       type: "record.updated",
-      schema: "task",
+      entity: "task",
       recordId: "task-1",
       actor: { type: "user", id: "user-1" },
       timestamp: "2026-03-26T10:00:00.000Z",
@@ -241,11 +241,11 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task", recordId: "task-1" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
-      expect(mock.events[0]?.schema).toBe("task");
+      expect(mock.events[0]?.entity).toBe("task");
     });
 
     test("filters out events for non-subscribed schemas", async () => {
@@ -258,7 +258,7 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "order", recordId: "order-1" }));
+      await bus.emit(makeEventRecord({ entity: "order", recordId: "order-1" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(0);
@@ -274,8 +274,8 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task" }));
-      await bus.emit(makeEventRecord({ schema: "order" }));
+      await bus.emit(makeEventRecord({ entity: "task" }));
+      await bus.emit(makeEventRecord({ entity: "order" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(2);
@@ -291,8 +291,8 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task", recordId: "task-1" }));
-      await bus.emit(makeEventRecord({ schema: "task", recordId: "task-2" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-2" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
@@ -309,8 +309,8 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task", tenantId: "tenant-a" }));
-      await bus.emit(makeEventRecord({ schema: "task", tenantId: "tenant-b" }));
+      await bus.emit(makeEventRecord({ entity: "task", tenantId: "tenant-a" }));
+      await bus.emit(makeEventRecord({ entity: "task", tenantId: "tenant-b" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock.events.length).toBe(1);
@@ -425,7 +425,7 @@ describe("SubscriptionManager", () => {
 
       await bus.emit(
         makeEventRecord({
-          schema: undefined,
+          entity: undefined,
           type: "record.created",
         }),
       );
@@ -628,7 +628,7 @@ describe("SubscriptionManager", () => {
         close: mock2.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task" }));
+      await bus.emit(makeEventRecord({ entity: "task" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mock1.events.length).toBe(1);
@@ -654,7 +654,7 @@ describe("SubscriptionManager", () => {
         close: orderMock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "task" }));
+      await bus.emit(makeEventRecord({ entity: "task" }));
       await new Promise((r) => setTimeout(r, 50));
 
       expect(taskMock.events.length).toBe(1);
@@ -740,12 +740,12 @@ describe("SubscriptionManager", () => {
       });
 
       // Emit event for "secret" schema — should be blocked
-      await bus.emit(makeEventRecord({ schema: "secret" }));
+      await bus.emit(makeEventRecord({ entity: "secret" }));
       await new Promise((r) => setTimeout(r, 50));
       expect(mock.events.length).toBe(0);
 
       // Emit event for "task" schema — should be delivered
-      await bus.emit(makeEventRecord({ schema: "task" }));
+      await bus.emit(makeEventRecord({ entity: "task" }));
       await new Promise((r) => setTimeout(r, 50));
       expect(mock.events.length).toBe(1);
     });
@@ -762,7 +762,7 @@ describe("SubscriptionManager", () => {
         close: mock.close,
       });
 
-      await bus.emit(makeEventRecord({ schema: "secret" }));
+      await bus.emit(makeEventRecord({ entity: "secret" }));
       await new Promise((r) => setTimeout(r, 50));
       expect(mock.events.length).toBe(1);
     });

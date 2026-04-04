@@ -710,7 +710,7 @@ export async function addChatterMessage(
 export interface ExecutionLogEntry {
   id: string;
   action: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
   actor: { type: string; id: string };
   input?: string;
@@ -768,7 +768,7 @@ export async function queryExecutionLogs(options: {
   const items: ExecutionLogEntry[] = raw.items.map((r) => ({
     id: r.id as string,
     action: r.action_name as string,
-    schema: r.schema_name as string | undefined,
+    entity: r.schema_name as string | undefined,
     recordId: r.record_id as string | undefined,
     actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
     input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),

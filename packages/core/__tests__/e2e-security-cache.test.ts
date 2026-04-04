@@ -236,7 +236,7 @@ describe("E2E: Data Masking + Command Pipeline", () => {
 
   const createAction: ActionDefinition = {
     name: "create_employee",
-    schema: "employee",
+    entity: "employee",
     label: "Create Employee",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -247,7 +247,7 @@ describe("E2E: Data Masking + Command Pipeline", () => {
 
   const readAction: ActionDefinition = {
     name: "read_employee",
-    schema: "employee",
+    entity: "employee",
     label: "Read Employee",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -503,7 +503,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     expect(manager.get("orders:list")).toBeDefined();
 
     // Simulate creating a record via handleEvent (direct call, avoids EventBus withTrace bug)
-    manager.handleEvent(makeEvent("record.created", { schema: "orders" }));
+    manager.handleEvent(makeEvent("record.created", { entity: "orders" }));
 
     // Cache should be invalidated
     expect(manager.get("orders:list")).toBeUndefined();
@@ -517,7 +517,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     expect(manager.get("orders:rec-1")).toBeDefined();
 
     // Simulate updating a record
-    manager.handleEvent(makeEvent("record.updated", { schema: "orders" }));
+    manager.handleEvent(makeEvent("record.updated", { entity: "orders" }));
 
     expect(manager.get("orders:rec-1")).toBeUndefined();
   });
@@ -530,7 +530,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     manager.set("t2:orders", "tenant2-data", { tags: ["schema:t2:orders"] });
 
     // Event scoped to tenant 1
-    manager.handleEvent(makeEvent("record.updated", { schema: "orders", tenantId: "t1" }));
+    manager.handleEvent(makeEvent("record.updated", { entity: "orders", tenantId: "t1" }));
 
     // Tenant 1 cache invalidated, tenant 2 unaffected
     expect(manager.get("t1:orders")).toBeUndefined();
@@ -547,7 +547,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     // Unrelated schema cache should not be affected
     manager.set("products:list", "products-data", { tags: ["schema:products"] });
 
-    manager.handleEvent(makeEvent("record.created", { schema: "orders" }));
+    manager.handleEvent(makeEvent("record.created", { entity: "orders" }));
 
     // Orders cache entries invalidated
     expect(ordersCache.get("list")).toBeUndefined();

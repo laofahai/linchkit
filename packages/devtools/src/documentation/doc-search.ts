@@ -160,11 +160,11 @@ export class DocSearchIndex {
     for (const rel of doc.relations) {
       this.entries.push({
         type: "relation",
-        name: rel.linkName,
+        name: rel.relationName,
         capability: doc.name,
-        label: rel.linkName,
+        label: rel.relationName,
         description: `${rel.from} -> ${rel.to} (${rel.cardinality})`,
-        searchText: [rel.linkName, rel.from, rel.to, rel.cardinality].join(" ").toLowerCase(),
+        searchText: [rel.relationName, rel.from, rel.to, rel.cardinality].join(" ").toLowerCase(),
       });
     }
   }

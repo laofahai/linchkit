@@ -49,14 +49,14 @@ const purchaseCapability: CapabilityDefinition = {
   actions: [
     {
       name: "create_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "Create Request",
       description: "Creates a new purchase request",
       policy: { mode: "sync", transaction: true },
     },
     {
       name: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "Submit Request",
       description: "Submit for approval",
       policy: { mode: "sync", transaction: true },
@@ -64,7 +64,7 @@ const purchaseCapability: CapabilityDefinition = {
     },
     {
       name: "approve_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "Approve Request",
       description: "Approve the purchase request",
       policy: { mode: "sync", transaction: true },
@@ -84,7 +84,7 @@ const purchaseCapability: CapabilityDefinition = {
   states: [
     {
       name: "purchase_lifecycle",
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "status",
       initial: "draft",
       states: ["draft", "submitted", "approved", "purchased", "completed"],
@@ -97,14 +97,14 @@ const purchaseCapability: CapabilityDefinition = {
   views: [
     {
       name: "purchase_request_list",
-      schema: "purchase_request",
+      entity: "purchase_request",
       type: "list",
       label: "Purchase Request List",
       fields: [{ field: "title" }, { field: "amount" }, { field: "status" }],
     },
     {
       name: "purchase_request_form",
-      schema: "purchase_request",
+      entity: "purchase_request",
       type: "form",
       label: "Purchase Request Form",
       fields: [{ field: "title" }, { field: "amount" }, { field: "department_id" }],
@@ -151,7 +151,7 @@ const employeeCapability: CapabilityDefinition = {
   actions: [
     {
       name: "create_employee",
-      schema: "employee",
+      entity: "employee",
       label: "Create Employee",
       description: "Add a new employee",
       policy: { mode: "sync", transaction: true },
@@ -241,7 +241,7 @@ describe("generateCapabilityDoc", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
     expect(doc.relations).toHaveLength(1);
-    expect(doc.relations[0]?.linkName).toBe("dept_purchase");
+    expect(doc.relations[0]?.relationName).toBe("dept_purchase");
     expect(doc.relations[0]?.from).toBe("department");
     expect(doc.relations[0]?.to).toBe("purchase_request");
     expect(doc.relations[0]?.cardinality).toBe("one_to_many");

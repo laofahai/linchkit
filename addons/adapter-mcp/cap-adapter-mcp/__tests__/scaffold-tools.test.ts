@@ -43,12 +43,12 @@ describe("scaffold_action", () => {
   it("generates a valid action template with defaults", () => {
     const code = generateActionTemplate({
       name: "create_order",
-      schema: "orders",
+      entity: "orders",
     });
 
     expect(code).toContain('import type { ActionDefinition } from "@linchkit/core"');
     expect(code).toContain('name: "create_order"');
-    expect(code).toContain('schema: "orders"');
+    expect(code).toContain('entity: "orders"');
     expect(code).toContain('label: "CreateOrder"');
     expect(code).toContain("policy:");
     expect(code).toContain('mode: "sync"');
@@ -59,7 +59,7 @@ describe("scaffold_action", () => {
   it("includes specified input fields with correct types", () => {
     const code = generateActionTemplate({
       name: "create_order",
-      schema: "orders",
+      entity: "orders",
       inputFields: {
         customer_name: "string",
         quantity: "number",
@@ -75,7 +75,7 @@ describe("scaffold_action", () => {
   it("falls back to string for unknown field types", () => {
     const code = generateActionTemplate({
       name: "test_action",
-      schema: "test",
+      entity: "test",
       inputFields: { weird_field: "unknown_type" },
     });
 
@@ -85,7 +85,7 @@ describe("scaffold_action", () => {
   it("includes custom description", () => {
     const code = generateActionTemplate({
       name: "approve_order",
-      schema: "orders",
+      entity: "orders",
       description: "Approve a pending order",
     });
 

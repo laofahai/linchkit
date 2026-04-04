@@ -70,9 +70,9 @@ export const capAdapterServer = defineCapability({
           // Build views map from flat array (including system views)
           const viewsMap = new Map<string, import("@linchkit/core/types").ViewDefinition[]>();
           for (const view of allViews) {
-            const list = viewsMap.get(view.schema) ?? [];
+            const list = viewsMap.get(view.entity) ?? [];
             list.push(view);
-            viewsMap.set(view.schema, list);
+            viewsMap.set(view.entity, list);
           }
 
           // Collect permission groups for data masking in GraphQL resolvers

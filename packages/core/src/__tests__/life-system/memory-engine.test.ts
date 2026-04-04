@@ -14,7 +14,7 @@ function makeSensorSignal(overrides: Partial<SensorSignal> = {}): SensorSignal {
     baseline: 10,
     deviation: 0,
     confidence: 1,
-    context: { schema: "order", metric: "count", ...overrides.context },
+    context: { entity: "order", metric: "count", ...overrides.context },
     ...overrides,
   };
 }
@@ -28,7 +28,7 @@ describe("InMemoryMemoryStore", () => {
       type: "sensor_a",
       source: "api" as const,
       timestamp: new Date(),
-      payload: { value: 5, schema: "order", metric: "count" },
+      payload: { value: 5, entity: "order", metric: "count" },
     };
 
     await store.recordSignal(signal);
@@ -38,22 +38,22 @@ describe("InMemoryMemoryStore", () => {
     expect(signals[0]!.type).toBe("sensor_a");
   });
 
-  it("getSignals filters by schema via payload.schema", async () => {
+  it("getSignals filters by entity via payload.entity", async () => {
     const store = new InMemoryMemoryStore();
     await store.recordSignal({
       type: "s1",
       source: "api",
       timestamp: new Date(),
-      payload: { value: 1, schema: "order", metric: "count" },
+      payload: { value: 1, entity: "order", metric: "count" },
     });
     await store.recordSignal({
       type: "s2",
       source: "api",
       timestamp: new Date(),
-      payload: { value: 2, schema: "invoice", metric: "count" },
+      payload: { value: 2, entity: "invoice", metric: "count" },
     });
 
-    const orders = await store.getSignals({ schema: "order" });
+    const orders = await store.getSignals({ entity: "order" });
     expect(orders).toHaveLength(1);
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(orders[0]!.type).toBe("s1");
@@ -68,13 +68,13 @@ describe("InMemoryMemoryStore", () => {
       type: "old",
       source: "api",
       timestamp: old,
-      payload: { value: 1, schema: "order", metric: "count" },
+      payload: { value: 1, entity: "order", metric: "count" },
     });
     await store.recordSignal({
       type: "new",
       source: "api",
       timestamp: recent,
-      payload: { value: 2, schema: "order", metric: "count" },
+      payload: { value: 2, entity: "order", metric: "count" },
     });
 
     const since = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
@@ -91,7 +91,7 @@ describe("InMemoryMemoryStore", () => {
         type: `s${i}`,
         source: "api",
         timestamp: new Date(),
-        payload: { value: i, schema: "order", metric: "count" },
+        payload: { value: i, entity: "order", metric: "count" },
       });
     }
     const result = await store.getSignals({ limit: 2 });
@@ -103,7 +103,7 @@ describe("InMemoryMemoryStore", () => {
     expect(await store.getBaseline("order", "count")).toBeNull();
 
     await store.updateBaseline({
-      schema: "order",
+      entity: "order",
       metric: "count",
       value: 42,
       calculatedAt: new Date(),
@@ -116,8 +116,8 @@ describe("InMemoryMemoryStore", () => {
 
   it("upserts baseline — second update overwrites", async () => {
     const store = new InMemoryMemoryStore();
-    await store.updateBaseline({ schema: "a", metric: "m", value: 1, calculatedAt: new Date() });
-    await store.updateBaseline({ schema: "a", metric: "m", value: 99, calculatedAt: new Date() });
+    await store.updateBaseline({ entity: "a", metric: "m", value: 1, calculatedAt: new Date() });
+    await store.updateBaseline({ entity: "a", metric: "m", value: 99, calculatedAt: new Date() });
 
     const b = await store.getBaseline("a", "m");
     expect(b?.value).toBe(99);
@@ -126,13 +126,13 @@ describe("InMemoryMemoryStore", () => {
   it("distinguishes baselines by schema", async () => {
     const store = new InMemoryMemoryStore();
     await store.updateBaseline({
-      schema: "order",
+      entity: "order",
       metric: "count",
       value: 10,
       calculatedAt: new Date(),
     });
     await store.updateBaseline({
-      schema: "invoice",
+      entity: "invoice",
       metric: "count",
       value: 20,
       calculatedAt: new Date(),
@@ -208,7 +208,7 @@ describe("MemoryEngine", () => {
         type: "test_sensor",
         source: "event_bus",
         timestamp: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
-        payload: { value: 999, schema: "order", metric: "count" },
+        payload: { value: 999, entity: "order", metric: "count" },
       });
 
       // Recent signal
@@ -245,7 +245,7 @@ describe("MemoryEngine", () => {
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
       await store.updateBaseline({
-        schema: "order",
+        entity: "order",
         metric: "count",
         value: 100,
         calculatedAt: new Date(),
@@ -261,7 +261,7 @@ describe("MemoryEngine", () => {
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
       await store.updateBaseline({
-        schema: "order",
+        entity: "order",
         metric: "count",
         value: 100,
         calculatedAt: new Date(),
@@ -277,7 +277,7 @@ describe("MemoryEngine", () => {
       const engine = new MemoryEngine({ store });
 
       await store.updateBaseline({
-        schema: "order",
+        entity: "order",
         metric: "count",
         value: 0,
         calculatedAt: new Date(),
@@ -293,7 +293,7 @@ describe("MemoryEngine", () => {
       const engine = new MemoryEngine({ store, driftThreshold: 0.3 });
 
       await store.updateBaseline({
-        schema: "order",
+        entity: "order",
         metric: "count",
         value: 100,
         calculatedAt: new Date(),
@@ -317,7 +317,7 @@ describe("MemoryEngine", () => {
       const engine = new MemoryEngine({ store });
 
       await store.updateBaseline({
-        schema: "order",
+        entity: "order",
         metric: "count",
         value: 77,
         calculatedAt: new Date(),

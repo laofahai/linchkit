@@ -137,7 +137,7 @@ describe("defineWatcher", () => {
   it("sets enabled to true by default", () => {
     const watcher = defineWatcher({
       name: "test-watcher",
-      watch: { schema: "order" },
+      watch: { entity: "order" },
       trigger: { type: "threshold", field: "amount", condition: { gt: 100 } },
       effect: { action: "notify", params: {} },
     });
@@ -149,7 +149,7 @@ describe("defineWatcher", () => {
   it("respects explicit enabled: false", () => {
     const watcher = defineWatcher({
       name: "test-watcher",
-      watch: { schema: "order" },
+      watch: { entity: "order" },
       trigger: { type: "threshold", field: "amount", condition: { gt: 100 } },
       effect: { action: "notify", params: {} },
       enabled: false,
@@ -166,7 +166,7 @@ describe("WatcherRegistry", () => {
 
   const sampleWatcher: WatcherDefinition = defineWatcher({
     name: "low-stock",
-    watch: { schema: "inventory" },
+    watch: { entity: "inventory" },
     trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
     effect: { action: "reorder", params: {} },
   });
@@ -191,15 +191,15 @@ describe("WatcherRegistry", () => {
     registry.register(
       defineWatcher({
         name: "other-watcher",
-        watch: { schema: "order" },
+        watch: { entity: "order" },
         trigger: { type: "threshold", field: "total", condition: { gt: 1000 } },
         effect: { action: "alert", params: {} },
       }),
     );
 
-    expect(registry.getForSchema("inventory")).toHaveLength(1);
-    expect(registry.getForSchema("order")).toHaveLength(1);
-    expect(registry.getForSchema("nonexistent")).toHaveLength(0);
+    expect(registry.getForEntity("inventory")).toHaveLength(1);
+    expect(registry.getForEntity("order")).toHaveLength(1);
+    expect(registry.getForEntity("nonexistent")).toHaveLength(0);
   });
 
   it("filters enabled watchers", () => {
@@ -207,7 +207,7 @@ describe("WatcherRegistry", () => {
     registry.register(
       defineWatcher({
         name: "disabled-watcher",
-        watch: { schema: "order" },
+        watch: { entity: "order" },
         trigger: { type: "threshold", field: "total", condition: { gt: 1000 } },
         effect: { action: "alert", params: {} },
         enabled: false,
@@ -254,7 +254,7 @@ describe("WatcherEngine — threshold triggers (single-record)", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: { urgent: true } },
       }),
@@ -277,7 +277,7 @@ describe("WatcherEngine — threshold triggers (single-record)", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -299,7 +299,7 @@ describe("WatcherEngine — threshold triggers (single-record)", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -320,7 +320,7 @@ describe("WatcherEngine — threshold triggers (single-record)", () => {
       defineWatcher({
         name: "critical-low-stock",
         watch: {
-          schema: "inventory",
+          entity: "inventory",
           filter: { field: "target.category", operator: "eq", value: "critical" },
         },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
@@ -353,7 +353,7 @@ describe("WatcherEngine — threshold triggers (single-record)", () => {
     registry.register(
       defineWatcher({
         name: "low-stock-dynamic",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: {
           action: "reorder",
@@ -401,7 +401,7 @@ describe("WatcherEngine — threshold triggers (aggregate)", () => {
       defineWatcher({
         name: "budget-alert",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           aggregate: { field: "amount", op: "sum" },
         },
         trigger: { type: "threshold", condition: { gt: 100_000 } },
@@ -440,7 +440,7 @@ describe("WatcherEngine — threshold triggers (aggregate)", () => {
       defineWatcher({
         name: "budget-alert",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           aggregate: { field: "amount", op: "sum" },
         },
         trigger: { type: "threshold", condition: { gt: 100_000 } },
@@ -492,7 +492,7 @@ describe("WatcherEngine — debounce strategies", () => {
     registry.register(
       defineWatcher({
         name: "low-stock-debounced",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -537,7 +537,7 @@ describe("WatcherEngine — debounce strategies", () => {
     registry.register(
       defineWatcher({
         name: "low-stock-once",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -578,7 +578,7 @@ describe("WatcherEngine — debounce strategies", () => {
     registry.register(
       defineWatcher({
         name: "no-debounce",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -620,7 +620,7 @@ describe("WatcherEngine — set_change triggers", () => {
       defineWatcher({
         name: "high-value-added",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           filter: { field: "target.amount", operator: "gt", value: 50_000 },
         },
         trigger: { type: "set_change", on: "added" },
@@ -646,7 +646,7 @@ describe("WatcherEngine — set_change triggers", () => {
       defineWatcher({
         name: "high-value-added",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           filter: { field: "target.amount", operator: "gt", value: 50_000 },
         },
         trigger: { type: "set_change", on: "added" },
@@ -672,7 +672,7 @@ describe("WatcherEngine — set_change triggers", () => {
       defineWatcher({
         name: "high-value-removed",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           filter: { field: "target.amount", operator: "gt", value: 50_000 },
         },
         trigger: { type: "set_change", on: "removed" },
@@ -697,7 +697,7 @@ describe("WatcherEngine — set_change triggers", () => {
       defineWatcher({
         name: "high-value-modified",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           filter: { field: "target.amount", operator: "gt", value: 50_000 },
         },
         trigger: { type: "set_change", on: "modified" },
@@ -740,7 +740,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -751,7 +751,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
 
     await bus.emit(
       "record.created",
-      makeEvent("record.created", { id: "item-1", quantity: 3 }, { schema: "inventory" }),
+      makeEvent("record.created", { id: "item-1", quantity: 3 }, { entity: "inventory" }),
     );
 
     expect(actionExecutor.calls).toHaveLength(1);
@@ -762,7 +762,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -779,7 +779,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
           _old: { id: "item-1", quantity: 15 },
           _new: { id: "item-1", quantity: 5 },
         },
-        { schema: "inventory" },
+        { entity: "inventory" },
       ),
     );
 
@@ -790,7 +790,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -801,7 +801,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
 
     await bus.emit(
       "record.created",
-      makeEvent("record.created", { id: "order-1", quantity: 1 }, { schema: "order" }),
+      makeEvent("record.created", { id: "order-1", quantity: 1 }, { entity: "order" }),
     );
 
     expect(actionExecutor.calls).toHaveLength(0);
@@ -811,7 +811,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
     registry.register(
       defineWatcher({
         name: "low-stock",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),
@@ -823,7 +823,7 @@ describe("WatcherEngine — event-bus reactive evaluation", () => {
 
     await bus.emit(
       "record.created",
-      makeEvent("record.created", { id: "item-1", quantity: 3 }, { schema: "inventory" }),
+      makeEvent("record.created", { id: "item-1", quantity: 3 }, { entity: "inventory" }),
     );
 
     expect(actionExecutor.calls).toHaveLength(0);
@@ -849,7 +849,7 @@ describe("WatcherEngine — staleness triggers", () => {
       defineWatcher({
         name: "stale-request",
         watch: {
-          schema: "purchase_request",
+          entity: "purchase_request",
           filter: { field: "target.status", operator: "eq", value: "submitted" },
         },
         trigger: { type: "staleness", field: "updated_at", threshold: "48h" },
@@ -900,7 +900,7 @@ describe("WatcherEngine — state management", () => {
     registry.register(
       defineWatcher({
         name: "test-state",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -930,7 +930,7 @@ describe("WatcherEngine — state management", () => {
     registry.register(
       defineWatcher({
         name: "test-reset",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -959,7 +959,7 @@ describe("WatcherEngine — state management", () => {
     registry.register(
       defineWatcher({
         name: "test-reset-all",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: {
           type: "threshold",
           field: "quantity",
@@ -993,7 +993,7 @@ describe("WatcherEngine — disabled watchers", () => {
     registry.register(
       defineWatcher({
         name: "disabled-watcher",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
         enabled: false,
@@ -1029,7 +1029,7 @@ describe("WatcherEngine — error handling", () => {
     registry.register(
       defineWatcher({
         name: "error-watcher",
-        watch: { schema: "inventory" },
+        watch: { entity: "inventory" },
         trigger: { type: "threshold", field: "quantity", condition: { lt: 10 } },
         effect: { action: "reorder", params: {} },
       }),

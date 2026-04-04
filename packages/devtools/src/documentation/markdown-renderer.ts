@@ -110,7 +110,7 @@ export function renderSchemaDoc(schema: SchemaDoc, options?: MarkdownRenderOptio
     for (const rel of schema.relations) {
       const arrow = rel.direction === "outgoing" ? "-->" : "<--";
       lines.push(
-        `- \`${schema.name}\` ${arrow} \`${rel.targetSchema}\` (${rel.cardinality}) via \`${rel.linkName}\``,
+        `- \`${schema.name}\` ${arrow} \`${rel.targetEntity}\` (${rel.cardinality}) via \`${rel.relationName}\``,
       );
     }
     lines.push("");
@@ -251,7 +251,7 @@ function renderMermaidRelationships(schemas: SchemaDoc[]): string | null {
     for (const rel of schema.relations) {
       if (rel.direction !== "outgoing") continue;
 
-      const key = `${schema.name}--${rel.targetSchema}`;
+      const key = `${schema.name}--${rel.targetEntity}`;
       if (edges.has(key)) continue;
       edges.add(key);
 
@@ -265,8 +265,8 @@ function renderMermaidRelationships(schemas: SchemaDoc[]): string | null {
       const card = cardMap[rel.cardinality] ?? "--";
       // Mermaid erDiagram requires alphanumeric entity names (no underscores)
       const fromEntity = snakeToPascal(schema.name);
-      const toEntity = snakeToPascal(rel.targetSchema);
-      edgeLines.push(`  ${fromEntity} ${card} ${toEntity} : "${rel.linkName}"`);
+      const toEntity = snakeToPascal(rel.targetEntity);
+      edgeLines.push(`  ${fromEntity} ${card} ${toEntity} : "${rel.relationName}"`);
     }
   }
 

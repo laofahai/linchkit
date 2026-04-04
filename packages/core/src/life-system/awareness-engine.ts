@@ -28,9 +28,9 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
     },
 
     ingestSignal(signal: SensorSignal): void {
-      const schema = signal.context?.schema as string | undefined;
-      if (schema) {
-        usageGraph.recordUsage("schema", schema);
+      const entity = signal.context?.entity as string | undefined;
+      if (entity) {
+        usageGraph.recordUsage("schema", entity);
       }
       usageGraph.recordUsage("schema", signal.sensor);
     },
@@ -47,7 +47,7 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
         if (!descriptor.views || descriptor.views.length === 0) {
           issues.push({
             kind: "schema_no_view",
-            schema: schemaName,
+            entity: schemaName,
             message: `Schema "${schemaName}" has no views defined`,
           });
         }
@@ -57,10 +57,10 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
           const usage = usageGraph.getImportance("action", schemaName, action.name);
           if (usage === 0) {
             issues.push({
-              kind: "action_never_called",
-              schema: schemaName,
-              target: action.name,
-              message: `Action "${action.name}" on schema "${schemaName}" has never been called`,
+            kind: "action_never_called",
+            entity: schemaName,
+            target: action.name,
+            message: `Action "${action.name}" on schema "${schemaName}" has never been called`,
             });
           }
         }

@@ -45,8 +45,8 @@ export interface ConfigFieldDefinition {
 export interface ConfigDefinition {
   /** Unique config namespace name (e.g. 'approval-settings') */
   name: string;
-  /** Which capability or schema owns this config */
-  schema: string;
+  /** Which capability or entity owns this config */
+  entity: string;
   /** Human-readable label */
   label?: string;
   /** Field definitions keyed by field name */

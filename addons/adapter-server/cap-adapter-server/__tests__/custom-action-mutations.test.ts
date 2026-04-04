@@ -21,7 +21,7 @@ const orderSchema: EntityDefinition = {
 
 const submitOrderAction: ActionDefinition = {
   name: "submit_order",
-  schema: "order",
+  entity: "order",
   label: "Submit Order",
   description: "Submit an order for approval",
   input: {
@@ -40,7 +40,7 @@ const submitOrderAction: ActionDefinition = {
 
 const approveOrderAction: ActionDefinition = {
   name: "approve_order",
-  schema: "order",
+  entity: "order",
   label: "Approve Order",
   description: "Approve a submitted order",
   // No input definition — mutation should only accept id
@@ -58,7 +58,7 @@ const approveOrderAction: ActionDefinition = {
 // Action without a schema association
 const pingAction: ActionDefinition = {
   name: "ping_system",
-  schema: "", // empty = no schema
+  entity: "", // empty = no schema
   label: "Ping System",
   description: "Ping the system for health check",
   policy: { mode: "sync", transaction: false },

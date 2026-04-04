@@ -21,7 +21,7 @@ const testSchema = defineEntity({
 
 const testAction = defineAction({
   name: "create_order",
-  schema: "order",
+  entity: "order",
   label: "Create Order",
   description: "Creates a new sales order",
   input: {
@@ -34,7 +34,7 @@ const testAction = defineAction({
 
 const hiddenAction = defineAction({
   name: "internal_cleanup",
-  schema: "order",
+  entity: "order",
   label: "Internal Cleanup",
   policy: { mode: "sync", transaction: false },
   exposure: { mcp: false, internal: true },
@@ -743,7 +743,7 @@ const productSchema = defineEntity({
 
 const createProductAction = defineAction({
   name: "create_product",
-  schema: "product",
+  entity: "product",
   label: "Create Product",
   description: "Creates a new product",
   input: {
@@ -768,14 +768,14 @@ const productRule = defineRule({
   name: "product_price_check",
   label: "Product Price Check",
   description: "Product price must be positive",
-  trigger: { fieldChange: { schema: "product", field: "price" } },
+  trigger: { fieldChange: { entity: "product", field: "price" } },
   condition: { field: "price", operator: "lte", value: 0 },
   effect: { type: "block", message: "Price must be positive" },
 });
 
 const testStateMachine = defineState({
   name: "order_status",
-  schema: "order",
+  entity: "order",
   field: "status",
   initial: "draft",
   states: ["draft", "confirmed", "shipped", "delivered"],
@@ -794,7 +794,7 @@ const testStateMachine = defineState({
 
 const productStateMachine = defineState({
   name: "product_lifecycle",
-  schema: "product",
+  entity: "product",
   field: "status",
   initial: "draft",
   states: ["draft", "active", "archived"],

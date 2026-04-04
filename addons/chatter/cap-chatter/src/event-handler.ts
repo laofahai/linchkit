@@ -52,7 +52,7 @@ export function createChatterAutoLog(service: ChatterService): EventHandlerDefin
     listen: ["record.created", "record.updated", "record.deleted", "state.transition"],
 
     async handler(event, _ctx) {
-      const schema = event.schema ?? (event.payload.schema as string | undefined);
+      const schema = event.entity ?? (event.payload.entity as string | undefined);
       const recordId = event.recordId ?? (event.payload.recordId as string | undefined);
 
       if (!schema || !recordId) return;

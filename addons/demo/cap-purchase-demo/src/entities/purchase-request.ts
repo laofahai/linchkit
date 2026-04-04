@@ -123,7 +123,7 @@ export const purchaseRequestEntity: EntityDefinition = {
       derived: {
         type: "aggregate",
         strategy: "compute",
-        source: { link: "request_to_items", schema: "purchase_item" },
+        source: { link: "request_to_items", entity: "purchase_item" },
         op: "sum",
         field: "line_total",
         deps: ["purchase_item.quantity", "purchase_item.unit_price"],

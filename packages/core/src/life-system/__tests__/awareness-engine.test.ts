@@ -14,7 +14,7 @@ function makeOntology(schemas: Record<string, Partial<EntityDescriptor>>): Ontol
   } as unknown as OntologyRegistry;
 }
 
-function makeSignal(schema: string, sensor = "test"): SensorSignal {
+function makeSignal(entity: string, sensor = "test"): SensorSignal {
   return {
     sensor,
     source: "api",
@@ -23,7 +23,7 @@ function makeSignal(schema: string, sensor = "test"): SensorSignal {
     baseline: 1,
     deviation: 0,
     confidence: 1,
-    context: { schema },
+    context: { entity },
   };
 }
 
@@ -45,7 +45,7 @@ describe("AwarenessEngine", () => {
     const noViewIssues = issues.filter((i) => i.kind === "schema_no_view");
     expect(noViewIssues).toHaveLength(1);
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
-    expect(noViewIssues[0]!.schema).toBe("Order");
+    expect(noViewIssues[0]!.entity).toBe("Order");
   });
 
   test("structuralCheck detects action_never_called", () => {

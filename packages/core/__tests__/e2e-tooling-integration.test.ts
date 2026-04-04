@@ -110,7 +110,7 @@ const projectSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_timesheet",
-  schema: "employee",
+  entity: "employee",
   label: "Submit Timesheet",
   description: "Submit employee timesheet for approval",
   exposure: "all",
@@ -124,7 +124,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_timesheet",
-  schema: "employee",
+  entity: "employee",
   label: "Approve Timesheet",
   description: "Approve a submitted timesheet",
   exposure: { http: true, ui: true },
@@ -339,7 +339,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     // Department has outgoing link to employee
     const deptRelations = ontology.relatedEntities("department");
     expect(deptRelations.length).toBeGreaterThan(0);
-    const empRelation = deptRelations.find((r) => r.targetSchema === "employee");
+    const empRelation = deptRelations.find((r) => r.targetEntity === "employee");
     expect(empRelation).toBeDefined();
   });
 });
@@ -382,7 +382,7 @@ describe("E2E: Governance + Documentation", () => {
   test("validateActionDoc reports issues for undocumented actions", () => {
     const bareAction: ActionDefinition = {
       name: "do_something",
-      schema: "thing",
+      entity: "thing",
       label: "Do Something",
       policy: { mode: "sync", transaction: false },
       input: {
@@ -1010,7 +1010,7 @@ describe("E2E: Full tooling pipeline", () => {
 
     // Step 8: Validate action naming conventions
     const actionConventions = checkActionDefinitions(
-      actions.map((a) => ({ name: a.name, schema: a.schema })),
+      actions.map((a) => ({ name: a.name, schema: a.entity })),
     );
     expect(actionConventions.summary.errors).toBe(0);
 

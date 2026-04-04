@@ -11,7 +11,7 @@ import type { StateDefinition } from "../src/types/state";
 
 const orderDefinition: StateDefinition = {
   name: "order",
-  schema: "Order",
+  entity: "Order",
   field: "status",
   initial: "draft",
   states: ["draft", "submitted", "approved", "rejected", "cancelled"],
@@ -26,7 +26,7 @@ const orderDefinition: StateDefinition = {
 
 const singleStateDefinition: StateDefinition = {
   name: "singleton",
-  schema: "Singleton",
+  entity: "Singleton",
   field: "status",
   initial: "active",
   states: ["active"],
@@ -206,7 +206,7 @@ describe("getAvailableActions", () => {
     // Even if multiple transitions share an action name, it should appear once
     const def: StateDefinition = {
       name: "test",
-      schema: "Test",
+      entity: "Test",
       field: "status",
       initial: "a",
       states: ["a", "b", "c"],

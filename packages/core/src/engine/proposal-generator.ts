@@ -105,7 +105,7 @@ function buildBasicSystemPrompt(schemas: EntityDefinition[], actions: ActionDefi
 
   const actionList =
     actions.length > 0
-      ? actions.map((a) => `  ${a.name} → schema: ${a.schema}, label: ${a.label}`).join("\n")
+      ? actions.map((a) => `  ${a.name} → entity: ${a.entity}, label: ${a.label}`).join("\n")
       : "  (none)";
 
   return `Current registered schemas:
@@ -487,9 +487,9 @@ function validateActionChange(
 
   const def = change.definition as ActionDefinition;
 
-  // Action must reference a valid schema (also accept schemas being created in the same proposal)
-  if (def.schema && !entityRegistry.has(def.schema) && !proposedSchemaNames.has(def.schema)) {
-    errors.push(`Action "${change.name}": references unknown schema "${def.schema}"`);
+  // Action must reference a valid entity (also accept entities being created in the same proposal)
+  if (def.entity && !entityRegistry.has(def.entity) && !proposedSchemaNames.has(def.entity)) {
+    errors.push(`Action "${change.name}": references unknown entity "${def.entity}"`);
   }
 
   // Validate input fields if present

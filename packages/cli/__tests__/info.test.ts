@@ -92,9 +92,9 @@ export default {
       type: "standard",
       category: "business",
       version: "0.1.0",
-      schemas: [{ name: "test_schema", label: "Test", fields: {} }],
+      entities: [{ name: "test_schema", label: "Test", fields: {} }],
       actions: [
-        { name: "create_test", label: "Create Test", schema: "test_schema", type: "create", handler: async () => ({}) },
+        { name: "create_test", label: "Create Test", entity: "test_schema", type: "create", handler: async () => ({}) },
       ],
     },
   ],
@@ -129,7 +129,7 @@ export default {
       type: "adapter",
       category: "integration",
       version: "2.0.0",
-      schemas: [
+      entities: [
         { name: "s1", label: "S1", fields: {} },
         { name: "s2", label: "S2", fields: {} },
       ],

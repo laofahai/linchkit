@@ -44,7 +44,7 @@ const purchaseRequestSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit Request",
   description: "Submit a purchase request for approval",
   policy: { mode: "sync", transaction: true },
@@ -53,7 +53,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Approve Request",
   policy: { mode: "sync", transaction: true },
   stateTransition: { from: "pending", to: "approved" },
@@ -63,14 +63,14 @@ const budgetRule: RuleDefinition = {
   name: "budget_check",
   label: "Budget Check",
   description: "Block requests over budget",
-  trigger: { stateChange: { schema: "purchase_request", to: "pending" } },
+  trigger: { stateChange: { entity: "purchase_request", to: "pending" } },
   condition: { field: "amount", operator: "gt", value: 10000 },
   effect: { type: "require_approval", level: "manager" },
 };
 
 const purchaseState: StateDefinition = {
   name: "purchase_request_state",
-  schema: "purchase_request",
+  entity: "purchase_request",
   field: "status",
   initial: "draft",
   states: ["draft", "pending", "approved", "rejected"],
@@ -83,7 +83,7 @@ const purchaseState: StateDefinition = {
 
 const listView: ViewDefinition = {
   name: "purchase_request_list",
-  schema: "purchase_request",
+  entity: "purchase_request",
   type: "list",
   label: "Purchase Requests",
   fields: [{ field: "title" }, { field: "amount" }, { field: "status" }],
@@ -91,7 +91,7 @@ const listView: ViewDefinition = {
 
 const formView: ViewDefinition = {
   name: "purchase_request_form",
-  schema: "purchase_request",
+  entity: "purchase_request",
   type: "form",
   label: "Purchase Request Form",
   fields: [
@@ -131,25 +131,25 @@ function createMockRelationRegistry(links: RelationDefinition[]) {
   return {
     relationsFor: (schemaName: string) => {
       const result: Array<{
-        link: RelationDefinition;
+        relation: RelationDefinition;
         direction: "outgoing" | "incoming";
-        relatedSchema: string;
+        relatedEntity: string;
         label: string;
       }> = [];
       for (const link of links) {
         if (link.from === schemaName) {
           result.push({
-            link,
+            relation: link,
             direction: "outgoing",
-            relatedSchema: link.to,
+            relatedEntity: link.to,
             label: link.label?.from ?? link.to,
           });
         }
         if (link.to === schemaName) {
           result.push({
-            link,
+            relation: link,
             direction: "incoming",
-            relatedSchema: link.from,
+            relatedEntity: link.from,
             label: link.label?.to ?? link.from,
           });
         }
@@ -261,9 +261,9 @@ describe("OntologyRegistry", () => {
       const desc = registry.describe("purchase_request");
 
       expect(desc?.relations).toHaveLength(1);
-      expect(desc?.relations[0].linkName).toBe("department_purchase_request");
+      expect(desc?.relations[0].relationName).toBe("department_purchase_request");
       expect(desc?.relations[0].direction).toBe("outgoing");
-      expect(desc?.relations[0].targetSchema).toBe("department");
+      expect(desc?.relations[0].targetEntity).toBe("department");
       expect(desc?.relations[0].cardinality).toBe("many_to_one");
     });
 
@@ -273,7 +273,7 @@ describe("OntologyRegistry", () => {
 
       expect(desc?.relations).toHaveLength(1);
       expect(desc?.relations[0].direction).toBe("incoming");
-      expect(desc?.relations[0].targetSchema).toBe("purchase_request");
+      expect(desc?.relations[0].targetEntity).toBe("purchase_request");
     });
 
     test("includes flows for the schema", () => {
@@ -369,7 +369,7 @@ describe("OntologyRegistry", () => {
       const registry = createOntologyRegistry(buildDeps());
       const relations = registry.relatedEntities("purchase_request");
       expect(relations).toHaveLength(1);
-      expect(relations[0].targetSchema).toBe("department");
+      expect(relations[0].targetEntity).toBe("department");
     });
 
     test("returns empty for unknown schema", () => {

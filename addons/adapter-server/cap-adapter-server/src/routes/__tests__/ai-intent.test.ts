@@ -41,7 +41,7 @@ const confidentialSchema: EntityDefinition = {
 
 const createPurchaseAction: ActionDefinition = {
   name: "create_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Create Purchase Request",
   description: "Creates a new purchase request",
   input: {
@@ -62,7 +62,7 @@ const createPurchaseAction: ActionDefinition = {
 
 const createConfidentialAction: ActionDefinition = {
   name: "create_confidential_report",
-  schema: "confidential_report",
+  entity: "confidential_report",
   label: "Create Confidential Report",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -135,7 +135,7 @@ let mainStore: InMemoryStore;
 beforeAll(() => {
   const mockResponse = JSON.stringify({
     action: "create_purchase_request",
-    schema: "purchase_request",
+    entity: "purchase_request",
     input: { title: "Laptop x3", amount: 24000, department: "IT" },
     missingFields: [],
     confidence: 0.92,

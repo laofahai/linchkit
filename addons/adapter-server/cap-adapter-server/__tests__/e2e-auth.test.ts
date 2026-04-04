@@ -35,7 +35,7 @@ const orderSchema: EntityDefinition = {
 /** A public action anyone can call */
 const publicAction: ActionDefinition = {
   name: "health_check",
-  schema: "system",
+  entity: "system",
   label: "Health Check",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -45,7 +45,7 @@ const publicAction: ActionDefinition = {
 /** An action restricted to the "manager" group */
 const managerAction: ActionDefinition = {
   name: "approve_order",
-  schema: "order",
+  entity: "order",
   label: "Approve Order",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -61,7 +61,7 @@ const managerAction: ActionDefinition = {
 /** An action restricted to the "admin" group */
 const adminAction: ActionDefinition = {
   name: "delete_all_orders",
-  schema: "order",
+  entity: "order",
   label: "Delete All Orders",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -74,7 +74,7 @@ const adminAction: ActionDefinition = {
 /** An action that is internal only (not exposed over HTTP) */
 const internalAction: ActionDefinition = {
   name: "internal_cleanup",
-  schema: "order",
+  entity: "order",
   label: "Internal Cleanup",
   policy: { mode: "sync", transaction: false },
   exposure: { http: false, internal: true },

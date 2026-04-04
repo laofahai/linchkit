@@ -33,7 +33,7 @@ export interface EventRecord {
   };
 
   tenantId?: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
   action?: string;
   /** Source capability that produced this event */
@@ -88,7 +88,7 @@ export type SubscriptionEventType =
 /** SSE event pushed to subscribed clients (spec 44) */
 export interface SubscriptionEvent {
   type: SubscriptionEventType;
-  schema: string;
+  entity: string;
   recordId: string;
   tenantId: string;
   /** Partial data — only changed fields, not the full record */

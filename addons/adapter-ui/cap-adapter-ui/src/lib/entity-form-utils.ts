@@ -26,7 +26,7 @@ export function deriveStatusSteps(
   if (!("machine" in stateField)) return null;
 
   const machine = (states ?? []).find(
-    (s) => s.name === stateField.machine && s.schema === schema.name,
+    (s) => s.name === stateField.machine && s.entity === schema.name,
   );
   if (!machine) return null;
 
@@ -55,7 +55,7 @@ export function getTransitionActionNames(
   if (!("machine" in stateField)) return null;
 
   const machine = (states ?? []).find(
-    (s) => s.name === stateField.machine && s.schema === schema.name,
+    (s) => s.name === stateField.machine && s.entity === schema.name,
   );
   if (!machine) return null;
 
@@ -186,7 +186,7 @@ export function generateFallbackFormView(schema: {
 
   return {
     name: `${schema.name}_form_auto`,
-    schema: schema.name,
+    entity: schema.name,
     type: "form",
     label: schema.label ?? schema.name,
     fields,
@@ -260,7 +260,7 @@ export function generateChildFormView(schema: {
 
   return {
     name: `${schema.name}_child_form_auto`,
-    schema: schema.name,
+    entity: schema.name,
     type: "form",
     label: schema.label ?? schema.name,
     fields,

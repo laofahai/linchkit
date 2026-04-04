@@ -89,7 +89,7 @@ function buildApprovalRule(): RuleDefinition {
   return {
     name: "require_manager_approval",
     label: "Require Manager Approval",
-    schema: "purchase",
+    entity: "purchase",
     conditions: [{ field: "amount", operator: "gt", value: 100 }],
     effects: [{ type: "require_approval", level: "manager" }],
   };
@@ -98,7 +98,7 @@ function buildApprovalRule(): RuleDefinition {
 function buildHighValueAction(rules?: RuleDefinition[]): ActionDefinition {
   return {
     name: "approve_purchase",
-    schema: "purchase",
+    entity: "purchase",
     label: "Approve Purchase",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -170,7 +170,7 @@ describe("E2E: Approval workflow", () => {
 
       const result = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500, item: "laptop" },
         actor: requestor,
         executionId: "exec-1",
@@ -194,7 +194,7 @@ describe("E2E: Approval workflow", () => {
 
       await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-2",
@@ -213,7 +213,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500, item: "monitor" },
         actor: requestor,
         executionId: "exec-3",
@@ -235,7 +235,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-4",
@@ -256,7 +256,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-5",
@@ -281,7 +281,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-6",
@@ -299,7 +299,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-7",
@@ -330,7 +330,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await strictEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-8",
@@ -361,7 +361,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await strictEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500, item: "desk" },
         actor: requestor,
         executionId: "exec-9",
@@ -389,7 +389,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500, item: "chair" },
         actor: requestor,
         executionId: "exec-10",
@@ -410,7 +410,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-11",
@@ -430,7 +430,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-12",
@@ -449,7 +449,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-13",
@@ -469,7 +469,7 @@ describe("E2E: Approval workflow", () => {
 
       const pending = await approvalEngine.createRequest({
         action: "approve_purchase",
-        schema: "purchase",
+        entity: "purchase",
         input: { amount: 500 },
         actor: requestor,
         executionId: "exec-14",

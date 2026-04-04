@@ -96,8 +96,8 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
           add({
             id: makeId(cap.name, schema.name, "references", undefined, field.target, fieldName),
             type: "references",
-            from: { capability: cap.name, schema: schema.name },
-            to: { schema: field.target },
+            from: { capability: cap.name, entity: schema.name },
+            to: { entity: field.target },
             source: "schema_ref",
             inferredFrom: `${schema.name}.${fieldName}`,
           });
@@ -106,8 +106,8 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
           add({
             id: makeId(cap.name, schema.name, "contains", undefined, field.target, fieldName),
             type: "contains",
-            from: { capability: cap.name, schema: schema.name },
-            to: { schema: field.target },
+            from: { capability: cap.name, entity: schema.name },
+            to: { entity: field.target },
             source: "schema_has_many",
             inferredFrom: `${schema.name}.${fieldName}`,
           });
@@ -163,7 +163,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
           add({
             id: makeId(sourceCap, sourceSchema, "triggers", cap.name, undefined, handler.name),
             type: "triggers",
-            from: { capability: sourceCap, schema: sourceSchema },
+            from: { capability: sourceCap, entity: sourceSchema },
             to: { capability: cap.name },
             source: "event_handler",
             inferredFrom: handler.name,
@@ -171,7 +171,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
           add({
             id: makeId(sourceCap, sourceSchema, "affects", cap.name, undefined, handler.name),
             type: "affects",
-            from: { capability: sourceCap, schema: sourceSchema },
+            from: { capability: sourceCap, entity: sourceSchema },
             to: { capability: cap.name },
             source: "event_handler",
             inferredFrom: handler.name,
@@ -190,19 +190,19 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
 
       for (const step of flow.steps ?? []) {
         if (step.type !== "action") continue;
-        const targetSchema = actionToSchema.get(step.actionName);
-        if (!targetSchema) continue;
-        if (touchedSchemas.has(targetSchema)) continue;
-        touchedSchemas.add(targetSchema);
+        const targetEntity = actionToSchema.get(step.actionName);
+        if (!targetEntity) continue;
+        if (touchedSchemas.has(targetEntity)) continue;
+        touchedSchemas.add(targetEntity);
 
         // Only record cross-module orchestration (different schema from trigger)
-        if (triggerSchema && targetSchema !== triggerSchema) {
-          const targetCap = findCapabilityForSchema(capabilities, targetSchema);
+        if (triggerSchema && targetEntity !== triggerSchema) {
+          const targetCap = findCapabilityForSchema(capabilities, targetEntity);
           add({
-            id: makeId(cap.name, triggerSchema, "orchestrates", targetCap, targetSchema, flow.name),
+            id: makeId(cap.name, triggerSchema, "orchestrates", targetCap, targetEntity, flow.name),
             type: "orchestrates",
-            from: { capability: cap.name, schema: triggerSchema },
-            to: { capability: targetCap ?? undefined, schema: targetSchema },
+            from: { capability: cap.name, entity: triggerSchema },
+            to: { capability: targetCap ?? undefined, entity: targetEntity },
             source: "flow_step",
             inferredFrom: `${flow.name}/${step.id}`,
           });
@@ -218,10 +218,10 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
       const ruleSchema = extractRuleSchema(rule, actionToSchema);
 
       for (const [contextKey, query] of Object.entries(rule.context)) {
-        const targetSchema = schemaFromContextQuery(query.query);
-        if (!targetSchema || targetSchema === ruleSchema) continue;
+        const targetEntity = schemaFromContextQuery(query.query);
+        if (!targetEntity || targetEntity === ruleSchema) continue;
 
-        const targetCap = findCapabilityForSchema(capabilities, targetSchema);
+        const targetCap = findCapabilityForSchema(capabilities, targetEntity);
         const fromCap = ruleSchema ? findCapabilityForSchema(capabilities, ruleSchema) : cap.name;
         add({
           id: makeId(
@@ -229,12 +229,12 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
             ruleSchema ?? undefined,
             "reads_from",
             targetCap,
-            targetSchema,
+            targetEntity,
             `${rule.name}:${contextKey}`,
           ),
           type: "reads_from",
-          from: { capability: fromCap ?? cap.name, schema: ruleSchema ?? undefined },
-          to: { capability: targetCap ?? undefined, schema: targetSchema },
+          from: { capability: fromCap ?? cap.name, entity: ruleSchema ?? undefined },
+          to: { capability: targetCap ?? undefined, entity: targetEntity },
           source: "rule_context",
           inferredFrom: `${rule.name}.context.${contextKey}`,
         });
@@ -259,11 +259,11 @@ export function buildRelationGraph(
   const allRelations = [...inferred, ...manualRelations];
 
   function matchEndpoint(rel: SemanticRelationEndpoint, target: SemanticRelationEndpoint): boolean {
-    if (target.capability && target.schema) {
-      return rel.capability === target.capability && rel.schema === target.schema;
+    if (target.capability && target.entity) {
+      return rel.capability === target.capability && rel.entity === target.entity;
     }
     if (target.capability) return rel.capability === target.capability;
-    if (target.schema) return rel.schema === target.schema;
+    if (target.entity) return rel.entity === target.entity;
     return false;
   }
 
@@ -285,7 +285,7 @@ export function buildRelationGraph(
     },
 
     forEntity(schemaName: string): SemanticRelation[] {
-      return allRelations.filter((r) => r.from.schema === schemaName || r.to.schema === schemaName);
+      return allRelations.filter((r) => r.from.entity === schemaName || r.to.entity === schemaName);
     },
   };
 }
@@ -296,7 +296,7 @@ function buildActionToSchema(capabilities: CapabilityDefinition[]): Map<string, 
   const map = new Map<string, string>();
   for (const cap of capabilities) {
     for (const action of cap.actions ?? []) {
-      map.set(action.name, action.schema);
+      map.set(action.name, action.entity);
     }
   }
   return map;
@@ -326,7 +326,7 @@ function extractRuleSchema(
       if (schema) return schema;
     }
   }
-  if ("stateChange" in trigger) return trigger.stateChange.schema;
-  if ("fieldChange" in trigger) return trigger.fieldChange.schema;
+  if ("stateChange" in trigger) return trigger.stateChange.entity;
+  if ("fieldChange" in trigger) return trigger.fieldChange.entity;
   return undefined;
 }

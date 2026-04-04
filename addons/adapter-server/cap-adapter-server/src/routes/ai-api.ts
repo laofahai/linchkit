@@ -593,7 +593,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
       }
 
       // Build action catalog for the AI prompt — filter out AI-restricted schemas
-      const allActions = actionRegistry.getAll().filter((a) => !aiDisabledSchemas.has(a.schema));
+      const allActions = actionRegistry.getAll().filter((a) => !aiDisabledSchemas.has(a.entity));
       const actionCatalog = allActions.map((a) => {
         const inputFields = a.input
           ? Object.entries(a.input).map(([name, field]) => ({
@@ -609,7 +609,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           : [];
         return {
           name: a.name,
-          schema: a.schema,
+          entity: a.entity,
           label: a.label,
           description: a.description,
           promptHints: a.ai?.promptHints,
@@ -715,7 +715,7 @@ Rules:
 
         // Verify the action actually exists and is not AI-restricted
         const matchedAction = actionRegistry.get(parsed.action);
-        if (!matchedAction || aiDisabledSchemas.has(matchedAction.schema)) {
+        if (!matchedAction || aiDisabledSchemas.has(matchedAction.entity)) {
           return { success: true, data: null };
         }
 
@@ -723,7 +723,7 @@ Rules:
           success: true,
           data: {
             action: parsed.action,
-            schema: parsed.schema ?? matchedAction.schema,
+            schema: parsed.schema ?? matchedAction.entity,
             input: parsed.input ?? {},
             missingFields: parsed.missingFields ?? [],
             confidence: parsed.confidence,

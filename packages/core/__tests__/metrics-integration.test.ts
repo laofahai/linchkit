@@ -68,7 +68,7 @@ describe("ActionExecutor metrics", () => {
 
     const action: ActionDefinition = {
       name: "create_order",
-      schema: "order",
+      entity: "order",
       label: "Create Order",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => ctx.create("order", ctx.input),
@@ -81,7 +81,7 @@ describe("ActionExecutor metrics", () => {
     expect(
       metrics.getCounter("action.executed", {
         action: "create_order",
-        schema: "order",
+        entity: "order",
         status: "succeeded",
       }),
     ).toBe(1);
@@ -93,7 +93,7 @@ describe("ActionExecutor metrics", () => {
 
     const action: ActionDefinition = {
       name: "slow_action",
-      schema: "order",
+      entity: "order",
       label: "Slow Action",
       policy: { mode: "sync", transaction: false },
       handler: async () => {
@@ -116,7 +116,7 @@ describe("ActionExecutor metrics", () => {
 
     const action: ActionDefinition = {
       name: "failing_action",
-      schema: "order",
+      entity: "order",
       label: "Failing Action",
       policy: { mode: "sync", transaction: false },
       handler: async () => {
@@ -131,7 +131,7 @@ describe("ActionExecutor metrics", () => {
     expect(
       metrics.getCounter("action.executed", {
         action: "failing_action",
-        schema: "order",
+        entity: "order",
         status: "failed",
       }),
     ).toBe(1);
@@ -148,7 +148,7 @@ describe("CommandLayer metrics", () => {
 
     const action: ActionDefinition = {
       name: "create_item",
-      schema: "item",
+      entity: "item",
       label: "Create Item",
       policy: { mode: "sync", transaction: false },
       exposure: "all",

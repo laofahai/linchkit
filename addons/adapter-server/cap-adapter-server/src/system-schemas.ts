@@ -104,7 +104,7 @@ export const executionLogSchema: EntityDefinition = {
 
 export const executionLogListView: ViewDefinition = {
   name: "execution_log_list",
-  schema: "execution_log",
+  entity: "execution_log",
   type: "list",
   label: "t:schemas.execution_log._labelPlural",
   fields: [
@@ -213,7 +213,7 @@ export const approvalSchema: EntityDefinition = {
 
 export const approvalListView: ViewDefinition = {
   name: "approval_list",
-  schema: "approval",
+  entity: "approval",
   type: "list",
   label: "t:schemas.approval._labelPlural",
   fields: [
@@ -288,7 +288,7 @@ export const ruleSchema: EntityDefinition = {
 
 export const ruleListView: ViewDefinition = {
   name: "rule_list",
-  schema: "rule",
+  entity: "rule",
   type: "list",
   label: "t:schemas.rule._labelPlural",
   fields: [
@@ -358,7 +358,7 @@ export const flowSchema: EntityDefinition = {
 
 export const flowListView: ViewDefinition = {
   name: "flow_list",
-  schema: "flow",
+  entity: "flow",
   type: "list",
   label: "t:schemas.flow._labelPlural",
   fields: [
@@ -428,7 +428,7 @@ export const stateMachineSchema: EntityDefinition = {
 
 export const stateMachineListView: ViewDefinition = {
   name: "state_machine_list",
-  schema: "state_machine",
+  entity: "state_machine",
   type: "list",
   label: "t:schemas.state_machine._labelPlural",
   fields: [
@@ -548,7 +548,7 @@ export const proposalSchema: EntityDefinition = {
 
 export const proposalListView: ViewDefinition = {
   name: "proposal_list",
-  schema: "proposal",
+  entity: "proposal",
   type: "list",
   label: "t:schemas.proposal._labelPlural",
   fields: [

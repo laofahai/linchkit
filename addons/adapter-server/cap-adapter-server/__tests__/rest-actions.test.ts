@@ -29,7 +29,7 @@ const itemSchema: EntityDefinition = {
 /** A simple action that succeeds */
 const successAction: ActionDefinition = {
   name: "do_success",
-  schema: "item",
+  entity: "item",
   label: "Succeed",
   policy: { mode: "sync", transaction: false },
   handler: async (ctx) => {
@@ -40,7 +40,7 @@ const successAction: ActionDefinition = {
 /** An action whose handler throws an error */
 const throwAction: ActionDefinition = {
   name: "do_throw",
-  schema: "item",
+  entity: "item",
   label: "Throw",
   policy: { mode: "sync", transaction: false },
   handler: async () => {
@@ -51,7 +51,7 @@ const throwAction: ActionDefinition = {
 /** An action restricted to the "manager" role */
 const restrictedAction: ActionDefinition = {
   name: "do_restricted",
-  schema: "item",
+  entity: "item",
   label: "Restricted",
   policy: { mode: "sync", transaction: false },
   permissions: {
@@ -63,7 +63,7 @@ const restrictedAction: ActionDefinition = {
 /** An action with required input fields */
 const validatedAction: ActionDefinition = {
   name: "do_validated",
-  schema: "item",
+  entity: "item",
   label: "Validated",
   policy: { mode: "sync", transaction: false },
   input: {
@@ -75,7 +75,7 @@ const validatedAction: ActionDefinition = {
 /** An action that is not exposed over HTTP */
 const internalOnlyAction: ActionDefinition = {
   name: "do_internal",
-  schema: "item",
+  entity: "item",
   label: "Internal Only",
   policy: { mode: "sync", transaction: false },
   exposure: { http: false, internal: true },

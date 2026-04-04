@@ -68,11 +68,15 @@ export default ${name}_capability;
  */
 export function generateActionTemplate(params: {
   name: string;
-  schema: string;
+  /** Target entity (schema) name */
+  entity?: string;
+  /** @deprecated Use `entity` instead */
+  schema?: string;
   description?: string;
   inputFields?: Record<string, string>;
 }): string {
-  const { name, schema, description = `${name} action`, inputFields } = params;
+  const { name, entity, schema, description = `${name} action`, inputFields } = params;
+  const targetEntity = entity ?? schema ?? name;
   const pascalName = snakeToPascal(name);
 
   // Build input fields block
@@ -99,7 +103,7 @@ export function generateActionTemplate(params: {
  */
 export const ${name}_action: ActionDefinition = {
   name: "${name}",
-  schema: "${schema}",
+  entity: "${targetEntity}",
   label: "${pascalName}",
   description: "${description}",
 
@@ -116,7 +120,7 @@ export const ${name}_action: ActionDefinition = {
     const { input } = ctx;
 
     // TODO: Implement action logic
-    const result = await ctx.create("${schema}", {
+    const result = await ctx.create("${targetEntity}", {
       ...input,
     });
 

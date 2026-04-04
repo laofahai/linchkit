@@ -32,8 +32,8 @@ export class ActionRegistry {
   }
 
   /** Get all actions for a given schema (own only, no inheritance) */
-  getBySchema(schema: string): ActionDefinition[] {
-    return this.getAll().filter((a) => a.schema === schema);
+  getByEntity(schema: string): ActionDefinition[] {
+    return this.getAll().filter((a) => a.entity === schema);
   }
 
   /**
@@ -42,15 +42,15 @@ export class ActionRegistry {
    * @param schema - The schema name
    * @param inheritanceChain - Ordered from root ancestor to self (e.g., ['party', 'customer'])
    */
-  getBySchemaWithInheritance(schema: string, inheritanceChain: string[]): ActionDefinition[] {
-    const ownActions = this.getBySchema(schema);
+  getByEntityWithInheritance(schema: string, inheritanceChain: string[]): ActionDefinition[] {
+    const ownActions = this.getByEntity(schema);
     const ownNames = new Set(ownActions.map((a) => a.name));
 
     // Collect inherited actions from ancestors (excluding self, which is last in chain)
     const inherited: ActionDefinition[] = [];
     for (let i = 0; i < inheritanceChain.length - 1; i++) {
       // biome-ignore lint/style/noNonNullAssertion: index is within bounds
-      for (const action of this.getBySchema(inheritanceChain[i]!)) {
+      for (const action of this.getByEntity(inheritanceChain[i]!)) {
         // Only include if not overridden by a closer descendant or self
         if (!ownNames.has(action.name) && !inherited.some((a) => a.name === action.name)) {
           inherited.push(action);

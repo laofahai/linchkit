@@ -171,22 +171,22 @@ describe("defineSensor", () => {
     const sensor = defineSensor({
       name: "my_sensor",
       source: "mcp",
-      schema: "purchase_request",
+      entity: "purchase_request",
       detect,
     });
 
     expect(sensor.name).toBe("my_sensor");
     expect(sensor.source).toBe("mcp");
-    expect(sensor.schema).toBe("purchase_request");
+    expect(sensor.entity).toBe("purchase_request");
     expect(sensor.detect).toBe(detect);
   });
 
-  it("schema is optional", () => {
+  it("entity is optional", () => {
     const sensor = defineSensor({
       name: "global_sensor",
       source: "api",
       detect: async () => null,
     });
-    expect(sensor.schema).toBeUndefined();
+    expect(sensor.entity).toBeUndefined();
   });
 });

@@ -8,7 +8,7 @@ import { defineAction } from "@linchkit/core";
 
 export const assignUserAction = defineAction({
   name: "assign_user",
-  schema: "permission_assignment",
+  entity: "permission_assignment",
   label: "Assign User to Group",
   description: "Assign a user to a permission group",
   input: {

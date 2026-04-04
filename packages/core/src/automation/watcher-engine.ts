@@ -181,7 +181,7 @@ class WatcherEngineImpl implements WatcherEngine {
     record: Record<string, unknown>,
     oldRecord?: Record<string, unknown>,
   ): Promise<WatcherEvaluationResult[]> {
-    const watchers = this.registry.getForSchema(schemaName);
+    const watchers = this.registry.getForEntity(schemaName);
     const results: WatcherEvaluationResult[] = [];
 
     for (const watcher of watchers) {
@@ -227,7 +227,7 @@ class WatcherEngineImpl implements WatcherEngine {
     // Listen for record.created and record.updated events
     for (const eventType of ["record.created", "record.updated"]) {
       const unsub = this.eventBus.subscribe(eventType, async (event: EventRecord) => {
-        const schemaName = event.schema;
+        const schemaName = event.entity;
         if (!schemaName) return;
 
         const record =
@@ -343,7 +343,7 @@ class WatcherEngineImpl implements WatcherEngine {
         };
       }
 
-      const records = await this.dataQuerier.queryRecords(watcher.watch.schema);
+      const records = await this.dataQuerier.queryRecords(watcher.watch.entity);
       // Apply filter in-memory if present
       const watchFilter = watcher.watch.filter;
       const filtered = watchFilter
@@ -489,7 +489,7 @@ class WatcherEngineImpl implements WatcherEngine {
       return;
     }
 
-    const records = await this.dataQuerier.queryRecords(watcher.watch.schema);
+    const records = await this.dataQuerier.queryRecords(watcher.watch.entity);
 
     // Apply filter
     const watchFilter2 = watcher.watch.filter;

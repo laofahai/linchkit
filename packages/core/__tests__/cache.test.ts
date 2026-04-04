@@ -348,7 +348,7 @@ describe("CacheManager event-driven invalidation", () => {
     manager.set("data", "cached", { tags: ["schema:orders"] });
     expect(manager.get("data")).toBe("cached");
 
-    await bus.emit(makeEvent("record.created", { schema: "orders" }));
+    await bus.emit(makeEvent("record.created", { entity: "orders" }));
 
     expect(manager.get("data")).toBeUndefined();
   });
@@ -360,7 +360,7 @@ describe("CacheManager event-driven invalidation", () => {
     manager.set("t1-data", "v1", { tags: ["schema:t1:orders"] });
     manager.set("t2-data", "v2", { tags: ["schema:t2:orders"] });
 
-    await bus.emit(makeEvent("record.updated", { schema: "orders", tenantId: "t1" }));
+    await bus.emit(makeEvent("record.updated", { entity: "orders", tenantId: "t1" }));
 
     expect(manager.get("t1-data")).toBeUndefined();
     expect(manager.get("t2-data")).toBe("v2"); // different tenant, unaffected
@@ -375,7 +375,7 @@ describe("CacheManager event-driven invalidation", () => {
 
     await bus.emit(
       makeEvent("record.updated", {
-        schema: "roles",
+        entity: "roles",
         tenantId: "t1",
         action: "assign_role_to_user",
       }),
@@ -391,7 +391,7 @@ describe("CacheManager event-driven invalidation", () => {
 
     manager.set("data", "cached", { tags: ["schema:orders"] });
 
-    await bus.emit(makeEvent("record.viewed", { schema: "orders" }));
+    await bus.emit(makeEvent("record.viewed", { entity: "orders" }));
 
     expect(manager.get("data")).toBe("cached");
   });
@@ -400,7 +400,7 @@ describe("CacheManager event-driven invalidation", () => {
     const manager = new CacheManager();
     manager.set("data", "cached", { tags: ["schema:orders"] });
 
-    manager.handleEvent(makeEvent("record.deleted", { schema: "orders" }));
+    manager.handleEvent(makeEvent("record.deleted", { entity: "orders" }));
 
     expect(manager.get("data")).toBeUndefined();
   });
@@ -475,7 +475,7 @@ describe("Cache integration patterns", () => {
     expect(queryCache.get(cacheKey)).toEqual([{ id: 1 }]);
 
     // Simulate a write event invalidating all order queries for tenant1
-    manager.handleEvent(makeEvent("record.created", { schema: "orders", tenantId: "tenant1" }));
+    manager.handleEvent(makeEvent("record.created", { entity: "orders", tenantId: "tenant1" }));
 
     expect(queryCache.get(cacheKey)).toBeUndefined();
   });

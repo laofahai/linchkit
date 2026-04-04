@@ -22,7 +22,7 @@ export function mountConfigRoutes(app: Elysia, options: ServerOptions): void {
       }
       const items = registry.list().map((def) => ({
         name: def.name,
-        schema: def.schema,
+        entity: def.entity,
         label: def.label,
         fields: def.fields,
         values: registry.getValues(def.name),
@@ -43,7 +43,7 @@ export function mountConfigRoutes(app: Elysia, options: ServerOptions): void {
         success: true,
         data: {
           name: def.name,
-          schema: def.schema,
+          entity: def.entity,
           label: def.label,
           fields: def.fields,
           values: registry.getValues(def.name),

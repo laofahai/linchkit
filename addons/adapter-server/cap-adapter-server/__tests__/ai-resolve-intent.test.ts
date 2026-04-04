@@ -24,7 +24,7 @@ const purchaseSchema: EntityDefinition = {
 
 const createPurchaseAction: ActionDefinition = {
   name: "create_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Create Purchase Request",
   description: "Create a new purchase request for a department",
   input: {

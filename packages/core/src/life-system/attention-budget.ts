@@ -31,14 +31,14 @@ export function createAttentionBudget(
         item: T;
         confidence: number;
         impact: number;
-        schema?: string;
+        entity?: string;
         type?: string;
       }>,
     ): ScoredCandidate<T>[] {
       const scored: ScoredCandidate<T>[] = candidates.map((c) => {
         const typeWeight = typeWeights.get(c.type ?? "") ?? 1.0;
         const importance =
-          usageGraph && c.schema ? usageGraph.getImportance("schema", c.schema) || 0.5 : 0.5;
+          usageGraph && c.entity ? usageGraph.getImportance("schema", c.entity) || 0.5 : 0.5;
         const impact = impactNumeric(c.impact);
         const score = c.confidence * impact * importance * typeWeight;
         return {

@@ -8,7 +8,7 @@ import { defineAction } from "@linchkit/core";
 
 export const logoutAction = defineAction({
   name: "logout",
-  schema: "session",
+  entity: "session",
   label: "Logout",
   description: "Invalidate current session",
   input: {

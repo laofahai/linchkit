@@ -157,7 +157,7 @@ export class RuntimeConfigRegistry {
 
   /** Get all config definitions owned by a specific schema/capability */
   configsFor(schema: string): ConfigDefinition[] {
-    return Array.from(this.definitions.values()).filter((c) => c.schema === schema);
+    return Array.from(this.definitions.values()).filter((c) => c.entity === schema);
   }
 
   /**

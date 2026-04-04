@@ -34,8 +34,8 @@ export interface ApprovalRequest {
 
   /** The action that was suspended */
   action: string;
-  /** The schema the action targets */
-  schema?: string;
+  /** The entity the action targets */
+  entity?: string;
   /** The record id the action targets (if applicable) */
   recordId?: string;
   /** The capability that owns the action */
@@ -89,7 +89,7 @@ export interface ApprovalRequest {
 export interface ApprovalQuery {
   status?: ApprovalStatus;
   action?: string;
-  schema?: string;
+  entity?: string;
   requestedById?: string;
   assigneeType?: ApprovalAssignee["type"];
   assigneeValue?: string;

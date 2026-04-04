@@ -17,7 +17,7 @@ export const autoSetSubmittedAt = defineAutomation({
   description: "Auto-set submitted_at when purchase request is submitted",
   trigger: {
     type: "stateChange",
-    schema: "purchase_request",
+    entity: "purchase_request",
     to: "pending",
   },
   actions: [
@@ -42,7 +42,7 @@ export const autoSetApprovedFields = defineAutomation({
   description: "Auto-set approved_at and approved_by when purchase request is approved",
   trigger: {
     type: "stateChange",
-    schema: "purchase_request",
+    entity: "purchase_request",
     to: "approved",
   },
   actions: [
@@ -78,7 +78,7 @@ export const notifyHighPrioritySubmission = defineAutomation({
   description: "Send notification when a purchase request is submitted",
   trigger: {
     type: "stateChange",
-    schema: "purchase_request",
+    entity: "purchase_request",
     to: "pending",
   },
   actions: [

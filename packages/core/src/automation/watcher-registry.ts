@@ -21,7 +21,7 @@ export interface WatcherRegistry {
   getEnabled(): WatcherDefinition[];
 
   /** Get enabled watchers that watch a specific schema */
-  getForSchema(schemaName: string): WatcherDefinition[];
+  getForEntity(schemaName: string): WatcherDefinition[];
 
   /** Check if a watcher exists */
   has(name: string): boolean;
@@ -62,8 +62,8 @@ class WatcherRegistryImpl implements WatcherRegistry {
     return this.getAll().filter((w) => w.enabled);
   }
 
-  getForSchema(schemaName: string): WatcherDefinition[] {
-    return this.getEnabled().filter((w) => w.watch.schema === schemaName);
+  getForEntity(schemaName: string): WatcherDefinition[] {
+    return this.getEnabled().filter((w) => w.watch.entity === schemaName);
   }
 
   has(name: string): boolean {

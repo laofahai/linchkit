@@ -133,7 +133,7 @@ const fieldChangeAutomation: AutomationDefinition = {
   description: "Notify when priority changes to high",
   trigger: {
     type: "fieldChange",
-    schema: "ticket",
+    entity: "ticket",
     field: "priority",
     to: "high",
   },
@@ -148,7 +148,7 @@ const stateChangeAutomation: AutomationDefinition = {
   description: "Execute fulfillment when order is approved",
   trigger: {
     type: "stateChange",
-    schema: "order",
+    entity: "order",
     from: "pending",
     to: "approved",
   },
@@ -324,7 +324,7 @@ describe("AutomationEngine — field change triggers", () => {
           _old: { priority: "low" },
           _new: { priority: "high" },
         },
-        { schema: "ticket" },
+        { entity: "ticket" },
       ),
     );
 
@@ -345,7 +345,7 @@ describe("AutomationEngine — field change triggers", () => {
           _old: { priority: "low" },
           _new: { priority: "medium" },
         },
-        { schema: "ticket" },
+        { entity: "ticket" },
       ),
     );
 
@@ -365,7 +365,7 @@ describe("AutomationEngine — field change triggers", () => {
           _old: { priority: "low" },
           _new: { priority: "high" },
         },
-        { schema: "other_schema" },
+        { entity: "other_schema" },
       ),
     );
 
@@ -385,7 +385,7 @@ describe("AutomationEngine — field change triggers", () => {
           _old: { priority: "high" },
           _new: { priority: "high" },
         },
-        { schema: "ticket" },
+        { entity: "ticket" },
       ),
     );
 
@@ -422,7 +422,7 @@ describe("AutomationEngine — state change triggers", () => {
           _old: { _state: "pending" },
           _new: { _state: "approved" },
         },
-        { schema: "order" },
+        { entity: "order" },
       ),
     );
 
@@ -443,7 +443,7 @@ describe("AutomationEngine — state change triggers", () => {
           _old: { _state: "draft" },
           _new: { _state: "approved" },
         },
-        { schema: "order" },
+        { entity: "order" },
       ),
     );
 
@@ -463,7 +463,7 @@ describe("AutomationEngine — state change triggers", () => {
           _old: { _state: "pending" },
           _new: { _state: "rejected" },
         },
-        { schema: "order" },
+        { entity: "order" },
       ),
     );
 

@@ -29,8 +29,8 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
     return this.entries.filter((e) => e.action === action).map((e) => structuredClone(e));
   }
 
-  getBySchema(schema: string): ExecutionLogEntry[] {
-    return this.entries.filter((e) => e.schema === schema).map((e) => structuredClone(e));
+  getByEntity(entity: string): ExecutionLogEntry[] {
+    return this.entries.filter((e) => e.entity === entity).map((e) => structuredClone(e));
   }
 
   getByStatus(status: ExecutionStatus): ExecutionLogEntry[] {
@@ -52,8 +52,8 @@ export class InMemoryExecutionLogger implements ExecutionLogger {
     if (options?.action) {
       filtered = filtered.filter((e) => e.action === options.action);
     }
-    if (options?.schema) {
-      filtered = filtered.filter((e) => e.schema === options.schema);
+    if (options?.entity) {
+      filtered = filtered.filter((e) => e.entity === options.entity);
     }
     if (options?.status) {
       filtered = filtered.filter((e) => e.status === options.status);

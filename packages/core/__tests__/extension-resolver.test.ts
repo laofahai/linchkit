@@ -27,7 +27,7 @@ function makeAction(
 ): ActionDefinition {
   return {
     name,
-    schema: "test",
+    entity: "test",
     label: name,
     policy: { mode: "sync", transaction: false },
     handler,

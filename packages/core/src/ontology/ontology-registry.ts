@@ -27,11 +27,11 @@ import type { ViewDefinition } from "../types/view";
 /** Directional relationship between two schemas */
 export interface RelationDescriptor {
   /** Name of the link definition */
-  linkName: string;
-  /** Direction relative to the querying schema */
+  relationName: string;
+  /** Direction relative to the querying entity */
   direction: "outgoing" | "incoming";
-  /** Schema on the other end of the relation */
-  targetSchema: string;
+  /** Entity on the other end of the relation */
+  targetEntity: string;
   /** Cardinality of the link */
   cardinality: LinkCardinality;
   /** Human-readable label for this direction */
@@ -97,7 +97,7 @@ interface ActionRegistryLike {
 /** Minimal interface for RelationRegistry */
 interface RelationRegistryLike {
   relationsFor(schemaName: string): Array<{
-    link: {
+    relation: {
       name: string;
       from: string;
       to: string;
@@ -105,7 +105,7 @@ interface RelationRegistryLike {
       label?: { from?: string; to?: string };
     };
     direction: "outgoing" | "incoming";
-    relatedSchema: string;
+    relatedEntity: string;
     label: string;
   }>;
 }
@@ -196,12 +196,12 @@ export interface OntologyRegistry {
 export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegistry {
   const cache = new Map<string, EntityDescriptor>();
 
-  // Pre-index actions by schema
+  // Pre-index actions by entity
   const actionsBySchema = new Map<string, ActionDefinition[]>();
   for (const action of deps.actions.getAll()) {
-    const list = actionsBySchema.get(action.schema) ?? [];
+    const list = actionsBySchema.get(action.entity) ?? [];
     list.push(action);
-    actionsBySchema.set(action.schema, list);
+    actionsBySchema.set(action.entity, list);
   }
 
   // Pre-index rules by schema (via trigger, using action registry for resolution)
@@ -216,18 +216,18 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     }
   }
 
-  // Pre-index states by schema
+  // Pre-index states by entity
   const statesBySchema = new Map<string, StateDefinition>();
   for (const state of deps.states) {
-    statesBySchema.set(state.schema, state);
+    statesBySchema.set(state.entity, state);
   }
 
-  // Pre-index views by schema
+  // Pre-index views by entity
   const viewsBySchema = new Map<string, ViewDefinition[]>();
   for (const view of deps.views) {
-    const list = viewsBySchema.get(view.schema) ?? [];
+    const list = viewsBySchema.get(view.entity) ?? [];
     list.push(view);
-    viewsBySchema.set(view.schema, list);
+    viewsBySchema.set(view.entity, list);
   }
 
   // Pre-index flows by related schema (inferred from action steps)
@@ -290,10 +290,10 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     if (deps.links) {
       for (const info of deps.links.relationsFor(schemaName)) {
         relations.push({
-          linkName: info.link.name,
+          relationName: info.relation.name,
           direction: info.direction,
-          targetSchema: info.relatedSchema,
-          cardinality: info.link.cardinality,
+          targetEntity: info.relatedEntity,
+          cardinality: info.relation.cardinality,
           label: info.label,
         });
       }
@@ -471,7 +471,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
           lines.push("### Relations");
           for (const rel of desc.relations) {
             lines.push(
-              `- ${rel.direction === "outgoing" ? "→" : "←"} **${rel.targetSchema}** (${rel.cardinality}) via \`${rel.linkName}\``,
+              `- ${rel.direction === "outgoing" ? "→" : "←"} **${rel.targetEntity}** (${rel.cardinality}) via \`${rel.relationName}\``,
             );
           }
           lines.push("");
@@ -535,18 +535,18 @@ function extractSchemaFromTrigger(
     for (const name of actionNames) {
       const action = allActions.find((a) => a.name === name);
       if (action) {
-        schemas.add(action.schema);
+        schemas.add(action.entity);
       }
     }
     return [...schemas];
   }
 
   if ("stateChange" in trigger) {
-    return [trigger.stateChange.schema];
+    return [trigger.stateChange.entity];
   }
 
   if ("fieldChange" in trigger) {
-    return [trigger.fieldChange.schema];
+    return [trigger.fieldChange.entity];
   }
 
   return [];

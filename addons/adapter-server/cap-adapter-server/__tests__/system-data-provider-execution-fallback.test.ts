@@ -16,7 +16,7 @@ function makeSampleEntry(overrides: Partial<ExecutionLogEntry> = {}): ExecutionL
   return {
     id: "exec-001",
     action: "create_task",
-    schema: "task",
+    entity: "task",
     recordId: "task-123",
     actor: { type: "human", id: "user-1", groups: [] },
     input: { title: "Test Task" },

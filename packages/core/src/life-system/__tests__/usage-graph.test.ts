@@ -28,9 +28,9 @@ describe("UsageImportanceGraph", () => {
     graph.recordUsage("schema", "C");
     const top2 = graph.topN(2);
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
-    expect(top2[0]!.schema).toBe("A");
+    expect(top2[0]!.entity).toBe("A");
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
-    expect(top2[1]!.schema).toBe("B");
+    expect(top2[1]!.entity).toBe("B");
   });
 
   test("topN filters by kind", () => {
@@ -49,7 +49,7 @@ describe("UsageImportanceGraph", () => {
     graph.recordUsage("schema", "Product");
     const nodes = graph.nodesFor("Order");
     expect(nodes).toHaveLength(3);
-    expect(nodes.every((n) => n.schema === "Order")).toBe(true);
+    expect(nodes.every((n) => n.entity === "Order")).toBe(true);
   });
 
   test("getImportance returns 0 for unknown node", () => {

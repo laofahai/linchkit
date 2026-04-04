@@ -43,8 +43,8 @@ export interface PatternInsight {
   id: string;
   /** Type of pattern detected */
   type: PatternType;
-  /** Schema name this pattern relates to */
-  schema: string;
+  /** Entity name this pattern relates to */
+  entity: string;
   /** Human-readable description of the pattern */
   description: string;
   /** Confidence score 0-1 */
@@ -153,7 +153,7 @@ export class PatternDetector {
     const since = new Date();
     since.setDate(since.getDate() - this.config.lookbackDays);
     const entries = await logger.findMany({
-      schema: schemaName,
+      entity: schemaName,
       since: since.toISOString(),
       status: "succeeded",
       pageSize: 1000,
@@ -220,7 +220,7 @@ export class PatternDetector {
       if (entries.length < this.config.minOccurrences) continue;
 
       const [actionName] = key.split("::");
-      const schema = entries[0]?.schema ?? "unknown";
+      const entity = entries[0]?.entity ?? "unknown";
 
       // Check for similar input patterns using field value frequency
       const fieldPatterns = this.analyzeInputSimilarity(entries);
@@ -234,7 +234,7 @@ export class PatternDetector {
         insights.push({
           id: this.nextId(),
           type: "repetitive_action",
-          schema,
+          entity,
           description:
             `Action "${actionName}" is repeatedly executed with ${pattern.field} = ${JSON.stringify(pattern.commonValue)} ` +
             `(${Math.round(confidence * 100)}% of ${entries.length} executions over ${timespan})`,
@@ -252,7 +252,7 @@ export class PatternDetector {
           suggestedAction: {
             type: "add_rule",
             description: `Auto-apply "${actionName}" when ${pattern.field} = ${JSON.stringify(pattern.commonValue)}`,
-            targetSchema: schema,
+            targetEntity: entity,
             details: {
               action: actionName,
               field: pattern.field,
@@ -275,15 +275,15 @@ export class PatternDetector {
   private detectDefaultValues(logs: ExecutionLogEntry[]): PatternInsight[] {
     const insights: PatternInsight[] = [];
 
-    // Group by schema + action (create actions are most relevant)
+    // Group by entity + action (create actions are most relevant)
     const schemaLogs = new Map<string, ExecutionLogEntry[]>();
     for (const log of logs) {
-      if (!log.schema) continue;
-      const group = schemaLogs.get(log.schema);
+      if (!log.entity) continue;
+      const group = schemaLogs.get(log.entity);
       if (group) {
         group.push(log);
       } else {
-        schemaLogs.set(log.schema, [log]);
+        schemaLogs.set(log.entity, [log]);
       }
     }
 
@@ -330,7 +330,7 @@ export class PatternDetector {
         insights.push({
           id: this.nextId(),
           type: "default_value",
-          schema,
+          entity: schema,
           description:
             `Field "${field}" has value "${maxValue}" in ${Math.round(frequency * 100)}% of records ` +
             `(${maxCount}/${entries.length} over ${timespan})`,
@@ -346,7 +346,7 @@ export class PatternDetector {
           suggestedAction: {
             type: "modify_schema",
             description: `Set default value for "${field}" to "${maxValue}" in schema "${schema}"`,
-            targetSchema: schema,
+            targetEntity: schema,
             details: { field, defaultValue: maxValue },
           },
         });
@@ -365,15 +365,15 @@ export class PatternDetector {
   private detectValidationPatterns(logs: ExecutionLogEntry[]): PatternInsight[] {
     const insights: PatternInsight[] = [];
 
-    // Group by schema
+    // Group by entity
     const schemaLogs = new Map<string, ExecutionLogEntry[]>();
     for (const log of logs) {
-      if (!log.schema) continue;
-      const group = schemaLogs.get(log.schema);
+      if (!log.entity) continue;
+      const group = schemaLogs.get(log.entity);
       if (group) {
         group.push(log);
       } else {
-        schemaLogs.set(log.schema, [log]);
+        schemaLogs.set(log.entity, [log]);
       }
     }
 
@@ -407,7 +407,7 @@ export class PatternDetector {
           insights.push({
             id: this.nextId(),
             type: "validation_pattern",
-            schema,
+            entity: schema,
             description:
               `Field "${field}" consistently matches pattern "${pattern.name}" ` +
               `(${Math.round(pattern.matchRate * 100)}% of ${values.length} values)`,
@@ -420,7 +420,7 @@ export class PatternDetector {
             suggestedAction: {
               type: "add_rule",
               description: `Add validation rule for "${field}": must match ${pattern.name} format`,
-              targetSchema: schema,
+              targetEntity: schema,
               details: {
                 field,
                 pattern: pattern.regex,
@@ -451,9 +451,9 @@ export class PatternDetector {
     >();
 
     for (const log of logs) {
-      if (!log.stateTransition || !log.schema || !log.recordId) continue;
+      if (!log.stateTransition || !log.entity || !log.recordId) continue;
 
-      const key = `${log.schema}::${log.recordId}`;
+      const key = `${log.entity}::${log.recordId}`;
       let list = transitions.get(key);
       if (!list) {
         list = [];
@@ -504,13 +504,13 @@ export class PatternDetector {
       const frequency = maxCount / totalRecords;
       if (frequency < this.config.minConfidence) continue;
 
-      const allLogs = logs.filter((l) => l.schema === schema && l.stateTransition);
+      const allLogs = logs.filter((l) => l.entity === schema && l.stateTransition);
       const timespan = this.calculateTimespan(allLogs);
 
       insights.push({
         id: this.nextId(),
         type: "state_flow",
-        schema,
+        entity: schema,
         description:
           `${Math.round(frequency * 100)}% of "${schema}" records follow the path: ${dominantPath} ` +
           `(${maxCount}/${totalRecords} records over ${timespan})`,
@@ -530,7 +530,7 @@ export class PatternDetector {
         suggestedAction: {
           type: "add_automation",
           description: `Consider automating the common flow: ${dominantPath} for schema "${schema}"`,
-          targetSchema: schema,
+          targetEntity: schema,
           details: {
             path: dominantPath,
             steps: dominantPath.split("→"),
@@ -564,7 +564,7 @@ export class PatternDetector {
 
     for (const [action, entries] of actionLogs) {
       if (entries.length < this.config.minOccurrences) continue;
-      const schema = entries[0]?.schema ?? "unknown";
+      const entity = entries[0]?.entity ?? "unknown";
 
       // Analyze hour-of-day distribution
       const hourCounts = new Array<number>(24).fill(0);
@@ -583,7 +583,7 @@ export class PatternDetector {
         insights.push({
           id: this.nextId(),
           type: "timing",
-          schema,
+          entity,
           description:
             `Action "${action}" is concentrated between ${peakHours.startHour}:00-${peakHours.endHour}:00 ` +
             `(${Math.round(peakHours.concentration * 100)}% of ${totalCount} executions over ${timespan})`,
@@ -609,7 +609,7 @@ export class PatternDetector {
           suggestedAction: {
             type: "add_automation",
             description: `Consider scheduling "${action}" as a batch job at ${peakHours.startHour}:00`,
-            targetSchema: schema,
+            targetEntity: entity,
             details: {
               action,
               suggestedCron: `0 ${peakHours.startHour} * * *`,
@@ -645,7 +645,7 @@ export class PatternDetector {
         insights.push({
           id: this.nextId(),
           type: "timing",
-          schema,
+          entity,
           description:
             `Action "${action}" is concentrated on ${dayStr} ` +
             `(${Math.round(peakDays.concentration * 100)}% of ${totalCount} executions)`,
@@ -669,7 +669,7 @@ export class PatternDetector {
           suggestedAction: {
             type: "add_automation",
             description: `Consider automating "${action}" on ${dayStr}`,
-            targetSchema: schema,
+            targetEntity: entity,
             details: {
               action,
               peakDays: peakDays.days,

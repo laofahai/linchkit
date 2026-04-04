@@ -275,7 +275,7 @@ function StatCardWidget({
   const recentCount = useMemo(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return logs.filter((l) => {
-      if (config.schema && l.schema !== config.schema) return false;
+      if (config.schema && l.entity !== config.schema) return false;
       return new Date(l.startedAt).getTime() >= cutoff;
     }).length;
   }, [logs, config.schema]);
@@ -320,7 +320,7 @@ function ChartWidget({ config, logs }: { config: WidgetConfig; logs: ExecutionLo
     // Group execution logs by schema for bar/line charts
     const counts: Record<string, number> = {};
     for (const log of logs) {
-      const key = log.schema ?? "other";
+      const key = log.entity ?? "other";
       counts[key] = (counts[key] ?? 0) + 1;
     }
     return Object.entries(counts)
@@ -420,9 +420,9 @@ function RecentActivityWidget({ logs, loading }: { logs: ExecutionLogEntry[]; lo
         <div key={log.id} className="flex items-center gap-2 text-xs rounded border p-1.5">
           <Activity className="h-3 w-3 text-muted-foreground shrink-0" />
           <span className="font-medium truncate flex-1">{log.action}</span>
-          {log.schema && (
+          {log.entity && (
             <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
-              {log.schema}
+              {log.entity}
             </Badge>
           )}
           <StatusBadge status={log.status} />

@@ -124,9 +124,9 @@ describe("RelationRegistry", () => {
       const links = registry.relationsFor("employee");
       expect(links).toHaveLength(1);
       expect(links[0].direction).toBe("outgoing");
-      expect(links[0].relatedSchema).toBe("department");
+      expect(links[0].relatedEntity).toBe("department");
       expect(links[0].label).toBe("Department");
-      expect(links[0].link).toBe(employeeDepartmentLink);
+      expect(links[0].relation).toBe(employeeDepartmentLink);
     });
 
     it("returns incoming links with correct direction", () => {
@@ -136,12 +136,12 @@ describe("RelationRegistry", () => {
 
       const incoming = links.find((l) => l.direction === "incoming");
       expect(incoming).toBeDefined();
-      expect(incoming?.relatedSchema).toBe("employee");
+      expect(incoming?.relatedEntity).toBe("employee");
       expect(incoming?.label).toBe("Employees");
 
       const outgoing = links.find((l) => l.direction === "outgoing");
       expect(outgoing).toBeDefined();
-      expect(outgoing?.relatedSchema).toBe("project");
+      expect(outgoing?.relatedEntity).toBe("project");
       expect(outgoing?.label).toBe("Projects");
     });
 
@@ -162,7 +162,7 @@ describe("RelationRegistry", () => {
       expect(taskLinks[0].label).toBe("project"); // falls back to `to` schema name
 
       const projectLinks = registry.relationsFor("project");
-      const incoming = projectLinks.find((l) => l.link.name === "task_project");
+      const incoming = projectLinks.find((l) => l.relation.name === "task_project");
       expect(incoming?.label).toBe("task"); // falls back to `from` schema name
     });
 
@@ -181,36 +181,36 @@ describe("RelationRegistry", () => {
 
       const links = registry.relationsFor("employee");
       // employee already has 1 outgoing (to department) + 2 from self-link (outgoing + incoming)
-      const selfLinks = links.filter((l) => l.link.name === "employee_manager");
+      const selfLinks = links.filter((l) => l.relation.name === "employee_manager");
       expect(selfLinks).toHaveLength(2);
       expect(selfLinks.find((l) => l.direction === "outgoing")?.label).toBe("Manager");
       expect(selfLinks.find((l) => l.direction === "incoming")?.label).toBe("Direct Reports");
     });
   });
 
-  // ── linkBetween() ────────────────────────────────────────
+  // ── relationBetween() ────────────────────────────────────────
 
-  describe("linkBetween()", () => {
+  describe("relationBetween()", () => {
     beforeEach(() => {
       registry.register(employeeDepartmentLink);
       registry.register(orderCustomerLink);
     });
 
     it("finds a link by from and to endpoints", () => {
-      const result = registry.linkBetween("employee", "department");
+      const result = registry.relationBetween("employee", "department");
       expect(result).toBe(employeeDepartmentLink);
     });
 
     it("returns null when no link matches", () => {
-      expect(registry.linkBetween("employee", "customer")).toBeNull();
+      expect(registry.relationBetween("employee", "customer")).toBeNull();
     });
 
     it("is directional — reversed endpoints return null", () => {
-      expect(registry.linkBetween("department", "employee")).toBeNull();
+      expect(registry.relationBetween("department", "employee")).toBeNull();
     });
 
     it("returns null for unknown schemas", () => {
-      expect(registry.linkBetween("nonexistent", "department")).toBeNull();
+      expect(registry.relationBetween("nonexistent", "department")).toBeNull();
     });
   });
 
@@ -289,7 +289,7 @@ describe("RelationRegistry", () => {
   describe("cardinalities", () => {
     it("handles one_to_one", () => {
       registry.register(userProfileLink);
-      const link = registry.linkBetween("user", "profile");
+      const link = registry.relationBetween("user", "profile");
       expect(link).not.toBeNull();
       expect(link?.cardinality).toBe("one_to_one");
       expect(link?.required).toBe(true);
@@ -297,19 +297,19 @@ describe("RelationRegistry", () => {
 
     it("handles one_to_many", () => {
       registry.register(departmentProjectsLink);
-      const link = registry.linkBetween("department", "project");
+      const link = registry.relationBetween("department", "project");
       expect(link?.cardinality).toBe("one_to_many");
     });
 
     it("handles many_to_one", () => {
       registry.register(employeeDepartmentLink);
-      const link = registry.linkBetween("employee", "department");
+      const link = registry.relationBetween("employee", "department");
       expect(link?.cardinality).toBe("many_to_one");
     });
 
     it("handles many_to_many", () => {
       registry.register(studentCourseLink);
-      const link = registry.linkBetween("student", "course");
+      const link = registry.relationBetween("student", "course");
       expect(link?.cardinality).toBe("many_to_many");
     });
   });
@@ -319,7 +319,7 @@ describe("RelationRegistry", () => {
   describe("links with properties", () => {
     it("stores junction table properties on many_to_many links", () => {
       registry.register(studentCourseLink);
-      const link = registry.linkBetween("student", "course");
+      const link = registry.relationBetween("student", "course");
       expect(link?.properties).toBeDefined();
       expect(link?.properties?.enrolled_at).toEqual({ type: "datetime" });
       expect(link?.properties?.grade).toEqual({ type: "text" });
@@ -327,16 +327,16 @@ describe("RelationRegistry", () => {
 
     it("links without properties have undefined properties field", () => {
       registry.register(employeeDepartmentLink);
-      const link = registry.linkBetween("employee", "department");
+      const link = registry.relationBetween("employee", "department");
       expect(link?.properties).toBeUndefined();
     });
 
     it("many_to_many properties are visible via relationsFor()", () => {
       registry.register(studentCourseLink);
       const links = registry.relationsFor("student");
-      expect(links[0].link.properties).toBeDefined();
+      expect(links[0].relation.properties).toBeDefined();
       // biome-ignore lint/style/noNonNullAssertion: checked above with toBeDefined
-      expect(Object.keys(links[0].link.properties!)).toEqual(["enrolled_at", "grade"]);
+      expect(Object.keys(links[0].relation.properties!)).toEqual(["enrolled_at", "grade"]);
     });
   });
 
@@ -345,13 +345,13 @@ describe("RelationRegistry", () => {
   describe("optional fields", () => {
     it("stores cascade behavior", () => {
       registry.register(orderCustomerLink);
-      const link = registry.linkBetween("order", "customer");
+      const link = registry.relationBetween("order", "customer");
       expect(link?.cascade).toBe("nullify");
     });
 
     it("cascade defaults to undefined when not set", () => {
       registry.register(employeeDepartmentLink);
-      const link = registry.linkBetween("employee", "department");
+      const link = registry.relationBetween("employee", "department");
       expect(link?.cascade).toBeUndefined();
     });
 

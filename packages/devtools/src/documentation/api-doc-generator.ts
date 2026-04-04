@@ -124,7 +124,7 @@ export function actionToDoc(action: ActionDefinition): ActionDoc {
 
   return {
     name: action.name,
-    schema: action.schema,
+    schema: action.entity,
     label: action.label,
     description: action.description,
     input: inputFields,

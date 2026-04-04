@@ -46,11 +46,11 @@ const SYSTEM_ADMIN_GROUP: PermissionGroupDefinition = {
 
 /**
  * Create a permission middleware handler that uses the real permission engine.
- * Uses `action.schema` as the capability name (natural mapping for tests).
+ * Uses `action.entity` as the capability name (natural mapping for tests).
  */
 function createPermissionMiddleware(registry: PermissionRegistry) {
   return async (
-    ctx: { actor: Actor; action?: { schema: string; name: string } },
+    ctx: { actor: Actor; action?: { entity: string; name: string } },
     next: () => Promise<void>,
   ) => {
     const action = ctx.action;
@@ -58,7 +58,7 @@ function createPermissionMiddleware(registry: PermissionRegistry) {
       await next();
       return;
     }
-    const result = checkActionPermission(registry, ctx.actor, action.schema, action.name);
+    const result = checkActionPermission(registry, ctx.actor, action.entity, action.name);
     if (!result.allowed) {
       throw new PipelineError(result.reason ?? "Permission denied", "PERMISSION.DENIED");
     }

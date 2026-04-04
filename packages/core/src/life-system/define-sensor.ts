@@ -12,8 +12,8 @@ export interface SensorDefinitionConfig<TSignal extends SensorSignal = SensorSig
   name: string;
   /** Which system channel this sensor observes. */
   source: SignalSource;
-  /** Schema this sensor is scoped to, if any. */
-  schema?: string;
+  /** Entity this sensor is scoped to, if any. */
+  entity?: string;
   /** Detection function — returns a signal or null if nothing to report. */
   detect: (context: SensorContext) => Promise<TSignal | null>;
 }
@@ -40,7 +40,7 @@ export function defineSensor<TSignal extends SensorSignal = SensorSignal>(
   return {
     name: config.name,
     source: config.source,
-    schema: config.schema,
+    entity: config.entity,
     detect: config.detect,
   };
 }

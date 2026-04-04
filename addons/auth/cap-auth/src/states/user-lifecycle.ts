@@ -11,7 +11,7 @@ import { defineState } from "@linchkit/core";
 
 export const userLifecycleState = defineState({
   name: "user_lifecycle",
-  schema: "user",
+  entity: "user",
   field: "status",
   initial: "active",
   states: ["active", "disabled", "locked"],

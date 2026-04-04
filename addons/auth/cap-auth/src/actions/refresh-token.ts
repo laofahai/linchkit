@@ -9,7 +9,7 @@ import { defineAction } from "@linchkit/core";
 
 export const refreshTokenAction = defineAction({
   name: "refresh_token",
-  schema: "token",
+  entity: "token",
   label: "Refresh Token",
   description: "Exchange a refresh token for a new access token",
   input: {

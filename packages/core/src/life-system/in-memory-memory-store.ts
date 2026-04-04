@@ -20,20 +20,20 @@ export class InMemoryMemoryStore implements MemoryStore {
   }
 
   async updateBaseline(baseline: Baseline): Promise<void> {
-    this.baselines.set(`${baseline.schema}:${baseline.metric}`, baseline);
+    this.baselines.set(`${baseline.entity}:${baseline.metric}`, baseline);
   }
 
   /**
    * Query recorded signals with optional filtering.
    * Extension beyond MemoryStore interface — used internally by MemoryEngine.
    */
-  async getSignals(opts?: { schema?: string; since?: Date; limit?: number }): Promise<Signal[]> {
+  async getSignals(opts?: { entity?: string; since?: Date; limit?: number }): Promise<Signal[]> {
     let result = this.signals;
 
-    if (opts?.schema) {
+    if (opts?.entity) {
       result = result.filter((s) => {
         const payload = s.payload as Record<string, unknown> | null;
-        return payload?.schema === opts.schema || s.type === opts.schema;
+        return payload?.entity === opts.entity || s.type === opts.entity;
       });
     }
 

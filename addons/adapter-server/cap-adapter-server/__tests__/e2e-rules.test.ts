@@ -69,7 +69,7 @@ const rules: RuleDefinition[] = [blockHighAmountRule, warnMediumAmountRule, bloc
 
 const submitPurchaseAction: ActionDefinition = {
   name: "submit_purchase",
-  schema: "purchase",
+  entity: "purchase",
   label: "Submit Purchase",
   policy: { mode: "sync", transaction: true },
   exposure: "all",

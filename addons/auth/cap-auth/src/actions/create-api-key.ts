@@ -9,7 +9,7 @@ import { defineAction } from "@linchkit/core";
 
 export const createApiKeyAction = defineAction({
   name: "create_api_key",
-  schema: "api_key",
+  entity: "api_key",
   label: "Create API Key",
   description: "Generate a new API key for programmatic access",
   input: {

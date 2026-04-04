@@ -89,7 +89,7 @@ export interface CapabilityViewDoc {
 
 /** Relation section within capability doc */
 export interface CapabilityRelationDoc {
-  linkName: string;
+  relationName: string;
   from: string;
   to: string;
   cardinality: string;
@@ -116,7 +116,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract action docs
   const actions: CapabilityActionDoc[] = (cap.actions ?? []).map((a) => ({
     name: a.name,
-    schema: a.schema,
+    schema: a.entity,
     label: a.label,
     description: a.description,
     stateTransition: a.stateTransition,
@@ -132,7 +132,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract state machine docs
   const stateMachines: CapabilityStateMachineDoc[] = (cap.states ?? []).map((s) => ({
     name: s.name,
-    schema: s.schema,
+    schema: s.entity,
     initial: s.initial,
     states: [...s.states],
     transitions: s.transitions.map((t) => ({
@@ -145,14 +145,14 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract view docs
   const views: CapabilityViewDoc[] = (cap.views ?? []).map((v) => ({
     name: v.name,
-    schema: v.schema,
+    schema: v.entity,
     type: v.type,
     label: v.label,
   }));
 
   // Extract relation docs
   const relations: CapabilityRelationDoc[] = (cap.relations ?? []).map((l) => ({
-    linkName: l.name,
+    relationName: l.name,
     from: l.from,
     to: l.to,
     cardinality: l.cardinality,
@@ -294,7 +294,7 @@ export function renderCapabilityDoc(doc: CapabilitySpecDoc): string {
     lines.push("");
     for (const rel of doc.relations) {
       const label = rel.label ? ` (${rel.label.from ?? rel.to} / ${rel.label.to ?? rel.from})` : "";
-      lines.push(`- **${rel.linkName}**: ${rel.from} -> ${rel.to} (${rel.cardinality})${label}`);
+      lines.push(`- **${rel.relationName}**: ${rel.from} -> ${rel.to} (${rel.cardinality})${label}`);
     }
     lines.push("");
   }

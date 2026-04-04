@@ -37,7 +37,7 @@ const taskSchema: EntityDefinition = {
 
 const createTaskAction: ActionDefinition = {
   name: "create_task",
-  schema: "task",
+  entity: "task",
   label: "Create Task",
   description: "Create a new project task",
   input: {

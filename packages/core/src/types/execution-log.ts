@@ -37,7 +37,7 @@ export interface ExecutionLogEntry {
   // What
   action: string;
   capability?: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
 
   // Who
@@ -72,7 +72,7 @@ export interface ExecutionLogEntry {
 
   // Data change snapshots for audit trail
   changes?: Array<{
-    schema: string;
+    entity: string;
     recordId: string;
     type: "create" | "update" | "delete";
     before?: Record<string, unknown>;
@@ -99,7 +99,7 @@ export interface ExecutionLogEntry {
 export interface ExecutionLogQuery {
   tenantId?: string;
   action?: string;
-  schema?: string;
+  entity?: string;
   status?: ExecutionStatus;
   actorId?: string;
   /** ISO date string — entries after this time */
@@ -133,7 +133,7 @@ export interface ExecutionLogger {
   getByAction(action: string): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Query entries by schema name */
-  getBySchema(schema: string): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
+  getByEntity(schema: string): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;
 
   /** Query entries by status */
   getByStatus(status: ExecutionStatus): ExecutionLogEntry[] | Promise<ExecutionLogEntry[]>;

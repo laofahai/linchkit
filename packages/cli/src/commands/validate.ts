@@ -276,7 +276,7 @@ export const validateCommand = defineCommand({
     {
       const actionInfos: ActionInfo[] = actions.map((a) => ({
         name: a.name,
-        schema: a.schema,
+        schema: a.entity,
       }));
       const report = checkActionDefinitions(actionInfos);
       categories.push({ name: "Action Naming Conventions", issues: report.issues });
@@ -289,17 +289,17 @@ export const validateCommand = defineCommand({
       const actionNames = new Set(actions.map((a) => a.name));
 
       for (const automation of automations) {
-        // Check trigger schema references (fieldChange and stateChange triggers)
+        // Check trigger entity references (fieldChange and stateChange triggers)
         const trigger = automation.trigger;
         if (
           (trigger.type === "fieldChange" || trigger.type === "stateChange") &&
-          "schema" in trigger &&
-          !schemaNames.has(trigger.schema)
+          "entity" in trigger &&
+          !schemaNames.has(trigger.entity)
         ) {
           issues.push({
             severity: "error",
             rule: "automation-trigger",
-            message: `Automation "${automation.name}": trigger references unknown schema "${trigger.schema}"`,
+            message: `Automation "${automation.name}": trigger references unknown entity "${trigger.entity}"`,
           });
         }
 

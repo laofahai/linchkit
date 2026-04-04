@@ -217,7 +217,7 @@ class AutomationEngineImpl implements AutomationEngine {
         if (!current?.enabled) return;
 
         // Check schema match
-        if (event.schema !== trigger.schema) return;
+        if (event.entity !== trigger.entity) return;
 
         const oldValues = event.payload._old as Record<string, unknown> | undefined;
         const newValues = event.payload._new as Record<string, unknown> | undefined;
@@ -261,7 +261,7 @@ class AutomationEngineImpl implements AutomationEngine {
         if (!current?.enabled) return;
 
         // Check schema match
-        if (event.schema !== trigger.schema) return;
+        if (event.entity !== trigger.entity) return;
 
         const oldValues = event.payload._old as Record<string, unknown> | undefined;
         const newValues = event.payload._new as Record<string, unknown> | undefined;

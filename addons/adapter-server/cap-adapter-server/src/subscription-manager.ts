@@ -24,7 +24,7 @@ export interface SubscriptionEvent {
     | "approval.resolved"
     | "schema.changed";
 
-  schema: string;
+  entity: string;
   recordId: string;
   tenantId?: string;
 
@@ -245,7 +245,7 @@ export class SubscriptionManager {
 
   /** Transform an EventRecord and dispatch to matching connections */
   private dispatchEvent(event: EventRecord): void {
-    const schemaName = event.schema;
+    const schemaName = event.entity;
     if (!schemaName) return;
 
     const subEventType = mapEventType(event.type, event.payload);
@@ -255,7 +255,7 @@ export class SubscriptionManager {
 
     const subEvent: SubscriptionEvent = {
       type: subEventType,
-      schema: schemaName,
+      entity: schemaName,
       recordId,
       tenantId: event.tenantId,
       actor: event.actor,
@@ -299,7 +299,7 @@ export class SubscriptionManager {
     const filter = conn.filter;
 
     // Permission check — if a checker is set, verify the actor can read this schema
-    if (this.canReadSchema && !this.canReadSchema(conn.actor, event.schema)) {
+    if (this.canReadSchema && !this.canReadSchema(conn.actor, event.entity)) {
       return false;
     }
 
@@ -309,7 +309,7 @@ export class SubscriptionManager {
     }
 
     // Schema filter
-    if (filter.schemas.length > 0 && !filter.schemas.includes(event.schema)) {
+    if (filter.schemas.length > 0 && !filter.schemas.includes(event.entity)) {
       return false;
     }
 

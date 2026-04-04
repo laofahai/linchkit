@@ -165,8 +165,8 @@ export interface ActionAIConfig {
 export interface IntentResolution {
   /** Matched action name, or null if no match */
   action: string | null;
-  /** Target schema (inferred from action) */
-  schema: string | null;
+  /** Target entity (inferred from action) */
+  entity: string | null;
   /** Extracted input parameters */
   input: Record<string, unknown>;
   /** Fields that are required but not extracted */
@@ -194,7 +194,7 @@ export interface ActionPermissions {
 
 export interface ActionDefinition {
   name: string;
-  schema: string;
+  entity: string;
   label: string;
   description?: string;
 

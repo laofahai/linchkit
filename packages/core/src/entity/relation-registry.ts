@@ -32,17 +32,17 @@ export class RelationRegistry implements RelationRegistryInterface {
     for (const link of this.links.values()) {
       if (link.from === schemaName) {
         result.push({
-          link,
+          relation: link,
           direction: "outgoing",
-          relatedSchema: link.to,
+          relatedEntity: link.to,
           label: link.label?.from ?? link.to,
         });
       }
       if (link.to === schemaName) {
         result.push({
-          link,
+          relation: link,
           direction: "incoming",
-          relatedSchema: link.from,
+          relatedEntity: link.from,
           label: link.label?.to ?? link.from,
         });
       }
@@ -54,7 +54,7 @@ export class RelationRegistry implements RelationRegistryInterface {
   /**
    * Get the first link matching from → to (if any).
    */
-  linkBetween(from: string, to: string): RelationDefinition | null {
+  relationBetween(from: string, to: string): RelationDefinition | null {
     for (const link of this.links.values()) {
       if (link.from === from && link.to === to) {
         return link;

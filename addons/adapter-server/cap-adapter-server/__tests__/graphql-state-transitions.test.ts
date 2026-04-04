@@ -8,7 +8,7 @@ import { createServer } from "../src/server";
 
 const orderLifecycle: StateDefinition = {
   name: "order_lifecycle",
-  schema: "order",
+  entity: "order",
   field: "status",
   initial: "draft",
   states: ["draft", "submitted", "approved", "rejected", "cancelled"],

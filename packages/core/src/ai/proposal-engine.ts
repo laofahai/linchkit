@@ -36,7 +36,7 @@ export type AIProposalStatus =
 export interface ProposalDraft {
   type: ProposalType;
   description: string;
-  targetSchema: string;
+  targetEntity: string;
   details: Record<string, unknown>;
 }
 
@@ -283,13 +283,13 @@ export class ProposalEngine {
     return all;
   }
 
-  /** Get proposals for a specific schema */
-  listBySchema(schema: string): Proposal[] {
+  /** Get proposals for a specific entity */
+  listByEntity(entity: string): Proposal[] {
     return Array.from(this.proposals.values()).filter(
       (p) =>
         p.diff.definition &&
-        "schema" in (p.diff.definition as Record<string, unknown>) &&
-        (p.diff.definition as Record<string, unknown>).schema === schema,
+        "entity" in (p.diff.definition as Record<string, unknown>) &&
+        (p.diff.definition as Record<string, unknown>).entity === entity,
     );
   }
 
@@ -332,7 +332,7 @@ export class ProposalEngine {
           target: "schema",
           operation: "update",
           definition: {
-            schema: insight.schema,
+            entity: insight.entity,
             ...draft.details,
           },
           summary: draft.description,
@@ -361,7 +361,7 @@ export class ProposalEngine {
         label: `Auto-detected validation for ${field}`,
         description: insight.description,
         priority: 10,
-        trigger: { action: action ?? `create_${insight.schema}` },
+        trigger: { action: action ?? `create_${insight.entity}` },
         condition: {
           field: field ?? "",
           operator: "not_null",
@@ -375,11 +375,11 @@ export class ProposalEngine {
 
     // Build a repetitive action auto-approval rule
     return {
-      name: `auto_pattern_${insight.schema}_${Date.now()}`,
-      label: `Auto-detected pattern for ${insight.schema}`,
+      name: `auto_pattern_${insight.entity}_${Date.now()}`,
+      label: `Auto-detected pattern for ${insight.entity}`,
       description: insight.description,
       priority: 10,
-      trigger: { action: action ?? `update_${insight.schema}` },
+      trigger: { action: action ?? `update_${insight.entity}` },
       condition: field ? { field, operator: "eq", value } : { field: "id", operator: "not_null" },
       effect: {
         type: "enrich",
@@ -394,7 +394,7 @@ export class ProposalEngine {
 
     if (insight.type === "timing") {
       const cron = (details.suggestedCron as string) ?? "0 9 * * *";
-      const action = (details.action as string) ?? `process_${insight.schema}`;
+      const action = (details.action as string) ?? `process_${insight.entity}`;
 
       return {
         name: `auto_schedule_${action}_${Date.now()}`,
@@ -417,11 +417,11 @@ export class ProposalEngine {
       const toState = steps.length > 1 ? steps[1] : undefined;
 
       return {
-        name: `auto_flow_${insight.schema}_${Date.now()}`,
+        name: `auto_flow_${insight.entity}_${Date.now()}`,
         description: insight.description,
         trigger: {
           type: "stateChange",
-          schema: insight.schema,
+          entity: insight.entity,
           from: fromState,
           to: toState,
         },
@@ -438,11 +438,11 @@ export class ProposalEngine {
 
     // Fallback generic automation
     return {
-      name: `auto_${insight.schema}_${Date.now()}`,
+      name: `auto_${insight.entity}_${Date.now()}`,
       description: insight.description,
       trigger: {
         type: "event",
-        eventType: `${insight.schema}.updated`,
+        eventType: `${insight.entity}.updated`,
       },
       actions: [
         {

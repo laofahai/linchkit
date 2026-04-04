@@ -907,7 +907,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
 
     const schemaState: StateDefinition = {
       name: "purchase_request_status",
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "status",
       initial: "draft",
       states: ["draft", "submitted", "approved", "rejected", "cancelled"],
@@ -931,7 +931,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
 
     const schemaState: StateDefinition = {
       name: "purchase_request_status",
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "status",
       initial: "new", // interface expects "draft"
       states: ["new", "submitted", "approved", "rejected"],
@@ -955,7 +955,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
 
     const schemaState: StateDefinition = {
       name: "purchase_request_status",
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "status",
       initial: "draft",
       states: ["draft", "submitted", "approved"],
@@ -976,7 +976,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
     const registry = createInterfaceRegistry();
     const schemaState: StateDefinition = {
       name: "test_status",
-      schema: "test",
+      entity: "test",
       field: "status",
       initial: "draft",
       states: ["draft"],
@@ -1013,7 +1013,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
     // Schema state must include both transitions
     const schemaState: StateDefinition = {
       name: "doc_status",
-      schema: "doc",
+      entity: "doc",
       field: "status",
       initial: "draft",
       states: ["draft", "submitted", "reviewed"],
@@ -1048,7 +1048,7 @@ describe("InterfaceRegistry validateStateCompatibility", () => {
     // Schema uses array-form "from" to express both transitions
     const schemaState: StateDefinition = {
       name: "task_status",
-      schema: "task",
+      entity: "task",
       field: "status",
       initial: "draft",
       states: ["draft", "active", "paused"],

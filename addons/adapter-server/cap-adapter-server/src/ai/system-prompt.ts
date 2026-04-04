@@ -141,7 +141,7 @@ export function buildSystemPrompt(options: {
       // Relations
       if (descriptor.relations.length > 0) {
         const relList = descriptor.relations
-          .map((r) => `  - ${r.label ?? r.linkName}: ${r.targetSchema} (${r.cardinality})`)
+          .map((r) => `  - ${r.label ?? r.relationName}: ${r.targetEntity} (${r.cardinality})`)
           .join("\n");
         parts.push(`Relations:\n${relList}`);
       }

@@ -163,7 +163,7 @@ describe("resolveDerivedValue", () => {
   test("aggregate type returns undefined (stub)", () => {
     const derived: DerivedConfig = {
       type: "aggregate",
-      source: { link: "order_to_items", schema: "order_item" },
+      source: { link: "order_to_items", entity: "order_item" },
       op: "sum",
       field: "amount",
     };

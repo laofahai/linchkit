@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { buildRelationGraph, inferSemanticRelations } from "../src/ontology/semantic-inference";
 import type { CapabilityDefinition } from "../src/types/capability";
-import { defineRelation } from "../src/types/semantic-relation";
+import { defineSemanticRelation as defineRelation } from "../src/types/semantic-relation";
 
 // ── Fixtures ─────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ const capA: CapabilityDefinition = {
   category: "business",
   version: "1.0.0",
   dependencies: ["employee_core"],
-  schemas: [
+  entities: [
     {
       name: "leave_request",
       label: "Leave Request",
@@ -25,7 +25,7 @@ const capA: CapabilityDefinition = {
   actions: [
     {
       name: "submit_leave",
-      schema: "leave_request",
+      entity: "leave_request",
       label: "Submit Leave",
       input: {},
       policy: { mode: "sync" },
@@ -54,7 +54,7 @@ const capB: CapabilityDefinition = {
   type: "standard",
   category: "business",
   version: "1.0.0",
-  schemas: [
+  entities: [
     {
       name: "project",
       label: "Project",
@@ -73,7 +73,7 @@ const capB: CapabilityDefinition = {
   actions: [
     {
       name: "create_project",
-      schema: "project",
+      entity: "project",
       label: "Create Project",
       input: {},
       policy: { mode: "sync" },
@@ -112,7 +112,7 @@ const bridgeCap: CapabilityDefinition = {
   category: "business",
   version: "1.0.0",
   bridges: [{ capability: "hr_management" }, { capability: "project_management" }],
-  schemas: [],
+  entities: [],
   actions: [],
 };
 
@@ -122,7 +122,7 @@ const employeeCore: CapabilityDefinition = {
   type: "standard",
   category: "business",
   version: "1.0.0",
-  schemas: [
+  entities: [
     {
       name: "employee",
       label: "Employee",
@@ -152,7 +152,7 @@ describe("inferSemanticRelations", () => {
     const rels = inferSemanticRelations({ capabilities: caps });
     const ref = rels.find(
       (r) =>
-        r.type === "references" && r.from.schema === "leave_request" && r.to.schema === "employee",
+        r.type === "references" && r.from.entity === "leave_request" && r.to.entity === "employee",
     );
     expect(ref).toBeDefined();
     expect(ref?.source).toBe("schema_ref");
@@ -163,7 +163,7 @@ describe("inferSemanticRelations", () => {
     const rels = inferSemanticRelations({ capabilities: caps });
     const contains = rels.find(
       (r) =>
-        r.type === "contains" && r.from.schema === "leave_request" && r.to.schema === "project",
+        r.type === "contains" && r.from.entity === "leave_request" && r.to.entity === "project",
     );
     expect(contains).toBeDefined();
     expect(contains?.source).toBe("schema_has_many");
@@ -213,7 +213,7 @@ describe("inferSemanticRelations", () => {
       (r) =>
         r.type === "orchestrates" &&
         r.from.capability === "project_management" &&
-        r.to.schema === "leave_request",
+        r.to.entity === "leave_request",
     );
     expect(orch).toBeDefined();
     expect(orch?.source).toBe("flow_step");
@@ -224,8 +224,8 @@ describe("inferSemanticRelations", () => {
     const reads = rels.find(
       (r) =>
         r.type === "reads_from" &&
-        r.from.schema === "leave_request" &&
-        r.to.schema === "leave_balance",
+        r.from.entity === "leave_request" &&
+        r.to.entity === "leave_balance",
     );
     expect(reads).toBeDefined();
     expect(reads?.source).toBe("rule_context");
@@ -254,8 +254,8 @@ describe("buildRelationGraph", () => {
   it("merges manual relations with inferred ones", () => {
     const manual = defineRelation({
       type: "conflicts_with",
-      from: { capability: "hr_management", schema: "leave_request" },
-      to: { capability: "project_management", schema: "project" },
+      from: { capability: "hr_management", entity: "leave_request" },
+      to: { capability: "project_management", entity: "project" },
     });
     const graph = buildRelationGraph(caps, [manual]);
     const conflict = graph.relations.find((r) => r.type === "conflicts_with");
@@ -296,7 +296,7 @@ describe("buildRelationGraph", () => {
     const all = graph.forEntity("leave_request");
     expect(all.length).toBeGreaterThan(0);
     for (const r of all) {
-      const involved = r.from.schema === "leave_request" || r.to.schema === "leave_request";
+      const involved = r.from.entity === "leave_request" || r.to.entity === "leave_request";
       expect(involved).toBe(true);
     }
   });
@@ -306,8 +306,8 @@ describe("defineRelation", () => {
   it("creates a manual relation with auto-generated id", () => {
     const rel = defineRelation({
       type: "conflicts_with",
-      from: { capability: "cap_a", schema: "schema_x" },
-      to: { capability: "cap_b", schema: "schema_y" },
+      from: { capability: "cap_a", entity: "schema_x" },
+      to: { capability: "cap_b", entity: "schema_y" },
       description: "test",
     });
     expect(rel.id).toBeTruthy();

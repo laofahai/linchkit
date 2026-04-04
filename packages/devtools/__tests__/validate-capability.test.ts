@@ -30,7 +30,7 @@ describe("validateCapability", () => {
       actions: [
         defineAction({
           name: "submit_request",
-          schema: "purchase_request",
+          entity: "purchase_request",
           label: "Submit",
           stateTransition: { from: "draft", to: "submitted" },
           policy: { mode: "sync", transaction: true },
@@ -48,7 +48,7 @@ describe("validateCapability", () => {
       states: [
         defineState({
           name: "request_lifecycle",
-          schema: "purchase_request",
+          entity: "purchase_request",
           field: "status",
           initial: "draft",
           states: ["draft", "submitted", "approved"],
@@ -61,7 +61,7 @@ describe("validateCapability", () => {
       views: [
         defineView({
           name: "purchase_list",
-          schema: "purchase_request",
+          entity: "purchase_request",
           type: "list",
           fields: [{ field: "title" }, { field: "amount" }],
         }),
@@ -87,7 +87,7 @@ describe("validateCapability", () => {
       actions: [
         defineAction({
           name: "test_action",
-          schema: "nonexistent_schema",
+          entity: "nonexistent_schema",
           label: "Test",
           policy: { mode: "sync", transaction: true },
         }),

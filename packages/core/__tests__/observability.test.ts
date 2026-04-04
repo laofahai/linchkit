@@ -444,7 +444,7 @@ describe("CommandLayer trace propagation", () => {
 
     const action: ActionDefinition = {
       name: "trace_test",
-      schema: "test",
+      entity: "test",
       label: "Trace Test",
       policy: { mode: "sync", transaction: false },
       exposure: "all",
@@ -485,7 +485,7 @@ describe("CommandLayer trace propagation", () => {
 
     const action: ActionDefinition = {
       name: "timed_action",
-      schema: "test",
+      entity: "test",
       label: "Timed",
       policy: { mode: "sync", transaction: false },
       exposure: "all",

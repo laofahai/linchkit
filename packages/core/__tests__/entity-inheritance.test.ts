@@ -444,13 +444,13 @@ describe("Schema Inheritance (spec 49)", () => {
       const actionRegistry = new ActionRegistry();
       const parentAction: ActionDefinition = {
         name: "update_contact_info",
-        schema: "party",
+        entity: "party",
         label: "Update Contact Info",
         handler: async () => ({}),
       };
       const childAction: ActionDefinition = {
         name: "upgrade_loyalty",
-        schema: "customer",
+        entity: "customer",
         label: "Upgrade Loyalty",
         handler: async () => ({}),
       };
@@ -458,7 +458,7 @@ describe("Schema Inheritance (spec 49)", () => {
       actionRegistry.register(childAction);
 
       const chain = entityRegistry.getInheritanceChain("customer");
-      const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
+      const actions = actionRegistry.getByEntityWithInheritance("customer", chain);
 
       expect(actions).toHaveLength(2);
       expect(actions.map((a) => a.name)).toContain("update_contact_info");
@@ -473,7 +473,7 @@ describe("Schema Inheritance (spec 49)", () => {
       const actionRegistry = new ActionRegistry();
       actionRegistry.register({
         name: "validate_party",
-        schema: "party",
+        entity: "party",
         label: "Validate Party",
         handler: async () => ({ source: "parent" }),
       });
@@ -481,7 +481,7 @@ describe("Schema Inheritance (spec 49)", () => {
       actionRegistry.register(
         {
           name: "validate_party",
-          schema: "customer",
+          entity: "customer",
           label: "Validate Customer",
           handler: async () => ({ source: "child" }),
         },
@@ -489,7 +489,7 @@ describe("Schema Inheritance (spec 49)", () => {
       );
 
       const chain = entityRegistry.getInheritanceChain("customer");
-      const actions = actionRegistry.getBySchemaWithInheritance("customer", chain);
+      const actions = actionRegistry.getByEntityWithInheritance("customer", chain);
 
       // Only one "validate_party" action — child's version wins since it's in customer schema
       const validateActions = actions.filter((a) => a.name === "validate_party");
@@ -510,25 +510,25 @@ describe("Schema Inheritance (spec 49)", () => {
       const actionRegistry = new ActionRegistry();
       actionRegistry.register({
         name: "party_action",
-        schema: "party",
+        entity: "party",
         label: "Party Action",
         handler: async () => ({}),
       });
       actionRegistry.register({
         name: "customer_action",
-        schema: "customer",
+        entity: "customer",
         label: "Customer Action",
         handler: async () => ({}),
       });
       actionRegistry.register({
         name: "premium_action",
-        schema: "premium_customer",
+        entity: "premium_customer",
         label: "Premium Action",
         handler: async () => ({}),
       });
 
       const chain = entityRegistry.getInheritanceChain("premium_customer");
-      const actions = actionRegistry.getBySchemaWithInheritance("premium_customer", chain);
+      const actions = actionRegistry.getByEntityWithInheritance("premium_customer", chain);
 
       expect(actions).toHaveLength(3);
       expect(actions.map((a) => a.name)).toContain("party_action");
@@ -547,13 +547,13 @@ describe("Schema Inheritance (spec 49)", () => {
       const actionRegistry = new ActionRegistry();
       const parentAction: ActionDefinition = {
         name: "update_contact_info",
-        schema: "party",
+        entity: "party",
         label: "Update Contact Info",
         handler: async () => ({}),
       };
       const customerAction: ActionDefinition = {
         name: "upgrade_loyalty",
-        schema: "customer",
+        entity: "customer",
         label: "Upgrade Loyalty",
         handler: async () => ({}),
       };
@@ -570,7 +570,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
       const parentState: StateDefinition = {
         name: "party_status",
-        schema: "party",
+        entity: "party",
         field: "status",
         initial: "active",
         states: ["active", "inactive"],
@@ -582,7 +582,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
       const parentView: ViewDefinition = {
         name: "party_list",
-        schema: "party",
+        entity: "party",
         type: "list",
         fields: [
           { field: "name", label: "Name" },
@@ -592,7 +592,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
       const customerView: ViewDefinition = {
         name: "customer_list",
-        schema: "customer",
+        entity: "customer",
         type: "list",
         fields: [
           { field: "name", label: "Name" },
@@ -645,7 +645,7 @@ describe("Schema Inheritance (spec 49)", () => {
 
       const parentState: StateDefinition = {
         name: "party_status",
-        schema: "party",
+        entity: "party",
         field: "status",
         initial: "active",
         states: ["active", "inactive"],
@@ -653,7 +653,7 @@ describe("Schema Inheritance (spec 49)", () => {
       };
       const customerState: StateDefinition = {
         name: "customer_status",
-        schema: "customer",
+        entity: "customer",
         field: "status",
         initial: "new",
         states: ["new", "active", "churned"],

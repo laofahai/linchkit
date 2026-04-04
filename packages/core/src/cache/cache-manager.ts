@@ -185,11 +185,11 @@ export class CacheManager {
   handleEvent(event: EventRecord): void {
     if (!WRITE_EVENT_TYPES.has(event.type)) return;
 
-    const { schema, tenantId, action } = event;
+    const { entity, tenantId, action } = event;
 
-    // Invalidate query caches for the affected schema
-    if (schema) {
-      const tag = tenantId ? `schema:${tenantId}:${schema}` : `schema:${schema}`;
+    // Invalidate query caches for the affected entity
+    if (entity) {
+      const tag = tenantId ? `schema:${tenantId}:${entity}` : `schema:${entity}`;
       const count = this.invalidateByTag(tag);
       this.logger?.debug?.(`Cache invalidated ${count} entries for tag "${tag}" on ${event.type}`);
     }

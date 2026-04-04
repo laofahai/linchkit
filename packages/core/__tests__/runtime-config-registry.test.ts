@@ -7,7 +7,7 @@ import type { ConfigDefinition } from "../src/types/runtime-config";
 
 const approvalConfig: ConfigDefinition = {
   name: "approval-settings",
-  schema: "cap-approval",
+  entity: "cap-approval",
   label: "Approval Settings",
   fields: {
     threshold: {
@@ -65,7 +65,7 @@ describe("RuntimeConfigRegistry", () => {
       registry.register(approvalConfig);
       registry.register({
         name: "notification-settings",
-        schema: "cap-notification",
+        entity: "cap-notification",
         fields: { enabled: { type: "boolean", default: true } },
         defaults: { enabled: true },
       });
@@ -77,13 +77,13 @@ describe("RuntimeConfigRegistry", () => {
       registry.register(approvalConfig);
       registry.register({
         name: "approval-advanced",
-        schema: "cap-approval",
+        entity: "cap-approval",
         fields: { maxRetries: { type: "number", default: 3 } },
         defaults: { maxRetries: 3 },
       });
       registry.register({
         name: "notification-settings",
-        schema: "cap-notification",
+        entity: "cap-notification",
         fields: { enabled: { type: "boolean", default: true } },
         defaults: { enabled: true },
       });
@@ -114,7 +114,7 @@ describe("RuntimeConfigRegistry", () => {
       const registry = new RuntimeConfigRegistry();
       registry.register({
         name: "test-config",
-        schema: "test",
+        entity: "test",
         fields: {
           port: { type: "number", default: 8080 },
         },
@@ -127,7 +127,7 @@ describe("RuntimeConfigRegistry", () => {
       const registry = new RuntimeConfigRegistry();
       registry.register({
         name: "test-config",
-        schema: "test",
+        entity: "test",
         fields: {
           port: { type: "number" }, // No field-level default
         },
@@ -272,7 +272,7 @@ describe("RuntimeConfigRegistry", () => {
       const registry = new RuntimeConfigRegistry();
       registry.register({
         name: "len-config",
-        schema: "test",
+        entity: "test",
         fields: {
           code: {
             type: "string",

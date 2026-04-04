@@ -21,7 +21,7 @@ const defaultActor: Actor = {
 function makeAction(overrides: Partial<ActionDefinition> = {}): ActionDefinition {
   return {
     name: "test_action",
-    schema: "order",
+    entity: "order",
     label: "Test Action",
     policy: { execution: "immediate" },
     ...overrides,
@@ -222,7 +222,7 @@ describe("runPreValidation", () => {
     actor: defaultActor,
     input: { note: "hello", amount: 100 },
     record: {},
-    schema: "order",
+    entity: "order",
     action: "test_action",
     tenantId: "t1",
     executionId: "exec_1",

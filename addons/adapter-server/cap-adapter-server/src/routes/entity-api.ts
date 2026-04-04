@@ -54,7 +54,7 @@ export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
       }
       // Collect all state machines that belong to this schema from all capabilities
       const schemaStates = capabilities.flatMap((cap) =>
-        (cap.states ?? []).filter((s) => s.schema === params.name),
+        (cap.states ?? []).filter((s) => s.entity === params.name),
       );
       // Collect all links related to this schema (from or to)
       const schemaLinks = capabilities.flatMap((cap) =>

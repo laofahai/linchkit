@@ -42,7 +42,7 @@ export interface FunctionDerived {
 /** Aggregate derivation: cross-record aggregation via Link system */
 export interface AggregateDerived {
   type: "aggregate";
-  source: { link: string; schema: string; filter?: Record<string, unknown> };
+  source: { link: string; entity: string; filter?: Record<string, unknown> };
   op: "sum" | "count" | "avg" | "min" | "max";
   field?: string;
   strategy?: "store" | "compute";

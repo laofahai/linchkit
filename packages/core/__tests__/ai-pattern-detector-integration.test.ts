@@ -52,7 +52,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "approve_request",
-          schema: "purchase_request",
+          entity: "purchase_request",
           actor: { type: "user", id: "manager-1", groups: [] },
           input: { decision: "approve", reason: "standard" },
           startedAt: daysAgo(i % 7),
@@ -70,7 +70,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
     expect(repetitiveInsights.length).toBeGreaterThanOrEqual(1);
 
     const insight = repetitiveInsights[0];
-    expect(insight.schema).toBe("purchase_request");
+    expect(insight.entity).toBe("purchase_request");
     expect(insight.confidence).toBeGreaterThanOrEqual(0.7);
     expect(insight.evidence.count).toBeGreaterThanOrEqual(5);
     expect(insight.suggestedAction.type).toBe("add_rule");
@@ -82,7 +82,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { amount: (i + 1) * 100, currency: "USD", customer: `customer-${i}` },
           startedAt: daysAgo(i),
         }),
@@ -113,7 +113,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "create_contact",
-          schema: "contact",
+          entity: "contact",
           input: { email: `user${i}@example.com`, name: `User ${i}` },
           startedAt: daysAgo(i),
         }),
@@ -144,7 +144,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "submit",
-          schema: "request",
+          entity: "request",
           recordId,
           stateTransition: { from: "draft", to: "submitted" },
           startedAt: new Date(baseDate.getTime()),
@@ -155,7 +155,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "approve",
-          schema: "request",
+          entity: "request",
           recordId,
           stateTransition: { from: "submitted", to: "approved" },
           startedAt: new Date(baseDate.getTime() + 3600000),
@@ -173,7 +173,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
     expect(flowInsights.length).toBeGreaterThanOrEqual(1);
 
     const flow = flowInsights[0];
-    expect(flow.schema).toBe("request");
+    expect(flow.entity).toBe("request");
     expect(flow.description).toContain("draft");
     expect(flow.description).toContain("approved");
     expect(flow.suggestedAction.type).toBe("add_automation");
@@ -187,7 +187,7 @@ describe("PatternDetector — integration with InMemoryExecutionLogger", () => {
       await logger.log(
         createLog({
           action: "daily_review",
-          schema: "task",
+          entity: "task",
           input: { type: "review" },
           startedAt: d,
         }),
@@ -224,7 +224,7 @@ describe("PatternDetector.analyzeSchema", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD", amount: 100 },
           startedAt: daysAgo(i),
         }),
@@ -232,7 +232,7 @@ describe("PatternDetector.analyzeSchema", () => {
       await logger.log(
         createLog({
           action: "create_product",
-          schema: "product",
+          entity: "product",
           input: { name: `Product ${i}`, price: i * 10 },
           startedAt: daysAgo(i),
         }),
@@ -244,7 +244,7 @@ describe("PatternDetector.analyzeSchema", () => {
 
     // Should only contain insights about "order"
     for (const insight of insights) {
-      expect(insight.schema).toBe("order");
+      expect(insight.entity).toBe("order");
     }
   });
 
@@ -270,7 +270,7 @@ describe("PatternDetector — configuration", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD" },
           startedAt: daysAgo(i),
         }),
@@ -288,7 +288,7 @@ describe("PatternDetector — configuration", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: i < 5 ? "USD" : `OTHER-${i}` },
           startedAt: daysAgo(i),
         }),
@@ -309,7 +309,7 @@ describe("PatternDetector — configuration", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD" },
           startedAt: daysAgo(i),
         }),
@@ -333,7 +333,7 @@ describe("PatternDetector — configuration", () => {
       await logger.log(
         createLog({
           action: "process_payment",
-          schema: "payment",
+          entity: "payment",
           actor: { type: "user", id: "user-1", groups: [] },
           input: {
             currency: "USD", // 100% frequency
@@ -369,7 +369,7 @@ describe("PatternDetector — edge cases", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD" },
           status: "failed",
           startedAt: daysAgo(i),
@@ -389,7 +389,7 @@ describe("PatternDetector — edge cases", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD" },
           startedAt: daysAgo(60 + i),
         }),
@@ -406,7 +406,7 @@ describe("PatternDetector — edge cases", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: {
             metadata: { nested: "value" }, // object — should be skipped
             currency: "USD", // primitive — should be detected
@@ -430,7 +430,7 @@ describe("PatternDetector — edge cases", () => {
       await logger.log(
         createLog({
           action: "create_order",
-          schema: "order",
+          entity: "order",
           input: { currency: "USD", region: "US" },
           startedAt: daysAgo(i),
         }),

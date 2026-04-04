@@ -42,7 +42,7 @@ function makeCtx(
   return {
     actor,
     command,
-    action: schema ? { name: command, schema } : undefined,
+    action: schema ? { name: command, entity: schema } : undefined,
     meta: tenantId ? { tenantId } : {},
     payload: {},
     result: undefined,

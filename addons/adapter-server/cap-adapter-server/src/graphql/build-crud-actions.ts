@@ -44,7 +44,7 @@ export function generateCrudActions(
 
   const createAction: ActionDefinition = {
     name: `create_${name}`,
-    schema: name,
+    entity: name,
     label: `Create ${schema.label ?? name}`,
     description: `Create a new ${schema.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
@@ -94,7 +94,7 @@ export function generateCrudActions(
 
   const updateAction: ActionDefinition = {
     name: `update_${name}`,
-    schema: name,
+    entity: name,
     label: `Update ${schema.label ?? name}`,
     description: `Update an existing ${schema.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
@@ -175,7 +175,7 @@ export function generateCrudActions(
 
   const deleteAction: ActionDefinition = {
     name: `delete_${name}`,
-    schema: name,
+    entity: name,
     label: `Delete ${schema.label ?? name}`,
     description: `Delete a ${schema.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
@@ -211,7 +211,7 @@ export function generateCrudActions(
 
   const restoreAction: ActionDefinition = {
     name: `restore_${name}`,
-    schema: name,
+    entity: name,
     label: `Restore ${schema.label ?? name}`,
     description: `Restore a soft-deleted ${schema.label ?? name} record`,
     policy: { mode: "sync", transaction: true },

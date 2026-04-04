@@ -6,7 +6,7 @@ import type { ViewDefinition } from "@linchkit/core";
 
 export const departmentListView: ViewDefinition = {
   name: "department_list",
-  schema: "department",
+  entity: "department",
   type: "list",
   label: "t:schemas.department._labelPlural",
   fields: [

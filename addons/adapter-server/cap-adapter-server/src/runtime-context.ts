@@ -136,9 +136,9 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   const views = new Map<string, ViewDefinition[]>();
   if (options?.views) {
     for (const view of options.views) {
-      const list = views.get(view.schema) ?? [];
+      const list = views.get(view.entity) ?? [];
       list.push(view);
-      views.set(view.schema, list);
+      views.set(view.entity, list);
     }
   }
 

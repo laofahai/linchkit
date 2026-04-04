@@ -9,7 +9,7 @@ import { defineAction } from "@linchkit/core";
 
 export const registerAction = defineAction({
   name: "register",
-  schema: "user",
+  entity: "user",
   label: "Register",
   description: "Create a new user account",
   input: {

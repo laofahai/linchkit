@@ -149,7 +149,7 @@ const _invalidActionResponse = {
       name: "create_ghost",
       definition: {
         name: "create_ghost",
-        schema: "ghost_schema",
+        entity: "ghost_schema",
         label: "Create Ghost",
         policy: { mode: "sync", transaction: true },
       },
@@ -588,7 +588,7 @@ describe("ProposalGenerator", () => {
             name: "create_ghost",
             definition: {
               name: "create_ghost",
-              schema: "ghost_schema",
+              entity: "ghost_schema",
               label: "Create Ghost",
               policy: { mode: "sync", transaction: true },
             } as never,
@@ -786,7 +786,7 @@ describe("ProposalGenerator", () => {
             name: "create_invoice",
             definition: {
               name: "create_invoice",
-              schema: "invoice",
+              entity: "invoice",
               label: "Create Invoice",
               policy: { mode: "sync", transaction: true },
             } as never,

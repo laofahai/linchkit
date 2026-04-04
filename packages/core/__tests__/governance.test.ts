@@ -109,7 +109,7 @@ describe("validateActionDoc", () => {
   it("returns 100% for fully documented action", () => {
     const action: ActionDefinition = {
       name: "create_order",
-      schema: "order",
+      entity: "order",
       label: "Create Order",
       description: "Creates a new purchase order",
       input: {
@@ -128,7 +128,7 @@ describe("validateActionDoc", () => {
   it("detects missing action description as error", () => {
     const action: ActionDefinition = {
       name: "bare_action",
-      schema: "test",
+      entity: "test",
       label: "Bare",
     };
 
@@ -141,7 +141,7 @@ describe("validateActionDoc", () => {
   it("detects missing input param description as warning", () => {
     const action: ActionDefinition = {
       name: "submit",
-      schema: "order",
+      entity: "order",
       label: "Submit",
       description: "Submit order",
       input: {
@@ -158,7 +158,7 @@ describe("validateActionDoc", () => {
   it("handles action with no input/output", () => {
     const action: ActionDefinition = {
       name: "noop",
-      schema: "test",
+      entity: "test",
       label: "No-op",
       description: "Does nothing",
     };
@@ -184,7 +184,7 @@ describe("validateCapabilityDoc", () => {
       actions: [
         {
           name: "submit_pr",
-          schema: "purchase_request",
+          entity: "purchase_request",
           label: "Submit",
           description: "Submit PR",
         },

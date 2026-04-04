@@ -234,8 +234,8 @@ export function mountAdminRoutes(
         const schemaFilter = query.schema;
         filtered = filtered.filter((r) => {
           const trigger = r.trigger;
-          if ("stateChange" in trigger) return trigger.stateChange.schema === schemaFilter;
-          if ("fieldChange" in trigger) return trigger.fieldChange.schema === schemaFilter;
+          if ("stateChange" in trigger) return trigger.stateChange.entity === schemaFilter;
+          if ("fieldChange" in trigger) return trigger.fieldChange.entity === schemaFilter;
           if ("action" in trigger) {
             const actions = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
             return actions.some((a) => a.includes(schemaFilter));
@@ -319,7 +319,7 @@ export function mountAdminRoutes(
       try {
         const result = await executionLogger.findMany({
           action: query.action as string | undefined,
-          schema: query.schema as string | undefined,
+          entity: query.schema as string | undefined,
           status: query.status as ExecutionStatus | undefined,
           actorId: query.actorId as string | undefined,
           since: query.since as string | undefined,
@@ -427,7 +427,7 @@ export function mountAdminRoutes(
       );
       const summary = allStates.map((s) => ({
         name: s.name,
-        schema: s.schema,
+        schema: s.entity,
         field: s.field,
         initial: s.initial,
         stateCount: s.states.length,

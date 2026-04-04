@@ -8,7 +8,7 @@ import { defineAction } from "@linchkit/core";
 
 export const revokeUserAction = defineAction({
   name: "revoke_user",
-  schema: "permission_assignment",
+  entity: "permission_assignment",
   label: "Revoke User from Group",
   description: "Remove a user from a permission group",
   input: {

@@ -9,7 +9,7 @@ function createInsight(overrides?: Partial<PatternInsight>): PatternInsight {
   return {
     id: "insight-1",
     type: "default_value",
-    schema: "order",
+    entity: "order",
     description: 'Field "currency" has value "USD" in 95% of records',
     confidence: 0.95,
     evidence: {
@@ -31,7 +31,7 @@ function createRuleInsight(): PatternInsight {
   return {
     id: "insight-rule-1",
     type: "repetitive_action",
-    schema: "purchase_request",
+    entity: "purchase_request",
     description: 'Action "approve_request" is repeatedly executed with decision = "approved"',
     confidence: 0.9,
     evidence: {
@@ -52,7 +52,7 @@ function createAutomationInsight(): PatternInsight {
   return {
     id: "insight-auto-1",
     type: "timing",
-    schema: "task",
+    entity: "task",
     description: 'Action "daily_review" is concentrated between 9:00-10:00',
     confidence: 0.85,
     evidence: {

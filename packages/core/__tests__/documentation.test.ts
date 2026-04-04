@@ -54,7 +54,7 @@ const purchaseRequestSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit Request",
   description: "Submit a purchase request for approval",
   input: {
@@ -72,7 +72,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Approve Request",
   policy: { mode: "sync", transaction: true, idempotent: true },
   stateTransition: { from: "pending", to: "approved" },
@@ -90,7 +90,7 @@ const amountRule: RuleDefinition = {
 
 const purchaseState: StateDefinition = {
   name: "purchase_lifecycle",
-  schema: "purchase_request",
+  entity: "purchase_request",
   field: "status",
   initial: "draft",
   states: ["draft", "pending", "approved", "rejected"],
@@ -103,7 +103,7 @@ const purchaseState: StateDefinition = {
 
 const purchaseListView: ViewDefinition = {
   name: "purchase_request_list",
-  schema: "purchase_request",
+  entity: "purchase_request",
   type: "list",
   label: "Purchase Request List",
   fields: [{ field: "title" }, { field: "amount" }, { field: "status" }],
@@ -139,25 +139,25 @@ function createTestDeps(): OntologyRegistryDeps {
     links: {
       relationsFor(schemaName: string) {
         const results: Array<{
-          link: RelationDefinition;
+          relation: RelationDefinition;
           direction: "outgoing" | "incoming";
-          relatedSchema: string;
+          relatedEntity: string;
           label: string;
         }> = [];
         for (const link of links) {
           if (link.from === schemaName) {
             results.push({
-              link,
+              relation: link,
               direction: "outgoing",
-              relatedSchema: link.to,
+              relatedEntity: link.to,
               label: link.label?.from ?? link.to,
             });
           }
           if (link.to === schemaName) {
             results.push({
-              link,
+              relation: link,
               direction: "incoming",
-              relatedSchema: link.from,
+              relatedEntity: link.from,
               label: link.label?.to ?? link.from,
             });
           }
@@ -308,7 +308,7 @@ describe("generateApiDoc", () => {
     const deptSchema = doc.schemas.find((s) => s.name === "department");
 
     expect(deptSchema?.relations).toHaveLength(1);
-    expect(deptSchema?.relations[0].targetSchema).toBe("purchase_request");
+    expect(deptSchema?.relations[0].targetEntity).toBe("purchase_request");
     expect(deptSchema?.relations[0].direction).toBe("outgoing");
   });
 });

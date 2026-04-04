@@ -9,7 +9,7 @@ import { defineAction } from "@linchkit/core";
 
 export const loginAction = defineAction({
   name: "login",
-  schema: "session",
+  entity: "session",
   label: "Login",
   description: "Authenticate user with email and password",
   input: {

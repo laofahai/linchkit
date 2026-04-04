@@ -54,13 +54,13 @@ export interface RelationDefinition {
 
 export interface LinkInfo {
   /** The underlying link definition */
-  link: RelationDefinition;
+  relation: RelationDefinition;
 
   /** Direction relative to the querying schema */
   direction: "outgoing" | "incoming";
 
   /** The schema on the other end */
-  relatedSchema: string;
+  relatedEntity: string;
 
   /** Label for this direction */
   label: string;
@@ -76,7 +76,7 @@ export interface RelationRegistryInterface {
   relationsFor(schemaName: string): LinkInfo[];
 
   /** Get the link between two schemas (if any) */
-  linkBetween(from: string, to: string): RelationDefinition | null;
+  relationBetween(from: string, to: string): RelationDefinition | null;
 
   /** Get all outgoing links from a schema */
   outgoingRelations(schemaName: string): RelationDefinition[];

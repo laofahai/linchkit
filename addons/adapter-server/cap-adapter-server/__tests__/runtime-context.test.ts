@@ -32,7 +32,7 @@ const productSchema: EntityDefinition = {
 
 const createOrderAction: ActionDefinition = {
   name: "create_order",
-  schema: "order",
+  entity: "order",
   label: "Create Order",
   policy: { mode: "sync", transaction: false },
   handler: async (ctx) => {
@@ -42,7 +42,7 @@ const createOrderAction: ActionDefinition = {
 
 const cancelOrderAction: ActionDefinition = {
   name: "cancel_order",
-  schema: "order",
+  entity: "order",
   label: "Cancel Order",
   policy: { mode: "sync", transaction: false },
   handler: async (ctx) => {

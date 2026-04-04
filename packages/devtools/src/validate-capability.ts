@@ -43,11 +43,11 @@ export function validateCapability(capability: CapabilityDefinition): Capability
 
   // Validate actions reference valid schemas
   for (const action of capability.actions ?? []) {
-    if (!schemaNames.has(action.schema)) {
+    if (!schemaNames.has(action.entity)) {
       issues.push({
         type: "warning",
         category: "action",
-        message: `Action "${action.name}" references schema "${action.schema}" which is not defined in this capability`,
+        message: `Action "${action.name}" references schema "${action.entity}" which is not defined in this capability`,
       });
     }
 
@@ -96,22 +96,22 @@ export function validateCapability(capability: CapabilityDefinition): Capability
 
   // Validate views reference valid schemas
   for (const view of capability.views ?? []) {
-    if (!schemaNames.has(view.schema)) {
+    if (!schemaNames.has(view.entity)) {
       issues.push({
         type: "warning",
         category: "view",
-        message: `View "${view.name}" references schema "${view.schema}" which is not defined in this capability`,
+        message: `View "${view.name}" references schema "${view.entity}" which is not defined in this capability`,
       });
     }
   }
 
   // Validate state machines reference valid schemas
   for (const state of capability.states ?? []) {
-    if (!schemaNames.has(state.schema)) {
+    if (!schemaNames.has(state.entity)) {
       issues.push({
         type: "warning",
         category: "state",
-        message: `State machine "${state.name}" references schema "${state.schema}" which is not defined in this capability`,
+        message: `State machine "${state.name}" references schema "${state.entity}" which is not defined in this capability`,
       });
     }
   }

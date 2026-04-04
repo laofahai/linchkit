@@ -62,7 +62,7 @@ const TENANT_B = "tenant_b";
 
 const crudAction: ActionDefinition = {
   name: "crud_test",
-  schema: "orders",
+  entity: "orders",
   label: "CRUD Test",
   input: {},
   policy: { mode: "sync", transaction: false },
@@ -142,7 +142,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     const crossTenantAction: ActionDefinition = {
       name: "cross_tenant_create",
-      schema: "orders",
+      entity: "orders",
       label: "Cross Tenant Create",
       input: {},
       policy: { mode: "sync", transaction: false },
@@ -171,7 +171,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     const crossTenantUpdate: ActionDefinition = {
       name: "cross_tenant_update",
-      schema: "orders",
+      entity: "orders",
       label: "Cross Tenant Update",
       input: {},
       policy: { mode: "sync", transaction: false },
@@ -198,7 +198,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     const sameTenantAction: ActionDefinition = {
       name: "same_tenant_create",
-      schema: "orders",
+      entity: "orders",
       label: "Same Tenant Create",
       input: {},
       policy: { mode: "sync", transaction: false },
@@ -225,7 +225,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     const childAction: ActionDefinition = {
       name: "child_action",
-      schema: "items",
+      entity: "items",
       label: "Child Action",
       input: {},
       policy: { mode: "sync", transaction: false },
@@ -237,7 +237,7 @@ describe("Tenant-scoped ActionExecutor", () => {
 
     const parentAction: ActionDefinition = {
       name: "parent_action",
-      schema: "orders",
+      entity: "orders",
       label: "Parent Action",
       input: {},
       policy: { mode: "sync", transaction: false },
@@ -289,7 +289,7 @@ function createFakeTransactionManager(
 describe("Tenant-scoped ActionExecutor — transaction path", () => {
   const txCrudAction: ActionDefinition = {
     name: "tx_crud_test",
-    schema: "orders",
+    entity: "orders",
     label: "TX CRUD Test",
     input: {},
     policy: { mode: "sync", transaction: true },
@@ -362,7 +362,7 @@ describe("Tenant-scoped ActionExecutor — transaction path", () => {
 
     const crossTenantTxAction: ActionDefinition = {
       name: "cross_tenant_tx_create",
-      schema: "orders",
+      entity: "orders",
       label: "Cross Tenant TX Create",
       input: {},
       policy: { mode: "sync", transaction: true },
@@ -397,7 +397,7 @@ describe("Tenant-scoped ActionExecutor — transaction path", () => {
 
     const crossTenantTxUpdate: ActionDefinition = {
       name: "cross_tenant_tx_update",
-      schema: "orders",
+      entity: "orders",
       label: "Cross Tenant TX Update",
       input: {},
       policy: { mode: "sync", transaction: true },

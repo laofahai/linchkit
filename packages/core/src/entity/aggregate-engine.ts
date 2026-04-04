@@ -33,7 +33,7 @@ export async function resolveAggregateValue(
   // Determine the FK column name and query direction based on link cardinality.
   // The parent schema is on the side that "has" the aggregate (i.e., the "from" side
   // of one_to_many, or the "to" side of many_to_one).
-  const childSchema = derived.source.schema;
+  const childSchema = derived.source.entity;
   let fkColumn: string;
 
   if (link.from === childSchema) {

@@ -82,7 +82,7 @@ export function createEventBusPubSub(eventBus: EventBus): {
 
   for (const { eventType, operation } of eventMapping) {
     const unsub = eventBus.subscribe(eventType, async (event: EventRecord) => {
-      const schemaName = event.schema;
+      const schemaName = event.entity;
       if (!schemaName) return;
 
       const topic = buildTopic(schemaName, operation);

@@ -65,7 +65,7 @@ export interface ViewAction {
 
 export interface ViewDefinition {
   name: string;
-  schema: string;
+  entity: string;
   type: ViewType;
   label?: string;
   description?: string;

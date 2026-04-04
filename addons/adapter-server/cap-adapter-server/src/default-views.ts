@@ -72,7 +72,7 @@ function generateDefaultListView(schema: EntityDefinition): ViewDefinition {
 
   return {
     name: `${schema.name}_list_default`,
-    schema: schema.name,
+    entity: schema.name,
     type: "list",
     label: `${schema.label ?? schema.name} List`,
     fields: toViewFields(listFields),
@@ -142,7 +142,7 @@ function generateDefaultFormView(schema: EntityDefinition): ViewDefinition {
 
   return {
     name: `${schema.name}_form_default`,
-    schema: schema.name,
+    entity: schema.name,
     type: "form",
     label: `${schema.label ?? schema.name} Form`,
     fields: toViewFields(formFields),

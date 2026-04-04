@@ -10,7 +10,7 @@ import { defineAction } from "@linchkit/core";
 
 export const resetPasswordAction = defineAction({
   name: "reset_password",
-  schema: "user",
+  entity: "user",
   label: "Reset Password",
   description: "Request or complete a password reset",
   input: {

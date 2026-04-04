@@ -49,7 +49,7 @@ const taskSchema: EntityDefinition = {
 
 const taskLifecycleState: StateDefinition = {
   name: "task_lifecycle",
-  schema: "task",
+  entity: "task",
   field: "status",
   initial: "draft",
   states: ["draft", "in_progress", "done", "cancelled"],

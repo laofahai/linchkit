@@ -6,7 +6,7 @@ import type { StateDefinition } from "@linchkit/core";
 
 export const purchaseRequestState: StateDefinition = {
   name: "purchase_lifecycle",
-  schema: "purchase_request",
+  entity: "purchase_request",
   field: "status",
   initial: "draft",
   states: ["draft", "pending", "approved", "rejected"],

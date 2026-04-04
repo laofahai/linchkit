@@ -222,7 +222,7 @@ function resolveStateMachine(
   for (const change of changes) {
     if (change.target === "state" && change.operation !== "delete" && change.definition) {
       const stateDef = change.definition as StateDefinition;
-      if (stateDef.schema === schemaName && stateDef.states) {
+      if (stateDef.entity === schemaName && stateDef.states) {
         return new Set(stateDef.states);
       }
     }
@@ -319,17 +319,17 @@ function validateAction(
     resolveStateMachine: (schemaName: string) => Set<string> | undefined;
   },
 ): void {
-  // Check schema reference
-  if (!def.schema) {
+  // Check entity reference
+  if (!def.entity) {
     errors.push({
       code: "ACTION_NO_SCHEMA",
-      message: `Action "${name}" must reference a schema`,
+      message: `Action "${name}" must reference an entity`,
       target: name,
     });
-  } else if (!helpers.schemaExists(def.schema)) {
+  } else if (!helpers.schemaExists(def.entity)) {
     warnings.push({
       code: "ACTION_UNKNOWN_SCHEMA",
-      message: `Action "${name}" references unknown schema "${def.schema}"`,
+      message: `Action "${name}" references unknown entity "${def.entity}"`,
       target: name,
     });
   }
@@ -352,16 +352,16 @@ function validateAction(
       });
     }
 
-    // Validate from/to states against the state machine for the action's schema
-    if (def.schema && from && to) {
-      const validStates = helpers.resolveStateMachine(def.schema);
+    // Validate from/to states against the state machine for the action's entity
+    if (def.entity && from && to) {
+      const validStates = helpers.resolveStateMachine(def.entity);
       if (validStates) {
         const fromStates = Array.isArray(from) ? from : [from];
         for (const s of fromStates) {
           if (!validStates.has(s)) {
             errors.push({
               code: "TRANSITION_INVALID_STATE",
-              message: `State '${s}' not found in state machine for schema '${def.schema}'`,
+              message: `State '${s}' not found in state machine for entity '${def.entity}'`,
               target: name,
             });
           }
@@ -369,7 +369,7 @@ function validateAction(
         if (!validStates.has(to)) {
           errors.push({
             code: "TRANSITION_INVALID_STATE",
-            message: `State '${to}' not found in state machine for schema '${def.schema}'`,
+            message: `State '${to}' not found in state machine for entity '${def.entity}'`,
             target: name,
           });
         }
@@ -504,17 +504,17 @@ function validateStateDef(
     });
   }
 
-  // Check schema reference
-  if (!def.schema) {
+  // Check entity reference
+  if (!def.entity) {
     errors.push({
       code: "STATE_NO_SCHEMA",
-      message: `State definition "${name}" must reference a schema`,
+      message: `State definition "${name}" must reference an entity`,
       target: name,
     });
-  } else if (!helpers.schemaExists(def.schema)) {
+  } else if (!helpers.schemaExists(def.entity)) {
     warnings.push({
       code: "STATE_UNKNOWN_SCHEMA",
-      message: `State definition "${name}" references unknown schema "${def.schema}"`,
+      message: `State definition "${name}" references unknown entity "${def.entity}"`,
       target: name,
     });
   }
@@ -610,17 +610,17 @@ function validateViewDef(
   errors: ValidationError[],
   helpers: { schemaExists: (name: string) => boolean },
 ): void {
-  const viewDef = def as { schema?: string; type?: string; fields?: unknown[] };
-  if (!viewDef.schema) {
+  const viewDef = def as { entity?: string; type?: string; fields?: unknown[] };
+  if (!viewDef.entity) {
     errors.push({
       code: "VIEW_NO_SCHEMA",
-      message: `View "${name}" must reference a schema`,
+      message: `View "${name}" must reference an entity`,
       target: name,
     });
-  } else if (!helpers.schemaExists(viewDef.schema)) {
+  } else if (!helpers.schemaExists(viewDef.entity)) {
     errors.push({
       code: "VIEW_UNKNOWN_SCHEMA",
-      message: `View "${name}" references unknown schema "${viewDef.schema}"`,
+      message: `View "${name}" references unknown entity "${viewDef.entity}"`,
       target: name,
     });
   }

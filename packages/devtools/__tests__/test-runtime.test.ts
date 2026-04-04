@@ -33,7 +33,7 @@ describe("createTestRuntime", () => {
   it("should register provided actions", () => {
     const action = defineAction({
       name: "do_something",
-      schema: "task",
+      entity: "task",
       label: "Do Something",
       policy: { mode: "sync", transaction: false },
       handler: async () => ({ done: true }),
@@ -49,7 +49,7 @@ describe("createTestRuntime", () => {
   it("should execute actions with InMemoryDataProvider", async () => {
     const action = defineAction({
       name: "create_item",
-      schema: "item",
+      entity: "item",
       label: "Create Item",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => {

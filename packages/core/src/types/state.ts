@@ -27,7 +27,7 @@ export interface Transition {
 
 export interface StateDefinition<TStates extends string = string> {
   name: string;
-  schema: string;
+  entity: string;
   field: string;
   initial: TStates;
 

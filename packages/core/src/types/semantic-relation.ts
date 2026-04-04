@@ -43,8 +43,8 @@ export type SemanticRelationSource =
 export interface SemanticRelationEndpoint {
   /** Capability name */
   capability?: string;
-  /** Schema name (optional — capability-level relations omit this) */
-  schema?: string;
+  /** Entity name (optional — capability-level relations omit this) */
+  entity?: string;
 }
 
 // ── Semantic relation ────────────────────────────────────
@@ -75,8 +75,8 @@ export interface SemanticRelation {
 export function defineSemanticRelation(
   def: Omit<SemanticRelation, "id" | "source"> & { source?: SemanticRelationSource },
 ): SemanticRelation {
-  const fromKey = [def.from.capability ?? "", def.from.schema ?? ""].join(":");
-  const toKey = [def.to.capability ?? "", def.to.schema ?? ""].join(":");
+  const fromKey = [def.from.capability ?? "", def.from.entity ?? ""].join(":");
+  const toKey = [def.to.capability ?? "", def.to.entity ?? ""].join(":");
   return {
     id: `${fromKey}->${def.type}->${toKey}`,
     source: "manual",

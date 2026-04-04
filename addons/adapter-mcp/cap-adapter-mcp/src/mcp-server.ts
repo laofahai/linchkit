@@ -487,7 +487,7 @@ function registerBuiltinTools(
           name: a.name,
           label: a.label,
           description: a.description,
-          schema: a.schema,
+          schema: a.entity,
           inputFields: a.input ? Object.keys(a.input) : [],
         }));
 
@@ -514,9 +514,9 @@ function registerBuiltinTools(
         filtered = filtered.filter((r) => {
           const trigger = r.trigger;
           // Check stateChange trigger for schema match
-          if ("stateChange" in trigger && trigger.stateChange.schema === args.schema) return true;
-          // Check fieldChange trigger for schema match
-          if ("fieldChange" in trigger && trigger.fieldChange.schema === args.schema) return true;
+          if ("stateChange" in trigger && trigger.stateChange.entity === args.schema) return true;
+          // Check fieldChange trigger for entity match
+          if ("fieldChange" in trigger && trigger.fieldChange.entity === args.schema) return true;
           return false;
         });
       }
@@ -550,7 +550,7 @@ function registerBuiltinTools(
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getStateMachineShape as any,
     async (args: { schema: string }) => {
-      const matching = states.filter((s) => s.schema === args.schema);
+      const matching = states.filter((s) => s.entity === args.schema);
 
       if (matching.length === 0) {
         return {
@@ -569,7 +569,7 @@ function registerBuiltinTools(
       // Return all state machines for the schema (usually one, but could be multiple)
       const result = matching.map((sm) => ({
         name: sm.name,
-        schema: sm.schema,
+        schema: sm.entity,
         field: sm.field,
         initial: sm.initial,
         states: sm.states,

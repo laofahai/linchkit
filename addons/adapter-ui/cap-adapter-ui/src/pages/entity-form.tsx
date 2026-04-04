@@ -157,7 +157,7 @@ export function EntityFormPage() {
     const names = new Set<string>();
     if (schema) {
       for (const machine of bundle?.states ?? []) {
-        if (machine.schema === schema.name) {
+        if (machine.entity === schema.name) {
           for (const t of machine.transitions) {
             names.add(t.action);
           }

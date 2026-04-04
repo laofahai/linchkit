@@ -499,7 +499,7 @@ describe("validatePhase1", () => {
           name: "create_order",
           definition: {
             name: "create_order",
-            schema: "order",
+            entity: "order",
             label: "Create Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -520,7 +520,7 @@ describe("validatePhase1", () => {
           name: "bad_action",
           definition: {
             name: "bad_action",
-            schema: "",
+            entity: "",
             label: "Bad",
             policy: { mode: "sync", transaction: false },
           },
@@ -550,7 +550,7 @@ describe("validatePhase1", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "submitted", "approved"],
@@ -575,7 +575,7 @@ describe("validatePhase1", () => {
           name: "bad_state",
           definition: {
             name: "bad_state",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "nonexistent",
             states: ["draft", "submitted"],
@@ -607,7 +607,7 @@ describe("validatePhase1", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "submitted", "orphan"],
@@ -629,7 +629,7 @@ describe("validatePhase1", () => {
           name: "submit_order",
           definition: {
             name: "submit_order",
-            schema: "order",
+            entity: "order",
             label: "Submit Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -769,7 +769,7 @@ describe("ProposalEngine.updateProposal", () => {
         name: "create_order",
         definition: {
           name: "create_order",
-          schema: "order",
+          entity: "order",
           label: "Create Order",
           policy: { mode: "sync" as const, transaction: true },
         },
@@ -889,7 +889,7 @@ describe("validatePhase1 duplicate detection", () => {
           name: "order",
           definition: {
             name: "order",
-            schema: "order",
+            entity: "order",
             label: "Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -922,7 +922,7 @@ describe("validatePhase1 dead-end state detection", () => {
           name: "ticket_lifecycle",
           definition: {
             name: "ticket_lifecycle",
-            schema: "ticket",
+            entity: "ticket",
             field: "status",
             initial: "open",
             states: ["open", "in_progress", "closed"],
@@ -960,7 +960,7 @@ describe("validatePhase1 dead-end state detection", () => {
           name: "simple_state",
           definition: {
             name: "simple_state",
-            schema: "simple",
+            entity: "simple",
             field: "status",
             initial: "active",
             states: ["active"],
@@ -1089,7 +1089,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed", "done"],
@@ -1105,7 +1105,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "confirm_order",
           definition: {
             name: "confirm_order",
-            schema: "order",
+            entity: "order",
             label: "Confirm Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "nonexistent", to: "confirmed" },
@@ -1139,7 +1139,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed"],
@@ -1152,7 +1152,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "ship_order",
           definition: {
             name: "ship_order",
-            schema: "order",
+            entity: "order",
             label: "Ship Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "confirmed", to: "shipped" },
@@ -1186,7 +1186,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed"],
@@ -1199,7 +1199,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "confirm_order",
           definition: {
             name: "confirm_order",
-            schema: "order",
+            entity: "order",
             label: "Confirm Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "draft", to: "confirmed" },

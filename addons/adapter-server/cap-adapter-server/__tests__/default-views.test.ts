@@ -84,7 +84,7 @@ describe("generateDefaultViews", () => {
     const list = views.task_list_default;
 
     expect(list.name).toBe("task_list_default");
-    expect(list.schema).toBe("task");
+    expect(list.entity).toBe("task");
     expect(list.type).toBe("list");
     expect(list.label).toBe("Task List");
     expect(list.fields).toEqual([
@@ -100,7 +100,7 @@ describe("generateDefaultViews", () => {
     const form = views.task_form_default;
 
     expect(form.name).toBe("task_form_default");
-    expect(form.schema).toBe("task");
+    expect(form.entity).toBe("task");
     expect(form.type).toBe("form");
     expect(form.label).toBe("Task Form");
     expect(form.fields).toEqual([

@@ -796,8 +796,8 @@ export function buildGraphQLSchema(
 
     // Determine return type: schema's object type if action belongs to a schema, else ActionResult
     const returnType =
-      action.schema && schemaObjectTypes.has(action.schema)
-        ? (schemaObjectTypes.get(action.schema) ?? ActionResultType)
+      action.entity && schemaObjectTypes.has(action.entity)
+        ? (schemaObjectTypes.get(action.entity) ?? ActionResultType)
         : ActionResultType;
     const returnsSchemaType = returnType !== ActionResultType;
 
@@ -810,7 +810,7 @@ export function buildGraphQLSchema(
     }
 
     // Capture the schema definition for translatable resolution in custom actions
-    const actionSchema = action.schema ? schemas.find((s) => s.name === action.schema) : undefined;
+    const actionSchema = action.entity ? schemas.find((s) => s.name === action.entity) : undefined;
 
     mutationFields[mutationName] = {
       type: returnType,

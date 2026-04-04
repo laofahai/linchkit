@@ -28,8 +28,8 @@ export interface ScheduleAutomationTrigger {
 /** Trigger when a specific field changes on a schema record */
 export interface FieldChangeAutomationTrigger {
   type: "fieldChange";
-  /** Schema name to watch */
-  schema: string;
+  /** Entity name to watch */
+  entity: string;
   /** Field name to monitor */
   field: string;
   /** Optional: trigger only when the field changes from this value */
@@ -41,8 +41,8 @@ export interface FieldChangeAutomationTrigger {
 /** Trigger when a record's state changes */
 export interface StateChangeAutomationTrigger {
   type: "stateChange";
-  /** Schema name to watch */
-  schema: string;
+  /** Entity name to watch */
+  entity: string;
   /** Optional: trigger only when transitioning from this state */
   from?: string;
   /** Optional: trigger only when transitioning to this state */

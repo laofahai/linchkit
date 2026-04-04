@@ -1,7 +1,7 @@
 import type { UsageImportanceGraph, UsageNode, UsageNodeKind } from "../types/life-system";
 
-function nodeKey(kind: UsageNodeKind, schema: string, name?: string): string {
-  return `${kind}:${schema}:${name ?? ""}`;
+function nodeKey(kind: UsageNodeKind, entity: string, name?: string): string {
+  return `${kind}:${entity}:${name ?? ""}`;
 }
 
 export function createUsageImportanceGraph(): UsageImportanceGraph {
@@ -21,8 +21,8 @@ export function createUsageImportanceGraph(): UsageImportanceGraph {
   }
 
   return {
-    recordUsage(kind: UsageNodeKind, schema: string, name?: string): void {
-      const key = nodeKey(kind, schema, name);
+    recordUsage(kind: UsageNodeKind, entity: string, name?: string): void {
+      const key = nodeKey(kind, entity, name);
       const existing = nodes.get(key);
       if (existing) {
         existing.usageCount++;
@@ -30,7 +30,7 @@ export function createUsageImportanceGraph(): UsageImportanceGraph {
       } else {
         nodes.set(key, {
           kind,
-          schema,
+          entity,
           name,
           importance: 1,
           usageCount: 1,
@@ -40,8 +40,8 @@ export function createUsageImportanceGraph(): UsageImportanceGraph {
       recomputeImportance();
     },
 
-    getImportance(kind: UsageNodeKind, schema: string, name?: string): number {
-      return nodes.get(nodeKey(kind, schema, name))?.importance ?? 0;
+    getImportance(kind: UsageNodeKind, entity: string, name?: string): number {
+      return nodes.get(nodeKey(kind, entity, name))?.importance ?? 0;
     },
 
     topN(n: number, kind?: UsageNodeKind): UsageNode[] {
@@ -50,8 +50,8 @@ export function createUsageImportanceGraph(): UsageImportanceGraph {
       return all.sort((a, b) => b.importance - a.importance).slice(0, n);
     },
 
-    nodesFor(schema: string): UsageNode[] {
-      return Array.from(nodes.values()).filter((node) => node.schema === schema);
+    nodesFor(entity: string): UsageNode[] {
+      return Array.from(nodes.values()).filter((node) => node.entity === entity);
     },
 
     toArray(): UsageNode[] {

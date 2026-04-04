@@ -331,7 +331,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
             for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
               if (fieldDef.type === "state" && "machine" in fieldDef) {
                 const machine = (bundle?.states ?? []).find(
-                  (s) => s.name === fieldDef.machine && s.schema === schema.name,
+                  (s) => s.name === fieldDef.machine && s.entity === schema.name,
                 );
                 if (machine && machine.states.length > 0) {
                   cloned[fieldName] = machine.initial ?? machine.states[0];

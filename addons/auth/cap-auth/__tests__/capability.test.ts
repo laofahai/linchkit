@@ -39,7 +39,7 @@ describe("cap-auth capability (static contract)", () => {
     expect(state).toBeDefined();
     if (!state) return;
     expect(state.name).toBe("user_lifecycle");
-    expect(state.schema).toBe("user");
+    expect(state.entity).toBe("user");
     expect(state.initial).toBe("active");
     expect(state.states).toContain("active");
     expect(state.states).toContain("disabled");

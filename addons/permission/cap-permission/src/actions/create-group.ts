@@ -8,7 +8,7 @@ import { defineAction } from "@linchkit/core";
 
 export const createGroupAction = defineAction({
   name: "create_group",
-  schema: "permission_group",
+  entity: "permission_group",
   label: "Create Permission Group",
   description: "Create a new permission group with access rules",
   input: {

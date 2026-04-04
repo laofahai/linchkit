@@ -18,7 +18,7 @@ const defaultActor: Actor = {
 
 const simpleAction: ActionDefinition = {
   name: "create_order",
-  schema: "order",
+  entity: "order",
   label: "Create Order",
   input: {
     title: { type: "string", required: true },
@@ -36,7 +36,7 @@ const simpleAction: ActionDefinition = {
 
 const declarativeAction: ActionDefinition = {
   name: "submit_order",
-  schema: "order",
+  entity: "order",
   label: "Submit Order",
   input: {
     id: { type: "string", required: true },
@@ -48,7 +48,7 @@ const declarativeAction: ActionDefinition = {
 
 const restrictedAction: ActionDefinition = {
   name: "approve_order",
-  schema: "order",
+  entity: "order",
   label: "Approve Order",
   permissions: {
     groups: ["manager", "admin"],
@@ -60,7 +60,7 @@ const restrictedAction: ActionDefinition = {
 
 const exposedAction: ActionDefinition = {
   name: "internal_sync",
-  schema: "order",
+  entity: "order",
   label: "Internal Sync",
   exposure: {
     internal: true,
@@ -75,7 +75,7 @@ const exposedAction: ActionDefinition = {
 
 const validatedAction: ActionDefinition = {
   name: "finalize_order",
-  schema: "order",
+  entity: "order",
   label: "Finalize Order",
   validate: {
     required: ["title", "amount"],
@@ -86,7 +86,7 @@ const validatedAction: ActionDefinition = {
 
 const customValidatedAction: ActionDefinition = {
   name: "special_order",
-  schema: "order",
+  entity: "order",
   label: "Special Order",
   validate: {
     custom: (ctx) => {
@@ -161,7 +161,7 @@ function createMemoryDataProvider(): DataProvider {
 
 const orderStateDefinition: StateDefinition = {
   name: "order_state",
-  schema: "order",
+  entity: "order",
   field: "status",
   initial: "draft",
   states: ["draft", "submitted", "approved", "rejected"],
@@ -212,10 +212,10 @@ describe("ActionRegistry", () => {
     registry.register({
       ...declarativeAction,
       name: "other_action",
-      schema: "other_schema",
+      entity: "other_schema",
     });
 
-    const orderActions = registry.getBySchema("order");
+    const orderActions = registry.getByEntity("order");
     expect(orderActions).toHaveLength(1);
     expect(orderActions[0].name).toBe("create_order");
   });

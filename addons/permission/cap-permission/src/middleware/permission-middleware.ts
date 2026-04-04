@@ -100,11 +100,11 @@ export function createPermissionMiddleware(
     // Resolve capability name from action
     const capabilityName = resolveCapability
       ? resolveCapability(command, ctx)
-      : (action?.schema ?? command);
+      : (action?.entity ?? command);
 
     // ── Cache lookup ─────────────────────────────────────────
     const tenantId = (ctx.meta?.tenantId as string | undefined) ?? "";
-    const schemaKey = action?.schema ?? "";
+    const schemaKey = action?.entity ?? "";
     const cacheKey = `perm:${tenantId}:${actor.id}:${command}:${schemaKey}`;
     const cacheTags = [`perm:${tenantId}`, `perm`];
 
@@ -159,13 +159,13 @@ export function createPermissionMiddleware(
     // ── Step 2: Resolve data access conditions ───────────────
     let resolvedDataAccess: CachedPermissionResult["dataAccess"] | undefined;
 
-    if (action?.schema) {
-      const readAccess = resolveDataAccess(registry, actor, capabilityName, action.schema, "read");
+    if (action?.entity) {
+      const readAccess = resolveDataAccess(registry, actor, capabilityName, action.entity, "read");
       const writeAccess = resolveDataAccess(
         registry,
         actor,
         capabilityName,
-        action.schema,
+        action.entity,
         "write",
       );
 
@@ -187,7 +187,7 @@ export function createPermissionMiddleware(
     // ── Step 3: Resolve field-level visibility ───────────────
     let resolvedFieldAccess: CachedPermissionResult["fieldAccess"] | undefined;
 
-    if (action?.schema) {
+    if (action?.entity) {
       const groups = registry.resolveActorPermissions(actor);
       const visibleFields = new Set<string>();
       const hiddenFields = new Set<string>();
@@ -196,7 +196,7 @@ export function createPermissionMiddleware(
         const capPerms = group.permissions[capabilityName];
         if (!capPerms) continue;
 
-        const schemaPerms = capPerms[action.schema];
+        const schemaPerms = capPerms[action.entity];
         if (!schemaPerms?.fields) continue;
 
         if (schemaPerms.fields.visible) {

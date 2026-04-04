@@ -17,7 +17,7 @@ const testSchema = defineEntity({
 
 const testAction = defineAction({
   name: "create_order",
-  schema: "order",
+  entity: "order",
   label: "Create Order",
   description: "Creates a new sales order",
   input: {

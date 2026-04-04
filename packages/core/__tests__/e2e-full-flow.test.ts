@@ -66,7 +66,7 @@ const expenseSchema: EntityDefinition = {
 
 const expenseStateDef: StateDefinition = {
   name: "expense_lifecycle",
-  schema: "expense_report",
+  entity: "expense_report",
   states: ["draft", "submitted", "approved", "rejected", "cancelled"],
   initial: "draft",
   transitions: [
@@ -197,7 +197,7 @@ const { bus: _eventBus, registry: eventRegistry } = createEventBus();
 
 const createExpenseAction: ActionDefinition = {
   name: "create_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Create Expense Report",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -207,7 +207,7 @@ const createExpenseAction: ActionDefinition = {
       status: ctx.input.status ?? "draft",
     });
     ctx.emit("expense.created", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: record.id,
     });
     return record;
@@ -216,7 +216,7 @@ const createExpenseAction: ActionDefinition = {
 
 const readExpenseAction: ActionDefinition = {
   name: "read_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Read Expense Report",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -227,7 +227,7 @@ const readExpenseAction: ActionDefinition = {
 
 const updateExpenseAction: ActionDefinition = {
   name: "update_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Update Expense Report",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -235,7 +235,7 @@ const updateExpenseAction: ActionDefinition = {
     const { id, ...updates } = ctx.input;
     const record = await ctx.update("expense_report", id as string, updates);
     ctx.emit("expense.updated", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: id,
     });
     return record;
@@ -244,14 +244,14 @@ const updateExpenseAction: ActionDefinition = {
 
 const deleteExpenseAction: ActionDefinition = {
   name: "delete_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Delete Expense Report",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
   handler: async (ctx) => {
     await ctx.delete("expense_report", ctx.input.id as string);
     ctx.emit("expense.deleted", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: ctx.input.id,
     });
     return { deleted: true, id: ctx.input.id };
@@ -260,7 +260,7 @@ const deleteExpenseAction: ActionDefinition = {
 
 const submitExpenseAction: ActionDefinition = {
   name: "submit_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Submit Expense Report",
   stateTransition: { from: "draft", to: "submitted" },
   policy: { mode: "sync", transaction: false },
@@ -276,7 +276,7 @@ const submitExpenseAction: ActionDefinition = {
       _version: record._version,
     });
     ctx.emit("expense.submitted", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: id,
       previousStatus: "draft",
       newStatus: "submitted",
@@ -287,7 +287,7 @@ const submitExpenseAction: ActionDefinition = {
 
 const approveExpenseAction: ActionDefinition = {
   name: "approve_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Approve Expense Report",
   permissions: { groups: ["manager", "admin"] },
   stateTransition: { from: "submitted", to: "approved" },
@@ -304,7 +304,7 @@ const approveExpenseAction: ActionDefinition = {
       _version: record._version,
     });
     ctx.emit("expense.approved", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: id,
       previousStatus: "submitted",
       newStatus: "approved",
@@ -315,7 +315,7 @@ const approveExpenseAction: ActionDefinition = {
 
 const rejectExpenseAction: ActionDefinition = {
   name: "reject_expense",
-  schema: "expense_report",
+  entity: "expense_report",
   label: "Reject Expense Report",
   permissions: { groups: ["manager", "admin"] },
   stateTransition: { from: "submitted", to: "rejected" },
@@ -332,7 +332,7 @@ const rejectExpenseAction: ActionDefinition = {
       _version: record._version,
     });
     ctx.emit("expense.rejected", {
-      schema: "expense_report",
+      entity: "expense_report",
       recordId: id,
     });
     return updated;
@@ -703,7 +703,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
       // Create an approval request using the correct CreateApprovalOptions shape
       const request = await approvalEngine.createRequest({
         action: "submit_expense",
-        schema: "expense_report",
+        entity: "expense_report",
         input: { id: "exp-high-value", amount: 20_000 },
         actor: employeeActor,
         executionId: `exec_${crypto.randomUUID()}`,
@@ -735,7 +735,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
     test("4b. Rejected approval is not valid for re-execution", async () => {
       const request = await approvalEngine.createRequest({
         action: "submit_expense",
-        schema: "expense_report",
+        entity: "expense_report",
         input: { id: "exp-rejected-val", amount: 50_000 },
         actor: employeeActor,
         executionId: `exec_${crypto.randomUUID()}`,
@@ -762,7 +762,7 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
       // Create and get an approved request
       const request = await approvalEngine.createRequest({
         action: "create_expense",
-        schema: "expense_report",
+        entity: "expense_report",
         input: { title: "Approved via Pipeline", amount: 25_000 },
         actor: employeeActor,
         executionId: `exec_${crypto.randomUUID()}`,

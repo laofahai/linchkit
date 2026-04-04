@@ -43,7 +43,7 @@ function createMockActionRegistry(actions: ActionDefinition[]) {
 
 const sampleAction: ActionDefinition = {
   name: "order.approve",
-  schema: "order",
+  entity: "order",
   label: "Approve Order",
   description: "Approve a purchase order",
   input: {

@@ -64,7 +64,7 @@ const actor: Actor = {
 
 const requestState: StateDefinition = {
   name: "request_state",
-  schema: "request",
+  entity: "request",
   field: "status",
   initial: "pending",
   states: ["pending", "approved", "rejected"],
@@ -84,7 +84,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -107,7 +107,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -130,7 +130,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: {
         id: { type: "string", required: true },
@@ -160,7 +160,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -188,7 +188,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -216,7 +216,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -239,7 +239,7 @@ describe("resolveFieldExpression via declarative action", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -267,7 +267,7 @@ describe("declarative action with stateTransition + setFields", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -295,7 +295,7 @@ describe("declarative action with stateTransition + setFields", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -319,7 +319,7 @@ describe("declarative action with stateTransition + setFields", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -348,7 +348,7 @@ describe("declarative action without handler", () => {
 
     const action: ActionDefinition = {
       name: "approve_request",
-      schema: "request",
+      entity: "request",
       label: "Approve Request",
       input: { id: { type: "string", required: true } },
       stateTransition: { from: "pending", to: "approved" },
@@ -369,7 +369,7 @@ describe("declarative action without handler", () => {
 
     const action: ActionDefinition = {
       name: "tag_request",
-      schema: "request",
+      entity: "request",
       label: "Tag Request",
       input: { id: { type: "string", required: true } },
       setFields: { tagged_by: "$actor.id", tag: "important" },

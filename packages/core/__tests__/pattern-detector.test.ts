@@ -46,7 +46,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "approve_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             input: { amount: 3000, decision: "approved" },
             startedAt: daysAgo(i),
           }),
@@ -62,7 +62,7 @@ describe("PatternDetector", () => {
       const decisionInsight = repetitive.find((i) => i.description.includes("decision"));
       expect(decisionInsight).toBeDefined();
       expect(decisionInsight?.confidence).toBeGreaterThanOrEqual(0.7);
-      expect(decisionInsight?.schema).toBe("purchase_request");
+      expect(decisionInsight?.entity).toBe("purchase_request");
       expect(decisionInsight?.suggestedAction.type).toBe("add_rule");
     });
 
@@ -71,7 +71,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "approve_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             input: { decision: "approved" },
             startedAt: daysAgo(i),
           }),
@@ -89,7 +89,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "approve_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             input: { amount: i * 1000, decision: i % 2 === 0 ? "approved" : "rejected" },
             startedAt: daysAgo(i),
           }),
@@ -114,7 +114,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: "USD", amount: i * 100 },
             startedAt: daysAgo(i),
           }),
@@ -138,7 +138,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: currencies[i % currencies.length] },
             startedAt: daysAgo(i),
           }),
@@ -163,7 +163,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_contact",
-            schema: "contact",
+            entity: "contact",
             input: { email: `user${i}@example.com`, name: `User ${i}` },
             startedAt: daysAgo(i),
           }),
@@ -185,7 +185,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_item",
-            schema: "item",
+            entity: "item",
             input: { sku: `${1000 + i}`, name: "Widget" },
             startedAt: daysAgo(i),
           }),
@@ -211,7 +211,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "submit_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             recordId,
             stateTransition: { from: "draft", to: "submitted" },
             startedAt: daysAgo(10 - i),
@@ -220,7 +220,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "approve_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             recordId,
             stateTransition: { from: "submitted", to: "approved" },
             startedAt: daysAgo(9 - i),
@@ -233,7 +233,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "submit_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             recordId,
             stateTransition: { from: "draft", to: "submitted" },
             startedAt: daysAgo(5 - i),
@@ -242,7 +242,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "reject_request",
-            schema: "purchase_request",
+            entity: "purchase_request",
             recordId,
             stateTransition: { from: "submitted", to: "rejected" },
             startedAt: daysAgo(4 - i),
@@ -274,7 +274,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "daily_review",
-            schema: "task",
+            entity: "task",
             input: { status: "reviewed" },
             startedAt: d,
           }),
@@ -287,7 +287,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "daily_review",
-            schema: "task",
+            entity: "task",
             input: { status: "reviewed" },
             startedAt: d,
           }),
@@ -314,7 +314,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: "USD" },
             startedAt: daysAgo(i),
           }),
@@ -322,7 +322,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_task",
-            schema: "task",
+            entity: "task",
             input: { priority: "high" },
             startedAt: daysAgo(i),
           }),
@@ -334,7 +334,7 @@ describe("PatternDetector", () => {
 
       // Should only find order-related patterns
       for (const insight of insights) {
-        expect(insight.schema).toBe("order");
+        expect(insight.entity).toBe("order");
       }
     });
   });
@@ -347,7 +347,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "approve_request",
-            schema: "request",
+            entity: "request",
             input: { decision: "approved" },
             startedAt: daysAgo(i),
           }),
@@ -372,7 +372,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: "USD" },
             startedAt: daysAgo(i),
           }),
@@ -382,7 +382,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: "EUR" },
             startedAt: daysAgo(i + 6),
           }),
@@ -414,7 +414,7 @@ describe("PatternDetector", () => {
         logger.log(
           createLog({
             action: "create_order",
-            schema: "order",
+            entity: "order",
             input: { currency: "USD", region: i % 2 === 0 ? "US" : "EU" },
             startedAt: daysAgo(i),
           }),

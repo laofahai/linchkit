@@ -46,16 +46,16 @@ export class MemoryEngine {
         baseline: signal.baseline,
         deviation: signal.deviation,
         confidence: signal.confidence,
-        schema: signal.context.schema,
+        entity: signal.context.entity,
         metric: signal.context.metric,
         ...signal.context,
       },
     });
 
     // Recompute baseline after new data arrives
-    const schema = (signal.context.schema as string | undefined) ?? signal.sensor;
+    const entity = (signal.context.entity as string | undefined) ?? signal.sensor;
     const metric = (signal.context.metric as string | undefined) ?? "value";
-    await this.computeBaseline(schema, metric);
+    await this.computeBaseline(entity, metric);
   }
 
   /**
@@ -70,7 +70,7 @@ export class MemoryEngine {
 
     // Use extended getSignals if available (InMemoryMemoryStore), otherwise fall back
     const extStore = this.store as Partial<InMemoryMemoryStore>;
-    const signals = extStore.getSignals ? await extStore.getSignals({ schema, since }) : [];
+    const signals = extStore.getSignals ? await extStore.getSignals({ entity: schema, since }) : [];
 
     const values = signals
       .map((s) => {
@@ -82,7 +82,7 @@ export class MemoryEngine {
     const avg = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
 
     const baseline: Baseline = {
-      schema,
+      entity: schema,
       metric,
       value: avg,
       calculatedAt: new Date(),
@@ -100,10 +100,10 @@ export class MemoryEngine {
    * Returns drifted=false when no baseline exists yet (first observation).
    */
   async detectDrift(signal: SensorSignal): Promise<{ drifted: boolean; deviation: number }> {
-    const schema = (signal.context.schema as string | undefined) ?? signal.sensor;
+    const entity = (signal.context.entity as string | undefined) ?? signal.sensor;
     const metric = (signal.context.metric as string | undefined) ?? "value";
 
-    const stored = await this.store.getBaseline(schema, metric);
+    const stored = await this.store.getBaseline(entity, metric);
 
     if (!stored) {
       // No baseline yet — treat first observation as baseline, no drift

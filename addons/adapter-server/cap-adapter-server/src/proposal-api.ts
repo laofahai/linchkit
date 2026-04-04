@@ -19,7 +19,7 @@ export interface AIInsight {
   confidence: number;
   category: "rule_suggestion" | "default_value" | "validation" | "optimization" | "anomaly";
   suggestedAction: string;
-  relatedSchema?: string;
+  relatedEntity?: string;
   relatedField?: string;
   detectedAt: string;
   dataPoints?: number;
@@ -79,7 +79,7 @@ function mapPatternInsightToAIInsight(pi: PatternInsight): AIInsight {
     confidence: pi.confidence,
     category: categoryMap[pi.type] ?? "optimization",
     suggestedAction: pi.suggestedAction.description,
-    relatedSchema: pi.schema,
+    relatedEntity: pi.entity,
     detectedAt: new Date().toISOString(),
     dataPoints: pi.evidence.count,
   };
@@ -113,14 +113,14 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
         // Deduplicate by pattern type + schema via change name (pattern.id encodes type+schema),
         // instead of fragile exact title string matching
         const alreadyProposed = existing.some(
-          (p) => p.capability === pattern.schema && p.changes.some((c) => c.name === pattern.id),
+          (p) => p.capability === pattern.entity && p.changes.some((c) => c.name === pattern.id),
         );
         if (!alreadyProposed) {
           proposalEngine.createProposal({
             title: pattern.suggestedAction.description,
             description: pattern.description,
             author: { type: "ai", id: "pattern-detector", name: "Pattern Detector" },
-            capability: pattern.schema,
+            capability: pattern.entity,
             changeType: "minor",
             changes: [
               {

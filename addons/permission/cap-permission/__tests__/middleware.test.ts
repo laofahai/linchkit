@@ -14,7 +14,7 @@ function createTestContext(overrides: Partial<CommandContext> = {}): CommandCont
     meta: {},
     action: {
       name: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "Submit",
       policy: { mode: "sync", transaction: true },
     },

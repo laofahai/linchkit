@@ -55,8 +55,8 @@ describe("AttentionBudget", () => {
     const budget = createAttentionBudget(undefined, graph);
 
     const results = budget.rank([
-      { item: "order", confidence: 1, impact: 1, schema: "Order" },
-      { item: "product", confidence: 1, impact: 1, schema: "Product" },
+      { item: "order", confidence: 1, impact: 1, entity: "Order" },
+      { item: "product", confidence: 1, impact: 1, entity: "Product" },
     ]);
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(results[0]!.item).toBe("order");

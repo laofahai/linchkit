@@ -169,7 +169,7 @@ export function buildTools(ctx: ToolContext) {
           })),
           relations: descriptor.relations.map((r) => ({
             label: r.label,
-            targetSchema: r.targetSchema,
+            targetEntity: r.targetEntity,
             cardinality: r.cardinality,
           })),
         };

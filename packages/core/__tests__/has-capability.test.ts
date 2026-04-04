@@ -49,7 +49,7 @@ describe("ActionContext.hasCapability", () => {
 
     const action: ActionDefinition = {
       name: "test_has_capability",
-      schema: "test",
+      entity: "test",
       label: "Test hasCapability",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => {
@@ -73,7 +73,7 @@ describe("ActionContext.hasCapability", () => {
 
     const action: ActionDefinition = {
       name: "test_missing_capability",
-      schema: "test",
+      entity: "test",
       label: "Test missing capability",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => {
@@ -96,7 +96,7 @@ describe("ActionContext.hasCapability", () => {
 
     const action: ActionDefinition = {
       name: "test_no_capabilities",
-      schema: "test",
+      entity: "test",
       label: "Test no capabilities",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => {

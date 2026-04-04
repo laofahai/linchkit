@@ -67,7 +67,7 @@ export interface ActionTrigger {
 
 export interface StateChangeTrigger {
   stateChange: {
-    schema: string;
+    entity: string;
     from?: string;
     to?: string;
   };
@@ -75,7 +75,7 @@ export interface StateChangeTrigger {
 
 export interface FieldChangeTrigger {
   fieldChange: {
-    schema: string;
+    entity: string;
     field: string;
   };
 }

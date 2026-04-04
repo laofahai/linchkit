@@ -6,7 +6,7 @@ import { generateActionTools, generateBuiltinTools } from "../src/tool-registry"
 function makeAction(overrides: Partial<ActionDefinition> = {}): ActionDefinition {
   return {
     name: "test_action",
-    schema: "test",
+    entity: "test",
     label: "Test Action",
     policy: { mode: "sync", transaction: false },
     ...overrides,
@@ -19,7 +19,7 @@ describe("generateActionTools", () => {
     registry.register(
       makeAction({
         name: "create_order",
-        schema: "order",
+        entity: "order",
         label: "Create Order",
         description: "Creates a new order",
         input: {

@@ -46,7 +46,7 @@ const purchaseRequestSchema: EntityDefinition = {
 
 const submitAction: ActionDefinition = {
   name: "submit_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit",
   policy: { mode: "sync", transaction: true },
   exposure: "all",
@@ -62,7 +62,7 @@ const submitAction: ActionDefinition = {
 
 const approveAction: ActionDefinition = {
   name: "approve_purchase_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Approve",
   // No permission restriction for testing with anonymous actor
   policy: { mode: "sync", transaction: true },

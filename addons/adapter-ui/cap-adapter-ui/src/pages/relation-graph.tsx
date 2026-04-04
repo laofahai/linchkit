@@ -379,11 +379,11 @@ function findMatchingLink(
   rel: SemanticRelation,
   links: RelationDefinition[],
 ): RelationDefinition | undefined {
-  if (!rel.from.schema || !rel.to.schema) return undefined;
+  if (!rel.from.entity || !rel.to.entity) return undefined;
   return links.find(
     (l) =>
-      (l.from === rel.from.schema && l.to === rel.to.schema) ||
-      (l.from === rel.to.schema && l.to === rel.from.schema),
+      (l.from === rel.from.entity && l.to === rel.to.entity) ||
+      (l.from === rel.to.entity && l.to === rel.from.entity),
   );
 }
 
@@ -415,11 +415,11 @@ function buildGraph(
   if (showSemantic) {
     for (const rel of semanticRelations) {
       // Only include endpoints that are actual known schemas (filter out action/capability nodes)
-      if (rel.from.schema && knownSchemaNames.has(rel.from.schema)) {
-        linkedSchemas.add(rel.from.schema);
+      if (rel.from.entity && knownSchemaNames.has(rel.from.entity)) {
+        linkedSchemas.add(rel.from.entity);
       }
-      if (rel.to.schema && knownSchemaNames.has(rel.to.schema)) {
-        linkedSchemas.add(rel.to.schema);
+      if (rel.to.entity && knownSchemaNames.has(rel.to.entity)) {
+        linkedSchemas.add(rel.to.entity);
       }
     }
   }
@@ -439,11 +439,11 @@ function buildGraph(
   }
   if (showSemantic) {
     for (const rel of semanticRelations) {
-      if (rel.from.schema && visibleSet.has(rel.from.schema)) {
-        linkCountMap.set(rel.from.schema, (linkCountMap.get(rel.from.schema) ?? 0) + 1);
+      if (rel.from.entity && visibleSet.has(rel.from.entity)) {
+        linkCountMap.set(rel.from.entity, (linkCountMap.get(rel.from.entity) ?? 0) + 1);
       }
-      if (rel.to.schema && visibleSet.has(rel.to.schema)) {
-        linkCountMap.set(rel.to.schema, (linkCountMap.get(rel.to.schema) ?? 0) + 1);
+      if (rel.to.entity && visibleSet.has(rel.to.entity)) {
+        linkCountMap.set(rel.to.entity, (linkCountMap.get(rel.to.entity) ?? 0) + 1);
       }
     }
   }
@@ -463,9 +463,9 @@ function buildGraph(
     }
     if (showSemantic) {
       for (const rel of semanticRelations) {
-        if (rel.from.schema === selectedNode || rel.to.schema === selectedNode) {
-          if (rel.from.schema) connectedNodes.add(rel.from.schema);
-          if (rel.to.schema) connectedNodes.add(rel.to.schema);
+        if (rel.from.entity === selectedNode || rel.to.entity === selectedNode) {
+          if (rel.from.entity) connectedNodes.add(rel.from.entity);
+          if (rel.to.entity) connectedNodes.add(rel.to.entity);
           connectedEdgeIds.add(`sem:${rel.id}`);
         }
       }
@@ -494,10 +494,10 @@ function buildGraph(
     for (const r of semanticRelations) {
       // Only include edges where both endpoints are known visible schemas
       if (
-        !r.from.schema ||
-        !r.to.schema ||
-        !visibleSet.has(r.from.schema) ||
-        !visibleSet.has(r.to.schema)
+        !r.from.entity ||
+        !r.to.entity ||
+        !visibleSet.has(r.from.entity) ||
+        !visibleSet.has(r.to.entity)
       ) {
         continue;
       }
@@ -510,8 +510,8 @@ function buildGraph(
 
       semanticEdges.push({
         id: `sem:${r.id}`,
-        source: r.from.schema,
-        target: r.to.schema,
+        source: r.from.entity,
+        target: r.to.entity,
         type: "semantic",
         data: {
           relationType: r.type,
@@ -571,31 +571,31 @@ function computeImpact(
 
   // Semantic relations first (primary)
   for (const rel of semanticRelations) {
-    if (rel.from.schema === selectedSchema && rel.to.schema && knownSchemaNames.has(rel.to.schema)) {
-      coveredPairs.add(`${rel.from.schema}->${rel.to.schema}`);
-      coveredPairs.add(`${rel.to.schema}->${rel.from.schema}`);
+    if (rel.from.entity === selectedSchema && rel.to.entity && knownSchemaNames.has(rel.to.entity)) {
+      coveredPairs.add(`${rel.from.entity}->${rel.to.entity}`);
+      coveredPairs.add(`${rel.to.entity}->${rel.from.entity}`);
       const matchedLink = findMatchingLink(rel, links);
       const cardSuffix = matchedLink
         ? ` (${CARDINALITY_LABEL[matchedLink.cardinality] ?? matchedLink.cardinality})`
         : "";
       entries.push({
-        schema: rel.to.schema,
-        label: labelMap.get(rel.to.schema),
+        schema: rel.to.entity,
+        label: labelMap.get(rel.to.entity),
         relationLabel: `${rel.type.replace(/_/g, " ")}${cardSuffix}`,
         direction: "outgoing",
         edgeType: "semantic",
         relationType: rel.type,
       });
-    } else if (rel.to.schema === selectedSchema && rel.from.schema && knownSchemaNames.has(rel.from.schema)) {
-      coveredPairs.add(`${rel.from.schema}->${rel.to.schema}`);
-      coveredPairs.add(`${rel.to.schema}->${rel.from.schema}`);
+    } else if (rel.to.entity === selectedSchema && rel.from.entity && knownSchemaNames.has(rel.from.entity)) {
+      coveredPairs.add(`${rel.from.entity}->${rel.to.entity}`);
+      coveredPairs.add(`${rel.to.entity}->${rel.from.entity}`);
       const matchedLink = findMatchingLink(rel, links);
       const cardSuffix = matchedLink
         ? ` (${CARDINALITY_LABEL[matchedLink.cardinality] ?? matchedLink.cardinality})`
         : "";
       entries.push({
-        schema: rel.from.schema,
-        label: labelMap.get(rel.from.schema),
+        schema: rel.from.entity,
+        label: labelMap.get(rel.from.entity),
         relationLabel: `${rel.type.replace(/_/g, " ")}${cardSuffix}`,
         direction: "incoming",
         edgeType: "semantic",
@@ -1035,10 +1035,10 @@ function GraphCanvas({
     for (const rel of semanticRelations) {
       // Only count types that are actually rendered (both endpoints must be known schemas)
       if (
-        rel.from.schema &&
-        rel.to.schema &&
-        knownNames.has(rel.from.schema) &&
-        knownNames.has(rel.to.schema)
+        rel.from.entity &&
+        rel.to.entity &&
+        knownNames.has(rel.from.entity) &&
+        knownNames.has(rel.to.entity)
       ) {
         types.add(rel.type);
       }

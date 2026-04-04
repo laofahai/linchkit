@@ -10,7 +10,7 @@ import type { ViewDefinition } from "@linchkit/core";
 
 export const purchaseRequestListView: ViewDefinition = {
   name: "purchase_request_list",
-  schema: "purchase_request",
+  entity: "purchase_request",
   type: "list",
   label: "t:schemas.purchase_request._labelPlural",
   fields: [

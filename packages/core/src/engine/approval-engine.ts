@@ -59,8 +59,8 @@ export class InMemoryApprovalStore implements ApprovalStore {
     if (options?.action) {
       results = results.filter((r) => r.action === options.action);
     }
-    if (options?.schema) {
-      results = results.filter((r) => r.schema === options.schema);
+    if (options?.entity) {
+      results = results.filter((r) => r.entity === options.entity);
     }
     if (options?.requestedById) {
       results = results.filter((r) => r.requestedBy.id === options.requestedById);
@@ -112,7 +112,7 @@ function createApprovalEvent(options: {
     category: "runtime",
     timestamp: new Date(),
     actor: { type: actor.type, id: actor.id },
-    schema: request.schema,
+    entity: request.entity,
     action: request.action,
     executionId,
     payload: {
@@ -157,7 +157,7 @@ export interface ApprovalEngineOptions {
 
 export interface CreateApprovalOptions {
   action: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
   capability?: string;
   input: Record<string, unknown>;
@@ -301,7 +301,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     const request: ApprovalRequest = {
       id,
       action: opts.action,
-      schema: opts.schema,
+      entity: opts.entity,
       recordId: opts.recordId,
       capability: opts.capability,
       input: opts.input,
