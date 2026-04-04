@@ -1,11 +1,11 @@
 /**
- * Schema Registry
+ * Entity Registry
  *
- * Manages schema definitions, extensions, and overrides.
- * Resolves schemas by injecting system fields, merging extensions/overrides,
+ * Manages entity definitions, extensions, and overrides.
+ * Resolves entities by injecting system fields, merging extensions/overrides,
  * and wrapping each field with resolution metadata (storable flag, label).
  *
- * Supports single inheritance via `extends` and abstract schemas.
+ * Supports single inheritance via `extends` and abstract entities.
  */
 
 import type {
@@ -61,12 +61,12 @@ function resolveField(name: string, definition: FieldDefinition): ResolvedField 
 // ── EntityRegistry ──────────────────────────────────────────────
 
 export class EntityRegistry {
-  private schemas = new Map<string, EntityDefinition>();
+  private entities = new Map<string, EntityDefinition>();
   private extensions = new Map<string, EntityExtension[]>();
   private overrides = new Map<string, EntityOverride[]>();
   private _interfaceRegistry: InterfaceRegistry | null = null;
-  /** Schema names registered via registerInternal() — system-managed, read-only in UI */
-  private _internalSchemas = new Set<string>();
+  /** Entity names registered via registerInternal() — system-managed, read-only in UI */
+  private _internalEntities = new Set<string>();
 
   /** Set the InterfaceRegistry for interface validation and field injection */
   setInterfaceRegistry(registry: InterfaceRegistry): void {
@@ -79,27 +79,27 @@ export class EntityRegistry {
   }
 
   /**
-   * Register a schema definition.
-   * Throws if a schema with the same name is already registered.
+   * Register an entity definition.
+   * Throws if an entity with the same name is already registered.
    * Validates inheritance constraints (parent exists, no circular refs, depth limit).
    * Validates interface implementation if InterfaceRegistry is set.
    */
   register(schema: EntityDefinition): void {
     if (!schema.name) {
-      throw new Error("Schema must have a name");
+      throw new Error("Entity must have a name");
     }
     if (!schema.fields || Object.keys(schema.fields).length === 0) {
-      throw new Error(`Schema "${schema.name}" must have at least one field`);
+      throw new Error(`Entity "${schema.name}" must have at least one field`);
     }
-    if (this.schemas.has(schema.name)) {
-      throw new Error(`Schema "${schema.name}" is already registered`);
+    if (this.entities.has(schema.name)) {
+      throw new Error(`Entity "${schema.name}" is already registered`);
     }
 
     // Validate inheritance constraints
     if (schema.extends) {
-      const parent = this.schemas.get(schema.extends);
+      const parent = this.entities.get(schema.extends);
       if (!parent) {
-        throw new Error(`Schema "${schema.name}" extends unknown schema "${schema.extends}"`);
+        throw new Error(`Entity "${schema.name}" extends unknown entity "${schema.extends}"`);
       }
 
       // Check inheritance depth (walk up the chain)
@@ -114,12 +114,12 @@ export class EntityRegistry {
         }
         visited.add(current.extends);
         depth++;
-        current = this.schemas.get(current.extends);
+        current = this.entities.get(current.extends);
       }
 
       if (depth >= MAX_INHERITANCE_DEPTH) {
         throw new Error(
-          `Inheritance depth exceeds maximum of ${MAX_INHERITANCE_DEPTH} levels for schema "${schema.name}"`,
+          `Inheritance depth exceeds maximum of ${MAX_INHERITANCE_DEPTH} levels for entity "${schema.name}"`,
         );
       }
 
@@ -129,7 +129,7 @@ export class EntityRegistry {
         const parentField = parentFields[fname];
         if (parentField && fdef.type !== parentField.type) {
           throw new Error(
-            `Schema "${schema.name}" cannot change type of inherited field "${fname}" ` +
+            `Entity "${schema.name}" cannot change type of inherited field "${fname}" ` +
               `from "${parentField.type}" to "${fdef.type}"`,
           );
         }
@@ -146,18 +146,18 @@ export class EntityRegistry {
       if (errors.length > 0) {
         throw new Error(errors[0]);
       }
-      // Register the schema as an implementor
+      // Register the entity as an implementor
       this._interfaceRegistry.registerImplementor(schema.name, schema.implements);
     }
 
-    this.schemas.set(schema.name, schema);
+    this.entities.set(schema.name, schema);
   }
 
   /**
-   * Register a system-internal schema (e.g. execution_log, approval).
+   * Register a system-internal entity (e.g. execution_log, approval).
    *
    * Only the core system should call this — capability authors use `register()`.
-   * Internal schemas:
+   * Internal entities:
    * - Use system tables or in-memory registries as data source
    * - Are read-only in the UI (no create/update/delete)
    * - Skip inheritance and interface validation (they are standalone)
@@ -165,35 +165,35 @@ export class EntityRegistry {
    */
   registerInternal(schema: EntityDefinition): void {
     if (!schema.name) {
-      throw new Error("Schema must have a name");
+      throw new Error("Entity must have a name");
     }
     if (!schema.fields || Object.keys(schema.fields).length === 0) {
-      throw new Error(`Schema "${schema.name}" must have at least one field`);
+      throw new Error(`Entity "${schema.name}" must have at least one field`);
     }
-    if (this.schemas.has(schema.name)) {
-      throw new Error(`Schema "${schema.name}" is already registered`);
+    if (this.entities.has(schema.name)) {
+      throw new Error(`Entity "${schema.name}" is already registered`);
     }
-    this.schemas.set(schema.name, schema);
-    this._internalSchemas.add(schema.name);
+    this.entities.set(schema.name, schema);
+    this._internalEntities.add(schema.name);
   }
 
-  /** Check if a schema was registered as internal (system-managed) */
+  /** Check if an entity was registered as internal (system-managed) */
   isInternal(name: string): boolean {
-    return this._internalSchemas.has(name);
+    return this._internalEntities.has(name);
   }
 
-  /** Get all internal schema names */
+  /** Get all internal entity names */
   getInternalNames(): string[] {
-    return Array.from(this._internalSchemas);
+    return Array.from(this._internalEntities);
   }
 
   /**
-   * Apply an extension to a registered schema (adds new fields).
+   * Apply an extension to a registered entity (adds new fields).
    * The extension is stored and merged at resolve time.
    */
   applyExtension(name: string, extension: EntityExtension): void {
-    if (!this.schemas.has(name)) {
-      throw new Error(`Cannot extend unknown schema "${name}"`);
+    if (!this.entities.has(name)) {
+      throw new Error(`Cannot extend unknown entity "${name}"`);
     }
     const list = this.extensions.get(name) ?? [];
     list.push(extension);
@@ -201,18 +201,18 @@ export class EntityRegistry {
   }
 
   /**
-   * Apply an override to a registered schema (modifies field constraints).
+   * Apply an override to a registered entity (modifies field constraints).
    * The override is stored and applied at resolve time.
    */
   applyOverride(name: string, override: EntityOverride): void {
-    if (!this.schemas.has(name)) {
-      throw new Error(`Cannot override unknown schema "${name}"`);
+    if (!this.entities.has(name)) {
+      throw new Error(`Cannot override unknown entity "${name}"`);
     }
     this.overrides.set(name, [...(this.overrides.get(name) ?? []), override]);
   }
 
   /**
-   * Collect all inherited fields from the full ancestor chain for a schema.
+   * Collect all inherited fields from the full ancestor chain for an entity.
    * Used for field type conflict validation at registration time.
    */
   private collectInheritedFields(name: string): Record<string, FieldDefinition> {
@@ -220,7 +220,7 @@ export class EntityRegistry {
     const chain = this.getInheritanceChain(name);
     // chain includes `name` itself as last element; iterate all
     for (const schemaName of chain) {
-      const schema = this.schemas.get(schemaName);
+      const schema = this.entities.get(schemaName);
       if (schema) {
         Object.assign(fields, schema.fields);
       }
@@ -229,25 +229,25 @@ export class EntityRegistry {
   }
 
   /**
-   * Collect the full inheritance chain for a schema (from root ancestor to self).
-   * Returns an array of schema names ordered from root to self.
+   * Collect the full inheritance chain for an entity (from root ancestor to self).
+   * Returns an array of entity names ordered from root to self.
    */
   getInheritanceChain(name: string): string[] {
     const chain: string[] = [];
-    let current = this.schemas.get(name);
+    let current = this.entities.get(name);
     while (current) {
       chain.unshift(current.name);
-      current = current.extends ? this.schemas.get(current.extends) : undefined;
+      current = current.extends ? this.entities.get(current.extends) : undefined;
     }
     return chain;
   }
 
   /**
-   * Get direct children of a schema (schemas that extend it).
+   * Get direct children of an entity (entities that extend it).
    */
   getChildren(name: string): string[] {
     const children: string[] = [];
-    for (const schema of this.schemas.values()) {
+    for (const schema of this.entities.values()) {
       if (schema.extends === name) {
         children.push(schema.name);
       }
@@ -256,7 +256,7 @@ export class EntityRegistry {
   }
 
   /**
-   * Get all descendants of a schema recursively (children, grandchildren, etc.).
+   * Get all descendants of an entity recursively (children, grandchildren, etc.).
    */
   getAllDescendants(name: string): string[] {
     const descendants: string[] = [];
@@ -271,19 +271,19 @@ export class EntityRegistry {
   }
 
   /**
-   * Resolve a schema: inject system fields, merge inherited fields,
+   * Resolve an entity: inject system fields, merge inherited fields,
    * merge extensions and overrides, and wrap each field in ResolvedField with metadata.
    */
   resolve(name: string): ResolvedSchema {
-    const schema = this.schemas.get(name);
+    const schema = this.entities.get(name);
     if (!schema) {
-      throw new Error(`Schema "${name}" is not registered`);
+      throw new Error(`Entity "${name}" is not registered`);
     }
 
     const fields: Record<string, ResolvedField> = {};
-    const isInternal = this._internalSchemas.has(name);
+    const isInternal = this._internalEntities.has(name);
 
-    // Internal schemas define their own fields — skip system field injection
+    // Internal entities define their own fields — skip system field injection
     if (!isInternal) {
       // Start with system fields
       for (const [fname, fdef] of Object.entries(SYSTEM_FIELDS)) {
@@ -305,7 +305,7 @@ export class EntityRegistry {
       // Apply fields from each ancestor (excluding self, which is last in chain)
       for (let i = 0; i < chain.length - 1; i++) {
         // biome-ignore lint/style/noNonNullAssertion: index is within bounds
-        const ancestor = this.schemas.get(chain[i]!);
+        const ancestor = this.entities.get(chain[i]!);
         if (ancestor) {
           for (const [fname, fdef] of Object.entries(ancestor.fields)) {
             fields[fname] = resolveField(fname, fdef);
@@ -365,43 +365,43 @@ export class EntityRegistry {
     };
   }
 
-  /** Get the raw schema definition by name */
+  /** Get the raw entity definition by name */
   get(name: string): EntityDefinition | undefined {
-    return this.schemas.get(name);
+    return this.entities.get(name);
   }
 
-  /** Get all registered schema definitions */
+  /** Get all registered entity definitions */
   getAll(): EntityDefinition[] {
-    return Array.from(this.schemas.values());
+    return Array.from(this.entities.values());
   }
 
   /**
-   * Get all concrete (non-abstract) schema definitions.
+   * Get all concrete (non-abstract) entity definitions.
    * Useful for table generation, action registration, etc.
    */
   getConcrete(): EntityDefinition[] {
-    return Array.from(this.schemas.values()).filter((s) => !s.abstract);
+    return Array.from(this.entities.values()).filter((s) => !s.abstract);
   }
 
-  /** Check if a schema is registered */
+  /** Check if an entity is registered */
   has(name: string): boolean {
-    return this.schemas.has(name);
+    return this.entities.has(name);
   }
 
   /**
-   * Validate all inheritance constraints across all registered schemas.
-   * Call after all schemas have been registered to catch issues early.
+   * Validate all inheritance constraints across all registered entities.
+   * Call after all entities have been registered to catch issues early.
    * Returns an array of error messages (empty if valid).
    */
   validateInheritance(): string[] {
     const errors: string[] = [];
 
-    for (const schema of this.schemas.values()) {
+    for (const schema of this.entities.values()) {
       if (!schema.extends) continue;
 
       // Parent must exist
-      if (!this.schemas.has(schema.extends)) {
-        errors.push(`Schema "${schema.name}" extends unknown schema "${schema.extends}"`);
+      if (!this.entities.has(schema.extends)) {
+        errors.push(`Entity "${schema.name}" extends unknown entity "${schema.extends}"`);
         continue;
       }
 
@@ -414,7 +414,7 @@ export class EntityRegistry {
           break;
         }
         visited.add(current.name);
-        current = this.schemas.get(current.extends);
+        current = this.entities.get(current.extends);
       }
 
       // Check depth (chain includes self, so ancestor count = chain.length - 1)

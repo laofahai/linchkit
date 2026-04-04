@@ -188,8 +188,8 @@ describe("buildSubscriptionFields", () => {
     const { bus } = createEventBus();
     const { pubsub, unsubscribe } = createEventBusPubSub(bus);
     const result = buildSubscriptionFields({
-      schemas: [],
-      schemaObjectTypes: new Map(),
+      entities: [],
+      entityObjectTypes: new Map(),
       pubsub,
     });
     expect(result).toBeNull();
@@ -201,12 +201,12 @@ describe("buildSubscriptionFields", () => {
     const { pubsub, unsubscribe } = createEventBusPubSub(bus);
 
     const taskType = generateGraphQLObjectType(taskSchema);
-    const schemaObjectTypes = new Map<string, GraphQLObjectType>();
-    schemaObjectTypes.set("task", taskType);
+    const entityObjectTypes = new Map<string, GraphQLObjectType>();
+    entityObjectTypes.set("task", taskType);
 
     const fields = buildSubscriptionFields({
-      schemas: [taskSchema],
-      schemaObjectTypes,
+      entities: [taskSchema],
+      entityObjectTypes,
       pubsub,
     });
 
@@ -222,12 +222,12 @@ describe("buildSubscriptionFields", () => {
     const { pubsub, unsubscribe } = createEventBusPubSub(bus);
 
     const prType = generateGraphQLObjectType(purchaseRequestSchema);
-    const schemaObjectTypes = new Map<string, GraphQLObjectType>();
-    schemaObjectTypes.set("purchase_request", prType);
+    const entityObjectTypes = new Map<string, GraphQLObjectType>();
+    entityObjectTypes.set("purchase_request", prType);
 
     const fields = buildSubscriptionFields({
-      schemas: [purchaseRequestSchema],
-      schemaObjectTypes,
+      entities: [purchaseRequestSchema],
+      entityObjectTypes,
       pubsub,
     });
 
@@ -243,12 +243,12 @@ describe("buildSubscriptionFields", () => {
     const { pubsub, unsubscribe } = createEventBusPubSub(bus);
 
     const taskType = generateGraphQLObjectType(taskSchema);
-    const schemaObjectTypes = new Map<string, GraphQLObjectType>();
-    schemaObjectTypes.set("task", taskType);
+    const entityObjectTypes = new Map<string, GraphQLObjectType>();
+    entityObjectTypes.set("task", taskType);
 
     const fields = buildSubscriptionFields({
-      schemas: [taskSchema],
-      schemaObjectTypes,
+      entities: [taskSchema],
+      entityObjectTypes,
       pubsub,
     });
 

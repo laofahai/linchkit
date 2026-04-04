@@ -76,11 +76,11 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
   }
   if (missingTargets.length > 0) {
     console.warn(
-      `[linch] Found ${missingTargets.length} relationship field(s) with missing target schemas:`,
+      `[linch] Found ${missingTargets.length} relationship field(s) with missing target entities:`,
     );
     for (const mt of missingTargets) {
       console.warn(
-        `[linch]   - ${mt.schemaName}.${mt.fieldName}: target schema "${mt.target}" not found - skipped`,
+        `[linch]   - ${mt.entityName}.${mt.fieldName}: target entity "${mt.target}" not found - skipped`,
       );
     }
   }

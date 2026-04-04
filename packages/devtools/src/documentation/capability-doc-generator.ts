@@ -31,7 +31,7 @@ export interface CapabilitySpecDoc {
   /** Generated timestamp */
   generatedAt: string;
   /** Schema documentation */
-  schemas: CapabilitySchemaDoc[];
+  entities: CapabilityEntityDoc[];
   /** Action documentation */
   actions: CapabilityActionDoc[];
   /** Rule documentation */
@@ -46,8 +46,8 @@ export interface CapabilitySpecDoc {
   relations: CapabilityRelationDoc[];
 }
 
-/** Schema section within capability doc */
-export interface CapabilitySchemaDoc {
+/** Entity section within capability doc */
+export interface CapabilityEntityDoc {
   name: string;
   label?: string;
   description?: string;
@@ -57,7 +57,7 @@ export interface CapabilitySchemaDoc {
 /** Action section within capability doc */
 export interface CapabilityActionDoc {
   name: string;
-  schema: string;
+  entity: string;
   label: string;
   description?: string;
   stateTransition?: { from: string | string[]; to: string };
@@ -73,7 +73,7 @@ export interface CapabilityRuleDoc {
 /** State machine section within capability doc */
 export interface CapabilityStateMachineDoc {
   name: string;
-  schema: string;
+  entity: string;
   initial: string;
   states: string[];
   transitions: Array<{ from: string | string[]; to: string; action: string }>;
@@ -82,7 +82,7 @@ export interface CapabilityStateMachineDoc {
 /** View section within capability doc */
 export interface CapabilityViewDoc {
   name: string;
-  schema: string;
+  entity: string;
   type: string;
   label?: string;
 }
@@ -105,8 +105,8 @@ export interface CapabilityRelationDoc {
  * states, views, and links to produce a self-contained specification.
  */
 export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpecDoc {
-  // Extract schema docs
-  const schemas: CapabilitySchemaDoc[] = (cap.entities ?? []).map((s) => ({
+  // Extract entity docs
+  const entities: CapabilityEntityDoc[] = (cap.entities ?? []).map((s) => ({
     name: s.name,
     label: s.label,
     description: s.description,
@@ -116,7 +116,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract action docs
   const actions: CapabilityActionDoc[] = (cap.actions ?? []).map((a) => ({
     name: a.name,
-    schema: a.entity,
+    entity: a.entity,
     label: a.label,
     description: a.description,
     stateTransition: a.stateTransition,
@@ -132,7 +132,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract state machine docs
   const stateMachines: CapabilityStateMachineDoc[] = (cap.states ?? []).map((s) => ({
     name: s.name,
-    schema: s.entity,
+    entity: s.entity,
     initial: s.initial,
     states: [...s.states],
     transitions: s.transitions.map((t) => ({
@@ -145,7 +145,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
   // Extract view docs
   const views: CapabilityViewDoc[] = (cap.views ?? []).map((v) => ({
     name: v.name,
-    schema: v.entity,
+    entity: v.entity,
     type: v.type,
     label: v.label,
   }));
@@ -167,7 +167,7 @@ export function generateCapabilityDoc(cap: CapabilityDefinition): CapabilitySpec
     type: cap.type,
     category: cap.category,
     generatedAt: new Date().toISOString(),
-    schemas,
+    entities,
     actions,
     rules,
     stateMachines,
@@ -200,14 +200,14 @@ export function renderCapabilityDoc(doc: CapabilitySpecDoc): string {
   lines.push(`- **Generated:** ${doc.generatedAt}`);
   lines.push("");
 
-  // Schemas
-  if (doc.schemas.length > 0) {
-    lines.push("## Schemas");
+  // Entities
+  if (doc.entities.length > 0) {
+    lines.push("## Entities");
     lines.push("");
-    for (const schema of doc.schemas) {
-      const desc = schema.description ? `: ${schema.description}` : "";
-      lines.push(`- **${schema.name}**${desc}`);
-      for (const field of schema.fields) {
+    for (const entity of doc.entities) {
+      const desc = entity.description ? `: ${entity.description}` : "";
+      lines.push(`- **${entity.name}**${desc}`);
+      for (const field of entity.fields) {
         const req = field.required ? ", required" : "";
         const target = field.target ? ` -> ${field.target}` : "";
         const machine = field.machine ? ` (${field.machine})` : "";

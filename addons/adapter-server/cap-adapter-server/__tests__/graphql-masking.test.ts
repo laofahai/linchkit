@@ -298,7 +298,7 @@ async function executeLinkGql(query: string, actor: Actor, variables?: Record<st
     actor,
     permissionGroups,
     dataProvider: linkStore,
-    schemaMap: linkSchemaMap,
+    entityMap: linkSchemaMap,
   };
   return graphql({
     schema: linkGqlSchema,

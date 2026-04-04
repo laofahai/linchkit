@@ -21,7 +21,7 @@ export {
   checkActionDefinitions,
   checkCommitMessages,
   checkEntityDefinitions,
-  type SchemaInfo,
+  type EntityInfo,
 } from "./convention-checker";
 export {
   checkFileNaming,

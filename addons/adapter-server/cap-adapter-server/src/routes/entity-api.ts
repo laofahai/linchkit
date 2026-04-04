@@ -1,8 +1,8 @@
 /**
- * Schema metadata REST endpoints.
+ * Entity metadata REST endpoints.
  *
- * - GET /api/schemas — lightweight list of all schemas
- * - GET /api/schemas/:name — full schema with views, states, and links
+ * - GET /api/schemas — lightweight list of all entities
+ * - GET /api/schemas/:name — full entity with views, states, and links
  */
 
 import type { Elysia } from "elysia";
@@ -32,12 +32,12 @@ export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
     .get("/api/schemas/:name", ({ params, set }) => {
       if (!entityRegistry) {
         set.status = 404;
-        return { success: false, error: { message: "Schema registry not configured." } };
+        return { success: false, error: { message: "Entity registry not configured." } };
       }
       const schema = entityRegistry.get(params.name);
       if (!schema) {
         set.status = 404;
-        return { success: false, error: { message: `Schema "${params.name}" not found.` } };
+        return { success: false, error: { message: `Entity "${params.name}" not found.` } };
       }
       // Bundle schema + views + state machines in one response
       const schemaViews = views?.get(params.name) ?? [];

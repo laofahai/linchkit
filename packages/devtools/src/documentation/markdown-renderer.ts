@@ -5,7 +5,7 @@
  * into Markdown format with table of contents, field tables, and Mermaid diagrams.
  */
 
-import type { ActionDoc, FieldDoc, SchemaDoc, SystemDoc } from "./api-doc-generator";
+import type { ActionDoc, EntityDoc, FieldDoc, SystemDoc } from "./api-doc-generator";
 
 /** Convert snake_case to PascalCase for Mermaid entity names */
 function snakeToPascal(s: string): string {
@@ -54,19 +54,19 @@ export function renderSystemDoc(doc: SystemDoc, options?: MarkdownRenderOptions)
   lines.push("");
 
   // Table of contents
-  if (opts.toc && doc.schemas.length > 0) {
+  if (opts.toc && doc.entities.length > 0) {
     lines.push("## Table of Contents");
     lines.push("");
-    for (const schema of doc.schemas) {
-      const anchor = schema.name.replace(/[^a-z0-9-]/g, "-");
-      lines.push(`- [${schema.label}](#${anchor})`);
+    for (const entity of doc.entities) {
+      const anchor = entity.name.replace(/[^a-z0-9-]/g, "-");
+      lines.push(`- [${entity.label}](#${anchor})`);
     }
     lines.push("");
   }
 
   // Mermaid ER diagram
   if (opts.mermaid) {
-    const mermaid = renderMermaidRelationships(doc.schemas);
+    const mermaid = renderMermaidRelationships(doc.entities);
     if (mermaid) {
       lines.push("## Relationships");
       lines.push("");
@@ -75,62 +75,62 @@ export function renderSystemDoc(doc: SystemDoc, options?: MarkdownRenderOptions)
     }
   }
 
-  // Schema sections
-  for (const schema of doc.schemas) {
-    lines.push(renderSchemaDoc(schema, opts));
+  // Entity sections
+  for (const entity of doc.entities) {
+    lines.push(renderEntityDoc(entity, opts));
   }
 
   return lines.join("\n");
 }
 
 /**
- * Render a single SchemaDoc to Markdown.
+ * Render a single EntityDoc to Markdown.
  */
-export function renderSchemaDoc(schema: SchemaDoc, options?: MarkdownRenderOptions): string {
+export function renderEntityDoc(entity: EntityDoc, options?: MarkdownRenderOptions): string {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const lines: string[] = [];
 
-  lines.push(`## ${schema.label}`);
+  lines.push(`## ${entity.label}`);
   lines.push("");
-  if (schema.description) {
-    lines.push(`> ${schema.description}`);
+  if (entity.description) {
+    lines.push(`> ${entity.description}`);
     lines.push("");
   }
 
   // Field table
   lines.push("### Fields");
   lines.push("");
-  lines.push(renderFieldTable(schema.fields));
+  lines.push(renderFieldTable(entity.fields));
   lines.push("");
 
   // Relations
-  if (schema.relations.length > 0) {
+  if (entity.relations.length > 0) {
     lines.push("### Relations");
     lines.push("");
-    for (const rel of schema.relations) {
+    for (const rel of entity.relations) {
       const arrow = rel.direction === "outgoing" ? "-->" : "<--";
       lines.push(
-        `- \`${schema.name}\` ${arrow} \`${rel.targetEntity}\` (${rel.cardinality}) via \`${rel.relationName}\``,
+        `- \`${entity.name}\` ${arrow} \`${rel.targetEntity}\` (${rel.cardinality}) via \`${rel.relationName}\``,
       );
     }
     lines.push("");
   }
 
   // State machine
-  if (opts.stateMachines && schema.stateMachine) {
+  if (opts.stateMachines && entity.stateMachine) {
     lines.push("### State Machine");
     lines.push("");
-    lines.push(`- **Name:** ${schema.stateMachine.name}`);
-    lines.push(`- **Initial:** ${schema.stateMachine.initial}`);
-    lines.push(`- **States:** ${schema.stateMachine.states.join(", ")}`);
+    lines.push(`- **Name:** ${entity.stateMachine.name}`);
+    lines.push(`- **Initial:** ${entity.stateMachine.initial}`);
+    lines.push(`- **States:** ${entity.stateMachine.states.join(", ")}`);
     lines.push("");
 
     // Mermaid state diagram
     if (opts.mermaid) {
       lines.push("```mermaid");
       lines.push("stateDiagram-v2");
-      lines.push(`  [*] --> ${schema.stateMachine.initial}`);
-      for (const t of schema.stateMachine.transitions) {
+      lines.push(`  [*] --> ${entity.stateMachine.initial}`);
+      for (const t of entity.stateMachine.transitions) {
         const froms = Array.isArray(t.from) ? t.from : [t.from];
         for (const f of froms) {
           lines.push(`  ${f} --> ${t.to}: ${t.action}`);
@@ -142,10 +142,10 @@ export function renderSchemaDoc(schema: SchemaDoc, options?: MarkdownRenderOptio
   }
 
   // Actions
-  if (opts.actions && schema.actions.length > 0) {
+  if (opts.actions && entity.actions.length > 0) {
     lines.push("### Actions");
     lines.push("");
-    for (const action of schema.actions) {
+    for (const action of entity.actions) {
       lines.push(renderActionDoc(action));
     }
   }
@@ -242,16 +242,16 @@ function renderFieldTable(fields: FieldDoc[]): string {
  * Render a Mermaid ER diagram showing relationships across all schemas.
  * Returns null if there are no relationships.
  */
-function renderMermaidRelationships(schemas: SchemaDoc[]): string | null {
+function renderMermaidRelationships(entities: EntityDoc[]): string | null {
   // Collect unique relationship edges (deduplicate bidirectional)
   const edges = new Set<string>();
   const edgeLines: string[] = [];
 
-  for (const schema of schemas) {
-    for (const rel of schema.relations) {
+  for (const entity of entities) {
+    for (const rel of entity.relations) {
       if (rel.direction !== "outgoing") continue;
 
-      const key = `${schema.name}--${rel.targetEntity}`;
+      const key = `${entity.name}--${rel.targetEntity}`;
       if (edges.has(key)) continue;
       edges.add(key);
 
@@ -264,7 +264,7 @@ function renderMermaidRelationships(schemas: SchemaDoc[]): string | null {
 
       const card = cardMap[rel.cardinality] ?? "--";
       // Mermaid erDiagram requires alphanumeric entity names (no underscores)
-      const fromEntity = snakeToPascal(schema.name);
+      const fromEntity = snakeToPascal(entity.name);
       const toEntity = snakeToPascal(rel.targetEntity);
       edgeLines.push(`  ${fromEntity} ${card} ${toEntity} : "${rel.relationName}"`);
     }

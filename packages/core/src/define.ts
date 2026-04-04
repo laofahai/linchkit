@@ -28,13 +28,13 @@ import type { StateDefinition, StateExtension } from "./types/state";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 import type { WatcherDefinition } from "./types/watcher";
 
-// ── Schema Interface ─────────────────────────────────
+// ── Entity Interface ─────────────────────────────────
 
 export function defineInterface(definition: InterfaceDefinition): InterfaceDefinition {
   return definition;
 }
 
-// ── Schema ──────────────────────────────────────────
+// ── Entity ──────────────────────────────────────────
 
 export function defineEntity<TFields extends Record<string, FieldDefinition>>(
   definition: EntityDefinition<TFields>,

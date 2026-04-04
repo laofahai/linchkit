@@ -114,7 +114,7 @@ export const infoCommand = defineCommand({
         })),
         counts: {
           capabilities: capabilities.length,
-          schemas: entityCount,
+          entities: entityCount,
           actions: actionCount,
           views: viewCount,
           rules: ruleCount,

@@ -9,7 +9,7 @@ import {
   checkEntityDefinitions,
   type DirectoryEntry,
   type FileContent,
-  type SchemaInfo,
+  type EntityInfo,
   validateCapabilityStructure,
   validateExportPatterns,
   validateNamingConventions,
@@ -326,7 +326,7 @@ describe("checkCommitMessages", () => {
 
 describe("checkEntityDefinitions", () => {
   it("passes for valid schema definitions", () => {
-    const schemas: SchemaInfo[] = [
+    const schemas: EntityInfo[] = [
       {
         name: "purchase_request",
         fields: [
@@ -366,7 +366,7 @@ describe("checkEntityDefinitions", () => {
   });
 
   it("warns on boolean fields without is_/has_ prefix", () => {
-    const schemas: SchemaInfo[] = [
+    const schemas: EntityInfo[] = [
       {
         name: "item",
         fields: [{ name: "active", type: "boolean" }],
@@ -378,7 +378,7 @@ describe("checkEntityDefinitions", () => {
   });
 
   it("warns on datetime fields without _at suffix", () => {
-    const schemas: SchemaInfo[] = [
+    const schemas: EntityInfo[] = [
       {
         name: "item",
         fields: [{ name: "approved", type: "datetime" }],
@@ -395,9 +395,9 @@ describe("checkEntityDefinitions", () => {
 describe("checkActionDefinitions", () => {
   it("passes for valid action definitions", () => {
     const actions: ActionInfo[] = [
-      { name: "submit_request", schema: "purchase_request" },
-      { name: "approve_request", schema: "purchase_request" },
-      { name: "reject_request", schema: "purchase_request" },
+      { name: "submit_request", entity: "purchase_request" },
+      { name: "approve_request", entity: "purchase_request" },
+      { name: "reject_request", entity: "purchase_request" },
     ];
 
     const report = checkActionDefinitions(actions);
@@ -406,28 +406,28 @@ describe("checkActionDefinitions", () => {
   });
 
   it("errors on non-snake_case action name", () => {
-    const report = checkActionDefinitions([{ name: "submitRequest", schema: "purchase_request" }]);
+    const report = checkActionDefinitions([{ name: "submitRequest", entity: "purchase_request" }]);
     expect(report.passed).toBe(false);
     expect(report.issues.some((i) => i.rule === "action-naming")).toBe(true);
   });
 
   it("warns on single-word action name (no verb_noun)", () => {
-    const report = checkActionDefinitions([{ name: "submit", schema: "purchase_request" }]);
+    const report = checkActionDefinitions([{ name: "submit", entity: "purchase_request" }]);
     expect(report.issues.some((i) => i.rule === "action-verb-noun")).toBe(true);
   });
 
   it("warns on generic CRUD verbs", () => {
     const report = checkActionDefinitions([
-      { name: "create_request", schema: "purchase_request" },
-      { name: "update_request", schema: "purchase_request" },
-      { name: "delete_request", schema: "purchase_request" },
+      { name: "create_request", entity: "purchase_request" },
+      { name: "update_request", entity: "purchase_request" },
+      { name: "delete_request", entity: "purchase_request" },
     ]);
     expect(report.issues.filter((i) => i.rule === "action-semantic-verb")).toHaveLength(3);
   });
 
-  it("errors on non-snake_case schema reference", () => {
-    const report = checkActionDefinitions([{ name: "submit_request", schema: "PurchaseRequest" }]);
+  it("errors on non-snake_case entity reference", () => {
+    const report = checkActionDefinitions([{ name: "submit_request", entity: "PurchaseRequest" }]);
     expect(report.passed).toBe(false);
-    expect(report.issues.some((i) => i.rule === "action-schema-ref")).toBe(true);
+    expect(report.issues.some((i) => i.rule === "action-entity-ref")).toBe(true);
   });
 });

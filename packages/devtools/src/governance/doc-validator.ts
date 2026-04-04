@@ -50,7 +50,7 @@ export interface DocCompleteness {
  * - Each field has label
  * - Enum fields have option labels
  */
-export function validateSchemaDoc(schema: EntityDefinition): DocCompleteness {
+export function validateEntityDoc(schema: EntityDefinition): DocCompleteness {
   const issues: DocIssue[] = [];
   let totalItems = 0;
   let documentedItems = 0;
@@ -63,7 +63,7 @@ export function validateSchemaDoc(schema: EntityDefinition): DocCompleteness {
     issues.push({
       severity: "error",
       path: "description",
-      message: `Schema "${schema.name}" is missing a description`,
+      message: `Entity "${schema.name}" is missing a description`,
     });
   }
 
@@ -75,7 +75,7 @@ export function validateSchemaDoc(schema: EntityDefinition): DocCompleteness {
     issues.push({
       severity: "warning",
       path: "label",
-      message: `Schema "${schema.name}" is missing a label`,
+      message: `Entity "${schema.name}" is missing a label`,
     });
   }
 
@@ -236,17 +236,17 @@ export function validateCapabilityDoc(manifest: CapabilityDefinition): DocComple
     });
   }
 
-  // Check each schema within the capability
+  // Check each entity within the capability
   if (manifest.entities) {
-    for (const schema of manifest.entities) {
+    for (const entity of manifest.entities) {
       totalItems++;
-      if (schema.description) {
+      if (entity.description) {
         documentedItems++;
       } else {
         issues.push({
           severity: "warning",
-          path: `schemas.${schema.name}.description`,
-          message: `Schema "${schema.name}" in capability "${manifest.name}" is missing a description`,
+          path: `entities.${entity.name}.description`,
+          message: `Entity "${entity.name}" in capability "${manifest.name}" is missing a description`,
         });
       }
     }
@@ -279,3 +279,6 @@ export function validateCapabilityDoc(manifest: CapabilityDefinition): DocComple
     issues,
   };
 }
+
+/** @deprecated Use validateEntityDoc instead */
+export const validateSchemaDoc = validateEntityDoc;

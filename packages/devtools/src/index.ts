@@ -13,9 +13,9 @@ export {
   type ApiDocGeneratorOptions,
   actionToDoc,
   type CapabilityActionDoc,
+  type CapabilityEntityDoc,
   type CapabilityRelationDoc,
   type CapabilityRuleDoc,
-  type CapabilitySchemaDoc,
   type CapabilitySpecDoc,
   type CapabilityStateMachineDoc,
   type CapabilityViewDoc,
@@ -23,6 +23,7 @@ export {
   DocSearchIndex,
   type DocSearchOptions,
   type DocSearchResult,
+  type EntityDoc,
   type FieldDoc,
   fieldToDoc,
   generateApiDoc,
@@ -36,11 +37,10 @@ export {
   type OpenAPISpec,
   renderActionDoc,
   renderCapabilityDoc,
-  renderSchemaDoc,
+  renderEntityDoc,
   renderSystemDoc,
-  type SchemaDoc,
   type SystemDoc,
-  schemaToDoc,
+  entityToDoc,
 } from "./documentation";
 // === Governance: documentation validation, spec tracking, changelog ===
 export {
@@ -59,6 +59,8 @@ export {
   type VersionGroup,
   validateActionDoc,
   validateCapabilityDoc as validateCapabilityDocCompleteness,
+  validateEntityDoc,
+  /** @deprecated Use validateEntityDoc instead */
   validateSchemaDoc,
 } from "./governance";
 // === Methodology: code quality, project structure, convention checking ===
@@ -71,11 +73,11 @@ export {
   checkImportPatterns,
   checkEntityDefinitions,
   type DirectoryEntry,
+  type EntityInfo,
   type ExportBoundaryConfig,
   type FileContent,
   type QualityIssue,
   type QualityReport,
-  type SchemaInfo,
   type Severity,
   type StructureExpectation,
   validateCapabilityStructure,

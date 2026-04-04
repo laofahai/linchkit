@@ -84,7 +84,7 @@ export interface ExtensionResolver {
   addRuleOverride(target: string, override: RuleOverride, source: string, priority: number): void;
 
   // Apply all collected extensions/overrides to definitions
-  resolveSchemas(schemas: EntityDefinition[]): EntityDefinition[];
+  resolveEntities(schemas: EntityDefinition[]): EntityDefinition[];
   resolveActions(actions: ActionDefinition[]): ActionDefinition[];
   resolveRules(rules: RuleDefinition[]): RuleDefinition[];
 
@@ -97,7 +97,7 @@ export interface ExtensionResolver {
  *
  * Typical usage during startup:
  * 1. Iterate over all capabilities, call addXxx for each extension/override
- * 2. Call resolveSchemas/resolveActions/resolveRules before registering into registries
+ * 2. Call resolveEntities/resolveActions/resolveRules before registering into registries
  */
 export function createExtensionResolver(): ExtensionResolver {
   const entityExtensions: EntityExtensionEntry[] = [];
@@ -144,20 +144,20 @@ export function createExtensionResolver(): ExtensionResolver {
 
   // ── Schema resolution ──────────────────────────────────
 
-  function resolveSchemas(schemas: EntityDefinition[]): EntityDefinition[] {
-    const schemaMap = new Map<string, EntityDefinition>();
-    for (const s of schemas) {
-      schemaMap.set(s.name, { ...s, fields: { ...s.fields } });
+  function resolveEntities(entities: EntityDefinition[]): EntityDefinition[] {
+    const entityMap = new Map<string, EntityDefinition>();
+    for (const s of entities) {
+      entityMap.set(s.name, { ...s, fields: { ...s.fields } });
     }
 
     // Apply extensions: add new fields, sorted by priority (lower first)
     const sortedExtensions = [...entityExtensions].sort((a, b) => a.priority - b.priority);
     for (const entry of sortedExtensions) {
-      const schema = schemaMap.get(entry.target);
-      if (!schema) continue;
+      const entity = entityMap.get(entry.target);
+      if (!entity) continue;
 
       for (const [fieldName, fieldDef] of Object.entries(entry.extension.fields)) {
-        if (schema.fields[fieldName]) {
+        if (entity.fields[fieldName]) {
           // Field already exists — record conflict but still apply (higher priority wins)
           const existingSources = sortedExtensions
             .filter((e) => e.target === entry.target && e.extension.fields[fieldName])
@@ -172,26 +172,26 @@ export function createExtensionResolver(): ExtensionResolver {
             });
           }
         }
-        schema.fields[fieldName] = fieldDef;
+        entity.fields[fieldName] = fieldDef;
       }
     }
 
     // Apply overrides: modify existing field constraints, sorted by priority (lower first, higher wins)
     const sortedOverrides = [...entityOverrides].sort((a, b) => a.priority - b.priority);
     for (const entry of sortedOverrides) {
-      const schema = schemaMap.get(entry.target);
-      if (!schema) continue;
+      const entity = entityMap.get(entry.target);
+      if (!entity) continue;
 
       for (const [fieldName, constraints] of Object.entries(entry.override.fields)) {
-        const existingField = schema.fields[fieldName];
+        const existingField = entity.fields[fieldName];
         if (!existingField) continue;
 
         // Deep merge constraints into the existing field definition
-        schema.fields[fieldName] = deepMergeField(existingField, constraints);
+        entity.fields[fieldName] = deepMergeField(existingField, constraints);
       }
     }
 
-    return Array.from(schemaMap.values());
+    return Array.from(entityMap.values());
   }
 
   // ── Action resolution ──────────────────────────────────
@@ -308,7 +308,7 @@ export function createExtensionResolver(): ExtensionResolver {
     addEntityOverride,
     addActionOverride,
     addRuleOverride,
-    resolveSchemas,
+    resolveEntities,
     resolveActions,
     resolveRules,
     getConflicts,

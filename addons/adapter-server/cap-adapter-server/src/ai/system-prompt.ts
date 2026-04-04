@@ -5,7 +5,7 @@
  * 1. Base assistant personality/instructions
  * 2. Schema context from OntologyRegistry (current schema, fields, actions)
  * 3. Current record context (when viewing a specific record)
- * 4. Available schemas overview
+ * 4. Available entities overview
  */
 
 import type { AIAssistantConfig, OntologyRegistry, EntityRegistry } from "@linchkit/core";
@@ -90,13 +90,13 @@ export function buildSystemPrompt(options: {
     }
   }
 
-  // 2. System overview — list available schemas
+  // 2. System overview — list available entities
   if (ontologyRegistry) {
     const schemaNames = ontologyRegistry.listEntities();
     if (schemaNames.length > 0) {
       parts.push(
-        "\n## Available Schemas",
-        `The system has ${schemaNames.length} schema(s): ${schemaNames.join(", ")}`,
+        "\n## Available Entities",
+        `The system has ${schemaNames.length} entity(ies): ${schemaNames.join(", ")}`,
       );
     }
   }
@@ -105,8 +105,8 @@ export function buildSystemPrompt(options: {
   if (context?.schema) {
     const descriptor = ontologyRegistry?.describe(context.schema);
     if (descriptor) {
-      parts.push("\n## Current Schema Context");
-      parts.push(`Schema: ${descriptor.name}${descriptor.label ? ` (${descriptor.label})` : ""}`);
+      parts.push("\n## Current Entity Context");
+      parts.push(`Entity: ${descriptor.name}${descriptor.label ? ` (${descriptor.label})` : ""}`);
       if (descriptor.description) {
         parts.push(`Description: ${descriptor.description}`);
       }
@@ -149,8 +149,8 @@ export function buildSystemPrompt(options: {
       // Fallback to EntityRegistry if OntologyRegistry is not available
       const schema = entityRegistry.get(context.schema);
       if (schema) {
-        parts.push("\n## Current Schema Context");
-        parts.push(`Schema: ${schema.name}${schema.label ? ` (${schema.label})` : ""}`);
+        parts.push("\n## Current Entity Context");
+        parts.push(`Entity: ${schema.name}${schema.label ? ` (${schema.label})` : ""}`);
         parts.push(`Fields: ${Object.keys(schema.fields).join(", ")}`);
       }
     }

@@ -1,5 +1,5 @@
 /**
- * Schema migration helpers
+ * Entity migration helpers
  *
  * Provides version upgrade/downgrade transform definitions and execution.
  * Supports the expand → migrate → contract three-phase protocol (spec 38 §4.3).
@@ -9,13 +9,15 @@ import { compareSemVer, parseSemVer } from "./compatibility";
 
 // ── Types ──────────────────────────────────────────────────
 
-/** Transform function that converts data between schema versions */
+/** Transform function that converts data between entity versions */
 export type MigrationTransform = (data: Record<string, unknown>) => Record<string, unknown>;
 
-/** A single migration step between two versions of a schema */
-export interface SchemaMigration {
-  /** Schema this migration applies to */
-  schemaName: string;
+/** A single migration step between two versions of an entity */
+export interface EntityMigration {
+  /** Entity this migration applies to (preferred over schemaName) */
+  entityName?: string;
+  /** @deprecated Use entityName instead */
+  schemaName?: string;
   /** Source version (semver) */
   fromVersion: string;
   /** Target version (semver) */
@@ -27,6 +29,9 @@ export interface SchemaMigration {
   /** Description of what this migration does */
   description?: string;
 }
+
+/** @deprecated Use EntityMigration instead */
+export type SchemaMigration = EntityMigration;
 
 /** Result of applying a migration chain */
 export interface MigrationResult {
@@ -41,59 +46,70 @@ export interface MigrationResult {
 // ── Migration Registry ─────────────────────────────────────
 
 /**
- * Registry that holds schema migrations and can resolve migration paths.
+ * Registry that holds entity migrations and can resolve migration paths.
  */
-export class MigrationRegistry {
-  /** Map of schemaName → migrations indexed by "fromVersion→toVersion" */
-  private migrations = new Map<string, Map<string, SchemaMigration>>();
+export class EntityMigrationRegistry {
+  /** Map of entityName → migrations indexed by "fromVersion→toVersion" */
+  private migrations = new Map<string, Map<string, EntityMigration>>();
+
+  /** Resolve the effective entity name from either entityName or schemaName */
+  private static resolveName(migration: EntityMigration): string {
+    const name = migration.entityName ?? migration.schemaName;
+    if (!name) {
+      throw new Error("EntityMigration must have either entityName or schemaName");
+    }
+    return name;
+  }
 
   /** Register a migration */
-  register(migration: SchemaMigration): void {
-    const { schemaName, fromVersion, toVersion } = migration;
+  register(migration: EntityMigration): void {
+    const entityName = EntityMigrationRegistry.resolveName(migration);
+    const { fromVersion, toVersion } = migration;
     // Validate semver
     parseSemVer(fromVersion);
     parseSemVer(toVersion);
 
-    if (!this.migrations.has(schemaName)) {
-      this.migrations.set(schemaName, new Map());
+    if (!this.migrations.has(entityName)) {
+      this.migrations.set(entityName, new Map());
     }
 
     const key = `${fromVersion}->${toVersion}`;
     // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after set above
-    const schemaMap = this.migrations.get(schemaName)!;
+    const entityMap = this.migrations.get(entityName)!;
 
-    if (schemaMap.has(key)) {
+    if (entityMap.has(key)) {
       throw new Error(
-        `Migration already registered for "${schemaName}" from ${fromVersion} to ${toVersion}`,
+        `Migration already registered for "${entityName}" from ${fromVersion} to ${toVersion}`,
       );
     }
 
-    schemaMap.set(key, migration);
+    entityMap.set(key, migration);
   }
 
   /** Get a direct migration between two versions (if registered) */
-  get(schemaName: string, fromVersion: string, toVersion: string): SchemaMigration | null {
-    const schemaMap = this.migrations.get(schemaName);
-    if (!schemaMap) return null;
-    return schemaMap.get(`${fromVersion}->${toVersion}`) ?? null;
+  get(entityName: string, fromVersion: string, toVersion: string): EntityMigration | null {
+    const entityMap = this.migrations.get(entityName);
+    if (!entityMap) return null;
+
+    return entityMap.get(`${fromVersion}->${toVersion}`) ?? null;
   }
 
-  /** List all migrations for a schema */
-  list(schemaName: string): SchemaMigration[] {
-    const schemaMap = this.migrations.get(schemaName);
-    if (!schemaMap) return [];
-    return Array.from(schemaMap.values());
+  /** List all migrations for an entity */
+  list(entityName: string): EntityMigration[] {
+    const entityMap = this.migrations.get(entityName);
+    if (!entityMap) return [];
+    return Array.from(entityMap.values());
   }
 
   /**
    * Find a migration path from one version to another using BFS.
    * Returns ordered list of version strings forming the path, or null if no path exists.
    */
-  findPath(schemaName: string, fromVersion: string, toVersion: string): string[] | null {
+  findPath(entityName: string, fromVersion: string, toVersion: string): string[] | null {
     if (fromVersion === toVersion) return [fromVersion];
 
-    const schemaMap = this.migrations.get(schemaName);
-    if (!schemaMap) return null;
+    const entityMap = this.migrations.get(entityName);
+    if (!entityMap) return null;
 
     const fromSv = parseSemVer(fromVersion);
     const toSv = parseSemVer(toVersion);
@@ -101,7 +117,7 @@ export class MigrationRegistry {
 
     // Build adjacency: version → next version
     const adjacency = new Map<string, string[]>();
-    for (const migration of schemaMap.values()) {
+    for (const migration of entityMap.values()) {
       if (isUpgrade) {
         // For upgrades, traverse forward
         const nexts = adjacency.get(migration.fromVersion) ?? [];
@@ -147,14 +163,14 @@ export class MigrationRegistry {
 // ── Migration execution ────────────────────────────────────
 
 /**
- * Apply migrations to transform data from one schema version to another.
+ * Apply migrations to transform data from one entity version to another.
  *
  * Finds the shortest migration path and applies each step's transform sequentially.
  * Throws if no migration path exists.
  */
 export function applyMigration(
-  registry: MigrationRegistry,
-  schemaName: string,
+  registry: EntityMigrationRegistry,
+  entityName: string,
   data: Record<string, unknown>,
   fromVersion: string,
   toVersion: string,
@@ -163,10 +179,10 @@ export function applyMigration(
     return { data: { ...data }, path: [fromVersion], stepsApplied: 0 };
   }
 
-  const path = registry.findPath(schemaName, fromVersion, toVersion);
+  const path = registry.findPath(entityName, fromVersion, toVersion);
   if (!path) {
     throw new Error(
-      `No migration path found for "${schemaName}" from ${fromVersion} to ${toVersion}`,
+      `No migration path found for "${entityName}" from ${fromVersion} to ${toVersion}`,
     );
   }
 
@@ -182,17 +198,17 @@ export function applyMigration(
     const stepTo = path[i + 1] as string;
 
     if (isUpgrade) {
-      const migration = registry.get(schemaName, stepFrom, stepTo);
+      const migration = registry.get(entityName, stepFrom, stepTo);
       if (!migration) {
-        throw new Error(`Migration step missing for "${schemaName}" from ${stepFrom} to ${stepTo}`);
+        throw new Error(`Migration step missing for "${entityName}" from ${stepFrom} to ${stepTo}`);
       }
       current = migration.up(current);
     } else {
       // Downgrade: the registered migration is toVersion→fromVersion, use its down fn
-      const migration = registry.get(schemaName, stepTo, stepFrom);
+      const migration = registry.get(entityName, stepTo, stepFrom);
       if (!migration?.down) {
         throw new Error(
-          `Downgrade migration missing for "${schemaName}" from ${stepFrom} to ${stepTo}`,
+          `Downgrade migration missing for "${entityName}" from ${stepFrom} to ${stepTo}`,
         );
       }
       current = migration.down(current);
@@ -208,12 +224,12 @@ export function applyMigration(
  * Returns true if the path exists and all required transforms are available.
  */
 export function validateUpgrade(
-  registry: MigrationRegistry,
-  schemaName: string,
+  registry: EntityMigrationRegistry,
+  entityName: string,
   fromVersion: string,
   toVersion: string,
 ): { valid: boolean; path: string[] | null; error?: string } {
-  const path = registry.findPath(schemaName, fromVersion, toVersion);
+  const path = registry.findPath(entityName, fromVersion, toVersion);
 
   if (!path) {
     return {
@@ -233,7 +249,7 @@ export function validateUpgrade(
     const stepTo = path[i + 1] as string;
 
     if (isUpgrade) {
-      const migration = registry.get(schemaName, stepFrom, stepTo);
+      const migration = registry.get(entityName, stepFrom, stepTo);
       if (!migration) {
         return {
           valid: false,
@@ -242,7 +258,7 @@ export function validateUpgrade(
         };
       }
     } else {
-      const migration = registry.get(schemaName, stepTo, stepFrom);
+      const migration = registry.get(entityName, stepTo, stepFrom);
       if (!migration?.down) {
         return {
           valid: false,
@@ -255,3 +271,6 @@ export function validateUpgrade(
 
   return { valid: true, path };
 }
+
+/** @deprecated Use EntityMigrationRegistry instead */
+export const MigrationRegistry = EntityMigrationRegistry;

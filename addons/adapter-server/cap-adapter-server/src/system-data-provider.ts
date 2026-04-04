@@ -1,13 +1,13 @@
 /**
  * System Data Provider
  *
- * Handles data queries for internal/system schemas that are backed by either:
+ * Handles data queries for internal/system entities that are backed by either:
  * - System tables in the `_linchkit` PostgreSQL schema (execution_log, approval)
  * - In-memory registries (rule, flow, state_machine)
  * - REST/proposal store (proposal)
  *
  * Used as a composite layer: wraps an existing DataProvider and intercepts
- * queries for internal schemas, delegating all others to the inner provider.
+ * queries for internal entities, delegating all others to the inner provider.
  */
 
 import type {
@@ -422,7 +422,7 @@ export class SystemDataProvider implements DataProvider {
 
   async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (this.isInternal(schema)) {
-      throw new Error(`Cannot create records in internal schema "${schema}"`);
+      throw new Error(`Cannot create records in internal entity "${schema}"`);
     }
     return this.inner.create(schema, data);
   }
@@ -434,14 +434,14 @@ export class SystemDataProvider implements DataProvider {
     options?: DataQueryOptions,
   ): Promise<Record<string, unknown>> {
     if (this.isInternal(schema)) {
-      throw new Error(`Cannot update records in internal schema "${schema}"`);
+      throw new Error(`Cannot update records in internal entity "${schema}"`);
     }
     return this.inner.update(schema, id, data, options);
   }
 
   async delete(schema: string, id: string, options?: DataQueryOptions): Promise<void> {
     if (this.isInternal(schema)) {
-      throw new Error(`Cannot delete records in internal schema "${schema}"`);
+      throw new Error(`Cannot delete records in internal entity "${schema}"`);
     }
     return this.inner.delete(schema, id, options);
   }

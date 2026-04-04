@@ -53,13 +53,19 @@ export {
   type MappingValidationResult,
   SchemaMapper,
 } from "./entity-mapper";
-// ── Schema migration transforms ────────────────────────────
+// ── Entity migration transforms ────────────────────────────
 export type {
   MigrationResult as SchemaMigrationResult,
   MigrationTransform,
+  EntityMigration,
   SchemaMigration,
 } from "./entity-migration";
-export { applyMigration, MigrationRegistry, validateUpgrade } from "./entity-migration";
+export {
+  applyMigration,
+  EntityMigrationRegistry,
+  MigrationRegistry,
+  validateUpgrade,
+} from "./entity-migration";
 // ── Version registry ───────────────────────────────────────
 export type {
   CompatibilityCheckResult,

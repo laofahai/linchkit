@@ -1,7 +1,7 @@
 /**
- * Link Registry
+ * Relation Registry
  *
- * Manages link definitions between schemas.
+ * Manages relation definitions between entities.
  * Provides directional queries (outgoing, incoming, both) and lookup by endpoints.
  */
 
@@ -10,40 +10,40 @@ import type { RelationDefinition, LinkInfo, RelationRegistryInterface } from "..
 // ── RelationRegistry ──────────────────────────────────────────────
 
 export class RelationRegistry implements RelationRegistryInterface {
-  private links = new Map<string, RelationDefinition>();
+  private relations = new Map<string, RelationDefinition>();
 
   /**
-   * Register a link definition.
-   * Throws if a link with the same name is already registered.
+   * Register a relation definition.
+   * Throws if a relation with the same name is already registered.
    */
-  register(link: RelationDefinition): void {
-    if (this.links.has(link.name)) {
-      throw new Error(`Link "${link.name}" is already registered`);
+  register(relation: RelationDefinition): void {
+    if (this.relations.has(relation.name)) {
+      throw new Error(`Relation "${relation.name}" is already registered`);
     }
-    this.links.set(link.name, link);
+    this.relations.set(relation.name, relation);
   }
 
   /**
-   * Get all links for a schema (both outgoing and incoming) as LinkInfo[].
+   * Get all relations for an entity (both outgoing and incoming) as LinkInfo[].
    */
   relationsFor(schemaName: string): LinkInfo[] {
     const result: LinkInfo[] = [];
 
-    for (const link of this.links.values()) {
-      if (link.from === schemaName) {
+    for (const relation of this.relations.values()) {
+      if (relation.from === schemaName) {
         result.push({
-          relation: link,
+          relation,
           direction: "outgoing",
-          relatedEntity: link.to,
-          label: link.label?.from ?? link.to,
+          relatedEntity: relation.to,
+          label: relation.label?.from ?? relation.to,
         });
       }
-      if (link.to === schemaName) {
+      if (relation.to === schemaName) {
         result.push({
-          relation: link,
+          relation,
           direction: "incoming",
-          relatedEntity: link.from,
-          label: link.label?.to ?? link.from,
+          relatedEntity: relation.from,
+          label: relation.label?.to ?? relation.from,
         });
       }
     }
@@ -52,42 +52,42 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /**
-   * Get the first link matching from → to (if any).
+   * Get the first relation matching from → to (if any).
    */
   relationBetween(from: string, to: string): RelationDefinition | null {
-    for (const link of this.links.values()) {
-      if (link.from === from && link.to === to) {
-        return link;
+    for (const relation of this.relations.values()) {
+      if (relation.from === from && relation.to === to) {
+        return relation;
       }
     }
     return null;
   }
 
-  /** Get all outgoing links from a schema */
+  /** Get all outgoing relations from an entity */
   outgoingRelations(schemaName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
-    for (const link of this.links.values()) {
-      if (link.from === schemaName) {
-        result.push(link);
+    for (const relation of this.relations.values()) {
+      if (relation.from === schemaName) {
+        result.push(relation);
       }
     }
     return result;
   }
 
-  /** Get all incoming links to a schema */
+  /** Get all incoming relations to an entity */
   incomingRelations(schemaName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
-    for (const link of this.links.values()) {
-      if (link.to === schemaName) {
-        result.push(link);
+    for (const relation of this.relations.values()) {
+      if (relation.to === schemaName) {
+        result.push(relation);
       }
     }
     return result;
   }
 
-  /** List all registered links */
+  /** List all registered relations */
   list(): RelationDefinition[] {
-    return Array.from(this.links.values());
+    return Array.from(this.relations.values());
   }
 }
 

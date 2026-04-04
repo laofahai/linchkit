@@ -91,8 +91,8 @@ export class DocSearchIndex {
         .toLowerCase(),
     });
 
-    // Index schemas
-    for (const schema of doc.schemas) {
+    // Index entities
+    for (const schema of doc.entities) {
       const fieldNames = schema.fields.map((f) => `${f.name} ${f.label}`).join(" ");
       this.entries.push({
         type: "schema",
@@ -114,7 +114,7 @@ export class DocSearchIndex {
         capability: doc.name,
         label: action.label,
         description: action.description,
-        searchText: [action.name, action.label, action.description ?? "", action.schema]
+        searchText: [action.name, action.label, action.description ?? "", action.entity]
           .join(" ")
           .toLowerCase(),
       });
@@ -139,8 +139,8 @@ export class DocSearchIndex {
         name: sm.name,
         capability: doc.name,
         label: sm.name,
-        description: `${sm.schema}: ${sm.states.join(" -> ")}`,
-        searchText: [sm.name, sm.schema, ...sm.states, sm.initial].join(" ").toLowerCase(),
+        description: `${sm.entity}: ${sm.states.join(" -> ")}`,
+        searchText: [sm.name, sm.entity, ...sm.states, sm.initial].join(" ").toLowerCase(),
       });
     }
 
@@ -151,8 +151,8 @@ export class DocSearchIndex {
         name: view.name,
         capability: doc.name,
         label: view.label ?? view.name,
-        description: `${view.type} view for ${view.schema}`,
-        searchText: [view.name, view.label ?? "", view.schema, view.type].join(" ").toLowerCase(),
+        description: `${view.type} view for ${view.entity}`,
+        searchText: [view.name, view.label ?? "", view.entity, view.type].join(" ").toLowerCase(),
       });
     }
 

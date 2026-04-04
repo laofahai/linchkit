@@ -384,7 +384,7 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
     const targets = engine.getCascadeTargets("order_item");
     expect(targets).toHaveLength(2);
     expect(targets.map((t) => t.parentField).sort()).toEqual(["item_count", "total_amount"]);
-    expect(targets[0].parentSchema).toBe("order");
+    expect(targets[0].parentEntity).toBe("order");
     expect(targets[0].fkColumn).toBe("order_id");
   });
 
@@ -662,7 +662,7 @@ describe("DerivedPropertyEngine — wire()", () => {
     expect(engine.hasCascadeTargets("employee")).toBe(true);
     const targets = engine.getCascadeTargets("employee");
     expect(targets).toHaveLength(1);
-    expect(targets[0].parentSchema).toBe("department");
+    expect(targets[0].parentEntity).toBe("department");
     expect(targets[0].parentField).toBe("employee_count");
   });
 

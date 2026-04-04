@@ -25,13 +25,13 @@ export function mountImportRoutes(app: Elysia, options: ServerOptions): void {
 
       if (!entityRegistry) {
         set.status = 500;
-        return { success: false, error: { message: "Schema registry not configured." } };
+        return { success: false, error: { message: "Entity registry not configured." } };
       }
 
       const schema = entityRegistry.get(params.name);
       if (!schema) {
         set.status = 404;
-        return { success: false, error: { message: `Schema "${params.name}" not found.` } };
+        return { success: false, error: { message: `Entity "${params.name}" not found.` } };
       }
 
       // Resolve actor

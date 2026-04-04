@@ -34,7 +34,7 @@ export {
   buildActionChain,
   createExtensionResolver,
 } from "./extension-resolver";
-export { filterSchemaByCapabilities } from "./filter-entity";
+export { filterEntityByCapabilities } from "./filter-entity";
 export type {
   RegistryEntry,
   RegistrySearchOptions,

@@ -81,7 +81,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved).toHaveLength(1);
     expect(resolved[0]?.fields.notes).toBeDefined();
     expect(resolved[0]?.fields.notes.type).toBe("text");
@@ -108,7 +108,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
       20,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved[0]?.fields.priority).toBeDefined();
     expect(resolved[0]?.fields.tags).toBeDefined();
     expect(resolved[0]?.fields.total).toBeDefined();
@@ -126,7 +126,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved).toHaveLength(1);
     expect(resolved[0]?.name).toBe("order");
   });
@@ -150,7 +150,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
       20,
     );
 
-    resolver.resolveSchemas(schemas);
+    resolver.resolveEntities(schemas);
     const conflicts = resolver.getConflicts();
     expect(conflicts.length).toBeGreaterThanOrEqual(1);
     expect(conflicts.some((c) => c.type === "schema_field_collision" && c.field === "notes")).toBe(
@@ -177,7 +177,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
       20,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     // Higher priority (20) is applied after lower (10), so it wins
     expect(resolved[0]?.fields.notes.type).toBe("string");
     expect(resolved[0]?.fields.notes.label).toBe("From B");
@@ -198,7 +198,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved[0]?.fields.total.required).toBe(true);
     // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
     expect((resolved[0]?.fields.total as any).min).toBe(0);
@@ -213,7 +213,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
     resolver.addEntityOverride("order", { fields: { total: { min: 10 } } }, "cap-a", 10);
     resolver.addEntityOverride("order", { fields: { total: { min: 50 } } }, "cap-b", 20);
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     // biome-ignore lint/suspicious/noExplicitAny: test mock partial type
     expect((resolved[0]?.fields.total as any).min).toBe(50);
   });
@@ -229,7 +229,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved[0]?.fields.nonexistent).toBeUndefined();
   });
 
@@ -254,7 +254,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     expect(resolved[0]?.fields.notes).toBeDefined();
     expect(resolved[0]?.fields.total.required).toBe(true);
   });
@@ -713,7 +713,7 @@ describe("ExtensionResolver — Immutability", () => {
       10,
     );
 
-    const resolved = resolver.resolveSchemas(schemas);
+    const resolved = resolver.resolveEntities(schemas);
     // Original schema should not have the new field
     expect(original.fields.notes).toBeUndefined();
     // Resolved schema should have it

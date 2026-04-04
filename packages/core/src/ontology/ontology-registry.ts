@@ -96,7 +96,7 @@ interface ActionRegistryLike {
 
 /** Minimal interface for RelationRegistry */
 interface RelationRegistryLike {
-  relationsFor(schemaName: string): Array<{
+  relationsFor(entityName: string): Array<{
     relation: {
       name: string;
       from: string;
@@ -122,7 +122,7 @@ interface EventHandlerRegistryLike {
 
 /** Minimal interface for InterfaceRegistry */
 interface InterfaceRegistryLike {
-  interfacesOf(schemaName: string): InterfaceDefinition[];
+  interfacesOf(entityName: string): InterfaceDefinition[];
   implementors(interfaceName: string): string[];
   list(): InterfaceDefinition[];
 }
@@ -145,8 +145,8 @@ export interface OntologyRegistryDeps {
 // ── OntologyRegistry interface ──────────────────────────────
 
 export interface OntologyRegistry {
-  /** Get complete descriptor for a schema */
-  describe(schemaName: string): EntityDescriptor | undefined;
+  /** Get complete descriptor for an entity */
+  describe(entityName: string): EntityDescriptor | undefined;
 
   /** List all entity names in the ontology */
   listEntities(): string[];
@@ -197,69 +197,69 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
   const cache = new Map<string, EntityDescriptor>();
 
   // Pre-index actions by entity
-  const actionsBySchema = new Map<string, ActionDefinition[]>();
+  const actionsByEntity = new Map<string, ActionDefinition[]>();
   for (const action of deps.actions.getAll()) {
-    const list = actionsBySchema.get(action.entity) ?? [];
+    const list = actionsByEntity.get(action.entity) ?? [];
     list.push(action);
-    actionsBySchema.set(action.entity, list);
+    actionsByEntity.set(action.entity, list);
   }
 
-  // Pre-index rules by schema (via trigger, using action registry for resolution)
+  // Pre-index rules by entity (via trigger, using action registry for resolution)
   const allActions = deps.actions.getAll();
-  const rulesBySchema = new Map<string, RuleDefinition[]>();
+  const rulesByEntity = new Map<string, RuleDefinition[]>();
   for (const rule of deps.rules) {
-    const schemaNames = extractSchemaFromTrigger(rule, actionsBySchema, allActions);
-    for (const sn of schemaNames) {
-      const list = rulesBySchema.get(sn) ?? [];
+    const entityNames = extractEntityFromTrigger(rule, actionsByEntity, allActions);
+    for (const sn of entityNames) {
+      const list = rulesByEntity.get(sn) ?? [];
       list.push(rule);
-      rulesBySchema.set(sn, list);
+      rulesByEntity.set(sn, list);
     }
   }
 
   // Pre-index states by entity
-  const statesBySchema = new Map<string, StateDefinition>();
+  const statesByEntity = new Map<string, StateDefinition>();
   for (const state of deps.states) {
-    statesBySchema.set(state.entity, state);
+    statesByEntity.set(state.entity, state);
   }
 
   // Pre-index views by entity
-  const viewsBySchema = new Map<string, ViewDefinition[]>();
+  const viewsByEntity = new Map<string, ViewDefinition[]>();
   for (const view of deps.views) {
-    const list = viewsBySchema.get(view.entity) ?? [];
+    const list = viewsByEntity.get(view.entity) ?? [];
     list.push(view);
-    viewsBySchema.set(view.entity, list);
+    viewsByEntity.set(view.entity, list);
   }
 
-  // Pre-index flows by related schema (inferred from action steps)
-  const flowsBySchema = new Map<string, FlowDefinition[]>();
+  // Pre-index flows by related entity (inferred from action steps)
+  const flowsByEntity = new Map<string, FlowDefinition[]>();
   if (deps.flows) {
     for (const flow of deps.flows.getAll()) {
-      const relatedSchemas = extractSchemasFromFlow(flow, actionsBySchema);
-      for (const sn of relatedSchemas) {
-        const list = flowsBySchema.get(sn) ?? [];
+      const relatedEntities = extractEntitiesFromFlow(flow, actionsByEntity);
+      for (const sn of relatedEntities) {
+        const list = flowsByEntity.get(sn) ?? [];
         list.push(flow);
-        flowsBySchema.set(sn, list);
+        flowsByEntity.set(sn, list);
       }
     }
   }
 
-  // Pre-index handlers by schema (inferred from event names like "schema.action.succeeded")
-  const handlersBySchema = new Map<string, EventHandlerDefinition[]>();
+  // Pre-index handlers by entity (inferred from event names like "entity.action.succeeded")
+  const handlersByEntity = new Map<string, EventHandlerDefinition[]>();
   if (deps.handlers) {
     for (const handler of deps.handlers.getAll()) {
-      const schemaNames = extractSchemasFromHandler(handler, deps.schemas);
-      for (const sn of schemaNames) {
-        const list = handlersBySchema.get(sn) ?? [];
+      const handlerEntityNames = extractEntitiesFromHandler(handler, deps.schemas);
+      for (const sn of handlerEntityNames) {
+        const list = handlersByEntity.get(sn) ?? [];
         list.push(handler);
-        handlersBySchema.set(sn, list);
+        handlersByEntity.set(sn, list);
       }
     }
   }
 
   /** Collect items from the inheritance chain (ancestors only, excluding self) */
-  function collectFromAncestors<T>(schemaName: string, getter: (name: string) => T[]): T[] {
+  function collectFromAncestors<T>(entityName: string, getter: (name: string) => T[]): T[] {
     if (!deps.schemas.getInheritanceChain) return [];
-    const chain = deps.schemas.getInheritanceChain(schemaName);
+    const chain = deps.schemas.getInheritanceChain(entityName);
     // chain = [root, ..., parent, self]; exclude self (last element)
     const result: T[] = [];
     for (let i = 0; i < chain.length - 1; i++) {
@@ -270,25 +270,25 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
   }
 
   /** Get the inherited state machine (walk ancestors, closest parent wins) */
-  function inheritedState(schemaName: string): StateDefinition | undefined {
+  function inheritedState(entityName: string): StateDefinition | undefined {
     if (!deps.schemas.getInheritanceChain) return undefined;
-    const chain = deps.schemas.getInheritanceChain(schemaName);
+    const chain = deps.schemas.getInheritanceChain(entityName);
     // Walk from parent to root (chain order is root→self, so reverse excluding self)
     for (let i = chain.length - 2; i >= 0; i--) {
       // biome-ignore lint/style/noNonNullAssertion: index is within bounds
-      const state = statesBySchema.get(chain[i]!);
+      const state = statesByEntity.get(chain[i]!);
       if (state) return state;
     }
     return undefined;
   }
 
-  function buildDescriptor(schemaName: string): EntityDescriptor | undefined {
-    const schema = deps.schemas.get(schemaName);
-    if (!schema) return undefined;
+  function buildDescriptor(entityName: string): EntityDescriptor | undefined {
+    const entity = deps.schemas.get(entityName);
+    if (!entity) return undefined;
 
     const relations: RelationDescriptor[] = [];
     if (deps.links) {
-      for (const info of deps.links.relationsFor(schemaName)) {
+      for (const info of deps.links.relationsFor(entityName)) {
         relations.push({
           relationName: info.relation.name,
           direction: info.direction,
@@ -299,14 +299,14 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       }
     }
 
-    // Resolve interfaces for this schema
+    // Resolve interfaces for this entity
     const interfaces: InterfaceDefinition[] = deps.interfaces
-      ? deps.interfaces.interfacesOf(schemaName)
+      ? deps.interfaces.interfacesOf(entityName)
       : [];
 
     // Merge inherited actions (parent actions + own actions)
-    const inheritedActions = collectFromAncestors(schemaName, (n) => actionsBySchema.get(n) ?? []);
-    const ownActions = actionsBySchema.get(schemaName) ?? [];
+    const inheritedActions = collectFromAncestors(entityName, (n) => actionsByEntity.get(n) ?? []);
+    const ownActions = actionsByEntity.get(entityName) ?? [];
     // Deduplicate: child action overrides parent action of same name
     const ownActionNames = new Set(ownActions.map((a) => a.name));
     const mergedActions = [
@@ -315,60 +315,60 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     ];
 
     // Merge inherited rules (parent rules + own rules)
-    const inheritedRules = collectFromAncestors(schemaName, (n) => rulesBySchema.get(n) ?? []);
-    const ownRules = rulesBySchema.get(schemaName) ?? [];
+    const inheritedRules = collectFromAncestors(entityName, (n) => rulesByEntity.get(n) ?? []);
+    const ownRules = rulesByEntity.get(entityName) ?? [];
     const ownRuleNames = new Set(ownRules.map((r) => r.name));
     const mergedRules = [...inheritedRules.filter((r) => !ownRuleNames.has(r.name)), ...ownRules];
 
     // State machine: own takes priority, then inherited
-    const ownState = statesBySchema.get(schemaName);
-    const mergedState = ownState ?? inheritedState(schemaName);
+    const ownState = statesByEntity.get(entityName);
+    const mergedState = ownState ?? inheritedState(entityName);
 
     // Merge inherited views (parent views + own views)
-    const inheritedViews = collectFromAncestors(schemaName, (n) => viewsBySchema.get(n) ?? []);
-    const ownViews = viewsBySchema.get(schemaName) ?? [];
+    const inheritedViews = collectFromAncestors(entityName, (n) => viewsByEntity.get(n) ?? []);
+    const ownViews = viewsByEntity.get(entityName) ?? [];
     const ownViewNames = new Set(ownViews.map((v) => v.name));
     const mergedViews = [...inheritedViews.filter((v) => !ownViewNames.has(v.name)), ...ownViews];
 
     // Resolve children
     const children: string[] = deps.schemas.getAllDescendants
-      ? deps.schemas.getAllDescendants(schemaName).filter((n) => {
+      ? deps.schemas.getAllDescendants(entityName).filter((n) => {
           // Only direct children
           const child = deps.schemas.get(n);
-          return child?.extends === schemaName;
+          return child?.extends === entityName;
         })
       : [];
 
     return {
-      name: schema.name,
-      label: schema.label,
-      description: schema.description,
-      fields: schema.fields,
-      presentation: schema.presentation,
+      name: entity.name,
+      label: entity.label,
+      description: entity.description,
+      fields: entity.fields,
+      presentation: entity.presentation,
       relations,
       actions: mergedActions,
       rules: mergedRules,
       states: mergedState,
       views: mergedViews,
-      flows: flowsBySchema.get(schemaName) ?? [],
-      handlers: handlersBySchema.get(schemaName) ?? [],
+      flows: flowsByEntity.get(entityName) ?? [],
+      handlers: handlersByEntity.get(entityName) ?? [],
       interfaces,
-      parent: schema.extends ?? null,
+      parent: entity.extends ?? null,
       children,
-      abstract: schema.abstract,
+      abstract: entity.abstract,
     };
   }
 
-  function getOrBuild(schemaName: string): EntityDescriptor | undefined {
-    if (cache.has(schemaName)) return cache.get(schemaName);
-    const desc = buildDescriptor(schemaName);
-    if (desc) cache.set(schemaName, desc);
+  function getOrBuild(entityName: string): EntityDescriptor | undefined {
+    if (cache.has(entityName)) return cache.get(entityName);
+    const desc = buildDescriptor(entityName);
+    if (desc) cache.set(entityName, desc);
     return desc;
   }
 
   return {
-    describe(schemaName: string): EntityDescriptor | undefined {
-      return getOrBuild(schemaName);
+    describe(entityName: string): EntityDescriptor | undefined {
+      return getOrBuild(entityName);
     },
 
     listEntities(): string[] {
@@ -379,8 +379,8 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       const q = query.toLowerCase();
       const results: EntityDescriptor[] = [];
 
-      for (const schema of deps.schemas.getAll()) {
-        const desc = getOrBuild(schema.name);
+      for (const entity of deps.schemas.getAll()) {
+        const desc = getOrBuild(entity.name);
         if (!desc) continue;
 
         // Match against name, label, description, and field names
@@ -401,32 +401,32 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       return results;
     },
 
-    actionsFor(schemaName: string): ActionDefinition[] {
-      const desc = getOrBuild(schemaName);
+    actionsFor(entityName: string): ActionDefinition[] {
+      const desc = getOrBuild(entityName);
       return desc?.actions ?? [];
     },
 
-    rulesFor(schemaName: string): RuleDefinition[] {
-      const desc = getOrBuild(schemaName);
+    rulesFor(entityName: string): RuleDefinition[] {
+      const desc = getOrBuild(entityName);
       return desc?.rules ?? [];
     },
 
-    stateFor(schemaName: string): StateDefinition | undefined {
-      const desc = getOrBuild(schemaName);
+    stateFor(entityName: string): StateDefinition | undefined {
+      const desc = getOrBuild(entityName);
       return desc?.states;
     },
 
-    viewsFor(schemaName: string): ViewDefinition[] {
-      const desc = getOrBuild(schemaName);
+    viewsFor(entityName: string): ViewDefinition[] {
+      const desc = getOrBuild(entityName);
       return desc?.views ?? [];
     },
 
-    flowsFor(schemaName: string): FlowDefinition[] {
-      return flowsBySchema.get(schemaName) ?? [];
+    flowsFor(entityName: string): FlowDefinition[] {
+      return flowsByEntity.get(entityName) ?? [];
     },
 
-    handlersFor(schemaName: string): EventHandlerDefinition[] {
-      return handlersBySchema.get(schemaName) ?? [];
+    handlersFor(entityName: string): EventHandlerDefinition[] {
+      return handlersByEntity.get(entityName) ?? [];
     },
 
     relatedEntities(entityName: string): RelationDescriptor[] {
@@ -440,17 +440,17 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
     toJSON(): Record<string, EntityDescriptor> {
       const result: Record<string, EntityDescriptor> = {};
-      for (const schema of deps.schemas.getAll()) {
-        const desc = getOrBuild(schema.name);
-        if (desc) result[schema.name] = desc;
+      for (const entity of deps.schemas.getAll()) {
+        const desc = getOrBuild(entity.name);
+        if (desc) result[entity.name] = desc;
       }
       return result;
     },
 
     toMarkdown(): string {
       const lines: string[] = ["# Ontology", ""];
-      for (const schema of deps.schemas.getAll()) {
-        const desc = getOrBuild(schema.name);
+      for (const entity of deps.schemas.getAll()) {
+        const desc = getOrBuild(entity.name);
         if (!desc) continue;
 
         lines.push(`## ${desc.label ?? desc.name}`);
@@ -520,10 +520,10 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
 // ── Helpers ──────────────────────────────────────────────
 
-/** Extract schema names from a rule trigger, using action registry to resolve action→schema */
-function extractSchemaFromTrigger(
+/** Extract entity names from a rule trigger, using action registry to resolve action→entity */
+function extractEntityFromTrigger(
   rule: RuleDefinition,
-  _actionsBySchema: Map<string, ActionDefinition[]>,
+  _actionsByEntity: Map<string, ActionDefinition[]>,
   allActions: ActionDefinition[],
 ): string[] {
   const trigger = rule.trigger;
@@ -531,14 +531,14 @@ function extractSchemaFromTrigger(
   // ActionTrigger: resolve action names to their schema via the action registry
   if ("action" in trigger) {
     const actionNames = Array.isArray(trigger.action) ? trigger.action : [trigger.action];
-    const schemas = new Set<string>();
+    const entities = new Set<string>();
     for (const name of actionNames) {
       const action = allActions.find((a) => a.name === name);
       if (action) {
-        schemas.add(action.entity);
+        entities.add(action.entity);
       }
     }
-    return [...schemas];
+    return [...entities];
   }
 
   if ("stateChange" in trigger) {
@@ -552,25 +552,25 @@ function extractSchemaFromTrigger(
   return [];
 }
 
-/** Extract schema names from a flow's action steps */
-function extractSchemasFromFlow(
+/** Extract entity names from a flow's action steps */
+function extractEntitiesFromFlow(
   flow: FlowDefinition,
-  actionsBySchema: Map<string, ActionDefinition[]>,
+  actionsByEntity: Map<string, ActionDefinition[]>,
 ): Set<string> {
-  const schemas = new Set<string>();
+  const entities = new Set<string>();
 
-  // Build reverse index: action name → schema
-  const actionToSchema = new Map<string, string>();
-  for (const [schema, actions] of actionsBySchema) {
+  // Build reverse index: action name → entity
+  const actionToEntity = new Map<string, string>();
+  for (const [entityName, actions] of actionsByEntity) {
     for (const action of actions) {
-      actionToSchema.set(action.name, schema);
+      actionToEntity.set(action.name, entityName);
     }
   }
 
   for (const step of flow.steps) {
     if (step.type === "action") {
-      const schema = actionToSchema.get(step.actionName);
-      if (schema) schemas.add(schema);
+      const entityName = actionToEntity.get(step.actionName);
+      if (entityName) entities.add(entityName);
     }
   }
 
@@ -578,31 +578,31 @@ function extractSchemasFromFlow(
   if (flow.trigger.type === "event") {
     // Convention: event names like "purchase_request.submit.succeeded"
     const parts = flow.trigger.eventType.split(".");
-    const schemaName = parts[0];
-    if (parts.length >= 2 && schemaName) {
-      schemas.add(schemaName);
+    const entityName = parts[0];
+    if (parts.length >= 2 && entityName) {
+      entities.add(entityName);
     }
   }
 
-  return schemas;
+  return entities;
 }
 
-/** Extract schema names from an event handler's listen field */
-function extractSchemasFromHandler(
+/** Extract entity names from an event handler's listen field */
+function extractEntitiesFromHandler(
   handler: EventHandlerDefinition,
   entityRegistry: EntityRegistryLike,
 ): string[] {
   const listen = Array.isArray(handler.listen) ? handler.listen : [handler.listen];
-  const schemas: string[] = [];
+  const entityNames: string[] = [];
 
   for (const eventType of listen) {
     // Convention: event names like "purchase_request.submit.succeeded"
     const parts = eventType.split(".");
-    const schemaName = parts[0];
-    if (parts.length >= 2 && schemaName && entityRegistry.has(schemaName)) {
-      schemas.push(schemaName);
+    const entityName = parts[0];
+    if (parts.length >= 2 && entityName && entityRegistry.has(entityName)) {
+      entityNames.push(entityName);
     }
   }
 
-  return schemas;
+  return entityNames;
 }

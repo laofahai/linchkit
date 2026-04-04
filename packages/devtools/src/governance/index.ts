@@ -17,6 +17,8 @@ export {
   type DocIssue,
   validateActionDoc,
   validateCapabilityDoc,
+  validateEntityDoc,
+  /** @deprecated Use validateEntityDoc instead */
   validateSchemaDoc,
 } from "./doc-validator";
 

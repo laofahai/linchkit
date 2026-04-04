@@ -238,7 +238,7 @@ describe("Schema Inheritance (spec 49)", () => {
       const registry = createEntityRegistry();
 
       expect(() => registry.register(customerSchema)).toThrow(
-        'Schema "customer" extends unknown schema "party"',
+        'Entity "customer" extends unknown entity "party"',
       );
     });
 

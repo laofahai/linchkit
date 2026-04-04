@@ -35,7 +35,7 @@ export interface FieldDoc {
 /** Documentation for a single action */
 export interface ActionDoc {
   name: string;
-  schema: string;
+  entity: string;
   label: string;
   description?: string;
   input: FieldDoc[];
@@ -46,8 +46,8 @@ export interface ActionDoc {
   policy: { mode: string; transaction: boolean; idempotent?: boolean };
 }
 
-/** Documentation for a schema */
-export interface SchemaDoc {
+/** Documentation for an entity */
+export interface EntityDoc {
   name: string;
   label: string;
   description?: string;
@@ -67,7 +67,7 @@ export interface SystemDoc {
   title: string;
   description?: string;
   generatedAt: string;
-  schemas: SchemaDoc[];
+  entities: EntityDoc[];
 }
 
 // -- Field doc extraction -------------------------------------------------
@@ -124,7 +124,7 @@ export function actionToDoc(action: ActionDefinition): ActionDoc {
 
   return {
     name: action.name,
-    schema: action.entity,
+    entity: action.entity,
     label: action.label,
     description: action.description,
     input: inputFields,
@@ -142,8 +142,8 @@ export function actionToDoc(action: ActionDefinition): ActionDoc {
   };
 }
 
-/** Convert a EntityDescriptor to a SchemaDoc */
-export function schemaToDoc(descriptor: EntityDescriptor): SchemaDoc {
+/** Convert an EntityDescriptor to an EntityDoc */
+export function entityToDoc(descriptor: EntityDescriptor): EntityDoc {
   const fields = Object.entries(descriptor.fields).map(([name, field]) => fieldToDoc(name, field));
 
   const actions = descriptor.actions.map(actionToDoc);
@@ -190,19 +190,19 @@ export function generateApiDoc(
   ontology: OntologyRegistry,
   options?: ApiDocGeneratorOptions,
 ): SystemDoc {
-  const schemaNames = ontology.listEntities();
-  const schemas: SchemaDoc[] = [];
+  const entityNames = ontology.listEntities();
+  const entities: EntityDoc[] = [];
 
-  for (const name of schemaNames) {
+  for (const name of entityNames) {
     const descriptor = ontology.describe(name);
     if (!descriptor) continue;
-    schemas.push(schemaToDoc(descriptor));
+    entities.push(entityToDoc(descriptor));
   }
 
   return {
     title: options?.title ?? "API Documentation",
     description: options?.description,
     generatedAt: new Date().toISOString(),
-    schemas,
+    entities,
   };
 }

@@ -75,7 +75,7 @@ describe("linch info", () => {
     const parsed = JSON.parse(stdout.trim());
     expect(parsed.capabilities).toEqual([]);
     expect(parsed.counts.capabilities).toBe(0);
-    expect(parsed.counts.schemas).toBe(0);
+    expect(parsed.counts.entities).toBe(0);
     expect(parsed.counts.actions).toBe(0);
     expect(parsed.database.configured).toBe(false);
   });
@@ -153,7 +153,7 @@ export default {
     expect(parsed.capabilities[0].name).toBe("cap-demo");
     expect(parsed.capabilities[0].type).toBe("adapter");
     expect(parsed.capabilities[0].version).toBe("2.0.0");
-    expect(parsed.counts.schemas).toBe(2);
+    expect(parsed.counts.entities).toBe(2);
     expect(parsed.counts.capabilities).toBe(1);
   });
 });

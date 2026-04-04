@@ -104,8 +104,8 @@ export interface ServerOptions {
   healthCheckRegistry?: HealthCheckRegistry;
   /** Permission groups for data masking in link resolvers */
   permissionGroups?: PermissionGroupDefinition[];
-  /** Schema definitions map for data masking in link resolvers */
-  schemaMap?: Map<string, EntityDefinition>;
+  /** Entity definitions map for data masking in link resolvers */
+  entityMap?: Map<string, EntityDefinition>;
   /** Static tenant list for /api/tenants endpoint (used by TenantSwitcher UI) */
   tenants?: Array<{ id: string; name: string }>;
   /** Event bus for SSE subscription endpoint (/api/subscribe) */
@@ -160,7 +160,7 @@ export function createServer(
   const dataProvider = options?.dataProvider;
   const corsOption = options?.cors;
   const permissionGroups = options?.permissionGroups ?? [];
-  const schemaMap = options?.schemaMap;
+  const entityMap = options?.entityMap;
   const executionLogger = options?.executionLogger;
   const serverStartedAt = Date.now();
 
@@ -193,7 +193,7 @@ export function createServer(
         locale,
         dataProvider: scopedProvider,
         permissionGroups,
-        schemaMap,
+        entityMap,
         relationLoaders,
       };
     },

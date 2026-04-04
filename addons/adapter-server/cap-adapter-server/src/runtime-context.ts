@@ -51,7 +51,7 @@ export interface RuntimeContext {
 }
 
 export interface RuntimeContextOptions {
-  schemas?: EntityDefinition[];
+  entities?: EntityDefinition[];
   actions?: ActionDefinition[];
   states?: StateDefinition[];
   views?: ViewDefinition[];
@@ -74,7 +74,7 @@ export interface RuntimeContextOptions {
  * Usage:
  * ```ts
  * const ctx = createRuntimeContext({
- *   schemas: [purchaseRequestSchema],
+ *   entities: [purchaseRequestSchema],
  *   actions: [...crudActions, submitAction],
  *   states: [purchaseLifecycle],
  * });
@@ -95,10 +95,10 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     entityRegistry.setInterfaceRegistry(interfaceRegistry);
   }
 
-  // Register schemas
-  if (options?.schemas) {
-    for (const schema of options.schemas) {
-      entityRegistry.register(schema);
+  // Register entities
+  if (options?.entities) {
+    for (const entity of options.entities) {
+      entityRegistry.register(entity);
     }
   }
 

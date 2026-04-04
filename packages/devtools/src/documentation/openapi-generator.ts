@@ -5,7 +5,7 @@
  * via the structured SystemDoc intermediate representation.
  */
 
-import type { ActionDoc, FieldDoc, SchemaDoc, SystemDoc } from "./api-doc-generator";
+import type { ActionDoc, EntityDoc, FieldDoc, SystemDoc } from "./api-doc-generator";
 
 // -- OpenAPI types (subset of OpenAPI 3.0) -------------------------------------------------
 
@@ -126,8 +126,8 @@ function fieldTypeToOpenAPI(field: FieldDoc): OpenAPISchemaRef {
 
 // -- Schema generation -------------------------------------------------
 
-/** Generate an OpenAPI component schema from a SchemaDoc */
-function schemaDocToOpenAPISchema(schema: SchemaDoc): OpenAPISchemaObject {
+/** Generate an OpenAPI component schema from an EntityDoc */
+function schemaDocToOpenAPISchema(schema: EntityDoc): OpenAPISchemaObject {
   const properties: Record<string, OpenAPISchemaRef> = {};
   const required: string[] = [];
 
@@ -151,8 +151,8 @@ function schemaDocToOpenAPISchema(schema: SchemaDoc): OpenAPISchemaObject {
   };
 }
 
-/** Generate an input schema for a SchemaDoc (for create/update) */
-function schemaDocToInputSchema(schema: SchemaDoc): OpenAPISchemaObject {
+/** Generate an input schema for an EntityDoc (for create/update) */
+function schemaDocToInputSchema(schema: EntityDoc): OpenAPISchemaObject {
   const properties: Record<string, OpenAPISchemaRef> = {};
   const required: string[] = [];
 
@@ -195,8 +195,8 @@ function actionInputSchema(action: ActionDoc): OpenAPISchemaObject {
 
 // -- Path generation -------------------------------------------------
 
-/** Generate CRUD paths for a schema */
-function generateCRUDPaths(schema: SchemaDoc): Record<string, OpenAPIPathItem> {
+/** Generate CRUD paths for an entity */
+function generateCRUDPaths(schema: EntityDoc): Record<string, OpenAPIPathItem> {
   const paths: Record<string, OpenAPIPathItem> = {};
   const tag = schema.label;
   const basePath = `/api/${schema.name}`;
@@ -310,7 +310,7 @@ function generateActionPath(action: ActionDoc): Record<string, OpenAPIPathItem> 
         summary: action.label,
         description: action.description,
         operationId: action.name,
-        tags: [action.schema],
+        tags: [action.entity],
         requestBody:
           action.input.length > 0
             ? {
@@ -376,7 +376,7 @@ export function generateOpenAPISpec(
   const paths: Record<string, OpenAPIPathItem> = {};
   const components: Record<string, OpenAPISchemaObject> = {};
 
-  for (const schema of doc.schemas) {
+  for (const schema of doc.entities) {
     // Component schemas
     components[schema.name] = schemaDocToOpenAPISchema(schema);
     components[`${schema.name}_input`] = schemaDocToInputSchema(schema);

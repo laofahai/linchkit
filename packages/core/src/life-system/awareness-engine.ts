@@ -37,30 +37,30 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
 
     structuralCheck(): StructuralIssue[] {
       const issues: StructuralIssue[] = [];
-      const schemas = opts.ontology.listEntities();
+      const entityNames = opts.ontology.listEntities();
 
-      for (const schemaName of schemas) {
-        const descriptor = opts.ontology.describe(schemaName);
+      for (const entityName of entityNames) {
+        const descriptor = opts.ontology.describe(entityName);
         if (!descriptor) continue;
 
-        // Check: schema has no views
+        // Check: entity has no views
         if (!descriptor.views || descriptor.views.length === 0) {
           issues.push({
             kind: "schema_no_view",
-            entity: schemaName,
-            message: `Schema "${schemaName}" has no views defined`,
+            entity: entityName,
+            message: `Entity "${entityName}" has no views defined`,
           });
         }
 
         // Check: actions with zero usage
         for (const action of descriptor.actions ?? []) {
-          const usage = usageGraph.getImportance("action", schemaName, action.name);
+          const usage = usageGraph.getImportance("action", entityName, action.name);
           if (usage === 0) {
             issues.push({
             kind: "action_never_called",
-            entity: schemaName,
+            entity: entityName,
             target: action.name,
-            message: `Action "${action.name}" on schema "${schemaName}" has never been called`,
+            message: `Action "${action.name}" on entity "${entityName}" has never been called`,
             });
           }
         }

@@ -343,7 +343,7 @@ export function generateGraphQLObjectType(
           const i18nFieldName = `${fieldName}_i18n`;
           if (i18nFieldName in schema.fields) {
             moduleLogger.warn(
-              `[schema-to-graphql] Schema "${schema.name}" already has field "${i18nFieldName}" — skipping auto-generated i18n field for "${fieldName}"`,
+              `[schema-to-graphql] Entity "${schema.name}" already has field "${i18nFieldName}" — skipping auto-generated i18n field for "${fieldName}"`,
             );
           } else {
             fields[i18nFieldName] = {

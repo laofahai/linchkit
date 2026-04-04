@@ -23,7 +23,7 @@ describe("createTestRuntime", () => {
       },
     });
 
-    const runtime = createTestRuntime({ schemas: [schema] });
+    const runtime = createTestRuntime({ entities: [schema] });
     const resolved = runtime.entityRegistry.resolve("task");
 
     expect(resolved).toBeDefined();

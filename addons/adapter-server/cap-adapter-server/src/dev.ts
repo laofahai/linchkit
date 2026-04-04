@@ -74,7 +74,7 @@ const config = await loadConfig({ root: projectRoot });
 // ── Extract capability contributions ────────────────────
 
 function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
-  schemas: EntityDefinition[];
+  entities: EntityDefinition[];
   actions: ActionDefinition[];
   states: StateDefinition[];
   views: ViewDefinition[];
@@ -85,7 +85,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   extraQueryFields: Record<string, unknown>;
   extraMutationFields: Record<string, unknown>;
 } {
-  const schemas: EntityDefinition[] = [];
+  const entities: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const states: StateDefinition[] = [];
   const views: ViewDefinition[] = [];
@@ -97,7 +97,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   const extraMutationFields: Record<string, unknown> = {};
 
   for (const cap of capabilities) {
-    if (cap.entities) schemas.push(...cap.entities);
+    if (cap.entities) entities.push(...cap.entities);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.states) states.push(...cap.states);
     if (cap.views) views.push(...cap.views);
@@ -132,7 +132,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   }
 
   return {
-    schemas,
+    entities,
     actions,
     states,
     views,
@@ -147,13 +147,13 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
 
 const capContributions = extractCapabilities(config.capabilities);
 
-// ── Merge capability schemas and actions ────────────────
+// ── Merge capability entities and actions ────────────────
 
-const allSchemas = capContributions.schemas;
+const allEntities = capContributions.entities;
 
 // Generate CRUD actions, skip if capability already defined one with same name
 const capActionNames = new Set(capContributions.actions.map((a) => a.name));
-const crudActions = allSchemas
+const crudActions = allEntities
   .flatMap((s) => generateCrudActions(s))
   .filter((crud) => !capActionNames.has(crud.name));
 
@@ -165,7 +165,7 @@ const allActions: ActionDefinition[] = [...crudActions, ...capContributions.acti
 const capabilityNames = new Set((config.capabilities ?? []).map((c) => c.name));
 
 const runtime = createRuntimeContext({
-  schemas: allSchemas,
+  entities: allEntities,
   actions: allActions,
   states: capContributions.states,
   views: capContributions.views,
@@ -186,7 +186,7 @@ if (runtime.dataProvider instanceof InMemoryStore) {
 
 const customActions = capContributions.actions;
 
-const graphqlSchema = buildGraphQLSchema(allSchemas, {
+const graphqlSchema = buildGraphQLSchema(allEntities, {
   executor: runtime.executor,
   dataProvider: runtime.dataProvider,
   actions: customActions,
@@ -234,7 +234,7 @@ console.log(`──────────────────────�
 const capNames = (config.capabilities ?? []).map((c) => c.name).join(", ") || "none";
 const mwCount = capContributions.middlewares.length;
 
-console.log(`  Schemas:    ${allSchemas.length} (${allSchemas.map((s) => s.name).join(", ")})`);
+console.log(`  Schemas:    ${allEntities.length} (${allEntities.map((s) => s.name).join(", ")})`);
 console.log(`  Actions:    ${allActions.length} (${allActions.map((a) => a.name).join(", ")})`);
 console.log(`  Views:      ${capContributions.views.length}`);
 console.log(`  Caps:       ${capNames}`);

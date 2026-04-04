@@ -1,5 +1,5 @@
 /**
- * Schema filtering based on available capabilities.
+ * Entity filtering based on available capabilities.
  *
  * When a field declares `requiresCapability`, it is only included
  * if that capability is present in the active capability set.
@@ -16,13 +16,13 @@
 import type { FieldDefinition, EntityDefinition } from "../types/entity";
 
 /**
- * Filter schema fields based on available capabilities.
+ * Filter entity fields based on available capabilities.
  * Returns a new EntityDefinition with fields removed whose
  * `requiresCapability` is not in the active capability set.
  *
- * The original schema is never mutated.
+ * The original entity is never mutated.
  */
-export function filterSchemaByCapabilities<
+export function filterEntityByCapabilities<
   TFields extends Record<string, FieldDefinition> = Record<string, FieldDefinition>,
 >(entity: EntityDefinition<TFields>, activeCapabilities: Set<string>): EntityDefinition {
   const filteredFields: Record<string, FieldDefinition> = {};

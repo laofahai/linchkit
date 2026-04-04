@@ -1,5 +1,5 @@
 /**
- * Schema-to-Drizzle generator
+ * Entity-to-Drizzle generator
  *
  * Converts a LinchKit EntityDefinition into a Drizzle pgTable definition
  * for database schema generation and query building.
@@ -57,21 +57,21 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
 ): {
   implicitLinks: RelationDefinition[];
   conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }>;
-  missingTargets: Array<{ schemaName: string; fieldName: string; target: string }>;
+  missingTargets: Array<{ entityName: string; fieldName: string; target: string }>;
 } {
   const implicitLinks: RelationDefinition[] = [];
   const conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }> = [];
-  const missingTargets: Array<{ schemaName: string; fieldName: string; target: string }> = [];
+  const missingTargets: Array<{ entityName: string; fieldName: string; target: string }> = [];
 
   // Build a set of existing explicit link names for conflict detection
   const explicitLinkNames = new Set(explicitLinks.map((l) => l.name));
-  // Build a set of all schema names for target validation
-  const schemaNames = new Set(schemas.map((s) => s.name));
+  // Build a set of all entity names for target validation
+  const entityNames = new Set(schemas.map((s) => s.name));
 
-  for (const schema of schemas) {
-    const schemaName = schema.name;
+  for (const entity of schemas) {
+    const entityName = entity.name;
 
-    for (const [fieldName, field] of Object.entries(schema.fields)) {
+    for (const [fieldName, field] of Object.entries(entity.fields)) {
       if (!isRelationshipField(field)) continue;
 
       const cardinality: RelationDefinition["cardinality"] =
@@ -83,32 +83,32 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
       const target = field.target;
 
       // Validate target schema exists
-      if (!schemaNames.has(target)) {
-        missingTargets.push({ schemaName, fieldName, target });
+      if (!entityNames.has(target)) {
+        missingTargets.push({ entityName, fieldName, target });
         continue;
       }
 
       // For implicit links from schema fields:
       // - The original field name becomes the label on the from side (matches what the user wrote)
-      // - Reverse direction gets the schema name
+      // - Reverse direction gets the entity name
       const labelFrom = fieldName;
-      const labelTo = schemaName;
+      const labelTo = entityName;
       const finalLabelFrom: string | undefined = field.label ?? labelFrom;
       const finalLabelTo: string | undefined = labelTo;
 
-      // Generate a predictable unique name: schemaName_fieldName
-      const linkName = `${schemaName}_${fieldName}`;
+      // Generate a predictable unique name: entityName_fieldName
+      const relationName = `${entityName}_${fieldName}`;
 
       // Check for conflict with explicit links
-      if (explicitLinkNames.has(linkName)) {
+      if (explicitLinkNames.has(relationName)) {
         // biome-ignore lint/style/noNonNullAssertion: name is guaranteed to exist in the set
-        const explicit = explicitLinks.find((l) => l.name === linkName)!;
+        const explicit = explicitLinks.find((l) => l.name === relationName)!;
         conflicts.push({
-          name: linkName,
+          name: relationName,
           explicit,
           implicit: {
-            name: linkName,
-            from: schemaName,
+            name: relationName,
+            from: entityName,
             to: target,
             cardinality,
             label: {
@@ -123,12 +123,12 @@ export function convertSchemaRelationshipFieldsToImplicitLinks(
 
       // Also check for duplicates among the implicit links we just generated
       // This can happen if same name is generated twice (unlikely but safe-guard)
-      if (implicitLinks.some((l) => l.name === linkName)) continue;
+      if (implicitLinks.some((l) => l.name === relationName)) continue;
 
       // Create the implicit link
       implicitLinks.push({
-        name: linkName,
-        from: schemaName,
+        name: relationName,
+        from: entityName,
         to: target,
         cardinality,
         label: {
@@ -253,10 +253,10 @@ export function buildSystemColumns(): Record<string, any> {
  * passed to `pgTable()`.
  */
 // biome-ignore lint/suspicious/noExplicitAny: Drizzle pgTable accepts dynamic column definitions
-export function buildTableColumns(schema: EntityDefinition): Record<string, any> {
+export function buildTableColumns(entity: EntityDefinition): Record<string, any> {
   const columns = buildSystemColumns();
 
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
+  for (const [fieldName, field] of Object.entries(entity.fields)) {
     if (SKIPPED_FIELD_TYPES.has(field.type)) {
       continue;
     }
@@ -275,13 +275,13 @@ export function buildTableColumns(schema: EntityDefinition): Record<string, any>
  * Generate a Drizzle pgTable definition from a LinchKit EntityDefinition.
  */
 export function generateDrizzleTable(
-  schema: EntityDefinition,
+  entity: EntityDefinition,
   options?: DrizzleGeneratorOptions,
 ): ReturnType<typeof pgTable> {
   const prefix = options?.tablePrefix ? `${options.tablePrefix}_` : "";
-  const tableName = `${prefix}${schema.name}`;
+  const tableName = `${prefix}${entity.name}`;
 
-  const columns = buildTableColumns(schema);
+  const columns = buildTableColumns(entity);
 
   return pgTable(tableName, columns);
 }

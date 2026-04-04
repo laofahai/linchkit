@@ -9,7 +9,7 @@ import {
   SpecTracker,
   validateActionDoc,
   validateCapabilityDoc,
-  validateSchemaDoc,
+  validateEntityDoc,
 } from "@linchkit/devtools/governance";
 import type { ActionDefinition } from "../src/types/action";
 import type { CapabilityDefinition } from "../src/types/capability";
@@ -17,7 +17,7 @@ import type { EntityDefinition } from "../src/types/entity";
 
 // ── DocValidator: Schema ─────────────────────────────────
 
-describe("validateSchemaDoc", () => {
+describe("validateEntityDoc", () => {
   it("returns 100% coverage for fully documented schema", () => {
     const schema: EntityDefinition = {
       name: "product",
@@ -29,7 +29,7 @@ describe("validateSchemaDoc", () => {
       },
     };
 
-    const result = validateSchemaDoc(schema);
+    const result = validateEntityDoc(schema);
     expect(result.coverage).toBe(100);
     expect(result.issues).toHaveLength(0);
     expect(result.type).toBe("schema");
@@ -45,7 +45,7 @@ describe("validateSchemaDoc", () => {
       },
     };
 
-    const result = validateSchemaDoc(schema);
+    const result = validateEntityDoc(schema);
     expect(result.coverage).toBeLessThan(100);
     const descIssue = result.issues.find((i) => i.path === "description");
     expect(descIssue).toBeDefined();
@@ -62,7 +62,7 @@ describe("validateSchemaDoc", () => {
       },
     };
 
-    const result = validateSchemaDoc(schema);
+    const result = validateEntityDoc(schema);
     const fieldIssue = result.issues.find((i) => i.path === "fields.value.description");
     expect(fieldIssue).toBeDefined();
     expect(fieldIssue?.severity).toBe("warning");
@@ -83,7 +83,7 @@ describe("validateSchemaDoc", () => {
       },
     };
 
-    const result = validateSchemaDoc(schema);
+    const result = validateEntityDoc(schema);
     const optionIssue = result.issues.find((i) => i.path === "fields.status.options.draft");
     expect(optionIssue).toBeDefined();
     expect(optionIssue?.severity).toBe("info");
@@ -97,7 +97,7 @@ describe("validateSchemaDoc", () => {
       fields: {},
     };
 
-    const result = validateSchemaDoc(schema);
+    const result = validateEntityDoc(schema);
     expect(result.coverage).toBe(100);
     expect(result.totalItems).toBe(2); // description + label
   });

@@ -21,7 +21,7 @@ import {
   createRelationRegistry,
   EntityRegistry,
 } from "@linchkit/core/server";
-import type { ActionInfo, QualityIssue, SchemaInfo } from "@linchkit/devtools/methodology";
+import type { ActionInfo, EntityInfo, QualityIssue } from "@linchkit/devtools/methodology";
 import { checkActionDefinitions, checkEntityDefinitions } from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";
 import consola from "consola";
@@ -89,7 +89,7 @@ export const validateCommand = defineCommand({
 
     if (!outputJson) {
       consola.info(
-        `Found ${schemas.length} schema(s), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s), ${automations.length} automation(s)`,
+        `Found ${schemas.length} entity(ies), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s), ${automations.length} automation(s)`,
       );
     }
 
@@ -173,7 +173,7 @@ export const validateCommand = defineCommand({
           issues.push({
             severity: "error",
             rule: "translatable-field",
-            message: `Schema "${schema.name}": ${errMsg}`,
+            message: `Entity "${schema.name}": ${errMsg}`,
           });
         }
       }
@@ -192,7 +192,7 @@ export const validateCommand = defineCommand({
         issues.push({
           severity: "error",
           rule: "field-ref-target",
-          message: `Schema "${mt.schemaName}" field "${mt.fieldName}": target schema "${mt.target}" does not exist`,
+          message: `Entity "${mt.entityName}" field "${mt.fieldName}": target entity "${mt.target}" does not exist`,
         });
       }
 
@@ -223,14 +223,14 @@ export const validateCommand = defineCommand({
           issues.push({
             severity: "error",
             rule: "link-target",
-            message: `Link "${link.name}": source schema "${link.from}" does not exist`,
+            message: `Link "${link.name}": source entity "${link.from}" does not exist`,
           });
         }
         if (!schemaNames.has(link.to)) {
           issues.push({
             severity: "error",
             rule: "link-target",
-            message: `Link "${link.name}": target schema "${link.to}" does not exist`,
+            message: `Link "${link.name}": target entity "${link.to}" does not exist`,
           });
         }
 
@@ -261,7 +261,7 @@ export const validateCommand = defineCommand({
 
     // ── 6. Schema naming conventions ──
     {
-      const schemaInfos: SchemaInfo[] = schemas.map((s) => ({
+      const schemaInfos: EntityInfo[] = schemas.map((s) => ({
         name: s.name,
         fields: Object.entries(s.fields).map(([name, field]) => ({
           name,
@@ -276,7 +276,7 @@ export const validateCommand = defineCommand({
     {
       const actionInfos: ActionInfo[] = actions.map((a) => ({
         name: a.name,
-        schema: a.entity,
+        entity: a.entity,
       }));
       const report = checkActionDefinitions(actionInfos);
       categories.push({ name: "Action Naming Conventions", issues: report.issues });

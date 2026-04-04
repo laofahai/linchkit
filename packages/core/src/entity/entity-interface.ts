@@ -1,18 +1,18 @@
 /**
- * Schema Interface Registry
+ * Entity Interface Registry
  *
- * Manages InterfaceDefinitions — contracts that multiple schemas can implement.
+ * Manages InterfaceDefinitions — contracts that multiple entities can implement.
  * Provides validation, field injection, state machine merging, and bidirectional lookup
- * (interface -> implementors, schema -> interfaces).
+ * (interface -> implementors, entity -> interfaces).
  *
  * Validation chain (spec 47 §9):
  * 1. All declared interfaces must exist
- * 2. Field type compatibility (schema field vs interface field)
+ * 2. Field type compatibility (entity field vs interface field)
  * 3. Cross-interface field type conflicts
- * 4. Enum value compatibility (schema enum must be superset of interface enum)
+ * 4. Enum value compatibility (entity enum must be superset of interface enum)
  * 5. Required constraint compatibility (interface required=true cannot be weakened)
  * 6. Cross-interface state machine conflicts (initial state, transition overlap)
- * 7. Schema state machine must be superset of interface state machine (if both defined)
+ * 7. Entity state machine must be superset of interface state machine (if both defined)
  *
  * See spec: docs/specs/47_schema_interface.md
  */
@@ -41,10 +41,10 @@ function getFieldEnum(field: FieldDefinition): unknown[] | undefined {
 
 export class InterfaceRegistry {
   private interfaces = new Map<string, InterfaceDefinition>();
-  /** schema name -> set of interface names */
-  private schemaToInterfaces = new Map<string, Set<string>>();
-  /** interface name -> set of schema names */
-  private interfaceToSchemas = new Map<string, Set<string>>();
+  /** entity name -> set of interface names */
+  private entityToInterfaces = new Map<string, Set<string>>();
+  /** interface name -> set of entity names */
+  private interfaceToEntities = new Map<string, Set<string>>();
 
   /**
    * Register an interface definition.
@@ -65,8 +65,8 @@ export class InterfaceRegistry {
     }
     this.interfaces.set(iface.name, iface);
     // Initialize implementor set
-    if (!this.interfaceToSchemas.has(iface.name)) {
-      this.interfaceToSchemas.set(iface.name, new Set());
+    if (!this.interfaceToEntities.has(iface.name)) {
+      this.interfaceToEntities.set(iface.name, new Set());
     }
   }
 
@@ -86,64 +86,64 @@ export class InterfaceRegistry {
   }
 
   /**
-   * Register that a schema implements certain interfaces.
-   * Called by EntityRegistry during schema registration.
+   * Register that an entity implements certain interfaces.
+   * Called by EntityRegistry during entity registration.
    */
-  registerImplementor(schemaName: string, interfaceNames: string[]): void {
+  registerImplementor(entityName: string, interfaceNames: string[]): void {
     for (const ifaceName of interfaceNames) {
-      // Track schema -> interfaces
-      let schemaSet = this.schemaToInterfaces.get(schemaName);
+      // Track entity -> interfaces
+      let schemaSet = this.entityToInterfaces.get(entityName);
       if (!schemaSet) {
         schemaSet = new Set();
-        this.schemaToInterfaces.set(schemaName, schemaSet);
+        this.entityToInterfaces.set(entityName, schemaSet);
       }
       schemaSet.add(ifaceName);
 
-      // Track interface -> schemas
-      let ifaceSet = this.interfaceToSchemas.get(ifaceName);
+      // Track interface -> entities
+      let ifaceSet = this.interfaceToEntities.get(ifaceName);
       if (!ifaceSet) {
         ifaceSet = new Set();
-        this.interfaceToSchemas.set(ifaceName, ifaceSet);
+        this.interfaceToEntities.set(ifaceName, ifaceSet);
       }
-      ifaceSet.add(schemaName);
+      ifaceSet.add(entityName);
     }
   }
 
-  /** Get all interfaces a schema implements */
-  interfacesOf(schemaName: string): InterfaceDefinition[] {
-    const names = this.schemaToInterfaces.get(schemaName);
+  /** Get all interfaces an entity implements */
+  interfacesOf(entityName: string): InterfaceDefinition[] {
+    const names = this.entityToInterfaces.get(entityName);
     if (!names) return [];
     return Array.from(names)
       .map((n) => this.interfaces.get(n))
       .filter((v): v is InterfaceDefinition => v != null);
   }
 
-  /** Get all schema names that implement a given interface */
+  /** Get all entity names that implement a given interface */
   implementors(interfaceName: string): string[] {
-    const set = this.interfaceToSchemas.get(interfaceName);
+    const set = this.interfaceToEntities.get(interfaceName);
     return set ? Array.from(set) : [];
   }
 
-  /** Check if a schema implements a specific interface */
-  implements(schemaName: string, interfaceName: string): boolean {
-    const set = this.schemaToInterfaces.get(schemaName);
+  /** Check if an entity implements a specific interface */
+  implements(entityName: string, interfaceName: string): boolean {
+    const set = this.entityToInterfaces.get(entityName);
     return set?.has(interfaceName) ?? false;
   }
 
   /**
-   * Validate that a schema correctly implements its declared interfaces.
+   * Validate that an entity correctly implements its declared interfaces.
    * Returns an array of error messages (empty if valid).
    *
    * Checks:
    * 1. All declared interfaces exist
-   * 2. If schema has a field with same name as interface field, types must match
+   * 2. If entity has a field with same name as interface field, types must match
    * 3. Multiple interfaces with same field name must have compatible types
-   * 4. Enum values compatibility (schema enum must be superset of interface enum)
+   * 4. Enum values compatibility (entity enum must be superset of interface enum)
    * 5. Required constraint: interface required=true cannot be weakened to false
    * 6. Cross-interface state machine conflicts
    *
-   * @param schema - The schema definition to validate
-   * @param resolvedFields - Optional pre-resolved fields including inherited fields from parent schemas.
+   * @param schema - The entity definition to validate
+   * @param resolvedFields - Optional pre-resolved fields including inherited fields from parent entities.
    *   When provided, these are used instead of `schema.fields` for field compatibility checks,
    *   ensuring that fields inherited via `extends` are considered during validation.
    */
@@ -168,7 +168,7 @@ export class InterfaceRegistry {
       const iface = this.interfaces.get(ifaceName);
       if (!iface) {
         errors.push(
-          `Schema "${schema.name}" declares implements "${ifaceName}" but interface "${ifaceName}" is not registered`,
+          `Entity "${schema.name}" declares implements "${ifaceName}" but interface "${ifaceName}" is not registered`,
         );
         continue;
       }
@@ -180,7 +180,7 @@ export class InterfaceRegistry {
         if (seen) {
           if (seen.type !== ifaceField.type) {
             errors.push(
-              `Schema "${schema.name}": interfaces "${seen.fromInterface}" and "${ifaceName}" both define field "${fieldName}" with incompatible types ("${seen.type}" vs "${ifaceField.type}")`,
+              `Entity "${schema.name}": interfaces "${seen.fromInterface}" and "${ifaceName}" both define field "${fieldName}" with incompatible types ("${seen.type}" vs "${ifaceField.type}")`,
             );
           }
           // Check cross-interface enum conflicts
@@ -194,7 +194,7 @@ export class InterfaceRegistry {
               seenSet.size === ifaceSet.size && [...seenSet].every((v) => ifaceSet.has(v));
             if (!symmetric) {
               errors.push(
-                `Schema "${schema.name}": interfaces "${seen.fromInterface}" and "${ifaceName}" define field "${fieldName}" with conflicting enum values`,
+                `Entity "${schema.name}": interfaces "${seen.fromInterface}" and "${ifaceName}" define field "${fieldName}" with conflicting enum values`,
               );
             }
           }
@@ -206,31 +206,31 @@ export class InterfaceRegistry {
           });
         }
 
-        // Check schema field type compatibility (if schema already defines the field)
+        // Check entity field type compatibility (if entity already defines the field)
         // Use effectiveFields which includes inherited fields when resolvedFields is provided
         const schemaField = effectiveFields[fieldName] as FieldDefinition | undefined;
         if (schemaField) {
           // Type must match
           if (schemaField.type !== ifaceField.type) {
             errors.push(
-              `Schema "${schema.name}": field "${fieldName}" has type "${schemaField.type}" but interface "${ifaceName}" requires type "${ifaceField.type}"`,
+              `Entity "${schema.name}": field "${fieldName}" has type "${schemaField.type}" but interface "${ifaceName}" requires type "${ifaceField.type}"`,
             );
           }
 
-          // Enum compatibility: schema enum must be superset of interface enum
+          // Enum compatibility: entity enum must be superset of interface enum
           const ifaceEnum = getFieldEnum(ifaceField);
           const schemaEnum = getFieldEnum(schemaField);
           if (ifaceEnum && ifaceEnum.length > 0) {
             if (!schemaEnum) {
               errors.push(
-                `Schema "${schema.name}": field "${fieldName}" must define enum values required by interface "${ifaceName}"`,
+                `Entity "${schema.name}": field "${fieldName}" must define enum values required by interface "${ifaceName}"`,
               );
             } else {
               const schemaEnumSet = new Set(schemaEnum.map(String));
               for (const val of ifaceEnum) {
                 if (!schemaEnumSet.has(String(val))) {
                   errors.push(
-                    `Schema "${schema.name}": field "${fieldName}" enum is missing value "${val}" required by interface "${ifaceName}"`,
+                    `Entity "${schema.name}": field "${fieldName}" enum is missing value "${val}" required by interface "${ifaceName}"`,
                   );
                 }
               }
@@ -240,7 +240,7 @@ export class InterfaceRegistry {
           // Required constraint: interface required=true cannot be weakened
           if (ifaceField.required === true && schemaField.required === false) {
             errors.push(
-              `Schema "${schema.name}": field "${fieldName}" is required by interface "${ifaceName}" but schema declares it as not required`,
+              `Entity "${schema.name}": field "${fieldName}" is required by interface "${ifaceName}" but entity declares it as not required`,
             );
           }
         }
@@ -258,7 +258,7 @@ export class InterfaceRegistry {
    * Conflicts: different initial states, or same transition key with different targets.
    */
   private validateCrossInterfaceStateConflicts(
-    schemaName: string,
+    entityName: string,
     interfaces: InterfaceDefinition[],
   ): string[] {
     const errors: string[] = [];
@@ -279,7 +279,7 @@ export class InterfaceRegistry {
       const pairs = Array.from(initials.entries())
         .map(([initial, ifaceName]) => `"${ifaceName}" (initial="${initial}")`)
         .join(", ");
-      errors.push(`Schema "${schemaName}": conflicting initial states from interfaces: ${pairs}`);
+      errors.push(`Entity "${entityName}": conflicting initial states from interfaces: ${pairs}`);
     }
 
     // Check transition conflicts (same from+action but different to)
@@ -291,7 +291,7 @@ export class InterfaceRegistry {
         const existing = transitionMap.get(key);
         if (existing && existing.to !== t.to) {
           errors.push(
-            `Schema "${schemaName}": interfaces "${existing.fromInterface}" and "${iface.name}" define conflicting transition from "${t.from}" on action "${t.action}" (to "${existing.to}" vs "${t.to}")`,
+            `Entity "${entityName}": interfaces "${existing.fromInterface}" and "${iface.name}" define conflicting transition from "${t.from}" on action "${t.action}" (to "${existing.to}" vs "${t.to}")`,
           );
         } else if (!existing) {
           transitionMap.set(key, { to: t.to, fromInterface: iface.name });
@@ -303,37 +303,37 @@ export class InterfaceRegistry {
   }
 
   /**
-   * Validate that a schema's state definition is a superset of all interface state templates.
+   * Validate that an entity's state definition is a superset of all interface state templates.
    * Called after state definitions are available (e.g., during startup wiring).
    *
    * Per spec 47 §3.2:
-   * - If interface has state and schema has custom state, schema must include
+   * - If interface has state and entity has custom state, entity must include
    *   all interface transitions (superset check).
-   * - If interface has state and schema has no custom state, interface state is used as-is.
+   * - If interface has state and entity has no custom state, interface state is used as-is.
    */
-  validateStateCompatibility(schemaName: string, schemaState: StateDefinition | null): string[] {
+  validateStateCompatibility(entityName: string, schemaState: StateDefinition | null): string[] {
     const errors: string[] = [];
-    const ifaceNames = this.schemaToInterfaces.get(schemaName);
+    const ifaceNames = this.entityToInterfaces.get(entityName);
     if (!ifaceNames) return errors;
 
     for (const ifaceName of ifaceNames) {
       const iface = this.interfaces.get(ifaceName);
       if (!iface?.state) continue;
 
-      // If schema has no custom state, interface state will be used (no error)
+      // If entity has no custom state, interface state will be used (no error)
       if (!schemaState) continue;
 
-      // Schema state must be a superset of interface state template
+      // Entity state must be a superset of interface state template
       const ifaceState = iface.state;
 
-      // Check that schema's initial state matches interface's initial state
+      // Check that entity's initial state matches interface's initial state
       if (schemaState.initial !== ifaceState.initial) {
         errors.push(
-          `Schema "${schemaName}": state initial "${schemaState.initial}" does not match interface "${ifaceName}" initial "${ifaceState.initial}"`,
+          `Entity "${entityName}": state initial "${schemaState.initial}" does not match interface "${ifaceName}" initial "${ifaceState.initial}"`,
         );
       }
 
-      // Check that all interface transitions exist in schema state
+      // Check that all interface transitions exist in entity state
       for (const it of ifaceState.transitions) {
         const found = schemaState.transitions.some((st) => {
           const fromMatches = Array.isArray(st.from)
@@ -343,7 +343,7 @@ export class InterfaceRegistry {
         });
         if (!found) {
           errors.push(
-            `Schema "${schemaName}": state is missing transition "${it.from}" -> "${it.to}" (action: "${it.action}") required by interface "${ifaceName}"`,
+            `Entity "${entityName}": state is missing transition "${it.from}" -> "${it.to}" (action: "${it.action}") required by interface "${ifaceName}"`,
           );
         }
       }
@@ -353,11 +353,11 @@ export class InterfaceRegistry {
   }
 
   /**
-   * Get the merged interface fields for a schema's declared interfaces.
-   * Schema's own fields take priority (they can override defaults but not types).
-   * Returns fields that should be injected (not already in schema).
+   * Get the merged interface fields for an entity's declared interfaces.
+   * Entity's own fields take priority (they can override defaults but not types).
+   * Returns fields that should be injected (not already in entity).
    *
-   * @param schema - The schema definition
+   * @param schema - The entity definition
    * @param resolvedFields - Optional pre-resolved fields including inherited fields
    */
   getInjectedFields(
@@ -373,7 +373,7 @@ export class InterfaceRegistry {
       if (!iface) continue;
 
       for (const [fieldName, ifaceField] of Object.entries(iface.fields)) {
-        // Only inject if schema does not already define this field (including inherited fields)
+        // Only inject if entity does not already define this field (including inherited fields)
         if (!(fieldName in effectiveFields)) {
           // Later interface wins if multiple define the same field (already validated compatible)
           injected[fieldName] = ifaceField;
@@ -385,12 +385,12 @@ export class InterfaceRegistry {
   }
 
   /**
-   * Get the merged state machine template from all interfaces a schema implements.
+   * Get the merged state machine template from all interfaces an entity implements.
    * Returns null if no interface defines a state template.
    * Merges transitions from all interfaces (already validated for conflicts).
    */
-  getMergedStateTemplate(schemaName: string): InterfaceStateTemplate | null {
-    const ifaceNames = this.schemaToInterfaces.get(schemaName);
+  getMergedStateTemplate(entityName: string): InterfaceStateTemplate | null {
+    const ifaceNames = this.entityToInterfaces.get(entityName);
     if (!ifaceNames) return null;
 
     let merged: InterfaceStateTemplate | null = null;

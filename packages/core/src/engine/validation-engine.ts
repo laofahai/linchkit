@@ -3,7 +3,7 @@
  *
  * Validates proposal changes before they can be approved and committed.
  * Phase 1 (Static checks) is implemented for M1:
- *   - Schema validity (required fields, valid types, ref targets exist)
+ *   - Entity validity (required fields, valid types, ref targets exist)
  *   - Action validity (schema exists, state transitions valid)
  *   - Rule validity (trigger references exist, condition structure valid)
  *   - State Machine validity (initial state exists, all states reachable, no dead ends)
@@ -245,7 +245,7 @@ function validateSchema(
   if (!def.fields || Object.keys(def.fields).length === 0) {
     errors.push({
       code: "SCHEMA_NO_FIELDS",
-      message: `Schema "${name}" must have at least one field`,
+      message: `Entity "${name}" must have at least one field`,
       target: name,
     });
     return;

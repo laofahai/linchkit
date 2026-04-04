@@ -93,7 +93,7 @@ describe("RelationRegistry", () => {
     it("throws on duplicate link name", () => {
       registry.register(employeeDepartmentLink);
       expect(() => registry.register(employeeDepartmentLink)).toThrow(
-        'Link "employee_department" is already registered',
+        'Relation "employee_department" is already registered',
       );
     });
 
@@ -106,7 +106,7 @@ describe("RelationRegistry", () => {
         cardinality: "one_to_one",
       });
       expect(() => registry.register(duplicate)).toThrow(
-        'Link "employee_department" is already registered',
+        'Relation "employee_department" is already registered',
       );
     });
   });

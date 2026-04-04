@@ -15,9 +15,9 @@ import type {
 import type {
   ActionInfo,
   DirectoryEntry,
+  EntityInfo,
   QualityIssue,
   QualityReport,
-  SchemaInfo,
 } from "@linchkit/devtools/methodology";
 import {
   checkActionDefinitions,
@@ -73,7 +73,7 @@ export const checkQualityCommand = defineCommand({
 
     // 2. Schema definition checks
     consola.start("Checking schema definitions...");
-    const schemas: SchemaInfo[] = [];
+    const schemas: EntityInfo[] = [];
     for (const cap of capabilities) {
       if (cap.entities) {
         for (const s of cap.entities as EntityDefinition[]) {
@@ -97,7 +97,7 @@ export const checkQualityCommand = defineCommand({
     for (const cap of capabilities) {
       if (cap.actions) {
         for (const a of cap.actions as ActionDefinition[]) {
-          actions.push({ name: a.name, schema: a.entity });
+          actions.push({ name: a.name, entity: a.entity });
         }
       }
     }

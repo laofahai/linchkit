@@ -74,7 +74,7 @@ describe("createRuntimeContext", () => {
 
   test("registers provided schemas", () => {
     const ctx = createRuntimeContext({
-      schemas: [orderSchema, productSchema],
+      entities: [orderSchema, productSchema],
     });
 
     const order = ctx.entityRegistry.get("order");
@@ -142,7 +142,7 @@ describe("createRuntimeContext", () => {
 
   test("multiple schemas and actions can coexist", () => {
     const ctx = createRuntimeContext({
-      schemas: [orderSchema, productSchema],
+      entities: [orderSchema, productSchema],
       actions: [createOrderAction, cancelOrderAction],
     });
 

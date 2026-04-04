@@ -20,7 +20,7 @@ export interface CapabilityValidationResult {
   valid: boolean;
   capability: string;
   issues: ValidationIssue[];
-  schemas: { valid: boolean; count: number };
+  entities: { valid: boolean; count: number };
   actions: { valid: boolean; count: number };
   rules: { valid: boolean; count: number };
   states: { valid: boolean; count: number };
@@ -122,7 +122,7 @@ export function validateCapability(capability: CapabilityDefinition): Capability
     valid: !hasErrors,
     capability: capability.name,
     issues,
-    schemas: { valid: true, count: capability.entities?.length ?? 0 },
+    entities: { valid: true, count: capability.entities?.length ?? 0 },
     actions: {
       valid: !issues.some((i) => i.category === "action" && i.type === "error"),
       count: capability.actions?.length ?? 0,

@@ -270,13 +270,13 @@ describe("generateApiDoc", () => {
 
     expect(doc.title).toBe("Test API");
     expect(doc.generatedAt).toBeTruthy();
-    expect(doc.schemas).toHaveLength(2);
+    expect(doc.entities).toHaveLength(2);
   });
 
   test("includes schema fields", () => {
     const ontology = createOntologyRegistry(createTestDeps());
     const doc = generateApiDoc(ontology);
-    const prSchema = doc.schemas.find((s) => s.name === "purchase_request");
+    const prSchema = doc.entities.find((s) => s.name === "purchase_request");
 
     expect(prSchema).toBeDefined();
     expect(prSchema?.fields.length).toBeGreaterThanOrEqual(5);
@@ -286,7 +286,7 @@ describe("generateApiDoc", () => {
   test("includes schema actions", () => {
     const ontology = createOntologyRegistry(createTestDeps());
     const doc = generateApiDoc(ontology);
-    const prSchema = doc.schemas.find((s) => s.name === "purchase_request");
+    const prSchema = doc.entities.find((s) => s.name === "purchase_request");
 
     expect(prSchema?.actions).toHaveLength(2);
     expect(prSchema?.actions.find((a) => a.name === "submit_request")).toBeDefined();
@@ -295,7 +295,7 @@ describe("generateApiDoc", () => {
   test("includes state machine", () => {
     const ontology = createOntologyRegistry(createTestDeps());
     const doc = generateApiDoc(ontology);
-    const prSchema = doc.schemas.find((s) => s.name === "purchase_request");
+    const prSchema = doc.entities.find((s) => s.name === "purchase_request");
 
     expect(prSchema?.stateMachine).toBeDefined();
     expect(prSchema?.stateMachine?.initial).toBe("draft");
@@ -305,7 +305,7 @@ describe("generateApiDoc", () => {
   test("includes relations", () => {
     const ontology = createOntologyRegistry(createTestDeps());
     const doc = generateApiDoc(ontology);
-    const deptSchema = doc.schemas.find((s) => s.name === "department");
+    const deptSchema = doc.entities.find((s) => s.name === "department");
 
     expect(deptSchema?.relations).toHaveLength(1);
     expect(deptSchema?.relations[0].targetEntity).toBe("purchase_request");

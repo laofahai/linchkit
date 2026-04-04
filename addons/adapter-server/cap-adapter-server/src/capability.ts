@@ -96,10 +96,10 @@ export const capAdapterServer = defineCapability({
           const port = serverCfg.port;
           const host = serverCfg.host;
 
-          // Build schema map for link resolver data masking
-          const schemaMap = new Map<string, import("@linchkit/core").EntityDefinition>();
+          // Build entity map for link resolver data masking
+          const entityMap = new Map<string, import("@linchkit/core").EntityDefinition>();
           for (const s of ctx.schemas) {
-            schemaMap.set(s.name, s);
+            entityMap.set(s.name, s);
           }
 
           // Collect rule definitions from all capabilities for /api/rules endpoint
@@ -117,7 +117,7 @@ export const capAdapterServer = defineCapability({
             dataProvider: ctx.dataProvider,
             healthCheckRegistry: ctx.healthCheckRegistry,
             permissionGroups: permGroups,
-            schemaMap,
+            entityMap,
             rules: allRules,
             states: ctx.states,
             flows: ctx.flowRegistry?.getAll() ?? [],

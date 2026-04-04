@@ -185,16 +185,16 @@ describe("generateCapabilityDoc", () => {
   test("includes schema documentation with fields", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
 
-    expect(doc.schemas).toHaveLength(1);
-    expect(doc.schemas[0]?.name).toBe("purchase_request");
-    expect(doc.schemas[0]?.fields.length).toBeGreaterThanOrEqual(5);
+    expect(doc.entities).toHaveLength(1);
+    expect(doc.entities[0]?.name).toBe("purchase_request");
+    expect(doc.entities[0]?.fields.length).toBeGreaterThanOrEqual(5);
 
-    const titleField = doc.schemas[0]?.fields.find((f) => f.name === "title");
+    const titleField = doc.entities[0]?.fields.find((f) => f.name === "title");
     expect(titleField).toBeDefined();
     expect(titleField?.type).toBe("string");
     expect(titleField?.required).toBe(true);
 
-    const refField = doc.schemas[0]?.fields.find((f) => f.name === "department_id");
+    const refField = doc.entities[0]?.fields.find((f) => f.name === "department_id");
     expect(refField?.target).toBe("department");
   });
 
@@ -251,7 +251,7 @@ describe("generateCapabilityDoc", () => {
     const doc = generateCapabilityDoc(minimalCapability);
 
     expect(doc.name).toBe("cap-minimal");
-    expect(doc.schemas).toHaveLength(0);
+    expect(doc.entities).toHaveLength(0);
     expect(doc.actions).toHaveLength(0);
     expect(doc.rules).toHaveLength(0);
     expect(doc.stateMachines).toHaveLength(0);
@@ -278,7 +278,7 @@ describe("renderCapabilityDoc", () => {
     const doc = generateCapabilityDoc(purchaseCapability);
     const md = renderCapabilityDoc(doc);
 
-    expect(md).toContain("## Schemas");
+    expect(md).toContain("## Entities");
     expect(md).toContain("**purchase_request**");
     expect(md).toContain("title (string, required)");
     expect(md).toContain("amount (number, required)");
@@ -343,7 +343,7 @@ describe("renderCapabilityDoc", () => {
     const md = renderCapabilityDoc(doc);
 
     expect(md).toContain("# Minimal v0.1.0");
-    expect(md).not.toContain("## Schemas");
+    expect(md).not.toContain("## Entities");
     expect(md).not.toContain("## Actions");
     expect(md).not.toContain("## Rules");
     expect(md).not.toContain("## State Machines");

@@ -37,7 +37,7 @@ import {
   parseConventionalCommit,
   SpecTracker,
   validateActionDoc,
-  validateSchemaDoc,
+  validateEntityDoc,
 } from "@linchkit/devtools/governance";
 import {
   checkActionDefinitions,
@@ -195,9 +195,9 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     expect(doc.title).toBe("Test API");
     expect(doc.description).toBe("Integration test documentation");
     expect(doc.generatedAt).toBeDefined();
-    expect(doc.schemas).toHaveLength(3);
+    expect(doc.entities).toHaveLength(3);
 
-    const names = doc.schemas.map((s) => s.name);
+    const names = doc.entities.map((s) => s.name);
     expect(names).toContain("department");
     expect(names).toContain("employee");
     expect(names).toContain("project");
@@ -207,7 +207,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     const ontology = buildOntology();
     const doc = generateApiDoc(ontology);
 
-    const empDoc = doc.schemas.find((s) => s.name === "employee");
+    const empDoc = doc.entities.find((s) => s.name === "employee");
     expect(empDoc).toBeDefined();
 
     // Fields
@@ -349,7 +349,7 @@ describe("E2E: Documentation + OntologyRegistry", () => {
 // ═══════════════════════════════════════════════════════════
 
 describe("E2E: Governance + Documentation", () => {
-  test("validateSchemaDoc reports issues for undocumented schemas", () => {
+  test("validateEntityDoc reports issues for undocumented schemas", () => {
     const bareSchema: EntityDefinition = {
       name: "bare_thing",
       label: "Bare Thing",
@@ -359,7 +359,7 @@ describe("E2E: Governance + Documentation", () => {
       },
     };
 
-    const result = validateSchemaDoc(bareSchema);
+    const result = validateEntityDoc(bareSchema);
     expect(result.name).toBe("bare_thing");
     expect(result.type).toBe("schema");
     expect(result.coverage).toBeLessThan(100);
@@ -373,8 +373,8 @@ describe("E2E: Governance + Documentation", () => {
     expect(fieldIssues.length).toBeGreaterThan(0);
   });
 
-  test("validateSchemaDoc reports 100% for fully documented schema", () => {
-    const result = validateSchemaDoc(departmentSchema);
+  test("validateEntityDoc reports 100% for fully documented schema", () => {
+    const result = validateEntityDoc(departmentSchema);
     expect(result.coverage).toBe(100);
     expect(result.issues).toHaveLength(0);
   });
@@ -965,7 +965,7 @@ describe("E2E: Full tooling pipeline", () => {
       description: "Human Resources management system",
     });
 
-    expect(apiDoc.schemas).toHaveLength(3);
+    expect(apiDoc.entities).toHaveLength(3);
 
     // Step 4: Render to Markdown
     const markdown = renderSystemDoc(apiDoc);
@@ -979,10 +979,10 @@ describe("E2E: Full tooling pipeline", () => {
     expect(Object.keys(openapi.components.schemas).length).toBeGreaterThan(0);
 
     // Step 6: Validate documentation completeness
-    const deptValidation = validateSchemaDoc(departmentSchema);
+    const deptValidation = validateEntityDoc(departmentSchema);
     expect(deptValidation.coverage).toBe(100);
 
-    const empValidation = validateSchemaDoc(employeeSchema);
+    const empValidation = validateEntityDoc(employeeSchema);
     expect(empValidation.coverage).toBe(100);
 
     // Action validation

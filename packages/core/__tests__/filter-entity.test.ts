@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { filterSchemaByCapabilities } from "../src/capability/filter-entity";
+import { filterEntityByCapabilities } from "../src/capability/filter-entity";
 import type { EntityDefinition } from "../src/types/entity";
 
 const testSchema: EntityDefinition = {
@@ -22,9 +22,9 @@ const testSchema: EntityDefinition = {
   },
 };
 
-describe("filterSchemaByCapabilities", () => {
+describe("filterEntityByCapabilities", () => {
   test("fields without requiresCapability are always included", () => {
-    const result = filterSchemaByCapabilities(testSchema, new Set());
+    const result = filterEntityByCapabilities(testSchema, new Set());
     expect(result.fields).toHaveProperty("name");
     expect(result.fields).toHaveProperty("price");
     expect(result.fields).toHaveProperty("description");
@@ -32,14 +32,14 @@ describe("filterSchemaByCapabilities", () => {
 
   test("fields with requiresCapability are included when capability is active", () => {
     const caps = new Set(["cap-file-storage", "cap-image"]);
-    const result = filterSchemaByCapabilities(testSchema, caps);
+    const result = filterEntityByCapabilities(testSchema, caps);
     expect(result.fields).toHaveProperty("attachment");
     expect(result.fields).toHaveProperty("thumbnail");
     expect(Object.keys(result.fields)).toHaveLength(5);
   });
 
   test("fields with requiresCapability are removed when capability is absent", () => {
-    const result = filterSchemaByCapabilities(testSchema, new Set());
+    const result = filterEntityByCapabilities(testSchema, new Set());
     expect(result.fields).not.toHaveProperty("attachment");
     expect(result.fields).not.toHaveProperty("thumbnail");
     expect(Object.keys(result.fields)).toHaveLength(3);
@@ -47,7 +47,7 @@ describe("filterSchemaByCapabilities", () => {
 
   test("partial capability set filters correctly", () => {
     const caps = new Set(["cap-file-storage"]);
-    const result = filterSchemaByCapabilities(testSchema, caps);
+    const result = filterEntityByCapabilities(testSchema, caps);
     expect(result.fields).toHaveProperty("attachment");
     expect(result.fields).not.toHaveProperty("thumbnail");
     expect(Object.keys(result.fields)).toHaveLength(4);
@@ -55,14 +55,14 @@ describe("filterSchemaByCapabilities", () => {
 
   test("original schema is not mutated", () => {
     const originalFieldCount = Object.keys(testSchema.fields).length;
-    filterSchemaByCapabilities(testSchema, new Set());
+    filterEntityByCapabilities(testSchema, new Set());
     expect(Object.keys(testSchema.fields)).toHaveLength(originalFieldCount);
     expect(testSchema.fields).toHaveProperty("attachment");
     expect(testSchema.fields).toHaveProperty("thumbnail");
   });
 
   test("schema metadata is preserved", () => {
-    const result = filterSchemaByCapabilities(testSchema, new Set());
+    const result = filterEntityByCapabilities(testSchema, new Set());
     expect(result.name).toBe("product");
     expect(result.label).toBe("Product");
   });
@@ -75,7 +75,7 @@ describe("filterSchemaByCapabilities", () => {
         count: { type: "number" },
       },
     };
-    const result = filterSchemaByCapabilities(plain, new Set());
+    const result = filterEntityByCapabilities(plain, new Set());
     expect(Object.keys(result.fields)).toHaveLength(2);
   });
 });

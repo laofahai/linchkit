@@ -119,15 +119,15 @@ describe("buildSystemPrompt — schema overview", () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const prompt = buildSystemPrompt({ ontologyRegistry: ontology });
 
-    expect(prompt).toContain("Available Schemas");
-    expect(prompt).toContain("2 schema(s)");
+    expect(prompt).toContain("Available Entities");
+    expect(prompt).toContain("2 entity(ies)");
     expect(prompt).toContain("product");
     expect(prompt).toContain("order");
   });
 
   test("omits schema section when no ontology provided", () => {
     const prompt = buildSystemPrompt({});
-    expect(prompt).not.toContain("Available Schemas");
+    expect(prompt).not.toContain("Available Entities");
   });
 });
 
@@ -139,7 +139,7 @@ describe("buildSystemPrompt — current schema context", () => {
       context: { schema: "product" },
     });
 
-    expect(prompt).toContain("Current Schema Context");
+    expect(prompt).toContain("Current Entity Context");
     expect(prompt).toContain("product (Product)");
     expect(prompt).toContain("A product in the catalog");
     // Fields
@@ -173,7 +173,7 @@ describe("buildSystemPrompt — current schema context", () => {
       context: { schema: "product" },
     });
 
-    expect(prompt).toContain("Current Schema Context");
+    expect(prompt).toContain("Current Entity Context");
     expect(prompt).toContain("product (Product)");
     expect(prompt).toContain("name, price");
   });
@@ -231,7 +231,7 @@ describe("buildSystemPrompt — current schema context", () => {
     });
 
     // Should not throw, and should not include schema context
-    expect(prompt).not.toContain("Current Schema Context");
+    expect(prompt).not.toContain("Current Entity Context");
   });
 });
 
@@ -251,9 +251,9 @@ describe("buildSystemPrompt — combined options", () => {
     // Custom system prompt
     expect(prompt).toContain("product catalog assistant");
     // Schema overview
-    expect(prompt).toContain("2 schema(s)");
+    expect(prompt).toContain("2 entity(ies)");
     // Current schema context
-    expect(prompt).toContain("Current Schema Context");
+    expect(prompt).toContain("Current Entity Context");
     // Record context
     expect(prompt).toContain("p-001");
     expect(prompt).toContain("Laptop");

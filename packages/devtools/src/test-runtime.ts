@@ -78,7 +78,7 @@ function createInMemoryDataProvider(): DataProvider {
 // ── TestRuntime ─────────────────────────────────────────────
 
 export interface TestRuntimeOptions {
-  schemas?: EntityDefinition[];
+  entities?: EntityDefinition[];
   actions?: ActionDefinition[];
   capabilities?: CapabilityDefinition[];
 }
@@ -103,10 +103,10 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   const { bus: eventBus } = createEventBus();
   const executor = createActionExecutor({ dataProvider });
 
-  // Register schemas
-  if (options?.schemas) {
-    for (const schema of options.schemas) {
-      entityRegistry.register(schema);
+  // Register entities
+  if (options?.entities) {
+    for (const entity of options.entities) {
+      entityRegistry.register(entity);
     }
   }
 

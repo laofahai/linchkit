@@ -35,7 +35,7 @@ import {
   renderCapabilityDoc,
   renderSystemDoc,
 } from "@linchkit/devtools/documentation";
-import { validateActionDoc, validateSchemaDoc } from "@linchkit/devtools/governance";
+import { validateActionDoc, validateEntityDoc } from "@linchkit/devtools/governance";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
@@ -216,7 +216,7 @@ const validateCommand = defineCommand({
     const { capabilities } = await loadCapabilities();
     const { schemas, actions } = buildOntologyFromCapabilities(capabilities);
 
-    const schemaResults = schemas.map(validateSchemaDoc);
+    const schemaResults = schemas.map(validateEntityDoc);
     const actionResults = actions.map(validateActionDoc);
     const allResults = [...schemaResults, ...actionResults];
 

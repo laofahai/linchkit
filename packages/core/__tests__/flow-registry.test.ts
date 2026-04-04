@@ -258,14 +258,14 @@ describe("FlowRegistry", () => {
     });
   });
 
-  describe("flowsForSchema()", () => {
+  describe("flowsForEntity()", () => {
     it("returns flows with action steps referencing a schema name", () => {
       const registry = createFlowRegistry();
       registry.register(simpleFlow); // action: purchase_request.submit
       registry.register(eventTriggeredFlow); // action: notification.send
       registry.register(conditionFlow); // actions: purchase_request.approve, purchase_request.auto_approve
 
-      const matches = registry.flowsForSchema("purchase_request");
+      const matches = registry.flowsForEntity("purchase_request");
       expect(matches).toHaveLength(2);
       expect(matches.map((f) => f.name).sort()).toEqual(["condition-flow", "simple-flow"]);
     });
@@ -274,7 +274,7 @@ describe("FlowRegistry", () => {
       const registry = createFlowRegistry();
       registry.register(simpleFlow);
 
-      expect(registry.flowsForSchema("nonexistent_schema")).toEqual([]);
+      expect(registry.flowsForEntity("nonexistent_schema")).toEqual([]);
     });
   });
 });

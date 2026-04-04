@@ -85,8 +85,8 @@ export interface GraphQLContext {
   dataProvider?: DataProvider;
   /** Permission groups for data masking unmask checks */
   permissionGroups?: PermissionGroupDefinition[];
-  /** Schema definitions map for link resolver data masking */
-  schemaMap?: Map<string, EntityDefinition>;
+  /** Entity definitions map for link resolver data masking */
+  entityMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (avoids N+1 queries) */
   relationLoaders?: import("./relation-dataloader").RelationDataLoaders;
 }
@@ -180,7 +180,7 @@ export interface BuildGraphQLSchemaOptions {
  * Otherwise falls back to stub/mock resolvers for backward compatibility.
  */
 export function buildGraphQLSchema(
-  schemas: EntityDefinition[],
+  entities: EntityDefinition[],
   options?: BuildGraphQLSchemaOptions,
 ): GraphQLSchema {
   const executor = options?.executor;
@@ -210,10 +210,10 @@ export function buildGraphQLSchema(
     return result;
   }
 
-  /** Invalidate all cached queries for a given schema name */
-  function invalidateSchemaCache(schemaName: string): void {
+  /** Invalidate all cached queries for a given entity name */
+  function invalidateEntityCache(entityName: string): void {
     if (!cacheManager) return;
-    cacheManager.invalidateByPrefix(`gql:${schemaName}:`);
+    cacheManager.invalidateByPrefix(`gql:${entityName}:`);
   }
 
   // Build state machine lookup: machine name → StateMachine instance
@@ -222,10 +222,10 @@ export function buildGraphQLSchema(
     stateMachineMap.set(sd.name, createStateMachine(sd));
   }
 
-  // Build schema lookup map for data masking
-  const schemaMap = new Map<string, EntityDefinition>();
-  for (const s of schemas) {
-    schemaMap.set(s.name, s);
+  // Build entity lookup map for data masking
+  const entityMap = new Map<string, EntityDefinition>();
+  for (const s of entities) {
+    entityMap.set(s.name, s);
   }
 
   /** Field types whose masked values cannot be represented as strings in GraphQL (must become null) */
@@ -234,21 +234,21 @@ export function buildGraphQLSchema(
   /** Apply data masking to a record based on actor permissions */
   const applyMasking = (
     record: Record<string, unknown>,
-    schemaName: string,
+    entityName: string,
     ctx: GraphQLContext,
   ): Record<string, unknown> => {
-    const schemaDef = schemaMap.get(schemaName);
-    if (!schemaDef) return record;
+    const entityDef = entityMap.get(entityName);
+    if (!entityDef) return record;
     const maskOpts: MaskRecordOptions = {
       actor: ctx.actor,
       groups: ctx.permissionGroups ?? permissionGroups,
-      capabilityName: schemaDef.name,
+      capabilityName: entityDef.name,
     };
-    const masked = maskRecord(record, schemaDef, maskOpts);
+    const masked = maskRecord(record, entityDef, maskOpts);
 
     // Coerce masked non-string fields to null — GraphQL cannot serialize
     // a mask placeholder string (e.g. "***") as Float, Boolean, or Date.
-    for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+    for (const [fieldName, fieldDef] of Object.entries(entityDef.fields)) {
       if (
         NON_STRING_FIELD_TYPES.has(fieldDef.type) &&
         typeof masked[fieldName] === "string" &&
@@ -261,12 +261,12 @@ export function buildGraphQLSchema(
     return masked;
   };
 
-  if (schemas.length === 0) {
+  if (entities.length === 0) {
     // Return a minimal valid schema with a placeholder query (plus any extra fields)
     const minimalQueryFields: Record<string, GraphQLFieldConfig<unknown, unknown>> = {
       _empty: {
         type: GraphQLString,
-        resolve: () => "No schemas registered",
+        resolve: () => "No entities registered",
       },
       ...options?.extraQueryFields,
     };
@@ -292,36 +292,36 @@ export function buildGraphQLSchema(
 
   // Schemas with manually-defined GraphQL types must be excluded from auto-generation
   // to avoid type name collisions (e.g. execution_log has custom ExecutionLogListResult).
-  const schemasWithCustomTypes = new Set<string>();
+  const entitiesWithCustomTypes = new Set<string>();
   // execution_log is now auto-generated; manual queries use renamed types to avoid collision
 
-  const autoSchemas = schemas.filter((s) => !schemasWithCustomTypes.has(s.name));
+  const autoEntities = entities.filter((s) => !entitiesWithCustomTypes.has(s.name));
 
   // Pre-generate object types to reuse for both CRUD and custom action return types.
   // Pass the typeMap and links so that relation fields can reference other types lazily.
-  const schemaObjectTypes = new Map<string, GraphQLObjectType>();
-  for (const schema of autoSchemas) {
-    schemaObjectTypes.set(
-      schema.name,
+  const entityObjectTypes = new Map<string, GraphQLObjectType>();
+  for (const entity of autoEntities) {
+    entityObjectTypes.set(
+      entity.name,
       generateGraphQLObjectType(
-        schema,
+        entity,
         undefined,
         links.length > 0 ? links : undefined,
-        links.length > 0 ? schemaObjectTypes : undefined,
+        links.length > 0 ? entityObjectTypes : undefined,
       ),
     );
   }
 
-  for (const schema of autoSchemas) {
-    const objectType = schemaObjectTypes.get(schema.name);
+  for (const entity of autoEntities) {
+    const objectType = entityObjectTypes.get(entity.name);
     if (!objectType) continue;
-    const inputType = generateGraphQLInputType(schema, undefined, links);
-    const camelName = toCamelCase(schema.name);
-    const pascalName = toPascalCase(schema.name);
-    const schemaName = schema.name;
+    const inputType = generateGraphQLInputType(entity, undefined, links);
+    const camelName = toCamelCase(entity.name);
+    const pascalName = toPascalCase(entity.name);
+    const entityName = entity.name;
 
     // Build a mock record for fallback stub resolvers
-    const mockRecord = buildMockRecord(schema);
+    const mockRecord = buildMockRecord(entity);
 
     // ── Query: get by ID ──────────────────────────────────
     queryFields[camelName] = {
@@ -333,8 +333,8 @@ export function buildGraphQLSchema(
       resolve: dataProvider
         ? async (_root: unknown, args: { id: string; locale?: string }, ctx: GraphQLContext) => {
             const locale = args.locale ?? ctx.locale;
-            const cacheKey = `gql:${schemaName}:${args.id}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
-            const tags = [`gql:${schemaName}`, `schema:${schemaName}`];
+            const cacheKey = `gql:${entityName}:${args.id}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
+            const tags = [`gql:${entityName}`, `schema:${entityName}`];
             return cachedQuery(cacheKey, tags, async () => {
               const opts: DataQueryOptions = {
                 ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
@@ -342,25 +342,25 @@ export function buildGraphQLSchema(
               };
               try {
                 const record = await dataProvider.get(
-                  schemaName,
+                  entityName,
                   args.id,
                   Object.keys(opts).length > 0 ? opts : undefined,
                 );
                 if (!record) return null;
                 // Resolve compute-strategy derived fields on read (async to support aggregates)
                 if (derivedEngine) {
-                  await derivedEngine.resolveComputeFieldsAsync(schemaName, record as Record<string, unknown>);
+                  await derivedEngine.resolveComputeFieldsAsync(entityName, record as Record<string, unknown>);
                 }
                 // Resolve translatable JSONB → plain strings BEFORE masking,
                 // so masking always operates on strings, not locale-map objects.
                 const resolved = resolveTranslatableRow(
                   record as Record<string, unknown>,
-                  schema,
+                  entity,
                   locale,
                 );
-                return applyMasking(resolved, schemaName, ctx);
+                return applyMasking(resolved, entityName, ctx);
               } catch (err) {
-                console.error(`[GraphQL] Failed to resolve ${schemaName} id=${args.id}:`, err);
+                console.error(`[GraphQL] Failed to resolve ${entityName} id=${args.id}:`, err);
                 return null;
               }
             });
@@ -434,8 +434,8 @@ export function buildGraphQLSchema(
             ctx: GraphQLContext,
           ) => {
             const locale = args.locale ?? ctx.locale;
-            const listCacheKey = `gql:${schemaName}:list:${JSON.stringify(args)}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
-            const tags = [`gql:${schemaName}`, `schema:${schemaName}`];
+            const listCacheKey = `gql:${entityName}:list:${JSON.stringify(args)}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
+            const tags = [`gql:${entityName}`, `schema:${entityName}`];
             return cachedQuery(listCacheKey, tags, async () => {
               const opts: DataQueryOptions = {
                 ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
@@ -470,17 +470,17 @@ export function buildGraphQLSchema(
                 ...(args.search ? { search: args.search } : {}),
               };
 
-              const rawItems = await dataProvider.query(schemaName, queryFilter, optsOrUndefined);
-              const total = await dataProvider.count(schemaName, countFilter, optsOrUndefined);
+              const rawItems = await dataProvider.query(entityName, queryFilter, optsOrUndefined);
+              const total = await dataProvider.count(entityName, countFilter, optsOrUndefined);
               // Resolve compute-strategy derived fields on read, then resolve
               // translatable JSONB → plain strings BEFORE masking so masking
               // always operates on strings, not locale-map objects.
               const items = await Promise.all((rawItems as Record<string, unknown>[]).map(async (r) => {
                 if (derivedEngine) {
-                  await derivedEngine.resolveComputeFieldsAsync(schemaName, r);
+                  await derivedEngine.resolveComputeFieldsAsync(entityName, r);
                 }
-                const resolved = resolveTranslatableRow(r, schema, locale);
-                return applyMasking(resolved, schemaName, ctx);
+                const resolved = resolveTranslatableRow(r, entity, locale);
+                return applyMasking(resolved, entityName, ctx);
               }));
               const hasMore = offset + items.length < total;
               return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
@@ -490,7 +490,7 @@ export function buildGraphQLSchema(
     };
 
     // Internal schemas are read-only — skip mutation generation
-    if (internalSchemas.has(schemaName)) {
+    if (internalSchemas.has(entityName)) {
       continue;
     }
 
@@ -503,9 +503,9 @@ export function buildGraphQLSchema(
       resolve: executor
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            const normalizedInput = normalizeTranslatableRow(args.input, schema, locale);
+            const normalizedInput = normalizeTranslatableRow(args.input, entity, locale);
             const result = await executor.execute(
-              `create_${schemaName}`,
+              `create_${entityName}`,
               normalizedInput,
               ctx.actor,
               {
@@ -518,9 +518,9 @@ export function buildGraphQLSchema(
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
             }
-            invalidateSchemaCache(schemaName);
+            invalidateEntityCache(entityName);
             const data = result.data as Record<string, unknown>;
-            return data ? resolveTranslatableRow(data, schema, locale) : data;
+            return data ? resolveTranslatableRow(data, entity, locale) : data;
           }
         : (_root: unknown, args: { input: Record<string, unknown> }) => ({
             ...mockRecord,
@@ -551,17 +551,17 @@ export function buildGraphQLSchema(
             // action engine / state machine transitions, not raw CRUD updates.
             const sanitizedInput: Record<string, unknown> = {};
             for (const [key, value] of Object.entries(args.input)) {
-              const fieldDef = schema.fields[key];
+              const fieldDef = entity.fields[key];
               if (fieldDef && fieldDef.type === "state") continue;
               sanitizedInput[key] = value;
             }
-            const normalizedArgs = normalizeTranslatableRow(sanitizedInput, schema, locale);
+            const normalizedArgs = normalizeTranslatableRow(sanitizedInput, entity, locale);
             const input: Record<string, unknown> = { id: args.id, ...normalizedArgs };
             // Pass _version through for optimistic locking when provided
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
             }
-            const result = await executor.execute(`update_${schemaName}`, input, ctx.actor, {
+            const result = await executor.execute(`update_${entityName}`, input, ctx.actor, {
               channel: "http",
               tenantId: ctx.tenantId,
               locale,
@@ -583,9 +583,9 @@ export function buildGraphQLSchema(
               }
               throw new Error(errorMessage);
             }
-            invalidateSchemaCache(schemaName);
+            invalidateEntityCache(entityName);
             const data = result.data as Record<string, unknown>;
-            return data ? resolveTranslatableRow(data, schema, locale) : data;
+            return data ? resolveTranslatableRow(data, entity, locale) : data;
           }
         : (
             _root: unknown,
@@ -608,12 +608,12 @@ export function buildGraphQLSchema(
       resolve: executor
         ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
             const result = await executor.execute(
-              `delete_${schemaName}`,
+              `delete_${entityName}`,
               { id: args.id },
               ctx.actor,
               { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
             );
-            if (result.success) invalidateSchemaCache(schemaName);
+            if (result.success) invalidateEntityCache(entityName);
             return result.success;
           }
         : () => true,
@@ -629,7 +629,7 @@ export function buildGraphQLSchema(
         ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
             const result = await executor.execute(
-              `restore_${schemaName}`,
+              `restore_${entityName}`,
               { id: args.id },
               ctx.actor,
               { channel: "http", tenantId: ctx.tenantId, locale, includeDeleted: true },
@@ -637,12 +637,12 @@ export function buildGraphQLSchema(
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new GraphQLError(
-                (errData?.error as string) ?? `Failed to restore ${schemaName} id=${args.id}`,
+                (errData?.error as string) ?? `Failed to restore ${entityName} id=${args.id}`,
               );
             }
-            invalidateSchemaCache(schemaName);
+            invalidateEntityCache(entityName);
             const data = result.data as Record<string, unknown>;
-            return data ? resolveTranslatableRow(data, schema, locale) : data;
+            return data ? resolveTranslatableRow(data, entity, locale) : data;
           }
         : () => null,
     };
@@ -650,7 +650,7 @@ export function buildGraphQLSchema(
     // ── State transition query + mutation ──────────────────
     // For each state field, find the associated state machine and generate
     // availableTransitions query and transition mutation.
-    const stateFields = Object.entries(schema.fields).filter(([, f]) => f.type === "state");
+    const stateFields = Object.entries(entity.fields).filter(([, f]) => f.type === "state");
     for (const [stateFieldName, stateField] of stateFields) {
       if (stateField.type !== "state") continue;
       const machineName = stateField.machine;
@@ -681,7 +681,7 @@ export function buildGraphQLSchema(
               };
               const optsOrUndefined = Object.keys(opts).length > 0 ? opts : undefined;
               try {
-                const record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+                const record = await dataProvider.get(entityName, args.id, optsOrUndefined);
                 if (!record) return [];
                 const currentState =
                   (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
@@ -690,7 +690,7 @@ export function buildGraphQLSchema(
                 return transitions.map((tr) => {
                   const actor = ctx.actor;
                   // Check both transition action and update action permissions
-                  const actionNames = [tr.action, `update_${schemaName}`];
+                  const actionNames = [tr.action, `update_${entityName}`];
                   for (const name of actionNames) {
                     const actionDef = executor?.registry.get(name);
                     const perms = actionDef?.permissions;
@@ -726,7 +726,7 @@ export function buildGraphQLSchema(
       // ── Mutation: transition{PascalName}(id: ID!, to: String!) ──
       mutationFields[`transition${pascalName}`] = {
         type: objectType,
-        description: `Transition ${schema.label ?? schemaName} to a new state`,
+        description: `Transition ${entity.label ?? entityName} to a new state`,
         args: {
           id: { type: new GraphQLNonNull(GraphQLID) },
           to: { type: new GraphQLNonNull(GraphQLString) },
@@ -742,13 +742,13 @@ export function buildGraphQLSchema(
                 // Fetch current record to get current state
                 let record: Record<string, unknown>;
                 try {
-                  record = await dataProvider.get(schemaName, args.id, optsOrUndefined);
+                  record = await dataProvider.get(entityName, args.id, optsOrUndefined);
                 } catch {
                   // DataProvider.get threw (record missing or DB error) — surface as GraphQL error
-                  throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+                  throw new GraphQLError(`Record "${args.id}" not found in "${entityName}"`);
                 }
                 if (!record) {
-                  throw new GraphQLError(`Record "${args.id}" not found in "${schemaName}"`);
+                  throw new GraphQLError(`Record "${args.id}" not found in "${entityName}"`);
                 }
                 const currentState =
                   (record[stateFieldName] as string) ?? machine.definition.initial ?? "";
@@ -767,7 +767,7 @@ export function buildGraphQLSchema(
                   id: args.id,
                   [stateFieldName]: args.to,
                 };
-                const result = await executor.execute(`update_${schemaName}`, input, ctx.actor, {
+                const result = await executor.execute(`update_${entityName}`, input, ctx.actor, {
                   channel: "http",
                   tenantId: ctx.tenantId,
                   locale: ctx.locale,
@@ -776,9 +776,9 @@ export function buildGraphQLSchema(
                   const errData = result.data as Record<string, unknown> | undefined;
                   throw new GraphQLError((errData?.error as string) ?? `State transition failed`);
                 }
-                invalidateSchemaCache(schemaName);
+                invalidateEntityCache(entityName);
                 const data = result.data as Record<string, unknown>;
-                return data ? resolveTranslatableRow(data, schema, ctx.locale) : data;
+                return data ? resolveTranslatableRow(data, entity, ctx.locale) : data;
               }
             : () => {
                 throw new GraphQLError("Executor or data provider not configured");
@@ -796,8 +796,8 @@ export function buildGraphQLSchema(
 
     // Determine return type: schema's object type if action belongs to a schema, else ActionResult
     const returnType =
-      action.entity && schemaObjectTypes.has(action.entity)
-        ? (schemaObjectTypes.get(action.entity) ?? ActionResultType)
+      action.entity && entityObjectTypes.has(action.entity)
+        ? (entityObjectTypes.get(action.entity) ?? ActionResultType)
         : ActionResultType;
     const returnsSchemaType = returnType !== ActionResultType;
 
@@ -810,7 +810,7 @@ export function buildGraphQLSchema(
     }
 
     // Capture the schema definition for translatable resolution in custom actions
-    const actionSchema = action.entity ? schemas.find((s) => s.name === action.entity) : undefined;
+    const actionEntity = action.entity ? entities.find((s) => s.name === action.entity) : undefined;
 
     mutationFields[mutationName] = {
       type: returnType,
@@ -839,8 +839,8 @@ export function buildGraphQLSchema(
                 throw new Error((errData?.error as string) ?? `Action "${actionName}" failed`);
               }
               const data = result.data as Record<string, unknown>;
-              return data && actionSchema
-                ? resolveTranslatableRow(data, actionSchema, locale)
+              return data && actionEntity
+                ? resolveTranslatableRow(data, actionEntity, locale)
                 : data;
             }
             // Return ActionResult shape
@@ -953,8 +953,8 @@ export function buildGraphQLSchema(
     const { pubsub, unsubscribe } = createEventBusPubSub(eventBus);
     cleanupSubscriptions = unsubscribe;
     const subscriptionFields = buildSubscriptionFields({
-      schemas,
-      schemaObjectTypes,
+      entities,
+      entityObjectTypes,
       pubsub,
     });
     if (subscriptionFields) {
@@ -972,7 +972,7 @@ export function buildGraphQLSchema(
 /**
  * Build a mock record with system fields and default values.
  */
-function buildMockRecord(schema: EntityDefinition): Record<string, unknown> {
+function buildMockRecord(entity: EntityDefinition): Record<string, unknown> {
   const now = new Date().toISOString();
   const record: Record<string, unknown> = {
     id: "mock_id",
@@ -985,7 +985,7 @@ function buildMockRecord(schema: EntityDefinition): Record<string, unknown> {
   };
 
   // Set default values for user-defined fields
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
+  for (const [fieldName, field] of Object.entries(entity.fields)) {
     if (field.default !== undefined) {
       record[fieldName] = field.default;
     } else if (field.required) {

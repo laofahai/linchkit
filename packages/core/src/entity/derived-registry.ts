@@ -16,18 +16,18 @@ import { type DerivedConfig, resolveDerivedValue } from "./safe-evaluator";
 
 /** Information about a derived field registered in the engine */
 export interface DerivedFieldInfo {
-  schemaName: string;
+  entityName: string;
   fieldName: string;
   fieldDefinition: FieldDefinition;
   derived: DerivedConfig;
   strategy: "store" | "compute";
 }
 
-/** Information about a cascade target: which parent schema/field to recalculate */
+/** Information about a cascade target: which parent entity/field to recalculate */
 export interface CascadeTarget {
-  /** Parent schema that has the aggregate derived field */
-  parentSchema: string;
-  /** Field name on the parent schema that needs recalculation */
+  /** Parent entity that has the aggregate derived field */
+  parentEntity: string;
+  /** Field name on the parent entity that needs recalculation */
   parentField: string;
   /** The aggregate derived config */
   derived: import("./safe-evaluator").AggregateDerived;
@@ -89,26 +89,26 @@ function parseDerivedConfig(field: FieldDefinition): DerivedConfig | undefined {
 // ── DerivedPropertyEngine ─────────────────────────────────────
 
 /**
- * DerivedPropertyEngine manages derived field resolution across schemas.
+ * DerivedPropertyEngine manages derived field resolution across entities.
  *
- * It scans schema definitions, collects derived fields, builds a dependency
+ * It scans entity definitions, collects derived fields, builds a dependency
  * graph, detects cycles, and provides methods to resolve derived values
  * for records.
  *
- * Supports cross-schema aggregate computations (SUM, COUNT, AVG, MIN, MAX)
+ * Supports cross-entity aggregate computations (SUM, COUNT, AVG, MIN, MAX)
  * via Link system integration, with cascade recalculation when related records change.
  */
 export class DerivedPropertyEngine {
-  /** All registered derived fields, keyed by "schema.field" */
+  /** All registered derived fields, keyed by "entity.field" */
   private fields = new Map<string, DerivedFieldInfo>();
 
-  /** Dependency graph: "schema.field" → set of "schema.field" it depends on */
+  /** Dependency graph: "entity.field" → set of "entity.field" it depends on */
   private depGraph = new Map<string, Set<string>>();
 
-  /** Topological order for store-strategy fields (schema-scoped) */
+  /** Topological order for store-strategy fields (entity-scoped) */
   private topoOrder = new Map<string, string[]>();
 
-  /** Cascade targets: child schema name → list of parent aggregate fields to recalculate */
+  /** Cascade targets: child entity name → list of parent aggregate fields to recalculate */
   private cascadeMap = new Map<string, CascadeTarget[]>();
 
   /** Optional link registry for aggregate resolution */
@@ -131,46 +131,46 @@ export class DerivedPropertyEngine {
   }
 
   /**
-   * Register all derived fields from a set of schema definitions.
-   * Call this once during startup after all schemas are registered.
+   * Register all derived fields from a set of entity definitions.
+   * Call this once during startup after all entities are registered.
    *
    * @throws Error if circular dependencies are detected
    */
-  register(schemas: EntityDefinition[]): void {
+  register(entities: EntityDefinition[]): void {
     this.fields.clear();
     this.depGraph.clear();
     this.topoOrder.clear();
     this.cascadeMap.clear();
 
     // Phase 1: collect derived fields
-    for (const schema of schemas) {
-      for (const [fieldName, field] of Object.entries(schema.fields)) {
+    for (const entity of entities) {
+      for (const [fieldName, field] of Object.entries(entity.fields)) {
         const derived = parseDerivedConfig(field);
         if (!derived) continue;
 
-        const key = `${schema.name}.${fieldName}`;
+        const key = `${entity.name}.${fieldName}`;
         const strategy = derived.strategy ?? "store";
 
         this.fields.set(key, {
-          schemaName: schema.name,
+          entityName: entity.name,
           fieldName,
           fieldDefinition: field,
           derived,
           strategy,
         });
 
-        // Build dependency edges (within same schema only for non-aggregate types)
+        // Build dependency edges (within same entity only for non-aggregate types)
         const deps = new Set<string>();
         const depFieldNames = this.getDependencyFieldNames(derived);
         for (const dep of depFieldNames) {
-          deps.add(`${schema.name}.${dep}`);
+          deps.add(`${entity.name}.${dep}`);
         }
         this.depGraph.set(key, deps);
       }
     }
 
-    // Phase 2: cycle detection + topological sort per schema
-    this.buildTopoOrder(schemas);
+    // Phase 2: cycle detection + topological sort per entity
+    this.buildTopoOrder(entities);
 
     // Phase 3: build cascade map if link registry is available
     if (this.relationRegistry) {
@@ -180,7 +180,7 @@ export class DerivedPropertyEngine {
 
   /**
    * Build the cascade map: for each aggregate derived field, record which
-   * child schema changes should trigger recalculation of the parent field.
+   * child entity changes should trigger recalculation of the parent field.
    */
   private buildCascadeMap(): void {
     this.cascadeMap.clear();
@@ -207,7 +207,7 @@ export class DerivedPropertyEngine {
       }
 
       const target: CascadeTarget = {
-        parentSchema: info.schemaName,
+        parentEntity: info.entityName,
         parentField: info.fieldName,
         derived: agg,
         relation,
@@ -244,39 +244,39 @@ export class DerivedPropertyEngine {
   }
 
   /**
-   * Build topological order per schema. Throws on cycles.
+   * Build topological order per entity. Throws on cycles.
    */
-  private buildTopoOrder(schemas: EntityDefinition[]): void {
-    for (const schema of schemas) {
-      const schemaFields = new Map<string, Set<string>>();
+  private buildTopoOrder(entities: EntityDefinition[]): void {
+    for (const entity of entities) {
+      const entityFields = new Map<string, Set<string>>();
 
-      // Collect derived fields for this schema
+      // Collect derived fields for this entity
       for (const [key, deps] of this.depGraph.entries()) {
         const info = this.fields.get(key);
-        if (info?.schemaName === schema.name) {
-          // Filter deps to only those within the same schema that are derived
+        if (info?.entityName === entity.name) {
+          // Filter deps to only those within the same entity that are derived
           const localDeps = new Set<string>();
           for (const dep of deps) {
-            if (this.fields.has(dep) && dep.startsWith(`${schema.name}.`)) {
+            if (this.fields.has(dep) && dep.startsWith(`${entity.name}.`)) {
               localDeps.add(dep);
             }
           }
-          schemaFields.set(key, localDeps);
+          entityFields.set(key, localDeps);
         }
       }
 
-      if (schemaFields.size === 0) continue;
+      if (entityFields.size === 0) continue;
 
       // Kahn's algorithm for topological sort
       // Our graph: key depends on deps. So dep → key (dep must come before key).
-      // In-degree of key = number of deps that are also derived fields in this schema.
+      // In-degree of key = number of deps that are also derived fields in this entity.
       const inDegree = new Map<string, number>();
-      for (const key of schemaFields.keys()) {
+      for (const key of entityFields.keys()) {
         inDegree.set(key, 0);
       }
-      for (const [key, deps] of schemaFields.entries()) {
+      for (const [key, deps] of entityFields.entries()) {
         for (const dep of deps) {
-          if (schemaFields.has(dep)) {
+          if (entityFields.has(dep)) {
             // key depends on dep → dep should come before key → key gets +1 in-degree
             inDegree.set(key, (inDegree.get(key) ?? 0) + 1);
           }
@@ -295,7 +295,7 @@ export class DerivedPropertyEngine {
         order.push(current);
 
         // Find all nodes that depend on current
-        for (const [key, deps] of schemaFields.entries()) {
+        for (const [key, deps] of entityFields.entries()) {
           if (deps.has(current)) {
             const newDeg = (inDegree.get(key) ?? 0) - 1;
             inDegree.set(key, newDeg);
@@ -304,24 +304,24 @@ export class DerivedPropertyEngine {
         }
       }
 
-      if (order.length !== schemaFields.size) {
-        const remaining = [...schemaFields.keys()].filter((k) => !order.includes(k));
+      if (order.length !== entityFields.size) {
+        const remaining = [...entityFields.keys()].filter((k) => !order.includes(k));
         throw new Error(
-          `[derived-property] Circular dependency detected in schema "${schema.name}": ${remaining.map((k) => k.split(".")[1]).join(" <-> ")}`,
+          `[derived-property] Circular dependency detected in entity "${entity.name}": ${remaining.map((k) => k.split(".")[1]).join(" <-> ")}`,
         );
       }
 
-      this.topoOrder.set(schema.name, order);
+      this.topoOrder.set(entity.name, order);
     }
   }
 
   /**
-   * Get all derived fields for a schema.
+   * Get all derived fields for an entity.
    */
   getDerivedFields(schemaName: string): DerivedFieldInfo[] {
     const result: DerivedFieldInfo[] = [];
     for (const info of this.fields.values()) {
-      if (info.schemaName === schemaName) {
+      if (info.entityName === schemaName) {
         result.push(info);
       }
     }
@@ -343,24 +343,24 @@ export class DerivedPropertyEngine {
   }
 
   /**
-   * Get aggregate derived fields for a schema.
+   * Get aggregate derived fields for an entity.
    */
   getAggregateFields(schemaName: string): DerivedFieldInfo[] {
     return this.getDerivedFields(schemaName).filter((f) => f.derived.type === "aggregate");
   }
 
   /**
-   * Get cascade targets for a child schema.
-   * Returns the list of parent schema fields that need recalculation
-   * when a record in the child schema is created, updated, or deleted.
+   * Get cascade targets for a child entity.
+   * Returns the list of parent entity fields that need recalculation
+   * when a record in the child entity is created, updated, or deleted.
    */
   getCascadeTargets(childSchemaName: string): CascadeTarget[] {
     return this.cascadeMap.get(childSchemaName) ?? [];
   }
 
   /**
-   * Check if a child schema has any cascade targets (i.e., any parent schema
-   * has aggregate derived fields that depend on this child schema).
+   * Check if a child entity has any cascade targets (i.e., any parent entity
+   * has aggregate derived fields that depend on this child entity).
    */
   hasCascadeTargets(childSchemaName: string): boolean {
     return (this.cascadeMap.get(childSchemaName) ?? []).length > 0;
@@ -395,7 +395,7 @@ export class DerivedPropertyEngine {
     // Also resolve any compute fields not in the topo order
     // (e.g., they have no inter-derived dependencies)
     for (const info of this.fields.values()) {
-      if (info.schemaName !== schemaName || info.strategy !== "compute") continue;
+      if (info.entityName !== schemaName || info.strategy !== "compute") continue;
       if (resolvedFields.has(info.fieldName)) continue; // Already resolved in topo order
 
       const value = resolveDerivedValue(info.derived, record);
@@ -422,7 +422,7 @@ export class DerivedPropertyEngine {
     if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
-          info.schemaName !== schemaName ||
+          info.entityName !== schemaName ||
           info.strategy !== "compute" ||
           info.derived.type !== "aggregate"
         ) {
@@ -472,7 +472,7 @@ export class DerivedPropertyEngine {
 
     // Also resolve any store fields not in the topo order
     for (const info of this.fields.values()) {
-      if (info.schemaName !== schemaName || info.strategy !== "store") continue;
+      if (info.entityName !== schemaName || info.strategy !== "store") continue;
       if (result[info.fieldName] !== undefined) continue;
       if (info.derived.type === "aggregate") continue;
 
@@ -502,7 +502,7 @@ export class DerivedPropertyEngine {
     if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
-          info.schemaName !== schemaName ||
+          info.entityName !== schemaName ||
           info.strategy !== "store" ||
           info.derived.type !== "aggregate"
         ) {
@@ -548,14 +548,14 @@ export class DerivedPropertyEngine {
   /**
    * Cascade recalculate: when a child record is created, updated, or deleted,
    * find all affected parent records and recalculate their aggregate derived fields.
-   * Recursively cascades up the chain if the parent schema itself has cascade targets,
+   * Recursively cascades up the chain if the parent entity itself has cascade targets,
    * up to `maxCascadeDepth` levels (default 5) to prevent infinite loops.
    *
-   * @param childSchemaName - The schema of the record that changed
+   * @param childSchemaName - The entity of the record that changed
    * @param childRecord - The child record (for extracting FK values to find parent records)
    * @param dataProvider - Data provider for querying and updating parent records
    * @param options - Optional settings: maxCascadeDepth (default 5)
-   * @returns Map of "parentSchema.parentId" → updated field values
+   * @returns Map of "parentEntity.parentId" → updated field values
    */
   async cascadeRecalculate(
     childSchemaName: string,
@@ -601,7 +601,7 @@ export class DerivedPropertyEngine {
       // Get the parent record
       let parentRecord: Record<string, unknown>;
       try {
-        parentRecord = await dp.get(target.parentSchema, parentId);
+        parentRecord = await dp.get(target.parentEntity, parentId);
       } catch {
         // Parent not found — skip (may have been deleted)
         continue;
@@ -611,16 +611,16 @@ export class DerivedPropertyEngine {
       const value = await resolveAggregateValue(target.derived, parentRecord, target.relation, dp);
 
       // Collect update for this parent
-      const updateKey = `${target.parentSchema}.${parentId}`;
+      const updateKey = `${target.parentEntity}.${parentId}`;
       const existing = updates.get(updateKey) ?? {};
       existing[target.parentField] = value;
       updates.set(updateKey, existing);
 
       // Apply the update to the parent record
-      await dp.update(target.parentSchema, parentId, { [target.parentField]: value });
+      await dp.update(target.parentEntity, parentId, { [target.parentField]: value });
 
       // Check if there are non-aggregate store fields that depend on this aggregate field
-      const storeFields = this.getStoreFields(target.parentSchema);
+      const storeFields = this.getStoreFields(target.parentEntity);
       const updatedParent = { ...parentRecord, [target.parentField]: value };
       for (const sf of storeFields) {
         if (sf.derived.type === "aggregate") continue;
@@ -630,16 +630,16 @@ export class DerivedPropertyEngine {
           if (recomputed !== undefined) {
             existing[sf.fieldName] = recomputed;
             updatedParent[sf.fieldName] = recomputed;
-            await dp.update(target.parentSchema, parentId, { [sf.fieldName]: recomputed });
+            await dp.update(target.parentEntity, parentId, { [sf.fieldName]: recomputed });
           }
         }
       }
 
-      // Recursively cascade: if the parent schema itself has cascade targets,
+      // Recursively cascade: if the parent entity itself has cascade targets,
       // propagate the change upward
-      if (this.hasCascadeTargets(target.parentSchema)) {
+      if (this.hasCascadeTargets(target.parentEntity)) {
         const parentUpdates = await this._cascadeRecalculateInternal(
-          target.parentSchema,
+          target.parentEntity,
           updatedParent,
           dp,
           maxDepth,

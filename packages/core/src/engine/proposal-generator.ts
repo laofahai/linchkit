@@ -420,13 +420,13 @@ function validateSchemaChange(
 ): void {
   if (change.operation === "delete") {
     if (!entityRegistry.has(change.name)) {
-      warnings.push(`Schema "${change.name}" does not exist (delete is a no-op)`);
+      warnings.push(`Entity "${change.name}" does not exist (delete is a no-op)`);
     }
     return;
   }
 
   if (!change.definition) {
-    errors.push(`Schema change "${change.name}": definition is required for ${change.operation}`);
+    errors.push(`Entity change "${change.name}": definition is required for ${change.operation}`);
     return;
   }
 
@@ -435,38 +435,38 @@ function validateSchemaChange(
   // Check name matches
   if (def.name && def.name !== change.name) {
     errors.push(
-      `Schema change "${change.name}": definition.name "${def.name}" does not match change.name`,
+      `Entity change "${change.name}": definition.name "${def.name}" does not match change.name`,
     );
   }
 
   // Check fields exist
   if (!def.fields || Object.keys(def.fields).length === 0) {
-    errors.push(`Schema "${change.name}": must have at least one field`);
+    errors.push(`Entity "${change.name}": must have at least one field`);
     return;
   }
 
   // Validate each field
   for (const [fieldName, fieldDef] of Object.entries(def.fields)) {
     if (!VALID_FIELD_TYPES.has(fieldDef.type)) {
-      errors.push(`Schema "${change.name}" field "${fieldName}": invalid type "${fieldDef.type}"`);
+      errors.push(`Entity "${change.name}" field "${fieldName}": invalid type "${fieldDef.type}"`);
     }
 
     // Enum fields must have options
     if (fieldDef.type === "enum" && !("options" in fieldDef && Array.isArray(fieldDef.options))) {
       errors.push(
-        `Schema "${change.name}" field "${fieldName}": enum field must have options array`,
+        `Entity "${change.name}" field "${fieldName}": enum field must have options array`,
       );
     }
   }
 
-  // Check for duplicate field names with existing schemas (for create)
+  // Check for duplicate names with existing entities (for create)
   if (change.operation === "create" && entityRegistry.has(change.name)) {
-    errors.push(`Schema "${change.name}" already exists (use "update" operation instead)`);
+    errors.push(`Entity "${change.name}" already exists (use "update" operation instead)`);
   }
 
-  // Check for update on non-existent schema
+  // Check for update on non-existent entity
   if (change.operation === "update" && !entityRegistry.has(change.name)) {
-    warnings.push(`Schema "${change.name}" does not exist yet (will be treated as create)`);
+    warnings.push(`Entity "${change.name}" does not exist yet (will be treated as create)`);
   }
 }
 

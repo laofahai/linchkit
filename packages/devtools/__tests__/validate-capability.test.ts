@@ -70,7 +70,7 @@ describe("validateCapability", () => {
 
     const result = validateCapability(cap);
     expect(result.valid).toBe(true);
-    expect(result.schemas.count).toBe(1);
+    expect(result.entities.count).toBe(1);
     expect(result.actions.count).toBe(1);
     expect(result.rules.count).toBe(1);
     expect(result.states.count).toBe(1);
@@ -133,6 +133,6 @@ describe("validateCapability", () => {
 
     const result = validateCapability(cap);
     expect(result.valid).toBe(true);
-    expect(result.schemas.count).toBe(0);
+    expect(result.entities.count).toBe(0);
   });
 });

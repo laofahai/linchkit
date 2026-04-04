@@ -43,8 +43,8 @@ export interface RelationResolverContext {
   actor?: Actor;
   /** Permission groups for data masking unmask checks */
   permissionGroups?: PermissionGroupDefinition[];
-  /** Schema definitions map for data masking lookups */
-  schemaMap?: Map<string, EntityDefinition>;
+  /** Entity definitions map for data masking lookups */
+  entityMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (created in context factory) */
   relationLoaders?: RelationDataLoaders;
 }
@@ -60,20 +60,20 @@ const NON_STRING_FIELD_TYPES = new Set(["number", "boolean", "date", "datetime",
  */
 function applyLinkMasking(
   record: Record<string, unknown>,
-  schemaName: string,
+  entityName: string,
   ctx: RelationResolverContext,
 ): Record<string, unknown> {
-  if (!ctx.actor || !ctx.schemaMap) return record;
-  const schemaDef = ctx.schemaMap.get(schemaName);
-  if (!schemaDef) return record;
+  if (!ctx.actor || !ctx.entityMap) return record;
+  const entityDef = ctx.entityMap.get(entityName);
+  if (!entityDef) return record;
   const maskOpts: MaskRecordOptions = {
     actor: ctx.actor,
     groups: ctx.permissionGroups ?? [],
-    capabilityName: schemaDef.name,
+    capabilityName: entityDef.name,
   };
-  const masked = maskRecord(record, schemaDef, maskOpts);
+  const masked = maskRecord(record, entityDef, maskOpts);
   // Coerce masked non-string fields to null (GraphQL type mismatch)
-  for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+  for (const [fieldName, fieldDef] of Object.entries(entityDef.fields)) {
     if (
       NON_STRING_FIELD_TYPES.has(fieldDef.type) &&
       typeof masked[fieldName] === "string" &&
@@ -90,10 +90,10 @@ function applyLinkMasking(
  */
 function applyLinkMaskingArray(
   records: Record<string, unknown>[],
-  schemaName: string,
+  entityName: string,
   ctx: RelationResolverContext,
 ): Record<string, unknown>[] {
-  return records.map((r) => applyLinkMasking(r, schemaName, ctx));
+  return records.map((r) => applyLinkMasking(r, entityName, ctx));
 }
 
 // ── DataLoader-aware fetch helpers ─────────────────────────
@@ -253,7 +253,7 @@ export type LinkFieldDef = {
  * - many_to_many: junction table `_link_{name}` with `{from}_id` and `{to}_id`
  */
 export function buildRelationFields(
-  schemaName: string,
+  entityName: string,
   links: RelationDefinition[],
   typeMap: Map<string, GraphQLObjectType>,
   logger: Logger,
@@ -261,8 +261,8 @@ export function buildRelationFields(
   const fields: Record<string, LinkFieldDef> = {};
 
   for (const link of links) {
-    const isFrom = link.from === schemaName;
-    const isTo = link.to === schemaName;
+    const isFrom = link.from === entityName;
+    const isTo = link.to === entityName;
     if (!isFrom && !isTo) continue;
 
     switch (link.cardinality) {

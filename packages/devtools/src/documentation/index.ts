@@ -9,19 +9,19 @@ export {
   type ActionDoc,
   type ApiDocGeneratorOptions,
   actionToDoc,
+  type EntityDoc,
   type FieldDoc,
   fieldToDoc,
   generateApiDoc,
-  type SchemaDoc,
   type SystemDoc,
-  schemaToDoc,
+  entityToDoc,
 } from "./api-doc-generator";
 
 export {
   type CapabilityActionDoc,
+  type CapabilityEntityDoc,
   type CapabilityRelationDoc,
   type CapabilityRuleDoc,
-  type CapabilitySchemaDoc,
   type CapabilitySpecDoc,
   type CapabilityStateMachineDoc,
   type CapabilityViewDoc,
@@ -39,7 +39,7 @@ export {
 export {
   type MarkdownRenderOptions,
   renderActionDoc,
-  renderSchemaDoc,
+  renderEntityDoc,
   renderSystemDoc,
 } from "./markdown-renderer";
 

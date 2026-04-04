@@ -15,14 +15,14 @@ export interface CommitInfo {
   message: string;
 }
 
-export interface SchemaInfo {
+export interface EntityInfo {
   name: string;
   fields?: Array<{ name: string; type?: string }>;
 }
 
 export interface ActionInfo {
   name: string;
-  schema: string;
+  entity: string;
 }
 
 // -- Reserved words ------------------------------------------------------
@@ -139,7 +139,7 @@ export function checkCommitMessages(commits: CommitInfo[]): QualityReport {
  * - Boolean fields: should use is_ or has_ prefix
  * - Datetime fields: should use _at suffix
  */
-export function checkEntityDefinitions(schemas: SchemaInfo[]): QualityReport {
+export function checkEntityDefinitions(schemas: EntityInfo[]): QualityReport {
   const issues: QualityIssue[] = [];
 
   for (const schema of schemas) {
@@ -265,11 +265,11 @@ export function checkActionDefinitions(actions: ActionInfo[]): QualityReport {
     }
 
     // Check schema reference
-    if (!SNAKE_CASE_RE.test(action.schema)) {
+    if (!SNAKE_CASE_RE.test(action.entity)) {
       issues.push({
         severity: "error",
-        rule: "action-schema-ref",
-        message: `Action "${action.name}" references schema "${action.schema}" which is not snake_case`,
+        rule: "action-entity-ref",
+        message: `Action "${action.name}" references entity "${action.entity}" which is not snake_case`,
       });
     }
   }

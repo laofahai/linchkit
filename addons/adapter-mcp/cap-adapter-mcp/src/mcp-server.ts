@@ -443,8 +443,8 @@ function registerBuiltinTools(
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getSchemaShape as any,
     async (args: { name: string }) => {
-      const schema = entityRegistry.get(args.name);
-      if (!schema) {
+      const entity = entityRegistry.get(args.name);
+      if (!entity) {
         return {
           content: [
             {
@@ -457,11 +457,11 @@ function registerBuiltinTools(
       }
 
       // Convert to a serializable representation with field JSON schemas
-      const fieldSchemas = fieldsToJsonSchema(schema.fields);
+      const fieldSchemas = fieldsToJsonSchema(entity.fields);
       const result = {
-        name: schema.name,
-        label: schema.label,
-        description: schema.description,
+        name: entity.name,
+        label: entity.label,
+        description: entity.description,
         fields: fieldSchemas,
       };
 

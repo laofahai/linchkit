@@ -44,7 +44,7 @@ export interface GenerateSchemaFileOptions {
  * Returns the absolute path to the generated file.
  */
 export function generateDrizzleSchemaFile(
-  schemas: EntityDefinition[],
+  entities: EntityDefinition[],
   projectRoot: string = process.cwd(),
   options?: GenerateSchemaFileOptions,
   links: RelationDefinition[] = [],
@@ -56,27 +56,27 @@ export function generateDrizzleSchemaFile(
     mkdirSync(outDir, { recursive: true });
   }
 
-  // Build a lookup map for resolving parent schemas (spec 49 inheritance)
-  const schemaMap = new Map<string, EntityDefinition>();
-  for (const s of schemas) {
-    schemaMap.set(s.name, s);
+  // Build a lookup map for resolving parent entities (spec 49 inheritance)
+  const entityMap = new Map<string, EntityDefinition>();
+  for (const s of entities) {
+    entityMap.set(s.name, s);
   }
 
   // Phase 1: Generate base tables from schemas
   const tableMap: Record<string, ReturnType<typeof import("drizzle-orm/pg-core").pgTable>> = {};
   const tableExports: string[] = [];
 
-  for (const schema of schemas) {
-    // Skip abstract schemas — they have no DB table (spec 49)
-    if (schema.abstract) continue;
+  for (const entity of entities) {
+    // Skip abstract entities — they have no DB table (spec 49)
+    if (entity.abstract) continue;
 
-    // Flatten inherited fields into concrete child schemas (spec 49)
-    const flatSchema = flattenInheritedFields(schema, schemaMap);
+    // Flatten inherited fields into concrete child entities (spec 49)
+    const flatEntity = flattenInheritedFields(entity, entityMap);
 
-    const table = generateDrizzleTable(flatSchema);
-    tableMap[schema.name] = table;
+    const table = generateDrizzleTable(flatEntity);
+    tableMap[entity.name] = table;
     const config = getTableConfig(table);
-    const varName = `${toCamelCase(schema.name)}Table`;
+    const varName = `${toCamelCase(entity.name)}Table`;
 
     const columnDefs = config.columns.map((col) => {
       const code = serializeColumn(col as never);
@@ -348,17 +348,17 @@ function extractSqlString(def: unknown): string | null {
  * Returns a new EntityDefinition with all inherited fields merged in.
  */
 function flattenInheritedFields(
-  schema: EntityDefinition,
-  schemaMap: Map<string, EntityDefinition>,
+  entity: EntityDefinition,
+  entityMap: Map<string, EntityDefinition>,
 ): EntityDefinition {
-  if (!schema.extends) return schema;
+  if (!entity.extends) return entity;
 
   // Collect the inheritance chain from root ancestor to direct parent
   const chain: EntityDefinition[] = [];
-  let current: EntityDefinition | undefined = schemaMap.get(schema.extends);
+  let current: EntityDefinition | undefined = entityMap.get(entity.extends);
   while (current) {
     chain.unshift(current);
-    current = current.extends ? schemaMap.get(current.extends) : undefined;
+    current = current.extends ? entityMap.get(current.extends) : undefined;
   }
 
   // Merge fields: ancestors first, then child (child overrides)
@@ -369,12 +369,12 @@ function flattenInheritedFields(
     }
   }
   // Child's own fields override inherited ones
-  for (const [fname, fdef] of Object.entries(schema.fields)) {
+  for (const [fname, fdef] of Object.entries(entity.fields)) {
     mergedFields[fname] = fdef;
   }
 
   return {
-    ...schema,
+    ...entity,
     fields: mergedFields,
   };
 }

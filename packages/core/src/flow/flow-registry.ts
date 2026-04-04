@@ -46,13 +46,13 @@ export class FlowRegistryImpl implements IFlowRegistry {
     );
   }
 
-  /** Get all flows related to a schema (by matching action step actionNames containing the schema name) */
-  flowsForSchema(schemaName: string): FlowDefinition[] {
+  /** Get all flows related to an entity (by matching action step actionNames containing the entity name) */
+  flowsForEntity(entityName: string): FlowDefinition[] {
     return this.getAll().filter((f) =>
       f.steps.some(
         (step) =>
           step.type === "action" &&
-          (step as import("../types/flow").ActionFlowStep).actionName.startsWith(`${schemaName}.`),
+          (step as import("../types/flow").ActionFlowStep).actionName.startsWith(`${entityName}.`),
       ),
     );
   }

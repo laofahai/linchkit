@@ -69,7 +69,7 @@ export {
   createCapabilityHub,
   createExtensionResolver,
   createLocalRegistry,
-  filterSchemaByCapabilities,
+  filterEntityByCapabilities,
   LocalCapabilityRegistry,
   satisfiesVersionRange,
 } from "./capability";

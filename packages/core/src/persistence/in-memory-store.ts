@@ -27,8 +27,8 @@ export interface FindManyOptions {
 
 export class InMemoryStore implements DataProvider {
   private store = new Map<string, Map<string, Record<string, unknown>>>();
-  /** Optional schema definitions for translatable field resolution */
-  private schemaMap = new Map<string, EntityDefinition>();
+  /** Optional entity definitions for translatable field resolution */
+  private entityMap = new Map<string, EntityDefinition>();
 
   /**
    * Register schema definitions to enable translatable field locale resolution.
@@ -36,7 +36,7 @@ export class InMemoryStore implements DataProvider {
    * fields to the requested locale from DataQueryOptions.
    */
   registerSchema(schema: EntityDefinition): void {
-    this.schemaMap.set(schema.name, schema);
+    this.entityMap.set(schema.name, schema);
   }
 
   /** Resolve translatable fields in a row if locale and schema are available */
@@ -46,7 +46,7 @@ export class InMemoryStore implements DataProvider {
     locale?: string,
   ): Record<string, unknown> {
     if (!locale) return row;
-    const schemaDef = this.schemaMap.get(schemaName);
+    const schemaDef = this.entityMap.get(schemaName);
     if (!schemaDef) return row;
     return resolveTranslatableRow(row, schemaDef, locale);
   }

@@ -59,21 +59,21 @@ describe("EntityRegistry", () => {
       registry.register(productSchema);
 
       expect(() => registry.register(productSchema)).toThrow(
-        'Schema "product" is already registered',
+        'Entity "product" is already registered',
       );
     });
 
     it("throws on schema without name", () => {
       const registry = createEntityRegistry();
       expect(() => registry.register({ name: "", fields: { x: { type: "string" } } })).toThrow(
-        "Schema must have a name",
+        "Entity must have a name",
       );
     });
 
     it("throws on schema without fields", () => {
       const registry = createEntityRegistry();
       expect(() => registry.register({ name: "empty", fields: {} })).toThrow(
-        'Schema "empty" must have at least one field',
+        'Entity "empty" must have at least one field',
       );
     });
   });
@@ -200,7 +200,7 @@ describe("EntityRegistry", () => {
       const registry = createEntityRegistry();
 
       expect(() => registry.resolve("nonexistent")).toThrow(
-        'Schema "nonexistent" is not registered',
+        'Entity "nonexistent" is not registered',
       );
     });
   });
@@ -233,7 +233,7 @@ describe("EntityRegistry", () => {
         registry.applyExtension("nonexistent", {
           fields: { x: { type: "string" } },
         }),
-      ).toThrow('Cannot extend unknown schema "nonexistent"');
+      ).toThrow('Cannot extend unknown entity "nonexistent"');
     });
 
     it("supports multiple extensions", () => {
@@ -282,7 +282,7 @@ describe("EntityRegistry", () => {
         registry.applyOverride("nonexistent", {
           fields: { x: { required: true } },
         }),
-      ).toThrow('Cannot override unknown schema "nonexistent"');
+      ).toThrow('Cannot override unknown entity "nonexistent"');
     });
 
     it("throws when override references unknown field", () => {

@@ -24,16 +24,16 @@ export interface GenerateCrudActionsOptions {
  * Generate default CRUD action definitions for a schema.
  */
 export function generateCrudActions(
-  schema: EntityDefinition,
+  entity: EntityDefinition,
   options?: GenerateCrudActionsOptions,
 ): ActionDefinition[] {
-  const name = schema.name;
+  const name = entity.name;
   const derivedEngine = options?.derivedPropertyEngine;
   const stateDefinitions = options?.stateDefinitions ?? [];
 
-  // Build a map of state field name → StateMachine for this schema
+  // Build a map of state field name → StateMachine for this entity
   const stateFieldMachines = new Map<string, ReturnType<typeof createStateMachine>>();
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
+  for (const [fieldName, field] of Object.entries(entity.fields)) {
     if (field.type === "state") {
       const stateDef = stateDefinitions.find((s) => s.name === field.machine);
       if (stateDef) {
@@ -45,14 +45,14 @@ export function generateCrudActions(
   const createAction: ActionDefinition = {
     name: `create_${name}`,
     entity: name,
-    label: `Create ${schema.label ?? name}`,
-    description: `Create a new ${schema.label ?? name} record`,
+    label: `Create ${entity.label ?? name}`,
+    description: `Create a new ${entity.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
       // Inject default state values for state fields not provided in input
       const inputWithDefaults = { ...ctx.input };
-      for (const [fieldName, field] of Object.entries(schema.fields)) {
+      for (const [fieldName, field] of Object.entries(entity.fields)) {
         if (field.type === "state" && inputWithDefaults[fieldName] === undefined) {
           if (field.default !== undefined) {
             inputWithDefaults[fieldName] = field.default;
@@ -95,8 +95,8 @@ export function generateCrudActions(
   const updateAction: ActionDefinition = {
     name: `update_${name}`,
     entity: name,
-    label: `Update ${schema.label ?? name}`,
-    description: `Update an existing ${schema.label ?? name} record`,
+    label: `Update ${entity.label ?? name}`,
+    description: `Update an existing ${entity.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
@@ -176,8 +176,8 @@ export function generateCrudActions(
   const deleteAction: ActionDefinition = {
     name: `delete_${name}`,
     entity: name,
-    label: `Delete ${schema.label ?? name}`,
-    description: `Delete a ${schema.label ?? name} record`,
+    label: `Delete ${entity.label ?? name}`,
+    description: `Delete a ${entity.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
@@ -212,8 +212,8 @@ export function generateCrudActions(
   const restoreAction: ActionDefinition = {
     name: `restore_${name}`,
     entity: name,
-    label: `Restore ${schema.label ?? name}`,
-    description: `Restore a soft-deleted ${schema.label ?? name} record`,
+    label: `Restore ${entity.label ?? name}`,
+    description: `Restore a soft-deleted ${entity.label ?? name} record`,
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {

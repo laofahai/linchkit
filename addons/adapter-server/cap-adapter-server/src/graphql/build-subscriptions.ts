@@ -21,12 +21,12 @@ import { createPubSub } from "graphql-yoga";
 
 // ── PubSub topic naming ──────────────────────────────────
 
-/** Build the PubSub topic name for a schema + operation */
+/** Build the PubSub topic name for an entity + operation */
 export function buildTopic(
-  schemaName: string,
+  entityName: string,
   operation: "created" | "updated" | "deleted",
 ): string {
-  return `${schemaName}.${operation}`;
+  return `${entityName}.${operation}`;
 }
 
 // ── DeletedRecord type ───────────────────────────────────
@@ -82,21 +82,21 @@ export function createEventBusPubSub(eventBus: EventBus): {
 
   for (const { eventType, operation } of eventMapping) {
     const unsub = eventBus.subscribe(eventType, async (event: EventRecord) => {
-      const schemaName = event.entity;
-      if (!schemaName) return;
+      const entityName = event.entity;
+      if (!entityName) return;
 
-      const topic = buildTopic(schemaName, operation);
+      const topic = buildTopic(entityName, operation);
 
       if (operation === "deleted") {
         pubsub.publish(topic, {
           id: event.recordId ?? event.payload.id,
-          schema: schemaName,
+          schema: entityName,
         });
       } else {
         // For created/updated, the payload typically contains the record data
         pubsub.publish(topic, {
           id: event.recordId ?? event.payload.id,
-          schema: schemaName,
+          schema: entityName,
           ...event.payload,
         });
       }
@@ -117,10 +117,10 @@ export function createEventBusPubSub(eventBus: EventBus): {
 // ── Subscription field generation ────────────────────────
 
 export interface BuildSubscriptionFieldsOptions {
-  /** Schemas to generate subscription fields for */
-  schemas: EntityDefinition[];
-  /** Pre-generated GraphQL object types by schema name (reused from build-schema) */
-  schemaObjectTypes: Map<string, GraphQLObjectType>;
+  /** Entities to generate subscription fields for */
+  entities: EntityDefinition[];
+  /** Pre-generated GraphQL object types by entity name (reused from build-schema) */
+  entityObjectTypes: Map<string, GraphQLObjectType>;
   /** PubSub instance wired to EventBus */
   pubsub: ReturnType<typeof createPubSub<PubSubEvents>>;
 }
@@ -134,40 +134,40 @@ export interface BuildSubscriptionFieldsOptions {
 export function buildSubscriptionFields(
   options: BuildSubscriptionFieldsOptions,
 ): Record<string, GraphQLFieldConfig<unknown, unknown>> | null {
-  const { schemas, schemaObjectTypes, pubsub } = options;
+  const { entities, entityObjectTypes, pubsub } = options;
 
-  if (schemas.length === 0) return null;
+  if (entities.length === 0) return null;
 
   const fields: Record<string, GraphQLFieldConfig<unknown, unknown>> = {};
 
-  for (const schema of schemas) {
-    const objectType = schemaObjectTypes.get(schema.name);
+  for (const entity of entities) {
+    const objectType = entityObjectTypes.get(entity.name);
     if (!objectType) continue;
 
-    const pascalName = toPascalCase(schema.name);
-    const schemaName = schema.name;
+    const pascalName = toPascalCase(entity.name);
+    const entityName = entity.name;
 
     // on{PascalName}Created
     fields[`on${pascalName}Created`] = {
       type: objectType,
-      description: `Emitted when a new ${schema.label ?? schemaName} record is created`,
-      subscribe: () => pubsub.subscribe(buildTopic(schemaName, "created")),
+      description: `Emitted when a new ${entity.label ?? entityName} record is created`,
+      subscribe: () => pubsub.subscribe(buildTopic(entityName, "created")),
       resolve: (payload: unknown) => payload,
     };
 
     // on{PascalName}Updated
     fields[`on${pascalName}Updated`] = {
       type: objectType,
-      description: `Emitted when a ${schema.label ?? schemaName} record is updated`,
-      subscribe: () => pubsub.subscribe(buildTopic(schemaName, "updated")),
+      description: `Emitted when a ${entity.label ?? entityName} record is updated`,
+      subscribe: () => pubsub.subscribe(buildTopic(entityName, "updated")),
       resolve: (payload: unknown) => payload,
     };
 
     // on{PascalName}Deleted
     fields[`on${pascalName}Deleted`] = {
       type: DeletedRecordType,
-      description: `Emitted when a ${schema.label ?? schemaName} record is deleted`,
-      subscribe: () => pubsub.subscribe(buildTopic(schemaName, "deleted")),
+      description: `Emitted when a ${entity.label ?? entityName} record is deleted`,
+      subscribe: () => pubsub.subscribe(buildTopic(entityName, "deleted")),
       resolve: (payload: unknown) => payload,
     };
   }

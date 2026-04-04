@@ -41,21 +41,21 @@ function toViewFields(fieldNames: string[]): ViewFieldConfig[] {
 /**
  * Get non-system field names from a schema in definition order.
  */
-function getNonSystemFields(schema: EntityDefinition): string[] {
-  return Object.keys(schema.fields).filter((f) => !SYSTEM_FIELD_NAMES.has(f));
+function getNonSystemFields(entity: EntityDefinition): string[] {
+  return Object.keys(entity.fields).filter((f) => !SYSTEM_FIELD_NAMES.has(f));
 }
 
 /**
  * Generate a default list view for a schema.
  */
-function generateDefaultListView(schema: EntityDefinition): ViewDefinition {
-  const allFields = getNonSystemFields(schema);
+function generateDefaultListView(entity: EntityDefinition): ViewDefinition {
+  const allFields = getNonSystemFields(entity);
 
   // Prefer summaryFields if available, otherwise take first N fields
   let listFields: string[];
-  if (schema.presentation?.summaryFields?.length) {
-    listFields = schema.presentation.summaryFields.filter(
-      (f) => f in schema.fields && !SYSTEM_FIELD_NAMES.has(f),
+  if (entity.presentation?.summaryFields?.length) {
+    listFields = entity.presentation.summaryFields.filter(
+      (f) => f in entity.fields && !SYSTEM_FIELD_NAMES.has(f),
     );
     // If summaryFields didn't yield enough, pad with remaining fields
     if (listFields.length < MAX_LIST_FIELDS) {
@@ -67,14 +67,14 @@ function generateDefaultListView(schema: EntityDefinition): ViewDefinition {
   }
 
   const actions: ViewAction[] = [
-    { action: `create_${schema.name}`, label: "Create", variant: "default" },
+    { action: `create_${entity.name}`, label: "Create", variant: "default" },
   ];
 
   return {
-    name: `${schema.name}_list_default`,
-    entity: schema.name,
+    name: `${entity.name}_list_default`,
+    entity: entity.name,
     type: "list",
-    label: `${schema.label ?? schema.name} List`,
+    label: `${entity.label ?? entity.name} List`,
     fields: toViewFields(listFields),
     actions,
   };
@@ -87,19 +87,19 @@ function generateDefaultListView(schema: EntityDefinition): ViewDefinition {
  * - Short fields (string, number, boolean, enum, state, date, ref) split into left/right groups
  * - Wide fields (text, json, html, richtext) placed full-width below the columns
  */
-function generateDefaultFormView(schema: EntityDefinition): ViewDefinition {
-  const formFields = getNonSystemFields(schema);
+function generateDefaultFormView(entity: EntityDefinition): ViewDefinition {
+  const formFields = getNonSystemFields(entity);
 
   const actions: ViewAction[] = [
-    { action: `create_${schema.name}`, label: "Create", position: "form-header" },
-    { action: `update_${schema.name}`, label: "Save", position: "form-header" },
+    { action: `create_${entity.name}`, label: "Create", position: "form-header" },
+    { action: `update_${entity.name}`, label: "Save", position: "form-header" },
   ];
 
   // Partition fields into short (two-column) and wide (full-width)
   const shortFields: string[] = [];
   const wideFields: string[] = [];
   for (const name of formFields) {
-    const fieldType = schema.fields[name]?.type;
+    const fieldType = entity.fields[name]?.type;
     if (fieldType && WIDE_FIELD_TYPES.has(fieldType)) {
       wideFields.push(name);
     } else {
@@ -141,10 +141,10 @@ function generateDefaultFormView(schema: EntityDefinition): ViewDefinition {
   }
 
   return {
-    name: `${schema.name}_form_default`,
-    entity: schema.name,
+    name: `${entity.name}_form_default`,
+    entity: entity.name,
     type: "form",
-    label: `${schema.label ?? schema.name} Form`,
+    label: `${entity.label ?? entity.name} Form`,
     fields: toViewFields(formFields),
     layout: layoutNodes.length > 0 ? { nodes: layoutNodes } : undefined,
     actions,
@@ -157,9 +157,9 @@ function generateDefaultFormView(schema: EntityDefinition): ViewDefinition {
  * Returns a record keyed by view name, suitable for merging into the
  * schema metadata response.
  */
-export function generateDefaultViews(schema: EntityDefinition): Record<string, ViewDefinition> {
-  const list = generateDefaultListView(schema);
-  const form = generateDefaultFormView(schema);
+export function generateDefaultViews(entity: EntityDefinition): Record<string, ViewDefinition> {
+  const list = generateDefaultListView(entity);
+  const form = generateDefaultFormView(entity);
   return {
     [list.name]: list,
     [form.name]: form,
