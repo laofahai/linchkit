@@ -8,7 +8,7 @@
 import type { FormLayoutNode, FormNotebookNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Fragment } from "react";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 
 interface FormNotebookProps {
   node: FormNotebookNode;
@@ -19,7 +19,7 @@ interface FormNotebookProps {
 
 export function FormNotebook({ node, activeTab, onTabChange, renderNode }: FormNotebookProps) {
   const currentTab = activeTab;
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   return (
     <div className={cn("mt-4", node.className)}>

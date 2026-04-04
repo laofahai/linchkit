@@ -51,7 +51,7 @@ function isRelationshipField(
  * @param schemas - All schema definitions (used to validate targets exist)
  * @param explicitLinks - Explicitly defined links (for conflict detection)
  */
-export function convertSchemaRelationshipFieldsToImplicitLinks(
+export function convertEntityRelationshipFieldsToImplicitRelations(
   schemas: EntityDefinition[],
   explicitLinks: RelationDefinition[],
 ): {

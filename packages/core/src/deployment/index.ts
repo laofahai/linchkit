@@ -24,7 +24,7 @@ export {
   createCacheCheck,
   createDatabaseCheck,
   createEventBusCheck,
-  createSchemaCheck,
+  createEntityCheck,
   type HealthCheckFn,
   HealthCheckRegistry,
   type HealthCheckRegistryOptions,

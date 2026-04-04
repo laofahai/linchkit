@@ -20,7 +20,7 @@ interface EnvironmentInfo {
 
 import {
   ActionRegistry,
-  convertSchemaRelationshipFieldsToImplicitLinks,
+  convertEntityRelationshipFieldsToImplicitRelations,
   createInterfaceRegistry,
   createRelationRegistry,
   createTenantIsolationMiddleware,
@@ -63,7 +63,7 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
 
   // Auto-promote schema relationship fields to implicit links
   const { implicitLinks, conflicts, missingTargets } =
-    convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+    convertEntityRelationshipFieldsToImplicitRelations(schemas, links);
   if (conflicts.length > 0) {
     console.warn(
       `[linch] Found ${conflicts.length} conflict(s) between implicit and explicit links:`,
@@ -105,14 +105,14 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
   // Build EntityRegistry
   const entityRegistry = new EntityRegistry();
   entityRegistry.setInterfaceRegistry(interfaceRegistry);
-  for (const schema of schemas) {
-    entityRegistry.register(schema);
+  for (const entity of schemas) {
+    entityRegistry.register(entity);
   }
 
   // Build RelationRegistry (explicit + implicit)
   const relationRegistry = createRelationRegistry();
-  for (const link of links) {
-    relationRegistry.register(link);
+  for (const relation of links) {
+    relationRegistry.register(relation);
   }
   if (links.length > 0) {
     console.log(

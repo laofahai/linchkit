@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AISearchState } from "../../hooks/use-ai-search";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import type {
   Column,
   DataTableFilterActions,
@@ -94,7 +94,7 @@ export function ListToolbar({
   refreshing = false,
 }: ListToolbarProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   const primaryAction = toolbarActions[0];
   const overflowActions = toolbarActions.slice(1);

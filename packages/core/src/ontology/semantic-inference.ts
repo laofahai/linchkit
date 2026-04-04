@@ -37,13 +37,13 @@ function makeId(
 }
 
 /** Extract the schema name from a conventional event type string like "purchase_request.submit.succeeded" */
-function schemaFromEventType(eventType: string): string | undefined {
+function entityFromEventType(eventType: string): string | undefined {
   const parts = eventType.split(".");
   return parts.length >= 2 ? parts[0] : undefined;
 }
 
 /** Extract schema name from a rule context query string (e.g. "schema:purchase_request" or raw schema name) */
-function schemaFromContextQuery(query: string): string | undefined {
+function entityFromContextQuery(query: string): string | undefined {
   // Support "schema:name" notation and bare names
   const match = query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
   return match?.[1];
@@ -74,7 +74,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
   }
 
   // Build action→schema index from all capabilities
-  const actionToSchema = input.actionToSchema ?? buildActionToSchema(capabilities);
+  const actionToSchema = input.actionToSchema ?? buildActionToEntity(capabilities);
 
   for (const cap of capabilities) {
     // ── 1. capability.dependencies → depends_on ──────────────
@@ -152,11 +152,11 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
     for (const handler of cap.eventHandlers ?? []) {
       const listens = Array.isArray(handler.listen) ? handler.listen : [handler.listen];
       for (const eventType of listens) {
-        const sourceSchema = schemaFromEventType(eventType);
+        const sourceSchema = entityFromEventType(eventType);
         if (!sourceSchema) continue;
 
         // Determine source capability for this schema (best effort)
-        const sourceCap = findCapabilityForSchema(capabilities, sourceSchema);
+        const sourceCap = findCapabilityForEntity(capabilities, sourceSchema);
 
         // If the handler lives in a different capability than where the event originates
         if (sourceCap && sourceCap !== cap.name) {
@@ -186,7 +186,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
 
       // Find this flow's "home" schema from its trigger
       const triggerSchema =
-        flow.trigger.type === "event" ? schemaFromEventType(flow.trigger.eventType) : undefined;
+        flow.trigger.type === "event" ? entityFromEventType(flow.trigger.eventType) : undefined;
 
       for (const step of flow.steps ?? []) {
         if (step.type !== "action") continue;
@@ -197,7 +197,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
 
         // Only record cross-module orchestration (different schema from trigger)
         if (triggerSchema && targetEntity !== triggerSchema) {
-          const targetCap = findCapabilityForSchema(capabilities, targetEntity);
+          const targetCap = findCapabilityForEntity(capabilities, targetEntity);
           add({
             id: makeId(cap.name, triggerSchema, "orchestrates", targetCap, targetEntity, flow.name),
             type: "orchestrates",
@@ -215,14 +215,14 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
       if (!rule.context) continue;
 
       // Determine which schema this rule belongs to
-      const ruleSchema = extractRuleSchema(rule, actionToSchema);
+      const ruleSchema = extractRuleEntity(rule, actionToSchema);
 
       for (const [contextKey, query] of Object.entries(rule.context)) {
-        const targetEntity = schemaFromContextQuery(query.query);
+        const targetEntity = entityFromContextQuery(query.query);
         if (!targetEntity || targetEntity === ruleSchema) continue;
 
-        const targetCap = findCapabilityForSchema(capabilities, targetEntity);
-        const fromCap = ruleSchema ? findCapabilityForSchema(capabilities, ruleSchema) : cap.name;
+        const targetCap = findCapabilityForEntity(capabilities, targetEntity);
+        const fromCap = ruleSchema ? findCapabilityForEntity(capabilities, ruleSchema) : cap.name;
         add({
           id: makeId(
             fromCap ?? cap.name,
@@ -292,7 +292,7 @@ export function buildRelationGraph(
 
 // ── Internal helpers ─────────────────────────────────────
 
-function buildActionToSchema(capabilities: CapabilityDefinition[]): Map<string, string> {
+function buildActionToEntity(capabilities: CapabilityDefinition[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const cap of capabilities) {
     for (const action of cap.actions ?? []) {
@@ -302,7 +302,7 @@ function buildActionToSchema(capabilities: CapabilityDefinition[]): Map<string, 
   return map;
 }
 
-function findCapabilityForSchema(
+function findCapabilityForEntity(
   capabilities: CapabilityDefinition[],
   schemaName: string,
 ): string | undefined {
@@ -314,7 +314,7 @@ function findCapabilityForSchema(
   return undefined;
 }
 
-function extractRuleSchema(
+function extractRuleEntity(
   rule: RuleDefinition,
   actionToSchema: Map<string, string>,
 ): string | undefined {

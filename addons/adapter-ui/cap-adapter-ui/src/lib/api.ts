@@ -389,8 +389,8 @@ export async function requestAiAutoFill(params: {
 
 // ── Schema metadata ─────────────────────────────────────
 
-/** Lightweight schema info for navigation (from GET /api/schemas) */
-export interface SchemaInfo {
+/** Lightweight entity info for navigation (from GET /api/schemas) */
+export interface EntityInfo {
   name: string;
   label?: string;
   description?: string;
@@ -402,8 +402,11 @@ export interface SchemaInfo {
 
 import type { RelationDefinition, SemanticRelation, StateDefinition } from "@linchkit/core/types";
 
-/** Full schema bundle with views (from GET /api/schemas/:name) */
-export interface SchemaBundle {
+/** @deprecated Use EntityInfo instead */
+export type SchemaInfo = EntityInfo;
+
+/** Full entity bundle with views (from GET /api/schemas/:name) */
+export interface EntityBundle {
   name: string;
   label?: string;
   description?: string;
@@ -416,26 +419,35 @@ export interface SchemaBundle {
   internal?: boolean;
 }
 
+/** @deprecated Use EntityBundle instead */
+export type SchemaBundle = EntityBundle;
+
 /**
- * Fetch all registered schemas from the server (lightweight list).
+ * Fetch all registered entities from the server (lightweight list).
  */
-export async function fetchSchemas(): Promise<SchemaInfo[]> {
+export async function fetchEntities(): Promise<EntityInfo[]> {
   const res = await fetch("/api/schemas", { headers: getAuthHeaders() });
   handleUnauthorized(res);
   const json = await res.json();
   return json.data ?? [];
 }
 
+/** @deprecated Use fetchEntities instead */
+export const fetchSchemas = fetchEntities;
+
 /**
- * Fetch a full schema bundle (schema + views) by name.
+ * Fetch a full entity bundle (entity + views) by name.
  */
-export async function fetchSchemaBundle(name: string): Promise<SchemaBundle | null> {
+export async function fetchEntityBundle(name: string): Promise<EntityBundle | null> {
   const res = await fetch(`/api/schemas/${name}`, { headers: getAuthHeaders() });
   handleUnauthorized(res);
   if (!res.ok) return null;
   const json = await res.json();
   return json.data ?? null;
 }
+
+/** @deprecated Use fetchEntityBundle instead */
+export const fetchSchemaBundle = fetchEntityBundle;
 
 /**
  * Fetch all registered link definitions from the server.

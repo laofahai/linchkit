@@ -38,7 +38,7 @@ export const capAdapterServer = defineCapability({
           }
 
           // Merge system schemas + views into context arrays
-          const allSchemas = [...ctx.schemas, ...systemSchemas];
+          const allSchemas = [...ctx.entities, ...systemSchemas];
           const allViews = [...ctx.views, ...systemViews];
 
           // Wrap DataProvider to handle internal schema queries
@@ -58,7 +58,7 @@ export const capAdapterServer = defineCapability({
           const crudOpts = ctx.derivedPropertyEngine
             ? { derivedPropertyEngine: ctx.derivedPropertyEngine }
             : undefined;
-          for (const schema of ctx.schemas) {
+          for (const schema of ctx.entities) {
             const cruds = generateCrudActions(schema, crudOpts);
             for (const crud of cruds) {
               if (!ctx.executor.registry.has(crud.name)) {
@@ -98,7 +98,7 @@ export const capAdapterServer = defineCapability({
 
           // Build entity map for link resolver data masking
           const entityMap = new Map<string, import("@linchkit/core").EntityDefinition>();
-          for (const s of ctx.schemas) {
+          for (const s of ctx.entities) {
             entityMap.set(s.name, s);
           }
 

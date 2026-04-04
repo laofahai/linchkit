@@ -174,7 +174,7 @@ export function createDatabaseCheck(checkFn: () => Promise<boolean>): HealthChec
  *
  * @param getSchemaCount - Returns the number of loaded schemas.
  */
-export function createSchemaCheck(getSchemaCount: () => number): HealthCheckFn {
+export function createEntityCheck(getSchemaCount: () => number): HealthCheckFn {
   return (): HealthCheckResult => {
     const count = getSchemaCount();
     return {

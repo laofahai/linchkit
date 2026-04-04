@@ -22,7 +22,7 @@ describe("InMemoryStore locale resolution", () => {
 
   beforeEach(() => {
     store = new InMemoryStore();
-    store.registerSchema(productSchema);
+    store.registerEntity(productSchema);
   });
 
   test("get() returns raw JSONB when no locale provided", async () => {

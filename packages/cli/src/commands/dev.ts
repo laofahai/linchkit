@@ -104,11 +104,11 @@ export const devCommand = defineCommand({
 
     // ── Collect all definitions from capabilities ──
     const collected = collectCapabilityDefinitions(capabilities);
-    const { schemas, actions, views, states, links, rules, automations, middlewares, transports } =
+    const { entities, actions, views, states, links, rules, automations, middlewares, transports } =
       collected;
 
     console.log(
-      `[linch] Loaded ${capabilities.length} capabilities, ${schemas.length} schemas, ${actions.length} actions`,
+      `[linch] Loaded ${capabilities.length} capabilities, ${entities.length} schemas, ${actions.length} actions`,
     );
     console.log(
       `[linch] Found ${transports.length} transport(s): ${transports.map((t) => t.name).join(", ") || "none"}`,
@@ -119,7 +119,7 @@ export const devCommand = defineCommand({
       await buildRegistries({
         capabilities,
         interfaces: collected.interfaces,
-        schemas,
+        schemas: entities,
         actions,
         links,
         middlewares,
@@ -134,7 +134,7 @@ export const devCommand = defineCommand({
       dbInstance,
     } = await setupDatabase({
       registry,
-      schemas,
+      schemas: entities,
       links,
     });
 
@@ -161,7 +161,7 @@ export const devCommand = defineCommand({
         relationRegistry,
         interfaceRegistry,
         permissionRegistry,
-        schemas,
+        entities,
         actions,
         views,
         states,

@@ -22,7 +22,7 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
-  convertSchemaRelationshipFieldsToImplicitLinks,
+  convertEntityRelationshipFieldsToImplicitRelations,
   createRelationRegistry,
   createOntologyRegistry,
   EntityRegistry,
@@ -72,7 +72,7 @@ async function loadCapabilities(): Promise<{
  * Only constructs Schema, Action, and Link registries (no DB, no event bus).
  */
 function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
-  const schemas: EntityDefinition[] = [];
+  const entities: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
   const states: StateDefinition[] = [];
@@ -80,7 +80,7 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   const rules: RuleDefinition[] = [];
 
   for (const cap of capabilities) {
-    if (cap.entities) schemas.push(...cap.entities);
+    if (cap.entities) entities.push(...cap.entities);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.views) views.push(...cap.views);
     if (cap.states) states.push(...cap.states);
@@ -89,18 +89,18 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   }
 
   // Auto-promote relationship fields to implicit links
-  const { implicitLinks } = convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+  const { implicitLinks } = convertEntityRelationshipFieldsToImplicitRelations(entities, links);
   links.push(...implicitLinks);
 
   // Build registries
   const entityRegistry = new EntityRegistry();
-  for (const schema of schemas) {
-    entityRegistry.register(schema);
+  for (const entity of entities) {
+    entityRegistry.register(entity);
   }
 
   const relationRegistry = createRelationRegistry();
-  for (const link of links) {
-    relationRegistry.register(link);
+  for (const relation of links) {
+    relationRegistry.register(relation);
   }
 
   const actionRegistry = new ActionRegistry();
@@ -119,7 +119,7 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     links: relationRegistry,
   });
 
-  return { ontology, schemas, actions };
+  return { ontology, entities, actions };
 }
 
 /** Write content to a file or stdout */
@@ -214,9 +214,9 @@ const validateCommand = defineCommand({
   },
   async run({ args }) {
     const { capabilities } = await loadCapabilities();
-    const { schemas, actions } = buildOntologyFromCapabilities(capabilities);
+    const { entities, actions } = buildOntologyFromCapabilities(capabilities);
 
-    const schemaResults = schemas.map(validateEntityDoc);
+    const schemaResults = entities.map(validateEntityDoc);
     const actionResults = actions.map(validateActionDoc);
     const allResults = [...schemaResults, ...actionResults];
 

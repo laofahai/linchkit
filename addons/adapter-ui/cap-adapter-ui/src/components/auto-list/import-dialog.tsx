@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ function downloadCSVTemplate(schema: EntityDefinition) {
 
 export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportDialogProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   const [phase, setPhase] = useState<ImportPhase>("upload");
   const [file, setFile] = useState<File | null>(null);

@@ -9,7 +9,7 @@ import {
   resolveTranslatableRow,
   resolveTranslatableValue,
   resolveTranslation,
-  validateTranslatableSchema,
+  validateTranslatableEntity,
   wrapTranslatableValue,
 } from "../src/entity/translatable";
 import type { EntityDefinition } from "../src/types/entity";
@@ -384,9 +384,9 @@ describe("resolveTranslation", () => {
   });
 });
 
-// -- validateTranslatableSchema --
+// -- validateTranslatableEntity --
 
-describe("validateTranslatableSchema", () => {
+describe("validateTranslatableEntity", () => {
   test("returns no errors for valid schema", () => {
     const schema: EntityDefinition = {
       name: "product",
@@ -397,7 +397,7 @@ describe("validateTranslatableSchema", () => {
         sku: { type: "string" },
       },
     };
-    expect(validateTranslatableSchema(schema)).toEqual([]);
+    expect(validateTranslatableEntity(schema)).toEqual([]);
   });
 
   test("returns no errors for schema without translatable fields", () => {
@@ -407,7 +407,7 @@ describe("validateTranslatableSchema", () => {
         count: { type: "number" },
       },
     };
-    expect(validateTranslatableSchema(schema)).toEqual([]);
+    expect(validateTranslatableEntity(schema)).toEqual([]);
   });
 
   test("returns error for non-translatable field type with translatable flag", () => {
@@ -418,7 +418,7 @@ describe("validateTranslatableSchema", () => {
         count: { type: "number", translatable: true },
       },
     };
-    const errors = validateTranslatableSchema(schema);
+    const errors = validateTranslatableEntity(schema);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain("count");
     expect(errors[0]).toContain("number");
@@ -432,7 +432,7 @@ describe("validateTranslatableSchema", () => {
         active: { type: "boolean", translatable: true },
       },
     };
-    const errors = validateTranslatableSchema(schema);
+    const errors = validateTranslatableEntity(schema);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain("active");
     expect(errors[0]).toContain("boolean");
@@ -445,7 +445,7 @@ describe("validateTranslatableSchema", () => {
         name: { type: "string", translatable: true },
       },
     };
-    const errors = validateTranslatableSchema(schema);
+    const errors = validateTranslatableEntity(schema);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain("defaultLocale");
   });
@@ -459,7 +459,7 @@ describe("validateTranslatableSchema", () => {
         active: { type: "boolean", translatable: true },
       },
     };
-    const errors = validateTranslatableSchema(schema);
+    const errors = validateTranslatableEntity(schema);
     // 2 invalid field types + 1 missing defaultLocale = 3 errors
     expect(errors.length).toBe(3);
   });
@@ -476,6 +476,6 @@ describe("validateTranslatableSchema", () => {
         },
       },
     };
-    expect(validateTranslatableSchema(schema)).toEqual([]);
+    expect(validateTranslatableEntity(schema)).toEqual([]);
   });
 });

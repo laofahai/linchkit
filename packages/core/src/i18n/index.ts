@@ -112,6 +112,6 @@ export {
   resolveTranslatableValue,
   resolveTranslation,
   TRANSLATABLE_FIELD_TYPES,
-  validateTranslatableSchema,
+  validateTranslatableEntity,
   wrapTranslatableValue,
 } from "../entity/translatable";

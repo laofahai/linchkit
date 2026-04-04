@@ -12,7 +12,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import { transitionRecord } from "../../lib/api";
 import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 
@@ -241,7 +241,7 @@ export function AutoKanban({
   queryFields,
 }: AutoKanbanProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);

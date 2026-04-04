@@ -11,7 +11,7 @@
 import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 
 export interface FormFieldRowProps {
@@ -42,7 +42,7 @@ export function FormFieldRow({
   onBlur,
 }: FormFieldRowProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const rawLabel = node.label ?? viewField?.label ?? fieldDef.label ?? node.field;
   const label = resolveLabel(rawLabel, node.field);
   const colspan = node.colspan ?? 1;

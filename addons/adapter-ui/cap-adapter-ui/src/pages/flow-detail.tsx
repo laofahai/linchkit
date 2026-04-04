@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoList, SortableHeader } from "@/components/auto-list";
 import { FlowDiagram, type FlowStep } from "../components/flow-diagram";
-import { useSchemaLabel } from "../i18n/use-entity-label";
+import { useEntityLabel } from "../i18n/use-entity-label";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -192,7 +192,7 @@ function StepListAutoList({
 
 export function FlowDetailPage() {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   // biome-ignore lint/suspicious/noExplicitAny: TanStack Router param typing
   const { name } = useParams({ strict: false }) as any;
   const [flow, setFlow] = useState<FlowDetail | null>(null);

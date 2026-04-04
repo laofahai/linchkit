@@ -51,7 +51,7 @@ import {
   createOntologyRegistry,
   createOutboxWorker,
   createPersistentEventBus,
-  createSchemaCheck,
+  createEntityCheck,
   createSyncFlowEngine,
   createTriggerBinding,
   DrizzleApprovalStore,
@@ -83,7 +83,7 @@ export interface WireDevEnginesInput {
   permissionRegistry: InstanceType<typeof PermissionRegistry>;
 
   // Collected definitions from capabilities
-  schemas: EntityDefinition[];
+  entities: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];
@@ -123,7 +123,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     relationRegistry,
     interfaceRegistry,
     permissionRegistry,
-    schemas,
+    entities,
     actions,
     views,
     states,
@@ -362,8 +362,8 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
 
   // Build DerivedPropertyEngine — auto-computes derived fields on write and read
   const derivedPropertyEngine = createDerivedPropertyEngine();
-  derivedPropertyEngine.register(schemas);
-  const derivedFieldCount = schemas.reduce(
+  derivedPropertyEngine.register(entities);
+  const derivedFieldCount = entities.reduce(
     (acc, s) => acc + derivedPropertyEngine.getDerivedFields(s.name).length,
     0,
   );
@@ -428,7 +428,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   }
   healthCheckRegistry.register(
     "schemas",
-    createSchemaCheck(() => entityRegistry.getAll().length),
+    createEntityCheck(() => entityRegistry.getAll().length),
   );
   healthCheckRegistry.register(
     "eventbus",
@@ -457,7 +457,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     commandLayer,
     executor,
     entityRegistry,
-    schemas,
+    entities,
     actions,
     views,
     states,

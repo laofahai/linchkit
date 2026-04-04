@@ -22,7 +22,7 @@ import type {
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
-  schemas: EntityDefinition[];
+  entities: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];
@@ -45,7 +45,7 @@ export function collectCapabilityDefinitions(
   capabilities: CapabilityDefinition[],
 ): CollectedDefinitions {
   const interfaces: InterfaceDefinition[] = [];
-  const schemas: EntityDefinition[] = [];
+  const entities: EntityDefinition[] = [];
   const actions: ActionDefinition[] = [];
   const views: ViewDefinition[] = [];
   const states: StateDefinition[] = [];
@@ -60,7 +60,7 @@ export function collectCapabilityDefinitions(
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
-    if (cap.entities) schemas.push(...cap.entities);
+    if (cap.entities) entities.push(...cap.entities);
     if (cap.actions) actions.push(...cap.actions);
     if (cap.views) views.push(...cap.views);
     if (cap.states) states.push(...cap.states);
@@ -87,7 +87,7 @@ export function collectCapabilityDefinitions(
 
   return {
     interfaces,
-    schemas,
+    entities,
     actions,
     views,
     states,

@@ -100,7 +100,7 @@ describe("generateRelationColumns", () => {
   // ── many_to_one ──────────────────────────────────────────
 
   describe("many_to_one", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",
@@ -108,7 +108,7 @@ describe("generateRelationColumns", () => {
     };
 
     test("generates FK column {to}_id on the 'from' table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       // FK column should be on employee table
       expect(result.fkColumns.employee).toBeDefined();
@@ -119,7 +119,7 @@ describe("generateRelationColumns", () => {
     });
 
     test("FK column is varchar(128)", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       const col = result.fkColumns.employee.department_id;
 
       // Column should be a varchar type (Drizzle column object)
@@ -127,7 +127,7 @@ describe("generateRelationColumns", () => {
     });
 
     test("does not add FK on the 'to' table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       // department table should not get any FK columns
       expect(result.fkColumns.department).toBeUndefined();
@@ -137,7 +137,7 @@ describe("generateRelationColumns", () => {
   // ── one_to_many ──────────────────────────────────────────
 
   describe("one_to_many", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "department_employees",
       from: "department",
       to: "employee",
@@ -145,7 +145,7 @@ describe("generateRelationColumns", () => {
     };
 
     test("generates FK column {from}_id on the 'to' table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       // FK column should be on employee table (the 'to' side)
       expect(result.fkColumns.employee).toBeDefined();
@@ -162,7 +162,7 @@ describe("generateRelationColumns", () => {
   // ── one_to_one ──────────────────────────────────────────
 
   describe("one_to_one", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_profile",
       from: "employee",
       to: "profile",
@@ -170,14 +170,14 @@ describe("generateRelationColumns", () => {
     };
 
     test("generates FK column {to}_id on the 'from' table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       expect(result.fkColumns.employee).toBeDefined();
       expect(result.fkColumns.employee.profile_id).toBeDefined();
     });
 
     test("FK column has unique constraint", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.profile_id as any;
 
@@ -186,7 +186,7 @@ describe("generateRelationColumns", () => {
     });
 
     test("no junction table created", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       expect(result.junctionTables).toHaveLength(0);
     });
   });
@@ -194,7 +194,7 @@ describe("generateRelationColumns", () => {
   // ── many_to_many ──────────────────────────────────────────
 
   describe("many_to_many", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_project",
       from: "employee",
       to: "project",
@@ -202,7 +202,7 @@ describe("generateRelationColumns", () => {
     };
 
     test("creates a junction table named _link_{name}", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       expect(result.junctionTables).toHaveLength(1);
       const jt = result.junctionTables[0];
@@ -210,7 +210,7 @@ describe("generateRelationColumns", () => {
     });
 
     test("junction table has composite PK on both FK columns", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -229,14 +229,14 @@ describe("generateRelationColumns", () => {
     });
 
     test("does not add FK columns to either from or to table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
 
       expect(result.fkColumns.employee).toBeUndefined();
       expect(result.fkColumns.project).toBeUndefined();
     });
 
     test("junction table has foreign keys referencing both tables", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -248,7 +248,7 @@ describe("generateRelationColumns", () => {
   // ── M:N properties ──────────────────────────────────────────
 
   describe("many_to_many with properties", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_project_with_role",
       from: "employee",
       to: "project",
@@ -260,7 +260,7 @@ describe("generateRelationColumns", () => {
     };
 
     test("properties become columns on the junction table", () => {
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -279,14 +279,14 @@ describe("generateRelationColumns", () => {
 
   describe("cascade behavior", () => {
     test("cascade: 'delete' sets onDelete cascade on many_to_one FK", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "employee_department_cascade",
         from: "employee",
         to: "department",
         cardinality: "many_to_one",
         cascade: "delete",
       };
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -298,14 +298,14 @@ describe("generateRelationColumns", () => {
     });
 
     test("cascade: 'nullify' sets onDelete set null on many_to_one FK", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "employee_department_nullify",
         from: "employee",
         to: "department",
         cardinality: "many_to_one",
         cascade: "nullify",
       };
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -316,14 +316,14 @@ describe("generateRelationColumns", () => {
     });
 
     test("cascade: 'delete' on one_to_many FK", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "dept_emp_cascade",
         from: "department",
         to: "employee",
         cardinality: "one_to_many",
         cascade: "delete",
       };
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
       const col = result.fkColumns.employee.department_id as any;
       expect(col).toBeDefined();
@@ -334,14 +334,14 @@ describe("generateRelationColumns", () => {
     });
 
     test("cascade: 'delete' on many_to_many junction table FKs", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "emp_proj_cascade",
         from: "employee",
         to: "project",
         cardinality: "many_to_many",
         cascade: "delete",
       };
-      const result = generateRelationColumns([link], tables);
+      const result = generateRelationColumns([relation], tables);
       const jt = result.junctionTables[0];
       const config = getTableConfig(jt);
 
@@ -356,13 +356,13 @@ describe("generateRelationColumns", () => {
 
   describe("table prefix", () => {
     test("FK column table names include prefix", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "employee_department",
         from: "employee",
         to: "department",
         cardinality: "many_to_one",
       };
-      const result = generateRelationColumns([link], tables, {
+      const result = generateRelationColumns([relation], tables, {
         tablePrefix: "app",
       });
 
@@ -372,13 +372,13 @@ describe("generateRelationColumns", () => {
     });
 
     test("junction table name includes prefix", () => {
-      const link: RelationDefinition = {
+      const relation: RelationDefinition = {
         name: "emp_proj",
         from: "employee",
         to: "project",
         cardinality: "many_to_many",
       };
-      const result = generateRelationColumns([link], tables, {
+      const result = generateRelationColumns([relation], tables, {
         tablePrefix: "app",
       });
 
@@ -390,14 +390,14 @@ describe("generateRelationColumns", () => {
   // ── required FK ──────────────────────────────────────────
 
   test("required: true makes FK column notNull", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_department_required",
       from: "employee",
       to: "department",
       cardinality: "many_to_one",
       required: true,
     };
-    const result = generateRelationColumns([link], tables);
+    const result = generateRelationColumns([relation], tables);
     // biome-ignore lint/suspicious/noExplicitAny: accessing internal drizzle column config
     const col = result.fkColumns.employee.department_id as any;
 
@@ -408,13 +408,13 @@ describe("generateRelationColumns", () => {
   // ── Missing table in tableMap ──────────────────────────────
 
   test("skips link when referenced table is not in tableMap", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_unknown",
       from: "employee",
       to: "nonexistent",
       cardinality: "many_to_one",
     };
-    const result = generateRelationColumns([link], tables);
+    const result = generateRelationColumns([relation], tables);
 
     // Should produce no FK columns and no junction tables
     expect(Object.keys(result.fkColumns)).toHaveLength(0);
@@ -430,7 +430,7 @@ describe("GraphQL link field generation", () => {
   // ── many_to_one ──────────────────────────────────────────
 
   describe("many_to_one", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",
@@ -440,7 +440,7 @@ describe("GraphQL link field generation", () => {
         to: "Employees",
       },
     };
-    const links = [link];
+    const links = [relation];
 
     // Build typeMap with lazy resolution (GraphQL types reference each other)
     const typeMap = new Map<string, GraphQLObjectType>();
@@ -483,7 +483,7 @@ describe("GraphQL link field generation", () => {
   // ── one_to_many ──────────────────────────────────────────
 
   describe("one_to_many", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "department_employees",
       from: "department",
       to: "employee",
@@ -493,7 +493,7 @@ describe("GraphQL link field generation", () => {
         to: "Department",
       },
     };
-    const links = [link];
+    const links = [relation];
 
     const typeMap = new Map<string, GraphQLObjectType>();
     const departmentType = generateGraphQLObjectType(departmentSchema, undefined, links, typeMap);
@@ -540,13 +540,13 @@ describe("GraphQL link field generation", () => {
   // ── one_to_one ──────────────────────────────────────────
 
   describe("one_to_one", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_profile",
       from: "employee",
       to: "profile",
       cardinality: "one_to_one",
     };
-    const links = [link];
+    const links = [relation];
 
     const typeMap = new Map<string, GraphQLObjectType>();
     const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
@@ -578,13 +578,13 @@ describe("GraphQL link field generation", () => {
   // ── many_to_many ──────────────────────────────────────────
 
   describe("many_to_many", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_project",
       from: "employee",
       to: "project",
       cardinality: "many_to_many",
     };
-    const links = [link];
+    const links = [relation];
 
     const typeMap = new Map<string, GraphQLObjectType>();
     const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);
@@ -613,13 +613,13 @@ describe("GraphQL link field generation", () => {
   // ── Resolver graceful degradation ──────────────────────────
 
   describe("resolver behavior without dataProvider", () => {
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "employee_department",
       from: "employee",
       to: "department",
       cardinality: "many_to_one",
     };
-    const links = [link];
+    const links = [relation];
 
     const typeMap = new Map<string, GraphQLObjectType>();
     const employeeType = generateGraphQLObjectType(employeeSchema, undefined, links, typeMap);

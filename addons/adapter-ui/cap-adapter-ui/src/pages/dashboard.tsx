@@ -54,8 +54,8 @@ import {
   YAxis,
 } from "recharts";
 import { useEntities } from "@/hooks/use-entities";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
-import { type ExecutionLogEntry, graphql, queryExecutionLogs, type SchemaInfo } from "@/lib/api";
+import { useEntityLabel } from "@/i18n/use-entity-label";
+import { type ExecutionLogEntry, graphql, queryExecutionLogs, type EntityInfo } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 // CSS for react-grid-layout drag/resize handles
@@ -228,10 +228,10 @@ function StatCardWidget({
   logs,
 }: {
   config: WidgetConfig;
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   logs: ExecutionLogEntry[];
 }) {
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -438,8 +438,8 @@ function RecentActivityWidget({ logs, loading }: { logs: ExecutionLogEntry[]; lo
 
 // ── Widget: Record List ───────────────────────────────────────────────────────
 
-function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: SchemaInfo[] }) {
-  const { resolveLabel } = useSchemaLabel();
+function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: EntityInfo[] }) {
+  const { resolveLabel } = useEntityLabel();
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const schema = config.schema;
@@ -514,8 +514,8 @@ function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: 
 
 // ── Widget: Quick Actions ─────────────────────────────────────────────────────
 
-function QuickActionsWidget({ schemas }: { schemas: SchemaInfo[] }) {
-  const { resolveLabel } = useSchemaLabel();
+function QuickActionsWidget({ schemas }: { schemas: EntityInfo[] }) {
+  const { resolveLabel } = useEntityLabel();
 
   if (schemas.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-4">No schemas available</p>;
@@ -552,7 +552,7 @@ function WidgetRenderer({
   logsLoading,
 }: {
   widget: DashboardWidget;
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   logs: ExecutionLogEntry[];
   logsLoading: boolean;
 }) {
@@ -634,11 +634,11 @@ function WidgetConfigModal({
   onClose,
 }: {
   widget: DashboardWidget | null;
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   onSave: (config: WidgetConfig) => void;
   onClose: () => void;
 }) {
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const [config, setConfig] = useState<WidgetConfig>(widget?.config ?? {});
 
   useEffect(() => {
@@ -773,7 +773,7 @@ function DashboardWidgetCard({
 }: {
   widget: DashboardWidget;
   editMode: boolean;
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   logs: ExecutionLogEntry[];
   logsLoading: boolean;
   onConfigure: () => void;

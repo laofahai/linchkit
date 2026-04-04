@@ -162,7 +162,7 @@ export function validatePhase1(options: {
 
     switch (change.target) {
       case "schema":
-        validateSchema(change.definition as EntityDefinition, change.name, errors, warnings, {
+        validateEntity(change.definition as EntityDefinition, change.name, errors, warnings, {
           schemaExists,
         });
         break;
@@ -235,7 +235,7 @@ function resolveStateMachine(
 
 // ── Schema validation ────────────────────────────────────
 
-function validateSchema(
+function validateEntity(
   def: EntityDefinition,
   name: string,
   errors: ValidationError[],

@@ -38,8 +38,8 @@ import dagre from "dagre";
 import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
-import { fetchLinks, fetchSchemas, fetchSemanticRelations, type SchemaInfo } from "@/lib/api";
+import { useEntityLabel } from "@/i18n/use-entity-label";
+import { fetchLinks, fetchEntities, fetchSemanticRelations, type EntityInfo } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
 
@@ -390,7 +390,7 @@ function findMatchingLink(
 // ── Graph builder ────────────────────────────────────────
 
 function buildGraph(
-  schemas: SchemaInfo[],
+  schemas: EntityInfo[],
   links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   showInternal: boolean,
@@ -557,7 +557,7 @@ interface ImpactEntry {
 
 function computeImpact(
   selectedSchema: string,
-  schemas: SchemaInfo[],
+  schemas: EntityInfo[],
   links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   resolveLabel: (label: string | undefined, fallback: string) => string,
@@ -632,7 +632,7 @@ function computeImpact(
 
 interface ImpactPanelProps {
   selectedSchema: string;
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   onNavigate: (name: string) => void;
@@ -974,7 +974,7 @@ function GraphLegend({ activeSemanticTypes, hasOrphanLinks }: GraphLegendProps) 
 // ── GraphCanvas — inner component that owns ReactFlow state ─
 
 interface GraphCanvasProps {
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   showInternal: boolean;
@@ -1126,12 +1126,12 @@ function GraphCanvas({
 export function RelationGraphPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const [showInternal, setShowInternal] = useState(false);
   const [showSemantic, setShowSemantic] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchSchemas });
+  const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchEntities });
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
   // Always fetch semantic relations (not gated by showSemantic toggle)
   const semanticQuery = useQuery({

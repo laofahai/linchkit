@@ -3,7 +3,7 @@ import {
   createCacheCheck,
   createDatabaseCheck,
   createEventBusCheck,
-  createSchemaCheck,
+  createEntityCheck,
   detectEnvironment,
   GracefulShutdownManager,
   HealthCheckRegistry,
@@ -180,16 +180,16 @@ describe("createDatabaseCheck", () => {
   });
 });
 
-describe("createSchemaCheck", () => {
+describe("createEntityCheck", () => {
   it("returns healthy when schemas are loaded", () => {
-    const check = createSchemaCheck(() => 5);
+    const check = createEntityCheck(() => 5);
     const result = check();
     expect(result.status).toBe("healthy");
     expect(result.metadata?.schemaCount).toBe(5);
   });
 
   it("returns degraded when no schemas loaded", () => {
-    const check = createSchemaCheck(() => 0);
+    const check = createEntityCheck(() => 0);
     const result = check();
     expect(result.status).toBe("degraded");
     expect(result.message).toContain("No schemas");

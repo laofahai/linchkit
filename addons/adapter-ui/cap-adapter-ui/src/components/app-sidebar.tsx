@@ -19,14 +19,14 @@ import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import { useEntities } from "@/hooks/use-entities";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import { getMenuItems } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
   const { schemas } = useEntities();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   const data = useMemo(() => {
     // Split schemas into business vs system (internal) groups

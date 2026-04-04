@@ -40,8 +40,8 @@ import { pushNotification } from "../hooks/use-notifications";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
-import { buildSchemaSubscriptionQuery, useSubscription } from "../hooks/use-subscription";
-import { useSchemaLabel } from "../i18n/use-entity-label";
+import { buildEntitySubscriptionQuery, useSubscription } from "../hooks/use-subscription";
+import { useEntityLabel } from "../i18n/use-entity-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
 type ActiveView = "list" | "calendar" | "kanban" | "tree";
@@ -238,7 +238,7 @@ function findSelfRefField(
 export function EntityListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const params = useParams({ strict: false }) as { name?: string };
   const schemaName = params.name;
   // Fetch schema bundle from API
@@ -636,7 +636,7 @@ export function EntityListPage() {
   const [hasNewData, setHasNewData] = useState(false);
 
   const subscriptionQuery = useMemo(
-    () => (schemaName ? buildSchemaSubscriptionQuery(schemaName) : ""),
+    () => (schemaName ? buildEntitySubscriptionQuery(schemaName) : ""),
     [schemaName],
   );
 

@@ -6,10 +6,10 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { fetchSchemas, type SchemaInfo } from "@/lib/api";
+import { fetchEntities, type EntityInfo } from "@/lib/api";
 
 interface SchemasContextValue {
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   loading: boolean;
   refresh: () => void;
 }
@@ -21,12 +21,12 @@ const SchemasContext = createContext<SchemasContextValue>({
 });
 
 export function SchemasProvider({ children }: { children: React.ReactNode }) {
-  const [schemas, setSchemas] = useState<SchemaInfo[]>([]);
+  const [schemas, setSchemas] = useState<EntityInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await fetchSchemas();
+      const data = await fetchEntities();
       setSchemas(data);
     } catch {
       // API unavailable — empty list, sidebar shows no schemas

@@ -88,7 +88,7 @@ export const ${safeId}: CapabilityDefinition = {
 `;
 }
 
-function exampleSchemaTemplate(domain: string): string {
+function exampleEntityTemplate(domain: string): string {
   return `import { defineEntity } from "@linchkit/core";
 
 export const ${domain}Schema = defineEntity({
@@ -281,7 +281,7 @@ export const createCapabilityCommand = defineCommand({
 
     if (withExamples) {
       // Write example files
-      writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleSchemaTemplate(domain));
+      writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleEntityTemplate(domain));
       writeFileSync(
         resolve(outputDir, `src/actions/create-${domain.replace(/_/g, "-")}.ts`),
         exampleActionTemplate(domain),

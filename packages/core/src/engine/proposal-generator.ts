@@ -389,7 +389,7 @@ function validateChange(
 ): void {
   switch (change.target) {
     case "schema":
-      validateSchemaChange(change, entityRegistry, errors, warnings);
+      validateEntityChange(change, entityRegistry, errors, warnings);
       break;
     case "action":
       validateActionChange(
@@ -412,7 +412,7 @@ function validateChange(
   }
 }
 
-function validateSchemaChange(
+function validateEntityChange(
   change: ProposalChange,
   entityRegistry: EntityRegistry,
   errors: string[],

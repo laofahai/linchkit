@@ -15,17 +15,17 @@ import type {
 } from "@linchkit/core";
 import {
   closeDatabase,
-  convertSchemaRelationshipFieldsToImplicitLinks,
+  convertEntityRelationshipFieldsToImplicitRelations,
   createDatabase,
   generateDrizzleSchemaFile,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
-/** Load schemas and links from linchkit.config.ts */
+/** Load entities and relations from linchkit.config.ts */
 async function loadEntitiesAndRelations(): Promise<{
-  schemas: EntityDefinition[];
-  links: RelationDefinition[];
+  entities: EntityDefinition[];
+  relations: RelationDefinition[];
 }> {
   let config: LinchKitConfig = {};
   try {
@@ -38,29 +38,29 @@ async function loadEntitiesAndRelations(): Promise<{
   }
 
   const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
-  const schemas: EntityDefinition[] = [];
-  const links: RelationDefinition[] = [];
+  const entities: EntityDefinition[] = [];
+  const relations: RelationDefinition[] = [];
   for (const cap of capabilities) {
-    if (cap.entities) schemas.push(...cap.entities);
-    if (cap.relations) links.push(...cap.relations);
+    if (cap.entities) entities.push(...cap.entities);
+    if (cap.relations) relations.push(...cap.relations);
   }
 
   // Auto-promote schema relationship fields to implicit links (same as dev.ts)
-  const { implicitLinks } = convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+  const { implicitLinks } = convertEntityRelationshipFieldsToImplicitRelations(entities, relations);
   if (implicitLinks.length > 0) {
-    links.push(...implicitLinks);
+    relations.push(...implicitLinks);
   }
 
-  return { schemas, links };
+  return { entities, relations };
 }
 
 /** Generate the schema barrel file and return its path */
 async function generateSchema(): Promise<string> {
-  const { schemas, links } = await loadEntitiesAndRelations();
-  const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
+  const { entities, relations } = await loadEntitiesAndRelations();
+  const schemaFile = generateDrizzleSchemaFile(entities, undefined, undefined, relations);
   console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
   console.log(
-    `[linch] ${schemas.length} capability table(s) + system tables, ${links.length} link(s)`,
+    `[linch] ${entities.length} capability table(s) + system tables, ${relations.length} link(s)`,
   );
   return schemaFile;
 }

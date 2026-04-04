@@ -265,7 +265,7 @@ export {
   resolveTranslation,
   TRANSLATABLE_FIELD_TYPES,
   type TranslatableValue,
-  validateTranslatableSchema,
+  validateTranslatableEntity,
   wrapTranslatableValue,
 } from "./entity/translatable";
 // Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)

@@ -9,7 +9,7 @@ import type { Elysia } from "elysia";
 import { generateDefaultViews } from "../default-views";
 import type { ServerOptions } from "../server";
 
-export function mountSchemaRoutes(app: Elysia, options: ServerOptions): void {
+export function mountEntityRoutes(app: Elysia, options: ServerOptions): void {
   const entityRegistry = options.entityRegistry;
   const views = options.views;
   const capabilities = options.capabilities ?? [];

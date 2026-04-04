@@ -36,7 +36,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery, useAISearch } from "../../hooks/use-ai-search";
 import { useInlineEdit } from "../../hooks/use-inline-edit";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import { useDataTableFilters } from "../data-table-filter";
 import type { FiltersState } from "../data-table-filter/core/types";
 import { EmptyState } from "../empty-state";
@@ -304,7 +304,7 @@ export function AutoList({
   onPaginationChange,
   onSortingChange: onSortingChangeProp,
 }: AutoListProps) {
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   // Whether schema-driven features are active
   const isSchemaMode = !!(schema && view);

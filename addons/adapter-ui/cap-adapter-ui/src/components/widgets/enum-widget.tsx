@@ -10,11 +10,11 @@ import {
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useTranslation } from "react-i18next";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import { requiredBg } from "./utils";
 
 export function EnumDisplay({ value, fieldDef }: WidgetDisplayProps) {
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   if (value == null) return <span className="text-muted-foreground">&mdash;</span>;
   const enumDef = fieldDef as EnumField;
   const option = enumDef.options?.find((o) => o.value === value);
@@ -33,7 +33,7 @@ export function EnumInput({
   required,
 }: WidgetInputProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const enumDef = fieldDef as EnumField;
   return (
     <div className="space-y-1">

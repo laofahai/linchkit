@@ -24,7 +24,7 @@ import {
 import { AlertCircle, CheckCircle2, Pencil } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 import { updateRecord } from "../../lib/api";
 import { widgetRegistry } from "../../lib/widget-registry";
 
@@ -76,7 +76,7 @@ export function BulkEditDialog({
   onCompleted,
 }: BulkEditDialogProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   const [phase, setPhase] = useState<BulkEditPhase>("select");
   const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());

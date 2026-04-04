@@ -30,7 +30,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "@/hooks/use-entity-bundle";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import { generateChildFormView } from "@/lib/entity-form-utils";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { AutoForm } from "../auto-form/auto-form";
@@ -98,7 +98,7 @@ const CHILD_FORM_ID = "has-many-child-form";
 
 export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInputProps) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const targetSchema = (fieldDef as { target?: string }).target ?? "";
   const { bundle: targetBundle } = useEntityBundle(targetSchema);
 

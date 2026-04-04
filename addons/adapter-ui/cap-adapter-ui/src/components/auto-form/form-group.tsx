@@ -9,7 +9,7 @@
 import type { FormGroupNode, FormLayoutNode } from "@linchkit/core/types";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Fragment } from "react";
-import { useSchemaLabel } from "../../i18n/use-entity-label";
+import { useEntityLabel } from "../../i18n/use-entity-label";
 
 interface FormGroupProps {
   node: FormGroupNode;
@@ -19,7 +19,7 @@ interface FormGroupProps {
 
 export function FormGroup({ node, depth = 0, renderNode }: FormGroupProps) {
   const columns = node.columns ?? (depth === 0 ? 2 : 1);
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const title = node.title ? resolveLabel(node.title, node.title) : undefined;
 
   if (depth > 0) {

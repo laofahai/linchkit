@@ -91,7 +91,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
     await store.create("order_item", { id: "i3", order_id: "o2", amount: 50 });
 
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -106,7 +106,7 @@ describe("resolveAggregateValue", () => {
     };
 
     const parentRecord = { id: "o1" };
-    const result = await resolveAggregateValue(derived, parentRecord, link, store);
+    const result = await resolveAggregateValue(derived, parentRecord, relation, store);
     expect(result).toBe(300); // Only items for order o1
   });
 
@@ -115,7 +115,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i1", order_id: "o1", amount: 100 });
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
 
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -128,7 +128,7 @@ describe("resolveAggregateValue", () => {
       op: "count",
     };
 
-    const result = await resolveAggregateValue(derived, { id: "o1" }, link, store);
+    const result = await resolveAggregateValue(derived, { id: "o1" }, relation, store);
     expect(result).toBe(2);
   });
 
@@ -138,7 +138,7 @@ describe("resolveAggregateValue", () => {
     await store.create("order_item", { id: "i2", order_id: "o1", amount: 200 });
     await store.create("order_item", { id: "i3", order_id: "o1", amount: 300 });
 
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -152,13 +152,13 @@ describe("resolveAggregateValue", () => {
       field: "amount",
     };
 
-    const result = await resolveAggregateValue(derived, { id: "o1" }, link, store);
+    const result = await resolveAggregateValue(derived, { id: "o1" }, relation, store);
     expect(result).toBe(200);
   });
 
   test("returns 0 when parent has no id", async () => {
     const store = new InMemoryStore();
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -172,13 +172,13 @@ describe("resolveAggregateValue", () => {
       field: "amount",
     };
 
-    const result = await resolveAggregateValue(derived, {}, link, store);
+    const result = await resolveAggregateValue(derived, {}, relation, store);
     expect(result).toBe(0);
   });
 
   test("returns 0 when no related records", async () => {
     const store = new InMemoryStore();
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "order_to_items",
       from: "order",
       to: "order_item",
@@ -192,7 +192,7 @@ describe("resolveAggregateValue", () => {
       field: "amount",
     };
 
-    const result = await resolveAggregateValue(derived, { id: "nonexistent" }, link, store);
+    const result = await resolveAggregateValue(derived, { id: "nonexistent" }, relation, store);
     expect(result).toBe(0);
   });
 
@@ -205,7 +205,7 @@ describe("resolveAggregateValue", () => {
     await store.create("employee", { id: "e3", department_id: "d2", salary: 7000 });
 
     // Link: employee.department_id → department
-    const link: RelationDefinition = {
+    const relation: RelationDefinition = {
       name: "emp_to_dept",
       from: "employee",
       to: "department",
@@ -221,7 +221,7 @@ describe("resolveAggregateValue", () => {
 
     // Parent is "department", child is "employee"
     // Link from=employee, to=department; child=employee → fkColumn = `department_id`
-    const result = await resolveAggregateValue(derived, { id: "d1" }, link, store);
+    const result = await resolveAggregateValue(derived, { id: "d1" }, relation, store);
     expect(result).toBe(11000);
   });
 });

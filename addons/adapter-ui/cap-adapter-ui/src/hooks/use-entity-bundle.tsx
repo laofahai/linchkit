@@ -12,7 +12,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { fetchSchemaBundle } from "@/lib/api";
+import { fetchEntityBundle } from "@/lib/api";
 
 export interface ResolvedSchemaBundle {
   schema: EntityDefinition;
@@ -72,7 +72,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
     const cached = cacheRef.current.get(name);
     if (cached) return cached;
 
-    const raw = await fetchSchemaBundle(name);
+    const raw = await fetchEntityBundle(name);
     if (!raw) return null;
 
     const bundle: ResolvedSchemaBundle = {

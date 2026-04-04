@@ -33,7 +33,7 @@ export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcr
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
-export { resolveEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
+export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
 // Page components

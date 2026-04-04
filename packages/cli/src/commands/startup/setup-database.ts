@@ -92,8 +92,8 @@ export async function setupDatabase(opts: {
     const baseTableMap: Record<string, ReturnType<typeof pgTable>> = {};
     const extraFkColumns: Record<string, Record<string, unknown>> = {};
 
-    for (const schema of schemas) {
-      baseTableMap[schema.name] = generateDrizzleTable(schema);
+    for (const entity of schemas) {
+      baseTableMap[entity.name] = generateDrizzleTable(entity);
     }
 
     // Collect FK columns that need to be added to existing tables from links
@@ -120,9 +120,9 @@ export async function setupDatabase(opts: {
     // (built columns can't have .setName() called again by pgTable).
     const finalTableMap: Record<string, ReturnType<typeof pgTable>> = {};
 
-    for (const schema of schemas) {
-      const tableName = schema.name;
-      const columns = buildTableColumns(schema);
+    for (const entity of schemas) {
+      const tableName = entity.name;
+      const columns = buildTableColumns(entity);
 
       // Merge extra FK columns from links
       const extraCols = extraFkColumns[tableName];

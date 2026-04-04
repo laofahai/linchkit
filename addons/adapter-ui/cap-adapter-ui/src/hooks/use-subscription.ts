@@ -200,7 +200,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
  * Subscribes to created, updated, and deleted events for a given schema.
  * The subscription field names follow the pattern: on{PascalName}Created, etc.
  */
-export function buildSchemaSubscriptionQuery(schemaName: string): string {
+export function buildEntitySubscriptionQuery(schemaName: string): string {
   const pascal = schemaName
     .split(/[_-]/)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -239,7 +239,10 @@ export interface SubscriptionEvent {
   executionId?: string;
 }
 
-export interface UseSchemaSubscriptionOptions {
+/** @deprecated Use buildEntitySubscriptionQuery instead */
+export const buildSchemaSubscriptionQuery = buildEntitySubscriptionQuery;
+
+export interface UseEntitySubscriptionOptions {
   /** Schema names to subscribe to (empty array = all accessible schemas) */
   schemas: string[];
   /** Optional record IDs for fine-grained filtering */
@@ -250,7 +253,10 @@ export interface UseSchemaSubscriptionOptions {
   enabled?: boolean;
 }
 
-export interface UseSchemaSubscriptionResult {
+/** @deprecated Use UseEntitySubscriptionOptions instead */
+export type UseSchemaSubscriptionOptions = UseEntitySubscriptionOptions;
+
+export interface UseEntitySubscriptionResult {
   /** Whether the SSE connection is currently active */
   connected: boolean;
   /** The last error that occurred, if any */
@@ -268,9 +274,12 @@ export interface UseSchemaSubscriptionResult {
  * - Auto-reconnects with exponential backoff
  * - Handles heartbeat keepalive messages
  */
-export function useSchemaSubscription(
-  options: UseSchemaSubscriptionOptions,
-): UseSchemaSubscriptionResult {
+/** @deprecated Use UseEntitySubscriptionResult instead */
+export type UseSchemaSubscriptionResult = UseEntitySubscriptionResult;
+
+export function useEntitySubscription(
+  options: UseEntitySubscriptionOptions,
+): UseEntitySubscriptionResult {
   const { schemas, ids, onEvent, enabled = true } = options;
 
   const [connected, setConnected] = useState(false);
@@ -417,3 +426,6 @@ export function useSchemaSubscription(
 
   return { connected, error, connectionId };
 }
+
+/** @deprecated Use useEntitySubscription instead */
+export const useSchemaSubscription = useEntitySubscription;

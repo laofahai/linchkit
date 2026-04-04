@@ -3,7 +3,7 @@ import {
   createCacheCheck,
   createDatabaseCheck,
   createEventBusCheck,
-  createSchemaCheck,
+  createEntityCheck,
   HealthCheckRegistry,
   livenessCheck,
 } from "../src/deployment/health-check";
@@ -149,16 +149,16 @@ describe("createDatabaseCheck", () => {
   });
 });
 
-describe("createSchemaCheck", () => {
+describe("createEntityCheck", () => {
   it("returns healthy when schemas are loaded", () => {
-    const check = createSchemaCheck(() => 5);
+    const check = createEntityCheck(() => 5);
     const result = check() as ReturnType<typeof livenessCheck>;
     expect(result.status).toBe("healthy");
     expect(result.metadata?.schemaCount).toBe(5);
   });
 
   it("returns degraded when no schemas are loaded", () => {
-    const check = createSchemaCheck(() => 0);
+    const check = createEntityCheck(() => 0);
     const result = check() as ReturnType<typeof livenessCheck>;
     expect(result.status).toBe("degraded");
   });

@@ -22,7 +22,7 @@ import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
-import { useSchemaLabel } from "../i18n/use-entity-label";
+import { useEntityLabel } from "../i18n/use-entity-label";
 import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
 import { getRecordPanels } from "../lib/panel-registry";
 import {
@@ -49,7 +49,7 @@ export function EntityFormPage() {
   const cloneId = searchParams.clone;
   const parentId = searchParams.parent;
   const schemaName = params.name;
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const { setBreadcrumbTitle } = useBreadcrumbTitle();
 
   // Fetch schema bundle from API

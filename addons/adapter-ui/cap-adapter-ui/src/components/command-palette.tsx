@@ -36,7 +36,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
 import { useEntities } from "@/hooks/use-entities";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import { aiSearch } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
@@ -50,7 +50,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const open = controlledOpen ?? internalOpen;
   const { t } = useTranslation();
   const { schemas } = useEntities();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const { theme, setTheme } = useTheme();
 
   // AI search state within the palette

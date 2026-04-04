@@ -37,7 +37,7 @@ export interface TransportContext {
   commandLayer: CommandLayer;
   executor: ActionExecutor;
   entityRegistry: EntityRegistry;
-  schemas: EntityDefinition[];
+  entities: EntityDefinition[];
   actions: ActionDefinition[];
   views: ViewDefinition[];
   states: StateDefinition[];

@@ -49,7 +49,7 @@ import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountImportRoutes } from "./routes/import-api";
-import { mountSchemaRoutes } from "./routes/entity-api";
+import { mountEntityRoutes } from "./routes/entity-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
 
@@ -229,7 +229,7 @@ export function createServer(
 
   // ── Mount route modules ──────────────────────────────────
   mountAdminRoutes(app, opts, serverStartedAt);
-  mountSchemaRoutes(app, opts);
+  mountEntityRoutes(app, opts);
   mountActionRoutes(app, opts);
   mountImportRoutes(app, opts);
   mountApprovalRoutes(app, opts);

@@ -175,7 +175,7 @@ export const TRANSLATABLE_FIELD_TYPES = new Set(["string", "text", "enum"]);
  *
  * Returns an array of validation error messages (empty = valid).
  */
-export function validateTranslatableSchema(schema: EntityDefinition): string[] {
+export function validateTranslatableEntity(schema: EntityDefinition): string[] {
   const errors: string[] = [];
 
   const hasTranslatable = Object.entries(schema.fields).some(

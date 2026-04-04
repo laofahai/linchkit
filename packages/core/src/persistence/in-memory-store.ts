@@ -35,7 +35,7 @@ export class InMemoryStore implements DataProvider {
    * When a schema is registered, get() and query() will resolve translatable
    * fields to the requested locale from DataQueryOptions.
    */
-  registerSchema(schema: EntityDefinition): void {
+  registerEntity(schema: EntityDefinition): void {
     this.entityMap.set(schema.name, schema);
   }
 

@@ -1,6 +1,6 @@
 import { Input } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { formatCurrency, requiredBg } from "./utils";
 
@@ -23,7 +23,7 @@ export function NumberInput({
   dirty,
   required,
 }: WidgetInputProps) {
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const resolvedLabel = fieldDef.label ? resolveLabel(fieldDef.label, fieldDef.label) : undefined;
   const placeholder =
     fieldDef.description ?? (resolvedLabel ? `Enter ${resolvedLabel.toLowerCase()}` : "0");

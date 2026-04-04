@@ -15,9 +15,9 @@ import type {
   RelationDefinition,
   EntityDefinition,
 } from "@linchkit/core";
-import { createInterfaceRegistry, validateTranslatableSchema } from "@linchkit/core";
+import { createInterfaceRegistry, validateTranslatableEntity } from "@linchkit/core";
 import {
-  convertSchemaRelationshipFieldsToImplicitLinks,
+  convertEntityRelationshipFieldsToImplicitRelations,
   createRelationRegistry,
   EntityRegistry,
 } from "@linchkit/core/server";
@@ -73,14 +73,14 @@ export const validateCommand = defineCommand({
     const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
 
     // ── Collect all definitions from capabilities ──
-    const schemas: EntityDefinition[] = [];
+    const entities: EntityDefinition[] = [];
     const actions: ActionDefinition[] = [];
     const interfaces: InterfaceDefinition[] = [];
     const links: RelationDefinition[] = [];
     const automations: AutomationDefinition[] = [];
 
     for (const cap of capabilities) {
-      if (cap.entities) schemas.push(...cap.entities);
+      if (cap.entities) entities.push(...cap.entities);
       if (cap.actions) actions.push(...cap.actions);
       if (cap.interfaces) interfaces.push(...cap.interfaces);
       if (cap.relations) links.push(...cap.relations);
@@ -89,7 +89,7 @@ export const validateCommand = defineCommand({
 
     if (!outputJson) {
       consola.info(
-        `Found ${schemas.length} entity(ies), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s), ${automations.length} automation(s)`,
+        `Found ${entities.length} entity(ies), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s), ${automations.length} automation(s)`,
       );
     }
 
@@ -100,10 +100,10 @@ export const validateCommand = defineCommand({
       const issues: QualityIssue[] = [];
       const entityRegistry = new EntityRegistry();
 
-      // Register schemas in order, catching errors
-      for (const schema of schemas) {
+      // Register entities in order, catching errors
+      for (const entity of entities) {
         try {
-          entityRegistry.register(schema);
+          entityRegistry.register(entity);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           issues.push({
@@ -146,11 +146,11 @@ export const validateCommand = defineCommand({
         }
       }
 
-      // Validate each schema's interface implementation
-      for (const schema of schemas) {
-        if (!schema.implements || schema.implements.length === 0) continue;
+      // Validate each entity's interface implementation
+      for (const entity of entities) {
+        if (!entity.implements || entity.implements.length === 0) continue;
 
-        const implErrors = interfaceRegistry.validateImplementation(schema);
+        const implErrors = interfaceRegistry.validateImplementation(entity);
         for (const errMsg of implErrors) {
           issues.push({
             severity: "error",
@@ -167,13 +167,13 @@ export const validateCommand = defineCommand({
     {
       const issues: QualityIssue[] = [];
 
-      for (const schema of schemas) {
-        const transErrors = validateTranslatableSchema(schema);
+      for (const entity of entities) {
+        const transErrors = validateTranslatableEntity(entity);
         for (const errMsg of transErrors) {
           issues.push({
             severity: "error",
             rule: "translatable-field",
-            message: `Entity "${schema.name}": ${errMsg}`,
+            message: `Entity "${entity.name}": ${errMsg}`,
           });
         }
       }
@@ -185,7 +185,7 @@ export const validateCommand = defineCommand({
     {
       const issues: QualityIssue[] = [];
       const { implicitLinks, conflicts, missingTargets } =
-        convertSchemaRelationshipFieldsToImplicitLinks(schemas, links);
+        convertEntityRelationshipFieldsToImplicitRelations(entities, links);
 
       // Report missing targets as errors
       for (const mt of missingTargets) {
@@ -214,7 +214,7 @@ export const validateCommand = defineCommand({
     // ── 5. Link target existence validation ──
     {
       const issues: QualityIssue[] = [];
-      const schemaNames = new Set(schemas.map((s) => s.name));
+      const schemaNames = new Set(entities.map((s) => s.name));
       const relationRegistry = createRelationRegistry();
 
       for (const link of links) {
@@ -261,7 +261,7 @@ export const validateCommand = defineCommand({
 
     // ── 6. Schema naming conventions ──
     {
-      const schemaInfos: EntityInfo[] = schemas.map((s) => ({
+      const schemaInfos: EntityInfo[] = entities.map((s) => ({
         name: s.name,
         fields: Object.entries(s.fields).map(([name, field]) => ({
           name,
@@ -285,7 +285,7 @@ export const validateCommand = defineCommand({
     // ── 8. Automation validation ──
     {
       const issues: QualityIssue[] = [];
-      const schemaNames = new Set(schemas.map((s) => s.name));
+      const schemaNames = new Set(entities.map((s) => s.name));
       const actionNames = new Set(actions.map((a) => a.name));
 
       for (const automation of automations) {

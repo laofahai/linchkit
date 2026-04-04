@@ -20,7 +20,7 @@ const I18N_PREFIX = "t:";
  * The resolver checks if the label uses the `t:` prefix convention
  * and looks up the translation. Otherwise returns the literal string.
  */
-export function useSchemaLabel() {
+export function useEntityLabel() {
   const { t } = useTranslation();
 
   const resolveLabel = useCallback(
@@ -38,8 +38,11 @@ export function useSchemaLabel() {
   return { resolveLabel };
 }
 
+/** @deprecated Use useEntityLabel instead */
+export const useSchemaLabel = useEntityLabel;
+
 /**
- * Non-hook utility for resolving schema labels outside React components.
+ * Non-hook utility for resolving entity labels outside React components.
  * Uses the i18n instance directly.
  */
 export function resolveEntityLabel(

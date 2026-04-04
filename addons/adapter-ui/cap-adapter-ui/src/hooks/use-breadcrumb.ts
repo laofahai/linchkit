@@ -1,6 +1,6 @@
 import { useMatches } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useSchemaLabel } from "../i18n/use-entity-label";
+import { useEntityLabel } from "../i18n/use-entity-label";
 import { useBreadcrumbTitle } from "./use-breadcrumb-title";
 import { useEntities } from "./use-entities";
 
@@ -37,7 +37,7 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
  * the pathname into cumulative segments and resolve each label via:
  *
  *   1. Well-known segment -> i18n key
- *   2. Schema name -> schema label (via useSchemaLabel resolver)
+ *   2. Schema name -> schema label (via useEntityLabel resolver)
  *   3. Record ID -> custom title from BreadcrumbTitleContext, or truncated hash
  *   4. Fallback: capitalize raw segment
  */
@@ -45,7 +45,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
   const matches = useMatches();
   const { t } = useTranslation();
   const { schemas } = useEntities();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
   const { title: customTitle } = useBreadcrumbTitle();
 
   // Find the deepest non-layout match to get the full pathname

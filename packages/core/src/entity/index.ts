@@ -42,6 +42,6 @@ export {
   resolveTranslation,
   TRANSLATABLE_FIELD_TYPES,
   type TranslatableValue,
-  validateTranslatableSchema,
+  validateTranslatableEntity,
   wrapTranslatableValue,
 } from "./translatable";

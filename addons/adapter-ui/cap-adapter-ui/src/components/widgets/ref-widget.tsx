@@ -34,7 +34,7 @@ import { Check, ChevronsUpDown, PlusCircle } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "@/hooks/use-entity-bundle";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import { queryList } from "@/lib/api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import type { RelatedRecord } from "./relation-utils";
@@ -234,7 +234,7 @@ export function RefInput({
     quickCreateFormRef.current = {};
   }, [titleField, quickCreateName, onChange]);
 
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   // Resolve editable fields for create-and-edit dialog
   const dialogFields = useMemo(() => {

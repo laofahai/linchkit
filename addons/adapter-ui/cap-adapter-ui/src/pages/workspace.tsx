@@ -25,13 +25,13 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AIInsightsPanel } from "@/components/ai-insights-panel";
 import { useEntities } from "@/hooks/use-entities";
-import { useSchemaLabel } from "@/i18n/use-entity-label";
+import { useEntityLabel } from "@/i18n/use-entity-label";
 import {
   type ExecutionLogEntry,
-  fetchSchemaBundle,
+  fetchEntityBundle,
   graphql,
   queryExecutionLogs,
-  type SchemaInfo,
+  type EntityInfo,
 } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 import { getStateBadgeClass } from "@/lib/state-colors";
@@ -71,7 +71,7 @@ function toCamelCase(name: string): string {
  * Uses batched GraphQL queries to minimize round-trips.
  */
 async function fetchSchemaSummaries(
-  schemas: SchemaInfo[],
+  schemas: EntityInfo[],
   logs: ExecutionLogEntry[],
 ): Promise<Record<string, SchemaSummary>> {
   if (schemas.length === 0) return {};
@@ -80,7 +80,7 @@ async function fetchSchemaSummaries(
   const stateFields = new Map<string, { fieldName: string; states?: StateDefinition[] }>();
   const bundlePromises = schemas.map(async (s) => {
     try {
-      const bundle = await fetchSchemaBundle(s.name);
+      const bundle = await fetchEntityBundle(s.name);
       if (!bundle) return;
       const fields = bundle.fields as Record<string, { type?: string; machine?: string }>;
       for (const [fieldName, fieldDef] of Object.entries(fields)) {
@@ -287,12 +287,12 @@ function SchemaSummaryCards({
   summaries,
   loading,
 }: {
-  schemas: SchemaInfo[];
+  schemas: EntityInfo[];
   summaries: Record<string, SchemaSummary>;
   loading: boolean;
 }) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   if (loading) {
     return (
@@ -382,9 +382,9 @@ function SchemaSummaryCards({
 
 // ── Quick Actions ───────────────────────────────────────
 
-function QuickActions({ schemas }: { schemas: SchemaInfo[] }) {
+function QuickActions({ schemas }: { schemas: EntityInfo[] }) {
   const { t } = useTranslation();
-  const { resolveLabel } = useSchemaLabel();
+  const { resolveLabel } = useEntityLabel();
 
   if (schemas.length === 0) return null;
 
