@@ -174,7 +174,7 @@ describe("resolveDerivedValue", () => {
 // ── DerivedPropertyEngine ─────────────────────────────────────
 
 describe("DerivedPropertyEngine", () => {
-  function makeSchema(overrides?: Partial<EntityDefinition>): EntityDefinition {
+  function makeEntity(overrides?: Partial<EntityDefinition>): EntityDefinition {
     return {
       name: "order",
       fields: {
@@ -207,7 +207,7 @@ describe("DerivedPropertyEngine", () => {
 
   test("register and getDerivedFields", () => {
     const engine = createDerivedPropertyEngine();
-    engine.register([makeSchema()]);
+    engine.register([makeEntity()]);
 
     const fields = engine.getDerivedFields("order");
     expect(fields).toHaveLength(2);
@@ -216,7 +216,7 @@ describe("DerivedPropertyEngine", () => {
 
   test("getStoreFields and getComputeFields", () => {
     const engine = createDerivedPropertyEngine();
-    engine.register([makeSchema()]);
+    engine.register([makeEntity()]);
 
     expect(engine.getStoreFields("order")).toHaveLength(1);
     expect(engine.getStoreFields("order")[0].fieldName).toBe("total");
@@ -227,7 +227,7 @@ describe("DerivedPropertyEngine", () => {
 
   test("isDerived", () => {
     const engine = createDerivedPropertyEngine();
-    engine.register([makeSchema()]);
+    engine.register([makeEntity()]);
 
     expect(engine.isDerived("order", "total")).toBe(true);
     expect(engine.isDerived("order", "price")).toBe(false);
@@ -236,7 +236,7 @@ describe("DerivedPropertyEngine", () => {
 
   test("resolveComputeFields", () => {
     const engine = createDerivedPropertyEngine();
-    engine.register([makeSchema()]);
+    engine.register([makeEntity()]);
 
     const record: Record<string, unknown> = { prefix: "PO", code: "001" };
     engine.resolveComputeFields("order", record);
@@ -245,7 +245,7 @@ describe("DerivedPropertyEngine", () => {
 
   test("computeStoreFields", () => {
     const engine = createDerivedPropertyEngine();
-    engine.register([makeSchema()]);
+    engine.register([makeEntity()]);
 
     const record = { price: 10, quantity: 5 };
     const storeValues = engine.computeStoreFields("order", record);

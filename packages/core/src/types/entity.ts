@@ -175,7 +175,7 @@ export interface FieldUIHints {
 // ── Schema presentation ──────────────────────────────────
 
 /** Schema-level presentation metadata — tells the View layer how to understand and display this object */
-export interface SchemaPresentation {
+export interface EntityPresentation {
   /** Field name used as object title (cards, search results, breadcrumbs) */
   titleField?: string;
   /** Field name used as subtitle */
@@ -247,7 +247,7 @@ export interface InterfaceDefinition {
  * Per-schema AI behavior configuration (spec 52 §8.2).
  * Controls what AI features are available for this schema.
  */
-export interface SchemaAIConfig {
+export interface EntityAIConfig {
   /** Whether AI can read records of this schema for analysis/context (default: true) */
   readable?: boolean;
   /** Whether AI can propose actions on this schema (default: true) */
@@ -263,7 +263,7 @@ export interface SchemaAIConfig {
 // ── Schema definition ──────────────────────────────────────
 
 /** Internationalization configuration for a schema's translatable fields */
-export interface SchemaI18nConfig {
+export interface EntityI18nConfig {
   /** Default locale for this schema's translatable fields */
   defaultLocale?: string;
   /** Supported locales */
@@ -289,15 +289,15 @@ export interface EntityDefinition<
   fields: TFields;
 
   /** Presentation metadata for View layer auto-layout */
-  presentation?: SchemaPresentation;
+  presentation?: EntityPresentation;
 
-  /** Internationalization configuration for this schema */
-  i18n?: SchemaI18nConfig;
+  /** Internationalization configuration for this entity */
+  i18n?: EntityI18nConfig;
 
   exposure?: ExposureConfig;
   fieldExposure?: FieldExposureMap;
-  /** AI behavior configuration for this schema (spec 52 §8.2) */
-  ai?: SchemaAIConfig;
+  /** AI behavior configuration for this entity (spec 52 §8.2) */
+  ai?: EntityAIConfig;
 }
 
 // ── Schema extension and override ─────────────────────────────────
@@ -336,7 +336,7 @@ export interface ResolvedField {
 }
 
 /** Schema after Registry processing — system fields injected, extensions merged */
-export interface ResolvedSchema {
+export interface ResolvedEntity {
   /** Original schema name */
   name: string;
   /** Schema label */
@@ -352,7 +352,7 @@ export interface ResolvedSchema {
   /** Interface names this schema implements */
   implements?: string[];
   /** Presentation metadata */
-  presentation?: SchemaPresentation;
+  presentation?: EntityPresentation;
   /** All fields including system fields, keyed by field name */
   fields: Record<string, ResolvedField>;
   /** Original schema definition reference */

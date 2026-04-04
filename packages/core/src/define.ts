@@ -42,14 +42,14 @@ export function defineEntity<TFields extends Record<string, FieldDefinition>>(
   return definition;
 }
 
-export function extendSchema(
+export function extendEntity(
   target: string,
   extension: EntityExtension,
 ): { target: string; extension: EntityExtension } {
   return { target, extension };
 }
 
-export function overrideSchema(
+export function overrideEntity(
   target: string,
   override: EntityOverride,
 ): { target: string; override: EntityOverride } {

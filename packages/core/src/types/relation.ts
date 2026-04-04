@@ -9,11 +9,11 @@ import type { FieldDefinition } from "./entity";
 
 // ── Cardinality ──────────────────────────────────────────
 
-export type LinkCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
+export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
 
 // ── Cascade behavior ──────────────────────────────────────────
 
-export type LinkCascade = "none" | "delete" | "nullify";
+export type RelationCascade = "none" | "delete" | "nullify";
 
 // ── Link definition ──────────────────────────────────────────
 
@@ -38,13 +38,13 @@ export interface RelationDefinition {
   to: string;
 
   /** Relationship cardinality */
-  cardinality: LinkCardinality;
+  cardinality: RelationCardinality;
 
-  /** Extra fields on the M:N junction table (only for many_to_many) */
+  /** Extra properties on the M:N junction table (only for many_to_many) */
   properties?: Record<string, FieldDefinition>;
 
   /** Cascade behavior when parent is deleted. Default: 'none' */
-  cascade?: LinkCascade;
+  cascade?: RelationCascade;
 
   /** Whether the relationship is required. Default: false */
   required?: boolean;
@@ -52,7 +52,7 @@ export interface RelationDefinition {
 
 // ── Link info (directional view) ──────────────────────────────────────────
 
-export interface LinkInfo {
+export interface RelationInfo {
   /** The underlying link definition */
   relation: RelationDefinition;
 
@@ -73,7 +73,7 @@ export interface RelationRegistryInterface {
   register(link: RelationDefinition): void;
 
   /** Get all links for a schema (both outgoing and incoming) */
-  relationsFor(schemaName: string): LinkInfo[];
+  relationsFor(schemaName: string): RelationInfo[];
 
   /** Get the link between two schemas (if any) */
   relationBetween(from: string, to: string): RelationDefinition | null;

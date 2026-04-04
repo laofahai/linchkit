@@ -115,12 +115,12 @@ export {
   defineWatcher,
   disableRule,
   extendPermissionGroup,
-  extendSchema,
+  extendEntity,
   extendState,
   extendView,
   overrideAction,
   overrideRule,
-  overrideSchema,
+  overrideEntity,
 } from "./define";
 // Type re-exports from engine interfaces (browser-safe — type-only, no runtime code pulled in)
 // Class types (exported as type-only so consumers can use for annotations without pulling runtime)

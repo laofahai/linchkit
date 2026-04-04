@@ -11,13 +11,13 @@
 import type { ActionDefinition } from "../types/action";
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
-import type { LinkCardinality } from "../types/relation";
+import type { RelationCardinality } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type {
   FieldDefinition,
   InterfaceDefinition,
   EntityDefinition,
-  SchemaPresentation,
+  EntityPresentation,
 } from "../types/entity";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
@@ -32,8 +32,8 @@ export interface RelationDescriptor {
   direction: "outgoing" | "incoming";
   /** Entity on the other end of the relation */
   targetEntity: string;
-  /** Cardinality of the link */
-  cardinality: LinkCardinality;
+  /** Cardinality of the relation */
+  cardinality: RelationCardinality;
   /** Human-readable label for this direction */
   label?: string;
 }
@@ -51,7 +51,7 @@ export interface EntityDescriptor {
   /** Field definitions */
   fields: Record<string, FieldDefinition>;
   /** Presentation metadata */
-  presentation?: SchemaPresentation;
+  presentation?: EntityPresentation;
   /** Relations from RelationRegistry */
   relations: RelationDescriptor[];
   /** Actions operating on this schema (includes inherited from parent) */
@@ -101,7 +101,7 @@ interface RelationRegistryLike {
       name: string;
       from: string;
       to: string;
-      cardinality: LinkCardinality;
+      cardinality: RelationCardinality;
       label?: { from?: string; to?: string };
     };
     direction: "outgoing" | "incoming";

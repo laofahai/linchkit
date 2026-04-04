@@ -11,7 +11,7 @@
 import type {
   FieldDefinition,
   ResolvedField,
-  ResolvedSchema,
+  ResolvedEntity,
   EntityDefinition,
   EntityExtension,
   EntityOverride,
@@ -274,7 +274,7 @@ export class EntityRegistry {
    * Resolve an entity: inject system fields, merge inherited fields,
    * merge extensions and overrides, and wrap each field in ResolvedField with metadata.
    */
-  resolve(name: string): ResolvedSchema {
+  resolve(name: string): ResolvedEntity {
     const schema = this.entities.get(name);
     if (!schema) {
       throw new Error(`Entity "${name}" is not registered`);

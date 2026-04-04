@@ -6,7 +6,7 @@ import type { EntityDefinition } from "../src/types/entity";
 
 // ── Fixtures ─────────────────────────────────────────────
 
-function makeSchema(name: string, extra: Partial<EntityDefinition> = {}): EntityDefinition {
+function makeEntity(name: string, extra: Partial<EntityDefinition> = {}): EntityDefinition {
   return {
     name,
     fields: {
@@ -26,7 +26,7 @@ describe("TableRegistry", () => {
   describe("register / getTable / has", () => {
     it("registers a table and retrieves it", () => {
       const registry = new TableRegistry();
-      const schema = makeSchema("order");
+      const schema = makeEntity("order");
       const table = makeTable(schema);
       registry.register("order", table);
       expect(registry.has("order")).toBe(true);
@@ -52,8 +52,8 @@ describe("TableRegistry", () => {
 
     it("returns all registered schema names", () => {
       const registry = new TableRegistry();
-      registry.register("order", makeTable(makeSchema("order")));
-      registry.register("product", makeTable(makeSchema("product")));
+      registry.register("order", makeTable(makeEntity("order")));
+      registry.register("product", makeTable(makeEntity("product")));
       const names = registry.getRegisteredSchemas();
       expect(names).toContain("order");
       expect(names).toContain("product");
@@ -65,8 +65,8 @@ describe("TableRegistry", () => {
     it("generates and registers tables from schema map", () => {
       const registry = new TableRegistry();
       const schemas = new Map<string, EntityDefinition>([
-        ["order", makeSchema("order")],
-        ["product", makeSchema("product")],
+        ["order", makeEntity("order")],
+        ["product", makeEntity("product")],
       ]);
       registry.buildFromEntityRegistry(schemas);
       expect(registry.has("order")).toBe(true);
@@ -75,7 +75,7 @@ describe("TableRegistry", () => {
 
     it("skips schemas that already have a manually registered table (no collision override)", () => {
       const registry = new TableRegistry();
-      const schema = makeSchema("order");
+      const schema = makeEntity("order");
       const manualTable = makeTable(schema);
       registry.register("order", manualTable);
 
@@ -88,11 +88,11 @@ describe("TableRegistry", () => {
 
     it("only adds schemas not already registered", () => {
       const registry = new TableRegistry();
-      registry.register("order", makeTable(makeSchema("order")));
+      registry.register("order", makeTable(makeEntity("order")));
 
       const schemas = new Map<string, EntityDefinition>([
-        ["order", makeSchema("order")],
-        ["product", makeSchema("product")],
+        ["order", makeEntity("order")],
+        ["product", makeEntity("product")],
       ]);
       registry.buildFromEntityRegistry(schemas);
 
@@ -109,7 +109,7 @@ describe("TableRegistry", () => {
 
     it("applies table prefix option", () => {
       const registry = new TableRegistry();
-      const schemas = new Map<string, EntityDefinition>([["order", makeSchema("order")]]);
+      const schemas = new Map<string, EntityDefinition>([["order", makeEntity("order")]]);
       // Just verify it doesn't throw with prefix option
       expect(() =>
         registry.buildFromEntityRegistry(schemas, { tablePrefix: "test_" }),

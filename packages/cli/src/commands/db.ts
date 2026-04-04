@@ -23,7 +23,7 @@ import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
 /** Load schemas and links from linchkit.config.ts */
-async function loadSchemasAndLinks(): Promise<{
+async function loadEntitiesAndRelations(): Promise<{
   schemas: EntityDefinition[];
   links: RelationDefinition[];
 }> {
@@ -56,7 +56,7 @@ async function loadSchemasAndLinks(): Promise<{
 
 /** Generate the schema barrel file and return its path */
 async function generateSchema(): Promise<string> {
-  const { schemas, links } = await loadSchemasAndLinks();
+  const { schemas, links } = await loadEntitiesAndRelations();
   const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
   console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
   console.log(

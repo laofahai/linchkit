@@ -21,7 +21,7 @@ function createMockLogger(): Logger {
   };
 }
 
-function createTestSchema(fields: EntityDefinition["fields"]): EntityDefinition {
+function createTestEntity(fields: EntityDefinition["fields"]): EntityDefinition {
   return {
     name: "test_schema",
     fields: {
@@ -225,7 +225,7 @@ describe("sanitizePII", () => {
 
 describe("sanitizeRecordForAI", () => {
   it("should remove secret fields entirely", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       name: { type: "string" },
       id_number: { type: "string", secret: true },
     });
@@ -240,7 +240,7 @@ describe("sanitizeRecordForAI", () => {
   });
 
   it("should sanitize PII in sensitive fields", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       name: { type: "string" },
       email: { type: "string", sensitive: true },
     });
@@ -256,7 +256,7 @@ describe("sanitizeRecordForAI", () => {
   });
 
   it("should not modify non-sensitive fields", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       name: { type: "string" },
       email: { type: "string", sensitive: true },
     });
@@ -270,7 +270,7 @@ describe("sanitizeRecordForAI", () => {
   });
 
   it("should redact non-string sensitive values", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       salary: { type: "number", sensitive: true },
     });
 
@@ -281,7 +281,7 @@ describe("sanitizeRecordForAI", () => {
   });
 
   it("should not mutate the original record", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       secret_key: { type: "string", secret: true },
     });
 
@@ -292,7 +292,7 @@ describe("sanitizeRecordForAI", () => {
   });
 
   it("should support alwaysRedactFields override", () => {
-    const schema = createTestSchema({
+    const schema = createTestEntity({
       notes: { type: "string" },
     });
 

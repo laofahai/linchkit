@@ -10,7 +10,7 @@ import type { EntityDefinition } from "../src/types/entity";
 
 // ── Helpers ──────────────────────────────────────────────
 
-function makeSchema(
+function makeEntity(
   name: string,
   fields: Record<string, { type: string; label?: string; required?: boolean }>,
 ): EntityDefinition {
@@ -71,7 +71,7 @@ function stubCtx(extra?: Record<string, unknown>): ActionContext {
 describe("ExtensionResolver — Schema Extensions", () => {
   test("adds new fields to a schema", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number" } })];
+    const schemas = [makeEntity("order", { total: { type: "number" } })];
 
     resolver.addEntityExtension(
       "order",
@@ -91,7 +91,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
   test("multiple extensions add fields from different sources", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number" } })];
+    const schemas = [makeEntity("order", { total: { type: "number" } })];
 
     resolver.addEntityExtension(
       "order",
@@ -116,7 +116,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
   test("ignores extensions targeting non-existent schemas", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number" } })];
+    const schemas = [makeEntity("order", { total: { type: "number" } })];
 
     resolver.addEntityExtension(
       "nonexistent",
@@ -133,7 +133,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
   test("records conflict when multiple sources add the same field", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", {})];
+    const schemas = [makeEntity("order", {})];
 
     resolver.addEntityExtension(
       "order",
@@ -160,7 +160,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 
   test("higher priority extension wins when fields collide", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", {})];
+    const schemas = [makeEntity("order", {})];
 
     resolver.addEntityExtension(
       "order",
@@ -189,7 +189,7 @@ describe("ExtensionResolver — Schema Extensions", () => {
 describe("ExtensionResolver — Schema Overrides", () => {
   test("overrides existing field constraints", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number", required: false } })];
+    const schemas = [makeEntity("order", { total: { type: "number", required: false } })];
 
     resolver.addEntityOverride(
       "order",
@@ -208,7 +208,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
 
   test("higher priority override wins", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number", min: 0 } })];
+    const schemas = [makeEntity("order", { total: { type: "number", min: 0 } })];
 
     resolver.addEntityOverride("order", { fields: { total: { min: 10 } } }, "cap-a", 10);
     resolver.addEntityOverride("order", { fields: { total: { min: 50 } } }, "cap-b", 20);
@@ -220,7 +220,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
 
   test("skips override for non-existent fields", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number" } })];
+    const schemas = [makeEntity("order", { total: { type: "number" } })];
 
     resolver.addEntityOverride(
       "order",
@@ -235,7 +235,7 @@ describe("ExtensionResolver — Schema Overrides", () => {
 
   test("extensions and overrides can be combined", () => {
     const resolver = createExtensionResolver();
-    const schemas = [makeSchema("order", { total: { type: "number" } })];
+    const schemas = [makeEntity("order", { total: { type: "number" } })];
 
     // First add a field via extension
     resolver.addEntityExtension(
@@ -702,7 +702,7 @@ describe("ExtensionResolver — Rule Overrides", () => {
 describe("ExtensionResolver — Immutability", () => {
   test("does not mutate the original schema array", () => {
     const resolver = createExtensionResolver();
-    const original = makeSchema("order", { total: { type: "number" } });
+    const original = makeEntity("order", { total: { type: "number" } });
     const schemas = [original];
 
     resolver.addEntityExtension(

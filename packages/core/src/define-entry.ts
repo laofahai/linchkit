@@ -20,12 +20,12 @@ export {
   defineView,
   disableRule,
   extendPermissionGroup,
-  extendSchema,
+  extendEntity,
   extendState,
   extendView,
   overrideAction,
   overrideRule,
-  overrideSchema,
+  overrideEntity,
 } from "./define";
 // Error classes
 export {

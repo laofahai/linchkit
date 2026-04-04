@@ -35,7 +35,7 @@ export interface TransitionInfo {
 }
 
 export interface UseFormActionsOptions {
-  schemaName: string | undefined;
+  entityName: string | undefined;
   recordId: string | undefined;
   isCreate: boolean;
   schema: EntityDefinition | undefined;
@@ -51,7 +51,7 @@ export interface UseFormActionsOptions {
 
 export function useFormActions(opts: UseFormActionsOptions) {
   const {
-    schemaName,
+    entityName,
     recordId,
     isCreate,
     schema,
@@ -85,13 +85,13 @@ export function useFormActions(opts: UseFormActionsOptions) {
           // Check bundle.links for actual FK column name, fall back to convention
           const link = bundle?.links?.find(
             (l) =>
-              (l.from === schemaName &&
+              (l.from === entityName &&
                 l.to === target &&
                 (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
-              (l.to === schemaName && l.from === target && l.cardinality === "one_to_many"),
+              (l.to === entityName && l.from === target && l.cardinality === "one_to_many"),
           );
           const fkKey = link
-            ? link.from === schemaName
+            ? link.from === entityName
               ? `${link.to}_id`
               : `${link.from}_id`
             : `${target}_id`;
@@ -119,7 +119,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
       data: Record<string, unknown>,
       enriched?: EnrichedSubmitData,
     ): Promise<undefined> => {
-      if (!schemaName) return;
+      if (!entityName) return;
       setSaving(true);
       try {
         // Step 1: Create virtual ref records first (quick-created related records)
@@ -159,13 +159,13 @@ export function useFormActions(opts: UseFormActionsOptions) {
         const mutationReturnFields = getMutationReturnFields(recordFields, schema);
         let parentRecordId = recordId;
         if (isCreate) {
-          const created = await createRecord<{ id: string }>(schemaName, mutationInput, [
+          const created = await createRecord<{ id: string }>(entityName, mutationInput, [
             "id",
             ...mutationReturnFields,
           ]);
           parentRecordId = created.id;
         } else if (parentRecordId) {
-          await updateRecord(schemaName, parentRecordId, mutationInput, mutationReturnFields);
+          await updateRecord(entityName, parentRecordId, mutationInput, mutationReturnFields);
         }
 
         // Step 4: Process child commands (has_many inline records)
@@ -179,10 +179,10 @@ export function useFormActions(opts: UseFormActionsOptions) {
             // Find the FK column name from links
             const _link = bundle?.links?.find(
               (l) =>
-                (l.cardinality === "one_to_many" && l.from === schemaName && l.to === targetSchema) ||
-                (l.cardinality === "many_to_one" && l.to === schemaName && l.from === targetSchema),
+                (l.cardinality === "one_to_many" && l.from === entityName && l.to === targetSchema) ||
+                (l.cardinality === "many_to_one" && l.to === entityName && l.from === targetSchema),
             );
-            const fkColumn = `${schemaName}_id`;
+            const fkColumn = `${entityName}_id`;
 
             for (const cmd of commands) {
               switch (cmd.type) {
@@ -206,7 +206,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
 
         if (isCreate) {
           toast.success(t("toast.recordCreated", "Record created successfully"));
-          navigate({ to: "/schemas/$name", params: { name: schemaName } });
+          navigate({ to: "/schemas/$name", params: { name: entityName } });
         } else {
           toast.success(t("toast.recordUpdated", "Record updated successfully"));
           await fetchRecord();
@@ -223,7 +223,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
         setSaving(false);
       }
     },
-    [schemaName, recordId, isCreate, schema, bundle?.links, recordFields, navigate, fetchRecord, t],
+    [entityName, recordId, isCreate, schema, bundle?.links, recordFields, navigate, fetchRecord, t],
   );
 
   const handleAction = useCallback(
@@ -236,7 +236,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
         const transition = availableTransitions.find((tr) => tr.action === actionName);
         if (transition) {
           const updated = await transitionRecord(
-            schemaName ?? "",
+            entityName ?? "",
             recordId,
             transition.to,
             recordFields,
@@ -251,7 +251,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
           pushNotification({
             type: "action_success",
             message: t("notifications.actionSucceeded", { action: actionName }),
-            schema: schemaName,
+            schema: entityName,
             recordId,
           });
           await fetchRecord();
@@ -260,7 +260,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
           pushNotification({
             type: "action_failure",
             message: t("notifications.actionFailed", { action: actionName }),
-            schema: schemaName,
+            schema: entityName,
             recordId,
           });
         }
@@ -270,43 +270,43 @@ export function useFormActions(opts: UseFormActionsOptions) {
         pushNotification({
           type: "action_failure",
           message: t("notifications.actionFailed", { action: actionName }),
-          schema: schemaName,
+          schema: entityName,
         });
         return undefined;
       } finally {
         setSaving(false);
       }
     },
-    [recordId, schemaName, availableTransitions, recordFields, fetchRecord, refetchTransitions, t],
+    [recordId, entityName, availableTransitions, recordFields, fetchRecord, refetchTransitions, t],
   );
 
   const executeDeleteAction = useCallback(async () => {
-    if (!schemaName || !recordId) return;
+    if (!entityName || !recordId) return;
     setDeleting(true);
     try {
-      await deleteRecord(schemaName, recordId);
+      await deleteRecord(entityName, recordId);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
-      navigate({ to: "/schemas/$name", params: { name: schemaName } });
+      navigate({ to: "/schemas/$name", params: { name: entityName } });
     } catch (_err) {
       toast.error(t("toast.deleteFailed", "Failed to delete record"));
     } finally {
       setDeleting(false);
       setDeleteOpen(false);
     }
-  }, [schemaName, recordId, navigate, t]);
+  }, [entityName, recordId, navigate, t]);
 
   const handleCancel = useCallback(() => {
-    if (!schemaName) return;
+    if (!entityName) return;
     if (isCreate) {
-      navigate({ to: "/schemas/$name", params: { name: schemaName } });
+      navigate({ to: "/schemas/$name", params: { name: entityName } });
     }
     // else: caller sets formMode to "view"
-  }, [schemaName, isCreate, navigate]);
+  }, [entityName, isCreate, navigate]);
 
   const handleBack = useCallback(() => {
-    if (!schemaName) return;
-    navigate({ to: "/schemas/$name", params: { name: schemaName } });
-  }, [schemaName, navigate]);
+    if (!entityName) return;
+    navigate({ to: "/schemas/$name", params: { name: entityName } });
+  }, [entityName, navigate]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -318,9 +318,9 @@ export function useFormActions(opts: UseFormActionsOptions) {
       cloneId: string,
       formView: { fields?: unknown } | undefined,
     ): Promise<Record<string, unknown> | null> => {
-      if (!schemaName || !formView) return null;
+      if (!entityName || !formView) return null;
       try {
-        const result = await queryRecord(schemaName, cloneId, recordFieldsRef.current);
+        const result = await queryRecord(entityName, cloneId, recordFieldsRef.current);
         if (result) {
           const cloned = { ...(result as Record<string, unknown>) };
           for (const field of CLONE_STRIP_FIELDS) {
@@ -354,20 +354,20 @@ export function useFormActions(opts: UseFormActionsOptions) {
         return null;
       }
     },
-    [schemaName, schema, bundle?.states, recordFieldsRef, t],
+    [entityName, schema, bundle?.states, recordFieldsRef, t],
   );
 
   /** Fetch state transition history for a record. */
   const fetchStateTransitions = useCallback(
     async (id: string): Promise<StateTransitionInfo[]> => {
-      if (!schemaName) return [];
+      if (!entityName) return [];
       try {
-        return await queryStateTransitions(schemaName, id);
+        return await queryStateTransitions(entityName, id);
       } catch {
         return [];
       }
     },
-    [schemaName],
+    [entityName],
   );
 
   return {

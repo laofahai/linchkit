@@ -5,7 +5,7 @@
  * Provides directional queries (outgoing, incoming, both) and lookup by endpoints.
  */
 
-import type { RelationDefinition, LinkInfo, RelationRegistryInterface } from "../types/relation";
+import type { RelationDefinition, RelationInfo, RelationRegistryInterface } from "../types/relation";
 
 // ── RelationRegistry ──────────────────────────────────────────────
 
@@ -24,10 +24,10 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /**
-   * Get all relations for an entity (both outgoing and incoming) as LinkInfo[].
+   * Get all relations for an entity (both outgoing and incoming) as RelationInfo[].
    */
-  relationsFor(schemaName: string): LinkInfo[] {
-    const result: LinkInfo[] = [];
+  relationsFor(schemaName: string): RelationInfo[] {
+    const result: RelationInfo[] = [];
 
     for (const relation of this.relations.values()) {
       if (relation.from === schemaName) {

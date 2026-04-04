@@ -8,7 +8,7 @@ import type { StateDefinition } from "../src/types/state";
 
 // ── Helpers ──────────────────────────────────────────────
 
-function makeSchemaChange(name: string, def: Partial<EntityDefinition> = {}): ProposalChange {
+function makeEntityChange(name: string, def: Partial<EntityDefinition> = {}): ProposalChange {
   return {
     target: "schema",
     operation: "create",
@@ -85,25 +85,25 @@ describe("validatePhase1", () => {
 
   describe("naming convention", () => {
     it("rejects names starting with a digit", () => {
-      const result = validatePhase1({ changes: [makeSchemaChange("1order")] });
+      const result = validatePhase1({ changes: [makeEntityChange("1order")] });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "INVALID_NAME")).toBe(true);
     });
 
     it("rejects names with uppercase letters", () => {
-      const result = validatePhase1({ changes: [makeSchemaChange("MySchema")] });
+      const result = validatePhase1({ changes: [makeEntityChange("MySchema")] });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "INVALID_NAME")).toBe(true);
     });
 
     it("rejects names with hyphens", () => {
-      const result = validatePhase1({ changes: [makeSchemaChange("my-schema")] });
+      const result = validatePhase1({ changes: [makeEntityChange("my-schema")] });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "INVALID_NAME")).toBe(true);
     });
 
     it("accepts valid lowercase names with underscores", () => {
-      const result = validatePhase1({ changes: [makeSchemaChange("my_schema")] });
+      const result = validatePhase1({ changes: [makeEntityChange("my_schema")] });
       expect(result.status).toBe("passed");
     });
 
@@ -119,7 +119,7 @@ describe("validatePhase1", () => {
   describe("duplicate changes", () => {
     it("errors when same name+target appears twice", () => {
       const result = validatePhase1({
-        changes: [makeSchemaChange("order"), makeSchemaChange("order")],
+        changes: [makeEntityChange("order"), makeEntityChange("order")],
       });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "DUPLICATE_CHANGE")).toBe(true);
@@ -127,7 +127,7 @@ describe("validatePhase1", () => {
 
     it("allows same name with different targets", () => {
       const result = validatePhase1({
-        changes: [makeSchemaChange("order"), makeActionChange("order")],
+        changes: [makeEntityChange("order"), makeActionChange("order")],
       });
       // No duplicate error — different targets
       expect(result.errors.filter((e) => e.code === "DUPLICATE_CHANGE")).toHaveLength(0);
@@ -137,7 +137,7 @@ describe("validatePhase1", () => {
   describe("schema validation", () => {
     it("errors on schema with no fields", () => {
       const result = validatePhase1({
-        changes: [makeSchemaChange("empty_schema", { fields: {} })],
+        changes: [makeEntityChange("empty_schema", { fields: {} })],
       });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "SCHEMA_NO_FIELDS")).toBe(true);
@@ -146,7 +146,7 @@ describe("validatePhase1", () => {
     it("errors on invalid field type", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("bad_schema", {
+          makeEntityChange("bad_schema", {
             fields: { x: { type: "invalid_type" as never, required: false } },
           }),
         ],
@@ -158,7 +158,7 @@ describe("validatePhase1", () => {
     it("errors on enum field with no options", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("enum_schema", {
+          makeEntityChange("enum_schema", {
             fields: { status: { type: "enum", options: [], required: false } as never },
           }),
         ],
@@ -170,7 +170,7 @@ describe("validatePhase1", () => {
     it("accepts enum field with options", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("enum_schema", {
+          makeEntityChange("enum_schema", {
             fields: {
               status: {
                 type: "enum",
@@ -187,7 +187,7 @@ describe("validatePhase1", () => {
     it("errors on state field with no machine reference", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("state_schema", {
+          makeEntityChange("state_schema", {
             fields: { status: { type: "state", required: false } as never },
           }),
         ],
@@ -199,7 +199,7 @@ describe("validatePhase1", () => {
     it("errors on required field without default (non-virtual)", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("req_schema", {
+          makeEntityChange("req_schema", {
             fields: { title: { type: "string", required: true } },
           }),
         ],
@@ -211,7 +211,7 @@ describe("validatePhase1", () => {
     it("does not error on required virtual fields (ref, has_many, computed)", () => {
       const result = validatePhase1({
         changes: [
-          makeSchemaChange("virtual_schema", {
+          makeEntityChange("virtual_schema", {
             fields: {
               items: { type: "has_many", required: true } as never,
               parent: { type: "ref", required: true } as never,
@@ -250,7 +250,7 @@ describe("validatePhase1", () => {
 
     it("does not warn when schema is in the same proposal", () => {
       const result = validatePhase1({
-        changes: [makeSchemaChange("order"), makeActionChange("place_order", { entity: "order" })],
+        changes: [makeEntityChange("order"), makeActionChange("place_order", { entity: "order" })],
       });
       expect(result.warnings.filter((w) => w.code === "ACTION_UNKNOWN_SCHEMA")).toHaveLength(0);
     });
@@ -431,7 +431,7 @@ describe("validateProposal", () => {
         id: "p-1",
         title: "Test Proposal",
         status: "draft",
-        changes: [makeSchemaChange("valid_schema")],
+        changes: [makeEntityChange("valid_schema")],
         author: { type: "human", id: "u1", name: "Alice" },
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -449,7 +449,7 @@ describe("validateProposal", () => {
         id: "p-2",
         title: "Bad Proposal",
         status: "draft",
-        changes: [makeSchemaChange("bad_schema", { fields: {} })],
+        changes: [makeEntityChange("bad_schema", { fields: {} })],
         author: { type: "human", id: "u1", name: "Alice" },
         createdAt: new Date(),
         updatedAt: new Date(),

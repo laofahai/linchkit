@@ -215,7 +215,7 @@ export function EntityFormPage() {
 
   // --- Actions hook ---
   const actions = useFormActions({
-    schemaName,
+    entityName: schemaName,
     recordId: params.id,
     isCreate,
     schema,
