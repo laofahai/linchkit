@@ -30,9 +30,9 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
     ingestSignal(signal: SensorSignal): void {
       const entity = signal.context?.entity as string | undefined;
       if (entity) {
-        usageGraph.recordUsage("schema", entity);
+        usageGraph.recordUsage("entity", entity);
       }
-      usageGraph.recordUsage("schema", signal.sensor);
+      usageGraph.recordUsage("entity", signal.sensor);
     },
 
     structuralCheck(): StructuralIssue[] {

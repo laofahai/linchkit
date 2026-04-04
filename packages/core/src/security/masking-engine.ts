@@ -121,7 +121,7 @@ export function canUnmask(
   actor: Actor,
   groups: PermissionGroupDefinition[],
   capabilityName: string,
-  schemaName: string,
+  entityName: string,
   fieldName: string,
 ): boolean {
   // system_admin always sees raw data
@@ -136,7 +136,7 @@ export function canUnmask(
     const capPerms = group.permissions[capabilityName];
     if (!capPerms) continue;
 
-    const schemaPerms = capPerms[schemaName];
+    const schemaPerms = capPerms[entityName];
     if (!schemaPerms?.fields?.unmask) continue;
 
     if (schemaPerms.fields.unmask.includes(fieldName)) {

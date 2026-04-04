@@ -8,7 +8,7 @@ export const departmentListView: ViewDefinition = {
   name: "department_list",
   entity: "department",
   type: "list",
-  label: "t:schemas.department._labelPlural",
+  label: "t:entities.department._labelPlural",
   fields: [
     { field: "name", sortable: true },
     { field: "code", sortable: true, width: 120 },
@@ -20,7 +20,7 @@ export const departmentListView: ViewDefinition = {
   actions: [
     {
       action: "create",
-      label: "t:schemas.department.actions.create",
+      label: "t:entities.department.actions.create",
       position: "toolbar",
       variant: "default",
     },

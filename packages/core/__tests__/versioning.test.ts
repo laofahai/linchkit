@@ -562,18 +562,18 @@ describe("VersionRegistry", () => {
   it("registers and retrieves a version entry", () => {
     registry.register({
       name: "order",
-      type: "schema",
+      type: "entity",
       version: "1.2.0",
       description: "Order schema v1.2",
     });
-    const entry = registry.get("schema", "order");
+    const entry = registry.get("entity", "order");
     expect(entry).not.toBeNull();
     expect(entry?.version).toBe("1.2.0");
     expect(entry?.updatedAt).toBeInstanceOf(Date);
   });
 
   it("returns null for unregistered entry", () => {
-    expect(registry.get("schema", "nonexistent")).toBeNull();
+    expect(registry.get("entity", "nonexistent")).toBeNull();
   });
 
   it("has() returns correct boolean", () => {
@@ -596,15 +596,15 @@ describe("VersionRegistry", () => {
   });
 
   it("throws on invalid semver", () => {
-    expect(() => registry.register({ name: "bad", type: "schema", version: "not-semver" })).toThrow(
+    expect(() => registry.register({ name: "bad", type: "entity", version: "not-semver" })).toThrow(
       "Invalid semver",
     );
   });
 
   describe("list", () => {
     beforeEach(() => {
-      registry.register({ name: "order", type: "schema", version: "1.0.0" });
-      registry.register({ name: "product", type: "schema", version: "2.0.0" });
+      registry.register({ name: "order", type: "entity", version: "1.0.0" });
+      registry.register({ name: "product", type: "entity", version: "2.0.0" });
       registry.register({ name: "rest-v1", type: "api", version: "1.0.0" });
       registry.register({
         name: "cap-mcp",
@@ -619,9 +619,9 @@ describe("VersionRegistry", () => {
     });
 
     it("filters by type", () => {
-      const schemas = registry.list({ type: "schema" });
+      const schemas = registry.list({ type: "entity" });
       expect(schemas).toHaveLength(2);
-      expect(schemas.every((e) => e.type === "schema")).toBe(true);
+      expect(schemas.every((e) => e.type === "entity")).toBe(true);
     });
 
     it("filters by name prefix", () => {
@@ -639,7 +639,7 @@ describe("VersionRegistry", () => {
 
   describe("checkCompatibility", () => {
     beforeEach(() => {
-      registry.register({ name: "order", type: "schema", version: "1.5.0" });
+      registry.register({ name: "order", type: "entity", version: "1.5.0" });
       registry.register({
         name: "core-api",
         type: "api",
@@ -649,17 +649,17 @@ describe("VersionRegistry", () => {
     });
 
     it("returns compatible for satisfying version", () => {
-      const result = registry.checkCompatibility("schema", "order", "1.3.0");
+      const result = registry.checkCompatibility("entity", "order", "1.3.0");
       expect(result.compatible).toBe(true);
     });
 
     it("returns incompatible for different major", () => {
-      const result = registry.checkCompatibility("schema", "order", "2.0.0");
+      const result = registry.checkCompatibility("entity", "order", "2.0.0");
       expect(result.compatible).toBe(false);
     });
 
     it("returns incompatible for unregistered entity", () => {
-      const result = registry.checkCompatibility("schema", "missing", "1.0.0");
+      const result = registry.checkCompatibility("entity", "missing", "1.0.0");
       expect(result.compatible).toBe(false);
       expect(result.reason).toContain("not registered");
     });
@@ -678,13 +678,13 @@ describe("VersionRegistry", () => {
 
   describe("checkMultiple", () => {
     it("batch checks multiple requirements", () => {
-      registry.register({ name: "order", type: "schema", version: "1.5.0" });
-      registry.register({ name: "product", type: "schema", version: "2.0.0" });
+      registry.register({ name: "order", type: "entity", version: "1.5.0" });
+      registry.register({ name: "product", type: "entity", version: "2.0.0" });
 
       const results = registry.checkMultiple([
-        { type: "schema", name: "order", version: "1.3.0" },
-        { type: "schema", name: "product", version: "3.0.0" },
-        { type: "schema", name: "missing", version: "1.0.0" },
+        { type: "entity", name: "order", version: "1.3.0" },
+        { type: "entity", name: "product", version: "3.0.0" },
+        { type: "entity", name: "missing", version: "1.0.0" },
       ]);
 
       expect(results).toHaveLength(3);
@@ -703,7 +703,7 @@ describe("VersionRegistry", () => {
     });
 
     it("throws for unregistered entity", () => {
-      expect(() => registry.deprecate("schema", "nope", "1.0.0")).toThrow("unregistered");
+      expect(() => registry.deprecate("entity", "nope", "1.0.0")).toThrow("unregistered");
     });
 
     it("throws for invalid deprecation version", () => {

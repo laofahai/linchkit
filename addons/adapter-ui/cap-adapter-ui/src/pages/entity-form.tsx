@@ -533,7 +533,7 @@ export function EntityFormPage() {
                   <TabsContent key={panel.id} value={panel.id}>
                     <Suspense fallback={<div className="p-4 text-muted-foreground">{t("common.loading", "Loading...")}</div>}>
                       <LazyPanel
-                        schemaName={schemaName}
+                        entityName={schemaName}
                         recordId={params.id ?? ""}
                         record={record}
                         fields={schema.fields}

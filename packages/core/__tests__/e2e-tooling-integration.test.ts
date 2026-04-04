@@ -361,7 +361,7 @@ describe("E2E: Governance + Documentation", () => {
 
     const result = validateEntityDoc(bareSchema);
     expect(result.name).toBe("bare_thing");
-    expect(result.type).toBe("schema");
+    expect(result.type).toBe("entity");
     expect(result.coverage).toBeLessThan(100);
 
     // Missing schema description
@@ -804,28 +804,28 @@ describe("E2E: Versioning + CapabilityHub", () => {
 
     registry.register({
       name: "purchase_request",
-      type: "schema",
+      type: "entity",
       version: "1.2.0",
       minCompatible: "1.0.0",
     });
 
     registry.register({
       name: "employee",
-      type: "schema",
+      type: "entity",
       version: "2.0.0",
       minCompatible: "2.0.0",
     });
 
     // Compatible check
-    const check1 = registry.checkCompatibility("schema", "purchase_request", "1.1.0");
+    const check1 = registry.checkCompatibility("entity", "purchase_request", "1.1.0");
     expect(check1.compatible).toBe(true);
 
     // Incompatible: major version mismatch
-    const check2 = registry.checkCompatibility("schema", "employee", "1.5.0");
+    const check2 = registry.checkCompatibility("entity", "employee", "1.5.0");
     expect(check2.compatible).toBe(false);
 
     // Not registered
-    const check3 = registry.checkCompatibility("schema", "nonexistent", "1.0.0");
+    const check3 = registry.checkCompatibility("entity", "nonexistent", "1.0.0");
     expect(check3.compatible).toBe(false);
     expect(check3.reason).toContain("not registered");
   });

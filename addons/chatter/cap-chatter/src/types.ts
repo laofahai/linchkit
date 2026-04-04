@@ -9,7 +9,7 @@ export type MessageType = "comment" | "note" | "log" | "ai";
 export interface ChatterMessage {
   id: string;
   tenantId?: string;
-  schemaName: string;
+  entityName: string;
   recordId: string;
   messageType: MessageType;
   body: string;
@@ -27,7 +27,7 @@ export interface ChatterMessage {
 }
 
 export interface CreateMessageInput {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   messageType: MessageType;
   body: string;
@@ -58,7 +58,7 @@ export interface PaginatedMessages {
 export interface ChatterService {
   createMessage(input: CreateMessageInput): Promise<ChatterMessage>;
   getMessages(
-    schemaName: string,
+    entityName: string,
     recordId: string,
     options?: MessageQueryOptions,
   ): Promise<PaginatedMessages>;

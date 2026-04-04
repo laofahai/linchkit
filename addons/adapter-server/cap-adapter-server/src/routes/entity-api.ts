@@ -1,8 +1,8 @@
 /**
  * Entity metadata REST endpoints.
  *
- * - GET /api/schemas — lightweight list of all entities
- * - GET /api/schemas/:name — full entity with views, states, and links
+ * - GET /api/entities — lightweight list of all entities
+ * - GET /api/entities/:name — full entity with views, states, and links
  */
 
 import type { Elysia } from "elysia";
@@ -15,7 +15,7 @@ export function mountEntityRoutes(app: Elysia, options: ServerOptions): void {
   const capabilities = options.capabilities ?? [];
 
   app
-    .get("/api/schemas", () => {
+    .get("/api/entities", () => {
       if (!entityRegistry) {
         return { success: true, data: [] };
       }
@@ -29,7 +29,7 @@ export function mountEntityRoutes(app: Elysia, options: ServerOptions): void {
       }));
       return { success: true, data: schemas };
     })
-    .get("/api/schemas/:name", ({ params, set }) => {
+    .get("/api/entities/:name", ({ params, set }) => {
       if (!entityRegistry) {
         set.status = 404;
         return { success: false, error: { message: "Entity registry not configured." } };

@@ -73,7 +73,7 @@ interface AIProposalResponse {
   capability: string;
   changes: Array<{
     type: "create" | "modify" | "delete";
-    target: "schema" | "action" | "rule" | "flow" | "view";
+    target: "entity" | "action" | "rule" | "flow" | "view";
     name: string;
     definition?: Record<string, unknown>;
     diff?: string;
@@ -165,7 +165,7 @@ Example proposal for "Add a priority field to Task":
   "capability": "task_management",
   "changes": [{
     "type": "modify",
-    "target": "schema",
+    "target": "entity",
     "name": "task",
     "definition": {
       "name": "task",
@@ -204,7 +204,7 @@ const proposalResponseSchema = z.object({
   changes: z.array(
     z.object({
       type: z.enum(["create", "modify", "delete"]),
-      target: z.enum(["schema", "action", "rule", "flow", "view"]),
+      target: z.enum(["entity", "action", "rule", "flow", "view"]),
       name: z.string(),
       definition: z.record(z.string(), z.unknown()).optional(),
       diff: z.string().optional(),
@@ -345,7 +345,7 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
       // Precompute schemas being created in this proposal
       const proposedSchemaNames = new Set(
         proposal.changes
-          .filter((c) => c.target === "schema" && c.operation === "create")
+          .filter((c) => c.target === "entity" && c.operation === "create")
           .map((c) => c.name),
       );
 
@@ -388,7 +388,7 @@ function validateChange(
   proposedSchemaNames: Set<string>,
 ): void {
   switch (change.target) {
-    case "schema":
+    case "entity":
       validateEntityChange(change, entityRegistry, errors, warnings);
       break;
     case "action":

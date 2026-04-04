@@ -15,7 +15,7 @@ describe("InMemoryChatterService", () => {
   describe("createMessage", () => {
     it("creates a message and returns it", async () => {
       const msg = await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "comment",
         body: "Hello, world!",
@@ -23,7 +23,7 @@ describe("InMemoryChatterService", () => {
       });
 
       expect(msg.id).toBeString();
-      expect(msg.schemaName).toBe("purchase_request");
+      expect(msg.entityName).toBe("purchase_request");
       expect(msg.recordId).toBe("rec-001");
       expect(msg.messageType).toBe("comment");
       expect(msg.body).toBe("Hello, world!");
@@ -35,7 +35,7 @@ describe("InMemoryChatterService", () => {
 
     it("creates a log entry with metadata", async () => {
       const msg = await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "log",
         body: "Updated 1 field(s):\n- **amount**: 5000 → 8000",
@@ -60,7 +60,7 @@ describe("InMemoryChatterService", () => {
 
     it("assigns default authorType = 'user'", async () => {
       const msg = await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "comment",
         body: "test",
@@ -71,7 +71,7 @@ describe("InMemoryChatterService", () => {
 
     it("stores tenantId when provided", async () => {
       const msg = await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "comment",
         body: "test",
@@ -85,14 +85,14 @@ describe("InMemoryChatterService", () => {
   describe("getMessages", () => {
     it("returns messages for the given record", async () => {
       await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "comment",
         body: "First comment",
         authorId: "user-001",
       });
       await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "log",
         body: "Created this record.",
@@ -100,7 +100,7 @@ describe("InMemoryChatterService", () => {
         authorType: "system",
       });
       await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-002",
         messageType: "comment",
         body: "Different record",
@@ -115,14 +115,14 @@ describe("InMemoryChatterService", () => {
 
     it("filters by messageType", async () => {
       await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "comment",
         body: "c",
         authorId: "u",
       });
       await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "log",
         body: "l",
@@ -142,7 +142,7 @@ describe("InMemoryChatterService", () => {
     it("paginates correctly", async () => {
       for (let i = 0; i < 5; i++) {
         await service.createMessage({
-          schemaName: "s",
+          entityName: "s",
           recordId: "r",
           messageType: "comment",
           body: `Message ${i}`,

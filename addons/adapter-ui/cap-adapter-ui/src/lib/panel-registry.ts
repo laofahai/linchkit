@@ -10,7 +10,7 @@ import type { FieldDefinition } from "@linchkit/core/types";
 
 /** Props passed to every record panel component */
 export interface RecordPanelProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   record?: Record<string, unknown>;
   fields?: Record<string, FieldDefinition>;

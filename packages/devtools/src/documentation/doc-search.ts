@@ -19,7 +19,7 @@ import { type CapabilitySpecDoc, generateCapabilityDoc } from "./capability-doc-
 /** A search result entry */
 export interface DocSearchResult {
   /** Type of the matched element */
-  type: "capability" | "schema" | "action" | "rule" | "state_machine" | "view" | "relation";
+  type: "capability" | "entity" | "action" | "rule" | "state_machine" | "view" | "relation";
   /** Name of the matched element */
   name: string;
   /** Which capability it belongs to */
@@ -95,7 +95,7 @@ export class DocSearchIndex {
     for (const schema of doc.entities) {
       const fieldNames = schema.fields.map((f) => `${f.name} ${f.label}`).join(" ");
       this.entries.push({
-        type: "schema",
+        type: "entity",
         name: schema.name,
         capability: doc.name,
         label: schema.label ?? schema.name,

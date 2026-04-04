@@ -41,7 +41,7 @@ const addPriorityResponse = {
   changes: [
     {
       type: "modify",
-      target: "schema",
+      target: "entity",
       name: "task",
       definition: {
         name: "task",
@@ -81,7 +81,7 @@ const createProductResponse = {
   changes: [
     {
       type: "create",
-      target: "schema",
+      target: "entity",
       name: "product",
       definition: {
         name: "product",
@@ -118,7 +118,7 @@ const _invalidFieldResponse = {
   changes: [
     {
       type: "create",
-      target: "schema",
+      target: "entity",
       name: "broken",
       definition: {
         name: "broken",
@@ -242,7 +242,7 @@ describe("ProposalGenerator", () => {
       });
 
       expect(proposal.changes).toHaveLength(1);
-      expect(proposal.changes[0].target).toBe("schema");
+      expect(proposal.changes[0].target).toBe("entity");
       expect(proposal.changes[0].operation).toBe("update"); // "modify" mapped to "update"
       expect(proposal.changes[0].name).toBe("task");
       expect(proposal.changes[0].diff).toContain("priority");
@@ -483,7 +483,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "update",
             name: "task",
             definition: {
@@ -536,7 +536,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "create",
             name: "broken",
             definition: {
@@ -629,7 +629,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "create",
             name: "bad_enum",
             definition: {
@@ -678,7 +678,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "create",
             name: "task",
             definition: taskSchema,
@@ -720,7 +720,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "update",
             name: "task",
             definition: {
@@ -769,7 +769,7 @@ describe("ProposalGenerator", () => {
         changeType: "minor",
         changes: [
           {
-            target: "schema",
+            target: "entity",
             operation: "create",
             name: "invoice",
             definition: {

@@ -414,7 +414,7 @@
     "in_progress": "进行中",
     "on_hold": "暂停"
   },
-  "schemas": {
+  "entities": {
     "purchase_request": {
       "_label": "采购申请",
       "_labelPlural": "采购申请",

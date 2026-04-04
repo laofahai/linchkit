@@ -1,7 +1,7 @@
 /**
  * useRecordTemplates — Client-side record template management backed by localStorage.
  *
- * Key: `linchkit:record-templates:${schemaName}`
+ * Key: `linchkit:record-templates:${entityName}`
  * Value: array of RecordTemplate objects.
  *
  * Server-side persistence (DB table `_linchkit_record_templates`) can replace
@@ -13,13 +13,13 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 // ── localStorage helpers ─────────────────────────────────────────
 
-function storageKey(schemaName: string): string {
-  return `linchkit:record-templates:${schemaName}`;
+function storageKey(entityName: string): string {
+  return `linchkit:record-templates:${entityName}`;
 }
 
-function readTemplates(schemaName: string): RecordTemplate[] {
+function readTemplates(entityName: string): RecordTemplate[] {
   try {
-    const raw = localStorage.getItem(storageKey(schemaName));
+    const raw = localStorage.getItem(storageKey(entityName));
     if (!raw) return [];
     return JSON.parse(raw) as RecordTemplate[];
   } catch {
@@ -27,9 +27,9 @@ function readTemplates(schemaName: string): RecordTemplate[] {
   }
 }
 
-function writeTemplates(schemaName: string, templates: RecordTemplate[]): void {
-  localStorage.setItem(storageKey(schemaName), JSON.stringify(templates));
-  window.dispatchEvent(new CustomEvent("linchkit:record-templates-change", { detail: schemaName }));
+function writeTemplates(entityName: string, templates: RecordTemplate[]): void {
+  localStorage.setItem(storageKey(entityName), JSON.stringify(templates));
+  window.dispatchEvent(new CustomEvent("linchkit:record-templates-change", { detail: entityName }));
 }
 
 function generateId(): string {
@@ -50,10 +50,10 @@ function subscribeToTemplates(callback: () => void): () => void {
 
 // ── Public hook ──────────────────────────────────────────────────
 
-export function useRecordTemplates(schemaName: string) {
+export function useRecordTemplates(entityName: string) {
   const getSnapshot = useCallback(() => {
-    return localStorage.getItem(storageKey(schemaName)) ?? "[]";
-  }, [schemaName]);
+    return localStorage.getItem(storageKey(entityName)) ?? "[]";
+  }, [entityName]);
 
   const raw = useSyncExternalStore(subscribeToTemplates, getSnapshot, () => "[]");
   const templates = useMemo<RecordTemplate[]>(() => {
@@ -70,7 +70,7 @@ export function useRecordTemplates(schemaName: string) {
     (input: CreateRecordTemplateInput): RecordTemplate => {
       const template: RecordTemplate = {
         id: generateId(),
-        schemaName: input.schemaName,
+        entityName: input.entityName,
         name: input.name,
         description: input.description,
         icon: input.icon,
@@ -80,43 +80,43 @@ export function useRecordTemplates(schemaName: string) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const current = readTemplates(schemaName);
-      writeTemplates(schemaName, [...current, template]);
+      const current = readTemplates(entityName);
+      writeTemplates(entityName, [...current, template]);
       return template;
     },
-    [schemaName],
+    [entityName],
   );
 
   const updateTemplate = useCallback(
     (
       templateId: string,
-      updates: Partial<Omit<RecordTemplate, "id" | "schemaName" | "createdAt">>,
+      updates: Partial<Omit<RecordTemplate, "id" | "entityName" | "createdAt">>,
     ): void => {
-      const current = readTemplates(schemaName);
+      const current = readTemplates(entityName);
       const updated = current.map((t) =>
         t.id === templateId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t,
       );
-      writeTemplates(schemaName, updated);
+      writeTemplates(entityName, updated);
     },
-    [schemaName],
+    [entityName],
   );
 
   const deleteTemplate = useCallback(
     (templateId: string): void => {
-      const current = readTemplates(schemaName);
+      const current = readTemplates(entityName);
       writeTemplates(
-        schemaName,
+        entityName,
         current.filter((t) => t.id !== templateId),
       );
     },
-    [schemaName],
+    [entityName],
   );
 
   const getTemplate = useCallback(
     (templateId: string): RecordTemplate | undefined => {
-      return readTemplates(schemaName).find((t) => t.id === templateId);
+      return readTemplates(entityName).find((t) => t.id === templateId);
     },
-    [schemaName],
+    [entityName],
   );
 
   return { templates, createTemplate, updateTemplate, deleteTemplate, getTemplate };

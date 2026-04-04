@@ -26,11 +26,11 @@ export class RelationRegistry implements RelationRegistryInterface {
   /**
    * Get all relations for an entity (both outgoing and incoming) as RelationInfo[].
    */
-  relationsFor(schemaName: string): RelationInfo[] {
+  relationsFor(entityName: string): RelationInfo[] {
     const result: RelationInfo[] = [];
 
     for (const relation of this.relations.values()) {
-      if (relation.from === schemaName) {
+      if (relation.from === entityName) {
         result.push({
           relation,
           direction: "outgoing",
@@ -38,7 +38,7 @@ export class RelationRegistry implements RelationRegistryInterface {
           label: relation.label?.from ?? relation.to,
         });
       }
-      if (relation.to === schemaName) {
+      if (relation.to === entityName) {
         result.push({
           relation,
           direction: "incoming",
@@ -64,10 +64,10 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /** Get all outgoing relations from an entity */
-  outgoingRelations(schemaName: string): RelationDefinition[] {
+  outgoingRelations(entityName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
     for (const relation of this.relations.values()) {
-      if (relation.from === schemaName) {
+      if (relation.from === entityName) {
         result.push(relation);
       }
     }
@@ -75,10 +75,10 @@ export class RelationRegistry implements RelationRegistryInterface {
   }
 
   /** Get all incoming relations to an entity */
-  incomingRelations(schemaName: string): RelationDefinition[] {
+  incomingRelations(entityName: string): RelationDefinition[] {
     const result: RelationDefinition[] = [];
     for (const relation of this.relations.values()) {
-      if (relation.to === schemaName) {
+      if (relation.to === entityName) {
         result.push(relation);
       }
     }

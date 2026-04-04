@@ -135,7 +135,7 @@ bun ./packages/cli/src/index.ts db studio
 ## Key Architecture
 
 - **CommandLayer**: 7-slot middleware pipeline (`pre → auth → exposure → permission → tenant → pre-action → post-action`)
-- **REST**: `/api/schemas`, `/api/actions/:name`, `/api/executions`, `/api/tenants`
+- **REST**: `/api/entities`, `/api/actions/:name`, `/api/executions`, `/api/tenants`
 - **GraphQL**: `/graphql` — CRUD per entity + custom action mutations + execution logs
 - **UI Data**: `lib/api.ts` (plain fetch), `hooks/use-schemas.tsx`, Vite proxy, demo data fallback
 - **Widget Registry**: `lib/widget-registry.ts` — register/resolve/override field widgets. Each field type has a default display+input pair in `components/widgets/`. Override via `ViewFieldConfig.widget` or `widgetRegistry.overrideDisplay/overrideInput()`. State colors via `lib/state-colors.ts`.

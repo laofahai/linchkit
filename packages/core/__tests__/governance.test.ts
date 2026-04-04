@@ -32,7 +32,7 @@ describe("validateEntityDoc", () => {
     const result = validateEntityDoc(schema);
     expect(result.coverage).toBe(100);
     expect(result.issues).toHaveLength(0);
-    expect(result.type).toBe("schema");
+    expect(result.type).toBe("entity");
     expect(result.name).toBe("product");
   });
 

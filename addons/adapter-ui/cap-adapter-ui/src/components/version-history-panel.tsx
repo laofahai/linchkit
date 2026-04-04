@@ -32,7 +32,7 @@ import { type ExecutionLogEntry, queryExecutionLogs, updateRecord } from "../lib
 // ── Types ────────────────────────────────────────────────
 
 interface VersionHistoryPanelProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   /** Current record data for building the latest snapshot */
   currentRecord?: Record<string, unknown>;
@@ -456,7 +456,7 @@ function CompareView({ leftVersion, rightVersion, fields, onClose }: CompareView
 // ── Main Panel Component ─────────────────────────────────
 
 export function VersionHistoryPanel({
-  schemaName,
+  entityName,
   recordId,
   currentRecord,
   fields,
@@ -475,7 +475,7 @@ export function VersionHistoryPanel({
     setLoading(true);
     try {
       const result = await queryExecutionLogs({
-        schema: schemaName,
+        schema: entityName,
         page: 1,
         pageSize: 100,
       });
@@ -488,7 +488,7 @@ export function VersionHistoryPanel({
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId, currentRecord]);
+  }, [entityName, recordId, currentRecord]);
 
   useEffect(() => {
     fetchVersions();
@@ -534,7 +534,7 @@ export function VersionHistoryPanel({
             input[key] = value;
           }
         }
-        await updateRecord(schemaName, recordId, input, recordFields);
+        await updateRecord(entityName, recordId, input, recordFields);
         onRestore?.();
       } catch {
         // Error is shown via toast in the parent
@@ -542,7 +542,7 @@ export function VersionHistoryPanel({
         setRestoring(false);
       }
     },
-    [schemaName, recordId, recordFields, onRestore],
+    [entityName, recordId, recordFields, onRestore],
   );
 
   // Get compare pair

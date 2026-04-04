@@ -73,7 +73,7 @@ async function seedLog(overrides: Record<string, unknown> = {}): Promise<Record<
   const now = new Date().toISOString();
   const defaults: Record<string, unknown> = {
     action_name: "create_task",
-    schema_name: "task",
+    entity_name: "task",
     actor_id: "user-1",
     actor_type: "human",
     status: "succeeded",
@@ -109,7 +109,7 @@ describe("GraphQL executionLogList query", () => {
   test("returns execution entries with correct field names", async () => {
     await seedLog({
       action_name: "create_task",
-      schema_name: "task",
+      entity_name: "task",
       actor_id: "user-1",
       actor_type: "human",
       status: "succeeded",
@@ -123,7 +123,7 @@ describe("GraphQL executionLogList query", () => {
           items {
             id
             action_name
-            schema_name
+            entity_name
             status
             duration_ms
             started_at
@@ -147,7 +147,7 @@ describe("GraphQL executionLogList query", () => {
 
     const entry = logs.items[0];
     expect(entry.action_name).toBe("create_task");
-    expect(entry.schema_name).toBe("task");
+    expect(entry.entity_name).toBe("task");
     expect(entry.status).toBe("succeeded");
     expect(entry.duration_ms).toBe(42);
     expect(entry.started_at).toBeDefined();
@@ -214,20 +214,20 @@ describe("GraphQL executionLogList query", () => {
     }
   });
 
-  test("filters by schema_name using filter arg", async () => {
-    await seedLog({ schema_name: "task" });
-    await seedLog({ schema_name: "order" });
+  test("filters by entity_name using filter arg", async () => {
+    await seedLog({ entity_name: "task" });
+    await seedLog({ entity_name: "order" });
 
     const result = await gql(
       `
       query($filter: String) {
         executionLogList(filter: $filter) {
-          items { schema_name }
+          items { entity_name }
           total
         }
       }
     `,
-      { filter: JSON.stringify({ schema_name: "task" }) },
+      { filter: JSON.stringify({ entity_name: "task" }) },
     );
 
     expect(result.errors).toBeUndefined();
@@ -236,7 +236,7 @@ describe("GraphQL executionLogList query", () => {
       total: number;
     };
     expect(logs.total).toBe(1);
-    expect(logs.items[0].schema_name).toBe("task");
+    expect(logs.items[0].entity_name).toBe("task");
   });
 
   test("supports pagination with page/pageSize", async () => {

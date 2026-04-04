@@ -13,7 +13,7 @@ import type { EntityDefinition } from "@linchkit/core";
 
 export const purchaseRequestEntity: EntityDefinition = {
   name: "purchase_request",
-  label: "t:schemas.purchase_request._label",
+  label: "t:entities.purchase_request._label",
   description: "A purchase request submitted for approval",
 
   implements: ["auditable"],
@@ -30,34 +30,34 @@ export const purchaseRequestEntity: EntityDefinition = {
     title: {
       type: "string",
       required: true,
-      label: "t:schemas.purchase_request.fields.title",
+      label: "t:entities.purchase_request.fields.title",
       ui: { importance: "primary" },
     },
     description: {
       type: "text",
-      label: "t:schemas.purchase_request.fields.description",
+      label: "t:entities.purchase_request.fields.description",
       ui: { editor: "rich" },
     },
     department: {
       type: "ref",
       target: "department",
-      label: "t:schemas.purchase_request.fields.department",
+      label: "t:entities.purchase_request.fields.department",
     },
     amount: {
       type: "number",
       required: true,
-      label: "t:schemas.purchase_request.fields.amount",
+      label: "t:entities.purchase_request.fields.amount",
       ui: { importance: "primary", format: "currency" },
     },
     requester: {
       type: "string",
-      label: "t:schemas.purchase_request.fields.requester",
+      label: "t:entities.purchase_request.fields.requester",
       ui: { importance: "primary" },
     },
     requester_email: {
       type: "string",
       required: true,
-      label: "t:schemas.purchase_request.fields.requester_email",
+      label: "t:entities.purchase_request.fields.requester_email",
       format: "email",
       sensitive: true,
       masking: {
@@ -76,33 +76,33 @@ export const purchaseRequestEntity: EntityDefinition = {
     priority: {
       type: "enum",
       options: [
-        { value: "low", label: "t:schemas.purchase_request.enums.priority.low" },
-        { value: "medium", label: "t:schemas.purchase_request.enums.priority.medium" },
-        { value: "high", label: "t:schemas.purchase_request.enums.priority.high" },
-        { value: "urgent", label: "t:schemas.purchase_request.enums.priority.urgent" },
+        { value: "low", label: "t:entities.purchase_request.enums.priority.low" },
+        { value: "medium", label: "t:entities.purchase_request.enums.priority.medium" },
+        { value: "high", label: "t:entities.purchase_request.enums.priority.high" },
+        { value: "urgent", label: "t:entities.purchase_request.enums.priority.urgent" },
       ],
-      label: "t:schemas.purchase_request.fields.priority",
+      label: "t:entities.purchase_request.fields.priority",
       ui: { importance: "primary", display: "badge" },
     },
-    notes: { type: "text", label: "t:schemas.purchase_request.fields.notes" },
-    audit_notes: { type: "text", label: "t:schemas.purchase_request.fields.audit_notes" },
+    notes: { type: "text", label: "t:entities.purchase_request.fields.notes" },
+    audit_notes: { type: "text", label: "t:entities.purchase_request.fields.audit_notes" },
 
     // Timestamp fields (auto-populated by automations)
     submitted_at: {
       type: "datetime",
-      label: "t:schemas.purchase_request.fields.submitted_at",
+      label: "t:entities.purchase_request.fields.submitted_at",
       immutable: true,
       ui: { importance: "detail" },
     },
     approved_at: {
       type: "datetime",
-      label: "t:schemas.purchase_request.fields.approved_at",
+      label: "t:entities.purchase_request.fields.approved_at",
       immutable: true,
       ui: { importance: "detail" },
     },
     approved_by: {
       type: "string",
-      label: "t:schemas.purchase_request.fields.approved_by",
+      label: "t:entities.purchase_request.fields.approved_by",
       immutable: true,
       ui: { importance: "detail" },
     },
@@ -111,13 +111,13 @@ export const purchaseRequestEntity: EntityDefinition = {
     items: {
       type: "has_many",
       target: "purchase_item",
-      label: "t:schemas.purchase_request.fields.items",
+      label: "t:entities.purchase_request.fields.items",
     },
 
     // Derived properties — computed, not user-input
     total_amount: {
       type: "number",
-      label: "t:schemas.purchase_request.fields.total_amount",
+      label: "t:entities.purchase_request.fields.total_amount",
       description: "Sum of all line item amounts (quantity * unit_price)",
       ui: { importance: "primary", format: "currency" },
       derived: {
@@ -131,7 +131,7 @@ export const purchaseRequestEntity: EntityDefinition = {
     },
     display_title: {
       type: "string",
-      label: "t:schemas.purchase_request.fields.display_title",
+      label: "t:entities.purchase_request.fields.display_title",
       description: "Concatenation of requester name and description",
       derived: {
         type: "concat",

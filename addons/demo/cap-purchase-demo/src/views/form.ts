@@ -14,7 +14,7 @@ export const purchaseRequestFormView: ViewDefinition = {
   name: "purchase_request_form",
   entity: "purchase_request",
   type: "form",
-  label: "t:schemas.purchase_request._label",
+  label: "t:entities.purchase_request._label",
   fields: [
     { field: "title" },
     { field: "amount" },
@@ -80,7 +80,7 @@ export const purchaseRequestFormView: ViewDefinition = {
         children: [
           {
             type: "page",
-            title: "t:schemas.purchase_request.fields.items",
+            title: "t:entities.purchase_request.fields.items",
             children: [
               {
                 type: "group",
@@ -96,13 +96,13 @@ export const purchaseRequestFormView: ViewDefinition = {
   actions: [
     {
       action: "submit_purchase_request",
-      label: "t:schemas.purchase_request.actions.submit_for_approval",
+      label: "t:entities.purchase_request.actions.submit_for_approval",
       position: "form-header",
       variant: "default",
     },
     {
       action: "approve_purchase_request",
-      label: "t:schemas.purchase_request.actions.approve",
+      label: "t:entities.purchase_request.actions.approve",
       position: "form-header",
       variant: "default",
     },

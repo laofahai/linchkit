@@ -368,7 +368,7 @@ describe("DocSearchIndex", () => {
 
     expect(results.length).toBeGreaterThan(0);
     // Should find the schema itself
-    const schemaResult = results.find((r) => r.type === "schema" && r.name === "purchase_request");
+    const schemaResult = results.find((r) => r.type === "entity" && r.name === "purchase_request");
     expect(schemaResult).toBeDefined();
     expect(schemaResult?.capability).toBe("cap-purchase");
   });
@@ -396,7 +396,7 @@ describe("DocSearchIndex", () => {
     const results = index.search("amount");
 
     // Should find purchase_request schema because it has an "amount" field
-    const schemaResult = results.find((r) => r.type === "schema");
+    const schemaResult = results.find((r) => r.type === "entity");
     expect(schemaResult).toBeDefined();
   });
 

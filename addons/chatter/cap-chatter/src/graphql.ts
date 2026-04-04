@@ -27,7 +27,7 @@ const ChatterMessageType = new GraphQLObjectType({
   name: "ChatterMessage",
   fields: {
     id: { type: new GraphQLNonNull(GraphQLString) },
-    schemaName: { type: new GraphQLNonNull(GraphQLString) },
+    entityName: { type: new GraphQLNonNull(GraphQLString) },
     recordId: { type: new GraphQLNonNull(GraphQLString) },
     messageType: { type: new GraphQLNonNull(GraphQLString) },
     body: { type: new GraphQLNonNull(GraphQLString) },
@@ -80,7 +80,7 @@ export function buildChatterGraphQLExtension(
     type: new GraphQLNonNull(ChatterMessageConnectionType),
     description: "Paginated chatter messages for a record",
     args: {
-      schemaName: { type: new GraphQLNonNull(GraphQLString) },
+      entityName: { type: new GraphQLNonNull(GraphQLString) },
       recordId: { type: new GraphQLNonNull(GraphQLString) },
       messageType: {
         type: GraphQLString,
@@ -92,7 +92,7 @@ export function buildChatterGraphQLExtension(
     resolve: async (
       _source: unknown,
       args: {
-        schemaName: string;
+        entityName: string;
         recordId: string;
         messageType?: string;
         limit?: number;
@@ -101,7 +101,7 @@ export function buildChatterGraphQLExtension(
       _context: unknown,
       _info: GraphQLResolveInfo,
     ) => {
-      const result = await service.getMessages(args.schemaName, args.recordId, {
+      const result = await service.getMessages(args.entityName, args.recordId, {
         messageType: args.messageType as "comment" | "note" | "log" | "ai" | undefined,
         limit: args.limit,
         offset: args.offset,

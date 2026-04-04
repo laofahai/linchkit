@@ -151,7 +151,7 @@ export function resolveDataAccess(
   registry: PermissionRegistry,
   actor: Actor,
   capabilityName: string,
-  schemaName: string,
+  entityName: string,
   operation: "read" | "write",
 ): DataAccessCondition | "all" | "none" {
   const groups = registry.resolveActorPermissions(actor);
@@ -173,7 +173,7 @@ export function resolveDataAccess(
     const capPerms = group.permissions[capabilityName];
     if (!capPerms) continue;
 
-    const schemaPerms = capPerms[schemaName];
+    const schemaPerms = capPerms[entityName];
     if (!schemaPerms?.data) continue;
 
     const access = schemaPerms.data[operation];

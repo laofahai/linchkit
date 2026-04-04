@@ -219,8 +219,8 @@ export class EntityRegistry {
     const fields: Record<string, FieldDefinition> = {};
     const chain = this.getInheritanceChain(name);
     // chain includes `name` itself as last element; iterate all
-    for (const schemaName of chain) {
-      const schema = this.entities.get(schemaName);
+    for (const entityName of chain) {
+      const schema = this.entities.get(entityName);
       if (schema) {
         Object.assign(fields, schema.fields);
       }

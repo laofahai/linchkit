@@ -658,7 +658,7 @@ ${schemaContext}
 Respond with a JSON object (and nothing else) in this exact format:
 {
   "action": "action_name or null if no match",
-  "schema": "schema_name or null",
+  "schema": "entity_name or null",
   "input": { "field_name": "extracted_value" },
   "missingFields": ["field names that are required but not extracted"],
   "confidence": 0.0 to 1.0,

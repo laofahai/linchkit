@@ -86,14 +86,14 @@ export class DrizzleDataProvider implements DataProvider {
   }
 
   /** Resolve table from registry; throws if not registered. */
-  private resolveTable(schemaName: string): PgTable {
-    const table = this.tableRegistry.getTable(schemaName);
+  private resolveTable(entityName: string): PgTable {
+    const table = this.tableRegistry.getTable(entityName);
     if (!table) {
       throw new NotFoundError({
-        code: "data.schema.not_registered",
-        message: `No table registered for schema "${schemaName}"`,
-        resource: "schema",
-        resourceId: schemaName,
+        code: "data.entity.not_registered",
+        message: `No table registered for entity "${entityName}"`,
+        resource: "entity",
+        resourceId: entityName,
       });
     }
     return table;
@@ -113,12 +113,12 @@ export class DrizzleDataProvider implements DataProvider {
    * Returns undefined when no searchable columns exist or search is empty.
    */
   private buildSearchCondition(
-    schemaName: string,
+    entityName: string,
     table: PgTable,
     search: string,
   ): ReturnType<typeof or> | undefined {
     if (!search) return undefined;
-    const schemaDef = this.entityDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(entityName);
     if (!schemaDef) return undefined;
 
     const columns = getTableColumns(table);
@@ -202,9 +202,9 @@ export class DrizzleDataProvider implements DataProvider {
         });
       case "42P01": // undefined_table
         throw new NotFoundError({
-          code: "data.schema.table_not_found",
-          message: `Table not found for schema "${schema}": ${pgMessage}`,
-          resource: "schema",
+          code: "data.entity.table_not_found",
+          message: `Table not found for entity "${schema}": ${pgMessage}`,
+          resource: "entity",
           resourceId: schema,
         });
       case "42703": // undefined_column
@@ -268,11 +268,11 @@ export class DrizzleDataProvider implements DataProvider {
    * Uses the provided locale, falling back to the schema's defaultLocale.
    */
   private normalizeTranslatableInput(
-    schemaName: string,
+    entityName: string,
     data: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
-    const schemaDef = this.entityDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(entityName);
     if (!schemaDef?.i18n?.defaultLocale) return data;
 
     const translatableFields = getTranslatableFields(schemaDef);
@@ -296,13 +296,13 @@ export class DrizzleDataProvider implements DataProvider {
    * Without locale, returns raw JSONB (locale map).
    */
   private resolveTranslatableOutput(
-    schemaName: string,
+    entityName: string,
     row: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
     if (!locale) return row;
 
-    const schemaDef = this.entityDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(entityName);
     if (!schemaDef?.i18n?.defaultLocale) return row;
 
     const translatableFields = getTranslatableFields(schemaDef);

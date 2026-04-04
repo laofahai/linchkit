@@ -83,7 +83,7 @@ export type SubscriptionEventType =
   | "record.deleted"
   | "state.changed"
   | "approval.resolved"
-  | "schema.changed";
+  | "entity.changed";
 
 /** SSE event pushed to subscribed clients (spec 44) */
 export interface SubscriptionEvent {

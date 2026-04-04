@@ -199,7 +199,7 @@ function statesToRecords(states: StateDefinition[]): Array<Record<string, unknow
   return states.map((s) => ({
     id: s.name,
     name: s.name,
-    schema_name: s.entity,
+    entity_name: s.entity,
     field: s.field,
     initial: s.initial,
     state_count: s.states?.length ?? 0,
@@ -216,7 +216,7 @@ function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
   return {
     id: e.id,
     action_name: e.action,
-    schema_name: e.entity ?? null,
+    entity_name: e.entity ?? null,
     record_id: e.recordId ?? null,
     capability: e.capability ?? null,
     actor_id: e.actor?.id ?? null,
@@ -264,7 +264,7 @@ const TABLE_MAP = {
 const COLUMN_ALIAS: Record<string, Record<string, string>> = {
   execution_log: {
     action_name: "actionName",
-    schema_name: "schemaName",
+    entity_name: "entityName",
     record_id: "recordId",
     actor_id: "actorId",
     actor_type: "actorType",
@@ -280,7 +280,7 @@ const COLUMN_ALIAS: Record<string, Record<string, string>> = {
   },
   approval: {
     action_name: "actionName",
-    schema_name: "schemaName",
+    entity_name: "entityName",
     record_id: "recordId",
     actor_id: "actorId",
     actor_type: "actorType",

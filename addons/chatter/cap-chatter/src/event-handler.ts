@@ -143,7 +143,7 @@ export function createChatterAutoLog(service: ChatterService): EventHandlerDefin
       if (!entry) return;
 
       await service.createMessage({
-        schemaName: schema,
+        entityName: schema,
         recordId,
         messageType: "log",
         body: entry.body,

@@ -39,7 +39,7 @@ export interface ProposalAuthor {
 // ── Proposal change ──────────────────────────────────────
 
 export type ProposalChangeTarget =
-  | "schema"
+  | "entity"
   | "action"
   | "rule"
   | "view"

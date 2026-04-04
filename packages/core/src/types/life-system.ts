@@ -115,7 +115,7 @@ export interface SignalBus {
 }
 
 // -- Usage Importance Graph (Spec 55 §5.2) --
-export type UsageNodeKind = "schema" | "action" | "field";
+export type UsageNodeKind = "entity" | "action" | "field";
 
 export interface UsageNode {
   kind: UsageNodeKind;

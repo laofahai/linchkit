@@ -345,7 +345,7 @@ describe("CacheManager event-driven invalidation", () => {
     const { bus } = createEventBus();
     const manager = new CacheManager({ eventBus: bus });
 
-    manager.set("data", "cached", { tags: ["schema:orders"] });
+    manager.set("data", "cached", { tags: ["entity:orders"] });
     expect(manager.get("data")).toBe("cached");
 
     await bus.emit(makeEvent("record.created", { entity: "orders" }));
@@ -357,8 +357,8 @@ describe("CacheManager event-driven invalidation", () => {
     const { bus } = createEventBus();
     const manager = new CacheManager({ eventBus: bus });
 
-    manager.set("t1-data", "v1", { tags: ["schema:t1:orders"] });
-    manager.set("t2-data", "v2", { tags: ["schema:t2:orders"] });
+    manager.set("t1-data", "v1", { tags: ["entity:t1:orders"] });
+    manager.set("t2-data", "v2", { tags: ["entity:t2:orders"] });
 
     await bus.emit(makeEvent("record.updated", { entity: "orders", tenantId: "t1" }));
 
@@ -371,7 +371,7 @@ describe("CacheManager event-driven invalidation", () => {
     const manager = new CacheManager({ eventBus: bus });
 
     manager.set("perm1", "allowed", { tags: ["perm:t1"] });
-    manager.set("other", "value", { tags: ["schema:t1:products"] });
+    manager.set("other", "value", { tags: ["entity:t1:products"] });
 
     await bus.emit(
       makeEvent("record.updated", {
@@ -389,7 +389,7 @@ describe("CacheManager event-driven invalidation", () => {
     const { bus } = createEventBus();
     const manager = new CacheManager({ eventBus: bus });
 
-    manager.set("data", "cached", { tags: ["schema:orders"] });
+    manager.set("data", "cached", { tags: ["entity:orders"] });
 
     await bus.emit(makeEvent("record.viewed", { entity: "orders" }));
 
@@ -398,7 +398,7 @@ describe("CacheManager event-driven invalidation", () => {
 
   it("handleEvent can be called directly without EventBus", () => {
     const manager = new CacheManager();
-    manager.set("data", "cached", { tags: ["schema:orders"] });
+    manager.set("data", "cached", { tags: ["entity:orders"] });
 
     manager.handleEvent(makeEvent("record.deleted", { entity: "orders" }));
 
@@ -420,7 +420,7 @@ describe("Cache integration patterns", () => {
 
       computeCount++;
       const result = { type: "object", schema: schemaName };
-      zodCache.set(schemaName, result, { tags: [`schema:${schemaName}`] });
+      zodCache.set(schemaName, result, { tags: [`entity:${schemaName}`] });
       return result;
     }
 
@@ -434,7 +434,7 @@ describe("Cache integration patterns", () => {
     expect(r2).toEqual(r1);
 
     // Invalidate by tag
-    manager.invalidateByTag("schema:purchase_request");
+    manager.invalidateByTag("entity:purchase_request");
 
     // Third call recomputes
     getZodSchema("purchase_request");
@@ -450,7 +450,7 @@ describe("Cache integration patterns", () => {
       { name: "orders", fields: {} },
       {
         ttl: 100,
-        tags: ["schema:orders"],
+        tags: ["entity:orders"],
       },
     );
 
@@ -469,7 +469,7 @@ describe("Cache integration patterns", () => {
     const cacheKey = `tenant1:orders:${queryHash}`;
     queryCache.set(cacheKey, [{ id: 1 }], {
       ttl: 30_000,
-      tags: ["schema:tenant1:orders"],
+      tags: ["entity:tenant1:orders"],
     });
 
     expect(queryCache.get(cacheKey)).toEqual([{ id: 1 }]);

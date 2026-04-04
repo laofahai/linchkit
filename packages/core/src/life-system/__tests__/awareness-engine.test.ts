@@ -32,7 +32,7 @@ describe("AwarenessEngine", () => {
     const ontology = makeOntology({ Order: { views: [{ name: "list" } as never], actions: [] } });
     const engine = createAwarenessEngine({ ontology });
     engine.ingestSignal(makeSignal("Order"));
-    expect(engine.usageGraph.getImportance("schema", "Order")).toBeGreaterThan(0);
+    expect(engine.usageGraph.getImportance("entity", "Order")).toBeGreaterThan(0);
   });
 
   test("structuralCheck detects schema_no_view", () => {

@@ -46,7 +46,7 @@ describe("buildChatterGraphQLExtension", () => {
       const result = await graphql({
         schema,
         source: `{
-          chatterMessages(schemaName: "purchase_request", recordId: "rec-001") {
+          chatterMessages(entityName: "purchase_request", recordId: "rec-001") {
             totalCount
             hasMore
             items { id body messageType }
@@ -63,14 +63,14 @@ describe("buildChatterGraphQLExtension", () => {
 
     it("returns messages for a record", async () => {
       await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "comment",
         body: "Test comment",
         authorId: "user-001",
       });
       await service.createMessage({
-        schemaName: "purchase_request",
+        entityName: "purchase_request",
         recordId: "rec-001",
         messageType: "log",
         body: "Created this record.",
@@ -83,7 +83,7 @@ describe("buildChatterGraphQLExtension", () => {
       const result = await graphql({
         schema,
         source: `{
-          chatterMessages(schemaName: "purchase_request", recordId: "rec-001") {
+          chatterMessages(entityName: "purchase_request", recordId: "rec-001") {
             totalCount
             hasMore
             items { id body messageType authorId }
@@ -99,14 +99,14 @@ describe("buildChatterGraphQLExtension", () => {
 
     it("filters by messageType", async () => {
       await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "comment",
         body: "c",
         authorId: "u",
       });
       await service.createMessage({
-        schemaName: "s",
+        entityName: "s",
         recordId: "r",
         messageType: "log",
         body: "l",
@@ -118,7 +118,7 @@ describe("buildChatterGraphQLExtension", () => {
       const result = await graphql({
         schema,
         source: `{
-          chatterMessages(schemaName: "s", recordId: "r", messageType: "comment") {
+          chatterMessages(entityName: "s", recordId: "r", messageType: "comment") {
             totalCount
             items { messageType }
           }
@@ -133,7 +133,7 @@ describe("buildChatterGraphQLExtension", () => {
     it("paginates via limit and offset", async () => {
       for (let i = 0; i < 5; i++) {
         await service.createMessage({
-          schemaName: "s",
+          entityName: "s",
           recordId: "r",
           messageType: "comment",
           body: `msg ${i}`,
@@ -145,7 +145,7 @@ describe("buildChatterGraphQLExtension", () => {
       const result = await graphql({
         schema,
         source: `{
-          chatterMessages(schemaName: "s", recordId: "r", limit: 3, offset: 0) {
+          chatterMessages(entityName: "s", recordId: "r", limit: 3, offset: 0) {
             totalCount
             hasMore
             items { body }

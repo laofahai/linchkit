@@ -45,7 +45,7 @@ describe("SystemDataProvider execution_log fallback (no DB)", () => {
     const record = results[0];
     expect(record.id).toBe("exec-001");
     expect(record.action_name).toBe("create_task");
-    expect(record.schema_name).toBe("task");
+    expect(record.entity_name).toBe("task");
     expect(record.record_id).toBe("task-123");
     expect(record.actor_id).toBe("user-1");
     expect(record.actor_type).toBe("human");

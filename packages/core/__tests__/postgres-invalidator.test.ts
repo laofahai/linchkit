@@ -45,23 +45,23 @@ describe("PostgresCacheInvalidator", () => {
   describe("handleNotification — schema invalidation", () => {
     it("invalidates schema tag when type=schema payload received", () => {
       const manager = new CacheManager();
-      manager.set("data", "cached", { tags: ["schema:orders"] });
+      manager.set("data", "cached", { tags: ["entity:orders"] });
 
       const { handleNotification } = createTestInvalidator(manager);
 
-      handleNotification(JSON.stringify({ type: "schema", target: "orders" }));
+      handleNotification(JSON.stringify({ type: "entity", target: "orders" }));
 
       expect(manager.get("data")).toBeUndefined();
     });
 
     it("invalidates tenant-scoped schema tag", () => {
       const manager = new CacheManager();
-      manager.set("t1-data", "v1", { tags: ["schema:t1:orders"] });
-      manager.set("t2-data", "v2", { tags: ["schema:t2:orders"] });
+      manager.set("t1-data", "v1", { tags: ["entity:t1:orders"] });
+      manager.set("t2-data", "v2", { tags: ["entity:t2:orders"] });
 
       const { handleNotification } = createTestInvalidator(manager);
 
-      handleNotification(JSON.stringify({ type: "schema", target: "orders", tenantId: "t1" }));
+      handleNotification(JSON.stringify({ type: "entity", target: "orders", tenantId: "t1" }));
 
       expect(manager.get("t1-data")).toBeUndefined();
       expect(manager.get("t2-data")).toBe("v2"); // different tenant unaffected
@@ -72,7 +72,7 @@ describe("PostgresCacheInvalidator", () => {
     it("invalidates permission tag when type=permission payload received", () => {
       const manager = new CacheManager();
       manager.set("perm1", "allow", { tags: ["perm:t1"] });
-      manager.set("other", "v", { tags: ["schema:t1:orders"] });
+      manager.set("other", "v", { tags: ["entity:t1:orders"] });
 
       const { handleNotification } = createTestInvalidator(manager);
 
@@ -97,16 +97,16 @@ describe("PostgresCacheInvalidator", () => {
   describe("handleNotification — definition invalidation", () => {
     it("invalidates definition prefix when type=definition payload received", () => {
       const manager = new CacheManager();
-      manager.set("override:t1:schema:orders", "v1");
-      manager.set("override:t1:schema:products", "v2");
+      manager.set("override:t1:entity:orders", "v1");
+      manager.set("override:t1:entity:products", "v2");
       manager.set("other-key", "v3");
 
       const { handleNotification } = createTestInvalidator(manager);
 
-      handleNotification(JSON.stringify({ type: "definition", target: "schema", tenantId: "t1" }));
+      handleNotification(JSON.stringify({ type: "definition", target: "entity", tenantId: "t1" }));
 
-      expect(manager.get("override:t1:schema:orders")).toBeUndefined();
-      expect(manager.get("override:t1:schema:products")).toBeUndefined();
+      expect(manager.get("override:t1:entity:orders")).toBeUndefined();
+      expect(manager.get("override:t1:entity:products")).toBeUndefined();
       expect(manager.get("other-key")).toBe("v3");
     });
   });

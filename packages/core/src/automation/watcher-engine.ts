@@ -47,7 +47,7 @@ export interface WatcherEngine {
    * Returns evaluation results for all matched watchers.
    */
   evaluateAfterMutation(
-    schemaName: string,
+    entityName: string,
     record: Record<string, unknown>,
     oldRecord?: Record<string, unknown>,
   ): Promise<WatcherEvaluationResult[]>;
@@ -177,11 +177,11 @@ class WatcherEngineImpl implements WatcherEngine {
   }
 
   async evaluateAfterMutation(
-    schemaName: string,
+    entityName: string,
     record: Record<string, unknown>,
     oldRecord?: Record<string, unknown>,
   ): Promise<WatcherEvaluationResult[]> {
-    const watchers = this.registry.getForEntity(schemaName);
+    const watchers = this.registry.getForEntity(entityName);
     const results: WatcherEvaluationResult[] = [];
 
     for (const watcher of watchers) {
@@ -227,8 +227,8 @@ class WatcherEngineImpl implements WatcherEngine {
     // Listen for record.created and record.updated events
     for (const eventType of ["record.created", "record.updated"]) {
       const unsub = this.eventBus.subscribe(eventType, async (event: EventRecord) => {
-        const schemaName = event.entity;
-        if (!schemaName) return;
+        const entityName = event.entity;
+        if (!entityName) return;
 
         const record =
           eventType === "record.updated"
@@ -239,7 +239,7 @@ class WatcherEngineImpl implements WatcherEngine {
             ? (event.payload._old as Record<string, unknown>)
             : undefined;
 
-        await this.evaluateAfterMutation(schemaName, record, oldRecord);
+        await this.evaluateAfterMutation(entityName, record, oldRecord);
       });
       this.unsubscribers.push(unsub);
     }

@@ -29,7 +29,7 @@ export class InMemoryChatterService implements ChatterService {
     const msg: ChatterMessage = {
       id: generateId(),
       tenantId: input.tenantId,
-      schemaName: input.schemaName,
+      entityName: input.entityName,
       recordId: input.recordId,
       messageType: input.messageType,
       body: input.body,
@@ -49,7 +49,7 @@ export class InMemoryChatterService implements ChatterService {
   }
 
   async getMessages(
-    schemaName: string,
+    entityName: string,
     recordId: string,
     options?: MessageQueryOptions,
   ): Promise<PaginatedMessages> {
@@ -57,7 +57,7 @@ export class InMemoryChatterService implements ChatterService {
 
     let filtered = this.messages.filter(
       (m) =>
-        m.schemaName === schemaName &&
+        m.entityName === entityName &&
         m.recordId === recordId &&
         !m.isDeleted &&
         (parentId === undefined
@@ -100,7 +100,7 @@ export class DrizzleChatterService implements ChatterService {
       .insert(messagesTable)
       .values({
         tenantId: input.tenantId,
-        schemaName: input.schemaName,
+        entityName: input.entityName,
         recordId: input.recordId,
         messageType: input.messageType,
         body: input.body,
@@ -117,7 +117,7 @@ export class DrizzleChatterService implements ChatterService {
   }
 
   async getMessages(
-    schemaName: string,
+    entityName: string,
     recordId: string,
     options?: MessageQueryOptions,
   ): Promise<PaginatedMessages> {
@@ -127,7 +127,7 @@ export class DrizzleChatterService implements ChatterService {
     const { messageType, limit = 20, offset = 0 } = options ?? {};
 
     const conditions = [
-      eq(messagesTable.schemaName, schemaName),
+      eq(messagesTable.entityName, entityName),
       eq(messagesTable.recordId, recordId),
       eq(messagesTable.isDeleted, false),
       // Top-level messages only (no parentId)
@@ -168,7 +168,7 @@ function rowToMessage(row: any): ChatterMessage {
   return {
     id: row.id,
     tenantId: row.tenantId ?? undefined,
-    schemaName: row.schemaName,
+    entityName: row.entityName,
     recordId: row.recordId,
     messageType: row.messageType,
     body: row.body,

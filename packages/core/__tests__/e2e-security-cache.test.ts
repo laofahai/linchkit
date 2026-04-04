@@ -499,7 +499,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     const manager = new CacheManager();
 
     // Cache a query result
-    manager.set("orders:list", [{ id: "1", name: "Order 1" }], { tags: ["schema:orders"] });
+    manager.set("orders:list", [{ id: "1", name: "Order 1" }], { tags: ["entity:orders"] });
     expect(manager.get("orders:list")).toBeDefined();
 
     // Simulate creating a record via handleEvent (direct call, avoids EventBus withTrace bug)
@@ -513,7 +513,7 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     const manager = new CacheManager();
 
     // Cache a single record lookup
-    manager.set("orders:rec-1", { id: "rec-1", name: "Order" }, { tags: ["schema:orders"] });
+    manager.set("orders:rec-1", { id: "rec-1", name: "Order" }, { tags: ["entity:orders"] });
     expect(manager.get("orders:rec-1")).toBeDefined();
 
     // Simulate updating a record
@@ -526,8 +526,8 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     const manager = new CacheManager();
 
     // Cache for two different tenants
-    manager.set("t1:orders", "tenant1-data", { tags: ["schema:t1:orders"] });
-    manager.set("t2:orders", "tenant2-data", { tags: ["schema:t2:orders"] });
+    manager.set("t1:orders", "tenant1-data", { tags: ["entity:t1:orders"] });
+    manager.set("t2:orders", "tenant2-data", { tags: ["entity:t2:orders"] });
 
     // Event scoped to tenant 1
     manager.handleEvent(makeEvent("record.updated", { entity: "orders", tenantId: "t1" }));
@@ -541,11 +541,11 @@ describe("E2E: Cache + Event-driven Invalidation", () => {
     const manager = new CacheManager();
 
     const ordersCache = manager.namespace("orders");
-    ordersCache.set("list", [{ id: "1" }], { tags: ["schema:orders"] });
-    ordersCache.set("count", 42, { tags: ["schema:orders"] });
+    ordersCache.set("list", [{ id: "1" }], { tags: ["entity:orders"] });
+    ordersCache.set("count", 42, { tags: ["entity:orders"] });
 
     // Unrelated schema cache should not be affected
-    manager.set("products:list", "products-data", { tags: ["schema:products"] });
+    manager.set("products:list", "products-data", { tags: ["entity:products"] });
 
     manager.handleEvent(makeEvent("record.created", { entity: "orders" }));
 

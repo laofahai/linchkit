@@ -1,7 +1,7 @@
 /**
  * Data import REST endpoint.
  *
- * - POST /api/schemas/:name/import — bulk import via JSON or CSV file upload
+ * - POST /api/entities/:name/import — bulk import via JSON or CSV file upload
  */
 
 import type { Elysia } from "elysia";
@@ -17,7 +17,7 @@ export function mountImportRoutes(app: Elysia, options: ServerOptions): void {
   app
     // ── Data Import endpoint ────────────────────────────────
     // Accepts multipart form data with a JSON/CSV file, creates records via CommandLayer
-    .post("/api/schemas/:name/import", async ({ params, request, set }) => {
+    .post("/api/entities/:name/import", async ({ params, request, set }) => {
       if (!commandLayer && !executor) {
         set.status = 500;
         return { success: false, error: { message: "Action executor not configured." } };

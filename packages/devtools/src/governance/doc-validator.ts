@@ -27,7 +27,7 @@ export interface DocCompleteness {
   /** Name of the validated element */
   name: string;
   /** Element type */
-  type: "schema" | "action" | "capability";
+  type: "entity" | "action" | "capability";
   /** Coverage percentage (0-100): ratio of documented items to total items */
   coverage: number;
   /** Total documentable items */
@@ -130,7 +130,7 @@ export function validateEntityDoc(schema: EntityDefinition): DocCompleteness {
 
   return {
     name: schema.name,
-    type: "schema",
+    type: "entity",
     coverage,
     totalItems,
     documentedItems,

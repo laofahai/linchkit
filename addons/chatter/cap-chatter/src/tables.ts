@@ -26,7 +26,7 @@ export const messagesTable = linchkitSchema.table(
     tenantId: varchar("tenant_id", { length: 255 }),
 
     // Polymorphic record reference
-    schemaName: varchar("schema_name", { length: 255 }).notNull(),
+    entityName: varchar("entity_name", { length: 255 }).notNull(),
     recordId: varchar("record_id", { length: 255 }).notNull(),
 
     // Message classification: comment | note | log | ai
@@ -60,7 +60,7 @@ export const messagesTable = linchkitSchema.table(
   },
   (table) => [
     // Primary query path: messages for a record, ordered by creation time
-    index("messages_record_idx").on(table.schemaName, table.recordId, table.createdAt),
+    index("messages_record_idx").on(table.entityName, table.recordId, table.createdAt),
     // Author queries
     index("messages_author_idx").on(table.authorId),
     // Thread loading

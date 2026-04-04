@@ -334,7 +334,7 @@ export function buildGraphQLSchema(
         ? async (_root: unknown, args: { id: string; locale?: string }, ctx: GraphQLContext) => {
             const locale = args.locale ?? ctx.locale;
             const cacheKey = `gql:${entityName}:${args.id}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
-            const tags = [`gql:${entityName}`, `schema:${entityName}`];
+            const tags = [`gql:${entityName}`, `entity:${entityName}`];
             return cachedQuery(cacheKey, tags, async () => {
               const opts: DataQueryOptions = {
                 ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
@@ -435,7 +435,7 @@ export function buildGraphQLSchema(
           ) => {
             const locale = args.locale ?? ctx.locale;
             const listCacheKey = `gql:${entityName}:list:${JSON.stringify(args)}:${locale ?? ""}:${ctx.tenantId ?? ""}`;
-            const tags = [`gql:${entityName}`, `schema:${entityName}`];
+            const tags = [`gql:${entityName}`, `entity:${entityName}`];
             return cachedQuery(listCacheKey, tags, async () => {
               const opts: DataQueryOptions = {
                 ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),

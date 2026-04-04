@@ -39,7 +39,7 @@ export class DrizzleExecutionLogger {
       id: entry.id,
       tenantId: entry.tenantId ?? null,
       actionName: entry.action,
-      schemaName: entry.entity ?? null,
+      entityName: entry.entity ?? null,
       recordId: entry.recordId ?? null,
       capability: entry.capability ?? null,
       channel: entry.channel ?? null,
@@ -80,7 +80,7 @@ export class DrizzleExecutionLogger {
     const rows = await this.db
       .select()
       .from(executionsTable)
-      .where(eq(executionsTable.schemaName, entity))
+      .where(eq(executionsTable.entityName, entity))
       .orderBy(desc(executionsTable.startedAt));
     return rows.map(rowToEntry);
   }
@@ -162,7 +162,7 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     id: row.id,
     tenantId: row.tenantId ?? undefined,
     action: row.actionName,
-    entity: row.schemaName ?? undefined,
+    entity: row.entityName ?? undefined,
     recordId: row.recordId ?? undefined,
     capability: row.capability ?? undefined,
     input: (row.input as Record<string, unknown>) ?? {},
@@ -197,7 +197,7 @@ function buildConditions(options?: ExecutionLogFindOptions) {
     conditions.push(eq(executionsTable.actionName, options.action));
   }
   if (options?.entity) {
-    conditions.push(eq(executionsTable.schemaName, options.entity));
+    conditions.push(eq(executionsTable.entityName, options.entity));
   }
   if (options?.status) {
     conditions.push(eq(executionsTable.status, options.status));

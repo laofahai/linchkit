@@ -10,7 +10,7 @@ import type { StateDefinition } from "../src/types/state";
 
 function makeEntityChange(name: string, def: Partial<EntityDefinition> = {}): ProposalChange {
   return {
-    target: "schema",
+    target: "entity",
     operation: "create",
     name,
     definition: {
@@ -140,7 +140,7 @@ describe("validatePhase1", () => {
         changes: [makeEntityChange("empty_schema", { fields: {} })],
       });
       expect(result.status).toBe("failed");
-      expect(result.errors.some((e) => e.code === "SCHEMA_NO_FIELDS")).toBe(true);
+      expect(result.errors.some((e) => e.code === "ENTITY_NO_FIELDS")).toBe(true);
     });
 
     it("errors on invalid field type", () => {
@@ -238,21 +238,21 @@ describe("validatePhase1", () => {
       const result = validatePhase1({
         changes: [makeActionChange("my_action", { entity: undefined as never })],
       });
-      expect(result.errors.some((e) => e.code === "ACTION_NO_SCHEMA")).toBe(true);
+      expect(result.errors.some((e) => e.code === "ACTION_NO_ENTITY")).toBe(true);
     });
 
     it("warns on action referencing unknown schema", () => {
       const result = validatePhase1({
         changes: [makeActionChange("my_action", { entity: "nonexistent_schema" })],
       });
-      expect(result.warnings.some((w) => w.code === "ACTION_UNKNOWN_SCHEMA")).toBe(true);
+      expect(result.warnings.some((w) => w.code === "ACTION_UNKNOWN_ENTITY")).toBe(true);
     });
 
     it("does not warn when schema is in the same proposal", () => {
       const result = validatePhase1({
         changes: [makeEntityChange("order"), makeActionChange("place_order", { entity: "order" })],
       });
-      expect(result.warnings.filter((w) => w.code === "ACTION_UNKNOWN_SCHEMA")).toHaveLength(0);
+      expect(result.warnings.filter((w) => w.code === "ACTION_UNKNOWN_ENTITY")).toHaveLength(0);
     });
 
     it("errors on action with no policy", () => {

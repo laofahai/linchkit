@@ -86,7 +86,7 @@ export function validatePhase1(options: {
   for (const change of changes) {
     if (change.operation === "delete") continue;
     switch (change.target) {
-      case "schema":
+      case "entity":
         proposedSchemas.add(change.name);
         break;
       case "action":
@@ -161,7 +161,7 @@ export function validatePhase1(options: {
     }
 
     switch (change.target) {
-      case "schema":
+      case "entity":
         validateEntity(change.definition as EntityDefinition, change.name, errors, warnings, {
           schemaExists,
         });
@@ -170,8 +170,8 @@ export function validatePhase1(options: {
         validateAction(change.definition as ActionDefinition, change.name, errors, warnings, {
           schemaExists,
           actionExists,
-          resolveStateMachine: (schemaName: string) =>
-            resolveStateMachine(schemaName, changes, context),
+          resolveStateMachine: (entityName: string) =>
+            resolveStateMachine(entityName, changes, context),
         });
         break;
       case "rule":
@@ -214,7 +214,7 @@ export function validatePhase1(options: {
  * Returns the set of valid states, or undefined if no state machine is found.
  */
 function resolveStateMachine(
-  schemaName: string,
+  entityName: string,
   changes: ProposalChange[],
   _context?: ValidationContext,
 ): Set<string> | undefined {
@@ -222,7 +222,7 @@ function resolveStateMachine(
   for (const change of changes) {
     if (change.target === "state" && change.operation !== "delete" && change.definition) {
       const stateDef = change.definition as StateDefinition;
-      if (stateDef.entity === schemaName && stateDef.states) {
+      if (stateDef.entity === entityName && stateDef.states) {
         return new Set(stateDef.states);
       }
     }
@@ -244,7 +244,7 @@ function validateEntity(
 ): void {
   if (!def.fields || Object.keys(def.fields).length === 0) {
     errors.push({
-      code: "SCHEMA_NO_FIELDS",
+      code: "ENTITY_NO_FIELDS",
       message: `Entity "${name}" must have at least one field`,
       target: name,
     });
@@ -316,19 +316,19 @@ function validateAction(
   helpers: {
     schemaExists: (name: string) => boolean;
     actionExists: (name: string) => boolean;
-    resolveStateMachine: (schemaName: string) => Set<string> | undefined;
+    resolveStateMachine: (entityName: string) => Set<string> | undefined;
   },
 ): void {
   // Check entity reference
   if (!def.entity) {
     errors.push({
-      code: "ACTION_NO_SCHEMA",
+      code: "ACTION_NO_ENTITY",
       message: `Action "${name}" must reference an entity`,
       target: name,
     });
   } else if (!helpers.schemaExists(def.entity)) {
     warnings.push({
-      code: "ACTION_UNKNOWN_SCHEMA",
+      code: "ACTION_UNKNOWN_ENTITY",
       message: `Action "${name}" references unknown entity "${def.entity}"`,
       target: name,
     });
@@ -507,13 +507,13 @@ function validateStateDef(
   // Check entity reference
   if (!def.entity) {
     errors.push({
-      code: "STATE_NO_SCHEMA",
+      code: "STATE_NO_ENTITY",
       message: `State definition "${name}" must reference an entity`,
       target: name,
     });
   } else if (!helpers.schemaExists(def.entity)) {
     warnings.push({
-      code: "STATE_UNKNOWN_SCHEMA",
+      code: "STATE_UNKNOWN_ENTITY",
       message: `State definition "${name}" references unknown entity "${def.entity}"`,
       target: name,
     });
@@ -613,13 +613,13 @@ function validateViewDef(
   const viewDef = def as { entity?: string; type?: string; fields?: unknown[] };
   if (!viewDef.entity) {
     errors.push({
-      code: "VIEW_NO_SCHEMA",
+      code: "VIEW_NO_ENTITY",
       message: `View "${name}" must reference an entity`,
       target: name,
     });
   } else if (!helpers.schemaExists(viewDef.entity)) {
     errors.push({
-      code: "VIEW_UNKNOWN_SCHEMA",
+      code: "VIEW_UNKNOWN_ENTITY",
       message: `View "${name}" references unknown entity "${viewDef.entity}"`,
       target: name,
     });

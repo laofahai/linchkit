@@ -19,7 +19,7 @@ const opts = (...values: string[]) => values.map((value) => ({ value }));
 
 export const executionLogSchema: EntityDefinition = {
   name: "execution_log",
-  label: "t:schemas.execution_log._label",
+  label: "t:entities.execution_log._label",
   description: "Action execution history with status, duration, and audit trail",
   presentation: {
     titleField: "action_name",
@@ -30,74 +30,74 @@ export const executionLogSchema: EntityDefinition = {
     action_name: {
       type: "string",
       required: true,
-      label: "t:schemas.execution_log.fields.action_name",
+      label: "t:entities.execution_log.fields.action_name",
     },
-    schema_name: {
+    entity_name: {
       type: "string",
-      label: "t:schemas.execution_log.fields.schema_name",
+      label: "t:entities.execution_log.fields.entity_name",
     },
     record_id: {
       type: "string",
-      label: "t:schemas.execution_log.fields.record_id",
+      label: "t:entities.execution_log.fields.record_id",
     },
     capability: {
       type: "string",
-      label: "t:schemas.execution_log.fields.capability",
+      label: "t:entities.execution_log.fields.capability",
     },
     actor_id: {
       type: "string",
-      label: "t:schemas.execution_log.fields.actor_id",
+      label: "t:entities.execution_log.fields.actor_id",
     },
     actor_type: {
       type: "string",
-      label: "t:schemas.execution_log.fields.actor_type",
+      label: "t:entities.execution_log.fields.actor_type",
     },
     status: {
       type: "enum",
       required: true,
-      label: "t:schemas.execution_log.fields.status",
+      label: "t:entities.execution_log.fields.status",
       options: opts("succeeded", "failed", "blocked", "pending_approval"),
     },
     duration_ms: {
       type: "number",
-      label: "t:schemas.execution_log.fields.duration_ms",
+      label: "t:entities.execution_log.fields.duration_ms",
     },
     error_code: {
       type: "string",
-      label: "t:schemas.execution_log.fields.error_code",
+      label: "t:entities.execution_log.fields.error_code",
     },
     error_message: {
       type: "text",
-      label: "t:schemas.execution_log.fields.error_message",
+      label: "t:entities.execution_log.fields.error_message",
     },
     channel: {
       type: "string",
-      label: "t:schemas.execution_log.fields.channel",
+      label: "t:entities.execution_log.fields.channel",
     },
     input: {
       type: "json",
-      label: "t:schemas.execution_log.fields.input",
+      label: "t:entities.execution_log.fields.input",
     },
     output: {
       type: "json",
-      label: "t:schemas.execution_log.fields.output",
+      label: "t:entities.execution_log.fields.output",
     },
     state_transition_from: {
       type: "string",
-      label: "t:schemas.execution_log.fields.state_transition_from",
+      label: "t:entities.execution_log.fields.state_transition_from",
     },
     state_transition_to: {
       type: "string",
-      label: "t:schemas.execution_log.fields.state_transition_to",
+      label: "t:entities.execution_log.fields.state_transition_to",
     },
     started_at: {
       type: "datetime",
       required: true,
-      label: "t:schemas.execution_log.fields.started_at",
+      label: "t:entities.execution_log.fields.started_at",
     },
     completed_at: {
       type: "datetime",
-      label: "t:schemas.execution_log.fields.completed_at",
+      label: "t:entities.execution_log.fields.completed_at",
     },
   },
 };
@@ -106,11 +106,11 @@ export const executionLogListView: ViewDefinition = {
   name: "execution_log_list",
   entity: "execution_log",
   type: "list",
-  label: "t:schemas.execution_log._labelPlural",
+  label: "t:entities.execution_log._labelPlural",
   fields: [
     { field: "started_at", sortable: true, width: 160 },
     { field: "action_name", sortable: true },
-    { field: "schema_name", sortable: true },
+    { field: "entity_name", sortable: true },
     { field: "actor_id", sortable: true },
     { field: "status", sortable: true, filterable: true, width: 140 },
     { field: "duration_ms", sortable: true, width: 120 },
@@ -123,7 +123,7 @@ export const executionLogListView: ViewDefinition = {
 
 export const approvalSchema: EntityDefinition = {
   name: "approval",
-  label: "t:schemas.approval._label",
+  label: "t:entities.approval._label",
   description: "Approval requests requiring human decision",
   presentation: {
     titleField: "action_name",
@@ -134,79 +134,79 @@ export const approvalSchema: EntityDefinition = {
     action_name: {
       type: "string",
       required: true,
-      label: "t:schemas.approval.fields.action_name",
+      label: "t:entities.approval.fields.action_name",
     },
-    schema_name: {
+    entity_name: {
       type: "string",
-      label: "t:schemas.approval.fields.schema_name",
+      label: "t:entities.approval.fields.entity_name",
     },
     record_id: {
       type: "string",
-      label: "t:schemas.approval.fields.record_id",
+      label: "t:entities.approval.fields.record_id",
     },
     capability: {
       type: "string",
-      label: "t:schemas.approval.fields.capability",
+      label: "t:entities.approval.fields.capability",
     },
     level: {
       type: "string",
       required: true,
-      label: "t:schemas.approval.fields.level",
+      label: "t:entities.approval.fields.level",
     },
     reason: {
       type: "text",
       required: true,
-      label: "t:schemas.approval.fields.reason",
+      label: "t:entities.approval.fields.reason",
     },
     actor_id: {
       type: "string",
-      label: "t:schemas.approval.fields.actor_id",
+      label: "t:entities.approval.fields.actor_id",
     },
     actor_type: {
       type: "string",
-      label: "t:schemas.approval.fields.actor_type",
+      label: "t:entities.approval.fields.actor_type",
     },
     assignee_type: {
       type: "enum",
       required: true,
-      label: "t:schemas.approval.fields.assignee_type",
+      label: "t:entities.approval.fields.assignee_type",
       options: opts("role", "group", "user"),
     },
     assignee_value: {
       type: "string",
       required: true,
-      label: "t:schemas.approval.fields.assignee_value",
+      label: "t:entities.approval.fields.assignee_value",
     },
     status: {
       type: "enum",
       required: true,
-      label: "t:schemas.approval.fields.status",
+      label: "t:entities.approval.fields.status",
       options: opts("pending", "approved", "rejected", "expired", "cancelled"),
     },
     decided_by: {
       type: "string",
-      label: "t:schemas.approval.fields.decided_by",
+      label: "t:entities.approval.fields.decided_by",
     },
     decided_at: {
       type: "datetime",
-      label: "t:schemas.approval.fields.decided_at",
+      label: "t:entities.approval.fields.decided_at",
     },
     decision_note: {
       type: "text",
-      label: "t:schemas.approval.fields.decision_note",
+      label: "t:entities.approval.fields.decision_note",
     },
     expires_at: {
       type: "datetime",
-      label: "t:schemas.approval.fields.expires_at",
+      label: "t:entities.approval.fields.expires_at",
     },
     timeout_policy: {
       type: "string",
       required: true,
-      label: "t:schemas.approval.fields.timeout_policy",
+      label: "t:entities.approval.fields.timeout_policy",
     },
     input: {
       type: "json",
-      label: "t:schemas.approval.fields.input",
+      label: "t:entities.approval.fields.input",
     },
   },
 };
@@ -215,12 +215,12 @@ export const approvalListView: ViewDefinition = {
   name: "approval_list",
   entity: "approval",
   type: "list",
-  label: "t:schemas.approval._labelPlural",
+  label: "t:entities.approval._labelPlural",
   fields: [
     { field: "created_at", sortable: true, width: 160 },
     { field: "action_name", sortable: true },
-    { field: "schema_name", sortable: true },
-    { field: "actor_id", sortable: true, label: "t:schemas.approval.fields.actor_id" },
+    { field: "entity_name", sortable: true },
+    { field: "actor_id", sortable: true, label: "t:entities.approval.fields.actor_id" },
     { field: "level", sortable: true, width: 100 },
     { field: "reason" },
     { field: "status", sortable: true, filterable: true, width: 130 },
@@ -233,7 +233,7 @@ export const approvalListView: ViewDefinition = {
 
 export const ruleSchema: EntityDefinition = {
   name: "rule",
-  label: "t:schemas.rule._label",
+  label: "t:entities.rule._label",
   description: "Business rules that validate, guard, or enrich actions",
   presentation: {
     titleField: "name",
@@ -244,44 +244,44 @@ export const ruleSchema: EntityDefinition = {
     name: {
       type: "string",
       required: true,
-      label: "t:schemas.rule.fields.name",
+      label: "t:entities.rule.fields.name",
       ui: { importance: "primary" },
     },
     label: {
       type: "string",
       required: true,
-      label: "t:schemas.rule.fields.label",
+      label: "t:entities.rule.fields.label",
       ui: { importance: "primary" },
     },
     description: {
       type: "text",
-      label: "t:schemas.rule.fields.description",
+      label: "t:entities.rule.fields.description",
     },
     priority: {
       type: "number",
       required: true,
-      label: "t:schemas.rule.fields.priority",
+      label: "t:entities.rule.fields.priority",
     },
     trigger: {
       type: "json",
       required: true,
-      label: "t:schemas.rule.fields.trigger",
+      label: "t:entities.rule.fields.trigger",
     },
     condition: {
       type: "json",
       required: true,
-      label: "t:schemas.rule.fields.condition",
+      label: "t:entities.rule.fields.condition",
     },
     effect_type: {
       type: "enum",
       required: true,
-      label: "t:schemas.rule.fields.effect_type",
+      label: "t:entities.rule.fields.effect_type",
       options: opts("block", "warn", "require_approval", "enrich", "execute_action"),
     },
     effect: {
       type: "json",
       required: true,
-      label: "t:schemas.rule.fields.effect",
+      label: "t:entities.rule.fields.effect",
     },
   },
 };
@@ -290,7 +290,7 @@ export const ruleListView: ViewDefinition = {
   name: "rule_list",
   entity: "rule",
   type: "list",
-  label: "t:schemas.rule._labelPlural",
+  label: "t:entities.rule._labelPlural",
   fields: [
     { field: "name", sortable: true },
     { field: "label", sortable: true },
@@ -307,7 +307,7 @@ export const ruleListView: ViewDefinition = {
 
 export const flowSchema: EntityDefinition = {
   name: "flow",
-  label: "t:schemas.flow._label",
+  label: "t:entities.flow._label",
   description: "Workflow definitions with steps and triggers",
   presentation: {
     titleField: "name",
@@ -318,40 +318,40 @@ export const flowSchema: EntityDefinition = {
     name: {
       type: "string",
       required: true,
-      label: "t:schemas.flow.fields.name",
+      label: "t:entities.flow.fields.name",
       ui: { importance: "primary" },
     },
     label: {
       type: "string",
-      label: "t:schemas.flow.fields.label",
+      label: "t:entities.flow.fields.label",
       ui: { importance: "primary" },
     },
     description: {
       type: "text",
-      label: "t:schemas.flow.fields.description",
+      label: "t:entities.flow.fields.description",
     },
     version: {
       type: "number",
-      label: "t:schemas.flow.fields.version",
+      label: "t:entities.flow.fields.version",
     },
     trigger_type: {
       type: "enum",
       required: true,
-      label: "t:schemas.flow.fields.trigger_type",
+      label: "t:entities.flow.fields.trigger_type",
       options: opts("event", "manual", "schedule"),
     },
     step_count: {
       type: "number",
-      label: "t:schemas.flow.fields.step_count",
+      label: "t:entities.flow.fields.step_count",
     },
     trigger: {
       type: "json",
       required: true,
-      label: "t:schemas.flow.fields.trigger",
+      label: "t:entities.flow.fields.trigger",
     },
     steps: {
       type: "json",
-      label: "t:schemas.flow.fields.steps",
+      label: "t:entities.flow.fields.steps",
     },
   },
 };
@@ -360,12 +360,12 @@ export const flowListView: ViewDefinition = {
   name: "flow_list",
   entity: "flow",
   type: "list",
-  label: "t:schemas.flow._labelPlural",
+  label: "t:entities.flow._labelPlural",
   fields: [
     { field: "name", sortable: true },
     { field: "label", sortable: true },
     { field: "trigger_type", sortable: true, filterable: true, width: 130 },
-    { field: "step_count", sortable: true, width: 80, label: "t:schemas.flow.fields.step_count" },
+    { field: "step_count", sortable: true, width: 80, label: "t:entities.flow.fields.step_count" },
     { field: "description" },
   ],
   defaultSort: { field: "name", order: "asc" },
@@ -377,51 +377,51 @@ export const flowListView: ViewDefinition = {
 
 export const stateMachineSchema: EntityDefinition = {
   name: "state_machine",
-  label: "t:schemas.state_machine._label",
+  label: "t:entities.state_machine._label",
   description: "State machine definitions with states and transitions",
   presentation: {
     titleField: "name",
-    summaryFields: ["schema_name", "field", "state_count"],
+    summaryFields: ["entity_name", "field", "state_count"],
     icon: "git-branch",
   },
   fields: {
     name: {
       type: "string",
       required: true,
-      label: "t:schemas.state_machine.fields.name",
+      label: "t:entities.state_machine.fields.name",
       ui: { importance: "primary" },
     },
-    schema_name: {
+    entity_name: {
       type: "string",
       required: true,
-      label: "t:schemas.state_machine.fields.schema_name",
+      label: "t:entities.state_machine.fields.entity_name",
       ui: { importance: "primary" },
     },
     field: {
       type: "string",
       required: true,
-      label: "t:schemas.state_machine.fields.field",
+      label: "t:entities.state_machine.fields.field",
     },
     initial: {
       type: "string",
       required: true,
-      label: "t:schemas.state_machine.fields.initial",
+      label: "t:entities.state_machine.fields.initial",
     },
     state_count: {
       type: "number",
-      label: "t:schemas.state_machine.fields.state_count",
+      label: "t:entities.state_machine.fields.state_count",
     },
     transition_count: {
       type: "number",
-      label: "t:schemas.state_machine.fields.transition_count",
+      label: "t:entities.state_machine.fields.transition_count",
     },
     states: {
       type: "json",
-      label: "t:schemas.state_machine.fields.states",
+      label: "t:entities.state_machine.fields.states",
     },
     meta: {
       type: "json",
-      label: "t:schemas.state_machine.fields.meta",
+      label: "t:entities.state_machine.fields.meta",
     },
   },
 };
@@ -430,23 +430,23 @@ export const stateMachineListView: ViewDefinition = {
   name: "state_machine_list",
   entity: "state_machine",
   type: "list",
-  label: "t:schemas.state_machine._labelPlural",
+  label: "t:entities.state_machine._labelPlural",
   fields: [
     { field: "name", sortable: true },
-    { field: "schema_name", sortable: true, filterable: true },
+    { field: "entity_name", sortable: true, filterable: true },
     { field: "field", sortable: true },
     { field: "initial", sortable: true, width: 120 },
     {
       field: "state_count",
       sortable: true,
       width: 80,
-      label: "t:schemas.state_machine.fields.state_count",
+      label: "t:entities.state_machine.fields.state_count",
     },
     {
       field: "transition_count",
       sortable: true,
       width: 100,
-      label: "t:schemas.state_machine.fields.transition_count",
+      label: "t:entities.state_machine.fields.transition_count",
     },
   ],
   defaultSort: { field: "name", order: "asc" },
@@ -458,7 +458,7 @@ export const stateMachineListView: ViewDefinition = {
 
 export const proposalSchema: EntityDefinition = {
   name: "proposal",
-  label: "t:schemas.proposal._label",
+  label: "t:entities.proposal._label",
   description: "AI evolution proposals for schema and capability changes",
   presentation: {
     titleField: "title",
@@ -469,38 +469,38 @@ export const proposalSchema: EntityDefinition = {
     title: {
       type: "string",
       required: true,
-      label: "t:schemas.proposal.fields.title",
+      label: "t:entities.proposal.fields.title",
       ui: { importance: "primary" },
     },
     description: {
       type: "text",
       required: true,
-      label: "t:schemas.proposal.fields.description",
+      label: "t:entities.proposal.fields.description",
     },
     author_name: {
       type: "string",
-      label: "t:schemas.proposal.fields.author_name",
+      label: "t:entities.proposal.fields.author_name",
     },
     author_type: {
       type: "enum",
-      label: "t:schemas.proposal.fields.author_type",
+      label: "t:entities.proposal.fields.author_type",
       options: opts("human", "ai"),
     },
     capability: {
       type: "string",
       required: true,
-      label: "t:schemas.proposal.fields.capability",
+      label: "t:entities.proposal.fields.capability",
     },
     change_type: {
       type: "enum",
       required: true,
-      label: "t:schemas.proposal.fields.change_type",
+      label: "t:entities.proposal.fields.change_type",
       options: opts("patch", "minor", "major"),
     },
     status: {
       type: "enum",
       required: true,
-      label: "t:schemas.proposal.fields.status",
+      label: "t:entities.proposal.fields.status",
       options: opts(
         "draft",
         "pending_review",
@@ -513,35 +513,35 @@ export const proposalSchema: EntityDefinition = {
     },
     changes: {
       type: "json",
-      label: "t:schemas.proposal.fields.changes",
+      label: "t:entities.proposal.fields.changes",
     },
     impact: {
       type: "json",
-      label: "t:schemas.proposal.fields.impact",
+      label: "t:entities.proposal.fields.impact",
     },
     validation_result: {
       type: "json",
-      label: "t:schemas.proposal.fields.validation_result",
+      label: "t:entities.proposal.fields.validation_result",
     },
     validated_at: {
       type: "datetime",
-      label: "t:schemas.proposal.fields.validated_at",
+      label: "t:entities.proposal.fields.validated_at",
     },
     approved_at: {
       type: "datetime",
-      label: "t:schemas.proposal.fields.approved_at",
+      label: "t:entities.proposal.fields.approved_at",
     },
     committed_at: {
       type: "datetime",
-      label: "t:schemas.proposal.fields.committed_at",
+      label: "t:entities.proposal.fields.committed_at",
     },
     deployed_at: {
       type: "datetime",
-      label: "t:schemas.proposal.fields.deployed_at",
+      label: "t:entities.proposal.fields.deployed_at",
     },
     rejection_reason: {
       type: "text",
-      label: "t:schemas.proposal.fields.rejection_reason",
+      label: "t:entities.proposal.fields.rejection_reason",
     },
   },
 };
@@ -550,7 +550,7 @@ export const proposalListView: ViewDefinition = {
   name: "proposal_list",
   entity: "proposal",
   type: "list",
-  label: "t:schemas.proposal._labelPlural",
+  label: "t:entities.proposal._labelPlural",
   fields: [
     { field: "created_at", sortable: true, width: 160 },
     { field: "title", sortable: true },

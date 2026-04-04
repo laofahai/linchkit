@@ -414,7 +414,7 @@
     "in_progress": "In Progress",
     "on_hold": "On Hold"
   },
-  "schemas": {
+  "entities": {
     "purchase_request": {
       "_label": "Purchase Request",
       "_labelPlural": "Purchase Requests",

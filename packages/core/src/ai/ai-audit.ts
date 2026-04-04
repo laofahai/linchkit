@@ -361,7 +361,7 @@ export class AIAuditLogger {
     agentModel?: string;
     agentSessionId?: string;
     parentUserId?: string;
-    schemaName: string;
+    entityName: string;
     queryType: "read" | "list" | "search";
     recordCount?: number;
     metadata?: Record<string, unknown>;
@@ -376,7 +376,7 @@ export class AIAuditLogger {
       parentUserId: params.parentUserId,
       metadata: {
         ...params.metadata,
-        schemaName: params.schemaName,
+        entityName: params.entityName,
         queryType: params.queryType,
         recordCount: params.recordCount,
       },

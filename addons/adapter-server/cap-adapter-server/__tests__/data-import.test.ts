@@ -1,7 +1,7 @@
 /**
  * Data Import endpoint tests.
  *
- * Covers POST /api/schemas/:name/import — bulk record creation
+ * Covers POST /api/entities/:name/import — bulk record creation
  * via multipart form data (CSV and JSON formats).
  */
 
@@ -53,8 +53,8 @@ const app = createServer(graphqlSchema, {
   entityRegistry,
 });
 
-function importUrl(schemaName: string): string {
-  return `http://localhost:${port}/api/schemas/${schemaName}/import`;
+function importUrl(entityName: string): string {
+  return `http://localhost:${port}/api/entities/${entityName}/import`;
 }
 
 // ── Lifecycle ─────────────────────────────────────────────

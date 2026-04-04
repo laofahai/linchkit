@@ -9,7 +9,7 @@
  * Suitable for deployments with < 10 instances. For larger deployments, use Redis Pub/Sub (Phase 2).
  *
  * Channel: "linchkit_cache_invalidation"
- * Payload JSON: { tenantId?: string, type: "schema" | "permission" | "definition", target: string }
+ * Payload JSON: { tenantId?: string, type: "entity" | "permission" | "definition", target: string }
  */
 
 import postgres from "postgres";
@@ -21,7 +21,7 @@ export interface CacheInvalidationPayload {
   /** Tenant ID to scope invalidation (undefined = all tenants) */
   tenantId?: string;
   /** Type of cache to invalidate */
-  type: "schema" | "permission" | "definition";
+  type: "entity" | "permission" | "definition";
   /** Target identifier (schema name, definition key, etc.) */
   target: string;
 }
@@ -49,7 +49,7 @@ export interface PostgresCacheInvalidatorOptions {
  * const invalidator = new PostgresCacheInvalidator({ connectionUrl, cacheManager });
  * await invalidator.start();
  * // ...after a write action:
- * await invalidator.notify({ type: "schema", target: "orders", tenantId: "t1" });
+ * await invalidator.notify({ type: "entity", target: "orders", tenantId: "t1" });
  * // ...on shutdown:
  * await invalidator.stop();
  * ```
@@ -151,9 +151,9 @@ export class PostgresCacheInvalidator {
     const { type, target, tenantId } = payload;
 
     switch (type) {
-      case "schema": {
+      case "entity": {
         // Invalidate all query caches for this schema (scoped to tenant if provided)
-        const tag = tenantId ? `schema:${tenantId}:${target}` : `schema:${target}`;
+        const tag = tenantId ? `entity:${tenantId}:${target}` : `entity:${target}`;
         const count = this.cacheManager.invalidateByTag(tag);
         this.logger.debug?.(
           `[PostgresCacheInvalidator] Invalidated ${count} entries for tag "${tag}"`,

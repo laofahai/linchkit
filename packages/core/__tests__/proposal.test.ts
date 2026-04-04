@@ -17,7 +17,7 @@ const baseProposalOptions: CreateProposalOptions = {
   changeType: "minor",
   changes: [
     {
-      target: "schema",
+      target: "entity",
       operation: "create",
       name: "product",
       definition: {
@@ -109,7 +109,7 @@ describe("ProposalEngine.submitProposal", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_schema",
           definition: {
@@ -381,7 +381,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -403,7 +403,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "empty",
           definition: {
@@ -415,14 +415,14 @@ describe("validatePhase1", () => {
     });
 
     expect(result.status).toBe("failed");
-    expect(result.errors.some((e) => e.code === "SCHEMA_NO_FIELDS")).toBe(true);
+    expect(result.errors.some((e) => e.code === "ENTITY_NO_FIELDS")).toBe(true);
   });
 
   it("fails for invalid field types", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_types",
           definition: {
@@ -444,7 +444,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_enum",
           definition: {
@@ -466,7 +466,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "BadName",
           definition: {
@@ -485,7 +485,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -529,14 +529,14 @@ describe("validatePhase1", () => {
     });
 
     expect(result.status).toBe("failed");
-    expect(result.errors.some((e) => e.code === "ACTION_NO_SCHEMA")).toBe(true);
+    expect(result.errors.some((e) => e.code === "ACTION_NO_ENTITY")).toBe(true);
   });
 
   it("validates state definition changes", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -593,7 +593,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -656,7 +656,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "delete",
           name: "old_schema",
         },
@@ -671,7 +671,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "no_def",
         },
@@ -755,7 +755,7 @@ describe("ProposalEngine.updateProposal", () => {
 
     const newChanges = [
       {
-        target: "schema" as const,
+        target: "entity" as const,
         operation: "create" as const,
         name: "order",
         definition: {
@@ -799,7 +799,7 @@ describe("ProposalEngine.updateProposal", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_schema",
           definition: { name: "bad_schema", fields: {} },
@@ -816,7 +816,7 @@ describe("ProposalEngine.updateProposal", () => {
     engine.updateProposal(proposal.id, {
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "good_schema",
           definition: {
@@ -841,7 +841,7 @@ describe("validatePhase1 duplicate detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -850,7 +850,7 @@ describe("validatePhase1 duplicate detection", () => {
           },
         },
         {
-          target: "schema",
+          target: "entity",
           operation: "update",
           name: "order",
           definition: {
@@ -867,7 +867,7 @@ describe("validatePhase1 duplicate detection", () => {
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "DUPLICATE_CHANGE")).toBe(true);
     expect(result.errors.find((e) => e.code === "DUPLICATE_CHANGE")?.message).toContain(
-      "schema 'order' appears multiple times",
+      "entity 'order' appears multiple times",
     );
   });
 
@@ -875,7 +875,7 @@ describe("validatePhase1 duplicate detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -908,7 +908,7 @@ describe("validatePhase1 dead-end state detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "ticket",
           definition: {
@@ -946,7 +946,7 @@ describe("validatePhase1 dead-end state detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "simple",
           definition: {
@@ -1075,7 +1075,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1125,7 +1125,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1172,7 +1172,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1234,7 +1234,7 @@ describe("validateProposal: skipped phases don't block passed", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "empty",
           definition: { name: "empty", fields: {} },
@@ -1256,7 +1256,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {
@@ -1277,7 +1277,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {
@@ -1297,7 +1297,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {

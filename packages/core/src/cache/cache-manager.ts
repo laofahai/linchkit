@@ -189,7 +189,7 @@ export class CacheManager {
 
     // Invalidate query caches for the affected entity
     if (entity) {
-      const tag = tenantId ? `schema:${tenantId}:${entity}` : `schema:${entity}`;
+      const tag = tenantId ? `entity:${tenantId}:${entity}` : `entity:${entity}`;
       const count = this.invalidateByTag(tag);
       this.logger?.debug?.(`Cache invalidated ${count} entries for tag "${tag}" on ${event.type}`);
     }

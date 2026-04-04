@@ -72,17 +72,17 @@ export interface RelationRegistryInterface {
   /** Register a link definition */
   register(link: RelationDefinition): void;
 
-  /** Get all links for a schema (both outgoing and incoming) */
-  relationsFor(schemaName: string): RelationInfo[];
+  /** Get all links for an entity (both outgoing and incoming) */
+  relationsFor(entityName: string): RelationInfo[];
 
-  /** Get the link between two schemas (if any) */
+  /** Get the link between two entities (if any) */
   relationBetween(from: string, to: string): RelationDefinition | null;
 
-  /** Get all outgoing links from a schema */
-  outgoingRelations(schemaName: string): RelationDefinition[];
+  /** Get all outgoing links from an entity */
+  outgoingRelations(entityName: string): RelationDefinition[];
 
-  /** Get all incoming links to a schema */
-  incomingRelations(schemaName: string): RelationDefinition[];
+  /** Get all incoming links to an entity */
+  incomingRelations(entityName: string): RelationDefinition[];
 
   /** List all registered links */
   list(): RelationDefinition[];

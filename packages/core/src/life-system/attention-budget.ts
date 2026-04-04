@@ -38,7 +38,7 @@ export function createAttentionBudget(
       const scored: ScoredCandidate<T>[] = candidates.map((c) => {
         const typeWeight = typeWeights.get(c.type ?? "") ?? 1.0;
         const importance =
-          usageGraph && c.entity ? usageGraph.getImportance("schema", c.entity) || 0.5 : 0.5;
+          usageGraph && c.entity ? usageGraph.getImportance("entity", c.entity) || 0.5 : 0.5;
         const impact = impactNumeric(c.impact);
         const score = c.confidence * impact * importance * typeWeight;
         return {

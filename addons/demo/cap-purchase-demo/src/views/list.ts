@@ -12,7 +12,7 @@ export const purchaseRequestListView: ViewDefinition = {
   name: "purchase_request_list",
   entity: "purchase_request",
   type: "list",
-  label: "t:schemas.purchase_request._labelPlural",
+  label: "t:entities.purchase_request._labelPlural",
   fields: [
     { field: "title", sortable: true },
     { field: "requester", sortable: true, width: 140 },
@@ -27,7 +27,7 @@ export const purchaseRequestListView: ViewDefinition = {
   actions: [
     {
       action: "create",
-      label: "t:schemas.purchase_request.actions.create_request",
+      label: "t:entities.purchase_request.actions.create_request",
       position: "toolbar",
       variant: "default",
     },

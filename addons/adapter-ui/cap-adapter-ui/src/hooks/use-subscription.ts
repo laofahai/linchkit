@@ -228,7 +228,7 @@ export interface SubscriptionEvent {
     | "record.deleted"
     | "state.changed"
     | "approval.resolved"
-    | "schema.changed";
+    | "entity.changed";
   schema: string;
   recordId: string;
   tenantId?: string;

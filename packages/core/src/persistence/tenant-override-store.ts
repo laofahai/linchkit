@@ -15,7 +15,7 @@ import { tenantOverridesTable } from "./system-tables";
 
 // ── Types ────────────────────────────────────────────────
 
-export type OverrideTargetType = "rule" | "action" | "schema" | "view" | "flow";
+export type OverrideTargetType = "rule" | "action" | "entity" | "view" | "flow";
 
 export interface TenantOverride {
   id: string;

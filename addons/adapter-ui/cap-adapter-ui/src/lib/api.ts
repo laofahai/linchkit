@@ -389,7 +389,7 @@ export async function requestAiAutoFill(params: {
 
 // ── Schema metadata ─────────────────────────────────────
 
-/** Lightweight entity info for navigation (from GET /api/schemas) */
+/** Lightweight entity info for navigation (from GET /api/entities) */
 export interface EntityInfo {
   name: string;
   label?: string;
@@ -405,7 +405,7 @@ import type { RelationDefinition, SemanticRelation, StateDefinition } from "@lin
 /** @deprecated Use EntityInfo instead */
 export type SchemaInfo = EntityInfo;
 
-/** Full entity bundle with views (from GET /api/schemas/:name) */
+/** Full entity bundle with views (from GET /api/entities/:name) */
 export interface EntityBundle {
   name: string;
   label?: string;
@@ -426,7 +426,7 @@ export type SchemaBundle = EntityBundle;
  * Fetch all registered entities from the server (lightweight list).
  */
 export async function fetchEntities(): Promise<EntityInfo[]> {
-  const res = await fetch("/api/schemas", { headers: getAuthHeaders() });
+  const res = await fetch("/api/entities", { headers: getAuthHeaders() });
   handleUnauthorized(res);
   const json = await res.json();
   return json.data ?? [];
@@ -439,7 +439,7 @@ export const fetchSchemas = fetchEntities;
  * Fetch a full entity bundle (entity + views) by name.
  */
 export async function fetchEntityBundle(name: string): Promise<EntityBundle | null> {
-  const res = await fetch(`/api/schemas/${name}`, { headers: getAuthHeaders() });
+  const res = await fetch(`/api/entities/${name}`, { headers: getAuthHeaders() });
   handleUnauthorized(res);
   if (!res.ok) return null;
   const json = await res.json();
@@ -634,7 +634,7 @@ export type ChatterMessageType = "comment" | "note" | "log" | "ai";
 
 export interface ChatterMessage {
   id: string;
-  schemaName: string;
+  entityName: string;
   recordId: string;
   messageType: ChatterMessageType;
   body: string;
@@ -652,7 +652,7 @@ export interface ChatterMessageConnection {
 }
 
 const CHATTER_MESSAGE_FIELDS = `
-  id schemaName recordId messageType body
+  id entityName recordId messageType body
   author { id type name }
   logEvent logMetadata
   createdAt updatedAt
@@ -663,13 +663,13 @@ const CHATTER_MESSAGE_FIELDS = `
  * Returns empty connection gracefully when cap-chatter is not installed.
  */
 export async function queryChatterMessages(
-  schemaName: string,
+  entityName: string,
   recordId: string,
   options: { limit?: number; offset?: number } = {},
 ): Promise<ChatterMessageConnection> {
   const query = `
-    query ChatterMessages($schemaName: String!, $recordId: String!, $limit: Int, $offset: Int) {
-      chatterMessages(schemaName: $schemaName, recordId: $recordId, limit: $limit, offset: $offset) {
+    query ChatterMessages($entityName: String!, $recordId: String!, $limit: Int, $offset: Int) {
+      chatterMessages(entityName: $entityName, recordId: $recordId, limit: $limit, offset: $offset) {
         items { ${CHATTER_MESSAGE_FIELDS} }
         totalCount
         hasMore
@@ -677,7 +677,7 @@ export async function queryChatterMessages(
     }
   `;
   const res = await graphql<{ chatterMessages: ChatterMessageConnection }>(query, {
-    schemaName,
+    entityName,
     recordId,
     limit: options.limit ?? 50,
     offset: options.offset ?? 0,
@@ -693,20 +693,20 @@ export async function queryChatterMessages(
  * Post a comment or note to a record's chatter timeline.
  */
 export async function addChatterMessage(
-  schemaName: string,
+  entityName: string,
   recordId: string,
   messageType: "comment" | "note",
   body: string,
 ): Promise<ChatterMessage> {
   const query = `
-    mutation AddChatterMessage($schemaName: String!, $recordId: String!, $messageType: MessageType!, $body: String!) {
-      chatterAddMessage(schemaName: $schemaName, recordId: $recordId, messageType: $messageType, body: $body) {
+    mutation AddChatterMessage($entityName: String!, $recordId: String!, $messageType: MessageType!, $body: String!) {
+      chatterAddMessage(entityName: $entityName, recordId: $recordId, messageType: $messageType, body: $body) {
         ${CHATTER_MESSAGE_FIELDS}
       }
     }
   `;
   const res = await graphql<{ chatterAddMessage: ChatterMessage }>(query, {
-    schemaName,
+    entityName,
     recordId,
     messageType,
     body,
@@ -749,12 +749,12 @@ export async function queryExecutionLogs(options: {
   page?: number;
   pageSize?: number;
 }): Promise<ExecutionLogListResult> {
-  const filter = options.schema ? JSON.stringify({ schema_name: options.schema }) : undefined;
+  const filter = options.schema ? JSON.stringify({ entity_name: options.schema }) : undefined;
   const query = `
     query ($filter: String, $page: Int, $pageSize: Int) {
       executionLogList(filter: $filter, page: $page, pageSize: $pageSize, sortField: "started_at", sortOrder: "desc") {
         items {
-          id action_name schema_name record_id
+          id action_name entity_name record_id
           actor_id actor_type
           input
           status duration_ms started_at completed_at
@@ -780,7 +780,7 @@ export async function queryExecutionLogs(options: {
   const items: ExecutionLogEntry[] = raw.items.map((r) => ({
     id: r.id as string,
     action: r.action_name as string,
-    entity: r.schema_name as string | undefined,
+    entity: r.entity_name as string | undefined,
     recordId: r.record_id as string | undefined,
     actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
     input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),
@@ -812,10 +812,10 @@ export interface StateTransitionEntry {
  * ordered by time ascending (oldest first).
  */
 export async function queryStateTransitions(
-  schemaName: string,
+  entityName: string,
   recordId: string,
 ): Promise<StateTransitionEntry[]> {
-  const filter = JSON.stringify({ schema_name: schemaName, record_id: recordId });
+  const filter = JSON.stringify({ entity_name: entityName, record_id: recordId });
   const query = `
     query ($filter: String) {
       executionLogList(filter: $filter, pageSize: 50, sortField: "started_at", sortOrder: "asc") {

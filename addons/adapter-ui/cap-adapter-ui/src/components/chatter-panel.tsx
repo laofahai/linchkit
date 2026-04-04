@@ -29,7 +29,7 @@ import { useSubscription } from "../hooks/use-subscription";
 import { addChatterMessage, type ChatterMessage, queryChatterMessages } from "../lib/api";
 
 interface ChatterPanelProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
 }
 
@@ -227,12 +227,12 @@ function CommentTimelineItem({ message, isLast }: TimelineItemProps) {
 // ── Message Composer ──────────────────────────────────────
 
 interface MessageComposerProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   onSent: (message: ChatterMessage) => void;
 }
 
-function MessageComposer({ schemaName, recordId, onSent }: MessageComposerProps) {
+function MessageComposer({ entityName, recordId, onSent }: MessageComposerProps) {
   const { t } = useTranslation();
   const [body, setBody] = useState("");
   const [messageType, setMessageType] = useState<"comment" | "note">("comment");
@@ -244,7 +244,7 @@ function MessageComposer({ schemaName, recordId, onSent }: MessageComposerProps)
     if (!trimmed || sending) return;
     setSending(true);
     try {
-      const msg = await addChatterMessage(schemaName, recordId, messageType, trimmed);
+      const msg = await addChatterMessage(entityName, recordId, messageType, trimmed);
       setBody("");
       onSent(msg);
       textareaRef.current?.focus();
@@ -322,9 +322,9 @@ function MessageComposer({ schemaName, recordId, onSent }: MessageComposerProps)
 // ── Subscription query ────────────────────────────────────
 
 const CHATTER_SUBSCRIPTION = `
-  subscription OnChatterMessage($schemaName: String!, $recordId: String!) {
-    onChatterMessage(schemaName: $schemaName, recordId: $recordId) {
-      id schemaName recordId messageType body
+  subscription OnChatterMessage($entityName: String!, $recordId: String!) {
+    onChatterMessage(entityName: $entityName, recordId: $recordId) {
+      id entityName recordId messageType body
       author { id type name }
       logEvent logMetadata
       createdAt updatedAt
@@ -336,7 +336,7 @@ const CHATTER_SUBSCRIPTION = `
 
 const MAX_SCROLL_HEIGHT = 480;
 
-export function ChatterPanel({ schemaName, recordId }: ChatterPanelProps) {
+export function ChatterPanel({ entityName, recordId }: ChatterPanelProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatterMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -345,14 +345,14 @@ export function ChatterPanel({ schemaName, recordId }: ChatterPanelProps) {
   const fetchMessages = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await queryChatterMessages(schemaName, recordId);
+      const result = await queryChatterMessages(entityName, recordId);
       setMessages(result.items);
     } catch {
       setMessages([]);
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId]);
+  }, [entityName, recordId]);
 
   useEffect(() => {
     fetchMessages();
@@ -368,8 +368,8 @@ export function ChatterPanel({ schemaName, recordId }: ChatterPanelProps) {
   // Real-time subscription
   useSubscription({
     query: CHATTER_SUBSCRIPTION,
-    variables: { schemaName, recordId },
-    enabled: !!schemaName && !!recordId,
+    variables: { entityName, recordId },
+    enabled: !!entityName && !!recordId,
     onData: (data) => {
       const newMsg = (data as { onChatterMessage?: ChatterMessage }).onChatterMessage;
       if (newMsg) {
@@ -427,7 +427,7 @@ export function ChatterPanel({ schemaName, recordId }: ChatterPanelProps) {
       )}
 
       {/* Message composer */}
-      <MessageComposer schemaName={schemaName} recordId={recordId} onSent={handleSent} />
+      <MessageComposer entityName={entityName} recordId={recordId} onSent={handleSent} />
     </div>
   );
 }

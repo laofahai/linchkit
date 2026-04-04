@@ -149,11 +149,11 @@ export class PatternDetector {
   /**
    * Analyze a specific schema's execution logs.
    */
-  async analyzeSchema(logger: ExecutionLogger, schemaName: string): Promise<PatternInsight[]> {
+  async analyzeSchema(logger: ExecutionLogger, entityName: string): Promise<PatternInsight[]> {
     const since = new Date();
     since.setDate(since.getDate() - this.config.lookbackDays);
     const entries = await logger.findMany({
-      entity: schemaName,
+      entity: entityName,
       since: since.toISOString(),
       status: "succeeded",
       pageSize: 1000,

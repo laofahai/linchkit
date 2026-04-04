@@ -10,7 +10,7 @@ import type { EntityDefinition } from "@linchkit/core";
 
 export const departmentEntity: EntityDefinition = {
   name: "department",
-  label: "t:schemas.department._label",
+  label: "t:entities.department._label",
   description: "Organizational department that owns purchase requests",
   presentation: {
     titleField: "name",
@@ -22,25 +22,25 @@ export const departmentEntity: EntityDefinition = {
     name: {
       type: "string",
       required: true,
-      label: "t:schemas.department.fields.name",
+      label: "t:entities.department.fields.name",
       unique: true,
       ui: { importance: "primary" },
     },
     code: {
       type: "string",
       required: true,
-      label: "t:schemas.department.fields.code",
+      label: "t:entities.department.fields.code",
       unique: true,
       ui: { importance: "primary", width: 3 },
     },
     manager: {
       type: "string",
-      label: "t:schemas.department.fields.manager",
+      label: "t:entities.department.fields.manager",
       ui: { importance: "primary" },
     },
     budget_limit: {
       type: "number",
-      label: "t:schemas.department.fields.budget_limit",
+      label: "t:entities.department.fields.budget_limit",
       description: "Maximum single purchase amount for this department",
       min: 0,
       ui: { format: "currency", importance: "secondary" },

@@ -284,8 +284,8 @@ export function buildRelationGraph(
       );
     },
 
-    forEntity(schemaName: string): SemanticRelation[] {
-      return allRelations.filter((r) => r.from.entity === schemaName || r.to.entity === schemaName);
+    forEntity(entityName: string): SemanticRelation[] {
+      return allRelations.filter((r) => r.from.entity === entityName || r.to.entity === entityName);
     },
   };
 }
@@ -304,10 +304,10 @@ function buildActionToEntity(capabilities: CapabilityDefinition[]): Map<string, 
 
 function findCapabilityForEntity(
   capabilities: CapabilityDefinition[],
-  schemaName: string,
+  entityName: string,
 ): string | undefined {
   for (const cap of capabilities) {
-    if ((cap.entities ?? []).some((s) => s.name === schemaName)) {
+    if ((cap.entities ?? []).some((s) => s.name === entityName)) {
       return cap.name;
     }
   }

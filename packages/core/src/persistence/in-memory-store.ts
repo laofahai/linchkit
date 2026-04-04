@@ -41,12 +41,12 @@ export class InMemoryStore implements DataProvider {
 
   /** Resolve translatable fields in a row if locale and schema are available */
   private resolveLocale(
-    schemaName: string,
+    entityName: string,
     row: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
     if (!locale) return row;
-    const schemaDef = this.entityMap.get(schemaName);
+    const schemaDef = this.entityMap.get(entityName);
     if (!schemaDef) return row;
     return resolveTranslatableRow(row, schemaDef, locale);
   }

@@ -49,9 +49,9 @@ describe("AttentionBudget", () => {
 
   test("uses usageGraph importance when schema provided", () => {
     const graph = createUsageImportanceGraph();
-    graph.recordUsage("schema", "Order");
-    graph.recordUsage("schema", "Order");
-    graph.recordUsage("schema", "Product"); // importance = 0.5
+    graph.recordUsage("entity", "Order");
+    graph.recordUsage("entity", "Order");
+    graph.recordUsage("entity", "Product"); // importance = 0.5
     const budget = createAttentionBudget(undefined, graph);
 
     const results = budget.rank([

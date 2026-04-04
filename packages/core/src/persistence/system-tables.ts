@@ -56,7 +56,7 @@ export const executionsTable = linchkitSchema.table(
     id: varchar("id", { length: 255 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 255 }),
     actionName: varchar("action_name", { length: 255 }).notNull(),
-    schemaName: varchar("schema_name", { length: 255 }),
+    entityName: varchar("entity_name", { length: 255 }),
     recordId: varchar("record_id", { length: 255 }),
     capability: varchar("capability", { length: 255 }),
     input: jsonb("input"),
@@ -116,7 +116,7 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   id: varchar("id", { length: 255 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 255 }),
   actionName: varchar("action_name", { length: 255 }).notNull(),
-  schemaName: varchar("schema_name", { length: 255 }),
+  entityName: varchar("entity_name", { length: 255 }),
   recordId: varchar("record_id", { length: 255 }),
   capability: varchar("capability", { length: 255 }),
   input: jsonb("input"),
@@ -206,7 +206,7 @@ export const configVersionsTable = linchkitSchema.table(
 export const overrideTargetTypeEnum = linchkitSchema.enum("override_target_type", [
   "rule",
   "action",
-  "schema",
+  "entity",
   "view",
   "flow",
 ]);

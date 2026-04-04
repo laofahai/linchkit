@@ -43,7 +43,7 @@ export interface ProposalDraft {
 /** The diff describing what a proposal would change */
 export interface ProposalDiff {
   /** Type of definition being changed */
-  target: "rule" | "automation" | "schema";
+  target: "rule" | "automation" | "entity";
   /** What operation is being performed */
   operation: "create" | "update";
   /** The generated definition (for create/update) */
@@ -329,7 +329,7 @@ export class ProposalEngine {
       case "modify_schema":
       case "add_default":
         return {
-          target: "schema",
+          target: "entity",
           operation: "update",
           definition: {
             entity: insight.entity,

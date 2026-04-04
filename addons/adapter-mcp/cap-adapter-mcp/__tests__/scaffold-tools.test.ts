@@ -116,7 +116,7 @@ describe("scaffold_rule", () => {
     });
 
     expect(code).toContain("stateChange:");
-    expect(code).toContain("schema:");
+    expect(code).toContain("entity:");
     expect(code).toContain('from: "draft"');
     expect(code).toContain('to: "published"');
   });

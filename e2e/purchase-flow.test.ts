@@ -62,7 +62,7 @@ async function executeActionReq(name: string, body: Record<string, unknown> = {}
 }
 
 async function fetchSchemas() {
-  const res = await fetch(`${BASE}/api/schemas`);
+  const res = await fetch(`${BASE}/api/entities`);
   const json = (await res.json()) as { success: boolean; data: { name: string; label: string }[] };
   return json.data;
 }

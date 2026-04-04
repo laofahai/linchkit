@@ -10,7 +10,7 @@ import { compareSemVer, isCompatible, parseSemVer } from "./compatibility";
 // ── Types ──────────────────────────────────────────────────
 
 /** Category of versioned entity */
-export type VersionedEntityType = "schema" | "api" | "capability";
+export type VersionedEntityType = "entity" | "api" | "capability";
 
 /** Version entry for a tracked entity */
 export interface VersionEntry {

@@ -90,7 +90,7 @@ describe("ProposalEngine", () => {
       expect(proposal.type).toBe("modify_schema");
       expect(proposal.confidence).toBe(0.95);
       expect(proposal.insightId).toBe("insight-1");
-      expect(proposal.diff.target).toBe("schema");
+      expect(proposal.diff.target).toBe("entity");
       expect(proposal.diff.operation).toBe("update");
       expect(proposal.createdAt).toBeInstanceOf(Date);
     });

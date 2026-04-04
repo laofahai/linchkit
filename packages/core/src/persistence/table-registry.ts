@@ -16,22 +16,22 @@ export class TableRegistry {
   /**
    * Register a Drizzle table definition for a schema name.
    */
-  register(schemaName: string, table: PgTable): void {
-    this.tables.set(schemaName, table);
+  register(entityName: string, table: PgTable): void {
+    this.tables.set(entityName, table);
   }
 
   /**
    * Get the Drizzle table for a given schema name.
    */
-  getTable(schemaName: string): PgTable | undefined {
-    return this.tables.get(schemaName);
+  getTable(entityName: string): PgTable | undefined {
+    return this.tables.get(entityName);
   }
 
   /**
    * Check if a table is registered for a schema name.
    */
-  has(schemaName: string): boolean {
-    return this.tables.has(schemaName);
+  has(entityName: string): boolean {
+    return this.tables.has(entityName);
   }
 
   /**

@@ -318,10 +318,10 @@ export class DerivedPropertyEngine {
   /**
    * Get all derived fields for an entity.
    */
-  getDerivedFields(schemaName: string): DerivedFieldInfo[] {
+  getDerivedFields(entityName: string): DerivedFieldInfo[] {
     const result: DerivedFieldInfo[] = [];
     for (const info of this.fields.values()) {
-      if (info.entityName === schemaName) {
+      if (info.entityName === entityName) {
         result.push(info);
       }
     }
@@ -331,22 +331,22 @@ export class DerivedPropertyEngine {
   /**
    * Get derived fields that use the "compute" (read-time) strategy.
    */
-  getComputeFields(schemaName: string): DerivedFieldInfo[] {
-    return this.getDerivedFields(schemaName).filter((f) => f.strategy === "compute");
+  getComputeFields(entityName: string): DerivedFieldInfo[] {
+    return this.getDerivedFields(entityName).filter((f) => f.strategy === "compute");
   }
 
   /**
    * Get derived fields that use the "store" (write-time) strategy.
    */
-  getStoreFields(schemaName: string): DerivedFieldInfo[] {
-    return this.getDerivedFields(schemaName).filter((f) => f.strategy === "store");
+  getStoreFields(entityName: string): DerivedFieldInfo[] {
+    return this.getDerivedFields(entityName).filter((f) => f.strategy === "store");
   }
 
   /**
    * Get aggregate derived fields for an entity.
    */
-  getAggregateFields(schemaName: string): DerivedFieldInfo[] {
-    return this.getDerivedFields(schemaName).filter((f) => f.derived.type === "aggregate");
+  getAggregateFields(entityName: string): DerivedFieldInfo[] {
+    return this.getDerivedFields(entityName).filter((f) => f.derived.type === "aggregate");
   }
 
   /**
@@ -354,16 +354,16 @@ export class DerivedPropertyEngine {
    * Returns the list of parent entity fields that need recalculation
    * when a record in the child entity is created, updated, or deleted.
    */
-  getCascadeTargets(childSchemaName: string): CascadeTarget[] {
-    return this.cascadeMap.get(childSchemaName) ?? [];
+  getCascadeTargets(childEntityName: string): CascadeTarget[] {
+    return this.cascadeMap.get(childEntityName) ?? [];
   }
 
   /**
    * Check if a child entity has any cascade targets (i.e., any parent entity
    * has aggregate derived fields that depend on this child entity).
    */
-  hasCascadeTargets(childSchemaName: string): boolean {
-    return (this.cascadeMap.get(childSchemaName) ?? []).length > 0;
+  hasCascadeTargets(childEntityName: string): boolean {
+    return (this.cascadeMap.get(childEntityName) ?? []).length > 0;
   }
 
   /**
@@ -374,10 +374,10 @@ export class DerivedPropertyEngine {
    * Note: aggregate compute-strategy fields require resolveComputeFieldsAsync().
    */
   resolveComputeFields(
-    schemaName: string,
+    entityName: string,
     record: Record<string, unknown>,
   ): Record<string, unknown> {
-    const order = this.topoOrder.get(schemaName) ?? [];
+    const order = this.topoOrder.get(entityName) ?? [];
     const resolvedFields = new Set<string>();
 
     // Resolve compute-strategy fields in topological order
@@ -395,7 +395,7 @@ export class DerivedPropertyEngine {
     // Also resolve any compute fields not in the topo order
     // (e.g., they have no inter-derived dependencies)
     for (const info of this.fields.values()) {
-      if (info.entityName !== schemaName || info.strategy !== "compute") continue;
+      if (info.entityName !== entityName || info.strategy !== "compute") continue;
       if (resolvedFields.has(info.fieldName)) continue; // Already resolved in topo order
 
       const value = resolveDerivedValue(info.derived, record);
@@ -412,17 +412,17 @@ export class DerivedPropertyEngine {
    * Modifies the record in-place and returns it.
    */
   async resolveComputeFieldsAsync(
-    schemaName: string,
+    entityName: string,
     record: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     // First resolve all non-aggregate compute fields synchronously
-    this.resolveComputeFields(schemaName, record);
+    this.resolveComputeFields(entityName, record);
 
     // Then resolve aggregate compute fields asynchronously
     if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
-          info.entityName !== schemaName ||
+          info.entityName !== entityName ||
           info.strategy !== "compute" ||
           info.derived.type !== "aggregate"
         ) {
@@ -448,9 +448,9 @@ export class DerivedPropertyEngine {
    * Call this before writing a record (e.g., in Action Engine post-action).
    * Note: aggregate store-strategy fields require computeStoreFieldsAsync().
    */
-  computeStoreFields(schemaName: string, record: Record<string, unknown>): Record<string, unknown> {
+  computeStoreFields(entityName: string, record: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    const order = this.topoOrder.get(schemaName) ?? [];
+    const order = this.topoOrder.get(entityName) ?? [];
 
     // Use a working copy that includes computed values as we go
     const working = { ...record };
@@ -472,7 +472,7 @@ export class DerivedPropertyEngine {
 
     // Also resolve any store fields not in the topo order
     for (const info of this.fields.values()) {
-      if (info.entityName !== schemaName || info.strategy !== "store") continue;
+      if (info.entityName !== entityName || info.strategy !== "store") continue;
       if (result[info.fieldName] !== undefined) continue;
       if (info.derived.type === "aggregate") continue;
 
@@ -491,18 +491,18 @@ export class DerivedPropertyEngine {
    * Returns a map of field name → computed value (to be merged into the write payload).
    */
   async computeStoreFieldsAsync(
-    schemaName: string,
+    entityName: string,
     record: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     // Start with sync computations
-    const result = this.computeStoreFields(schemaName, record);
+    const result = this.computeStoreFields(entityName, record);
     const working = { ...record, ...result };
 
     // Then resolve aggregate store fields asynchronously
     if (this.dataProvider && this.relationRegistry) {
       for (const info of this.fields.values()) {
         if (
-          info.entityName !== schemaName ||
+          info.entityName !== entityName ||
           info.strategy !== "store" ||
           info.derived.type !== "aggregate"
         ) {
@@ -520,7 +520,7 @@ export class DerivedPropertyEngine {
     }
 
     // Re-resolve any expression/function fields that depend on aggregate results
-    const order = this.topoOrder.get(schemaName) ?? [];
+    const order = this.topoOrder.get(entityName) ?? [];
     for (const key of order) {
       const info = this.fields.get(key);
       if (!info || info.strategy !== "store") continue;
@@ -531,7 +531,7 @@ export class DerivedPropertyEngine {
       const hasAggDep = depNames.some(
         (d) =>
           result[d] !== undefined &&
-          this.fields.get(`${schemaName}.${d}`)?.derived.type === "aggregate",
+          this.fields.get(`${entityName}.${d}`)?.derived.type === "aggregate",
       );
       if (hasAggDep) {
         const value = resolveDerivedValue(info.derived, working);
@@ -551,21 +551,21 @@ export class DerivedPropertyEngine {
    * Recursively cascades up the chain if the parent entity itself has cascade targets,
    * up to `maxCascadeDepth` levels (default 5) to prevent infinite loops.
    *
-   * @param childSchemaName - The entity of the record that changed
+   * @param childEntityName - The entity of the record that changed
    * @param childRecord - The child record (for extracting FK values to find parent records)
    * @param dataProvider - Data provider for querying and updating parent records
    * @param options - Optional settings: maxCascadeDepth (default 5)
    * @returns Map of "parentEntity.parentId" → updated field values
    */
   async cascadeRecalculate(
-    childSchemaName: string,
+    childEntityName: string,
     childRecord: Record<string, unknown>,
     dataProvider?: DataProvider,
     options?: { maxCascadeDepth?: number },
   ): Promise<Map<string, Record<string, unknown>>> {
     const maxDepth = options?.maxCascadeDepth ?? 5;
     return this._cascadeRecalculateInternal(
-      childSchemaName,
+      childEntityName,
       childRecord,
       dataProvider,
       maxDepth,
@@ -577,7 +577,7 @@ export class DerivedPropertyEngine {
    * Internal recursive cascade implementation with depth tracking.
    */
   private async _cascadeRecalculateInternal(
-    childSchemaName: string,
+    childEntityName: string,
     childRecord: Record<string, unknown>,
     dataProvider: DataProvider | undefined,
     maxDepth: number,
@@ -588,7 +588,7 @@ export class DerivedPropertyEngine {
 
     if (currentDepth >= maxDepth) return new Map();
 
-    const targets = this.getCascadeTargets(childSchemaName);
+    const targets = this.getCascadeTargets(childEntityName);
     if (targets.length === 0) return new Map();
 
     const updates = new Map<string, Record<string, unknown>>();
@@ -663,15 +663,15 @@ export class DerivedPropertyEngine {
   /**
    * Check if a field is derived.
    */
-  isDerived(schemaName: string, fieldName: string): boolean {
-    return this.fields.has(`${schemaName}.${fieldName}`);
+  isDerived(entityName: string, fieldName: string): boolean {
+    return this.fields.has(`${entityName}.${fieldName}`);
   }
 
   /**
    * Get info for a specific derived field.
    */
-  getFieldInfo(schemaName: string, fieldName: string): DerivedFieldInfo | undefined {
-    return this.fields.get(`${schemaName}.${fieldName}`);
+  getFieldInfo(entityName: string, fieldName: string): DerivedFieldInfo | undefined {
+    return this.fields.get(`${entityName}.${fieldName}`);
   }
 }
 

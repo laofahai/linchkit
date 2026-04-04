@@ -5,7 +5,7 @@
 export interface RecordTemplate {
   id: string;
   /** Schema this template belongs to */
-  schemaName: string;
+  entityName: string;
   /** Display name, e.g. "Standard IT Purchase" */
   name: string;
   /** Optional description */
@@ -23,7 +23,7 @@ export interface RecordTemplate {
 }
 
 export interface CreateRecordTemplateInput {
-  schemaName: string;
+  entityName: string;
   name: string;
   description?: string;
   icon?: string;

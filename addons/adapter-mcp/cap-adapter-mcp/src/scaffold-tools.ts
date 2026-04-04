@@ -151,7 +151,7 @@ export function generateRuleTemplate(params: {
     case "stateChange":
       triggerBlock = `{
     stateChange: {
-      schema: "schema_name",
+      entity: "entity_name",
       from: "draft",
       to: "published",
     },
