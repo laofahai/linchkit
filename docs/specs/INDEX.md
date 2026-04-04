@@ -1,6 +1,6 @@
 # LinchKit 规范索引
 
-> 63 篇规范按领域分组。格式：`[编号] 标题 — 一句话摘要（里程碑，状态）`。
+> 62 篇规范按领域分组。格式：`[编号] 标题 — 一句话摘要（里程碑，状态）`。
 >
 > **状态说明**：`完成` = 已实现并测试，`部分` = 核心完成/细节待补，`设计` = 仅有规范未实现，`已废弃` = 被更新版本取代。
 >
@@ -27,10 +27,10 @@ LinchKit 的 9 个一等公民构建块。
 | [06](./06_state.md) | State | `defineState()` — 状态机、转移、守卫 | M0 | 完成 |
 | [07](./07_event.md) | Event | `defineEvent()` — 领域事件、命名规范、Payload 定义 | M0 | 完成 |
 | [08](./08_event_handler_and_queue.md) | EventHandler 与队列 | `defineEventHandler()` — 同步/异步、重试、死信、顺序保证 | M0 | 完成 |
-| [46](./46_link_type.md) | Link 类型 | `defineRelation()` — 关系作为一等公民，FK/中间表，双向导航 | M2 | 完成 |
-| [47](./47_schema_interface.md) | Schema 接口 | `defineEntityInterface()` — 可复用字段契约，合规校验 | M2 | 完成 |
+| [46](./46_link_type.md) | Relation 类型 | `defineRelation()` — 关系作为一等公民，FK/中间表，双向导航 | M2 | 完成 |
+| [47](./47_schema_interface.md) | Entity 接口 | `defineEntityInterface()` — 可复用字段契约，合规校验 | M2 | 完成 |
 | [48](./48_derived_properties.md) | 派生属性 | `derived` 配置的计算字段，查询时求值 | M2 | 完成 |
-| [49](./49_schema_inheritance.md) | Schema 继承 | 单父继承 `extends`，字段/Action/Rule/State 继承链 | M2 | 完成 |
+| [49](./49_schema_inheritance.md) | Entity 继承 | 单父继承 `extends`，字段/Action/Rule/State 继承链 | M2 | 完成 |
 
 ## 元模型 — 生命系统
 
@@ -67,6 +67,7 @@ Capability 的定义、扩展、组合与分发。
 | [20](./20_extension_mechanism.md) | 扩展机制 | `extensions` — schemas/actions/rules/views/middlewares/transports/fieldTypes/services/hooks | M0 | 完成 |
 | [21](./21_capability_ecosystem.md) | Capability 生态 | Capability 生命周期，发布，版本管理，兼容性矩阵 | M1 | 部分 |
 | [21b](./21_capability_hub.md) | Capability Hub | 发现、注册、安装、依赖解析 | M2+ | 设计 |
+| [57](./57_addon_architecture.md) | Addon 架构 | OCA 模式 — addons/ 分组、autoInstall、graphqlExtensions、Panel 注册 | M2 | 完成 |
 
 ## 配置
 
@@ -102,7 +103,7 @@ Capability 的定义、扩展、组合与分发。
 | # | 标题 | 摘要 | 里程碑 | 状态 |
 |---|------|------|--------|------|
 | [13](./13_view_and_ui.md) | 视图与 UI | `defineView()` — AutoList、AutoForm、Widget 注册表、SearchBar、状态配色 | M0 | 完成 |
-| [44](./44_realtime_subscription.md) | 实时订阅 | GraphQL SSE 订阅，PersistentEventBus 集成，按 Schema 的变更流 | M2 | 完成 |
+| [44](./44_realtime_subscription.md) | 实时订阅 | GraphQL SSE 订阅，PersistentEventBus 集成，按 Entity 的变更流 | M2 | 完成 |
 | [53](./53_chatter_and_collaboration.md) | 统一记录时间线 | Chatter — 字段审计 + 执行日志 + 评论 + AI 对话的统一时间线（Capability） | M3 | 设计 |
 | [54](./54_advanced_ui_features.md) | 高级 UI 特性 | 看板、日历、时间线视图，拖拽，仪表盘构建器 | M2+ | 设计 |
 
@@ -127,7 +128,7 @@ Capability 的定义、扩展、组合与分发。
 
 | # | 标题 | 摘要 | 里程碑 | 状态 |
 |---|------|------|--------|------|
-| [25](./25_documentation.md) | 文档 | 自动生成 API 文档、Schema 文档、Capability 文档 | M1 | 设计 |
+| [25](./25_documentation.md) | 文档 | 自动生成 API 文档、Entity 文档、Capability 文档 | M1 | 设计 |
 | [29](./29_methodology_and_sop.md) | 方法论与 SOP | 开发方法论，Capability 开发 SOP，发布流程 | M0 | 完成 |
 | [37](./37_documentation_governance.md) | 文档治理 | 文档标准、评审流程、版本化生命周期 | M1 | 设计 |
 | [38](./38_release_compatibility.md) | 发布兼容性 | 语义版本规则，迁移指南，破坏性变更策略 | M1 | 设计 |
@@ -172,7 +173,7 @@ Capability 的定义、扩展、组合与分发。
 | 你要做的事 | 应该读的规范 |
 |-----------|-------------|
 | 开发新 Capability | 01, 20, 42, 39, 04 |
-| Schema/字段变更 | 03, 46, 47, 48, 49 |
+| Entity/字段变更 | 03, 46, 47, 48, 49 |
 | 规则与自动化 | 05, 23, 40, 45 |
 | API/GraphQL 变更 | 16, 44 |
 | UI 组件开发 | 13, 54 |
@@ -190,8 +191,8 @@ Capability 的定义、扩展、组合与分发。
 
 | 状态 | 数量 |
 |------|------|
-| 完成 | 33 |
-| 部分 | 9 |
-| 设计 | 18 |
+| 完成 | 38 |
+| 部分 | 8 |
+| 设计 | 16 |
 | 已废弃 | 1 |
-| **总计** | **61**（去重后，含 00a、55、56） |
+| **总计** | **62**（去重后，含 00a、55、56、57）+ 1 已废弃 |

@@ -2,9 +2,9 @@
 
 ## Overview
 
-AI-Native Software Capability Runtime. **Milestone:** M2 — Link Type + OntologyRegistry + GraphQL Subscriptions.
+AI-Native Software Capability Runtime. **Milestone:** M2 — Relation Type + OntologyRegistry + GraphQL Subscriptions.
 
-Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link** | Life system: **Sense + Memory + Awareness + Insight + Proposal** (Spec 55)
+Meta-model: **Entity + Action + Rule + State + Event + EventHandler + View + Flow + Relation** | Life system: **Sense + Memory + Awareness + Insight + Proposal** (Spec 55)
 
 ## Principles
 
@@ -136,16 +136,16 @@ bun ./packages/cli/src/index.ts db studio
 
 - **CommandLayer**: 7-slot middleware pipeline (`pre → auth → exposure → permission → tenant → pre-action → post-action`)
 - **REST**: `/api/schemas`, `/api/actions/:name`, `/api/executions`, `/api/tenants`
-- **GraphQL**: `/graphql` — CRUD per schema + custom action mutations + execution logs
+- **GraphQL**: `/graphql` — CRUD per entity + custom action mutations + execution logs
 - **UI Data**: `lib/api.ts` (plain fetch), `hooks/use-schemas.tsx`, Vite proxy, demo data fallback
 - **Widget Registry**: `lib/widget-registry.ts` — register/resolve/override field widgets. Each field type has a default display+input pair in `components/widgets/`. Override via `ViewFieldConfig.widget` or `widgetRegistry.overrideDisplay/overrideInput()`. State colors via `lib/state-colors.ts`.
-- **AutoList**: `components/auto-list/` — Schema-driven list view. Key sub-components:
+- **AutoList**: `components/auto-list/` — Entity-driven list view. Key sub-components:
   - `SearchBar` — Unified search + filter bar (Odoo Search View equivalent). Combines global fuzzy text search with bazza/ui filter selector (icon button) and active filter pills, all inline in one input-like container.
   - `ListToolbar` — Single-row toolbar: SearchBar on left, action buttons on right (primary + overflow menu + bulk actions).
   - `filter-columns.ts` — Bridge that converts `EntityDefinition` fields into bazza `ColumnConfig[]` (maps field types to text/number/date/option).
   - `columns.ts` — Builds TanStack Table column defs from `ViewFieldConfig[]`, wiring widget registry for cell rendering.
 - **bazza/ui fork**: `components/data-table-filter/` — Forked from [bazza/ui](https://ui.bazza.dev) data-table-filter. Modified to use LinchKit `DeclarativeCondition` format (`ComparisonOperator`: eq, neq, gt, gte, lt, lte, contains, in, not_in, between). Provides `useDataTableFilters` hook, `FilterSelector`, and `ActiveFilters` components.
-- **Database Schema Management**: `generateDrizzleSchemaFile()` serializes `EntityDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts`. Schema changes: `db:generate` creates SQL migration file → `db:migrate` applies via `migrate()` API. Migration files are **append-only in production** — never delete applied migrations. Dev can reset (drop DB + regenerate). System tables live in `_linchkit` PostgreSQL schema, capability tables in `public`.
+- **Database Schema Management**: `generateDrizzleSchemaFile()` serializes `EntityDefinition[]` → pgTable → `.linchkit/drizzle-schema.generated.ts`. Entity changes: `db:generate` creates SQL migration file → `db:migrate` applies via `migrate()` API. Migration files are **append-only in production** — never delete applied migrations. Dev can reset (drop DB + regenerate). System tables live in `_linchkit` PostgreSQL schema, capability tables in `public`.
 - **Data Provider**: `DrizzleDataProvider` (PostgreSQL) or `InMemoryStore` fallback (no DB configured). Switch happens in `linch dev` based on `config.database.url`.
 - **System Tables**: `_linchkit_executions`, `_linchkit_events`, `_linchkit_approvals` (prefix `_linchkit_` to avoid collision with business tables). Defined in `packages/core/src/persistence/system-tables.ts`.
 - **PersistentEventBus**: Events persisted to `_linchkit_events` table when DB is available, in-memory fallback otherwise.
@@ -154,14 +154,14 @@ bun ./packages/cli/src/index.ts db studio
 - **Capability Types**: `standard` (business modules), `adapter` (protocol adapters like MCP/A2A/AG-UI), `bridge` (cross-module connectors). All extend via `extensions: { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }`. See spec 20.
 - **Protocol Adapters**: Transport adapters (MCP, A2A, AG-UI) are Capabilities (`type: adapter`, `category: integration`) that register via `extensions.transports`. They wrap CommandLayer with protocol-specific transport. Core stays minimal.
 - **Flow Engine**: Uses Restate for durable workflow execution. `FlowDefinition` interface defines flows with step types (action, ai, condition, wait, approval, parallel). `FlowCompiler` compiles definitions to executable form. Dual-mode: with Restate server = full durable execution via `RestateFlowEngine` (persistence, retries, timeouts, Saga compensation); without Restate server = `SyncFlowEngine` (steps run sequentially in-process, no durability). `FlowStepContext` provides step-level API (get/set variables, emit events, log). Restate runs as a single Rust binary via Docker (`docker.restate.dev/restatedev/restate:latest`, ports: 8080 ingress, 9070 admin/Web UI). Temporal was explicitly NOT chosen (too heavy: Go server + Cassandra/PG backend, poor Bun compatibility).
-- **OntologyRegistry**: Unified semantic layer aggregating all registries (Schema, Action, Rule, State, Event, EventHandler, View, Flow, Link). Read-only facade built once at startup. Key methods: `describe(schemaName)` returns full `EntityDescriptor`, `listSchemas()`, `searchSchemas(query)`, `actionsFor()`, `rulesFor()`, `stateFor()`, `viewsFor()`, `flowsFor()`, `handlersFor()`, `relatedSchemas()`, `toJSON()`. See spec 43.
-- **GraphQL Subscriptions**: SSE-based pub/sub via graphql-yoga. Supports real-time event streaming for schema record changes. Integrated with PersistentEventBus.
-- **MCP Tools**: `list_schemas`, `describe_schema` (full EntityDescriptor via Ontology), `ontology_overview` (high-level system summary), `search_ontology` (keyword search across schemas/actions/rules), `list_actions` (with filter support), `execute_action`, `create_proposal`, `query` (GraphQL proxy). Registered via `extensions.transports` in cap-adapter-mcp.
-- **Link Type**: `defineRelation()` declares relationships as first-class citizens (spec 46). `RelationRegistry` provides bidirectional navigation (`linksFor`, `outgoingLinks`, `incomingLinks`). Drizzle schema generation handles FK columns (many_to_one, one_to_many) and junction tables (many_to_many with properties). GraphQL resolvers auto-generated for all cardinalities. Schema field `ref`/`has_many`/`many_to_many` auto-promoted to implicit Links.
-- **DataLoader Integration**: GraphQL link resolvers use `dataloader` for N+1 query optimization. Per-request DataLoader instances created in GraphQL context, batching related-entity fetches across resolver calls.
-- **Schema Interface**: `defineEntityInterface()` declares reusable field contracts (spec 47). `InterfaceRegistry` validates that implementing schemas include all required fields. Wired into runtime context at startup.
-- **Schema Inheritance**: Single-parent inheritance via `extends` field in `EntityDefinition`. Child schemas inherit parent fields, actions, rules, states. `EntityRegistry` resolves inheritance chain.
-- **Derived Properties**: Computed fields defined via `derived` config in schema fields. Evaluated at query time from other field values. Supported in GraphQL resolvers and CRUD actions.
+- **OntologyRegistry**: Unified semantic layer aggregating all registries (Entity, Action, Rule, State, Event, EventHandler, View, Flow, Relation). Read-only facade built once at startup. Key methods: `describe(entityName)` returns full `EntityDescriptor`, `listEntities()`, `searchEntities(query)`, `actionsFor()`, `rulesFor()`, `stateFor()`, `viewsFor()`, `flowsFor()`, `handlersFor()`, `relatedEntities()`, `toJSON()`. See spec 43.
+- **GraphQL Subscriptions**: SSE-based pub/sub via graphql-yoga. Supports real-time event streaming for entity record changes. Integrated with PersistentEventBus.
+- **MCP Tools**: `list_schemas`, `describe_schema` (full EntityDescriptor via Ontology), `ontology_overview` (high-level system summary), `search_ontology` (keyword search across entities/actions/rules), `list_actions` (with filter support), `execute_action`, `create_proposal`, `query` (GraphQL proxy). Registered via `extensions.transports` in cap-adapter-mcp.
+- **Relation Type**: `defineRelation()` declares relationships as first-class citizens (spec 46). `RelationRegistry` provides bidirectional navigation (`relationsFor`, `outgoingRelations`, `incomingRelations`). Drizzle schema generation handles FK columns (many_to_one, one_to_many) and junction tables (many_to_many with properties). GraphQL resolvers auto-generated for all cardinalities. Entity field `ref`/`has_many`/`many_to_many` auto-promoted to implicit Relations.
+- **DataLoader Integration**: GraphQL relation resolvers use `dataloader` for N+1 query optimization. Per-request DataLoader instances created in GraphQL context, batching related-entity fetches across resolver calls.
+- **Entity Interface**: `defineEntityInterface()` declares reusable field contracts (spec 47). `InterfaceRegistry` validates that implementing entities include all required fields. Wired into runtime context at startup.
+- **Entity Inheritance**: Single-parent inheritance via `extends` field in `EntityDefinition`. Child entities inherit parent fields, actions, rules, states. `EntityRegistry` resolves inheritance chain.
+- **Derived Properties**: Computed fields defined via `derived` config in entity fields. Evaluated at query time from other field values. Supported in GraphQL resolvers and CRUD actions.
 - **Reactive Automation**: `AutomationEngine` + `TriggerBinding` (spec 45). Event-driven automation rules that bind triggers (action completion, state transition, schedule) to automated action sequences.
 - **Soft Delete**: Records marked with `is_deleted` flag instead of physical deletion. GraphQL queries filter soft-deleted records by default. Restore and purge operations available.
 - **Tenant API & Switcher**: `/api/tenants` REST endpoint serves static tenant list for UI. `TenantSwitcher` component in UI header allows switching active tenant. JWT tenant extraction reads from actor context, not direct token decode.
@@ -176,16 +176,16 @@ bun ./packages/cli/src/index.ts db studio
 - **Data Masking & Tenant Isolation**: Spec 41b + spec 30 — field-level data masking rules, tenant isolation via `tenant_id` scoping, row-level security.
 - **AI Boundary & AI Security**: Spec 22 + spec 27 — AI rule boundaries (what AI can/cannot modify), AI security hardening (prompt injection defense, output validation, audit trail).
 - **Addon Architecture**: OCA-inspired capability grouping (Spec 57). `addons/` directory contains addon groups, each a potential independent repo. Capabilities are the activation unit (`defineCapability()`). `autoInstall: true` auto-activates when all `dependencies` are met. `graphqlExtensions` in `CapabilityExtensions` lets capabilities declare GraphQL types/resolvers. `registerRecordPanel()` in UI adapter enables lazy panel injection. `addons_path` in config for discovery.
-- **UI Panel Registry**: `addons/adapter-ui/cap-adapter-ui/src/lib/panel-registry.ts` — `registerRecordPanel()` / `getRecordPanels()`. Capability UI packages register panels at import time. Schema-form renders panels conditionally based on `app-config.capabilities`. Built-in panels use `capability: "__builtin__"`.
+- **UI Panel Registry**: `addons/adapter-ui/cap-adapter-ui/src/lib/panel-registry.ts` — `registerRecordPanel()` / `getRecordPanels()`. Capability UI packages register panels at import time. Entity-form renders panels conditionally based on `app-config.capabilities`. Built-in panels use `capability: "__builtin__"`.
 
 ## Test Coverage
 
-- ~2091 tests, 0 failures
+- ~3594 tests, 0 failures
 
 ## UI Routes
 
 - `/` — Workspace (task-driven dashboard)
-- `/schemas/:name` — Schema list view (AutoList)
+- `/schemas/:name` — Entity list view (AutoList)
 - `/schemas/:name/new` — Create form (AutoForm)
 - `/schemas/:name/:id` — Edit/view form (AutoForm)
 - `/admin/executions` — Execution log dashboard
@@ -214,7 +214,7 @@ Project has Serena MCP server configured for semantic code analysis. **Prefer Se
 ## Specs
 
 Full specs in project: `docs/specs/` (55+ files, 00–57).
-Key: `03_schema`, `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`, `57_addon_architecture`.
+Key: `03_schema` (Entity), `04_action`, `05_rule`, `13_view_and_ui`, `16_command_layer_and_api`, `39_execution_contract`, `45_reactive_automation`, `46_link_type` (Relation), `47_schema_interface` (Entity Interface), `48_derived_properties`, `49_schema_inheritance` (Entity Inheritance), `57_addon_architecture`.
 
 ## Research
 
