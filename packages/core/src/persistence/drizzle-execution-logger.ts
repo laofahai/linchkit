@@ -39,7 +39,7 @@ export class DrizzleExecutionLogger {
       id: entry.id,
       tenantId: entry.tenantId ?? null,
       actionName: entry.action,
-      schemaName: entry.schema ?? null,
+      entityName: entry.entity ?? null,
       recordId: entry.recordId ?? null,
       capability: entry.capability ?? null,
       channel: entry.channel ?? null,
@@ -52,6 +52,7 @@ export class DrizzleExecutionLogger {
       errorMessage: entry.error?.message ?? null,
       durationMs: entry.duration,
       parentExecutionId: entry.parentExecutionId ?? null,
+      idempotencyKey: entry.idempotencyKey ?? null,
       metadata: Object.keys(metadata).length > 0 ? metadata : null,
       startedAt: entry.startedAt,
       completedAt: entry.completedAt,
@@ -75,11 +76,11 @@ export class DrizzleExecutionLogger {
     return rows.map(rowToEntry);
   }
 
-  async getBySchema(schema: string): Promise<ExecutionLogEntry[]> {
+  async getByEntity(entity: string): Promise<ExecutionLogEntry[]> {
     const rows = await this.db
       .select()
       .from(executionsTable)
-      .where(eq(executionsTable.schemaName, schema))
+      .where(eq(executionsTable.entityName, entity))
       .orderBy(desc(executionsTable.startedAt));
     return rows.map(rowToEntry);
   }
@@ -101,6 +102,16 @@ export class DrizzleExecutionLogger {
       .limit(1);
     const row = rows[0];
     return row ? rowToEntry(row) : undefined;
+  }
+
+  async getByIdempotencyKey(key: string): Promise<ExecutionLogEntry | null> {
+    const rows = await this.db
+      .select()
+      .from(executionsTable)
+      .where(eq(executionsTable.idempotencyKey, key))
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToEntry(row) : null;
   }
 
   async findMany(options?: ExecutionLogFindOptions): Promise<ExecutionLogListResult> {
@@ -151,7 +162,7 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     id: row.id,
     tenantId: row.tenantId ?? undefined,
     action: row.actionName,
-    schema: row.schemaName ?? undefined,
+    entity: row.entityName ?? undefined,
     recordId: row.recordId ?? undefined,
     capability: row.capability ?? undefined,
     input: (row.input as Record<string, unknown>) ?? {},
@@ -169,6 +180,7 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     stateTransition: meta.stateTransition,
     parentExecutionId: row.parentExecutionId ?? undefined,
     childExecutionIds: meta.childExecutionIds,
+    idempotencyKey: row.idempotencyKey ?? undefined,
     duration: row.durationMs ?? 0,
     startedAt: row.startedAt,
     channel: row.channel ?? undefined,
@@ -184,8 +196,8 @@ function buildConditions(options?: ExecutionLogFindOptions) {
   if (options?.action) {
     conditions.push(eq(executionsTable.actionName, options.action));
   }
-  if (options?.schema) {
-    conditions.push(eq(executionsTable.schemaName, options.schema));
+  if (options?.entity) {
+    conditions.push(eq(executionsTable.entityName, options.entity));
   }
   if (options?.status) {
     conditions.push(eq(executionsTable.status, options.status));

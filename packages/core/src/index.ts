@@ -10,39 +10,117 @@
 
 export const VERSION = "0.0.1";
 
+export type {
+  AIActionAccess,
+  AIBoundaryCheckResult,
+  AIBoundaryOptions,
+  AIBudget,
+  AIBudgetConfig,
+  AICallRequest,
+  AIContentFilter,
+  AIPolicy,
+  AIRateLimits,
+  AIUsageRecord,
+  ModelPricing,
+} from "./ai";
+// AI Boundary — runtime classes exported from server-entry.ts only
+export type {
+  AutomationEngine,
+  AutomationRegistry,
+  WatcherEngine,
+  WatcherRegistry,
+} from "./automation";
+// Cache — type exports (browser-safe)
+export type {
+  CacheEntry,
+  CacheManagerOptions,
+  CacheProvider,
+  CacheSetOptions,
+  CacheStats,
+  InMemoryCacheOptions,
+  NamespacedCache,
+} from "./cache";
+// Capability Hub — discovery and dependency management
+// Capability extension resolver — bridge override resolution
+// Capability local registry — file-based capability tracking
+export type {
+  ActionOverrideEntry,
+  CapabilityDependency,
+  CapabilityManifest,
+  CapabilityProvides,
+  CapabilityRequires,
+  CapabilitySearchOptions,
+  CompatibilityIssue,
+  EntityExtensionEntry,
+  EntityOverrideEntry,
+  ExtensionResolver,
+  RegistryEntry,
+  RegistrySearchOptions,
+  ResolutionConflict,
+  RuleOverrideEntry,
+  TrustLevel,
+  ValidationResult,
+} from "./capability";
+export {
+  buildActionChain,
+  CapabilityHub,
+  CapabilityHubError,
+  checkTrustPermissions,
+  createCapabilityHub,
+  createExtensionResolver,
+  createLocalRegistry,
+  filterEntityByCapabilities,
+  LocalCapabilityRegistry,
+  satisfiesVersionRange,
+} from "./capability";
 // Config center
-export type { ConfigSchemaRef } from "./config";
+export type {
+  ConfigEntry,
+  ConfigSchemaRef,
+  ConfigScope,
+  ConfigScopeRef,
+  ConfigStore,
+  ConfigValueHistoryEntry,
+  ConfigVersion,
+  SetConfigOptions,
+} from "./config";
 export {
   ConfigRegistry,
+  ConfigValidationError,
   databaseConfig,
   defineConfigSchema,
+  InMemoryConfigStore,
   queueConfig,
+  RuntimeConfigRegistry,
+  resolveWithCascade,
   securityConfig,
   serverConfig,
 } from "./config";
-
 // Define function exports
 export {
   defineAction,
+  defineAutomation,
   defineCapability,
   defineConfig,
   defineDataAccess,
+  defineEntity,
   defineEvent,
   defineEventHandler,
-  defineLink,
+  defineInterface,
   definePermissionGroup,
+  defineRelation,
   defineRule,
-  defineSchema,
   defineState,
   defineView,
+  defineWatcher,
   disableRule,
+  extendEntity,
   extendPermissionGroup,
-  extendSchema,
   extendState,
   extendView,
   overrideAction,
+  overrideEntity,
   overrideRule,
-  overrideSchema,
 } from "./define";
 // Type re-exports from engine interfaces (browser-safe — type-only, no runtime code pulled in)
 // Class types (exported as type-only so consumers can use for annotations without pulling runtime)
@@ -87,6 +165,44 @@ export type {
 } from "./engine/rule-engine";
 export type { StateMachine } from "./engine/state-machine";
 export type { ValidationContext } from "./engine/validation-engine";
+export {
+  type AggregateDerived,
+  type CascadeTarget,
+  type ConcatDerived,
+  computeAggregate,
+  createDerivedPropertyEngine,
+  type DerivedConfig,
+  type DerivedFieldInfo,
+  DerivedPropertyEngine,
+  type ExpressionDerived,
+  evaluateExpression,
+  type FunctionDerived,
+  getDerivedStrategy,
+  isDerivedField,
+  resolveAggregateValue,
+  resolveDerivedValue,
+} from "./entity/derived-property";
+export type { InterfaceRegistry } from "./entity/entity-interface";
+export { createInterfaceRegistry } from "./entity/entity-interface";
+export type { EntityRegistry } from "./entity/entity-registry";
+export { generateZodSchema, type ZodGeneratorOptions } from "./entity/entity-to-zod";
+export type { RelationRegistry } from "./entity/relation-registry";
+export { createRelationRegistry } from "./entity/relation-registry";
+export {
+  createTranslatableValue,
+  getTranslatableFields,
+  I18N_RAW_KEY,
+  mergeTranslatableValue,
+  normalizeTranslatableRow,
+  normalizeTranslatableValue,
+  resolveTranslatableRow,
+  resolveTranslatableValue,
+  resolveTranslation,
+  TRANSLATABLE_FIELD_TYPES,
+  type TranslatableValue,
+  validateTranslatableEntity,
+  wrapTranslatableValue,
+} from "./entity/translatable";
 // Error classes
 export {
   AuthenticationError,
@@ -100,32 +216,60 @@ export {
 } from "./errors";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";
 export type {
-  CompiledFlow,
-  FlowCompiler,
   FlowEngine,
-  FlowEngineConfig,
   FlowRegistry,
   FlowStepContext,
   FlowStepContextDeps,
-  RestateConfig,
   TriggerBinding,
 } from "./flow";
-export type { TraceState } from "./observability/trace-context";
-export type { LinkRegistry } from "./schema/link-registry";
-export { createLinkRegistry } from "./schema/link-registry";
-export type { SchemaRegistry } from "./schema/schema-registry";
-export { generateZodSchema, type ZodGeneratorOptions } from "./schema/schema-to-zod";
+// i18n — shared types and locale utilities
 export {
-  getTranslatableFields,
-  mergeTranslatableValue,
-  normalizeTranslatableRow,
-  normalizeTranslatableValue,
-  resolveTranslatableRow,
-  resolveTranslatableValue,
-  type TranslatableValue,
-  wrapTranslatableValue,
-} from "./schema/translatable";
-
+  type I18nConfig,
+  parseAcceptLanguage,
+  resolveLocale,
+  type SupportedLanguage,
+} from "./i18n";
+export type {
+  SensorDefinitionConfig,
+  SignalBus,
+  SignalBusOptions,
+  SignalHandler,
+} from "./life-system";
+// Life-system — Sense layer (Spec 55)
+export { createSignalBus, defineSensor } from "./life-system";
+export type {
+  AlertCondition,
+  AlertEffect,
+  AlertEvaluationResult,
+  AlertOperator,
+  AlertSeverity,
+  SystemAlertDefinition,
+} from "./observability/alert-engine";
+export type { MetricSnapshot, MetricsCollector, MetricsSummary } from "./observability/metrics";
+export type {
+  LogLevel,
+  LogSink,
+  StructuredLogEntry,
+  StructuredLoggerOptions,
+} from "./observability/structured-logger";
+export type { TraceState } from "./observability/trace-context";
+export type {
+  EntityDescriptor,
+  OntologyRegistry,
+  OntologyRegistryDeps,
+  RelationDescriptor,
+} from "./ontology";
+export { buildRelationGraph, inferSemanticRelations } from "./ontology";
+// Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
+export {
+  applyOverride,
+  deepMerge,
+  type Overridable,
+  resolveOverrides,
+  resolveRuleOverride,
+} from "./runtime/override-resolver";
+// Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
+export type { MaskRecordOptions } from "./security";
 // Type exports
 export type * from "./types";
 // Non-type exports from types
@@ -137,6 +281,16 @@ export {
   validateCapabilityMetadata,
 } from "./types";
 export type { Logger } from "./types/logger";
-
+export type { PermissionGroupDefinition } from "./types/permission";
+export type {
+  RelationGraph,
+  SemanticRelation,
+  SemanticRelationEndpoint,
+  SemanticRelationSource,
+  SemanticRelationType,
+} from "./types/semantic-relation";
+export { defineSemanticRelation } from "./types/semantic-relation";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
+export type { IdentifierValidationResult } from "./utils/identifier";
+export { validateIdentifier } from "./utils/identifier";

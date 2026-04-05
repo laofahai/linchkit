@@ -7,9 +7,9 @@
  */
 
 import type { ActionDefinition } from "./action";
+import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
 import type { RuleDefinition } from "./rule";
-import type { SchemaDefinition } from "./schema";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
 
@@ -39,7 +39,7 @@ export interface ProposalAuthor {
 // ── Proposal change ──────────────────────────────────────
 
 export type ProposalChangeTarget =
-  | "schema"
+  | "entity"
   | "action"
   | "rule"
   | "view"
@@ -50,7 +50,7 @@ export type ProposalChangeTarget =
 export type ProposalChangeOperation = "create" | "update" | "delete";
 
 export type ChangeDefinition =
-  | SchemaDefinition
+  | EntityDefinition
   | ActionDefinition
   | RuleDefinition
   | ViewDefinition

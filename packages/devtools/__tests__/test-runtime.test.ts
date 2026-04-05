@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { defineAction, defineSchema } from "@linchkit/core";
+import { defineAction, defineEntity } from "@linchkit/core";
 import { createTestActor, createTestRuntime, mockAIService } from "../src/test-runtime";
 
 describe("createTestRuntime", () => {
@@ -8,14 +8,14 @@ describe("createTestRuntime", () => {
 
     expect(runtime.executor).toBeDefined();
     expect(runtime.dataProvider).toBeDefined();
-    expect(runtime.schemaRegistry).toBeDefined();
+    expect(runtime.entityRegistry).toBeDefined();
     expect(runtime.eventBus).toBeDefined();
     expect(runtime.actionRegistry).toBeDefined();
     expect(typeof runtime.executor.execute).toBe("function");
   });
 
   it("should register provided schemas", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "task",
       label: "Task",
       fields: {
@@ -23,8 +23,8 @@ describe("createTestRuntime", () => {
       },
     });
 
-    const runtime = createTestRuntime({ schemas: [schema] });
-    const resolved = runtime.schemaRegistry.resolve("task");
+    const runtime = createTestRuntime({ entities: [schema] });
+    const resolved = runtime.entityRegistry.resolve("task");
 
     expect(resolved).toBeDefined();
     expect(resolved?.name).toBe("task");
@@ -33,7 +33,7 @@ describe("createTestRuntime", () => {
   it("should register provided actions", () => {
     const action = defineAction({
       name: "do_something",
-      schema: "task",
+      entity: "task",
       label: "Do Something",
       policy: { mode: "sync", transaction: false },
       handler: async () => ({ done: true }),
@@ -49,7 +49,7 @@ describe("createTestRuntime", () => {
   it("should execute actions with InMemoryDataProvider", async () => {
     const action = defineAction({
       name: "create_item",
-      schema: "item",
+      entity: "item",
       label: "Create Item",
       policy: { mode: "sync", transaction: false },
       handler: async (ctx) => {

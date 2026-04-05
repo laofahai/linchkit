@@ -22,26 +22,39 @@
       "@linchkit/core/types": ["./packages/core/src/types-entry.ts"],
       "@linchkit/core/define": ["./packages/core/src/define-entry.ts"],
       "@linchkit/core/server": ["./packages/core/src/server-entry.ts"],
+      "@linchkit/core/config": ["./packages/core/src/config/index.ts"],
+      "@linchkit/core/utils/env": ["./packages/core/src/utils/env.ts"],
       "@linchkit/cli": ["./packages/cli/src"],
       "@linchkit/devtools": ["./packages/devtools/src"],
-      "@linchkit/cap-adapter-server": ["./capabilities/cap-adapter-server/src"],
+      "@linchkit/cap-adapter-server": ["./addons/adapter-server/cap-adapter-server/src"],
       "@linchkit/cap-adapter-server/capability": [
-        "./capabilities/cap-adapter-server/src/capability.ts"
+        "./addons/adapter-server/cap-adapter-server/src/capability.ts"
       ],
-      "@linchkit/cap-adapter-ui-react": ["./capabilities/cap-adapter-ui-react/src"],
-      "@linchkit/cap-adapter-ui-react/capability": [
-        "./capabilities/cap-adapter-ui-react/src/capability.ts"
+      "@linchkit/cap-adapter-ui": ["./addons/adapter-ui/cap-adapter-ui/src"],
+      "@linchkit/cap-adapter-ui/capability": [
+        "./addons/adapter-ui/cap-adapter-ui/src/capability.ts"
       ],
-      "@linchkit/cap-adapter-mcp": ["./capabilities/cap-adapter-mcp/src"],
-      "@linchkit/cap-auth": ["./capabilities/cap-auth/src"],
-      "@linchkit/cap-auth/ui": ["./capabilities/cap-auth/ui/index.ts"],
-      "@linchkit/cap-permission": ["./capabilities/cap-permission/src"],
-      "@linchkit/ui-kit": ["./capabilities/cap-adapter-ui-react/ui-kit/src"],
-      "@linchkit/ui-kit/components": ["./capabilities/cap-adapter-ui-react/ui-kit/src/components"],
-      "@linchkit/ui-kit/hooks": ["./capabilities/cap-adapter-ui-react/ui-kit/src/hooks"],
-      "@linchkit/ui-kit/lib/utils": ["./capabilities/cap-adapter-ui-react/ui-kit/src/lib/utils"],
-      "@linchkit/cap-purchase-demo": ["./capabilities/cap-purchase-demo/src"],
-      "@/*": ["./capabilities/cap-adapter-ui-react/src/*"]
+      "@linchkit/cap-adapter-ui/panel-registry": [
+        "./addons/adapter-ui/cap-adapter-ui/src/lib/panel-registry.ts"
+      ],
+      "@linchkit/cap-adapter-ui/hooks/use-subscription": [
+        "./addons/adapter-ui/cap-adapter-ui/src/hooks/use-subscription.ts"
+      ],
+      "@linchkit/cap-adapter-ui/lib/api": ["./addons/adapter-ui/cap-adapter-ui/src/lib/api.ts"],
+      "@linchkit/cap-adapter-mcp": ["./addons/adapter-mcp/cap-adapter-mcp/src"],
+      "@linchkit/cap-auth": ["./addons/auth/cap-auth/src"],
+      "@linchkit/cap-auth/ui": ["./addons/auth/cap-auth/ui/index.ts"],
+      "@linchkit/cap-permission": ["./addons/permission/cap-permission/src"],
+      "@linchkit/ui-kit": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src"],
+      "@linchkit/ui-kit/components": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src/components"],
+      "@linchkit/ui-kit/hooks": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src/hooks"],
+      "@linchkit/ui-kit/lib/utils": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src/lib/utils"],
+      "@linchkit/cap-purchase-demo": ["./addons/demo/cap-purchase-demo/src"],
+      "@linchkit/cap-chatter-ui": ["./addons/chatter/cap-chatter-ui/src"],
+      "@linchkit/cap-chatter": ["./addons/chatter/cap-chatter/src"],
+      "@linchkit/cap-chatter/capability": ["./addons/chatter/cap-chatter/src/capability.ts"],
+      "@linchkit/cap-chatter/graphql": ["./addons/chatter/cap-chatter/src/graphql.ts"],
+      "@/*": ["./addons/adapter-ui/cap-adapter-ui/src/*"]
     }
   },
   "include": [
@@ -50,12 +63,12 @@
     "packages/*/src/**/*.tsx",
     "packages/*/ui/**/*.ts",
     "packages/*/ui/**/*.tsx",
-    "capabilities/*/src/**/*.ts",
-    "capabilities/*/src/**/*.tsx",
-    "capabilities/*/ui/**/*.ts",
-    "capabilities/*/ui/**/*.tsx",
-    "capabilities/*/ui-kit/src/**/*.ts",
-    "capabilities/*/ui-kit/src/**/*.tsx",
+    "addons/*/cap-*/src/**/*.ts",
+    "addons/*/cap-*/src/**/*.tsx",
+    "addons/*/cap-*/ui/**/*.ts",
+    "addons/*/cap-*/ui/**/*.tsx",
+    "addons/*/cap-*/ui-kit/src/**/*.ts",
+    "addons/*/cap-*/ui-kit/src/**/*.tsx",
     "e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]

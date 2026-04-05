@@ -8,7 +8,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { ConflictError, defineSchema, NotFoundError } from "@linchkit/core";
+import { ConflictError, defineEntity, NotFoundError } from "@linchkit/core";
 import {
   closeDatabase,
   createDatabase,
@@ -25,7 +25,7 @@ const DATABASE_URL =
   process.env.DATABASE_TEST_URL ??
   "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
-const testSchema = defineSchema({
+const testSchema = defineEntity({
   name: "integration_test_item",
   label: "Test Item",
   fields: {
@@ -79,7 +79,8 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
     tableRegistry.register(SCHEMA_NAME, table);
 
     // Create test table via raw SQL (test fixture — not production DDL)
-    await db.execute(sql.raw(`
+    await db.execute(
+      sql.raw(`
       CREATE TABLE IF NOT EXISTS "${SCHEMA_NAME}" (
         "id" varchar(128) PRIMARY KEY NOT NULL,
         "tenant_id" varchar(128),
@@ -93,7 +94,8 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
         "amount" numeric,
         "status" varchar(50)
       )
-    `));
+    `),
+    );
   });
 
   afterAll(async () => {

@@ -2,16 +2,16 @@ import { describe, expect, it } from "bun:test";
 import {
   defineAction,
   defineCapability,
+  defineEntity,
   defineEventHandler,
   defineRule,
-  defineSchema,
   defineState,
   defineView,
 } from "../src";
 
-describe("defineSchema", () => {
+describe("defineEntity", () => {
   it("should return schema definition with fields", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "purchase_request",
       label: "采购申请",
       fields: {
@@ -30,7 +30,7 @@ describe("defineSchema", () => {
   });
 
   it("should support exposure config", () => {
-    const schema = defineSchema({
+    const schema = defineEntity({
       name: "employee",
       fields: {
         name: { type: "string" },
@@ -51,7 +51,7 @@ describe("defineAction", () => {
   it("should return declarative action definition", () => {
     const action = defineAction({
       name: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "提交采购申请",
       input: {
         id: { type: "string", required: true },
@@ -69,7 +69,7 @@ describe("defineAction", () => {
   it("should support handler-based action", () => {
     const action = defineAction({
       name: "calculate_total",
-      schema: "purchase_request",
+      entity: "purchase_request",
       label: "计算总额",
       input: {
         id: { type: "string", required: true },
@@ -146,7 +146,7 @@ describe("defineState", () => {
   it("should return state machine definition", () => {
     const state = defineState({
       name: "request_lifecycle",
-      schema: "purchase_request",
+      entity: "purchase_request",
       field: "status",
       initial: "draft",
       states: ["draft", "submitted", "approved", "rejected", "cancelled"],
@@ -174,7 +174,7 @@ describe("defineView", () => {
   it("should return view definition", () => {
     const view = defineView({
       name: "purchase_request_list",
-      schema: "purchase_request",
+      entity: "purchase_request",
       type: "list",
       label: "采购申请列表",
       fields: [
@@ -223,8 +223,8 @@ describe("defineCapability", () => {
       type: "standard",
       category: "business",
       version: "1.0.0",
-      schemas: [
-        defineSchema({
+      entities: [
+        defineEntity({
           name: "purchase_request",
           fields: { title: { type: "string" } },
         }),
@@ -232,7 +232,7 @@ describe("defineCapability", () => {
       actions: [
         defineAction({
           name: "submit_request",
-          schema: "purchase_request",
+          entity: "purchase_request",
           label: "提交",
           policy: { mode: "sync", transaction: true },
         }),
@@ -253,7 +253,7 @@ describe("defineCapability", () => {
 
     expect(cap.name).toBe("purchase_management");
     expect(cap.type).toBe("standard");
-    expect(cap.schemas).toHaveLength(1);
+    expect(cap.entities).toHaveLength(1);
     expect(cap.actions).toHaveLength(1);
     expect(cap.rules).toHaveLength(1);
     expect(cap.ui?.styles).toEqual(["@linchkit/cap-purchase/styles.css"]);

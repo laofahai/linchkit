@@ -136,3 +136,61 @@ export const ext = extendState('request_lifecycle', {
 
 - 嵌套状态和并行状态暂不支持，预留升级路径
 - 状态迁移的 guard（前置条件）用 Rule 实现，保持 State 定义简洁
+
+## 8. UI Visualization
+
+State Machine 在 UI 中需要直观的可视化展示，帮助用户理解业务对象的生命周期。
+
+### 8.1 状态图渲染
+
+在 Schema 详情页和记录详情页中，渲染交互式状态机图：
+
+```
+┌──────┐   submit    ┌──────────┐   approve   ┌──────────┐
+│ 草稿  │───────────→│  已提交   │────────────→│  已批准   │
+│ gray │            │  blue    │            │  green   │
+└──────┘            └──────────┘            └──────────┘
+    ↑                    │                      │
+    │    revise          │ reject               │ confirm
+    │                    ↓                      ↓
+    │               ┌──────────┐          ┌──────────┐
+    └───────────────│  已驳回   │          │  已采购   │
+                    │  red     │          │  orange  │
+                    └──────────┘          └──────────┘
+```
+
+- 从 `defineState` 定义的 `states` + `transitions` 自动生成有向图
+- 布局算法自动排列节点位置（DAG 分层布局）
+- 渲染为 SVG，支持缩放和拖拽
+
+### 8.2 状态颜色编码
+
+每个状态节点使用 `meta.color` 定义的颜色渲染：
+
+| color 值 | 语义 | 使用场景 |
+|----------|------|----------|
+| `gray` | 初始/终态/非活跃 | draft、cancelled、archived |
+| `blue` | 进行中/待处理 | submitted、in_progress |
+| `green` | 成功/完成 | approved、completed |
+| `red` | 失败/拒绝 | rejected、failed |
+| `orange` | 警告/中间态 | purchased、on_hold |
+| `yellow` | 等待/暂挂 | pending、waiting |
+
+颜色映射由 `lib/state-colors.ts` 统一管理，状态图、State Ribbon、StatusBadge 共用同一套色板。
+
+### 8.3 迁移 Action 标签
+
+每条迁移箭头上标注触发 Action 的 label（非 name）：
+
+- 标签可点击，跳转到对应 Action 的定义或执行入口
+- 从多个状态出发的迁移（`from: ['draft', 'submitted']`）渲染为多条箭头，各自标注相同 Action
+- 鼠标 hover 迁移箭头时，tooltip 显示：Action name、是否需要权限、是否有 Rule 约束
+
+### 8.4 记录上下文中的状态图
+
+在记录详情页中，状态图增加当前记录上下文：
+
+- **当前状态高亮**：当前状态节点加粗边框 + 脉冲动画
+- **可用迁移高亮**：从当前状态出发的合法迁移路径以实线显示，不可达路径以虚线灰化
+- **Action 按钮联动**：点击可用迁移箭头等同于点击对应 Action 按钮（进入 Action Preview 流程）
+- **历史路径**：可选展示该记录经历过的状态迁移历史（从 Event 数据中提取），以时间线形式叠加在图上

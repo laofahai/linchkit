@@ -26,6 +26,7 @@ import type { EventRecord } from "../types/event";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor } from "./action-engine";
 import type { CommandLayer } from "./command-layer";
+import type { PermissionRegistry } from "./permission-engine";
 
 // ── InMemoryApprovalStore ──────────────────────────────────
 
@@ -58,8 +59,8 @@ export class InMemoryApprovalStore implements ApprovalStore {
     if (options?.action) {
       results = results.filter((r) => r.action === options.action);
     }
-    if (options?.schema) {
-      results = results.filter((r) => r.schema === options.schema);
+    if (options?.entity) {
+      results = results.filter((r) => r.entity === options.entity);
     }
     if (options?.requestedById) {
       results = results.filter((r) => r.requestedBy.id === options.requestedById);
@@ -111,7 +112,7 @@ function createApprovalEvent(options: {
     category: "runtime",
     timestamp: new Date(),
     actor: { type: actor.type, id: actor.id },
-    schema: request.schema,
+    entity: request.entity,
     action: request.action,
     executionId,
     payload: {
@@ -138,15 +139,25 @@ export interface ApprovalEngineOptions {
   commandLayer?: CommandLayer;
   /**
    * When true, enforce that the acting actor matches the request assignee
-   * before allowing approve/reject. Default: false (M0b — cap-permission not integrated yet).
-   * TODO: Full assignee authorization will be enforced when cap-permission is integrated.
+   * before allowing approve/reject. Default: false, but auto-enabled when
+   * permissionRegistry is provided.
    */
   enforceAssignee?: boolean;
+  /**
+   * Optional PermissionRegistry from cap-permission.
+   * When provided, enables richer assignee resolution:
+   * - "role" assignee checks actor's permission groups (actor.groups)
+   * - "group" assignee checks actor.groups membership
+   * - "user" assignee checks actor.id match
+   * Also auto-enables enforceAssignee unless explicitly set to false.
+   * When not provided, falls back to basic checks (allow-all if enforceAssignee is false).
+   */
+  permissionRegistry?: PermissionRegistry;
 }
 
 export interface CreateApprovalOptions {
   action: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
   capability?: string;
   input: Record<string, unknown>;
@@ -187,7 +198,10 @@ export interface ApprovalEngine {
  * Create an ApprovalEngine instance.
  */
 export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEngine {
-  const { store, eventBus, enforceAssignee = false } = options;
+  const { store, eventBus, permissionRegistry } = options;
+  // Auto-enable assignee enforcement when permissionRegistry is provided,
+  // unless explicitly set to false
+  const enforceAssignee = options.enforceAssignee ?? permissionRegistry !== undefined;
   let executor = options.executor;
   const commandLayer = options.commandLayer;
 
@@ -212,10 +226,27 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
   /**
    * Check that the acting actor is authorized for the given assignee.
    * Only enforced when `enforceAssignee` is true in engine options.
-   * TODO: Full permission integration with cap-permission for richer assignee resolution.
+   *
+   * When permissionRegistry is available, uses it for richer resolution:
+   * - system_admin group always passes (mirrors permission-engine behavior)
+   * - "role" assignee: checks if actor belongs to a permission group matching the role
+   * - "group"/"user" checks remain the same (they don't need the registry)
+   *
+   * Without permissionRegistry, falls back to basic Actor field checks.
    */
   function checkAssigneeAuthorization(actor: Actor, assignee: ApprovalAssignee): void {
     if (!enforceAssignee) return;
+
+    // System actors (internal calls) bypass assignee checks
+    if (actor.type === "system" && actor.id !== "anonymous") return;
+
+    // When permissionRegistry is available, system_admin bypasses all checks
+    if (permissionRegistry) {
+      const isSystemAdmin =
+        actor.groups.includes("system_admin") &&
+        permissionRegistry.get("system_admin") !== undefined;
+      if (isSystemAdmin) return;
+    }
 
     switch (assignee.type) {
       case "user":
@@ -231,13 +262,24 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         }
         break;
       case "role":
-        // Actor type currently has groups but not a role field.
-        // Check metadata.role as a convention until cap-permission provides richer actor info.
-        // TODO: Replace with proper role check when cap-permission is integrated.
-        if (actor.metadata?.role !== assignee.value && !actor.groups?.includes(assignee.value)) {
-          throw new Error(
-            `Actor "${actor.id}" does not have the assigned role "${assignee.value}"`,
-          );
+        // With permissionRegistry: check if actor has a registered permission group
+        // matching the role name. This provides proper role-based authorization
+        // since LinchKit uses permission groups as the role mechanism.
+        if (permissionRegistry) {
+          const actorGroups = permissionRegistry.resolveActorPermissions(actor);
+          const hasMatchingRole = actorGroups.some((g) => g.name === assignee.value);
+          if (!hasMatchingRole) {
+            throw new Error(
+              `Actor "${actor.id}" does not have the assigned role "${assignee.value}" (no matching permission group)`,
+            );
+          }
+        } else {
+          // Fallback without registry: check metadata.role or groups membership
+          if (actor.metadata?.role !== assignee.value && !actor.groups?.includes(assignee.value)) {
+            throw new Error(
+              `Actor "${actor.id}" does not have the assigned role "${assignee.value}"`,
+            );
+          }
         }
         break;
     }
@@ -259,7 +301,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     const request: ApprovalRequest = {
       id,
       action: opts.action,
-      schema: opts.schema,
+      entity: opts.entity,
       recordId: opts.recordId,
       capability: opts.capability,
       input: opts.input,

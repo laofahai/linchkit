@@ -13,4 +13,6 @@ export {
   eventsTable,
   executionStatusEnum,
   executionsTable,
+  overrideTargetTypeEnum,
+  tenantOverridesTable,
 } from "./system-tables";

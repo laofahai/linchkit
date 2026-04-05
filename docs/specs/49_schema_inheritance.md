@@ -34,7 +34,7 @@
 ```typescript
 // customer IS-A party（继承）
 // customer HAS approvable（接口）
-defineSchema({
+defineEntity({
   name: 'customer',
   extends: 'party',
   implements: ['auditable'],
@@ -49,7 +49,7 @@ defineSchema({
 
 ```typescript
 // 父 Schema
-defineSchema({
+defineEntity({
   name: 'party',
   label: '参与方',
   abstract: true,           // 不能直接创建 party 记录（可选）
@@ -63,7 +63,7 @@ defineSchema({
 })
 
 // 子 Schema
-defineSchema({
+defineEntity({
   name: 'customer',
   extends: 'party',          // 继承 party 的所有字段
   fields: {
@@ -75,7 +75,7 @@ defineSchema({
   },
 })
 
-defineSchema({
+defineEntity({
   name: 'supplier',
   extends: 'party',
   fields: {
@@ -97,7 +97,7 @@ defineSchema({
 - 子 Schema 不能**删除**父字段
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'customer',
   extends: 'party',
   fields: {
@@ -264,7 +264,7 @@ CREATE TABLE supplier (
 ### 5.3 策略选择
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'party',
   abstract: true,
   inheritance: 'STI',            // 'STI'（默认）| 'TPT'
@@ -343,7 +343,7 @@ type Supplier implements Party {
 ## 7. abstract Schema
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'party',
   abstract: true,       // 不能直接创建 party 记录
   fields: { /* ... */ },
@@ -357,10 +357,10 @@ defineSchema({
 
 ## 8. 与 Ontology 集成（spec 43）
 
-SchemaDescriptor 增加继承信息：
+EntityDescriptor 增加继承信息：
 
 ```typescript
-interface SchemaDescriptor {
+interface EntityDescriptor {
   // ...existing...
   parent: string | null              // 父 Schema 名称
   children: string[]                 // 子 Schema 名称列表
@@ -384,7 +384,7 @@ ontology.describe('customer')
 
 | Spec | 关系 |
 |------|------|
-| 03_schema | 继承是 SchemaDefinition 的扩展（`extends`、`abstract`、`inheritance`） |
+| 03_schema | 继承是 EntityDefinition 的扩展（`extends`、`abstract`、`inheritance`） |
 | 04_action | 子 Schema 继承父 Schema 的 Action |
 | 05_rule | 子 Schema 继承父 Schema 的 Rule |
 | 06_state | 子 Schema 可继承或覆盖父状态机 |

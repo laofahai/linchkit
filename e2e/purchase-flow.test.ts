@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { approveAction, purchaseRequestSchema, submitAction } from "@linchkit/cap-purchase-demo";
+import { approveAction, purchaseRequestEntity, submitAction } from "@linchkit/cap-purchase-demo";
 import {
   createActionExecutor,
+  EntityRegistry,
   InMemoryExecutionLogger,
-  SchemaRegistry,
+  InMemoryStore,
 } from "@linchkit/core/server";
-import { InMemoryStore } from "../capabilities/cap-adapter-server/src/data/in-memory-store";
 import {
   buildGraphQLSchema,
   generateCrudActions,
-} from "../capabilities/cap-adapter-server/src/graphql/build-schema";
-import { createServer } from "../capabilities/cap-adapter-server/src/server";
+} from "../addons/adapter-server/cap-adapter-server/src/graphql/build-schema";
+import { createServer } from "../addons/adapter-server/cap-adapter-server/src/server";
 
 // Strip permission restrictions for E2E testing with anonymous actor
 const e2eSubmitAction = { ...submitAction, permissions: undefined };
@@ -22,12 +22,12 @@ const BASE = `http://localhost:${PORT}`;
 
 const store = new InMemoryStore();
 const executionLogger = new InMemoryExecutionLogger();
-const schemaRegistry = new SchemaRegistry();
-schemaRegistry.register(purchaseRequestSchema);
+const entityRegistry = new EntityRegistry();
+entityRegistry.register(purchaseRequestEntity);
 
 const executor = createActionExecutor({ dataProvider: store, executionLogger });
 const allActions = [
-  ...generateCrudActions(purchaseRequestSchema),
+  ...generateCrudActions(purchaseRequestEntity),
   e2eSubmitAction,
   e2eApproveAction,
 ];
@@ -35,17 +35,16 @@ for (const action of allActions) {
   executor.registry.register(action);
 }
 
-const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
+const graphqlSchema = buildGraphQLSchema([purchaseRequestEntity], {
   executor,
   dataProvider: store,
   actions: [e2eSubmitAction, e2eApproveAction],
-  executionLogger,
 });
 
 const app = createServer(graphqlSchema, {
   executor,
   executionLogger,
-  schemaRegistry,
+  entityRegistry,
 });
 
 // ── Helper functions ─────────────────────────────────────
@@ -63,7 +62,7 @@ async function executeActionReq(name: string, body: Record<string, unknown> = {}
 }
 
 async function fetchSchemas() {
-  const res = await fetch(`${BASE}/api/schemas`);
+  const res = await fetch(`${BASE}/api/entities`);
   const json = (await res.json()) as { success: boolean; data: { name: string; label: string }[] };
   return json.data;
 }
@@ -95,7 +94,7 @@ describe("Purchase Request E2E Flow", () => {
     const res = await fetch(`${BASE}/health`);
     expect(res.ok).toBe(true);
     const body = (await res.json()) as { status: string };
-    expect(body.status).toBe("ok");
+    expect(body.status).toBe("healthy");
   });
 
   test("schemas API returns purchase_request", async () => {

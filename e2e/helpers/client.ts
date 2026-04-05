@@ -37,7 +37,7 @@ export async function executeAction(
 }
 
 export async function fetchSchemas(): Promise<{ name: string; label: string }[]> {
-  const res = await fetch(`${BASE_URL}/api/schemas`);
+  const res = await fetch(`${BASE_URL}/api/entities`);
   const json = (await res.json()) as {
     success: boolean;
     data: { name: string; label: string }[];

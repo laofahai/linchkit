@@ -16,11 +16,11 @@ import type {
   AIService,
   CapabilityDefinition,
   DataProvider,
+  EntityDefinition,
+  EntityRegistry,
   EventBus,
-  SchemaDefinition,
-  SchemaRegistry,
 } from "@linchkit/core";
-import { createActionExecutor, createEventBus, createSchemaRegistry } from "@linchkit/core/server";
+import { createActionExecutor, createEntityRegistry, createEventBus } from "@linchkit/core/server";
 
 // ── InMemoryDataProvider ────────────────────────────────────
 
@@ -78,7 +78,7 @@ function createInMemoryDataProvider(): DataProvider {
 // ── TestRuntime ─────────────────────────────────────────────
 
 export interface TestRuntimeOptions {
-  schemas?: SchemaDefinition[];
+  entities?: EntityDefinition[];
   actions?: ActionDefinition[];
   capabilities?: CapabilityDefinition[];
 }
@@ -86,7 +86,7 @@ export interface TestRuntimeOptions {
 export interface TestRuntime {
   executor: ActionExecutor;
   dataProvider: DataProvider;
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   eventBus: EventBus;
   actionRegistry: ActionRegistry;
 }
@@ -99,14 +99,14 @@ export interface TestRuntime {
  */
 export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   const dataProvider = createInMemoryDataProvider();
-  const schemaRegistry = createSchemaRegistry();
+  const entityRegistry = createEntityRegistry();
   const { bus: eventBus } = createEventBus();
   const executor = createActionExecutor({ dataProvider });
 
-  // Register schemas
-  if (options?.schemas) {
-    for (const schema of options.schemas) {
-      schemaRegistry.register(schema);
+  // Register entities
+  if (options?.entities) {
+    for (const entity of options.entities) {
+      entityRegistry.register(entity);
     }
   }
 
@@ -120,9 +120,9 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   // Register capabilities (schemas + actions from each)
   if (options?.capabilities) {
     for (const cap of options.capabilities) {
-      if (cap.schemas) {
-        for (const schema of cap.schemas) {
-          schemaRegistry.register(schema);
+      if (cap.entities) {
+        for (const schema of cap.entities) {
+          entityRegistry.register(schema);
         }
       }
       if (cap.actions) {
@@ -136,7 +136,7 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   return {
     executor,
     dataProvider,
-    schemaRegistry,
+    entityRegistry,
     eventBus,
     actionRegistry: executor.registry,
   };
@@ -168,17 +168,33 @@ export interface MockAIService extends AIService {
   callCount: number;
 }
 
+/** Response config for mockAIService — string for simple text, object for structured/tool responses */
+export interface MockAIResponse {
+  content?: string;
+  data?: unknown;
+  toolCalls?: Array<{ toolName: string; args: Record<string, unknown> }>;
+}
+
 /**
  * Create a mock AI service for testing flows with AI steps.
  *
  * @param responses - Map of prompt substring → response content.
  *   When a message contains the substring, that response is returned.
+ *   Values can be:
+ *   - `string` — returned as content
+ *   - `MockAIResponse` — full control over content, data, and toolCalls
+ *   - other object — JSON-stringified as content + set as data
  *   If no match, returns a default "mock response".
  */
-export function mockAIService(responses?: Record<string, unknown>): MockAIService {
+export function mockAIService(
+  responses?: Record<string, string | MockAIResponse | unknown>,
+): MockAIService {
   const calls: AICompletionOptions[] = [];
 
   return {
+    configured: true,
+    defaultProvider: "mock",
+    providerNames: ["mock"],
     calls,
     get callCount() {
       return calls.length;
@@ -189,6 +205,7 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       // Try to match a response based on message content
       let content = "mock response";
       let data: unknown;
+      let toolCalls: Array<{ toolName: string; args: Record<string, unknown> }> | undefined;
 
       if (responses) {
         const lastUserMessage = [...options.messages].reverse().find((m) => m.role === "user");
@@ -198,6 +215,10 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
           if (messageText.includes(key)) {
             if (typeof value === "string") {
               content = value;
+            } else if (isMockAIResponse(value)) {
+              content = value.content ?? "mock response";
+              data = value.data;
+              toolCalls = value.toolCalls;
             } else {
               content = JSON.stringify(value);
               data = value;
@@ -210,6 +231,10 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       return {
         content,
         data,
+        toolCalls: toolCalls?.map((tc) => ({
+          toolName: tc.toolName,
+          args: tc.args,
+        })),
         usage: {
           inputTokens: 10,
           outputTokens: 20,
@@ -221,4 +246,11 @@ export function mockAIService(responses?: Record<string, unknown>): MockAIServic
       };
     },
   };
+}
+
+/** Type guard: check if a value is a MockAIResponse (has content, data, or toolCalls keys) */
+function isMockAIResponse(value: unknown): value is MockAIResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return "content" in v || "toolCalls" in v || ("data" in v && !("type" in v));
 }

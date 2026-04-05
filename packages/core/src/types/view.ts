@@ -1,13 +1,36 @@
 /**
  * View type definitions
  *
- * Headless architecture: logic layer (@linchkit/core) and rendering layer (@linchkit/cap-adapter-ui-react) are separated.
- * Supports four view types: list / form / kanban / dashboard.
+ * Headless architecture: logic layer (@linchkit/core) and rendering layer (@linchkit/cap-adapter-ui) are separated.
+ * Supports view types: list / form / kanban / calendar / dashboard / tree.
  */
 
 // ── View types ───────────────────────────────────────
 
-export type ViewType = "list" | "form" | "kanban" | "dashboard" | "workspace";
+export type ViewType = "list" | "form" | "kanban" | "calendar" | "dashboard" | "workspace" | "tree";
+
+// ── Field visibility condition ───────────────────────────────────
+
+/** Condition for dynamic field visibility in forms */
+export interface FieldVisibilityCondition {
+  /** Name of the field to watch */
+  field: string;
+  /** Comparison operator */
+  operator:
+    | "eq"
+    | "neq"
+    | "in"
+    | "not_in"
+    | "is_set"
+    | "is_empty"
+    | "gt"
+    | "gte"
+    | "lt"
+    | "lte"
+    | "contains";
+  /** Value(s) to compare against. Not required for is_set / is_empty. */
+  value?: unknown;
+}
 
 // ── View field configuration ───────────────────────────────────
 
@@ -19,8 +42,12 @@ export interface ViewFieldConfig {
   width?: number | string;
   sortable?: boolean;
   filterable?: boolean;
+  /** Enable inline editing in list views. Only effective for simple field types (string, number, enum). */
+  editable?: boolean;
   /** Widget override for this field in this view. Takes highest priority. */
   widget?: string;
+  /** When set, field is only visible if the condition is met (form views) */
+  visibleWhen?: FieldVisibilityCondition;
 }
 
 // ── View Action buttons ────────────────────────────────
@@ -38,7 +65,7 @@ export interface ViewAction {
 
 export interface ViewDefinition {
   name: string;
-  schema: string;
+  entity: string;
   type: ViewType;
   label?: string;
   description?: string;
@@ -50,9 +77,38 @@ export interface ViewDefinition {
   defaultSort?: { field: string; order: "asc" | "desc" };
   defaultFilter?: Record<string, unknown>;
   pageSize?: number;
+  /**
+   * What happens when a row is clicked in list view.
+   * - "navigate" (default): navigate to /schemas/:name/:id (edit/detail form)
+   * - "dialog": show record details in a modal dialog
+   * - "expand": expand row inline to show detail panel
+   * - "none": no action on row click
+   */
+  rowAction?: "navigate" | "dialog" | "expand" | "none";
+  /**
+   * Custom route template for rowAction="navigate".
+   * Supports `{id}` and `{name}` placeholders.
+   * Example: "/admin/rules/{id}" navigates to the rule detail page.
+   * When omitted, defaults to "/schemas/{name}/{id}".
+   */
+  rowActionRoute?: string;
 
   // Kanban-specific
   groupBy?: string;
+
+  // Calendar-specific
+  /** Date/datetime field used to place records on the calendar (e.g. "due_date"). */
+  dateField?: string;
+  /** Field used as display title for calendar entries. Defaults to first text field. */
+  titleField?: string;
+  /** Field used for color-coding calendar entries (e.g. a state or enum field). */
+  colorField?: string;
+
+  // Tree-specific
+  /** Field referencing the parent record (e.g. "parent_id"). Required for tree views. */
+  parentField?: string;
+  /** Field used as display label for tree nodes (e.g. "name"). Defaults to first text field. */
+  labelField?: string;
 
   // Form-specific
   layout?: FormLayout;
@@ -108,6 +164,8 @@ export interface FormFieldNode {
   nolabel?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** When set, field is only visible if the condition is met */
+  visibleWhen?: FieldVisibilityCondition;
 }
 
 /** A group container — default 2 columns, nestable */

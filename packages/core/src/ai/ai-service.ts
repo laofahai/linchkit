@@ -1,39 +1,51 @@
 /**
- * AI Service Engine
+ * AI Service — Core Interface + Noop + Config Utilities
  *
- * Thin wrapper over Vercel AI SDK providing:
- * 1. Model alias resolution (fast/standard/advanced → provider + model ID)
- * 2. Unified multi-provider interface
- * 3. Usage tracking and cost estimation
- * 4. Integration with ActionContext via ctx.ai
+ * Core keeps:
+ * 1. AIService interface (types/ai.ts)
+ * 2. createNoopAIService — safe no-op for zero-AI installs
+ * 3. Config helpers — resolveModel, resolveModelRoute, resolveTenantConfig
+ * 4. Default config shape — defaultAIConfig
  *
- * See spec 36_ai_service.md for full design.
+ * What moved out:
+ * - Vercel AI SDK provider instantiation (getLanguageModel) → cap-ai-provider
+ * - executeCompletion / executeStream → cap-ai-provider
+ * - createAIService (SDK-backed factory) → cap-ai-provider
+ *
+ * See spec 36_ai_service.md and spec 56_core_slimming.md.
  */
 
 import type {
   AICompletionOptions,
-  AICompletionResult,
-  AIProviderType,
+  AIModelRoute,
+  AIProviderConfig,
   AIService,
   AIServiceConfig,
-  AIToolCall,
+  AITaskType,
+  AITenantConfig,
 } from "../types/ai";
 
-/** Infer provider type from well-known provider names */
-function inferProviderType(name: string): AIProviderType | undefined {
-  if (name === "anthropic") return "anthropic";
-  if (name === "openai") return "openai";
-  return undefined;
+// ── Migration stub ────────────────────────────────────────────
+
+/**
+ * @deprecated Moved to @linchkit/cap-ai-provider.
+ *
+ * Returns a Vercel AI SDK LanguageModel for the given provider/model alias.
+ * This function is no longer implemented in core — install cap-ai-provider.
+ */
+export async function resolveLanguageModel(
+  _config: AIServiceConfig,
+  _modelAlias?: string,
+  _providerName?: string,
+  // biome-ignore lint/suspicious/noExplicitAny: LanguageModel type lives in @linchkit/cap-ai-provider
+): Promise<any> {
+  throw new Error(
+    "resolveLanguageModel has been extracted to @linchkit/cap-ai-provider. " +
+      "Import it from that package instead.",
+  );
 }
 
-// ── Resolved model info ─────────────────────────────────────
-
-interface ResolvedModel {
-  provider: string;
-  modelId: string;
-}
-
-// ── Default configuration ───────────────────────────────────
+// ── Default configuration ────────────────────────────────────
 
 export const defaultAIConfig: AIServiceConfig = {
   defaultProvider: "anthropic",
@@ -49,21 +61,7 @@ export const defaultAIConfig: AIServiceConfig = {
   },
 };
 
-// ── AIServiceImpl ───────────────────────────────────────────
-
-/**
- * Create an AIService instance.
- *
- * The service is optional — if no config is provided, calling complete()
- * will throw a clear error. The system works without AI.
- */
-export function createAIService(config: AIServiceConfig): AIService {
-  validateConfig(config);
-
-  return {
-    complete: (options) => executeCompletion(config, options),
-  };
-}
+// ── No-op service ────────────────────────────────────────────
 
 /**
  * Create a no-op AIService that throws on any call.
@@ -71,15 +69,54 @@ export function createAIService(config: AIServiceConfig): AIService {
  */
 export function createNoopAIService(): AIService {
   return {
+    configured: false,
+    defaultProvider: null,
+    providerNames: [],
     complete: () => {
       throw new Error("AI service is not configured. Add an 'ai' section to your LinchKit config.");
     },
   };
 }
 
-// ── Config validation ───────────────────────────────────────
+// ── Stub factory (migration shim) ────────────────────────────
 
-function validateConfig(config: AIServiceConfig): void {
+/**
+ * @deprecated Use createAIService from @linchkit/cap-ai-provider instead.
+ *
+ * The SDK-backed AIService implementation has been extracted to cap-ai-provider
+ * as part of core slimming (Spec 56). This stub validates config and returns a
+ * service whose complete() throws a migration error at runtime.
+ *
+ * To restore full AI functionality:
+ *   1. Install @linchkit/cap-ai-provider
+ *   2. Import createAIService from that package
+ */
+export function createAIService(config: AIServiceConfig): AIService {
+  validateConfig(config);
+
+  return {
+    configured: true,
+    defaultProvider: config.defaultProvider,
+    providerNames: Object.keys(config.providers),
+    complete: (_options: AICompletionOptions) => {
+      throw new Error(
+        "AI provider implementation not available. " +
+          "Install @linchkit/cap-ai-provider and import createAIService from there.",
+      );
+    },
+  };
+}
+
+// ── Config validation ─────────────────────────────────────────
+
+/** Infer provider type from well-known provider names. */
+function inferProviderType(name: string): "anthropic" | "openai" | undefined {
+  if (name === "anthropic") return "anthropic";
+  if (name === "openai") return "openai";
+  return undefined;
+}
+
+export function validateConfig(config: AIServiceConfig): void {
   if (!config.defaultProvider) {
     throw new Error("AIServiceConfig.defaultProvider is required");
   }
@@ -93,21 +130,24 @@ function validateConfig(config: AIServiceConfig): void {
     if (!provider.defaultModel) {
       throw new Error(`Provider "${name}" must have a defaultModel`);
     }
-    // Resolve provider type from explicit type or infer from name
-    const resolvedType = provider.type ?? inferProviderType(name);
+    const resolvedType = (provider as AIProviderConfig).type ?? inferProviderType(name);
     if (!resolvedType) {
       throw new Error(
         `Provider "${name}" must have an explicit 'type' field ("anthropic" | "openai")`,
       );
     }
-    // Custom providers (non-built-in names) require an endpoint
-    if (!inferProviderType(name) && !provider.endpoint) {
+    if (!inferProviderType(name) && !(provider as AIProviderConfig).endpoint) {
       throw new Error(`Provider "${name}" requires an 'endpoint' field`);
     }
   }
 }
 
-// ── Model resolution ────────────────────────────────────────
+// ── Model resolution ──────────────────────────────────────────
+
+interface ResolvedModel {
+  provider: string;
+  modelId: string;
+}
 
 /**
  * Resolve a model alias or ID to a provider + model ID pair.
@@ -133,185 +173,62 @@ export function resolveModel(
     return { provider, modelId: providerConfig.defaultModel };
   }
 
-  // Check alias map first
   if (providerConfig.models?.[modelAlias]) {
     return { provider, modelId: providerConfig.models[modelAlias] };
   }
 
-  // Treat as literal model ID
   return { provider, modelId: modelAlias };
 }
 
-// ── Provider instantiation ──────────────────────────────────
+// ── Model routing ─────────────────────────────────────────────
 
 /**
- * Create a Vercel AI SDK LanguageModel for the given provider.
- *
- * Lazily imports provider SDKs so they are only loaded when needed.
- * API keys are resolved from config or environment variables.
+ * Resolve model and provider from task type routing rules.
+ * Returns undefined if no routing rule matches the task type.
  */
-async function getLanguageModel(
-  config: AIServiceConfig,
-  resolved: ResolvedModel,
-  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK LanguageModel is generic
-): Promise<any> {
-  const providerConfig = config.providers[resolved.provider];
-
-  if (!providerConfig) {
-    throw new Error(`Unknown AI provider: "${resolved.provider}"`);
-  }
-
-  // Resolve API key: config value, or fallback to env var
-  const resolveApiKey = (envVar: string): string | undefined => {
-    if (providerConfig.apiKey) {
-      // Support $env.VAR_NAME syntax from config
-      if (providerConfig.apiKey.startsWith("$env.")) {
-        const varName = providerConfig.apiKey.slice(5);
-        return process.env[varName];
-      }
-      return providerConfig.apiKey;
-    }
-    return process.env[envVar];
-  };
-
-  // Resolve provider type: explicit type > inferred from name
-  const providerType = providerConfig.type ?? inferProviderType(resolved.provider);
-
-  switch (providerType) {
-    case "anthropic": {
-      const { createAnthropic } = await import("@ai-sdk/anthropic");
-      const apiKey = resolveApiKey("ANTHROPIC_API_KEY");
-      const anthropic = createAnthropic({
-        apiKey,
-        ...(providerConfig.endpoint ? { baseURL: providerConfig.endpoint } : {}),
-      });
-      return anthropic(resolved.modelId);
-    }
-
-    case "openai": {
-      const { createOpenAI } = await import("@ai-sdk/openai");
-      const envVar = inferProviderType(resolved.provider)
-        ? "OPENAI_API_KEY"
-        : `${resolved.provider.toUpperCase()}_API_KEY`;
-      const apiKey = resolveApiKey(envVar);
-      const isThirdParty = !inferProviderType(resolved.provider);
-      const openai = createOpenAI({
-        apiKey: apiKey ?? "",
-        ...(providerConfig.endpoint ? { baseURL: providerConfig.endpoint } : {}),
-      });
-      // Third-party OpenAI-compatible providers use /chat/completions,
-      // not the OpenAI Responses API (/responses)
-      return isThirdParty ? openai.chat(resolved.modelId) : openai(resolved.modelId);
-    }
-
-    default:
-      throw new Error(
-        `Provider "${resolved.provider}" has no 'type' — set type to "anthropic" or "openai"`,
-      );
-  }
+export function resolveModelRoute(
+  routes: AIModelRoute[] | undefined,
+  taskType: AITaskType,
+): { model: string; provider?: string } | undefined {
+  if (!routes) return undefined;
+  const route = routes.find((r) => r.taskType === taskType);
+  if (!route) return undefined;
+  return { model: route.model, provider: route.provider };
 }
 
-// ── Completion execution ────────────────────────────────────
+// ── Tenant config resolution ──────────────────────────────────
 
-async function executeCompletion(
-  config: AIServiceConfig,
-  options: AICompletionOptions,
-): Promise<AICompletionResult> {
-  const startTime = Date.now();
+/**
+ * Merge tenant-level AI config overrides with global config.
+ * Tenant config can override providers (BYOK), limits, and fallback.
+ */
+export function resolveTenantConfig(
+  globalConfig: AIServiceConfig,
+  tenantId: string,
+): AIServiceConfig {
+  const tenantOverride = globalConfig.tenants?.[tenantId];
+  if (!tenantOverride) return globalConfig;
 
-  // Resolve model
-  const resolved = resolveModel(config, options.provider, options.model);
+  return mergeTenantConfig(globalConfig, tenantOverride);
+}
 
-  // Enforce maxTokens limit
-  let maxOutputTokens = options.maxTokens;
-  if (config.limits?.maxTokensPerRequest) {
-    if (maxOutputTokens) {
-      maxOutputTokens = Math.min(maxOutputTokens, config.limits.maxTokensPerRequest);
-    } else {
-      maxOutputTokens = config.limits.maxTokensPerRequest;
+function mergeTenantConfig(global: AIServiceConfig, tenant: AITenantConfig): AIServiceConfig {
+  const mergedProviders = { ...global.providers };
+  if (tenant.providers) {
+    for (const [name, override] of Object.entries(tenant.providers)) {
+      if (mergedProviders[name]) {
+        mergedProviders[name] = {
+          ...mergedProviders[name],
+          ...override,
+        } as AIProviderConfig;
+      }
     }
-  }
-
-  // Get provider language model
-  const model = await getLanguageModel(config, resolved);
-
-  // Choose between generateText and generateObject based on responseFormat
-  if (options.responseFormat?.type === "json") {
-    // Structured output with Zod schema validation
-    const { generateObject } = await import("ai");
-    const result = await generateObject({
-      model,
-      messages: options.messages,
-      schema: options.responseFormat.schema,
-      temperature: options.temperature ?? 0,
-      maxOutputTokens,
-      abortSignal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
-    });
-
-    const duration = Date.now() - startTime;
-
-    return {
-      content: JSON.stringify(result.object),
-      data: result.object,
-      usage: {
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
-      },
-      model: resolved.modelId,
-      provider: resolved.provider,
-      duration,
-    };
-  }
-
-  // Text completion (with optional tool calling)
-  const { generateText } = await import("ai");
-
-  // Build tool definitions if provided
-  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK tools type is complex
-  let tools: Record<string, any> | undefined;
-  if (options.tools && options.tools.length > 0) {
-    const { tool: defineTool, jsonSchema } = await import("ai");
-    tools = {};
-    for (const t of options.tools) {
-      tools[t.name] = defineTool({
-        description: t.description,
-        // Pass actual JSON Schema parameters from the tool definition
-        inputSchema: jsonSchema(t.parameters),
-      });
-    }
-  }
-
-  const result = await generateText({
-    model,
-    messages: options.messages,
-    temperature: options.temperature ?? 0,
-    maxOutputTokens,
-    tools,
-    abortSignal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
-  });
-
-  const duration = Date.now() - startTime;
-
-  // Extract tool calls
-  let toolCalls: AIToolCall[] | undefined;
-  if (result.toolCalls && result.toolCalls.length > 0) {
-    toolCalls = result.toolCalls.map((tc: { toolName: string; input: unknown }) => ({
-      toolName: tc.toolName,
-      args: tc.input as Record<string, unknown>,
-    }));
   }
 
   return {
-    content: result.text,
-    toolCalls,
-    usage: {
-      inputTokens: result.usage?.inputTokens ?? 0,
-      outputTokens: result.usage?.outputTokens ?? 0,
-      totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
-    },
-    model: resolved.modelId,
-    provider: resolved.provider,
-    duration,
+    ...global,
+    providers: mergedProviders,
+    limits: tenant.limits ?? global.limits,
+    fallback: tenant.fallback ?? global.fallback,
   };
 }

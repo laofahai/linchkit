@@ -19,7 +19,7 @@ function setup() {
 
   const publicAction: ActionDefinition = {
     name: "health",
-    schema: "system",
+    entity: "system",
     label: "Health Check",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -28,7 +28,7 @@ function setup() {
 
   const protectedAction: ActionDefinition = {
     name: "create_order",
-    schema: "order",
+    entity: "order",
     label: "Create Order",
     policy: { mode: "sync", transaction: false },
     exposure: "all",

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import {
-  createAIService,
-  createNoopAIService,
-  defaultAIConfig,
-  resolveModel,
-} from "../src/ai/ai-service";
+import { createAIService, defaultAIConfig, resolveModel } from "@linchkit/cap-ai-provider";
+import { createNoopAIService } from "../src/ai/ai-service";
 import type { AIServiceConfig } from "../src/types/ai";
 
 // ── Test config ─────────────────────────────────────────────

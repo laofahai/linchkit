@@ -28,7 +28,7 @@ export class DrizzleApprovalStore {
       id: request.id,
       tenantId: request.tenantId ?? null,
       actionName: request.action,
-      schemaName: request.schema ?? null,
+      entityName: request.entity ?? null,
       recordId: request.recordId ?? null,
       capability: request.capability ?? null,
       input: request.input,
@@ -122,7 +122,7 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
   return {
     id: row.id,
     action: row.actionName,
-    schema: row.schemaName ?? undefined,
+    entity: row.entityName ?? undefined,
     recordId: row.recordId ?? undefined,
     capability: row.capability ?? undefined,
     input: (row.input as Record<string, unknown>) ?? {},
@@ -152,7 +152,7 @@ function buildConditions(options?: ApprovalQuery) {
   const conditions = [];
   if (options?.status) conditions.push(eq(approvalsTable.status, options.status));
   if (options?.action) conditions.push(eq(approvalsTable.actionName, options.action));
-  if (options?.schema) conditions.push(eq(approvalsTable.schemaName, options.schema));
+  if (options?.entity) conditions.push(eq(approvalsTable.entityName, options.entity));
   if (options?.requestedById) conditions.push(eq(approvalsTable.actorId, options.requestedById));
   if (options?.assigneeType) conditions.push(eq(approvalsTable.assigneeType, options.assigneeType));
   if (options?.assigneeValue)

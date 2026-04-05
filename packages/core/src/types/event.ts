@@ -33,9 +33,11 @@ export interface EventRecord {
   };
 
   tenantId?: string;
-  schema?: string;
+  entity?: string;
   recordId?: string;
   action?: string;
+  /** Source capability that produced this event */
+  capability?: string;
 
   // Causal chain
   executionId: string;
@@ -70,8 +72,38 @@ export interface EventHandlerDefinition {
 // ── EventHandler Context ────────────────────────────
 
 export interface EventHandlerContext {
-  execute(actionName: string, input: Record<string, unknown>): Promise<unknown>;
   emit(eventType: string, payload: Record<string, unknown>): void;
-  get(schema: string, id: string): Promise<Record<string, unknown>>;
-  query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
+}
+
+// ── Subscription event (SSE push to client) ────────────────
+
+export type SubscriptionEventType =
+  | "record.created"
+  | "record.updated"
+  | "record.deleted"
+  | "state.changed"
+  | "approval.resolved"
+  | "entity.changed";
+
+/** SSE event pushed to subscribed clients (spec 44) */
+export interface SubscriptionEvent {
+  type: SubscriptionEventType;
+  entity: string;
+  recordId: string;
+  tenantId: string;
+  /** Partial data — only changed fields, not the full record */
+  changes?: Record<string, unknown>;
+  /** State transition info (only for state.changed) */
+  state?: { from: string; to: string; action: string };
+  actor: { id: string; type: string };
+  timestamp: string;
+  executionId?: string;
+}
+
+// ── EventBusLike interface ───────────────────────────────────
+// Minimal event bus contract used by automation and flow modules
+// to subscribe to events without depending on the full EventBus implementation.
+
+export interface EventBusLike {
+  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void;
 }

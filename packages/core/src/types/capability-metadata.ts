@@ -25,8 +25,8 @@ export const capabilityCategoryEnum = z.enum([
 // ── Extension manifest (declared, not runtime) ──────
 
 const extensionManifestSchema = z.object({
-  /** Schema names this capability provides */
-  schemas: z.array(z.string()).optional(),
+  /** Entity names this capability provides */
+  entities: z.array(z.string()).optional(),
   /** Action names this capability provides */
   actions: z.array(z.string()).optional(),
   /** Custom field type names this capability registers */

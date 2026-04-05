@@ -8,12 +8,18 @@
  * - changeType is always "minor" (no AI-driven patch or major changes yet)
  * - Author is always { type: "ai", id: "ai-proposal-generator" }
  * - Validation is Phase 1 static checks only
+ *
+ * When an OntologyRegistry is provided, the system prompt includes full
+ * ontology context (relations, rules, states, flows) for richer proposals.
  */
 
 import { z } from "zod";
-import type { SchemaRegistry } from "../schema/schema-registry";
+import type { EntityRegistry } from "../entity/entity-registry";
+import { BusinessRuleError } from "../errors";
+import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
+import type { EntityDefinition, FieldType } from "../types/entity";
 import type {
   ProposalChange,
   ProposalDefinition,
@@ -21,10 +27,11 @@ import type {
   ProposalRequest,
   ProposalValidationResult,
 } from "../types/proposal";
-import type { FieldType, SchemaDefinition } from "../types/schema";
 import type { ActionRegistry } from "./action-engine";
 
 // ── Valid field types (for validation) ──────────────────────
+// Relationship fields (ref/has_many/many_to_many) are valid virtual fields
+// They declare relationships that are auto-promoted to Link definitions
 
 const VALID_FIELD_TYPES = new Set<FieldType>([
   "string",
@@ -37,6 +44,9 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "json",
   "state",
   "computed",
+  "ref",
+  "has_many",
+  "many_to_many",
 ]);
 
 // ── ID generation helper ─────────────────────────────────
@@ -49,8 +59,10 @@ function generateId(): string {
 
 export interface ProposalGeneratorDeps {
   aiService: AIService;
-  schemaRegistry: SchemaRegistry;
+  entityRegistry: EntityRegistry;
   actionRegistry: ActionRegistry;
+  /** Optional OntologyRegistry for richer context (relations, rules, states, flows) */
+  ontologyRegistry?: OntologyRegistry;
 }
 
 // ── AI response shape (what the AI returns as structured output) ──
@@ -61,7 +73,7 @@ interface AIProposalResponse {
   capability: string;
   changes: Array<{
     type: "create" | "modify" | "delete";
-    target: "schema" | "action" | "rule" | "flow" | "view";
+    target: "entity" | "action" | "rule" | "flow" | "view";
     name: string;
     definition?: Record<string, unknown>;
     diff?: string;
@@ -77,7 +89,8 @@ interface AIProposalResponse {
 
 // ── System prompt builder ────────────────────────────────
 
-function buildSystemPrompt(schemas: SchemaDefinition[], actions: ActionDefinition[]): string {
+/** Base system prompt without ontology context (uses raw schema/action lists) */
+function buildBasicSystemPrompt(schemas: EntityDefinition[], actions: ActionDefinition[]): string {
   const schemaList =
     schemas.length > 0
       ? schemas
@@ -92,8 +105,31 @@ function buildSystemPrompt(schemas: SchemaDefinition[], actions: ActionDefinitio
 
   const actionList =
     actions.length > 0
-      ? actions.map((a) => `  ${a.name} → schema: ${a.schema}, label: ${a.label}`).join("\n")
+      ? actions.map((a) => `  ${a.name} → entity: ${a.entity}, label: ${a.label}`).join("\n")
       : "  (none)";
+
+  return `Current registered schemas:
+${schemaList}
+
+Current registered actions:
+${actionList}`;
+}
+
+/** Build context section from OntologyRegistry (includes relations, rules, states, flows) */
+function buildOntologyContext(ontology: OntologyRegistry): string {
+  return ontology.toMarkdown();
+}
+
+function buildSystemPrompt(
+  schemas: EntityDefinition[],
+  actions: ActionDefinition[],
+  ontology?: OntologyRegistry,
+): string {
+  // Use ontology markdown when available for richer context,
+  // fall back to basic schema/action lists otherwise
+  const contextSection = ontology
+    ? buildOntologyContext(ontology)
+    : buildBasicSystemPrompt(schemas, actions);
 
   return `You are a LinchKit proposal generator. Your job is to translate natural language requests
 into structured change proposals for the LinchKit meta-model system.
@@ -102,16 +138,14 @@ LinchKit has the following concepts:
 - Schema: Data model definitions with typed fields
 - Action: Write operations on schemas (CRUD + business logic)
 - Rule: Business rules triggered by actions/events
+- State: State machine definitions for schemas
 - View: UI layout definitions
 - Flow: Multi-step workflow definitions
+- Link: Relationships between schemas (one-to-many, many-to-many)
 
-Current registered schemas:
-${schemaList}
+${contextSection}
 
-Current registered actions:
-${actionList}
-
-Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed
+Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed, ref, has_many, many_to_many
 
 Rules for generating proposals:
 1. For "create" changes, always include a complete "definition" object
@@ -120,30 +154,107 @@ Rules for generating proposals:
 4. Schema definitions must have: name, fields (with type for each field)
 5. Action definitions must have: name, schema, label, policy (with mode and transaction)
 6. Enum fields must include an "options" array with {value, label} items
-7. Relationships between schemas are defined via defineLink(), not field types
+7. Relationships between schemas are defined via defineRelation(), not field types
 8. Always identify affected schemas, actions, rules, and dependents in impact
+9. Consider existing relations, rules, and states when proposing changes
+
+Example proposal for "Add a priority field to Task":
+{
+  "title": "Add priority field to Task",
+  "description": "Add an enum priority field (low/medium/high) to the Task schema",
+  "capability": "task_management",
+  "changes": [{
+    "type": "modify",
+    "target": "entity",
+    "name": "task",
+    "definition": {
+      "name": "task",
+      "label": "Task",
+      "fields": {
+        "title": { "type": "string", "required": true, "label": "Title" },
+        "priority": { "type": "enum", "label": "Priority", "options": [
+          { "value": "low", "label": "Low" },
+          { "value": "medium", "label": "Medium" },
+          { "value": "high", "label": "High" }
+        ]}
+      }
+    },
+    "diff": "Added field: priority (enum: low, medium, high)"
+  }],
+  "impact": {
+    "schemas": ["task"],
+    "actions": [],
+    "rules": [],
+    "dependents": [],
+    "migrationRequired": true
+  }
+}
 
 Respond with a JSON object matching the required structure exactly.`;
 }
 
 // ── Factory ──────────────────────────────────────────────
 
+// ── Zod schema for AI structured output ─────────────────
+
+const proposalResponseSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  capability: z.string().optional(),
+  changes: z.array(
+    z.object({
+      type: z.enum(["create", "modify", "delete"]),
+      target: z.enum(["entity", "action", "rule", "flow", "view"]),
+      name: z.string(),
+      definition: z.record(z.string(), z.unknown()).optional(),
+      diff: z.string().optional(),
+    }),
+  ),
+  impact: z.object({
+    schemas: z.array(z.string()),
+    actions: z.array(z.string()),
+    rules: z.array(z.string()),
+    dependents: z.array(z.string()),
+    migrationRequired: z.boolean(),
+  }),
+});
+
+// ── Error type for proposal generation failures ─────────
+
+export class ProposalGenerationError extends BusinessRuleError {
+  override readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super({ message, code: "proposal.generation.failed" });
+    this.name = "ProposalGenerationError";
+    this.cause = cause;
+  }
+}
+
 /**
  * Create an AI-powered ProposalGenerator.
  *
  * Uses the AIService with structured output to convert natural language
  * into well-formed ProposalDefinitions.
+ *
+ * When deps.ontologyRegistry is provided, the system prompt includes the
+ * full ontology context (relations, rules, states, flows, views) for
+ * richer, more context-aware proposals.
+ *
+ * Graceful error handling: if the AI service is not configured or the AI
+ * call fails, throws a descriptive ProposalGenerationError instead of
+ * crashing with an opaque error.
  */
 export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGenerator {
-  const { aiService, schemaRegistry, actionRegistry } = deps;
+  const { aiService, entityRegistry, actionRegistry, ontologyRegistry } = deps;
 
   return {
     async generate(request: ProposalRequest): Promise<ProposalDefinition> {
       // Gather current context
-      const schemas = schemaRegistry.getAll();
+      const schemas = entityRegistry.getAll();
       const actions = actionRegistry.getAll();
 
-      const systemPrompt = buildSystemPrompt(schemas, actions);
+      const systemPrompt = buildSystemPrompt(schemas, actions, ontologyRegistry);
 
       // Build user message with the request
       let userMessage = request.description;
@@ -154,44 +265,32 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
         userMessage += `\n\nAdditional context: ${JSON.stringify(request.context)}`;
       }
 
-      // Call AI with structured output
-      const result = await aiService.complete({
-        model: "standard",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0,
-        responseFormat: {
-          type: "json",
-          schema: z.object({
-            title: z.string(),
-            description: z.string(),
-            capability: z.string().optional(),
-            changes: z.array(
-              z.object({
-                type: z.enum(["create", "modify", "delete"]),
-                target: z.enum(["schema", "action", "rule", "flow", "view"]),
-                name: z.string(),
-                definition: z.record(z.string(), z.unknown()).optional(),
-                diff: z.string().optional(),
-              }),
-            ),
-            impact: z.object({
-              schemas: z.array(z.string()),
-              actions: z.array(z.string()),
-              rules: z.array(z.string()),
-              dependents: z.array(z.string()),
-              migrationRequired: z.boolean(),
-            }),
-          }),
-        },
-      });
+      // Call AI with structured output — graceful error handling
+      let aiResponse: AIProposalResponse;
+      try {
+        const result = await aiService.complete({
+          model: "standard",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          temperature: 0,
+          responseFormat: {
+            type: "json",
+            schema: proposalResponseSchema,
+          },
+        });
 
-      // Parse AI response — either from structured data or raw content
-      const aiResponse: AIProposalResponse = result.data
-        ? (result.data as AIProposalResponse)
-        : JSON.parse(result.content);
+        // Parse AI response — either from structured data or raw content
+        aiResponse = result.data ? (result.data as AIProposalResponse) : JSON.parse(result.content);
+      } catch (err) {
+        // Wrap AI errors with a descriptive message
+        const message =
+          err instanceof Error && err.message.includes("not configured")
+            ? "AI service is not configured. Proposal generation requires an AI provider. Add an 'ai' section to your LinchKit config."
+            : `AI proposal generation failed: ${err instanceof Error ? err.message : String(err)}`;
+        throw new ProposalGenerationError(message, err);
+      }
 
       // Map AI response target to ProposalChangeTarget (pass through as-is)
       const mapTarget = (t: string): ProposalChange["target"] => {
@@ -246,14 +345,14 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
       // Precompute schemas being created in this proposal
       const proposedSchemaNames = new Set(
         proposal.changes
-          .filter((c) => c.target === "schema" && c.operation === "create")
+          .filter((c) => c.target === "entity" && c.operation === "create")
           .map((c) => c.name),
       );
 
       for (const change of proposal.changes) {
         validateChange(
           change,
-          schemaRegistry,
+          entityRegistry,
           actionRegistry,
           errors,
           warnings,
@@ -282,20 +381,20 @@ export function createProposalGenerator(deps: ProposalGeneratorDeps): ProposalGe
 
 function validateChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   actionRegistry: ActionRegistry,
   errors: string[],
   warnings: string[],
   proposedSchemaNames: Set<string>,
 ): void {
   switch (change.target) {
-    case "schema":
-      validateSchemaChange(change, schemaRegistry, errors, warnings);
+    case "entity":
+      validateEntityChange(change, entityRegistry, errors, warnings);
       break;
     case "action":
       validateActionChange(
         change,
-        schemaRegistry,
+        entityRegistry,
         actionRegistry,
         errors,
         warnings,
@@ -313,67 +412,67 @@ function validateChange(
   }
 }
 
-function validateSchemaChange(
+function validateEntityChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   errors: string[],
   warnings: string[],
 ): void {
   if (change.operation === "delete") {
-    if (!schemaRegistry.has(change.name)) {
-      warnings.push(`Schema "${change.name}" does not exist (delete is a no-op)`);
+    if (!entityRegistry.has(change.name)) {
+      warnings.push(`Entity "${change.name}" does not exist (delete is a no-op)`);
     }
     return;
   }
 
   if (!change.definition) {
-    errors.push(`Schema change "${change.name}": definition is required for ${change.operation}`);
+    errors.push(`Entity change "${change.name}": definition is required for ${change.operation}`);
     return;
   }
 
-  const def = change.definition as SchemaDefinition;
+  const def = change.definition as EntityDefinition;
 
   // Check name matches
   if (def.name && def.name !== change.name) {
     errors.push(
-      `Schema change "${change.name}": definition.name "${def.name}" does not match change.name`,
+      `Entity change "${change.name}": definition.name "${def.name}" does not match change.name`,
     );
   }
 
   // Check fields exist
   if (!def.fields || Object.keys(def.fields).length === 0) {
-    errors.push(`Schema "${change.name}": must have at least one field`);
+    errors.push(`Entity "${change.name}": must have at least one field`);
     return;
   }
 
   // Validate each field
   for (const [fieldName, fieldDef] of Object.entries(def.fields)) {
     if (!VALID_FIELD_TYPES.has(fieldDef.type)) {
-      errors.push(`Schema "${change.name}" field "${fieldName}": invalid type "${fieldDef.type}"`);
+      errors.push(`Entity "${change.name}" field "${fieldName}": invalid type "${fieldDef.type}"`);
     }
 
     // Enum fields must have options
     if (fieldDef.type === "enum" && !("options" in fieldDef && Array.isArray(fieldDef.options))) {
       errors.push(
-        `Schema "${change.name}" field "${fieldName}": enum field must have options array`,
+        `Entity "${change.name}" field "${fieldName}": enum field must have options array`,
       );
     }
   }
 
-  // Check for duplicate field names with existing schemas (for create)
-  if (change.operation === "create" && schemaRegistry.has(change.name)) {
-    errors.push(`Schema "${change.name}" already exists (use "update" operation instead)`);
+  // Check for duplicate names with existing entities (for create)
+  if (change.operation === "create" && entityRegistry.has(change.name)) {
+    errors.push(`Entity "${change.name}" already exists (use "update" operation instead)`);
   }
 
-  // Check for update on non-existent schema
-  if (change.operation === "update" && !schemaRegistry.has(change.name)) {
-    warnings.push(`Schema "${change.name}" does not exist yet (will be treated as create)`);
+  // Check for update on non-existent entity
+  if (change.operation === "update" && !entityRegistry.has(change.name)) {
+    warnings.push(`Entity "${change.name}" does not exist yet (will be treated as create)`);
   }
 }
 
 function validateActionChange(
   change: ProposalChange,
-  schemaRegistry: SchemaRegistry,
+  entityRegistry: EntityRegistry,
   _actionRegistry: ActionRegistry,
   errors: string[],
   _warnings: string[],
@@ -388,9 +487,9 @@ function validateActionChange(
 
   const def = change.definition as ActionDefinition;
 
-  // Action must reference a valid schema (also accept schemas being created in the same proposal)
-  if (def.schema && !schemaRegistry.has(def.schema) && !proposedSchemaNames.has(def.schema)) {
-    errors.push(`Action "${change.name}": references unknown schema "${def.schema}"`);
+  // Action must reference a valid entity (also accept entities being created in the same proposal)
+  if (def.entity && !entityRegistry.has(def.entity) && !proposedSchemaNames.has(def.entity)) {
+    errors.push(`Action "${change.name}": references unknown entity "${def.entity}"`);
   }
 
   // Validate input fields if present

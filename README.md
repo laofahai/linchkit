@@ -8,7 +8,7 @@
 
 ## Core Principles
 
-1. **Unified Meta-Model** — Schema + Action + Rule + State + Event + EventHandler + View + Flow
+1. **Unified Meta-Model** — Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link
 2. **AI Deep Participation** — Design, generate, optimize — but never modify production directly
 3. **Modular Organization** — Capability (standard / bridge / adapter), independently evolvable, composable on demand
 4. **Unified Entry Point** — Command Layer unifies CLI / MCP / API / UI; Action is the sole write entry, GraphQL for reads
@@ -52,7 +52,7 @@ packages/ (core infrastructure):
 capabilities/ (pluggable):
   @linchkit/cap-adapter-server    — HTTP/GraphQL transport (Elysia + graphql-yoga)
   @linchkit/cap-adapter-mcp       — MCP transport for AI agents
-  @linchkit/cap-adapter-ui-react  — Official UI shell (React + Shadcn + TanStack)
+  @linchkit/cap-adapter-ui  — Official UI shell (React + Shadcn + TanStack)
   @linchkit/cap-auth              — Authentication (JWT, sessions)
   @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
   @linchkit/cap-permission        — Permission engine (RBAC)
@@ -129,16 +129,28 @@ capabilities/ (pluggable):
 
 ---
 
-### M2 — AI Integration + Multi-Tenancy
+### M2 — Link Type + OntologyRegistry + GraphQL Subscriptions
 
-**Goal:** AI calls Actions via MCP, generates Proposals. Multi-tenancy basics.
+**Goal:** First-class relationships, semantic registry, real-time subscriptions, schema advanced features.
 
 - [x] MCP adapter *(implemented in M1b)*
 - [x] Full CLAUDE.md + AGENTS.md *(maintained throughout)*
-- [ ] AI Skills package
 - [x] AI-assisted Proposal generation *(implemented in M1b)*
+- [x] OntologyRegistry — unified semantic layer across all registries
+- [x] Link Type — `defineRelation()` with bidirectional navigation, FK/junction table generation, GraphQL resolvers
+- [x] GraphQL Subscriptions — SSE-based real-time event streaming
+- [x] DataLoader integration — N+1 query optimization for link resolvers
+- [x] Schema Interface — `defineEntityInterface()` reusable field contracts
+- [x] Schema Inheritance — single-parent field/action/rule/state inheritance
+- [x] Derived Properties — computed fields evaluated at query time
+- [x] Reactive Automation — event-driven trigger bindings
+- [x] Soft Delete — logical deletion with restore/purge
+- [x] Data Masking — field-level masking rules + UI masked display
+- [x] Tenant API + UI Switcher — `/api/tenants` endpoint, tenant switcher in header
+- [x] Pagination enhancements — cursor-based pagination in GraphQL
+- [ ] AI Skills package
 - [ ] Rule Context Level 3-4
-- [ ] Multi-tenancy (Standalone + SaaS dual mode)
+- [ ] Full multi-tenancy (Standalone + SaaS dual mode)
 - [ ] AI security (rate limiting + permissions + audit)
 
 ---
@@ -214,12 +226,24 @@ capabilities/ (pluggable):
 ## Development
 
 ```bash
+# Start infrastructure (PostgreSQL + Restate)
+docker compose up -d
+
 bun install          # Install dependencies
 bun test             # Run tests
-bun run dev          # Start dev server
+bun run dev          # Start dev server (server :3001 + UI :3000)
+bun run dev:server   # Server only on :3001
+bun run dev:ui       # UI only on :3000 (proxies API to :3001)
 bun run check        # Biome lint + format check
 bun run typecheck    # TypeScript type check
+
+# Database management
+bun run db:generate  # Generate migration SQL from schema changes
+bun run db:migrate   # Apply pending migrations
+bun run db:studio    # Open Drizzle Studio GUI
 ```
+
+`docker-compose.yml` provides: PostgreSQL 16 (dev on :5432, test on :5434) + Restate (ingress :8080, admin :9070).
 
 ## License
 

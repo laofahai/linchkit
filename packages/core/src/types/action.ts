@@ -7,7 +7,8 @@
 
 import type { ConfigRegistry } from "../config/config-registry";
 import type { AIService } from "./ai";
-import type { FieldDefinition } from "./schema";
+import type { FieldDefinition } from "./entity";
+import type { Logger } from "./logger";
 
 // ── Actor types ──────────────────────────────────────
 
@@ -18,6 +19,7 @@ export interface Actor {
   id: string;
   name?: string;
   groups: string[];
+  tenantId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -32,6 +34,15 @@ export interface ActionPolicy {
     maxRetries: number;
     backoff: "fixed" | "exponential";
   };
+}
+
+// ── Tenant context ───────────────────────────────────────
+
+/** Tenant execution context for multi-tenant scoping (spec 30) */
+export interface TenantContext {
+  tenantId: string;
+  /** Tenant-specific config overrides (loaded from tenant_overrides) */
+  overrides?: Record<string, unknown>;
 }
 
 // ── Action resource limits ────────────────────────────────
@@ -86,11 +97,24 @@ export interface ActionContext {
   input: Record<string, unknown>;
   actor: Actor;
 
+  /** Current tenant ID from execution context */
+  tenantId?: string;
+
+  /** Logger instance for action handlers */
+  logger: Logger;
+
+  /** AbortSignal for cancellation/timeout support */
+  signal?: AbortSignal;
+
   /** AI service — optional, throws if not configured */
   ai: AIService;
 
   // Data operations
-  get(schema: string, id: string): Promise<Record<string, unknown>>;
+  get(
+    schema: string,
+    id: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<Record<string, unknown>>;
   query(schema: string, filter: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
   create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(
@@ -109,9 +133,54 @@ export interface ActionContext {
   /** Config registry — type-safe access to all validated config */
   config: ConfigRegistry;
 
+  /** Check whether a capability is installed (weak dependency degradation) */
+  hasCapability(name: string): boolean;
+
   // Current execution info
   executionId: string;
   timestamp: Date;
+}
+
+// ── Action AI configuration ─────────────────────────────────
+
+/**
+ * Per-action AI behavior configuration (spec 52 §2.4).
+ * Controls how AI interacts with this action.
+ */
+export interface ActionAIConfig {
+  /** Confirmation mode. 'explicit' (default): user must click Execute. 'auto': execute without confirmation for read-only queries. */
+  confirmationMode?: "explicit" | "auto";
+  /** When true, prevents AI from auto-executing this action even in auto mode */
+  allowAutoExecute?: boolean;
+  /** Hints to help AI understand this action's purpose and usage */
+  promptHints?: string[];
+}
+
+// ── Intent resolution ─────────────────────────────────────
+
+/**
+ * Result of AI natural language intent resolution (spec 52 §2.2).
+ * Represents what the AI understood from a user's natural language message.
+ */
+export interface IntentResolution {
+  /** Matched action name, or null if no match */
+  action: string | null;
+  /** Target entity (inferred from action) */
+  entity: string | null;
+  /** Extracted input parameters */
+  input: Record<string, unknown>;
+  /** Fields that are required but not extracted */
+  missingFields: string[];
+  /** Confidence score 0-1 */
+  confidence: number;
+  /** Human-readable explanation of what will happen */
+  explanation: string;
+  /** Alternative interpretations if confidence < threshold */
+  alternatives?: Array<{
+    action: string;
+    confidence: number;
+    explanation: string;
+  }>;
 }
 
 // ── Action permissions ─────────────────────────────────────
@@ -125,7 +194,7 @@ export interface ActionPermissions {
 
 export interface ActionDefinition {
   name: string;
-  schema: string;
+  entity: string;
   label: string;
   description?: string;
 
@@ -143,6 +212,8 @@ export interface ActionDefinition {
   sideEffects?: ActionSideEffect[];
   exposure?: ActionExposure | "all";
   permissions?: ActionPermissions;
+  /** AI behavior configuration for this action (spec 52 §2.4) */
+  ai?: ActionAIConfig;
 }
 
 // ── Action execution result ─────────────────────────────────

@@ -13,7 +13,7 @@ const defaultActor: Actor = {
 
 const createOrderAction: ActionDefinition = {
   name: "create_order",
-  schema: "order",
+  entity: "order",
   label: "Create Order",
   input: {
     title: { type: "string", required: true },
@@ -31,7 +31,7 @@ const createOrderAction: ActionDefinition = {
 
 const failingAction: ActionDefinition = {
   name: "failing_action",
-  schema: "order",
+  entity: "order",
   label: "Failing Action",
   policy: { mode: "sync", transaction: true },
   handler: async () => {
@@ -41,7 +41,7 @@ const failingAction: ActionDefinition = {
 
 const restrictedAction: ActionDefinition = {
   name: "restricted_action",
-  schema: "order",
+  entity: "order",
   label: "Restricted",
   permissions: {
     groups: ["superadmin"],
@@ -52,7 +52,7 @@ const restrictedAction: ActionDefinition = {
 
 const parentAction: ActionDefinition = {
   name: "parent_action",
-  schema: "order",
+  entity: "order",
   label: "Parent Action",
   policy: { mode: "sync", transaction: true },
   handler: async (ctx) => {
@@ -63,7 +63,7 @@ const parentAction: ActionDefinition = {
 
 const childAction: ActionDefinition = {
   name: "child_action",
-  schema: "order",
+  entity: "order",
   label: "Child Action",
   policy: { mode: "sync", transaction: true },
   handler: async () => ({ child: true }),
@@ -105,7 +105,7 @@ describe("InMemoryExecutionLogger", () => {
     const entry = {
       id: "exec_1",
       action: "create_order",
-      schema: "order",
+      entity: "order",
       actor: defaultActor,
       input: { title: "Test" },
       status: "succeeded" as const,
@@ -131,9 +131,9 @@ describe("InMemoryExecutionLogger", () => {
       completedAt: new Date(),
     };
 
-    logger.log({ ...base, id: "e1", action: "create_order", schema: "order" });
-    logger.log({ ...base, id: "e2", action: "delete_order", schema: "order" });
-    logger.log({ ...base, id: "e3", action: "create_order", schema: "order" });
+    logger.log({ ...base, id: "e1", action: "create_order", entity: "order" });
+    logger.log({ ...base, id: "e2", action: "delete_order", entity: "order" });
+    logger.log({ ...base, id: "e3", action: "create_order", entity: "order" });
 
     expect(logger.getByAction("create_order")).toHaveLength(2);
     expect(logger.getByAction("delete_order")).toHaveLength(1);
@@ -151,11 +151,11 @@ describe("InMemoryExecutionLogger", () => {
       completedAt: new Date(),
     };
 
-    logger.log({ ...base, id: "e1", action: "a1", schema: "order" });
-    logger.log({ ...base, id: "e2", action: "a2", schema: "product" });
+    logger.log({ ...base, id: "e1", action: "a1", entity: "order" });
+    logger.log({ ...base, id: "e2", action: "a2", entity: "product" });
 
-    expect(logger.getBySchema("order")).toHaveLength(1);
-    expect(logger.getBySchema("product")).toHaveLength(1);
+    expect(logger.getByEntity("order")).toHaveLength(1);
+    expect(logger.getByEntity("product")).toHaveLength(1);
   });
 
   it("should filter by status", () => {
@@ -221,7 +221,7 @@ describe("ActionExecutor with ExecutionLogger", () => {
 
     const entry = logger.getAll()[0];
     expect(entry.action).toBe("create_order");
-    expect(entry.schema).toBe("order");
+    expect(entry.entity).toBe("order");
     expect(entry.status).toBe("succeeded");
     expect(entry.actor).toEqual(defaultActor);
     expect(entry.input).toEqual({ title: "Test Order", amount: 100 });

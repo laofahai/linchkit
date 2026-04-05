@@ -12,10 +12,14 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@linchkit/cap-flow-restate": "workspace:*",
+    "@linchkit/cap-migration": "workspace:*",
     "@linchkit/core": "workspace:*",
+    "@linchkit/devtools": "workspace:*",
     "citty": "^0.2.1"
   },
   "devDependencies": {
+    "consola": "^3.4.2",
     "typescript": "^5.9.3"
   }
 }

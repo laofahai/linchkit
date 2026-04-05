@@ -42,6 +42,68 @@ export interface AILimits {
   maxCostPerDay?: number;
 }
 
+// ── Fallback chain ───────────────────────────────────────────
+
+/** Fallback provider specification for multi-model resilience */
+export interface AIFallbackConfig {
+  /** Ordered list of provider names to try when primary fails */
+  providers: string[];
+  /** Max retries per provider before moving to next (default: 1) */
+  retriesPerProvider?: number;
+  /** Delay in ms between retries (default: 1000) */
+  retryDelay?: number;
+  /** Only fallback on these error types (default: all errors trigger fallback) */
+  onErrors?: ("timeout" | "rate_limit" | "server_error" | "auth_error")[];
+}
+
+// ── Model routing ────────────────────────────────────────────
+
+/** Task type for model routing */
+export type AITaskType =
+  | "classification"
+  | "extraction"
+  | "generation"
+  | "summarization"
+  | "analysis"
+  | "conversation"
+  | "code";
+
+/** Model routing rule: map task types to model tiers */
+export interface AIModelRoute {
+  /** Task type this route applies to */
+  taskType: AITaskType;
+  /** Model alias or ID to use for this task type */
+  model: string;
+  /** Provider override for this task type */
+  provider?: string;
+}
+
+// ── Response caching ─────────────────────────────────────────
+
+/** Configuration for AI response caching */
+export interface AICacheConfig {
+  /** Enable response caching (default: false) */
+  enabled: boolean;
+  /** Max number of cached entries (default: 1000) */
+  maxEntries?: number;
+  /** TTL in milliseconds for cached entries (default: 3600000 = 1 hour) */
+  ttlMs?: number;
+  /** Only cache responses for these model aliases (default: all) */
+  modelFilter?: string[];
+}
+
+// ── Tenant AI config override ────────────────────────────────
+
+/** Per-tenant AI configuration override (BYOK support) */
+export interface AITenantConfig {
+  /** Override provider configs (merged with global) */
+  providers?: Record<string, Partial<AIProviderConfig>>;
+  /** Override limits for this tenant */
+  limits?: AILimits;
+  /** Fallback chain override for this tenant */
+  fallback?: AIFallbackConfig;
+}
+
 // ── Top-level AI config ─────────────────────────────────────
 
 export interface AIServiceConfig {
@@ -51,6 +113,28 @@ export interface AIServiceConfig {
   providers: Record<string, AIProviderConfig>;
   /** Global resource limits */
   limits?: AILimits;
+  /** Fallback chain configuration */
+  fallback?: AIFallbackConfig;
+  /** Model routing rules (task type → model mapping) */
+  routing?: AIModelRoute[];
+  /** Response caching configuration */
+  cache?: AICacheConfig;
+  /** Per-tenant AI config overrides (BYOK) */
+  tenants?: Record<string, AITenantConfig>;
+  /** AI Assistant configuration for the chat UI */
+  assistant?: AIAssistantConfig;
+}
+
+/** Configuration for the AI chat assistant */
+export interface AIAssistantConfig {
+  /** Custom system prompt prepended to the dynamic context */
+  systemPrompt?: string;
+  /** Model alias or ID to use for chat (default: "fast") */
+  model?: string;
+  /** Maximum tool call steps per message (default: 5) */
+  maxSteps?: number;
+  /** Temperature for chat responses (default: 0.3) */
+  temperature?: number;
 }
 
 // ── Completion options ──────────────────────────────────────
@@ -88,6 +172,12 @@ export interface AICompletionOptions {
   tools?: AITool[];
   /** Request timeout in milliseconds */
   timeout?: number;
+  /** Task type hint for model routing (auto-selects model tier) */
+  taskType?: AITaskType;
+  /** Tenant ID for BYOK config resolution */
+  tenantId?: string;
+  /** Whether to use response cache (default: follows global cache config) */
+  cache?: boolean;
 }
 
 // ── Completion result ───────────────────────────────────────
@@ -113,12 +203,36 @@ export interface AICompletionResult {
   provider: string;
   /** Request duration in milliseconds */
   duration: number;
+  /** Whether this result was served from cache */
+  cached?: boolean;
+  /** Whether a fallback provider was used (includes original provider that failed) */
+  fallbackUsed?: string;
+}
+
+// ── Streaming result ─────────────────────────────────────────
+
+/** A streaming completion result — yields text chunks via async iterator */
+export interface AIStreamResult {
+  /** Async iterator of text chunks */
+  textStream: AsyncIterable<string>;
+  /** Actual model ID used */
+  model: string;
+  /** Provider name used */
+  provider: string;
 }
 
 // ── AI Service interface ────────────────────────────────────
 
 /** The ctx.ai interface available in Action handlers */
 export interface AIService {
+  /** Whether a real AI provider is configured (false for noop) */
+  configured: boolean;
+  /** Default provider name (null when not configured) */
+  defaultProvider: string | null;
+  /** List of configured provider names (empty when not configured) */
+  providerNames: string[];
   /** Single completion request */
   complete(options: AICompletionOptions): Promise<AICompletionResult>;
+  /** Streaming completion request — returns an async iterable of text chunks */
+  completeStream?(options: AICompletionOptions): Promise<AIStreamResult>;
 }

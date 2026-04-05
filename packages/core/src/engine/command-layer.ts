@@ -14,8 +14,11 @@
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
 
-import { LinchKitError } from "../errors";
+import { AuthorizationError, LinchKitError, SystemError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
+import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
@@ -36,11 +39,8 @@ export type SlotName = (typeof SLOT_ORDER)[number];
 
 // ── Pipeline ID generator ───────────────────────────────────
 
-let pipelineCounter = 0;
-
 function generatePipelineId(): string {
-  pipelineCounter++;
-  return `pipeline_${Date.now()}_${pipelineCounter}`;
+  return `pipeline_${crypto.randomUUID()}`;
 }
 
 // ── CommandContext ───────────────────────────────────────────
@@ -66,6 +66,8 @@ export interface CommandContext {
   action?: ActionDefinition;
   /** Action execution result (set after action runs, available in post-action) */
   result?: ActionResult;
+  /** Trace ID — set automatically by the pipeline for observability */
+  traceId?: string;
 }
 
 // ── Middleware types ────────────────────────────────────────
@@ -115,6 +117,8 @@ export interface CommandLayerOptions {
    * If not configured, approvalId is ignored (fail-closed — security slots are NOT skipped).
    */
   verifyApproval?: (approvalId: string) => Promise<boolean>;
+  /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
+  metrics?: MetricsCollector;
 }
 
 export interface CommandLayer {
@@ -144,6 +148,8 @@ export interface CommandExecuteOptions {
   approvalId?: string;
   /** Rule names to skip during re-execution (forwarded to executor) */
   skipRules?: string[];
+  /** External trace ID — when provided, the pipeline reuses this instead of generating a new one */
+  traceId?: string;
 }
 
 /**
@@ -157,7 +163,12 @@ export interface CommandExecuteOptions {
  * ```
  */
 export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
-  const { executor, logger = consoleLogger, verifyApproval } = options;
+  const {
+    executor,
+    logger = consoleLogger,
+    verifyApproval,
+    metrics = noopMetricsCollector,
+  } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
   function use(registration: MiddlewareRegistration): void {
@@ -209,6 +220,23 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
   }
 
   async function execute(execOptions: CommandExecuteOptions): Promise<ActionResult> {
+    // Wrap entire pipeline in a trace context for observability.
+    // If already inside a trace (e.g. event handler re-entry), depth increments.
+    const pipelineStart = Date.now();
+    const traceFn = async () => executeInner(execOptions, pipelineStart);
+    if (execOptions.traceId) {
+      return (await withTraceId(execOptions.traceId, traceFn)) as ActionResult;
+    }
+    return (await withTrace(traceFn)) as ActionResult;
+  }
+
+  async function executeInner(
+    execOptions: CommandExecuteOptions,
+    pipelineStart: number,
+  ): Promise<ActionResult> {
+    // Capture trace ID from the active trace context
+    const trace = getCurrentTrace();
+
     // Build context with copies to isolate from caller
     const ctx: CommandContext = {
       command: execOptions.command,
@@ -221,6 +249,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       locale: execOptions.locale,
       headers: execOptions.headers ? { ...execOptions.headers } : undefined,
       meta: { ...(execOptions.meta ?? {}) },
+      traceId: trace?.traceId,
     };
 
     // Resolve action definition for exposure check
@@ -334,6 +363,10 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       const run = compose(pipeline);
       await run(ctx);
     } catch (err) {
+      metrics.increment("command.processed", { command: ctx.command, status: "failed" });
+      metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+        command: ctx.command,
+      });
       if (err instanceof ExposureError) {
         return {
           success: false,
@@ -344,7 +377,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       if (err instanceof PipelineError) {
         return {
           success: false,
-          data: { error: err.message, code: err.code },
+          data: { error: err.message, code: err.pipelineCode },
           executionId: generatePipelineId(),
         };
       }
@@ -365,6 +398,10 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
 
     // If action didn't execute (middleware blocked by not calling next())
     if (!ctx.result) {
+      metrics.increment("command.processed", { command: ctx.command, status: "blocked" });
+      metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+        command: ctx.command,
+      });
       return {
         success: false,
         data: { error: "Request blocked by pipeline" },
@@ -402,6 +439,11 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       }
     }
 
+    metrics.increment("command.processed", { command: ctx.command, status: "succeeded" });
+    metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
+      command: ctx.command,
+    });
+
     return ctx.result;
   }
 
@@ -411,20 +453,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
 // ── Pipeline errors ─────────────────────────────────────────
 
 /** Error thrown by built-in exposure check */
-export class ExposureError extends Error {
+export class ExposureError extends AuthorizationError {
   constructor(message: string) {
-    super(message);
+    super({ message, code: "command.exposure.denied" });
     this.name = "ExposureError";
   }
 }
 
 /** Error thrown by middleware to short-circuit the pipeline with a code */
-export class PipelineError extends Error {
-  readonly code: string;
+export class PipelineError extends SystemError {
+  /** Pipeline-specific error code (e.g. "AUTH.REQUIRED", "PERMISSION.DENIED") */
+  readonly pipelineCode: string;
 
   constructor(message: string, code: string) {
-    super(message);
+    super({ message, code: "command.pipeline.error" });
+    this.pipelineCode = code;
     this.name = "PipelineError";
-    this.code = code;
   }
 }

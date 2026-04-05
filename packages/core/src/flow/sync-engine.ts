@@ -11,16 +11,20 @@
  * - Parallel steps run sequentially (with a warning)
  */
 
+import type { Actor, ActorType } from "../types/action";
+import type { EventBusLike } from "../types/event";
 import type {
   ActionFlowStep,
   AIFlowStep,
+  CompensationLogEntry,
   ConditionFlowStep,
   FlowDefinition,
   FlowInstance,
   FlowStep,
   ParallelFlowStep,
 } from "../types/flow";
-import type { FlowEngine, FlowStepContext } from "./types";
+import { emitFlowCompletionEvent, processOnCompleteChains } from "./flow-chaining";
+import type { FlowEngine, FlowRegistry, FlowStepContext } from "./types";
 
 // ── Expression resolver ─────────────────────────────────
 
@@ -161,28 +165,39 @@ async function executeActionStep(
   return stepContext.executeAction(step.actionName, input);
 }
 
+/** Maximum number of tool call rounds to prevent infinite loops */
+const MAX_TOOL_CALL_ROUNDS = 10;
+
+/**
+ * Resolve a prompt string or template against the flow context.
+ */
+function resolvePrompt(
+  prompt: string | { template: string; variables: Record<string, string> },
+  flowContext: Record<string, unknown>,
+): string {
+  if (typeof prompt === "string") {
+    // Replace $-expressions in the prompt string
+    return prompt.replace(/\$[\w.]+/g, (match) => {
+      const value = resolveExpression(match, flowContext);
+      return value !== undefined ? String(value) : match;
+    });
+  }
+
+  // Template with variables
+  let result = prompt.template;
+  for (const [key, expr] of Object.entries(prompt.variables)) {
+    const value = resolveExpression(expr, flowContext);
+    result = result.replace(new RegExp(`\\{${key}\\}`, "g"), String(value ?? ""));
+  }
+  return result;
+}
+
 async function executeAIStep(
   step: AIFlowStep,
   stepContext: FlowStepContext,
   flowContext: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  // Resolve prompt template variables
-  let prompt: string;
-  if (typeof step.prompt === "string") {
-    prompt = step.prompt;
-    // Replace $-expressions in the prompt string
-    prompt = prompt.replace(/\$[\w.]+/g, (match) => {
-      const value = resolveExpression(match, flowContext);
-      return value !== undefined ? String(value) : match;
-    });
-  } else {
-    // Template with variables
-    prompt = step.prompt.template;
-    for (const [key, expr] of Object.entries(step.prompt.variables)) {
-      const value = resolveExpression(expr, flowContext);
-      prompt = prompt.replace(new RegExp(`\\{${key}\\}`, "g"), String(value ?? ""));
-    }
-  }
+  const prompt = resolvePrompt(step.prompt, flowContext);
 
   const result = await stepContext.callAI({
     prompt,
@@ -191,7 +206,125 @@ async function executeAIStep(
     responseFormat: step.responseFormat,
   });
 
-  return { response: result.response, tokensUsed: result.tokensUsed };
+  // If no tool calls, return immediately
+  if (!result.toolCalls || result.toolCalls.length === 0) {
+    return { response: result.response, tokensUsed: result.tokensUsed };
+  }
+
+  // Tool call loop: execute tool calls and feed results back to AI
+  let totalTokens = result.tokensUsed;
+  const toolResults: Array<{ toolName: string; args: Record<string, unknown>; result: unknown }> =
+    [];
+  let currentToolCalls: Array<{ toolName: string; args: Record<string, unknown> }> | undefined =
+    result.toolCalls;
+  let finalResponse = result.response;
+  let round = 0;
+
+  while (currentToolCalls && currentToolCalls.length > 0 && round < MAX_TOOL_CALL_ROUNDS) {
+    round++;
+
+    // Execute each tool call via executeAction
+    const roundResults: Array<{ toolName: string; result: unknown }> = [];
+    for (const toolCall of currentToolCalls) {
+      try {
+        const actionResult = await stepContext.executeAction(toolCall.toolName, toolCall.args);
+        roundResults.push({ toolName: toolCall.toolName, result: actionResult });
+        toolResults.push({
+          toolName: toolCall.toolName,
+          args: toolCall.args,
+          result: actionResult,
+        });
+      } catch (err) {
+        const errorResult = {
+          error: err instanceof Error ? err.message : String(err),
+        };
+        roundResults.push({ toolName: toolCall.toolName, result: errorResult });
+        toolResults.push({
+          toolName: toolCall.toolName,
+          args: toolCall.args,
+          result: errorResult,
+        });
+      }
+    }
+
+    // Build a follow-up prompt with tool results for the AI
+    const toolResultSummary = roundResults
+      .map((r) => `Tool "${r.toolName}" returned: ${JSON.stringify(r.result)}`)
+      .join("\n");
+
+    const followUpPrompt = `${prompt}\n\nPrevious tool call results:\n${toolResultSummary}\n\nPlease provide your final response based on these results.`;
+
+    const followUp = await stepContext.callAI({
+      prompt: followUpPrompt,
+      model: step.model,
+      tools: step.tools,
+      responseFormat: step.responseFormat,
+    });
+
+    totalTokens += followUp.tokensUsed;
+    finalResponse = followUp.response;
+    currentToolCalls = followUp.toolCalls;
+  }
+
+  return {
+    response: finalResponse,
+    tokensUsed: totalTokens,
+    toolCalls: toolResults,
+  };
+}
+
+// ── Saga compensation ───────────────────────────────────
+
+/** Record of a successfully completed action step that has a compensation action */
+interface CompletedActionRecord {
+  stepId: string;
+  compensationAction: string;
+  compensationInput: Record<string, unknown> | string | undefined;
+  /** Output from the step — used as default compensation input */
+  stepOutput: Record<string, unknown>;
+}
+
+/**
+ * Execute Saga compensations in reverse order for all completed action steps
+ * that declared a compensation action.
+ *
+ * Each compensation is attempted independently; failures are logged but do not
+ * stop the remaining compensations from running.
+ */
+async function runCompensations(
+  completed: CompletedActionRecord[],
+  runCtx: FlowStepContext,
+  flowContext: Record<string, unknown>,
+): Promise<CompensationLogEntry[]> {
+  const log: CompensationLogEntry[] = [];
+
+  // Run in reverse order (last-in, first-out)
+  for (let i = completed.length - 1; i >= 0; i--) {
+    const record = completed[i];
+    if (!record) continue;
+
+    const resolvedInput = record.compensationInput
+      ? resolveInputExpressions(record.compensationInput, flowContext)
+      : record.stepOutput;
+
+    const entry: CompensationLogEntry = {
+      stepId: record.stepId,
+      compensationAction: record.compensationAction,
+      status: "succeeded",
+      executedAt: new Date(),
+    };
+
+    try {
+      await runCtx.executeAction(record.compensationAction, resolvedInput);
+    } catch (err) {
+      entry.status = "failed";
+      entry.error = err instanceof Error ? err.message : String(err);
+    }
+
+    log.push(entry);
+  }
+
+  return log;
 }
 
 // ── SyncFlowEngine ──────────────────────────────────────
@@ -210,7 +343,15 @@ async function executeAIStep(
  * - `ai` steps
  * - `parallel` steps (run sequentially with a warning)
  */
-export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
+export function createSyncFlowEngine(
+  stepContext: FlowStepContext,
+  options?: {
+    eventBus?: EventBusLike & {
+      emit?: (event: import("../types/event").EventRecord) => Promise<void>;
+    };
+    flowRegistry?: FlowRegistry;
+  },
+): FlowEngine {
   /** In-memory registry of flow definitions */
   const flowDefs = new Map<string, FlowDefinition>();
 
@@ -299,7 +440,7 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
     definition: FlowDefinition,
     input: Record<string, unknown>,
     instanceId: string,
-    options?: { tenantId?: string; actor?: { type: string; id: string } },
+    runOptions?: { tenantId?: string; actor?: Actor },
   ): Promise<FlowInstance> {
     const stepMap = buildStepMap(definition.steps);
 
@@ -326,10 +467,13 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
     // multiple flows run concurrently (each gets its own tenant/actor/flowContext).
     const runCtx: FlowStepContext = {
       ...stepContext,
-      tenantId: options?.tenantId,
-      actor: options?.actor,
+      tenantId: runOptions?.tenantId,
+      actor: runOptions?.actor,
       flowContext,
     };
+
+    // Track completed action steps that have a compensation action (for Saga rollback)
+    const completedActionSteps: CompletedActionRecord[] = [];
 
     try {
       // Walk through steps sequentially
@@ -341,6 +485,16 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
         instance.currentStepId = step.id;
 
         const { output, nextStepId } = await executeStep(step, flowContext, stepMap, runCtx);
+
+        // Track action steps that declare a compensation action
+        if (step.type === "action" && (step as ActionFlowStep).compensation) {
+          completedActionSteps.push({
+            stepId: step.id,
+            compensationAction: (step as ActionFlowStep).compensation as string,
+            compensationInput: (step as ActionFlowStep).compensationInput,
+            stepOutput: output,
+          });
+        }
 
         // Store step output in context (wrapped in { output } to match compiler format)
         const stepsCtx = flowContext.__steps as Record<string, unknown>;
@@ -373,6 +527,35 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
         stepId: instance.currentStepId,
         message: err instanceof Error ? err.message : String(err),
       };
+
+      // Run Saga compensations if onError === 'compensate' and there are steps to undo
+      if (definition.onError === "compensate" && completedActionSteps.length > 0) {
+        instance.status = "compensating";
+        const compensationLog = await runCompensations(completedActionSteps, runCtx, flowContext);
+        instance.compensationLog = compensationLog;
+        instance.status = "compensated";
+      }
+    }
+
+    // Emit flow completion/failure event to EventBus
+    if (options?.eventBus && (instance.status === "completed" || instance.status === "failed")) {
+      try {
+        await emitFlowCompletionEvent(options.eventBus, instance);
+      } catch {
+        // Don't fail the flow if event emission fails
+      }
+    }
+
+    // Process explicit onComplete chains (only via flowRegistry, not self-reference)
+    if (options?.flowRegistry && instance.status === "completed") {
+      try {
+        await processOnCompleteChains(instance, options.flowRegistry, engine);
+      } catch (chainErr) {
+        // Don't fail the parent flow if chaining fails
+        console.warn(
+          `[SyncFlowEngine] onComplete chain failed for flow "${instance.flowName}": ${chainErr instanceof Error ? chainErr.message : String(chainErr)}`,
+        );
+      }
     }
 
     return instance;
@@ -380,15 +563,33 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
 
   // ── FlowEngine interface ────────────────────────────────
 
-  return {
-    async startFlow(flowName, input, options) {
+  const engine: FlowEngine = {
+    async startFlow(flowName, input, startOptions) {
       const definition = flowDefs.get(flowName);
       if (!definition) {
         throw new Error(`Flow "${flowName}" is not registered`);
       }
 
-      const instanceId = options?.instanceId ?? crypto.randomUUID();
-      return runFlow(definition, input, instanceId, options);
+      const instanceId = startOptions?.instanceId ?? crypto.randomUUID();
+      const tenantId = startOptions?.tenantId;
+      let actor: Actor | undefined;
+      if (startOptions?.actor) {
+        const optActor = startOptions.actor;
+        if ("groups" in optActor && optActor.groups) {
+          actor = optActor as Actor;
+        } else {
+          actor = {
+            type: optActor.type as ActorType,
+            id: optActor.id,
+            name: "name" in optActor ? optActor.name : undefined,
+            groups: [],
+          };
+        }
+      }
+      return runFlow(definition, input, instanceId, {
+        tenantId,
+        actor,
+      });
     },
 
     async getFlowStatus(instanceId) {
@@ -414,4 +615,6 @@ export function createSyncFlowEngine(stepContext: FlowStepContext): FlowEngine {
       flowDefs.set(definition.name, definition);
     },
   };
+
+  return engine;
 }

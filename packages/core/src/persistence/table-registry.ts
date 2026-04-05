@@ -7,8 +7,8 @@
  */
 
 import type { PgTable } from "drizzle-orm/pg-core";
-import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../schema/schema-to-drizzle";
-import type { SchemaDefinition } from "../types/schema";
+import { type DrizzleGeneratorOptions, generateDrizzleTable } from "../entity/entity-to-drizzle";
+import type { EntityDefinition } from "../types/entity";
 
 export class TableRegistry {
   private tables = new Map<string, PgTable>();
@@ -16,22 +16,22 @@ export class TableRegistry {
   /**
    * Register a Drizzle table definition for a schema name.
    */
-  register(schemaName: string, table: PgTable): void {
-    this.tables.set(schemaName, table);
+  register(entityName: string, table: PgTable): void {
+    this.tables.set(entityName, table);
   }
 
   /**
    * Get the Drizzle table for a given schema name.
    */
-  getTable(schemaName: string): PgTable | undefined {
-    return this.tables.get(schemaName);
+  getTable(entityName: string): PgTable | undefined {
+    return this.tables.get(entityName);
   }
 
   /**
    * Check if a table is registered for a schema name.
    */
-  has(schemaName: string): boolean {
-    return this.tables.has(schemaName);
+  has(entityName: string): boolean {
+    return this.tables.has(entityName);
   }
 
   /**
@@ -43,11 +43,11 @@ export class TableRegistry {
 
   /**
    * Build Drizzle table definitions from a schema registry map.
-   * Generates pgTable definitions from SchemaDefinition fields
+   * Generates pgTable definitions from EntityDefinition fields
    * using the schema-to-drizzle generator.
    */
-  buildFromSchemaRegistry(
-    schemas: Map<string, SchemaDefinition>,
+  buildFromEntityRegistry(
+    schemas: Map<string, EntityDefinition>,
     options?: DrizzleGeneratorOptions,
   ): void {
     for (const [name, schema] of schemas) {

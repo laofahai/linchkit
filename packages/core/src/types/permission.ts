@@ -49,6 +49,8 @@ export interface SchemaPermissions {
     visible?: string[];
     /** Fields explicitly hidden (blacklist) */
     hidden?: string[];
+    /** Fields whose masking should be bypassed (actor sees raw values) */
+    unmask?: string[];
   };
 }
 
@@ -77,6 +79,9 @@ export interface PermissionGroupDefinition {
    * ```
    */
   permissions: Record<string, Record<string, SchemaPermissions>>;
+
+  /** Shorthand for system_admin level */
+  systemLevel?: "admin";
 
   /** AI agent constraints (optional) */
   constraints?: PermissionConstraints;

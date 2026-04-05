@@ -2,40 +2,66 @@
  * linch db — Database schema management commands
  *
  * Wraps drizzle-kit with LinchKit's capability-aware schema generation.
- * Reads linchkit.config.ts, collects all SchemaDefinitions from capabilities,
+ * Reads linchkit.config.ts, collects all EntityDefinitions from capabilities,
  * generates a Drizzle schema barrel file, then delegates to drizzle-kit.
  */
 
-import type { CapabilityDefinition, LinchKitConfig, SchemaDefinition } from "@linchkit/core";
-import { closeDatabase, createDatabase, generateDrizzleSchemaFile, runMigrations } from "@linchkit/core/server";
+import { runMigrations } from "@linchkit/cap-migration";
+import type {
+  CapabilityDefinition,
+  EntityDefinition,
+  LinchKitConfig,
+  RelationDefinition,
+} from "@linchkit/core";
+import {
+  closeDatabase,
+  convertEntityRelationshipFieldsToImplicitRelations,
+  createDatabase,
+  generateDrizzleSchemaFile,
+} from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
-/** Load schemas from linchkit.config.ts */
-async function loadSchemas(): Promise<SchemaDefinition[]> {
+/** Load entities and relations from linchkit.config.ts */
+async function loadEntitiesAndRelations(): Promise<{
+  entities: EntityDefinition[];
+  relations: RelationDefinition[];
+}> {
   let config: LinchKitConfig = {};
   try {
     const result = await loadConfig();
     config = result.config;
   } catch {
+    // Config file missing or invalid — cannot proceed without database configuration
     console.error("[linch] Failed to load config. Run from project root with linchkit.config.ts.");
     process.exit(1);
   }
 
   const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
-  const schemas: SchemaDefinition[] = [];
+  const entities: EntityDefinition[] = [];
+  const relations: RelationDefinition[] = [];
   for (const cap of capabilities) {
-    if (cap.schemas) schemas.push(...cap.schemas);
+    if (cap.entities) entities.push(...cap.entities);
+    if (cap.relations) relations.push(...cap.relations);
   }
-  return schemas;
+
+  // Auto-promote schema relationship fields to implicit links (same as dev.ts)
+  const { implicitLinks } = convertEntityRelationshipFieldsToImplicitRelations(entities, relations);
+  if (implicitLinks.length > 0) {
+    relations.push(...implicitLinks);
+  }
+
+  return { entities, relations };
 }
 
 /** Generate the schema barrel file and return its path */
 async function generateSchema(): Promise<string> {
-  const schemas = await loadSchemas();
-  const schemaFile = generateDrizzleSchemaFile(schemas);
+  const { entities, relations } = await loadEntitiesAndRelations();
+  const schemaFile = generateDrizzleSchemaFile(entities, undefined, undefined, relations);
   console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
-  console.log(`[linch] ${schemas.length} capability table(s) + system tables`);
+  console.log(
+    `[linch] ${entities.length} capability table(s) + system tables, ${relations.length} link(s)`,
+  );
   return schemaFile;
 }
 

@@ -1,0 +1,355 @@
+import { describe, expect, test } from "bun:test";
+import { getTableName } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
+import { generateDrizzleTable } from "../src/entity/entity-to-drizzle";
+import type { EntityDefinition } from "../src/types/entity";
+
+/** Helper: get column config by name from a table */
+function getColumn(table: ReturnType<typeof generateDrizzleTable>, name: string) {
+  const config = getTableConfig(table);
+  return config.columns.find((c) => c.name === name);
+}
+
+describe("generateDrizzleTable", () => {
+  const simpleSchema: EntityDefinition = {
+    name: "task",
+    fields: {
+      title: { type: "string", required: true, label: "Title" },
+      done: { type: "boolean", label: "Done" },
+    },
+  };
+
+  test("generates a table with correct name", () => {
+    const table = generateDrizzleTable(simpleSchema);
+    expect(getTableName(table)).toBe("task");
+  });
+
+  test("string field maps to varchar", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        code: { type: "string", required: true, max: 100 },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "code");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgVarchar");
+    // max should be used as varchar length
+    expect((col as Record<string, unknown>).length).toBe(100);
+  });
+
+  test("string field without max defaults to varchar(255)", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        name: { type: "string" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "name");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgVarchar");
+    expect((col as Record<string, unknown>).length).toBe(255);
+  });
+
+  test("text field maps to text", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        description: { type: "text" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "description");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgText");
+  });
+
+  test("number field maps to numeric", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        amount: { type: "number", required: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "amount");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgNumeric");
+  });
+
+  test("boolean field maps to boolean", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        active: { type: "boolean" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "active");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgBoolean");
+  });
+
+  test("date field maps to date", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        start_date: { type: "date" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "start_date");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgDateString");
+  });
+
+  test("datetime field maps to timestamp", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        event_time: { type: "datetime" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "event_time");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgTimestamp");
+  });
+
+  test("enum field maps to varchar", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        priority: {
+          type: "enum",
+          options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
+        },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "priority");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgVarchar");
+  });
+
+  test("json field maps to jsonb", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        metadata: { type: "json" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "metadata");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+  });
+
+  test("state field maps to varchar", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        status: { type: "state", machine: "order_lifecycle" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "status");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgVarchar");
+  });
+
+  test("system columns (id, tenant_id, etc.) are always included", () => {
+    const table = generateDrizzleTable(simpleSchema);
+    const systemCols = [
+      "id",
+      "tenant_id",
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by",
+      "_version",
+      "deleted_at",
+    ];
+
+    for (const name of systemCols) {
+      const col = getColumn(table, name);
+      expect(col).toBeDefined();
+    }
+
+    // Verify specific system column properties
+    const id = getColumn(table, "id");
+    expect((id as Record<string, unknown>).config).toHaveProperty("primaryKey", true);
+
+    const createdAt = getColumn(table, "created_at");
+    expect(createdAt?.notNull).toBe(true);
+
+    const updatedAt = getColumn(table, "updated_at");
+    expect(updatedAt?.notNull).toBe(true);
+
+    const version = getColumn(table, "_version");
+    expect(version?.notNull).toBe(true);
+    expect(version?.columnType).toBe("PgInteger");
+
+    // deleted_at is nullable (soft delete)
+    const deletedAt = getColumn(table, "deleted_at");
+    expect(deletedAt?.notNull).toBe(false);
+    expect(deletedAt?.columnType).toBe("PgTimestamp");
+  });
+
+  test("computed fields are skipped", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        title: { type: "string", required: true },
+        total: {
+          type: "computed",
+          compute: (r: Record<string, unknown>) => r.amount,
+        },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+
+    // title should exist
+    expect(getColumn(table, "title")).toBeDefined();
+
+    // computed fields should not exist
+    expect(getColumn(table, "total")).toBeUndefined();
+  });
+
+  test("required fields have notNull", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        name: { type: "string", required: true },
+        bio: { type: "text" },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+
+    expect(getColumn(table, "name")?.notNull).toBe(true);
+    expect(getColumn(table, "bio")?.notNull).toBe(false);
+  });
+
+  test("unique fields have unique constraint", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        email: { type: "string", required: true, unique: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "email");
+    expect(col?.isUnique).toBe(true);
+  });
+
+  test("table prefix option works", () => {
+    const table = generateDrizzleTable(simpleSchema, { tablePrefix: "app" });
+    expect(getTableName(table)).toBe("app_task");
+  });
+
+  // ── Translatable field tests ──────────────────────────────
+
+  test("translatable string field generates jsonb column", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "name");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+    expect(col?.notNull).toBe(true);
+  });
+
+  test("translatable text field generates jsonb column", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        description: { type: "text", translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "description");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+  });
+
+  test("translatable enum field generates jsonb column", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        category_label: {
+          type: "enum",
+          options: [{ value: "a" }, { value: "b" }],
+          translatable: true,
+        },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "category_label");
+    expect(col).toBeDefined();
+    expect(col?.columnType).toBe("PgJsonb");
+  });
+
+  test("non-translatable fields remain unchanged alongside translatable ones", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", required: true, translatable: true },
+        sku: { type: "string", required: true, unique: true },
+        description: { type: "text", translatable: true },
+        price: { type: "number", required: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+
+    // Translatable fields → jsonb
+    const nameCol = getColumn(table, "name");
+    expect(nameCol?.columnType).toBe("PgJsonb");
+    expect(nameCol?.notNull).toBe(true);
+
+    const descCol = getColumn(table, "description");
+    expect(descCol?.columnType).toBe("PgJsonb");
+    expect(descCol?.notNull).toBe(false);
+
+    // Non-translatable fields → normal types
+    const skuCol = getColumn(table, "sku");
+    expect(skuCol?.columnType).toBe("PgVarchar");
+    expect(skuCol?.notNull).toBe(true);
+    expect(skuCol?.isUnique).toBe(true);
+
+    const priceCol = getColumn(table, "price");
+    expect(priceCol?.columnType).toBe("PgNumeric");
+    expect(priceCol?.notNull).toBe(true);
+  });
+
+  test("translatable field with unique constraint is preserved", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        slug: { type: "string", translatable: true, unique: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "slug");
+    expect(col?.columnType).toBe("PgJsonb");
+    expect(col?.isUnique).toBe(true);
+  });
+
+  test("translatable flag on non-text type (e.g. number) is ignored", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        price: { type: "number", translatable: true },
+      },
+    };
+    const table = generateDrizzleTable(schema);
+    const col = getColumn(table, "price");
+    // number is not in TRANSLATABLE_FIELD_TYPES, so stays numeric
+    expect(col?.columnType).toBe("PgNumeric");
+  });
+});

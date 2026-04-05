@@ -2,7 +2,6 @@
  * LinchKit project configuration types
  */
 
-import type { FlowEngineConfig } from "../flow/types";
 import type { AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
 
@@ -50,9 +49,41 @@ export interface LinchKitConfig {
     token?: string;
   };
 
-  /** Flow engine configuration */
-  flow?: FlowEngineConfig;
+  /** Flow engine configuration (Restate-specific — provided by @linchkit/cap-flow-restate) */
+  flow?: {
+    restate?: {
+      adminUrl?: string;
+      ingressUrl?: string;
+      servicePort?: number;
+      autoRegister?: boolean;
+    };
+  };
+
+  /** Realtime subscription configuration (SSE-based server→client push) */
+  subscription?: SubscriptionConfig;
 
   /** Installed capabilities loaded by the host project */
   capabilities?: CapabilityDefinition[];
+
+  /**
+   * Directories to scan for addon groups.
+   * Each path is scanned for cap-* subdirectories containing package.json.
+   * Discovered capabilities are merged with explicitly listed capabilities.
+   * @example ["./addons", "./community-addons"]
+   */
+  addons_path?: string[];
+}
+
+/** Configuration for the SSE realtime subscription system */
+export interface SubscriptionConfig {
+  /** Whether subscription is enabled (default: true when server capability is loaded) */
+  enabled?: boolean;
+  /** Maximum SSE connections per user (default: 3) */
+  maxConnectionsPerUser?: number;
+  /** Heartbeat interval in milliseconds (default: 30000) */
+  heartbeatInterval?: number;
+  /** Idle timeout in milliseconds — close connection after no subscribed events (default: 300000) */
+  idleTimeout?: number;
+  /** Maximum buffered events per connection before dropping (default: 100) */
+  maxBufferSize?: number;
 }

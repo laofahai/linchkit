@@ -40,16 +40,19 @@ describe("resolveEnvVars", () => {
   });
 
   it("resolves missing env vars to undefined with a warning", () => {
-    const warnSpy: string[] = [];
-    const origWarn = console.warn;
-    console.warn = (msg: string) => warnSpy.push(msg);
+    const warnings: string[] = [];
+    const testLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
 
-    const result = resolveEnvVars({ key: "$env.NONEXISTENT_VAR" });
+    const result = resolveEnvVars({ key: "$env.NONEXISTENT_VAR" }, testLogger);
 
-    console.warn = origWarn;
     expect(result.key).toBeUndefined();
-    expect(warnSpy.length).toBe(1);
-    expect(warnSpy[0]).toContain("NONEXISTENT_VAR");
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain("NONEXISTENT_VAR");
   });
 
   it("handles null and undefined gracefully", () => {

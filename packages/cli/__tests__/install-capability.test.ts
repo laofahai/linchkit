@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  detectDependencyCycle,
+  loadCapabilityMetadata,
+  validateTypeCompatibility,
+} from "../src/commands/install";
 
 const TEST_DIR = resolve(import.meta.dir, ".tmp-test-install");
 const CLI_ENTRY = resolve(import.meta.dir, "../src/index.ts");
@@ -210,6 +215,164 @@ describe("linch install", () => {
     });
   });
 
+  describe("DAG cycle detection", () => {
+    test("returns null when there are no cycles", () => {
+      const deps: Record<string, string[]> = {
+        A: ["B", "C"],
+        B: ["D"],
+        C: [],
+        D: [],
+      };
+      const result = detectDependencyCycle("A", (name) => deps[name] ?? []);
+      expect(result).toBeNull();
+    });
+
+    test("detects a simple two-node cycle", () => {
+      const deps: Record<string, string[]> = {
+        A: ["B"],
+        B: ["A"],
+      };
+      const result = detectDependencyCycle("A", (name) => deps[name] ?? []);
+      expect(result).not.toBeNull();
+      expect(result).toContain("A");
+      expect(result).toContain("B");
+    });
+
+    test("detects a longer cycle", () => {
+      const deps: Record<string, string[]> = {
+        A: ["B"],
+        B: ["C"],
+        C: ["D"],
+        D: ["B"], // cycle: B -> C -> D -> B
+      };
+      const result = detectDependencyCycle("A", (name) => deps[name] ?? []);
+      expect(result).not.toBeNull();
+      expect(result).toContain("B");
+      expect(result).toContain("C");
+      expect(result).toContain("D");
+    });
+
+    test("detects self-dependency cycle", () => {
+      const deps: Record<string, string[]> = {
+        A: ["A"],
+      };
+      const result = detectDependencyCycle("A", (name) => deps[name] ?? []);
+      expect(result).not.toBeNull();
+      expect(result).toEqual(["A", "A"]);
+    });
+
+    test("handles empty dependencies", () => {
+      const result = detectDependencyCycle("A", () => []);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("type compatibility validation", () => {
+    test("adapter cannot depend on another adapter", () => {
+      const meta = {
+        name: "cap-a",
+        version: "1.0.0",
+        type: "adapter" as const,
+        category: "integration",
+        label: "Adapter A",
+        dependencies: ["cap-b"],
+      };
+      const depMeta = {
+        name: "cap-b",
+        version: "1.0.0",
+        type: "adapter" as const,
+        category: "integration",
+        label: "Adapter B",
+      };
+
+      const result = validateTypeCompatibility(meta, (name) => (name === "cap-b" ? depMeta : null));
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain("cannot depend on adapter");
+    });
+
+    test("adapter can depend on standard capability", () => {
+      const meta = {
+        name: "cap-a",
+        version: "1.0.0",
+        type: "adapter" as const,
+        category: "integration",
+        label: "Adapter A",
+        dependencies: ["cap-b"],
+      };
+      const depMeta = {
+        name: "cap-b",
+        version: "1.0.0",
+        type: "standard" as const,
+        category: "business",
+        label: "Standard B",
+      };
+
+      const result = validateTypeCompatibility(meta, (name) => (name === "cap-b" ? depMeta : null));
+      expect(result.errors.length).toBe(0);
+    });
+
+    test("bridge without standard dep gets a warning", () => {
+      const meta = {
+        name: "cap-bridge",
+        version: "1.0.0",
+        type: "bridge" as const,
+        category: "business",
+        label: "Bridge",
+        dependencies: ["cap-other-bridge"],
+      };
+      const depMeta = {
+        name: "cap-other-bridge",
+        version: "1.0.0",
+        type: "bridge" as const,
+        category: "business",
+        label: "Other Bridge",
+      };
+
+      const result = validateTypeCompatibility(meta, (name) =>
+        name === "cap-other-bridge" ? depMeta : null,
+      );
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain("does not depend on any standard capability");
+    });
+
+    test("no deps returns no errors or warnings", () => {
+      const meta = {
+        name: "cap-a",
+        version: "1.0.0",
+        type: "standard" as const,
+        category: "business",
+        label: "A",
+        dependencies: [],
+      };
+      const result = validateTypeCompatibility(meta, () => null);
+      expect(result.errors.length).toBe(0);
+      expect(result.warnings.length).toBe(0);
+    });
+  });
+
+  describe("loadCapabilityMetadata", () => {
+    test("loads and validates a valid capability.json", () => {
+      createFakePackage("@linchkit/cap-test", validCapability);
+      const path = resolve(TEST_DIR, "node_modules", "@linchkit/cap-test", "capability.json");
+      const meta = loadCapabilityMetadata(path);
+      expect(meta).not.toBeNull();
+      expect(meta?.name).toBe("@linchkit/cap-test");
+    });
+
+    test("returns null for nonexistent path", () => {
+      const meta = loadCapabilityMetadata("/nonexistent/capability.json");
+      expect(meta).toBeNull();
+    });
+
+    test("returns null for invalid capability.json", () => {
+      createFakePackage("bad-cap");
+      const badPath = resolve(TEST_DIR, "node_modules", "bad-cap", "capability.json");
+      writeFileSync(badPath, JSON.stringify({ name: "bad" })); // Missing required fields
+      const meta = loadCapabilityMetadata(badPath);
+      expect(meta).toBeNull();
+    });
+  });
+
   describe("install command integration", () => {
     test("installs a local capability package and shows metadata", async () => {
       // Create a local capability package with a valid capability.json
@@ -237,6 +400,27 @@ describe("linch install", () => {
       // Package should install successfully
       expect(output).toContain("installed successfully");
       // Should display capability info
+      expect(output).toContain("Test Capability");
+    }, 30_000);
+
+    test("--dry-run shows preview for local capability", async () => {
+      // Create a local capability so dry-run can read its capability.json
+      createLocalCapability("my-cap", validCapability);
+
+      const proc = Bun.spawn(["bun", "run", CLI_ENTRY, "install", "./my-cap", "--dry-run"], {
+        cwd: TEST_DIR,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+
+      await proc.exited;
+
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const output = stdout + stderr;
+
+      expect(output).toContain("Dry run mode");
+      expect(output).toContain("Would install capability");
       expect(output).toContain("Test Capability");
     }, 30_000);
 

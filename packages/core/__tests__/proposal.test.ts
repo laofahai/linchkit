@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import type { CreateProposalOptions, ProposalEngine } from "../src";
-import { bumpVersion, createProposalEngine, validatePhase1, validateProposal } from "../src";
+import {
+  bumpVersion,
+  createProposalEngine,
+  validatePhase1,
+  validateProposal,
+} from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 
@@ -12,7 +17,7 @@ const baseProposalOptions: CreateProposalOptions = {
   changeType: "minor",
   changes: [
     {
-      target: "schema",
+      target: "entity",
       operation: "create",
       name: "product",
       definition: {
@@ -104,7 +109,7 @@ describe("ProposalEngine.submitProposal", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_schema",
           definition: {
@@ -376,7 +381,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -398,7 +403,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "empty",
           definition: {
@@ -410,14 +415,14 @@ describe("validatePhase1", () => {
     });
 
     expect(result.status).toBe("failed");
-    expect(result.errors.some((e) => e.code === "SCHEMA_NO_FIELDS")).toBe(true);
+    expect(result.errors.some((e) => e.code === "ENTITY_NO_FIELDS")).toBe(true);
   });
 
   it("fails for invalid field types", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_types",
           definition: {
@@ -439,7 +444,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_enum",
           definition: {
@@ -461,7 +466,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "BadName",
           definition: {
@@ -480,7 +485,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -494,7 +499,7 @@ describe("validatePhase1", () => {
           name: "create_order",
           definition: {
             name: "create_order",
-            schema: "order",
+            entity: "order",
             label: "Create Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -515,7 +520,7 @@ describe("validatePhase1", () => {
           name: "bad_action",
           definition: {
             name: "bad_action",
-            schema: "",
+            entity: "",
             label: "Bad",
             policy: { mode: "sync", transaction: false },
           },
@@ -524,14 +529,14 @@ describe("validatePhase1", () => {
     });
 
     expect(result.status).toBe("failed");
-    expect(result.errors.some((e) => e.code === "ACTION_NO_SCHEMA")).toBe(true);
+    expect(result.errors.some((e) => e.code === "ACTION_NO_ENTITY")).toBe(true);
   });
 
   it("validates state definition changes", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -545,7 +550,7 @@ describe("validatePhase1", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "submitted", "approved"],
@@ -570,7 +575,7 @@ describe("validatePhase1", () => {
           name: "bad_state",
           definition: {
             name: "bad_state",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "nonexistent",
             states: ["draft", "submitted"],
@@ -588,7 +593,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -602,7 +607,7 @@ describe("validatePhase1", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "submitted", "orphan"],
@@ -624,7 +629,7 @@ describe("validatePhase1", () => {
           name: "submit_order",
           definition: {
             name: "submit_order",
-            schema: "order",
+            entity: "order",
             label: "Submit Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -651,7 +656,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "delete",
           name: "old_schema",
         },
@@ -666,7 +671,7 @@ describe("validatePhase1", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "no_def",
         },
@@ -750,7 +755,7 @@ describe("ProposalEngine.updateProposal", () => {
 
     const newChanges = [
       {
-        target: "schema" as const,
+        target: "entity" as const,
         operation: "create" as const,
         name: "order",
         definition: {
@@ -764,7 +769,7 @@ describe("ProposalEngine.updateProposal", () => {
         name: "create_order",
         definition: {
           name: "create_order",
-          schema: "order",
+          entity: "order",
           label: "Create Order",
           policy: { mode: "sync" as const, transaction: true },
         },
@@ -794,7 +799,7 @@ describe("ProposalEngine.updateProposal", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "bad_schema",
           definition: { name: "bad_schema", fields: {} },
@@ -811,7 +816,7 @@ describe("ProposalEngine.updateProposal", () => {
     engine.updateProposal(proposal.id, {
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "good_schema",
           definition: {
@@ -836,7 +841,7 @@ describe("validatePhase1 duplicate detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -845,7 +850,7 @@ describe("validatePhase1 duplicate detection", () => {
           },
         },
         {
-          target: "schema",
+          target: "entity",
           operation: "update",
           name: "order",
           definition: {
@@ -862,7 +867,7 @@ describe("validatePhase1 duplicate detection", () => {
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "DUPLICATE_CHANGE")).toBe(true);
     expect(result.errors.find((e) => e.code === "DUPLICATE_CHANGE")?.message).toContain(
-      "schema 'order' appears multiple times",
+      "entity 'order' appears multiple times",
     );
   });
 
@@ -870,7 +875,7 @@ describe("validatePhase1 duplicate detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -884,7 +889,7 @@ describe("validatePhase1 duplicate detection", () => {
           name: "order",
           definition: {
             name: "order",
-            schema: "order",
+            entity: "order",
             label: "Order",
             policy: { mode: "sync", transaction: true },
           },
@@ -903,7 +908,7 @@ describe("validatePhase1 dead-end state detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "ticket",
           definition: {
@@ -917,7 +922,7 @@ describe("validatePhase1 dead-end state detection", () => {
           name: "ticket_lifecycle",
           definition: {
             name: "ticket_lifecycle",
-            schema: "ticket",
+            entity: "ticket",
             field: "status",
             initial: "open",
             states: ["open", "in_progress", "closed"],
@@ -941,7 +946,7 @@ describe("validatePhase1 dead-end state detection", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "simple",
           definition: {
@@ -955,7 +960,7 @@ describe("validatePhase1 dead-end state detection", () => {
           name: "simple_state",
           definition: {
             name: "simple_state",
-            schema: "simple",
+            entity: "simple",
             field: "status",
             initial: "active",
             states: ["active"],
@@ -1070,7 +1075,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1084,7 +1089,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed", "done"],
@@ -1100,7 +1105,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "confirm_order",
           definition: {
             name: "confirm_order",
-            schema: "order",
+            entity: "order",
             label: "Confirm Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "nonexistent", to: "confirmed" },
@@ -1120,7 +1125,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1134,7 +1139,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed"],
@@ -1147,7 +1152,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "ship_order",
           definition: {
             name: "ship_order",
-            schema: "order",
+            entity: "order",
             label: "Ship Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "confirmed", to: "shipped" },
@@ -1167,7 +1172,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "order",
           definition: {
@@ -1181,7 +1186,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "order_lifecycle",
           definition: {
             name: "order_lifecycle",
-            schema: "order",
+            entity: "order",
             field: "status",
             initial: "draft",
             states: ["draft", "confirmed"],
@@ -1194,7 +1199,7 @@ describe("validatePhase1: stateTransition against state machine", () => {
           name: "confirm_order",
           definition: {
             name: "confirm_order",
-            schema: "order",
+            entity: "order",
             label: "Confirm Order",
             policy: { mode: "sync", transaction: true },
             stateTransition: { from: "draft", to: "confirmed" },
@@ -1229,7 +1234,7 @@ describe("validateProposal: skipped phases don't block passed", () => {
       ...baseProposalOptions,
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "empty",
           definition: { name: "empty", fields: {} },
@@ -1251,7 +1256,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {
@@ -1272,7 +1277,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {
@@ -1292,7 +1297,7 @@ describe("validatePhase1: required field without default is error", () => {
     const result = validatePhase1({
       changes: [
         {
-          target: "schema",
+          target: "entity",
           operation: "create",
           name: "product",
           definition: {

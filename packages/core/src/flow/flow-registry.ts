@@ -2,7 +2,7 @@
  * Flow Registry
  *
  * Stores and retrieves FlowDefinitions. Validates flow structure on registration.
- * Follows the same pattern as SchemaRegistry.
+ * Follows the same pattern as EntityRegistry.
  */
 
 import type { ConditionFlowStep, FlowDefinition, FlowStep, ParallelFlowStep } from "../types/flow";
@@ -37,6 +37,24 @@ export class FlowRegistryImpl implements IFlowRegistry {
   /** Check if a flow exists */
   has(name: string): boolean {
     return this.flows.has(name);
+  }
+
+  /** Get all flows triggered by a specific event type */
+  flowsForEvent(eventType: string): FlowDefinition[] {
+    return this.getAll().filter(
+      (f) => f.trigger.type === "event" && f.trigger.eventType === eventType,
+    );
+  }
+
+  /** Get all flows related to an entity (by matching action step actionNames containing the entity name) */
+  flowsForEntity(entityName: string): FlowDefinition[] {
+    return this.getAll().filter((f) =>
+      f.steps.some(
+        (step) =>
+          step.type === "action" &&
+          (step as import("../types/flow").ActionFlowStep).actionName.startsWith(`${entityName}.`),
+      ),
+    );
   }
 }
 

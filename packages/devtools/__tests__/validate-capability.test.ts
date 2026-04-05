@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
   defineAction,
   defineCapability,
+  defineEntity,
   defineRule,
-  defineSchema,
   defineState,
   defineView,
 } from "@linchkit/core";
@@ -17,8 +17,8 @@ describe("validateCapability", () => {
       type: "standard",
       category: "business",
       version: "1.0.0",
-      schemas: [
-        defineSchema({
+      entities: [
+        defineEntity({
           name: "purchase_request",
           fields: {
             title: { type: "string" },
@@ -30,7 +30,7 @@ describe("validateCapability", () => {
       actions: [
         defineAction({
           name: "submit_request",
-          schema: "purchase_request",
+          entity: "purchase_request",
           label: "Submit",
           stateTransition: { from: "draft", to: "submitted" },
           policy: { mode: "sync", transaction: true },
@@ -48,7 +48,7 @@ describe("validateCapability", () => {
       states: [
         defineState({
           name: "request_lifecycle",
-          schema: "purchase_request",
+          entity: "purchase_request",
           field: "status",
           initial: "draft",
           states: ["draft", "submitted", "approved"],
@@ -61,7 +61,7 @@ describe("validateCapability", () => {
       views: [
         defineView({
           name: "purchase_list",
-          schema: "purchase_request",
+          entity: "purchase_request",
           type: "list",
           fields: [{ field: "title" }, { field: "amount" }],
         }),
@@ -70,7 +70,7 @@ describe("validateCapability", () => {
 
     const result = validateCapability(cap);
     expect(result.valid).toBe(true);
-    expect(result.schemas.count).toBe(1);
+    expect(result.entities.count).toBe(1);
     expect(result.actions.count).toBe(1);
     expect(result.rules.count).toBe(1);
     expect(result.states.count).toBe(1);
@@ -87,7 +87,7 @@ describe("validateCapability", () => {
       actions: [
         defineAction({
           name: "test_action",
-          schema: "nonexistent_schema",
+          entity: "nonexistent_schema",
           label: "Test",
           policy: { mode: "sync", transaction: true },
         }),
@@ -133,6 +133,6 @@ describe("validateCapability", () => {
 
     const result = validateCapability(cap);
     expect(result.valid).toBe(true);
-    expect(result.schemas.count).toBe(0);
+    expect(result.entities.count).toBe(0);
   });
 });

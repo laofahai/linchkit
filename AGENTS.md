@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> AI-Native Software Capability Runtime. Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow**.
+> AI-Native Software Capability Runtime. Meta-model: **Schema + Action + Rule + State + Event + EventHandler + View + Flow + Link**.
 
 ## Architecture Principles
 
@@ -35,7 +35,7 @@ packages/ (core infrastructure):
 capabilities/ (pluggable):
   @linchkit/cap-adapter-server    — HTTP/GraphQL transport (Elysia + graphql-yoga)
   @linchkit/cap-adapter-mcp       — MCP transport for AI agents
-  @linchkit/cap-adapter-ui-react  — Official UI shell (React + Shadcn + TanStack)
+  @linchkit/cap-adapter-ui  — Official UI shell (React + Shadcn + TanStack)
   @linchkit/cap-auth              — Authentication
   @linchkit/cap-auth-better-auth  — Auth provider (Better Auth)
   @linchkit/cap-permission        — Permission engine (RBAC)
@@ -46,6 +46,12 @@ capabilities/ (pluggable):
 - `core` MUST NOT import from any other package
 - `ui` MUST NOT import from `server` (communicates via HTTP/GraphQL only)
 - No circular dependencies between packages
+
+**Core boundary rules** (see CLAUDE.md "Core Boundary Rules" for full details):
+- Core = engines + types + pipeline + life-system engines. NOT just CRUD.
+- When reviewing PRs that add code to `@linchkit/core`, verify the new code cannot live in a capability instead.
+- External dependencies follow the "interface in core, implementation in capability" pattern (e.g. Flow interface in core, RestateFlowEngine in cap-flow-restate; AI provider interface in core, SDK bindings in cap-ai-provider).
+- Decision test: "Without this, is a zero-capability LinchKit still AI-Native?" If yes → capability. If no → core.
 
 ## Capability System
 
@@ -77,6 +83,7 @@ Capabilities extend the framework via `extensions`:
 - **EventHandler** — Sync/async reactions to events (priority, filter)
 - **View** — UI rendering config (list, form, kanban) driven by schema
 - **Flow** — Multi-step durable workflows (Restate dual-mode: durable execution with Restate server, sync fallback without)
+- **Link** — First-class relationships between schemas (`defineRelation()`, bidirectional navigation, FK/junction table generation)
 
 ## Command Layer
 
@@ -88,8 +95,8 @@ pre → auth → exposure → permission → tenant → pre-action → [action] 
 
 ## API Endpoints
 
-- **REST:** `POST /api/actions/:name` (execute), `GET /api/schemas` (list), `GET /api/executions` (logs)
-- **GraphQL:** `/graphql` — Auto-generated CRUD per schema + custom action mutations + execution queries
+- **REST:** `POST /api/actions/:name` (execute), `GET /api/schemas` (list), `GET /api/executions` (logs), `GET /api/tenants` (tenant list)
+- **GraphQL:** `/graphql` — Auto-generated CRUD per schema + custom action mutations + execution queries + SSE subscriptions
 
 ## Error Types
 
@@ -144,9 +151,9 @@ bun run typecheck                        # TypeScript check
 
 ## Specs
 
-Design specs live in `docs/specs/` (47 files, 00–50).
+Design specs live in `docs/specs/` (54 files, 00–50).
 
-Key refs: `03_schema`, `04_action`, `05_rule`, `06_state`, `07_event`, `10_actor_permission`, `13_view_and_ui`, `16_command_layer_and_api`, `33_error_handling`, `35_approval_mechanism`, `36_ai_service`, `39_execution_contract`.
+Key refs: `03_schema`, `04_action`, `05_rule`, `06_state`, `07_event`, `10_actor_permission`, `13_view_and_ui`, `16_command_layer_and_api`, `33_error_handling`, `35_approval_mechanism`, `36_ai_service`, `39_execution_contract`, `45_reactive_automation`, `46_link_type`, `47_schema_interface`, `48_derived_properties`, `49_schema_inheritance`.
 
 **Rule**: If you are making changes that touch a spec'd area, read the spec first. Do not guess the design.
 

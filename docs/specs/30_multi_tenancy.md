@@ -192,7 +192,7 @@ export default defineTenantConfig({
 ## 8. 租户基础信息
 
 ```typescript
-defineSchema({
+defineEntity({
   name: 'tenant',
   fields: {
     name: { type: 'string', required: true },

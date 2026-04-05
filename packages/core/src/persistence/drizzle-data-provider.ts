@@ -10,10 +10,15 @@
  * - Count queries with filter support
  */
 
-import { and, count, eq, getTableColumns, isNull, sql } from "drizzle-orm";
+import { and, count, eq, getTableColumns, ilike, isNull, or, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
+import {
+  getTranslatableFields,
+  normalizeTranslatableValue,
+  resolveTranslatableValue,
+} from "../entity/translatable";
 import {
   ConflictError,
   LinchKitError,
@@ -21,12 +26,7 @@ import {
   SystemError,
   ValidationError,
 } from "../errors";
-import {
-  getTranslatableFields,
-  normalizeTranslatableValue,
-  resolveTranslatableValue,
-} from "../schema/translatable";
-import type { SchemaDefinition } from "../types/schema";
+import type { EntityDefinition } from "../types/entity";
 import type { TableRegistry } from "./table-registry";
 
 /** Extended query options that include locale for translatable field resolution */
@@ -37,30 +37,44 @@ export interface I18nQueryOptions extends DataQueryOptions {
 
 export class DrizzleDataProvider implements DataProvider {
   /** Schema definitions keyed by schema name, for translatable field metadata */
-  private readonly schemaDefinitions = new Map<string, SchemaDefinition>();
+  private readonly entityDefinitions = new Map<string, EntityDefinition>();
 
   constructor(
     private readonly db: PostgresJsDatabase,
     private readonly tableRegistry: TableRegistry,
-    schemaDefinitions?: SchemaDefinition[],
+    entityDefinitions?: EntityDefinition[],
   ) {
-    if (schemaDefinitions) {
-      for (const sd of schemaDefinitions) {
-        this.schemaDefinitions.set(sd.name, sd);
+    if (entityDefinitions) {
+      for (const sd of entityDefinitions) {
+        this.entityDefinitions.set(sd.name, sd);
       }
     }
   }
 
+  /**
+   * Lightweight connectivity check — runs `SELECT 1` against the database.
+   * Returns true if the database is reachable, false otherwise.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      await this.db.execute(sql`SELECT 1`);
+      return true;
+    } catch {
+      // Database unreachable or query failed — report as not connected
+      return false;
+    }
+  }
+
   /** Register or update schema definitions (e.g., when capabilities load after construction). */
-  registerSchemaDefinitions(schemas: SchemaDefinition[]): void {
+  registerEntityDefinitions(schemas: EntityDefinition[]): void {
     for (const sd of schemas) {
-      this.schemaDefinitions.set(sd.name, sd);
+      this.entityDefinitions.set(sd.name, sd);
     }
   }
 
   /** Get all registered schema definitions (used for creating transactional copies). */
-  getSchemaDefinitions(): SchemaDefinition[] {
-    return Array.from(this.schemaDefinitions.values());
+  getEntityDefinitions(): EntityDefinition[] {
+    return Array.from(this.entityDefinitions.values());
   }
 
   /**
@@ -68,18 +82,18 @@ export class DrizzleDataProvider implements DataProvider {
    * Used to create transactional copies (tx has the same API as db).
    */
   withConnection(conn: PostgresJsDatabase): DrizzleDataProvider {
-    return new DrizzleDataProvider(conn, this.tableRegistry, this.getSchemaDefinitions());
+    return new DrizzleDataProvider(conn, this.tableRegistry, this.getEntityDefinitions());
   }
 
   /** Resolve table from registry; throws if not registered. */
-  private resolveTable(schemaName: string): PgTable {
-    const table = this.tableRegistry.getTable(schemaName);
+  private resolveTable(entityName: string): PgTable {
+    const table = this.tableRegistry.getTable(entityName);
     if (!table) {
       throw new NotFoundError({
-        code: "data.schema.not_registered",
-        message: `No table registered for schema "${schemaName}"`,
-        resource: "schema",
-        resourceId: schemaName,
+        code: "data.entity.not_registered",
+        message: `No table registered for entity "${entityName}"`,
+        resource: "entity",
+        resourceId: entityName,
       });
     }
     return table;
@@ -89,6 +103,39 @@ export class DrizzleDataProvider implements DataProvider {
   private getColumn(table: PgTable, columnName: string): PgColumn | undefined {
     const columns = getTableColumns(table);
     return columns[columnName] as PgColumn | undefined;
+  }
+
+  /** String-like field types eligible for full-text search */
+  private static readonly SEARCHABLE_FIELD_TYPES = new Set(["string", "text", "email", "url"]);
+
+  /**
+   * Build an ILIKE OR condition across all string-like columns for full-text search.
+   * Returns undefined when no searchable columns exist or search is empty.
+   */
+  private buildSearchCondition(
+    entityName: string,
+    table: PgTable,
+    search: string,
+  ): ReturnType<typeof or> | undefined {
+    if (!search) return undefined;
+    const schemaDef = this.entityDefinitions.get(entityName);
+    if (!schemaDef) return undefined;
+
+    const columns = getTableColumns(table);
+    const pattern = `%${search}%`;
+    const ilikeConditions: ReturnType<typeof ilike>[] = [];
+
+    for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
+      if (DrizzleDataProvider.SEARCHABLE_FIELD_TYPES.has(fieldDef.type)) {
+        const col = columns[fieldName] as PgColumn | undefined;
+        if (col) {
+          ilikeConditions.push(ilike(col, pattern));
+        }
+      }
+    }
+
+    if (ilikeConditions.length === 0) return undefined;
+    return or(...ilikeConditions);
   }
 
   /**
@@ -155,9 +202,9 @@ export class DrizzleDataProvider implements DataProvider {
         });
       case "42P01": // undefined_table
         throw new NotFoundError({
-          code: "data.schema.table_not_found",
-          message: `Table not found for schema "${schema}": ${pgMessage}`,
-          resource: "schema",
+          code: "data.entity.table_not_found",
+          message: `Table not found for entity "${schema}": ${pgMessage}`,
+          resource: "entity",
           resourceId: schema,
         });
       case "42703": // undefined_column
@@ -180,16 +227,52 @@ export class DrizzleDataProvider implements DataProvider {
   }
 
   /**
+   * Coerce date/datetime string values to Date objects for Drizzle timestamp/date columns.
+   *
+   * Drizzle's `timestamp()` and `date()` columns (in default mode: "date") call
+   * `.toISOString()` on values during serialization. If a string is passed instead
+   * of a Date object, this call fails. This method converts string values to Date
+   * objects for all timestamp/date columns, and excludes null/undefined values.
+   */
+  private coerceDateColumns(
+    data: Record<string, unknown>,
+    table: PgTable,
+  ): Record<string, unknown> {
+    const columns = getTableColumns(table);
+    const result = { ...data };
+
+    for (const [key, value] of Object.entries(result)) {
+      if (value == null) continue;
+      if (!(key in columns)) continue;
+
+      const col = columns[key] as PgColumn;
+      const colType = col.columnType;
+
+      // PgTimestamp and PgDate expect Date objects; PgTimestampString and PgDateString expect strings
+      if (colType === "PgTimestamp" || colType === "PgDate") {
+        if (typeof value === "string") {
+          const parsed = new Date(value);
+          if (!Number.isNaN(parsed.getTime())) {
+            result[key] = parsed;
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Normalize translatable fields in input data before writing to DB.
    * Wraps plain string values as `{ [locale]: value }` for translatable fields.
    * Uses the provided locale, falling back to the schema's defaultLocale.
    */
   private normalizeTranslatableInput(
-    schemaName: string,
+    entityName: string,
     data: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
-    const schemaDef = this.schemaDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(entityName);
     if (!schemaDef?.i18n?.defaultLocale) return data;
 
     const translatableFields = getTranslatableFields(schemaDef);
@@ -213,13 +296,13 @@ export class DrizzleDataProvider implements DataProvider {
    * Without locale, returns raw JSONB (locale map).
    */
   private resolveTranslatableOutput(
-    schemaName: string,
+    entityName: string,
     row: Record<string, unknown>,
     locale?: string,
   ): Record<string, unknown> {
     if (!locale) return row;
 
-    const schemaDef = this.schemaDefinitions.get(schemaName);
+    const schemaDef = this.entityDefinitions.get(entityName);
     if (!schemaDef?.i18n?.defaultLocale) return row;
 
     const translatableFields = getTranslatableFields(schemaDef);
@@ -284,7 +367,15 @@ export class DrizzleDataProvider implements DataProvider {
     const columns = getTableColumns(table);
 
     // Build WHERE conditions from filter (excluding pagination/sort meta keys)
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     for (const [key, value] of Object.entries(filter)) {
@@ -294,6 +385,15 @@ export class DrizzleDataProvider implements DataProvider {
       const col = columns[key] as PgColumn | undefined;
       if (col) {
         conditions.push(eq(col, value));
+      }
+    }
+
+    // Full-text search across string-like columns
+    const searchTerm = filter.search as string | undefined;
+    if (searchTerm) {
+      const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+      if (searchCond) {
+        conditions.push(searchCond);
       }
     }
 
@@ -375,8 +475,11 @@ export class DrizzleDataProvider implements DataProvider {
       }
     }
 
+    // Coerce string dates to Date objects for timestamp/date columns
+    const coercedData = this.coerceDateColumns(insertData, table);
+
     try {
-      const rows = await this.db.insert(table).values(insertData).returning();
+      const rows = await this.db.insert(table).values(coercedData).returning();
       const result = rows[0] as Record<string, unknown> | undefined;
       if (!result) {
         throw new SystemError({
@@ -416,7 +519,7 @@ export class DrizzleDataProvider implements DataProvider {
 
     // For translatable fields, merge with existing values to avoid
     // overwriting other locale entries. Fetch existing row once if needed.
-    const schemaDef = this.schemaDefinitions.get(schema);
+    const schemaDef = this.entityDefinitions.get(schema);
     const translatableFields = schemaDef ? getTranslatableFields(schemaDef) : new Set<string>();
     const translatableFieldsInUpdate = new Set<string>();
     for (const fieldName of translatableFields) {
@@ -488,12 +591,16 @@ export class DrizzleDataProvider implements DataProvider {
 
     const whereClause = and(...conditions);
 
+    // Coerce string dates to Date objects for timestamp/date columns
+    const coercedUpdateData = this.coerceDateColumns(updateData, table);
+
     let rows: Record<string, unknown>[];
     try {
-      rows = (await this.db.update(table).set(updateData).where(whereClause).returning()) as Record<
-        string,
-        unknown
-      >[];
+      rows = (await this.db
+        .update(table)
+        .set(coercedUpdateData)
+        .where(whereClause)
+        .returning()) as Record<string, unknown>[];
     } catch (err) {
       this.normalizeDbError(err, schema);
     }
@@ -633,7 +740,15 @@ export class DrizzleDataProvider implements DataProvider {
     const table = this.resolveTable(schema);
     const columns = getTableColumns(table);
 
-    const metaKeys = new Set(["page", "pageSize", "sortField", "sortOrder", "offset", "limit"]);
+    const metaKeys = new Set([
+      "page",
+      "pageSize",
+      "sortField",
+      "sortOrder",
+      "offset",
+      "limit",
+      "search",
+    ]);
     const conditions = [...this.buildBaseConditions(table, options)];
 
     if (filter) {
@@ -644,6 +759,15 @@ export class DrizzleDataProvider implements DataProvider {
         const col = columns[key] as PgColumn | undefined;
         if (col) {
           conditions.push(eq(col, value));
+        }
+      }
+
+      // Full-text search across string-like columns
+      const searchTerm = filter.search as string | undefined;
+      if (searchTerm) {
+        const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+        if (searchCond) {
+          conditions.push(searchCond);
         }
       }
     }

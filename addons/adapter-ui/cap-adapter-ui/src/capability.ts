@@ -1,0 +1,84 @@
+/**
+ * Capability definition for cap-adapter-ui
+ *
+ * Registers the Vite dev server transport so `linch dev` starts the UI automatically.
+ */
+
+import { defineCapability } from "@linchkit/core/define";
+import type { CliCommandContext, TransportContext } from "@linchkit/core/types";
+import { capAdapterUiConfig } from "./config";
+
+export const capAdapterUi = defineCapability({
+  name: "cap-adapter-ui",
+  label: "React UI Shell",
+  type: "adapter",
+  category: "integration",
+  version: "0.0.1",
+
+  configSchema: capAdapterUiConfig.schema,
+
+  extensions: {
+    transports: [
+      {
+        name: "ui",
+        label: "React UI (Vite Dev Server)",
+        factory: async (ctx: TransportContext) => {
+          // Use Bun.spawn to start vite dev server as a child process
+          // This is simpler and more reliable than programmatic Vite API
+          const { resolve } = await import("node:path");
+          const uiDir = resolve(import.meta.dir, "..");
+
+          let proc: ReturnType<typeof Bun.spawn> | null = null;
+
+          return {
+            start: () => {
+              // Read port from typed config (falls back to default via Zod)
+              const { port } = capAdapterUiConfig.from(ctx);
+
+              proc = Bun.spawn(
+                ["bunx", "vite", "--configLoader", "runner", "--port", String(port)],
+                { cwd: uiDir, stdin: "ignore", stdout: "inherit", stderr: "inherit" },
+              );
+
+              console.log(`[cap-adapter-ui] UI: http://localhost:${port}`);
+            },
+            stop: () => {
+              if (proc) {
+                proc.kill();
+                proc = null;
+              }
+            },
+          };
+        },
+        config: {
+          port: {
+            type: "number",
+            default: 3000,
+            description: "UI dev server port",
+          },
+        },
+      },
+    ],
+    commands: [
+      {
+        name: "dev",
+        namespace: "ui",
+        description: "Start React UI development server",
+        isDefault: true,
+        devOnly: true,
+        args: {
+          port: {
+            type: "string",
+            default: "3000",
+            description: "UI dev server port",
+          },
+        },
+        handler: async (_ctx: CliCommandContext) => {
+          console.log("[cap-adapter-ui] Starting UI dev server...");
+        },
+      },
+    ],
+  },
+
+  systemPermissions: [],
+});

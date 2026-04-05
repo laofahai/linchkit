@@ -7,6 +7,8 @@
  * - Effect merging across all triggered rules
  */
 
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
 import type {
   BlockEffect,
   CodeCondition,
@@ -57,6 +59,8 @@ export interface RuleEvalOptions {
   timeout?: number;
   /** Rule names to skip (e.g., rules that triggered an approval that has been granted) */
   skipRules?: string[];
+  /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
+  metrics?: MetricsCollector;
 }
 
 export interface RuleEvalInput {
@@ -111,6 +115,8 @@ export async function evaluateRules(
     results: [],
     duration: 0,
   };
+
+  const metrics = options?.metrics ?? noopMetricsCollector;
 
   if (rules.length === 0) {
     output.duration = performance.now() - totalStart;
@@ -181,13 +187,22 @@ export async function evaluateRules(
     };
     output.results.push(result);
 
+    metrics.increment("rule.evaluated", {
+      rule: rule.name,
+      effect: triggered ? rule.effect.type : "none",
+    });
+    metrics.timing("rule.evaluation_duration_ms", duration, {
+      rule: rule.name,
+    });
+
     if (!triggered) continue;
 
     output.triggered = true;
     mergeEffect(output, rule.effect);
 
-    // Short-circuit: if we just got blocked, stop evaluating further rules
+    // Track block events separately for alert/dashboard convenience
     if (rule.effect.type === "block") {
+      metrics.increment("rule.block_count", { rule: rule.name });
       break;
     }
   }

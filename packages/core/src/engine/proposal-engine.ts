@@ -58,7 +58,7 @@ export class ProposalEngine {
     const autoRules = new Set<string>();
     for (const change of options.changes) {
       switch (change.target) {
-        case "schema":
+        case "entity":
           autoSchemas.add(change.name);
           break;
         case "action":
@@ -159,7 +159,7 @@ export class ProposalEngine {
       const autoRules = new Set<string>();
       for (const change of updates.changes) {
         switch (change.target) {
-          case "schema":
+          case "entity":
             autoSchemas.add(change.name);
             break;
           case "action":

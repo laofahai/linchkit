@@ -33,7 +33,12 @@ export async function loadConfig(cwd?: string): Promise<LoadConfigResult> {
     return { config, configPath };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("Cannot find module") || message.includes("no such file")) {
+    // Only treat as "not found" if the config file itself is the missing module,
+    // not if a dependency imported by the config is missing.
+    const isConfigNotFound =
+      (message.includes("Cannot find module") && message.includes(configPath)) ||
+      message.includes("no such file");
+    if (isConfigNotFound) {
       throw new Error(
         `Config file not found: ${configPath}\n` +
           `Run "linch init" to create a new project, or make sure you're in a LinchKit project directory.`,

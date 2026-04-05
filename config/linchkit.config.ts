@@ -2,6 +2,8 @@ import { defineConfig } from "@linchkit/core";
 import { capabilities } from "./capabilities";
 
 export default defineConfig({
+  addons_path: ["./addons"],
+
   server: {
     port: 3001,
     host: "0.0.0.0",

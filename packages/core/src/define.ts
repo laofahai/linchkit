@@ -6,44 +6,53 @@
  */
 
 import type { ActionDefinition, ActionOverride } from "./types/action";
+import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
+import type {
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
+  FieldDefinition,
+  InterfaceDefinition,
+} from "./types/entity";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
 import type {
   DataAccessDefinition,
   PermissionGroupDefinition,
   PermissionGroupExtension,
 } from "./types/permission";
+import type { RelationDefinition } from "./types/relation";
 import type { RuleDefinition, RuleOverride } from "./types/rule";
-import type {
-  FieldDefinition,
-  SchemaDefinition,
-  SchemaExtension,
-  SchemaOverride,
-} from "./types/schema";
 import type { StateDefinition, StateExtension } from "./types/state";
-import type { LinkDefinition } from "./types/link";
 import type { ViewDefinition, ViewExtension } from "./types/view";
+import type { WatcherDefinition } from "./types/watcher";
 
-// ── Schema ──────────────────────────────────────────
+// ── Entity Interface ─────────────────────────────────
 
-export function defineSchema<TFields extends Record<string, FieldDefinition>>(
-  definition: SchemaDefinition<TFields>,
-): SchemaDefinition<TFields> {
+export function defineInterface(definition: InterfaceDefinition): InterfaceDefinition {
   return definition;
 }
 
-export function extendSchema(
+// ── Entity ──────────────────────────────────────────
+
+export function defineEntity<TFields extends Record<string, FieldDefinition>>(
+  definition: EntityDefinition<TFields>,
+): EntityDefinition<TFields> {
+  return definition;
+}
+
+export function extendEntity(
   target: string,
-  extension: SchemaExtension,
-): { target: string; extension: SchemaExtension } {
+  extension: EntityExtension,
+): { target: string; extension: EntityExtension } {
   return { target, extension };
 }
 
-export function overrideSchema(
+export function overrideEntity(
   target: string,
-  override: SchemaOverride,
-): { target: string; override: SchemaOverride } {
+  override: EntityOverride,
+): { target: string; override: EntityOverride } {
   return { target, override };
 }
 
@@ -136,7 +145,7 @@ export function extendPermissionGroup(
 
 // ── Link ───────────────────────────────────────────
 
-export function defineLink(definition: LinkDefinition): LinkDefinition {
+export function defineRelation(definition: RelationDefinition): RelationDefinition {
   return definition;
 }
 
@@ -150,4 +159,20 @@ export function defineConfig(config: LinchKitConfig): LinchKitConfig {
 
 export function defineCapability(definition: CapabilityDefinition): CapabilityDefinition {
   return definition;
+}
+
+// ── Automation ───────────────────────────────────────
+
+export function defineAutomation(
+  definition: Omit<AutomationDefinition, "enabled"> & { enabled?: boolean },
+): AutomationDefinition {
+  return { enabled: true, ...definition };
+}
+
+// ── Watcher (data-condition triggered automation, spec 45) ──
+
+export function defineWatcher(
+  definition: Omit<WatcherDefinition, "enabled"> & { enabled?: boolean },
+): WatcherDefinition {
+  return { enabled: true, tenantScoped: true, ...definition };
 }

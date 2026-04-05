@@ -7,12 +7,14 @@
  */
 
 import {
+  boolean,
   index,
   integer,
   jsonb,
   pgSchema,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -35,6 +37,7 @@ export const eventStatusEnum = linchkitSchema.enum("event_status", [
   "processing",
   "completed",
   "failed",
+  "dead_letter",
 ]);
 
 export const approvalStatusEnum = linchkitSchema.enum("approval_status", [
@@ -53,7 +56,7 @@ export const executionsTable = linchkitSchema.table(
     id: varchar("id", { length: 255 }).primaryKey(),
     tenantId: varchar("tenant_id", { length: 255 }),
     actionName: varchar("action_name", { length: 255 }).notNull(),
-    schemaName: varchar("schema_name", { length: 255 }),
+    entityName: varchar("entity_name", { length: 255 }),
     recordId: varchar("record_id", { length: 255 }),
     capability: varchar("capability", { length: 255 }),
     input: jsonb("input"),
@@ -66,6 +69,7 @@ export const executionsTable = linchkitSchema.table(
     durationMs: integer("duration_ms"),
     channel: varchar("channel", { length: 50 }),
     parentExecutionId: varchar("parent_execution_id", { length: 255 }),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }),
     metadata: jsonb("metadata"),
     startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { mode: "date" }),
@@ -74,6 +78,8 @@ export const executionsTable = linchkitSchema.table(
   (table) => [
     index("idx_executions_action_created").on(table.actionName, table.createdAt),
     index("idx_executions_tenant").on(table.tenantId, table.createdAt),
+    // Scoped to tenant: different tenants may reuse the same idempotency key
+    uniqueIndex("idx_executions_idempotency_key").on(table.tenantId, table.idempotencyKey),
   ],
 );
 
@@ -110,7 +116,7 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   id: varchar("id", { length: 255 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 255 }),
   actionName: varchar("action_name", { length: 255 }).notNull(),
-  schemaName: varchar("schema_name", { length: 255 }),
+  entityName: varchar("entity_name", { length: 255 }),
   recordId: varchar("record_id", { length: 255 }),
   capability: varchar("capability", { length: 255 }),
   input: jsonb("input"),
@@ -134,3 +140,105 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// ── Config KV store tables ──────────────────────────────
+
+export const configScopeEnum = linchkitSchema.enum("config_scope", [
+  "global",
+  "tenant",
+  "department",
+  "user",
+]);
+
+/**
+ * _linchkit.config — runtime KV config entries (spec 42 §9.1)
+ *
+ * Unique constraint: (namespace, key, scope, scope_id)
+ */
+export const configTable = linchkitSchema.table(
+  "config",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    namespace: varchar("namespace", { length: 255 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    value: jsonb("value"),
+    scope: configScopeEnum("scope").notNull().default("global"),
+    scopeId: varchar("scope_id", { length: 255 }),
+    encrypted: boolean("encrypted").notNull().default(false),
+    updatedBy: varchar("updated_by", { length: 255 }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_config_unique").on(table.namespace, table.key, table.scope, table.scopeId),
+    index("idx_config_namespace").on(table.namespace),
+  ],
+);
+
+/**
+ * _linchkit.config_versions — version history for config entries (spec 42 §9.1)
+ *
+ * Each set() writes a new row here for full audit trail + rollback support.
+ */
+export const configVersionsTable = linchkitSchema.table(
+  "config_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    configId: uuid("config_id").notNull(),
+    namespace: varchar("namespace", { length: 255 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    value: jsonb("value"),
+    scope: configScopeEnum("scope").notNull().default("global"),
+    scopeId: varchar("scope_id", { length: 255 }),
+    version: integer("version").notNull(),
+    changedBy: varchar("changed_by", { length: 255 }),
+    changedAt: timestamp("changed_at", { mode: "date" }).notNull().defaultNow(),
+    changeReason: text("change_reason"),
+  },
+  (table) => [
+    index("idx_config_versions_config_id").on(table.configId),
+    index("idx_config_versions_ns_key").on(table.namespace, table.key, table.scope),
+  ],
+);
+
+// ── Override target type enum ───────────────────────────
+
+export const overrideTargetTypeEnum = linchkitSchema.enum("override_target_type", [
+  "rule",
+  "action",
+  "entity",
+  "view",
+  "flow",
+]);
+
+// ── Tenant overrides table (Layer 2 runtime overrides) ──
+
+export const tenantOverridesTable = linchkitSchema.table(
+  "tenant_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: varchar("tenant_id", { length: 255 }).notNull(),
+    /** Override target type (rule, action, schema, view, flow) */
+    targetType: overrideTargetTypeEnum("target_type").notNull(),
+    /** Name of the definition being overridden */
+    targetName: varchar("target_name", { length: 255 }).notNull(),
+    /** Partial definition to deep-merge onto the Layer 0 definition */
+    definition: jsonb("definition").notNull(),
+    /** Whether this override is currently active */
+    enabled: boolean("enabled").notNull().default(true),
+    /** Who created this override */
+    createdBy: varchar("created_by", { length: 255 }),
+    /** Who last updated this override */
+    updatedBy: varchar("updated_by", { length: 255 }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_tenant_overrides_unique").on(
+      table.tenantId,
+      table.targetType,
+      table.targetName,
+    ),
+    index("idx_tenant_overrides_tenant").on(table.tenantId),
+  ],
+);

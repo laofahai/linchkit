@@ -1,14 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
+  createTranslatableValue,
   getTranslatableFields,
+  I18N_RAW_KEY,
   mergeTranslatableValue,
   normalizeTranslatableRow,
   normalizeTranslatableValue,
   resolveTranslatableRow,
   resolveTranslatableValue,
+  resolveTranslation,
+  validateTranslatableEntity,
   wrapTranslatableValue,
-} from "../src/schema/translatable";
-import type { SchemaDefinition } from "../src/types/schema";
+} from "../src/entity/translatable";
+import type { EntityDefinition } from "../src/types/entity";
 
 describe("resolveTranslatableValue", () => {
   test("returns undefined for null/undefined input", () => {
@@ -122,11 +126,40 @@ describe("normalizeTranslatableValue", () => {
   test("passes through undefined", () => {
     expect(normalizeTranslatableValue(undefined, "en")).toBeUndefined();
   });
+
+  test("parses JSON-encoded locale map string", () => {
+    const jsonStr = '{"en":"Hello","zh-CN":"你好"}';
+    expect(normalizeTranslatableValue(jsonStr, "en")).toEqual({
+      en: "Hello",
+      "zh-CN": "你好",
+    });
+  });
+
+  test("wraps string starting with { if not valid JSON", () => {
+    const str = "{not valid json";
+    expect(normalizeTranslatableValue(str, "en")).toEqual({ en: "{not valid json" });
+  });
+
+  test("wraps string starting with { if JSON is not a locale map", () => {
+    // Array values are not a locale map
+    const arrayJson = '["en","zh-CN"]';
+    expect(normalizeTranslatableValue(arrayJson, "en")).toEqual({ en: arrayJson });
+  });
+
+  test("wraps string starting with { if values are not all strings", () => {
+    const mixedJson = '{"en":"Hello","count":42}';
+    expect(normalizeTranslatableValue(mixedJson, "en")).toEqual({ en: mixedJson });
+  });
+
+  test("parses single-locale JSON string", () => {
+    const jsonStr = '{"ja":"こんにちは"}';
+    expect(normalizeTranslatableValue(jsonStr, "en")).toEqual({ ja: "こんにちは" });
+  });
 });
 
 describe("getTranslatableFields", () => {
   test("returns empty set for schema without translatable fields", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string" },
@@ -137,7 +170,7 @@ describe("getTranslatableFields", () => {
   });
 
   test("returns translatable field names", () => {
-    const schema: SchemaDefinition = {
+    const schema: EntityDefinition = {
       name: "product",
       i18n: { defaultLocale: "en" },
       fields: {
@@ -157,7 +190,7 @@ describe("getTranslatableFields", () => {
 
 // -- Row-level helpers --
 
-const productSchema: SchemaDefinition = {
+const productSchema: EntityDefinition = {
   name: "product",
   i18n: { defaultLocale: "en", supportedLocales: ["en", "zh-CN"] },
   fields: {
@@ -168,7 +201,7 @@ const productSchema: SchemaDefinition = {
   },
 };
 
-const plainSchema: SchemaDefinition = {
+const plainSchema: EntityDefinition = {
   name: "counter",
   fields: {
     label: { type: "string" },
@@ -215,6 +248,45 @@ describe("resolveTranslatableRow", () => {
     expect(result.sku).toBe("W-001");
     expect(result.name).toBeUndefined();
   });
+
+  test("preserves raw JSONB locale maps under I18N_RAW_KEY", () => {
+    const row = {
+      name: { en: "Widget", "zh-CN": "小部件" },
+      description: { en: "A useful widget" },
+      sku: "W-001",
+    };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+
+    // Main fields should be resolved strings
+    expect(result.name).toBe("Widget");
+    expect(result.description).toBe("A useful widget");
+
+    // Raw JSONB locale maps should be stashed
+    const rawMap = result[I18N_RAW_KEY] as Record<string, unknown>;
+    expect(rawMap).toBeDefined();
+    expect(rawMap.name).toEqual({ en: "Widget", "zh-CN": "小部件" });
+    expect(rawMap.description).toEqual({ en: "A useful widget" });
+  });
+
+  test("does not set I18N_RAW_KEY when no translatable fields have JSONB values", () => {
+    const row = { sku: "W-001", price: 9.99 };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+    expect(result[I18N_RAW_KEY]).toBeUndefined();
+  });
+
+  test("does not stash plain string values (only objects) in I18N_RAW_KEY", () => {
+    // If a translatable field already has a string value (defensive case)
+    const row = {
+      name: "Widget",
+      sku: "W-001",
+    };
+    const result = resolveTranslatableRow(row, productSchema, "en");
+    // name was already a string, so it shouldn't be in the raw map
+    const rawMap = result[I18N_RAW_KEY] as Record<string, unknown> | undefined;
+    if (rawMap) {
+      expect(rawMap.name).toBeUndefined();
+    }
+  });
 });
 
 describe("normalizeTranslatableRow", () => {
@@ -248,7 +320,7 @@ describe("normalizeTranslatableRow", () => {
   });
 
   test("falls back to 'en' when no locale and no schema default", () => {
-    const noI18nSchema: SchemaDefinition = {
+    const noI18nSchema: EntityDefinition = {
       name: "test",
       fields: {
         title: { type: "string", translatable: true },
@@ -263,5 +335,147 @@ describe("normalizeTranslatableRow", () => {
     const row = { label: "test", count: 42 };
     const result = normalizeTranslatableRow(row, plainSchema, "en");
     expect(result).toBe(row); // same reference
+  });
+});
+
+// -- createTranslatableValue --
+
+describe("createTranslatableValue", () => {
+  test("creates a translatable value from a translations object", () => {
+    const result = createTranslatableValue({ en: "Hello", "zh-CN": "你好" });
+    expect(result).toEqual({ en: "Hello", "zh-CN": "你好" });
+  });
+
+  test("creates a copy (does not mutate input)", () => {
+    const input = { en: "Hello" };
+    const result = createTranslatableValue(input);
+    result["zh-CN"] = "你好";
+    expect(input).toEqual({ en: "Hello" }); // unchanged
+  });
+
+  test("handles single locale", () => {
+    const result = createTranslatableValue({ en: "Hello" });
+    expect(result).toEqual({ en: "Hello" });
+  });
+});
+
+// -- resolveTranslation --
+
+describe("resolveTranslation", () => {
+  test("resolves exact locale match", () => {
+    const value = { en: "Hello", "zh-CN": "你好" };
+    expect(resolveTranslation(value, "en")).toBe("Hello");
+    expect(resolveTranslation(value, "zh-CN")).toBe("你好");
+  });
+
+  test("resolves with language prefix fallback", () => {
+    const value = { "zh-CN": "你好", en: "Hello" };
+    expect(resolveTranslation(value, "zh")).toBe("你好");
+  });
+
+  test("returns empty string when no match found", () => {
+    const value = {};
+    expect(resolveTranslation(value, "ja")).toBe("");
+  });
+
+  test("uses fallback locale", () => {
+    const value = { "zh-CN": "你好", en: "Hello" };
+    expect(resolveTranslation(value, "ja", "en")).toBe("Hello");
+  });
+});
+
+// -- validateTranslatableEntity --
+
+describe("validateTranslatableEntity", () => {
+  test("returns no errors for valid schema", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        name: { type: "string", translatable: true },
+        description: { type: "text", translatable: true },
+        sku: { type: "string" },
+      },
+    };
+    expect(validateTranslatableEntity(schema)).toEqual([]);
+  });
+
+  test("returns no errors for schema without translatable fields", () => {
+    const schema: EntityDefinition = {
+      name: "counter",
+      fields: {
+        count: { type: "number" },
+      },
+    };
+    expect(validateTranslatableEntity(schema)).toEqual([]);
+  });
+
+  test("returns error for non-translatable field type with translatable flag", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        count: { type: "number", translatable: true },
+      },
+    };
+    const errors = validateTranslatableEntity(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("count");
+    expect(errors[0]).toContain("number");
+  });
+
+  test("returns error for boolean field with translatable flag", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        active: { type: "boolean", translatable: true },
+      },
+    };
+    const errors = validateTranslatableEntity(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("active");
+    expect(errors[0]).toContain("boolean");
+  });
+
+  test("returns error when translatable fields exist but no defaultLocale", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      fields: {
+        name: { type: "string", translatable: true },
+      },
+    };
+    const errors = validateTranslatableEntity(schema);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("defaultLocale");
+  });
+
+  test("returns multiple errors", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        name: { type: "string", translatable: true },
+        count: { type: "number", translatable: true },
+        active: { type: "boolean", translatable: true },
+      },
+    };
+    const errors = validateTranslatableEntity(schema);
+    // 2 invalid field types + 1 missing defaultLocale = 3 errors
+    expect(errors.length).toBe(3);
+  });
+
+  test("allows enum field to be translatable", () => {
+    const schema: EntityDefinition = {
+      name: "product",
+      i18n: { defaultLocale: "en" },
+      fields: {
+        status: {
+          type: "enum",
+          translatable: true,
+          options: [{ value: "active" }, { value: "inactive" }],
+        },
+      },
+    };
+    expect(validateTranslatableEntity(schema)).toEqual([]);
   });
 });

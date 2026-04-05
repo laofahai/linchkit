@@ -5,19 +5,20 @@
  * a flow's EventFlowTrigger, the flow is automatically started.
  *
  * - EventFlowTrigger: subscribes to the event bus
- * - ScheduleFlowTrigger: placeholder (real cron in M2)
+ * - ScheduleFlowTrigger: uses croner for real cron scheduling
  * - ManualFlowTrigger: no binding needed (started via API)
  */
 
-import type { EventRecord } from "../types/event";
+import { Cron } from "croner";
+import { consoleLogger } from "../observability/console-logger";
+import type { ActorType } from "../types/action";
+import type { EventBusLike, EventRecord } from "../types/event";
 import type { EventFlowTrigger, FlowDefinition, ScheduleFlowTrigger } from "../types/flow";
+import type { Logger } from "../types/logger";
 import type { FlowEngine } from "./types";
 
-// ── EventBusLike interface (avoids circular deps) ───────────
-
-export interface EventBusLike {
-  subscribe(eventType: string, handler: (event: EventRecord) => Promise<void>): () => void;
-}
+// Re-export for backwards compatibility
+export type { EventBusLike } from "../types/event";
 
 // ── TriggerBinding interface ────────────────────────────────
 
@@ -48,11 +49,13 @@ function matchesFilter(payload: Record<string, unknown>, filter: Record<string, 
 
 class TriggerBindingImpl implements TriggerBinding {
   private eventBus: EventBusLike;
+  private logger: Logger;
   private unsubscribers: Array<() => void> = [];
-  private scheduledCrons: Array<{ flowName: string; cron: string }> = [];
+  private cronJobs: Cron[] = [];
 
-  constructor(eventBus: EventBusLike) {
+  constructor(eventBus: EventBusLike, logger: Logger = consoleLogger) {
     this.eventBus = eventBus;
+    this.logger = logger;
   }
 
   bindAll(flows: FlowDefinition[], engine: FlowEngine): void {
@@ -66,7 +69,11 @@ class TriggerBindingImpl implements TriggerBinding {
       unsub();
     }
     this.unsubscribers = [];
-    this.scheduledCrons = [];
+
+    for (const job of this.cronJobs) {
+      job.stop();
+    }
+    this.cronJobs = [];
   }
 
   private bindFlow(flow: FlowDefinition, engine: FlowEngine): void {
@@ -78,7 +85,7 @@ class TriggerBindingImpl implements TriggerBinding {
         break;
 
       case "schedule":
-        this.bindScheduleTrigger(flow.name, trigger);
+        this.bindScheduleTrigger(flow.name, trigger, engine);
         break;
 
       case "manual":
@@ -97,28 +104,55 @@ class TriggerBindingImpl implements TriggerBinding {
       // Generate a deterministic instance ID from flow name + event ID
       const instanceId = `${flowName}-${event.id}`;
 
+      // Normalize event actor to full Actor shape (EventRecord.actor lacks groups)
+      const actor = event.actor
+        ? {
+            type: event.actor.type as ActorType,
+            id: event.actor.id,
+            groups: [] as string[],
+          }
+        : undefined;
+
       await engine.startFlow(flowName, event.payload, {
         instanceId,
         tenantId: event.tenantId,
-        actor: event.actor,
+        actor,
       });
     });
 
     this.unsubscribers.push(unsub);
   }
 
-  private bindScheduleTrigger(flowName: string, trigger: ScheduleFlowTrigger): void {
-    console.warn(
-      `[TriggerBinding] Schedule triggers not yet implemented (M2). ` +
-        `Flow "${flowName}" cron "${trigger.cron}" will not auto-start.`,
-    );
-    this.scheduledCrons.push({ flowName, cron: trigger.cron });
+  private bindScheduleTrigger(
+    flowName: string,
+    trigger: ScheduleFlowTrigger,
+    engine: FlowEngine,
+  ): void {
+    try {
+      const job = new Cron(trigger.cron, async () => {
+        try {
+          await engine.startFlow(flowName, {
+            _triggeredAt: new Date().toISOString(),
+            _triggerType: "schedule",
+            _cron: trigger.cron,
+          });
+        } catch (err) {
+          this.logger.warn?.(`[TriggerBinding] Scheduled flow "${flowName}" failed: ${err}`);
+        }
+      });
+
+      this.cronJobs.push(job);
+    } catch (err) {
+      this.logger.warn?.(
+        `[TriggerBinding] Invalid cron "${trigger.cron}" for flow "${flowName}": ${err}`,
+      );
+    }
   }
 }
 
 // ── Factory ─────────────────────────────────────────────────
 
 /** Create a new TriggerBinding connected to the given event bus */
-export function createTriggerBinding(eventBus: EventBusLike): TriggerBinding {
-  return new TriggerBindingImpl(eventBus);
+export function createTriggerBinding(eventBus: EventBusLike, logger?: Logger): TriggerBinding {
+  return new TriggerBindingImpl(eventBus, logger);
 }

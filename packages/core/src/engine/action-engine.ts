@@ -7,19 +7,29 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import type { EventBus } from "../event/event-bus";
+import type { MetricsCollector } from "../observability/metrics";
+import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace } from "../observability/trace-context";
-import type {
-  ActionContext,
-  ActionDefinition,
-  ActionExposure,
-  ActionResult,
-  Actor,
-  ValidationResult,
-} from "../types/action";
+import { createTenantAwareDataProvider } from "../security/tenant-isolation";
+import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import type { Logger } from "../types/logger";
 import type { StateMachine } from "./state-machine";
 import { canTransition } from "./state-machine";
+
+export { ActionRegistry } from "./action-registry";
+
+import {
+  checkPermissions,
+  generateExecutionId,
+  isExposed,
+  resolveFieldExpression,
+  runPreValidation,
+  validateInput,
+} from "./action-helpers";
+import { ActionRegistry } from "./action-registry";
 
 // ── DataProvider interface ──────────────────────────────────
 
@@ -79,6 +89,8 @@ export interface ExecuteOptions {
   skipRules?: string[];
   /** Approval ID that authorized this re-execution */
   approvalId?: string;
+  /** Include soft-deleted records in data operations (used by restore action) */
+  includeDeleted?: boolean;
   /** Idempotency key — if provided and an execution with this key already succeeded, return cached result */
   idempotencyKey?: string;
   /** Internal: current recursion depth for child action execution */
@@ -87,43 +99,6 @@ export interface ExecuteOptions {
   _txDataProvider?: DataProvider;
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
-}
-
-// ── ActionRegistry ──────────────────────────────────────────
-
-export class ActionRegistry {
-  private actions = new Map<string, ActionDefinition>();
-
-  /** Register an action definition. Throws on duplicate name unless overwrite is set. */
-  register(action: ActionDefinition, opts?: { overwrite?: boolean }): void {
-    if (!action.name) {
-      throw new Error("Action must have a name");
-    }
-    if (this.actions.has(action.name) && !opts?.overwrite) {
-      throw new Error(`Action "${action.name}" is already registered`);
-    }
-    this.actions.set(action.name, action);
-  }
-
-  /** Get an action by name, or undefined if not found */
-  get(name: string): ActionDefinition | undefined {
-    return this.actions.get(name);
-  }
-
-  /** Get all registered actions */
-  getAll(): ActionDefinition[] {
-    return Array.from(this.actions.values());
-  }
-
-  /** Get all actions for a given schema */
-  getBySchema(schema: string): ActionDefinition[] {
-    return this.getAll().filter((a) => a.schema === schema);
-  }
-
-  /** Check if an action is registered */
-  has(name: string): boolean {
-    return this.actions.has(name);
-  }
 }
 
 // ── ActionExecutor ──────────────────────────────────────────
@@ -137,120 +112,6 @@ export interface ActionExecutor {
     actor: Actor,
     options?: ExecuteOptions,
   ): Promise<ActionResult<T>>;
-}
-
-// ── Helpers ─────────────────────────────────────────────────
-
-let executionCounter = 0;
-
-function generateExecutionId(): string {
-  executionCounter++;
-  return `exec_${Date.now()}_${executionCounter}`;
-}
-
-/** Check if the action is exposed for the given channel */
-function isExposed(
-  exposure: ActionExposure | "all" | undefined,
-  channel: ExecutionChannel,
-): boolean {
-  // Default: all channels allowed
-  if (exposure === undefined || exposure === "all") {
-    return true;
-  }
-
-  const mapping: Record<ExecutionChannel, keyof ActionExposure> = {
-    http: "http",
-    mcp: "mcp",
-    cli: "cli",
-    ui: "ui",
-    internal: "internal",
-  };
-
-  const key = mapping[channel];
-  // If not explicitly set, default to true
-  return exposure[key] !== false;
-}
-
-/** Check if the actor has permission to execute the action */
-function checkPermissions(action: ActionDefinition, actor: Actor): string | null {
-  const perms = action.permissions;
-  if (!perms) {
-    return null; // No restrictions
-  }
-
-  // Check actor type
-  if (perms.actorTypes && perms.actorTypes.length > 0) {
-    if (!perms.actorTypes.includes(actor.type)) {
-      return `Actor type "${actor.type}" is not allowed for action "${action.name}"`;
-    }
-  }
-
-  // Check permission groups
-  if (perms.groups && perms.groups.length > 0) {
-    const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
-    if (!hasGroup) {
-      return `Actor does not belong to any of the required groups: ${perms.groups.join(", ")}`;
-    }
-  }
-
-  return null;
-}
-
-/** Validate required input fields */
-function validateInput(action: ActionDefinition, input: Record<string, unknown>): ValidationResult {
-  // Check required fields from input definition
-  if (action.input) {
-    const errors: Array<{ field: string; message: string }> = [];
-    for (const [fieldName, fieldDef] of Object.entries(action.input)) {
-      if (fieldDef.required && (input[fieldName] === undefined || input[fieldName] === null)) {
-        errors.push({ field: fieldName, message: `Field "${fieldName}" is required` });
-      }
-    }
-    if (errors.length > 0) {
-      return { valid: false, errors };
-    }
-  }
-
-  return { valid: true };
-}
-
-/** Run pre-validation (validate.required on the record, validate.custom) */
-function runPreValidation(action: ActionDefinition, ctx: ActionContext): ValidationResult {
-  if (!action.validate) {
-    return { valid: true };
-  }
-
-  // validate.required checks fields on the input
-  if (action.validate.required && action.validate.required.length > 0) {
-    const errors: Array<{ field: string; message: string }> = [];
-    for (const field of action.validate.required) {
-      if (ctx.input[field] === undefined || ctx.input[field] === null || ctx.input[field] === "") {
-        errors.push({ field, message: `Field "${field}" is required` });
-      }
-    }
-    if (errors.length > 0) {
-      return { valid: false, errors };
-    }
-  }
-
-  // validate.custom — wrap in try/catch so exceptions don't escape
-  if (action.validate.custom) {
-    try {
-      return action.validate.custom(ctx);
-    } catch (err) {
-      return {
-        valid: false,
-        errors: [
-          {
-            field: "_custom",
-            message: err instanceof Error ? err.message : String(err),
-          },
-        ],
-      };
-    }
-  }
-
-  return { valid: true };
 }
 
 // ── Transactional event collection ──────────────────────────
@@ -302,6 +163,15 @@ export interface ActionExecutorOptions {
   /** Config registry — injected into ActionContext for type-safe config access.
    *  Falls back to an empty registry when omitted (e.g. in tests). */
   configRegistry?: ConfigRegistry;
+  /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
+  metrics?: MetricsCollector;
+  /** Logger instance — injected into ActionContext for handler-level logging.
+   *  Falls back to a silent noop logger when omitted. */
+  logger?: Logger;
+  /** Event bus for emitting action lifecycle events (action.succeeded, action.failed) */
+  eventBus?: EventBus;
+  /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
+  capabilityNames?: ReadonlySet<string>;
 }
 
 /**
@@ -326,7 +196,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     executionLogger,
     aiService,
     configRegistry,
+    metrics = noopMetricsCollector,
+    logger: injectedLogger,
+    eventBus,
+    capabilityNames = new Set<string>(),
   } = options;
+
+  /** Silent noop logger — used when no logger is injected */
+  const noopFn = () => {};
+  const noopLogger: Logger = { debug: noopFn, info: noopFn, warn: noopFn, error: noopFn };
+  const logger: Logger = injectedLogger ?? noopLogger;
 
   /** Helper: build and log an execution entry */
   async function logExecution(
@@ -421,7 +300,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         await logExecution({
           id: executionId,
           action: actionName,
-          schema: action.schema,
+          entity: action.entity,
           actor,
           input,
           status: "blocked",
@@ -443,7 +322,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         await logExecution({
           id: executionId,
           action: actionName,
-          schema: action.schema,
+          entity: action.entity,
           actor,
           input,
           status: "blocked",
@@ -464,7 +343,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -482,34 +361,46 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const childExecutionIds: string[] = [];
     const pendingEvents: PendingEvent[] = [];
     const noopAi: AIService = {
+      configured: false,
+      defaultProvider: null,
+      providerNames: [],
       complete: () => {
         throw new Error(
           "AI service is not configured. Add an 'ai' section to your LinchKit config.",
         );
       },
     };
-    // Build DataQueryOptions from ExecuteOptions for tenant isolation and locale
+    // Build DataQueryOptions for locale and includeDeleted (tenant isolation is now handled by the provider wrapper)
     const queryOptions: DataQueryOptions | undefined =
-      execOptions?.tenantId || execOptions?.locale
-        ? { tenantId: execOptions?.tenantId, locale: execOptions?.locale }
+      execOptions?.locale || execOptions?.includeDeleted
+        ? { locale: execOptions?.locale, includeDeleted: execOptions?.includeDeleted }
         : undefined;
+
+    // Wrap the base DataProvider with tenant isolation when tenantId is present.
+    // This enforces row-level tenant scoping on ALL data operations (get/query/create/update/delete/count).
+    const baseProvider: DataProvider = execOptions?.tenantId
+      ? createTenantAwareDataProvider(dataProvider, execOptions.tenantId)
+      : dataProvider;
 
     // Mutable provider reference — reassigned inside transaction callback
     // so that ctx closures automatically use the transactional connection.
-    let activeProvider: DataProvider = dataProvider;
+    let activeProvider: DataProvider = baseProvider;
 
     const ctx: ActionContext = {
       input,
       actor,
+      tenantId: execOptions?.tenantId,
+      logger,
+      signal: undefined,
       ai: aiService ?? noopAi,
       config: configRegistry ?? ConfigRegistry.empty(),
       executionId,
       timestamp: startedAt,
-      get: (schema, id) => activeProvider.get(schema, id, queryOptions),
-      query: (schema, filter) => activeProvider.query(schema, filter, queryOptions),
-      create: (schema, data) => activeProvider.create(schema, data),
-      update: (schema, id, data) => activeProvider.update(schema, id, data, queryOptions),
-      delete: (schema, id) => activeProvider.delete(schema, id, queryOptions),
+      get: (entity, id) => activeProvider.get(entity, id, queryOptions),
+      query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
+      create: (entity, data) => activeProvider.create(entity, data),
+      update: (entity, id, data) => activeProvider.update(entity, id, data, queryOptions),
+      delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
       execute: async (childActionName, childInput) => {
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
@@ -520,6 +411,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
       },
+      hasCapability: (name: string) => capabilityNames.has(name),
       emit: (eventType, payload) => {
         const trace = getCurrentTrace();
         pendingEvents.push({
@@ -539,7 +431,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -567,15 +459,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
       if (recordId) {
         try {
-          const record = await dataProvider.get(action.schema, recordId, queryOptions);
+          const record = await baseProvider.get(action.entity, recordId, queryOptions);
           currentState = record.status as string | undefined;
         } catch {
           // Record fetch failed — fail closed when state transition is required
-          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in schema "${action.schema}"`;
+          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "failed",
@@ -597,7 +489,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "blocked",
@@ -617,7 +509,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            schema: action.schema,
+            entity: action.entity,
             actor,
             input,
             status: "blocked",
@@ -651,14 +543,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (action.handler) {
           resultData = await action.handler(ctx);
         } else {
-          // Declarative action
+          // Declarative action — no handler needed
           const recordId = input.id as string | undefined;
 
           if (recordId) {
             const updates: Record<string, unknown> = {};
 
             if (action.setFields) {
-              Object.assign(updates, action.setFields);
+              for (const [key, value] of Object.entries(action.setFields)) {
+                updates[key] = resolveFieldExpression(value, input, actor);
+              }
             }
 
             if (action.stateTransition) {
@@ -666,7 +560,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             }
 
             if (Object.keys(updates).length > 0) {
-              record = await dp.update(action.schema, recordId, updates, queryOptions);
+              record = await dp.update(action.entity, recordId, updates, queryOptions);
+              resultData = record;
             }
           }
         }
@@ -681,6 +576,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Shared transaction path: parent already opened a transaction.
         // Use the parent's transactional provider directly so all data
         // operations participate in the same DB transaction.
+        // Note: parent already wraps with tenant isolation, so no double-wrap needed.
         await runHandler(parentTxProvider);
         // Propagate child events to parent's pending list so they are
         // persisted atomically when the parent's transaction commits.
@@ -688,18 +584,32 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           parentEvents.push(...pendingEvents);
         }
       } else if (useTransaction) {
-        await transactionManager.runInTransaction(
-          (txProvider) => runHandler(txProvider),
-          pendingEvents,
-        );
+        await transactionManager.runInTransaction((txProvider) => {
+          // Wrap the transactional provider with tenant isolation
+          const scopedTxProvider = execOptions?.tenantId
+            ? createTenantAwareDataProvider(txProvider, execOptions.tenantId)
+            : txProvider;
+          return runHandler(scopedTxProvider);
+        }, pendingEvents);
       } else {
-        await runHandler(dataProvider);
+        await runHandler(baseProvider);
       }
+
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        entity: action.entity ?? "",
+        status: "succeeded",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        entity: action.entity ?? "",
+      });
 
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         output: resultData,
@@ -710,6 +620,56 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         startedAt,
       });
 
+      // Emit action.succeeded event to EventBus (non-blocking — must not affect action result)
+      if (eventBus) {
+        try {
+          await eventBus.emit({
+            id: crypto.randomUUID(),
+            type: "action.succeeded",
+            category: "runtime",
+            timestamp: new Date(),
+            actor: { type: actor.type, id: actor.id },
+            entity: action.entity,
+            action: actionName,
+            executionId,
+            tenantId: execOptions?.tenantId,
+            payload: {
+              action: actionName,
+              ...(typeof resultData === "object" && resultData !== null
+                ? (resultData as Record<string, unknown>)
+                : { result: resultData }),
+            },
+          });
+        } catch {
+          // Don't fail the action if event emission fails
+        }
+
+        // Flush pending events (from ctx.emit()) to in-memory EventBus subscribers.
+        // Only flush at the root action level — child actions sharing a parent transaction
+        // have their events merged into the parent's pendingEvents and will be flushed
+        // when the parent's transaction commits.
+        if (!execOptions?._txDataProvider && pendingEvents.length > 0) {
+          for (const pe of pendingEvents) {
+            try {
+              await eventBus.emit({
+                id: crypto.randomUUID(),
+                type: pe.type,
+                category: pe.type.startsWith("record.") ? "change" : "custom",
+                timestamp: new Date(),
+                actor: { type: actor.type, id: actor.id },
+                entity: typeof pe.payload.entity === "string" ? pe.payload.entity : undefined,
+                recordId: typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
+                tenantId: pe.tenantId,
+                executionId: pe.sourceExecutionId ?? executionId,
+                payload: pe.payload,
+              });
+            } catch {
+              // Non-blocking — don't fail the action if flush fails
+            }
+          }
+        }
+      }
+
       return {
         success: true,
         data: resultData as T,
@@ -717,11 +677,22 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        entity: action.entity ?? "",
+        status: "failed",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        entity: action.entity ?? "",
+      });
+
       // On failure, pendingEvents were NOT persisted (transaction rolled back)
       await logExecution({
         id: executionId,
         action: actionName,
-        schema: action.schema,
+        entity: action.entity,
         actor,
         input,
         status: "failed",
@@ -730,6 +701,30 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         startedAt,
       });
+
+      // Emit action.failed event to EventBus (non-blocking — must not affect action result)
+      if (eventBus) {
+        try {
+          await eventBus.emit({
+            id: crypto.randomUUID(),
+            type: "action.failed",
+            category: "runtime",
+            timestamp: new Date(),
+            actor: { type: actor.type, id: actor.id },
+            entity: action.entity,
+            action: actionName,
+            executionId,
+            tenantId: execOptions?.tenantId,
+            payload: {
+              action: actionName,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        } catch {
+          // Don't fail the action if event emission fails
+        }
+      }
+
       return {
         success: false,
         data: {

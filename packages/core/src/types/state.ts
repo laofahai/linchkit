@@ -11,6 +11,8 @@ export interface StateMeta {
   label: string;
   color?: string;
   description?: string;
+  /** Hide this state from the State Ribbon in list views (e.g. archived states) */
+  ribbonHidden?: boolean;
 }
 
 // ── State transitions ────────────────────────────────────────
@@ -25,7 +27,7 @@ export interface Transition {
 
 export interface StateDefinition<TStates extends string = string> {
   name: string;
-  schema: string;
+  entity: string;
   field: string;
   initial: TStates;
 

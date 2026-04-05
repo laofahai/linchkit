@@ -4,7 +4,7 @@ import { getAvailableTransitions, testStateMachine } from "../src/test-state";
 
 const lifecycle = defineState({
   name: "request_lifecycle",
-  schema: "purchase_request",
+  entity: "purchase_request",
   field: "status",
   initial: "draft",
   states: ["draft", "submitted", "approved", "rejected", "cancelled"],

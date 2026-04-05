@@ -61,6 +61,7 @@ export {
 // Proposal generator (AI-powered)
 export {
   createProposalGenerator,
+  ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./proposal-generator";
 // Rule engine
@@ -76,6 +77,7 @@ export {
   canTransition,
   createStateMachine,
   getAvailableActions,
+  getAvailableTransitions,
   transition,
 } from "./state-machine";
 // Validation engine

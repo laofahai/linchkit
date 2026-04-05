@@ -1,7 +1,74 @@
 # Milestone M1 Plan — Persistence, Flow, Ecosystem
 
-> Status: Draft | Date: 2026-03-22
-> Prerequisite: M0b complete (auth/permission integration finalized)
+> Status: Active | Date: 2026-03-22
+> **Last Updated**: 2026-03-25
+> Prerequisite: **✅ M0b complete** (auth/permission integration finalized)
+>
+> ### Current Progress
+> - ✅ M0b: 100% complete (all tasks done, all tests passing)
+> - ✅ M1a Stage 1: Drizzle ORM Infrastructure 100% complete
+> - ✅ M1a Stage 2: Migration System 100% complete (uses `migrate()` API instead of buggy `push`)
+> - ✅ M1a Stage 3: RuntimeContext Switch 100% complete (PostgreSQL + InMemory fallback)
+> - ✅ M1a Stage 4: Event Persistence + Outbox 100% complete
+> - ✅ M1a Stage 5: Flow Engine (Restate) 100% complete (FlowDefinition types, SyncFlowEngine, FlowStepContext, dual-mode)
+> - ✅ M1b Phase 1: MCP Adapter Enhanced — complete (describe_schema, ontology_overview, search_ontology, list_actions filter)
+> - ✅ M1b Phase 3: AI Proposal — basics complete (OntologyRegistry integration, ProposalGenerationError, prompt optimization)
+> - ✅ M1b Phase 4: CLI Ecosystem — basics complete (create-capability enhanced, install --dry-run, info command)
+> - ✅ M1b Phase 5: i18n — data layer complete
+> - ✅ M2: Link Type 100% complete (including M:N support ahead of schedule)
+> - ✅ M2: OntologyRegistry 100% complete (describe, listSchemas, searchSchemas, actionsFor, rulesFor, stateFor, viewsFor, flowsFor, handlersFor, relatedSchemas, toJSON)
+> - ✅ M2: GraphQL Subscriptions — basics complete (SSE-based pub/sub)
+> - ✅ M2: MCP Adapter + Ontology integration — complete
+> - ✅ M2: Cache Strategy (spec 34) — complete
+> - ✅ M2: AI Rule Boundary (spec 22) — complete
+> - ✅ M2: Schema Interface (spec 47) — complete
+> - ✅ M2: Data Masking (spec 41b) — complete
+> - ✅ M2: Tenant Isolation (spec 30) — complete
+> - ✅ M2: Metrics Wiring into core engines — complete
+> - ✅ M2: Derived Properties (spec 48) — complete
+> - ✅ M2: Reactive Automation (spec 45) — complete
+> - ✅ M2: Schema Inheritance (spec 49) — complete
+> - ✅ M2: Runtime Config Center (spec 42) — complete
+> - ✅ M2: Observability Metrics (spec 28) — complete
+> - ✅ M2: OutboxWorker production reliability — complete
+> - ✅ M2: Flow AIStep tool calling — complete
+> - ✅ Spec 12: Deployment — complete
+> - ✅ Spec 17: Legacy Migration — complete
+> - ✅ Spec 21b: Capability Hub — complete
+> - ✅ Spec 25: Documentation — complete
+> - ✅ Spec 27: AI Security — complete (AI Rule Boundary + AI security hardening)
+> - ✅ Spec 29: Methodology — complete
+> - ✅ Spec 37: Documentation Governance — complete
+> - ✅ Spec 38: Release Compatibility — complete
+>
+> ### Test Coverage
+> - ~1983 tests, 0 failures
+>
+> ### Tech Debt Fixed (2026-03-25)
+> - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
+>
+> ### Integration Wiring Completed (2026-03-25)
+> - GraphQL state transitions: availableTransitions query + transition mutation
+> - GraphQL optimistic locking: _version check with 409 conflict response
+> - GraphQL translatable field resolution: read + write paths
+> - AIBoundary + AIAuditLogger wired into server + flow engine
+> - TenantAwareDataProvider wired into ActionExecutor
+> - DerivedPropertyEngine wired into CRUD + GraphQL
+> - AutomationEngine wired into server lifecycle
+> - InterfaceRegistry wired into server startup
+> - InMemoryStore extracted to @linchkit/core (shared, with optimistic locking)
+> - Large file splits (build-schema, dev.ts)
+> - 5 CLI commands: docs, check, changelog, validate, info
+> - 4 MCP AI security tools
+> - Purchase demo enhanced (interfaces, derived, automations, masking)
+>
+> ### Architecture Improvements
+> - **Browser/Server Boundaries**: Clean separation of browser-safe and server-only code paths across all packages
+> - **Error Hierarchy**: Structured error types with proper HTTP status mapping (validation→400, auth→401, authz→403, not_found→404, business→422, conflict→409, system→500)
+> - **EventBusLike Decoupling**: Core engines depend on `EventBusLike` interface, not concrete EventBus — enables in-memory, persistent, and test implementations interchangeably
+>
+> ### Remaining Work (TODO)
+> - Final polish and M2 remaining items
 
 ## Overview
 
@@ -52,10 +119,10 @@ M1b: Ecosystem + AI (~6 weeks)
 
 | Task | Description | File | Size |
 |------|-------------|------|------|
-| 0.7 | Create `useAuth()` hook + AuthContext (decode token → user info) | `cap-adapter-ui-react/src/hooks/use-auth.tsx` (new) | M |
-| 0.8 | NavUser reads from `useAuth()` instead of hardcoded props | `cap-adapter-ui-react/src/components/nav-user.tsx` | S |
-| 0.9 | Fix `loginWithPassword` error swallowing (propagate to UI) | `cap-adapter-ui-react/src/lib/auth-client.ts` | S |
-| 0.10 | API 401 interceptor: clear token + redirect to `/login` | `cap-adapter-ui-react/src/lib/api.ts` | S |
+| 0.7 | Create `useAuth()` hook + AuthContext (decode token → user info) | `cap-adapter-ui/src/hooks/use-auth.tsx` (new) | M |
+| 0.8 | NavUser reads from `useAuth()` instead of hardcoded props | `cap-adapter-ui/src/components/nav-user.tsx` | S |
+| 0.9 | Fix `loginWithPassword` error swallowing (propagate to UI) | `cap-adapter-ui/src/lib/auth-client.ts` | S |
+| 0.10 | API 401 interceptor: clear token + redirect to `/login` | `cap-adapter-ui/src/lib/api.ts` | S |
 
 #### Tests
 
@@ -86,7 +153,7 @@ M1b: Ecosystem + AI (~6 weeks)
 | 1.3 | System tables definition (executions, events, approvals, outbox) in `_linchkit` PostgreSQL schema (`pgSchema("_linchkit")`) | `core/src/engine/system-tables.ts` (new) | S | 1.1 |
 | 1.4 | `DrizzleExecutionLogger` implementing `ExecutionLogger` interface | `core/src/engine/drizzle-execution-logger.ts` (new) | M | 1.1, 1.3 |
 | 1.5 | `DrizzleApprovalStore` implementing `ApprovalStore` interface | `core/src/engine/drizzle-approval-store.ts` (new) | M | 1.1, 1.3 |
-| 1.6 | `TableRegistry`: schema name → Drizzle table mapping, auto-build from SchemaRegistry | `core/src/engine/table-registry.ts` (new) | M | 1.2 |
+| 1.6 | `TableRegistry`: schema name → Drizzle table mapping, auto-build from EntityRegistry | `core/src/engine/table-registry.ts` (new) | M | 1.2 |
 
 **Architecture decisions:**
 - **Database**: PostgreSQL only (JSONB, partitioning, Outbox all depend on PG)
@@ -97,8 +164,8 @@ M1b: Ecosystem + AI (~6 weeks)
 
 | Task | Description | New/Modify | Size | Dep |
 |------|-------------|------------|------|-----|
-| 2.1 | Dev mode auto-sync: collect SchemaDefinitions → `drizzle-kit generate` + `migrate()` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
-| 2.2 | Dynamic drizzle config: generate `.generated/schema.ts` from SchemaDefinitions for drizzle-kit | Script or utility | S | 2.1 |
+| 2.1 | Dev mode auto-sync: collect EntityDefinitions → `drizzle-kit generate` + `migrate()` on startup | `cli/src/commands/dev.ts` (modify) | M | Stage 1 |
+| 2.2 | Dynamic drizzle config: generate `.generated/schema.ts` from EntityDefinitions for drizzle-kit | Script or utility | S | 2.1 |
 
 **Dev mode**: `drizzle-kit generate` → `migrate()` from `drizzle-orm/postgres-js/migrator` (dev can reset: drop DB + delete migrations + regenerate)
 **Production mode**: `drizzle-kit generate` → migration SQL → `migrate()` (append-only, never delete applied migrations)
@@ -190,7 +257,7 @@ Stage 4 (Events)                   │
 | 1.3 | Enhanced MCP tools: `list_capabilities`, `get_rules`, `get_state_machine`, `create_proposal`, `query` (GraphQL proxy) | M | 1.1 |
 | 1.4 | MCP SSE Transport via Elysia route | M | 1.1 |
 
-**Architecture decision**: Extend `TransportContext` to include all registries (schemaRegistry, actionRegistry, etc.) — MCP introspection tools need direct registry access.
+**Architecture decision**: Extend `TransportContext` to include all registries (entityRegistry, actionRegistry, etc.) — MCP introspection tools need direct registry access.
 
 ### Phase 2 — Flow Engine AI Integration
 
@@ -224,7 +291,7 @@ Stage 4 (Events)                   │
 
 | Task | Description | Size | Dep |
 |------|-------------|------|-----|
-| 5.1 | `BaseFieldDefinition.translatable?: boolean` + `SchemaDefinition.i18n` config | S | — |
+| 5.1 | `BaseFieldDefinition.translatable?: boolean` + `EntityDefinition.i18n` config | S | — |
 | 5.2 | Schema-to-Drizzle: translatable fields → JSONB column generation | M | 5.1 |
 | 5.3 | Action Engine: translatable value read/write (locale resolution + fallback chain) | M | 5.2 |
 | 5.4 | GraphQL: `_i18n` field type + `locale` query parameter for translatable fields | M | 5.3 |
@@ -280,6 +347,6 @@ Stage 4 (Events)                   │
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
 | Restate server unavailable in prod | Durable Flow unavailable | Low | Dual-mode: sync fallback executes flows without durability; Restate is a single binary with no external deps |
-| Drizzle dynamic table TypeScript issues | DrizzleDataProvider dev friction | Low | Use `any` bridge, runtime safety via SchemaDefinition |
+| Drizzle dynamic table TypeScript issues | DrizzleDataProvider dev friction | Low | Use `any` bridge, runtime safety via EntityDefinition |
 | PostgreSQL adds DX complexity | Slower onboarding | Low | `docker-compose.yml`; InMemory mode preserved for prototyping |
 | MCP SDK breaking changes | Adapter rework | Low | Pin SDK version; SSE as optional transport |

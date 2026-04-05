@@ -115,7 +115,7 @@ describe("ActionEngine locale propagation", () => {
 
     const fetchAction: ActionDefinition = {
       name: "fetch_item",
-      schema: "items",
+      entity: "items",
       label: "Fetch item",
       exposure: "all",
       handler: async (ctx) => {
@@ -139,7 +139,7 @@ describe("ActionEngine locale propagation", () => {
 
     const listAction: ActionDefinition = {
       name: "list_items",
-      schema: "items",
+      entity: "items",
       label: "List items",
       exposure: "all",
       handler: async (ctx) => {
@@ -163,7 +163,7 @@ describe("ActionEngine locale propagation", () => {
 
     const fetchAction: ActionDefinition = {
       name: "fetch_item2",
-      schema: "items",
+      entity: "items",
       label: "Fetch item",
       exposure: "all",
       handler: async (ctx) => {
@@ -189,7 +189,7 @@ describe("ActionEngine locale propagation", () => {
 
     const fetchAction: ActionDefinition = {
       name: "fetch_no_locale",
-      schema: "items",
+      entity: "items",
       label: "Fetch item",
       exposure: "all",
       handler: async (ctx) => {
@@ -214,7 +214,7 @@ describe("CommandLayer locale propagation", () => {
 
     const fetchAction: ActionDefinition = {
       name: "cl_fetch",
-      schema: "items",
+      entity: "items",
       label: "Fetch item",
       exposure: "all",
       handler: async (ctx) => {
@@ -242,7 +242,7 @@ describe("CommandLayer locale propagation", () => {
 
     const action: ActionDefinition = {
       name: "mw_locale_test",
-      schema: "items",
+      entity: "items",
       label: "Test",
       exposure: "all",
       handler: async (ctx) => ctx.get("items", "item_1"),

@@ -2,11 +2,13 @@
  * linch create capability <name> — Scaffold a new LinchKit capability
  *
  * Creates the standard directory structure with capability.json,
- * package.json, tsconfig.json, and src/ skeleton.
+ * package.json, tsconfig.json, and src/ skeleton including example
+ * schema, action, and view files.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { validateIdentifier } from "@linchkit/core";
 import { defineCommand } from "citty";
 
 const VALID_TYPES = ["standard", "adapter", "bridge"] as const;
@@ -39,23 +41,118 @@ function capabilityJsonTemplate(name: string, type: string, category: string): s
 }
 
 /** Convert a capability name to a valid TypeScript identifier */
-function toSafeIdentifier(name: string): string {
+export function toSafeIdentifier(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
-function srcIndexTemplate(name: string): string {
-  // Use sanitized name for the variable to avoid invalid TS identifiers
-  // e.g. "cap-inventory" → "cap_inventory"
+/** Derive a simple domain name from the capability name (strip common prefixes) */
+function toDomainName(name: string): string {
+  return name.replace(/^cap[-_]/, "").replace(/-/g, "_");
+}
+
+function srcIndexTemplate(name: string, opts: { withExamples: boolean }): string {
   const safeId = toSafeIdentifier(name);
-  return `import type { CapabilityDefinition } from "@linchkit/core";
+  const domain = toDomainName(name);
+  if (!opts.withExamples) {
+    return `import type { CapabilityDefinition } from "@linchkit/core";
 
 export const ${safeId}: CapabilityDefinition = {
   name: "${name}",
+  label: "${name}",
+  type: "standard",
+  category: "business",
+  version: "0.1.0",
   schemas: [],
   actions: [],
   rules: [],
+  views: [],
 };
 `;
+  }
+  return `import type { CapabilityDefinition } from "@linchkit/core";
+import { ${domain}Schema } from "./schemas/${domain}";
+import { create_${domain} } from "./actions/create-${domain.replace(/_/g, "-")}";
+import { ${domain}ListView, ${domain}FormView } from "./views/${domain}";
+
+export const ${safeId}: CapabilityDefinition = {
+  name: "${name}",
+  label: "${name}",
+  type: "standard",
+  category: "business",
+  version: "0.1.0",
+  schemas: [${domain}Schema],
+  actions: [create_${domain}],
+  rules: [],
+  views: [${domain}ListView, ${domain}FormView],
+};
+`;
+}
+
+function exampleEntityTemplate(domain: string): string {
+  return `import { defineEntity } from "@linchkit/core";
+
+export const ${domain}Schema = defineEntity({
+  name: "${domain}",
+  label: "${domain}",
+  fields: {
+    name: {
+      type: "text",
+      label: "Name",
+      required: true,
+    },
+    description: {
+      type: "text",
+      label: "Description",
+    },
+  },
+});
+`;
+}
+
+function exampleActionTemplate(domain: string): string {
+  return `import { defineAction } from "@linchkit/core";
+
+export const create_${domain} = defineAction({
+  name: "create_${domain}",
+  label: "Create ${domain}",
+  schema: "${domain}",
+  type: "create",
+  handler: async (input, ctx) => {
+    return ctx.dataProvider.create("${domain}", input);
+  },
+});
+`;
+}
+
+function exampleViewTemplate(domain: string): string {
+  return `import type { ViewDefinition } from "@linchkit/core";
+
+export const ${domain}ListView: ViewDefinition = {
+  name: "${domain}_list",
+  label: "${domain} List",
+  schema: "${domain}",
+  type: "list",
+  fields: [
+    { field: "name", label: "Name" },
+    { field: "description", label: "Description" },
+  ],
+};
+
+export const ${domain}FormView: ViewDefinition = {
+  name: "${domain}_form",
+  label: "${domain} Form",
+  schema: "${domain}",
+  type: "form",
+  fields: [
+    { field: "name", label: "Name" },
+    { field: "description", label: "Description" },
+  ],
+};
+`;
+}
+
+function directoryReadmeTemplate(dirName: string): string {
+  return `# ${dirName}\n\nPlace your ${dirName} definitions in this directory.\nSee the LinchKit documentation for details.\n`;
 }
 
 function packageJsonTemplate(name: string): string {
@@ -113,20 +210,33 @@ export const createCapabilityCommand = defineCommand({
     },
     dir: {
       type: "string",
-      description: "Output directory (default: capabilities/<name>)",
+      description: "Output directory (default: addons/<name>/cap-<name>)",
+    },
+    bare: {
+      type: "boolean",
+      description: "Skip generating example schema, action, and view files",
+      default: false,
     },
   },
   run({ args }) {
     const name = args.name as string;
     const type = args.type as string;
     const category = args.category as string;
+    const noExamples = args.bare as boolean;
 
-    // Validate capability name — must be a safe identifier (lowercase, hyphens, underscores, digits)
+    // Validate capability name — allow hyphens in the package name, but the
+    // derived TypeScript identifier (hyphens → underscores) must be valid.
     const SAFE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
     if (!SAFE_NAME_RE.test(name)) {
       console.error(
         `[linch] Invalid capability name "${name}". Must match: lowercase letters, digits, hyphens, underscores. Must start with a letter.`,
       );
+      process.exit(1);
+    }
+    // Additionally validate the derived identifier used in generated TypeScript code
+    const identifierCheck = validateIdentifier(toSafeIdentifier(name));
+    if (!identifierCheck.valid) {
+      console.error(`[linch] Invalid capability name "${name}": ${identifierCheck.error}`);
       process.exit(1);
     }
 
@@ -146,7 +256,7 @@ export const createCapabilityCommand = defineCommand({
 
     const outputDir = args.dir
       ? resolve(process.cwd(), args.dir as string)
-      : resolve(process.cwd(), "capabilities", name);
+      : resolve(process.cwd(), "addons", name, `cap-${name}`);
 
     if (existsSync(outputDir)) {
       console.error(`Error: Directory "${outputDir}" already exists.`);
@@ -155,22 +265,41 @@ export const createCapabilityCommand = defineCommand({
 
     console.log(`Creating capability: ${name}`);
 
+    const withExamples = !noExamples;
+    const domain = toDomainName(name);
+
     // Create directory structure
     mkdirSync(resolve(outputDir, "src/schemas"), { recursive: true });
     mkdirSync(resolve(outputDir, "src/actions"), { recursive: true });
     mkdirSync(resolve(outputDir, "src/rules"), { recursive: true });
+    mkdirSync(resolve(outputDir, "src/states"), { recursive: true });
+    mkdirSync(resolve(outputDir, "src/views"), { recursive: true });
 
-    // Write .gitkeep files
-    writeFileSync(resolve(outputDir, "src/schemas/.gitkeep"), "");
-    writeFileSync(resolve(outputDir, "src/actions/.gitkeep"), "");
-    writeFileSync(resolve(outputDir, "src/rules/.gitkeep"), "");
+    // Write .gitkeep / README files for empty directories
+    writeFileSync(resolve(outputDir, "src/rules/README.md"), directoryReadmeTemplate("rules"));
+    writeFileSync(resolve(outputDir, "src/states/README.md"), directoryReadmeTemplate("states"));
+
+    if (withExamples) {
+      // Write example files
+      writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleEntityTemplate(domain));
+      writeFileSync(
+        resolve(outputDir, `src/actions/create-${domain.replace(/_/g, "-")}.ts`),
+        exampleActionTemplate(domain),
+      );
+      writeFileSync(resolve(outputDir, `src/views/${domain}.ts`), exampleViewTemplate(domain));
+    } else {
+      // Write .gitkeep files when no examples
+      writeFileSync(resolve(outputDir, "src/schemas/.gitkeep"), "");
+      writeFileSync(resolve(outputDir, "src/actions/.gitkeep"), "");
+      writeFileSync(resolve(outputDir, "src/views/.gitkeep"), "");
+    }
 
     // Write template files
     writeFileSync(
       resolve(outputDir, "capability.json"),
       capabilityJsonTemplate(name, type, category),
     );
-    writeFileSync(resolve(outputDir, "src/index.ts"), srcIndexTemplate(name));
+    writeFileSync(resolve(outputDir, "src/index.ts"), srcIndexTemplate(name, { withExamples }));
     writeFileSync(resolve(outputDir, "package.json"), packageJsonTemplate(name));
     writeFileSync(resolve(outputDir, "tsconfig.json"), tsconfigTemplate());
 
@@ -186,7 +315,9 @@ export const createCapabilityCommand = defineCommand({
     console.log("        ├── index.ts");
     console.log("        ├── schemas/");
     console.log("        ├── actions/");
-    console.log("        └── rules/");
+    console.log("        ├── rules/");
+    console.log("        ├── states/");
+    console.log("        └── views/");
     console.log("");
     console.log(`  Path: ${outputDir}`);
   },

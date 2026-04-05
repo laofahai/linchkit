@@ -7,7 +7,7 @@
 ```
 Capability
   ├── 业务能力：Schema, Action, Rule, State, Event, EventHandler, View, Flow, Navigation
-  └── 框架扩展（可选）：extensions { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports }
+  └── 框架扩展（可选）：extensions { fieldTypes, viewTypes, ruleEffects, services, hooks, middlewares, transports, commands }
 ```
 
 ## 2. 扩展能力总览
@@ -92,7 +92,7 @@ extensions: {
 
 使用：
 ```typescript
-defineSchema({
+defineEntity({
   name: 'invoice',
   fields: {
     total: { type: 'money', label: '总金额' },           // 自动带 currency 字段
@@ -343,7 +343,7 @@ extensions: {
       factory: async (ctx) => {
         const server = createMcpServer({
           executor: ctx.executor,
-          schemaRegistry: ctx.schemaRegistry,
+          entityRegistry: ctx.entityRegistry,
           commandLayer: ctx.commandLayer,
         });
         return {
@@ -418,45 +418,328 @@ export default defineCapability({
 
 ### 8.6 CLI 命令注册
 
-Capability 可以通过 `extensions.commands` 注册 CLI 命令。CLI 在启动时动态构建命令树。
+Capability 通过 `extensions.commands` 注册 CLI 命令。CLI 在启动时动态构建命令树。
+
+#### 8.6.1 设计原则
+
+1. **CLI 是 CommandLayer 的又一个入口** — 与 REST/GraphQL/MCP 并列，共享同一套中间件管道
+2. **Capability-Centric** — 所有非内置命令由 Capability 注册，CLI 只是极简引导器
+3. **双模输出** — 人类友好（默认）和机器友好（`--json`），所有命令必须同时支持
+4. **AI Agent 一等公民** — CLI 输出对 AI Agent 友好（结构化、扁平、可过滤）
+
+```
+CLI ──────────┐
+MCP ──────────┤
+REST/GraphQL ─┤──→ Command Layer ──→ Action Engine
+A2A ──────────┤
+AG-UI ────────┘
+```
+
+#### 8.6.2 CommandExtension 类型
 
 ```typescript
+interface CommandExtension {
+  /** Subcommand name, e.g. 'login' */
+  name: string;
+  /** Namespace → linch <namespace> <name>, e.g. 'auth' → linch auth login */
+  namespace: string;
+  /** One-line description for help text (English) */
+  description: string;
+  /** Lazy-loaded handler — citty uses dynamic import for fast startup */
+  handler: () => Promise<CittyCommandDef>;
+  /** Positional arguments and flags (forwarded to citty defineCommand) */
+  args?: Record<string, ArgDef>;
+  /** Usage examples shown in --help and used by AI for discovery */
+  examples?: string[];
+  /** If true, `linch <namespace>` without subcommand runs this handler */
+  isDefault?: boolean;
+  /** Hidden in production mode (only visible with NODE_ENV=development) */
+  devOnly?: boolean;
+  /** Marks commands that use interactive prompts (AI agents skip these) */
+  interactive?: boolean;
+}
+
+interface ArgDef {
+  type: "string" | "boolean" | "positional";
+  description: string;
+  required?: boolean;
+  default?: string;
+  alias?: string;  // short flag, e.g. '-p'
+}
+```
+
+#### 8.6.3 命令注册示例
+
+```typescript
+// cap-auth capability
 extensions: {
   commands: [
     {
-      name: 'dev',
-      namespace: 'server',       // → linch server dev
-      description: 'Start HTTP/GraphQL development server',
-      handler: serverDevHandler,
+      name: 'login',
+      namespace: 'auth',               // → linch auth login
+      description: 'Authenticate with a LinchKit instance',
+      handler: () => import('./cli/login'),
       args: {
-        port: { type: 'string', default: '3001', description: 'Server port' },
-        host: { type: 'string', default: '0.0.0.0', description: 'Server host' },
+        url: { type: 'string', description: 'Instance URL', required: true },
+        token: { type: 'string', description: 'API token (non-interactive)' },
       },
-      isDefault: true,           // linch server → 直接执行 dev
-      devOnly: true,             // 生产环境隐藏
+      examples: [
+        'linch auth login https://app.example.com',
+        'linch auth login https://app.example.com --token $LINCHKIT_TOKEN',
+      ],
+      isDefault: true,
+      interactive: true,
+    },
+    {
+      name: 'logout',
+      namespace: 'auth',
+      description: 'Remove stored credentials',
+      handler: () => import('./cli/logout'),
+    },
+    {
+      name: 'status',
+      namespace: 'auth',
+      description: 'Show current authentication state',
+      handler: () => import('./cli/status'),
     },
   ],
 }
 ```
 
-命名空间约定：
+#### 8.6.4 命名空间规则
 
-| Capability 类型 | namespace | 示例命令 |
+| Capability type | namespace convention | Example commands |
 |---|---|---|
-| adapter (transport) | 协议名 | `linch server dev`, `linch mcp start` |
-| utility | 功能名 | `linch proposal create`, `linch scaffold capability` |
-| business | 按需 | `linch purchase import`（可选） |
+| adapter (transport) | Protocol name | `linch server dev`, `linch mcp inspect` |
+| infrastructure | Feature name | `linch auth login`, `linch flow list` |
+| utility / devtool | Tool name | `linch migration run`, `linch docs build` |
+| business | Domain name (optional) | `linch purchase import` |
 
-CLI 内置命令（不由 Capability 注册）：
+Constraints:
+- One namespace per capability — no cross-capability namespace sharing
+- Namespace collision: first installed wins, later registrations emit a warning
+- Reserved namespaces (built-in): `init`, `dev`, `db`, `create`, `install`, `uninstall`, `search`, `update`, `publish`, `info`, `validate`, `check`, `docs`, `changelog`
 
-| 命令 | 作用 |
+#### 8.6.5 命令发现与命令树构建
+
+CLI startup flow:
+
+```
+linch <args>
+  │
+  ├─ Built-in commands (statically imported, no config needed)
+  │   init, create, install, uninstall, search, update,
+  │   publish, info, validate, check, docs, changelog
+  │
+  └─ Capability commands (require linchkit.config.ts)
+      │
+      loadConfig()
+        → collectCapabilities()
+          → collectCommands()    // extract extensions.commands from all capabilities
+            → buildCommandTree() // merge into citty subCommands with lazy loading
+```
+
+```typescript
+// Pseudo-code for buildCommandTree
+function buildCommandTree(
+  builtinCommands: Record<string, CittyCommand>,
+  capabilityCommands: CommandExtension[],
+): Record<string, CittyCommand> {
+  const tree = { ...builtinCommands };
+  const byNamespace = groupBy(capabilityCommands, c => c.namespace);
+
+  for (const [ns, commands] of Object.entries(byNamespace)) {
+    if (ns in tree) {
+      console.warn(`[linch] Namespace "${ns}" is reserved, skipping capability commands`);
+      continue;
+    }
+    tree[ns] = defineCommand({
+      meta: { name: ns },
+      subCommands: Object.fromEntries(
+        commands.map(cmd => [cmd.name, cmd.handler])  // lazy: () => import(...)
+      ),
+    });
+  }
+  return tree;
+}
+```
+
+Citty natively supports `Resolvable<T>` (functions, Promises, async functions) as subcommand values, enabling lazy loading without framework changes.
+
+#### 8.6.6 统一输出协议
+
+All commands (built-in and capability-registered) must follow these output conventions:
+
+**Global flags** (injected by CLI framework, not by individual commands):
+
+| Flag | Behavior |
 |---|---|
-| `linch init` | 初始化新项目 |
-| `linch dev` | 加载所有 capabilities + 启动所有 transports |
-| `linch exec <action>` | 直接执行 Action |
-| `linch capabilities list` | 列出已安装的 capabilities |
+| `--json` | Output structured JSON to stdout. Errors also as JSON to stderr. |
+| `--quiet` | Suppress all non-essential output. Only print the primary result. |
+| `--no-interactive` | Disable all interactive prompts. Fail if required input is missing. Auto-enabled when `CI=true` or stdout is not a TTY. |
+| `--no-color` | Disable ANSI color codes. Auto-enabled when `NO_COLOR=1`. |
 
-CLI 是极简引导器，只负责加载 config → 扫描 capabilities → 构建命令树 → 分发执行。
+**JSON output contract:**
+
+```typescript
+// Success
+{ "ok": true, "data": <command-specific payload> }
+
+// Error
+{ "ok": false, "error": { "code": string, "message": string, "details"?: unknown } }
+```
+
+- JSON output is a stable API contract — breaking changes require semver major bump.
+- Keep payloads flat when possible (avoid deep nesting to save tokens for AI agents).
+- Lists output as arrays, not wrapped objects (e.g. `{ "ok": true, "data": [...] }`).
+
+**Error messages** (human mode) must include: what failed, why, and suggested next step.
+
+```
+✗ Authentication failed: token expired
+
+  Run `linch auth login https://app.example.com` to re-authenticate.
+```
+
+**Help text** requirements:
+- Every command must have `description` and at least one `example`.
+- `linch --help` lists all commands including capability-registered ones, grouped by namespace.
+- `linch <namespace> --help` lists subcommands within that namespace.
+- `linch <namespace> <command> --help` shows args, flags, examples for that command.
+
+#### 8.6.7 CLI 认证
+
+Commands that interact with a running LinchKit instance need authentication context. The CLI credential chain (highest to lowest priority):
+
+```
+1. --token <value> flag          (one-off override)
+2. LINCHKIT_TOKEN env var        (CI/CD pipelines)
+3. ~/.linchkit/credentials.json  (persistent login via `linch auth login`)
+```
+
+**Credential storage** (`~/.linchkit/credentials.json`):
+
+```json
+{
+  "profiles": {
+    "default": {
+      "url": "https://app.example.com",
+      "token": "lk_...",
+      "expires_at": "2026-05-01T00:00:00Z",
+      "actor": "admin@example.com"
+    },
+    "staging": {
+      "url": "https://staging.example.com",
+      "token": "lk_...",
+      "expires_at": "2026-05-01T00:00:00Z",
+      "actor": "dev@example.com"
+    }
+  },
+  "active_profile": "default"
+}
+```
+
+- File permissions: `0600` (owner read/write only).
+- Future: OS keychain integration (macOS Keychain, Linux Secret Service) for token storage.
+- `--profile <name>` flag to switch between stored profiles.
+- `linch auth login` performs interactive OAuth or token exchange, stores result.
+- `linch auth status` shows current profile, token validity, actor info.
+- `linch auth logout` removes stored credentials.
+- `linch auth switch <profile>` changes active profile.
+
+Commands that need auth receive the resolved actor context via `CommandContext` — same mechanism as REST/GraphQL auth middleware.
+
+#### 8.6.8 AI Agent 模式
+
+CLI is designed as a first-class interface for AI agents (Claude Code, Cursor, Codex, etc.).
+
+**Agent-friendly conventions:**
+- `--json` output with flat structure — minimizes token consumption
+- `--no-interactive` auto-detected when stdin is not a TTY
+- Commands marked `interactive: true` print a warning and exit in non-interactive mode unless all required args are provided via flags
+- Error output includes machine-parseable error codes
+
+**Introspection** (`linch --commands`):
+
+Returns a structured JSON manifest of all available commands, suitable for AI agent self-discovery:
+
+```bash
+linch --commands
+```
+
+```json
+{
+  "version": "0.0.1",
+  "commands": {
+    "auth": {
+      "description": "Authentication management",
+      "subcommands": {
+        "login": {
+          "description": "Authenticate with a LinchKit instance",
+          "args": { "url": { "type": "string", "required": true } },
+          "flags": { "token": { "type": "string" }, "profile": { "type": "string" } },
+          "examples": ["linch auth login https://app.example.com --token $TOKEN"],
+          "interactive": true
+        }
+      }
+    },
+    "schema": {
+      "description": "Schema operations",
+      "subcommands": {
+        "list": { "description": "List all schemas", "examples": ["linch schema list --json"] },
+        "describe": { "description": "Describe a schema", "args": { "name": { "type": "positional" } } }
+      }
+    }
+  }
+}
+```
+
+AI agents use `linch --commands` once to understand available operations, then call specific commands with `--json` output.
+
+**Relationship with MCP:**
+- MCP tools and CLI commands share the same CommandLayer backend.
+- CLI is lighter (no persistent tool definitions in context, no protocol overhead).
+- MCP is better for stateful, session-based AI interactions.
+- Both are valid entry points; neither replaces the other.
+
+#### 8.6.9 内置命令
+
+Not registered via capabilities — statically defined in `@linchkit/cli`:
+
+| Command | Purpose | Needs config? |
+|---|---|---|
+| `linch init [name]` | Scaffold new LinchKit project | No |
+| `linch dev` | Start all transports in development mode | Yes |
+| `linch db <sub>` | Database management (generate, migrate, push, studio) | Yes |
+| `linch create <type>` | Scaffold new capability | No |
+| `linch install <pkg>` | Install capability package | No |
+| `linch uninstall <pkg>` | Remove capability package | No |
+| `linch search [query]` | Search installed capabilities | No |
+| `linch update [pkg]` | Update capability dependencies | No |
+| `linch publish` | Validate and publish capability | No |
+| `linch info` | Show project metadata | Yes |
+| `linch validate` | Run comprehensive validation | Yes |
+| `linch check` | Run code quality checks | No |
+| `linch docs` | Generate documentation | Yes |
+| `linch changelog` | Generate changelog | No |
+| `linch exec <action>` | Execute an action directly from CLI | Yes |
+
+**`linch dev` and `linch exec`** are the bridge between CLI and CommandLayer — they load config, build the full runtime context, and dispatch through the middleware pipeline.
+
+#### 8.6.10 Capability 命令规划
+
+Expected CLI commands from existing and planned capabilities:
+
+| Capability | Namespace | Commands | Priority |
+|---|---|---|---|
+| cap-auth | `auth` | `login`, `logout`, `status`, `switch` | High — prerequisite for remote operations |
+| cap-adapter-mcp | `mcp` | `inspect`, `test`, `clients` | Medium — debugging / AI integration |
+| cap-flow-restate | `flow` | `list`, `trigger`, `status`, `cancel` | Medium — operational management |
+| cap-migration | `migration` | `run`, `rollback`, `status`, `generate` | High — data lifecycle |
+| cap-adapter-server | `server` | `start`, `status`, `routes` | Low — mostly via `linch dev` |
+| future: cap-deploy | `deploy` | `push`, `status`, `rollback`, `env` | Future — remote instance management |
+
+Each capability defines its own commands in its own `extensions.commands`. This table is a guideline, not prescriptive.
 
 ## 9. 示例：文件存储 Capability
 

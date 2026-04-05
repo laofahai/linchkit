@@ -66,7 +66,7 @@ export function createTestSetup(opts?: TestSetupOptions): {
 
   const testAction: ActionDefinition = {
     name: "create_item",
-    schema: "item",
+    entity: "item",
     label: "Create Item",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
@@ -78,7 +78,7 @@ export function createTestSetup(opts?: TestSetupOptions): {
 
   const internalAction: ActionDefinition = {
     name: "internal_only",
-    schema: "item",
+    entity: "item",
     label: "Internal Only",
     policy: { mode: "sync", transaction: false },
     exposure: { http: false, mcp: false, cli: false, ui: false, internal: true },
@@ -90,7 +90,7 @@ export function createTestSetup(opts?: TestSetupOptions): {
 
   const adminAction: ActionDefinition = {
     name: "admin_action",
-    schema: "item",
+    entity: "item",
     label: "Admin Action",
     policy: { mode: "sync", transaction: false },
     exposure: "all",

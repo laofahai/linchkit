@@ -11,6 +11,7 @@ import {
   InMemoryApprovalStore,
 } from "../src/engine/approval-engine";
 import { type CommandLayer, createCommandLayer } from "../src/engine/command-layer";
+import { PermissionRegistry } from "../src/engine/permission-engine";
 import { evaluateRules } from "../src/engine/rule-engine";
 import { createEventBus, type EventBus } from "../src/event/event-bus";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
@@ -94,7 +95,7 @@ function createMemoryDataProvider(): DataProvider {
 
 const submitRequestAction: ActionDefinition = {
   name: "submit_request",
-  schema: "purchase_request",
+  entity: "purchase_request",
   label: "Submit Purchase Request",
   input: {
     title: { type: "string", required: true },
@@ -175,7 +176,7 @@ describe("InMemoryApprovalStore", () => {
     const request: ApprovalRequest = {
       id: "ap-1",
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { amount: 15000 },
       level: "manager",
       reason: "Amount exceeds 10,000",
@@ -202,7 +203,7 @@ describe("InMemoryApprovalStore", () => {
     const request: ApprovalRequest = {
       id: "ap-2",
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { amount: 15000 },
       level: "manager",
       reason: "test",
@@ -227,7 +228,7 @@ describe("InMemoryApprovalStore", () => {
     const now = new Date();
     const base = {
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: {},
       level: "manager",
       reason: "test",
@@ -302,7 +303,7 @@ describe("ApprovalEngine", () => {
   it("creates an approval request", async () => {
     const result = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-100",
@@ -329,7 +330,7 @@ describe("ApprovalEngine", () => {
   it("emits approval.requested event on creation", async () => {
     await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-101",
@@ -347,7 +348,7 @@ describe("ApprovalEngine", () => {
   it("approves and re-executes the original action", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-200",
@@ -373,7 +374,7 @@ describe("ApprovalEngine", () => {
   it("emits approval.approved event on approve", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-201",
@@ -391,7 +392,7 @@ describe("ApprovalEngine", () => {
   it("rejects an approval request with a note", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-300",
@@ -412,7 +413,7 @@ describe("ApprovalEngine", () => {
   it("emits approval.rejected event on reject", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-301",
@@ -430,7 +431,7 @@ describe("ApprovalEngine", () => {
   it("allows initiator to cancel own request", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-400",
@@ -446,7 +447,7 @@ describe("ApprovalEngine", () => {
   it("prevents non-initiator from cancelling", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-401",
@@ -462,7 +463,7 @@ describe("ApprovalEngine", () => {
   it("emits approval.cancelled event on cancel", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-402",
@@ -480,7 +481,7 @@ describe("ApprovalEngine", () => {
   it("prevents approving a non-pending request", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-500",
@@ -500,7 +501,7 @@ describe("ApprovalEngine", () => {
   it("prevents rejecting a non-pending request", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-501",
@@ -522,7 +523,7 @@ describe("ApprovalEngine", () => {
 
     await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-600",
@@ -542,7 +543,7 @@ describe("ApprovalEngine", () => {
 
     await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-601",
@@ -561,7 +562,7 @@ describe("ApprovalEngine", () => {
 
     await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-602",
@@ -658,7 +659,7 @@ describe("Rule Engine + Approval Integration", () => {
     // Step 2: Create approval request (instead of executing action)
     const pendingResult = await approvalEngine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-e2e-1",
@@ -709,7 +710,7 @@ describe("Rule Engine + Approval Integration", () => {
     // Create approval request
     const pendingResult = await approvalEngine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-e2e-2",
@@ -761,7 +762,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-1",
@@ -780,7 +781,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-2",
@@ -800,7 +801,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-3",
@@ -819,7 +820,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-4",
@@ -839,7 +840,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-5",
@@ -859,7 +860,7 @@ describe("ApprovalEngine — assignee authorization", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-auth-6",
@@ -886,7 +887,7 @@ describe("ApprovalEngine — rejection note validation", () => {
   it("rejects with empty note throws error", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-note-1",
@@ -902,7 +903,7 @@ describe("ApprovalEngine — rejection note validation", () => {
   it("rejects with whitespace-only note throws error", async () => {
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-note-2",
@@ -935,7 +936,7 @@ describe("ApprovalEngine — expiration checks", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-exp-1",
@@ -954,7 +955,7 @@ describe("ApprovalEngine — expiration checks", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-exp-2",
@@ -973,7 +974,7 @@ describe("ApprovalEngine — expiration checks", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-exp-3",
@@ -992,7 +993,7 @@ describe("ApprovalEngine — expiration checks", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-exp-4",
@@ -1033,7 +1034,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-1",
@@ -1092,7 +1093,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-2",
@@ -1140,7 +1141,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-3",
@@ -1163,7 +1164,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-4",
@@ -1193,7 +1194,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-err-1",
@@ -1229,7 +1230,7 @@ describe("ApprovalEngine — CommandLayer re-execution", () => {
 
     const createResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-cl-id-1",
@@ -1255,7 +1256,7 @@ describe("ApprovalEngine — deferred executor wiring", () => {
     // Create a request
     const pendingResult = await engine.createRequest({
       action: "submit_request",
-      schema: "purchase_request",
+      entity: "purchase_request",
       input: { title: "Laptop", amount: 15000 },
       actor: defaultActor,
       executionId: "exec-deferred",
@@ -1284,5 +1285,237 @@ describe("ApprovalEngine — deferred executor wiring", () => {
       managerActor,
     );
     expect(successResult.success).toBe(true);
+  });
+});
+
+describe("ApprovalEngine — permissionRegistry integration", () => {
+  let store: InMemoryApprovalStore;
+  let dataProvider: DataProvider;
+  let executor: ActionExecutor;
+  let eventBus: EventBus;
+  let registry: PermissionRegistry;
+
+  beforeEach(() => {
+    store = new InMemoryApprovalStore();
+    dataProvider = createMemoryDataProvider();
+    const executionLogger = new InMemoryExecutionLogger();
+    executor = createActionExecutor({ dataProvider, executionLogger });
+    executor.registry.register(submitRequestAction);
+
+    const { bus } = createEventBus();
+    eventBus = bus;
+
+    registry = new PermissionRegistry();
+    // Register a "manager" permission group
+    registry.register({
+      name: "manager",
+      label: "Manager",
+      permissions: {
+        purchase_management: {
+          purchase_request: {
+            actions: { submit_request: true, approve_request: true },
+          },
+        },
+      },
+    });
+    // Register a "system_admin" group
+    registry.register({
+      name: "system_admin",
+      label: "System Admin",
+      permissions: {},
+    });
+  });
+
+  it("auto-enables enforceAssignee when permissionRegistry is provided", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "manager-1" },
+    });
+
+    // defaultActor.id is "user-1", not "manager-1" — should fail because
+    // enforceAssignee is auto-enabled by permissionRegistry
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow("not the assigned user");
+  });
+
+  it("role assignee resolved via permissionRegistry groups", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "manager" },
+    });
+
+    // managerActor.groups includes "manager" which is a registered permission group
+    const result = await engine.approve({ approvalId: createResult.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("role assignee denied when actor has no matching permission group", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-3",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "manager" },
+    });
+
+    // defaultActor.groups is ["employee"] — no "manager" permission group
+    await expect(
+      engine.approve({ approvalId: createResult.approvalId }, defaultActor),
+    ).rejects.toThrow("no matching permission group");
+  });
+
+  it("system_admin bypasses all assignee checks with permissionRegistry", async () => {
+    const adminActor: Actor = {
+      type: "human",
+      id: "admin-1",
+      name: "Super Admin",
+      groups: ["system_admin"],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-4",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "specific-user-99" },
+    });
+
+    // admin is not "specific-user-99" but system_admin bypasses
+    const result = await engine.approve({ approvalId: createResult.approvalId }, adminActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("system actor bypasses assignee checks", async () => {
+    const systemActor: Actor = {
+      type: "system",
+      id: "cron-job",
+      groups: [],
+    };
+
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-5",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "someone-else" },
+    });
+
+    // System actors bypass assignee checks
+    const result = await engine.approve({ approvalId: createResult.approvalId }, systemActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("enforceAssignee=false overrides permissionRegistry auto-enable", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      permissionRegistry: registry,
+      enforceAssignee: false,
+    });
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-6",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "user", value: "someone-else" },
+    });
+
+    // enforceAssignee explicitly false, so anyone can approve
+    const result = await engine.approve({ approvalId: createResult.approvalId }, otherActor);
+    expect(result.success).toBe(true);
+  });
+
+  it("without permissionRegistry, role check falls back to metadata.role", async () => {
+    const engine = createApprovalEngine({
+      store,
+      eventBus,
+      executor,
+      enforceAssignee: true,
+      // No permissionRegistry — fallback behavior
+    });
+
+    const actorWithRole: Actor = {
+      type: "human",
+      id: "user-role-1",
+      groups: [],
+      metadata: { role: "director" },
+    };
+
+    const createResult = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-perm-7",
+      effect: { type: "require_approval", level: "director" },
+      triggerRules: ["amount_check"],
+      assignee: { type: "role", value: "director" },
+    });
+
+    // Fallback: metadata.role matches
+    const result = await engine.approve({ approvalId: createResult.approvalId }, actorWithRole);
+    expect(result.success).toBe(true);
   });
 });
