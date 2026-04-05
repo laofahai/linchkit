@@ -485,7 +485,7 @@
       "_labelPlural": "执行日志",
       "fields": {
         "action_name": "操作",
-        "schema_name": "数据模型",
+        "entity_name": "实体",
         "record_id": "记录ID",
         "capability": "能力模块",
         "actor_id": "执行人",
@@ -506,7 +506,7 @@
       "_labelPlural": "审批",
       "fields": {
         "action_name": "操作",
-        "schema_name": "数据模型",
+        "entity_name": "实体",
         "record_id": "记录ID",
         "capability": "能力模块",
         "level": "审批级别",
@@ -557,7 +557,7 @@
       "_labelPlural": "状态机",
       "fields": {
         "name": "名称",
-        "schema_name": "数据模型",
+        "entity_name": "实体",
         "field": "字段",
         "initial": "初始状态",
         "state_count": "状态数",

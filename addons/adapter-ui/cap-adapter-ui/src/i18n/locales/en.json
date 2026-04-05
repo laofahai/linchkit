@@ -485,7 +485,7 @@
       "_labelPlural": "Execution Logs",
       "fields": {
         "action_name": "Action",
-        "schema_name": "Schema",
+        "entity_name": "Entity",
         "record_id": "Record ID",
         "capability": "Capability",
         "actor_id": "Actor",
@@ -506,7 +506,7 @@
       "_labelPlural": "Approvals",
       "fields": {
         "action_name": "Action",
-        "schema_name": "Schema",
+        "entity_name": "Entity",
         "record_id": "Record ID",
         "capability": "Capability",
         "level": "Level",
@@ -557,7 +557,7 @@
       "_labelPlural": "State Machines",
       "fields": {
         "name": "Name",
-        "schema_name": "Schema",
+        "entity_name": "Entity",
         "field": "Field",
         "initial": "Initial State",
         "state_count": "States",
