@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 // Use a unique schema name per describe block to avoid cross-test contamination
 const SCHEMA = "test_orders";
 
-function storageKey(schemaName: string): string {
-  return `linchkit:saved-views:${schemaName}`;
+function storageKey(entityName: string): string {
+  return `linchkit:saved-views:${entityName}`;
 }
 
 interface SavedViewFilter {
@@ -30,9 +30,9 @@ interface SavedView {
   createdAt: string;
 }
 
-function readViews(schemaName: string): SavedView[] {
+function readViews(entityName: string): SavedView[] {
   try {
-    const raw = localStorage.getItem(storageKey(schemaName));
+    const raw = localStorage.getItem(storageKey(entityName));
     if (!raw) return [];
     return JSON.parse(raw) as SavedView[];
   } catch {
@@ -40,8 +40,8 @@ function readViews(schemaName: string): SavedView[] {
   }
 }
 
-function writeViews(schemaName: string, views: SavedView[]): void {
-  localStorage.setItem(storageKey(schemaName), JSON.stringify(views));
+function writeViews(entityName: string, views: SavedView[]): void {
+  localStorage.setItem(storageKey(entityName), JSON.stringify(views));
 }
 
 function generateId(): string {

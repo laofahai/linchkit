@@ -414,13 +414,13 @@ describe("Cache integration patterns", () => {
     const zodCache = manager.namespace("zod");
 
     let computeCount = 0;
-    function getZodSchema(schemaName: string): object {
-      const cached = zodCache.get<object>(schemaName);
+    function getZodSchema(entityName: string): object {
+      const cached = zodCache.get<object>(entityName);
       if (cached) return cached;
 
       computeCount++;
-      const result = { type: "object", schema: schemaName };
-      zodCache.set(schemaName, result, { tags: [`entity:${schemaName}`] });
+      const result = { type: "object", schema: entityName };
+      zodCache.set(entityName, result, { tags: [`entity:${entityName}`] });
       return result;
     }
 

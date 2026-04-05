@@ -456,13 +456,13 @@ describe("AIAuditLogger", () => {
     const audit = new AIAuditLogger();
     const entry = audit.logDataAccess({
       agentModel: "claude-3.5-sonnet",
-      schemaName: "purchase_request",
+      entityName: "purchase_request",
       queryType: "list",
       recordCount: 50,
     });
 
     expect(entry.eventType).toBe("ai_data_access");
-    expect(entry.metadata?.schemaName).toBe("purchase_request");
+    expect(entry.metadata?.entityName).toBe("purchase_request");
     expect(entry.metadata?.recordCount).toBe(50);
   });
 

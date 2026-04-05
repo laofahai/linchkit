@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { graphql } from "../lib/api";
 
 interface RelatedRecordsPanelProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   links: RelationDefinition[];
   /** When true, renders without the outer card wrapper (for embedding in parent tabs). */
@@ -29,12 +29,12 @@ interface LinkTab {
 }
 
 /** Derive tab definitions from link definitions for a given schema */
-function deriveLinkTabs(schemaName: string, links: RelationDefinition[]): LinkTab[] {
+function deriveLinkTabs(entityName: string, links: RelationDefinition[]): LinkTab[] {
   const tabs: LinkTab[] = [];
 
   for (const link of links) {
-    const isFrom = link.from === schemaName;
-    const isTo = link.to === schemaName;
+    const isFrom = link.from === entityName;
+    const isTo = link.to === entityName;
 
     switch (link.cardinality) {
       case "many_to_one": {
@@ -124,13 +124,13 @@ function toCamelCase(name: string): string {
 }
 
 export function RelatedRecordsPanel({
-  schemaName,
+  entityName,
   recordId,
   links,
   bare = false,
 }: RelatedRecordsPanelProps) {
   const { t } = useTranslation();
-  const tabs = deriveLinkTabs(schemaName, links);
+  const tabs = deriveLinkTabs(entityName, links);
 
   if (tabs.length === 0) return null;
 
@@ -149,7 +149,7 @@ export function RelatedRecordsPanel({
       </TabsList>
       {tabs.map((tab) => (
         <TabsContent key={tab.key} value={tab.key}>
-          <RelatedRecordsList schemaName={schemaName} recordId={recordId} tab={tab} />
+          <RelatedRecordsList entityName={entityName} recordId={recordId} tab={tab} />
         </TabsContent>
       ))}
     </Tabs>
@@ -172,11 +172,11 @@ export function RelatedRecordsPanel({
 // ── Individual tab content ──────────────────────────────
 
 function RelatedRecordsList({
-  schemaName,
+  entityName,
   recordId,
   tab,
 }: {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   tab: LinkTab;
 }) {
@@ -188,7 +188,7 @@ function RelatedRecordsList({
     setLoading(true);
     try {
       // Query the main record with the link field resolved
-      const queryName = toCamelCase(schemaName);
+      const queryName = toCamelCase(entityName);
       const fieldName = tab.fieldName;
 
       const query = tab.isList
@@ -219,7 +219,7 @@ function RelatedRecordsList({
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId, tab]);
+  }, [entityName, recordId, tab]);
 
   useEffect(() => {
     fetchRelated();

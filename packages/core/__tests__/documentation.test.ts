@@ -137,7 +137,7 @@ function createTestDeps(): OntologyRegistryDeps {
     states: [purchaseState],
     views: [purchaseListView],
     links: {
-      relationsFor(schemaName: string) {
+      relationsFor(entityName: string) {
         const results: Array<{
           relation: RelationDefinition;
           direction: "outgoing" | "incoming";
@@ -145,7 +145,7 @@ function createTestDeps(): OntologyRegistryDeps {
           label: string;
         }> = [];
         for (const link of links) {
-          if (link.from === schemaName) {
+          if (link.from === entityName) {
             results.push({
               relation: link,
               direction: "outgoing",
@@ -153,7 +153,7 @@ function createTestDeps(): OntologyRegistryDeps {
               label: link.label?.from ?? link.to,
             });
           }
-          if (link.to === schemaName) {
+          if (link.to === entityName) {
             results.push({
               relation: link,
               direction: "incoming",

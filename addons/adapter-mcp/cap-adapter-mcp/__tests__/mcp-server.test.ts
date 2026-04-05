@@ -245,7 +245,7 @@ describe("createMcpAdapter", () => {
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("create_order");
-    expect(parsed[0].schema).toBe("order");
+    expect(parsed[0].entity).toBe("order");
   });
 
   test("uses custom name and version", async () => {
@@ -853,7 +853,7 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
     expect(parsed).toHaveLength(2);
     const productAction = parsed.find((a: { name: string }) => a.name === "create_product");
     expect(productAction).toBeDefined();
-    expect(productAction.schema).toBe("product");
+    expect(productAction.entity).toBe("product");
   });
 
   test("list_actions returns empty array when no actions registered", async () => {
@@ -1011,7 +1011,7 @@ describe("createMcpAdapter — get_rules", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_rules?.handler({ schema: "product" }, {});
+    const result = await tools.get_rules?.handler({ entity: "product" }, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(1);
@@ -1051,7 +1051,7 @@ describe("createMcpAdapter — get_rules", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_rules?.handler({ schema: "nonexistent" }, {});
+    const result = await tools.get_rules?.handler({ entity: "nonexistent" }, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(0);
@@ -1072,7 +1072,7 @@ describe("createMcpAdapter — get_state_machine", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_state_machine?.handler({ schema: "order" }, {});
+    const result = await tools.get_state_machine?.handler({ entity: "order" }, {});
 
     expect(result.isError).toBeUndefined();
     const parsed = JSON.parse(result.content[0]?.text);
@@ -1100,7 +1100,7 @@ describe("createMcpAdapter — get_state_machine", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_state_machine?.handler({ schema: "nonexistent" }, {});
+    const result = await tools.get_state_machine?.handler({ entity: "nonexistent" }, {});
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0]?.text);

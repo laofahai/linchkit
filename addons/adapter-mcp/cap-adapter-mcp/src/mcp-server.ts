@@ -487,7 +487,7 @@ function registerBuiltinTools(
           name: a.name,
           label: a.label,
           description: a.description,
-          schema: a.entity,
+          entity: a.entity,
           inputFields: a.input ? Object.keys(a.input) : [],
         }));
 
@@ -499,24 +499,24 @@ function registerBuiltinTools(
 
   // get_rules — list rules filtered by schema or action
   const getRulesShape = {
-    schema: z.string().describe("Filter rules by schema name").optional(),
+    entity: z.string().describe("Filter rules by entity name").optional(),
     action: z.string().describe("Filter rules by action name").optional(),
   };
   server.tool(
     "get_rules",
-    "List business rules, optionally filtered by schema or action name",
+    "List business rules, optionally filtered by entity or action name",
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getRulesShape as any,
-    async (args: { schema?: string; action?: string }) => {
+    async (args: { entity?: string; action?: string }) => {
       let filtered = rules;
 
-      if (args.schema) {
+      if (args.entity) {
         filtered = filtered.filter((r) => {
           const trigger = r.trigger;
-          // Check stateChange trigger for schema match
-          if ("stateChange" in trigger && trigger.stateChange.entity === args.schema) return true;
+          // Check stateChange trigger for entity match
+          if ("stateChange" in trigger && trigger.stateChange.entity === args.entity) return true;
           // Check fieldChange trigger for entity match
-          if ("fieldChange" in trigger && trigger.fieldChange.entity === args.schema) return true;
+          if ("fieldChange" in trigger && trigger.fieldChange.entity === args.entity) return true;
           return false;
         });
       }
@@ -540,17 +540,17 @@ function registerBuiltinTools(
     },
   );
 
-  // get_state_machine — get state machine definition for a schema
+  // get_state_machine — get state machine definition for an entity
   const getStateMachineShape = {
-    schema: z.string().describe("Schema name to get state machine for"),
+    entity: z.string().describe("Entity name to get state machine for"),
   };
   server.tool(
     "get_state_machine",
-    "Get the state machine definition for a schema, including states, transitions, and metadata",
+    "Get the state machine definition for an entity, including states, transitions, and metadata",
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getStateMachineShape as any,
-    async (args: { schema: string }) => {
-      const matching = states.filter((s) => s.entity === args.schema);
+    async (args: { entity: string }) => {
+      const matching = states.filter((s) => s.entity === args.entity);
 
       if (matching.length === 0) {
         return {
@@ -558,7 +558,7 @@ function registerBuiltinTools(
             {
               type: "text" as const,
               text: JSON.stringify({
-                error: `No state machine found for schema '${args.schema}'`,
+                error: `No state machine found for entity '${args.entity}'`,
               }),
             },
           ],
@@ -566,10 +566,10 @@ function registerBuiltinTools(
         };
       }
 
-      // Return all state machines for the schema (usually one, but could be multiple)
+      // Return all state machines for the entity (usually one, but could be multiple)
       const result = matching.map((sm) => ({
         name: sm.name,
-        schema: sm.entity,
+        entity: sm.entity,
         field: sm.field,
         initial: sm.initial,
         states: sm.states,

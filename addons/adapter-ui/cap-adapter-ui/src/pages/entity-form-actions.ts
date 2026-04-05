@@ -12,7 +12,7 @@ import { useCallback, useState } from "react";
 import type { TFunction } from "i18next";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
 import type { StateTransitionInfo } from "../components/status-bar";
-import type { ResolvedSchemaBundle } from "../hooks/use-entity-bundle";
+import type { ResolvedEntityBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
 import {
   createRecord,
@@ -39,7 +39,7 @@ export interface UseFormActionsOptions {
   recordId: string | undefined;
   isCreate: boolean;
   schema: EntityDefinition | undefined;
-  bundle: ResolvedSchemaBundle | undefined;
+  bundle: ResolvedEntityBundle | undefined;
   recordFields: string[];
   recordFieldsRef: React.RefObject<string[]>;
   availableTransitions: TransitionInfo[];

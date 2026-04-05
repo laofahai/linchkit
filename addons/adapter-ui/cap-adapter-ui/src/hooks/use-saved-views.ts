@@ -1,7 +1,7 @@
 /**
  * useSavedViews — Client-side saved view management backed by localStorage.
  *
- * Key: `linchkit:saved-views:${schemaName}`
+ * Key: `linchkit:saved-views:${entityName}`
  * Value: array of SavedView objects.
  *
  * Server-side persistence (DB table) can replace this later without changing
@@ -32,13 +32,13 @@ export interface SavedView {
 
 // ── localStorage helpers ─────────────────────────────────────────
 
-function storageKey(schemaName: string): string {
-  return `linchkit:saved-views:${schemaName}`;
+function storageKey(entityName: string): string {
+  return `linchkit:saved-views:${entityName}`;
 }
 
-function readViews(schemaName: string): SavedView[] {
+function readViews(entityName: string): SavedView[] {
   try {
-    const raw = localStorage.getItem(storageKey(schemaName));
+    const raw = localStorage.getItem(storageKey(entityName));
     if (!raw) return [];
     return JSON.parse(raw) as SavedView[];
   } catch {
@@ -46,10 +46,10 @@ function readViews(schemaName: string): SavedView[] {
   }
 }
 
-function writeViews(schemaName: string, views: SavedView[]): void {
-  localStorage.setItem(storageKey(schemaName), JSON.stringify(views));
+function writeViews(entityName: string, views: SavedView[]): void {
+  localStorage.setItem(storageKey(entityName), JSON.stringify(views));
   // Notify subscribers via a custom storage event (same-tab)
-  window.dispatchEvent(new CustomEvent("linchkit:saved-views-change", { detail: schemaName }));
+  window.dispatchEvent(new CustomEvent("linchkit:saved-views-change", { detail: entityName }));
 }
 
 function generateId(): string {
@@ -70,10 +70,10 @@ function subscribeToViews(callback: () => void): () => void {
 
 // ── Public hook ──────────────────────────────────────────────────
 
-export function useSavedViews(schemaName: string) {
+export function useSavedViews(entityName: string) {
   const getSnapshot = useCallback(() => {
-    return localStorage.getItem(storageKey(schemaName)) ?? "[]";
-  }, [schemaName]);
+    return localStorage.getItem(storageKey(entityName)) ?? "[]";
+  }, [entityName]);
 
   const raw = useSyncExternalStore(subscribeToViews, getSnapshot, () => "[]");
   const views = useMemo<SavedView[]>(() => {
@@ -99,40 +99,40 @@ export function useSavedViews(schemaName: string) {
         columns,
         createdAt: new Date().toISOString(),
       };
-      const current = readViews(schemaName);
-      writeViews(schemaName, [...current, view]);
+      const current = readViews(entityName);
+      writeViews(entityName, [...current, view]);
       return view;
     },
-    [schemaName],
+    [entityName],
   );
 
   const renameView = useCallback(
     (viewId: string, newName: string): void => {
-      const current = readViews(schemaName);
+      const current = readViews(entityName);
       const updated = current.map((v) => (v.id === viewId ? { ...v, name: newName } : v));
-      writeViews(schemaName, updated);
+      writeViews(entityName, updated);
     },
-    [schemaName],
+    [entityName],
   );
 
   const deleteView = useCallback(
     (viewId: string): void => {
-      const current = readViews(schemaName);
+      const current = readViews(entityName);
       writeViews(
-        schemaName,
+        entityName,
         current.filter((v) => v.id !== viewId),
       );
     },
-    [schemaName],
+    [entityName],
   );
 
   const updateView = useCallback(
     (viewId: string, filters: SavedViewFilter[], sort?: SavedViewSort): void => {
-      const current = readViews(schemaName);
+      const current = readViews(entityName);
       const updated = current.map((v) => (v.id === viewId ? { ...v, filters, sort } : v));
-      writeViews(schemaName, updated);
+      writeViews(entityName, updated);
     },
-    [schemaName],
+    [entityName],
   );
 
   return { views, createView, renameView, deleteView, updateView };

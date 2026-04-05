@@ -114,7 +114,7 @@ export class SubscriptionManager {
   private eventIdCounter = 0;
 
   /** Optional callback to check if an actor can read a given schema */
-  private canReadSchema?: (actor: Actor, schemaName: string) => boolean;
+  private canReadEntity?: (actor: Actor, entityName: string) => boolean;
 
   constructor(
     private eventBus: EventBus,
@@ -127,8 +127,8 @@ export class SubscriptionManager {
    * Set an optional permission checker. When set, events are only
    * forwarded to connections whose actor passes the check.
    */
-  setPermissionChecker(checker: (actor: Actor, schemaName: string) => boolean): void {
-    this.canReadSchema = checker;
+  setPermissionChecker(checker: (actor: Actor, entityName: string) => boolean): void {
+    this.canReadEntity = checker;
   }
 
   /** Start listening to EventBus and running heartbeat/idle timers */
@@ -245,8 +245,8 @@ export class SubscriptionManager {
 
   /** Transform an EventRecord and dispatch to matching connections */
   private dispatchEvent(event: EventRecord): void {
-    const schemaName = event.entity;
-    if (!schemaName) return;
+    const entityName = event.entity;
+    if (!entityName) return;
 
     const subEventType = mapEventType(event.type, event.payload);
     if (!subEventType) return;
@@ -255,7 +255,7 @@ export class SubscriptionManager {
 
     const subEvent: SubscriptionEvent = {
       type: subEventType,
-      entity: schemaName,
+      entity: entityName,
       recordId,
       tenantId: event.tenantId,
       actor: event.actor,
@@ -299,7 +299,7 @@ export class SubscriptionManager {
     const filter = conn.filter;
 
     // Permission check — if a checker is set, verify the actor can read this schema
-    if (this.canReadSchema && !this.canReadSchema(conn.actor, event.entity)) {
+    if (this.canReadEntity && !this.canReadEntity(conn.actor, event.entity)) {
       return false;
     }
 

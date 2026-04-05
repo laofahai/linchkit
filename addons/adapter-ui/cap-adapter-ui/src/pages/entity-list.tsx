@@ -63,12 +63,12 @@ const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
  */
 function buildLinkFieldNames(
   links: Array<{ from: string; to: string; cardinality: string }>,
-  schemaName?: string,
+  entityName?: string,
 ): Set<string> {
   const names = new Set<string>();
   for (const link of links) {
-    const isFrom = link.from === schemaName;
-    const isTo = link.to === schemaName;
+    const isFrom = link.from === entityName;
+    const isTo = link.to === entityName;
 
     switch (link.cardinality) {
       case "many_to_one":
@@ -103,12 +103,12 @@ function getQueryFields(
   view: AutoListViewDefinition,
   schemaFields?: Record<string, { type?: string; target?: string }>,
   links?: Array<{ from: string; to: string; cardinality: string }>,
-  schemaName?: string,
+  entityName?: string,
 ): string[] {
   const fields = new Set<string>(["id"]);
 
   // Build a set of field names that are link-generated resolvers
-  const linkFieldNames = links ? buildLinkFieldNames(links, schemaName) : new Set<string>();
+  const linkFieldNames = links ? buildLinkFieldNames(links, entityName) : new Set<string>();
 
   for (const f of view.fields) {
     if (f.field.includes(".")) continue;
@@ -224,11 +224,11 @@ function findDateField(
  * Returns the field name if found, or null.
  */
 function findSelfRefField(
-  schemaName: string,
+  entityName: string,
   schemaFields: Record<string, { type?: string; target?: string }>,
 ): string | null {
   for (const [fieldName, def] of Object.entries(schemaFields)) {
-    if (def.type === "ref" && def.target === schemaName) {
+    if (def.type === "ref" && def.target === entityName) {
       return fieldName;
     }
   }
@@ -240,14 +240,14 @@ export function EntityListPage() {
   const { t } = useTranslation();
   const { resolveLabel } = useEntityLabel();
   const params = useParams({ strict: false }) as { name?: string };
-  const schemaName = params.name;
+  const entityName = params.name;
   // Fetch schema bundle from API
   const {
     bundle,
     loading: bundleLoading,
     error: bundleError,
     reload: reloadBundle,
-  } = useEntityBundle(schemaName ?? "");
+  } = useEntityBundle(entityName ?? "");
 
   const schema = bundle?.schema;
   const explicitListView = getPrimaryView(bundle?.views, "list") as
@@ -279,7 +279,7 @@ export function EntityListPage() {
   const [serverSortOrder, setServerSortOrder] = useState<"asc" | "desc" | undefined>(undefined);
 
   // ── Saved views (localStorage-backed) ──────────────────────────
-  const { views: savedViews, createView, renameView, deleteView } = useSavedViews(schemaName ?? "");
+  const { views: savedViews, createView, renameView, deleteView } = useSavedViews(entityName ?? "");
   const searchParams = useSearch({ strict: false }) as { view?: string };
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(
     () => searchParams.view ?? null,
@@ -549,14 +549,14 @@ export function EntityListPage() {
   const fetchData = useCallback(
     async (options?: { background?: boolean }) => {
       const currentListView = listViewRef.current;
-      if (!currentListView || !schemaName) {
+      if (!currentListView || !entityName) {
         setLoading(false);
         return;
       }
       // Guard: ensure the listView belongs to the current schema to prevent
       // querying with stale fields from a previously visited schema (e.g.
       // purchase_item fields being sent in a department query).
-      if (currentListView.schema !== schemaName) {
+      if (currentListView.schema !== entityName) {
         // Don't clear loading — the correct listView will arrive and re-trigger fetch
         return;
       }
@@ -571,7 +571,7 @@ export function EntityListPage() {
           currentListView,
           schemaFieldsRef.current,
           bundleLinksRef.current,
-          schemaName,
+          entityName,
         );
         // Ensure the date field is included in the query for calendar view
         const dateField = calendarDateFieldRef.current;
@@ -604,7 +604,7 @@ export function EntityListPage() {
         // Pass text search to server-side full-text search
         const searchTerm = globalFilterRef.current || undefined;
         const result = await queryList({
-          schema: schemaName,
+          schema: entityName,
           fields,
           search: searchTerm,
           page: serverPageRef.current,
@@ -629,15 +629,15 @@ export function EntityListPage() {
         setLoading(false);
       }
     },
-    [schemaName, t],
+    [entityName, t],
   );
 
   // ── Real-time subscription via SSE ──────────────────────
   const [hasNewData, setHasNewData] = useState(false);
 
   const subscriptionQuery = useMemo(
-    () => (schemaName ? buildEntitySubscriptionQuery(schemaName) : ""),
-    [schemaName],
+    () => (entityName ? buildEntitySubscriptionQuery(entityName) : ""),
+    [entityName],
   );
 
   // Debounced refresh on subscription events to avoid rapid-fire fetches
@@ -646,26 +646,26 @@ export function EntityListPage() {
   const handleSubscriptionData = useCallback(
     (data: unknown) => {
       // Push notification for the SSE event
-      if (schemaName && data && typeof data === "object") {
+      if (entityName && data && typeof data === "object") {
         const d = data as Record<string, unknown>;
-        const label = bundle?.schema?.label ?? schemaName;
+        const label = bundle?.schema?.label ?? entityName;
         if (d.created) {
           pushNotification({
             type: "created",
             message: `${label} record created`,
-            schema: schemaName,
+            schema: entityName,
           });
         } else if (d.updated) {
           pushNotification({
             type: "updated",
             message: `${label} record updated`,
-            schema: schemaName,
+            schema: entityName,
           });
         } else if (d.deleted) {
           pushNotification({
             type: "deleted",
             message: `${label} record deleted`,
-            schema: schemaName,
+            schema: entityName,
           });
         }
       }
@@ -680,7 +680,7 @@ export function EntityListPage() {
         fetchData({ background: true }).then(() => setHasNewData(false));
       }, 500);
     },
-    [fetchData, schemaName, bundle?.schema?.label],
+    [fetchData, entityName, bundle?.schema?.label],
   );
 
   // Cleanup debounce timer on unmount
@@ -694,11 +694,11 @@ export function EntityListPage() {
 
   useSubscription({
     query: subscriptionQuery,
-    enabled: !!schemaName && !bundleLoading && !!bundle,
+    enabled: !!entityName && !bundleLoading && !!bundle,
     onData: handleSubscriptionData,
   });
 
-  // Initial data fetch — depends on schemaName, bundle readiness, and bundle identity.
+  // Initial data fetch — depends on entityName, bundle readiness, and bundle identity.
   // bundleSchemaName ensures re-fetch when navigating between cached schemas
   // (bundleReady stays true→true but the bundle itself changes).
   const bundleReady = !bundleLoading && !!bundle;
@@ -772,25 +772,25 @@ export function EntityListPage() {
   }, [globalFilter, fetchData]);
 
   async function handleAction(actionName: string, recordId: string) {
-    if (!schemaName) return;
+    if (!entityName) return;
     switch (actionName) {
       case "create":
-        navigate({ to: "/schemas/$name/new", params: { name: schemaName } });
+        navigate({ to: "/schemas/$name/new", params: { name: entityName } });
         break;
       case "edit": {
         const editRoute = listView?.rowActionRoute;
         if (editRoute) {
-          const url = editRoute.replace("{id}", recordId).replace("{name}", schemaName);
+          const url = editRoute.replace("{id}", recordId).replace("{name}", entityName);
           navigate({ to: url as "/" });
         } else {
-          navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+          navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
         }
         break;
       }
       case "duplicate":
         navigate({
           to: "/schemas/$name/new",
-          params: { name: schemaName },
+          params: { name: entityName },
           search: { clone: recordId },
         });
         break;
@@ -804,10 +804,10 @@ export function EntityListPage() {
   }
 
   function handleTreeNodeAction(action: string, recordId: string) {
-    if (!schemaName) return;
+    if (!entityName) return;
     switch (action) {
       case "edit":
-        navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+        navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
         break;
       case "delete":
         pendingSingleDeleteId.current = recordId;
@@ -816,7 +816,7 @@ export function EntityListPage() {
       case "add_child":
         navigate({
           to: "/schemas/$name/new",
-          params: { name: schemaName },
+          params: { name: entityName },
           search: { parent: recordId },
         });
         break;
@@ -826,19 +826,19 @@ export function EntityListPage() {
   }
 
   function handleRowClick(recordId: string) {
-    if (!schemaName) return;
+    if (!entityName) return;
     // Check if list view has custom detail route
     const customRoute = listView?.rowActionRoute;
     if (customRoute) {
-      const url = customRoute.replace("{id}", recordId).replace("{name}", schemaName);
+      const url = customRoute.replace("{id}", recordId).replace("{name}", entityName);
       navigate({ to: url as "/" });
     } else {
-      navigate({ to: "/schemas/$name/$id", params: { name: schemaName, id: recordId } });
+      navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
     }
   }
 
   function handleBulkAction(action: string, ids: string[]) {
-    if (!schemaName || ids.length === 0) return;
+    if (!entityName || ids.length === 0) return;
     switch (action) {
       case "delete":
         pendingBulkIds.current = ids;
@@ -850,10 +850,10 @@ export function EntityListPage() {
   }
 
   async function executeSingleDelete() {
-    if (!schemaName || !pendingSingleDeleteId.current) return;
+    if (!entityName || !pendingSingleDeleteId.current) return;
     setSingleDeleting(true);
     try {
-      await deleteRecord(schemaName, pendingSingleDeleteId.current);
+      await deleteRecord(entityName, pendingSingleDeleteId.current);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
       await fetchData({ background: true });
     } catch (_err) {
@@ -866,11 +866,11 @@ export function EntityListPage() {
   }
 
   async function executeBulkDelete() {
-    if (!schemaName || pendingBulkIds.current.length === 0) return;
+    if (!entityName || pendingBulkIds.current.length === 0) return;
     const count = pendingBulkIds.current.length;
     setBulkDeleting(true);
     try {
-      await bulkDeleteRecords(schemaName, pendingBulkIds.current);
+      await bulkDeleteRecords(entityName, pendingBulkIds.current);
       toast.success(t("toast.bulkDeleted", "{{count}} record(s) deleted successfully", { count }));
       await fetchData({ background: true });
     } catch (_err) {
@@ -945,7 +945,7 @@ export function EntityListPage() {
   );
 
   // Missing schema name in route
-  if (!schemaName) {
+  if (!entityName) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
         <ServerCrash className="size-10" />
@@ -999,7 +999,7 @@ export function EntityListPage() {
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
         <ServerCrash className="size-10" />
         <p className="text-sm font-medium">
-          {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
+          {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: entityName })}
         </p>
         <p className="text-xs">
           {t(
@@ -1039,8 +1039,8 @@ export function EntityListPage() {
     return (
       <div className="p-4">
         <EmptyState
-          schemaName={schemaName}
-          schemaLabel={resolveLabel(schema.label, schemaName)}
+          entityName={entityName}
+          schemaLabel={resolveLabel(schema.label, entityName)}
           hideAction={!!bundle?.internal}
         />
       </div>
@@ -1155,7 +1155,7 @@ export function EntityListPage() {
             ];
             return (
               <AutoTree
-                schemaName={schemaName}
+                entityName={entityName}
                 parentField={selfRefField}
                 records={pageFilteredData}
                 labelField={treeLabelField}

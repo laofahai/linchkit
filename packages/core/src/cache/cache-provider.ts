@@ -19,7 +19,7 @@ export interface CacheEntry<T = unknown> {
    * After softExpiresAt but before expiresAt, the value is stale but still served.
    */
   softExpiresAt?: number;
-  /** Tags for group invalidation (e.g. ["schema:purchase_request", "tenant:t1"]) */
+  /** Tags for group invalidation (e.g. ["entity:purchase_request", "tenant:t1"]) */
   tags: string[];
   /** Timestamp when entry was created (ms since epoch) */
   createdAt: number;

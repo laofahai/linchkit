@@ -111,14 +111,14 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
 
   // Handle AI search execution from the palette
   const handleAISearch = useCallback(
-    async (query: string, schemaName: string) => {
+    async (query: string, entityName: string) => {
       setAiLoading(true);
       setAiResult(null);
       setAiQuery(query);
       try {
         const result = await aiSearch({
           query,
-          schema: schemaName,
+          schema: entityName,
           fields: {},
         });
         if (result) {
@@ -126,7 +126,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
           // Navigate to the schema page — the AI filter will be applied via URL or state
           // For now, navigate and show the explanation
           setTimeout(() => {
-            navigateRef.current(`/schemas/${schemaName}`);
+            navigateRef.current(`/schemas/${entityName}`);
           }, 1500);
         } else {
           setAiResult(t("aiSearch.notConfigured", "AI service is not configured."));

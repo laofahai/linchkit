@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import { type AvailableTransition, queryAvailableTransitions, transitionRecord } from "../lib/api";
 
 interface TransitionButtonsProps {
-  schemaName: string;
+  entityName: string;
   recordId: string;
   /** Fields to return after transition (for record refresh) */
   recordFields: string[];
@@ -33,7 +33,7 @@ interface TransitionButtonsProps {
 }
 
 export function TransitionButtons({
-  schemaName,
+  entityName,
   recordId,
   recordFields,
   states,
@@ -47,14 +47,14 @@ export function TransitionButtons({
   const fetchTransitions = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await queryAvailableTransitions(schemaName, recordId);
+      const result = await queryAvailableTransitions(entityName, recordId);
       setTransitions(result);
     } catch {
       setTransitions([]);
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId]);
+  }, [entityName, recordId]);
 
   useEffect(() => {
     fetchTransitions();
@@ -76,7 +76,7 @@ export function TransitionButtons({
       }
     }
     // Try schema-specific i18n key, then common state key
-    const schemaKey = `schemas.${schemaName}.states.${stateValue}`;
+    const schemaKey = `schemas.${entityName}.states.${stateValue}`;
     const schemaTranslated = t(schemaKey, { defaultValue: "" });
     if (schemaTranslated) return schemaTranslated;
     const commonKey = `states.${stateValue}`;
@@ -88,7 +88,7 @@ export function TransitionButtons({
   async function handleTransition(to: string) {
     setTransitioning(to);
     try {
-      const updated = await transitionRecord(schemaName, recordId, to, recordFields);
+      const updated = await transitionRecord(entityName, recordId, to, recordFields);
       toast.success(t("toast.transitionSuccess", "Status changed successfully"));
       onTransitioned?.(updated as Record<string, unknown>);
       // Refresh available transitions after successful transition

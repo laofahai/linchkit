@@ -48,21 +48,21 @@ export function buildTools(ctx: ToolContext) {
         "Search and query records from a schema. Returns matching records as JSON. " +
         "Use this to help users find, list, or analyze their data.",
       inputSchema: z.object({
-        schema: z.string().describe("The schema name to query (e.g. 'purchase_order', 'product')"),
+        entity: z.string().describe("The entity name to query (e.g. 'purchase_order', 'product')"),
         limit: z
           .number()
           .optional()
           .default(10)
           .describe("Maximum number of records to return (default: 10, max: 50)"),
       }),
-      execute: async (input: { schema: string; limit?: number }) => {
+      execute: async (input: { entity: string; limit?: number }) => {
         try {
           const effectiveLimit = Math.min(input.limit ?? 10, 50);
-          const allRecords = await dp.query(input.schema, {});
+          const allRecords = await dp.query(input.entity, {});
           const total = allRecords.length;
           const records = allRecords.slice(0, effectiveLimit);
           return {
-            schema: input.schema,
+            entity: input.entity,
             records,
             total,
             returned: records.length,
@@ -81,13 +81,13 @@ export function buildTools(ctx: ToolContext) {
         "Get a single record by its ID from a schema. " +
         "Use this when the user asks about a specific record.",
       inputSchema: z.object({
-        schema: z.string().describe("The schema name"),
+        entity: z.string().describe("The entity name"),
         id: z.string().describe("The record ID"),
       }),
-      execute: async (input: { schema: string; id: string }) => {
+      execute: async (input: { entity: string; id: string }) => {
         try {
-          const record = await dp.get(input.schema, input.id);
-          return { schema: input.schema, record };
+          const record = await dp.get(input.entity, input.id);
+          return { entity: input.entity, record };
         } catch (error) {
           return {
             error: error instanceof Error ? error.message : "Failed to get record",
@@ -183,7 +183,7 @@ export function buildTools(ctx: ToolContext) {
       inputSchema: z.object({}),
       execute: async () => {
         const names = ontology.listEntities();
-        const schemas = names.map((name) => {
+        const entities = names.map((name) => {
           const desc = ontology.describe(name);
           return {
             name,
@@ -193,7 +193,7 @@ export function buildTools(ctx: ToolContext) {
             actionCount: desc?.actions.length ?? 0,
           };
         });
-        return { schemas, total: schemas.length };
+        return { entities, total: entities.length };
       },
     });
 

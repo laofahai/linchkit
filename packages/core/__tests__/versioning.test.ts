@@ -316,7 +316,7 @@ describe("MigrationRegistry", () => {
   });
 
   const migrationV1toV2: SchemaMigration = {
-    schemaName: "order",
+    entityName: "order",
     fromVersion: "1.0.0",
     toVersion: "2.0.0",
     up: (data) => ({ ...data, priority: data.priority ?? "normal" }),
@@ -328,7 +328,7 @@ describe("MigrationRegistry", () => {
   };
 
   const migrationV2toV3: SchemaMigration = {
-    schemaName: "order",
+    entityName: "order",
     fromVersion: "2.0.0",
     toVersion: "3.0.0",
     up: (data) => ({ ...data, amount_cents: (data.amount as number) * 100 }),
@@ -406,7 +406,7 @@ describe("MigrationRegistry", () => {
 
     it("returns null for downgrade without down function", () => {
       const noDown: SchemaMigration = {
-        schemaName: "order",
+        entityName: "order",
         fromVersion: "1.0.0",
         toVersion: "2.0.0",
         up: (data) => data,
@@ -427,7 +427,7 @@ describe("applyMigration", () => {
     registry = new MigrationRegistry();
 
     registry.register({
-      schemaName: "order",
+      entityName: "order",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       up: (data) => ({ ...data, priority: "normal" }),
@@ -438,7 +438,7 @@ describe("applyMigration", () => {
     });
 
     registry.register({
-      schemaName: "order",
+      entityName: "order",
       fromVersion: "1.1.0",
       toVersion: "1.2.0",
       up: (data) => ({
@@ -511,14 +511,14 @@ describe("validateUpgrade", () => {
   beforeEach(() => {
     registry = new MigrationRegistry();
     registry.register({
-      schemaName: "product",
+      entityName: "product",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       up: (d) => d,
       down: (d) => d,
     });
     registry.register({
-      schemaName: "product",
+      entityName: "product",
       fromVersion: "1.1.0",
       toVersion: "2.0.0",
       up: (d) => d,

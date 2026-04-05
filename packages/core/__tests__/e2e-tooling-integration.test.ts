@@ -834,7 +834,7 @@ describe("E2E: Versioning + CapabilityHub", () => {
     const registry = new MigrationRegistry();
 
     registry.register({
-      schemaName: "purchase_request",
+      entityName: "purchase_request",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       description: "Add priority field",
@@ -846,7 +846,7 @@ describe("E2E: Versioning + CapabilityHub", () => {
     });
 
     registry.register({
-      schemaName: "purchase_request",
+      entityName: "purchase_request",
       fromVersion: "1.1.0",
       toVersion: "2.0.0",
       description: "Rename amount to total_amount",
@@ -888,7 +888,7 @@ describe("E2E: Versioning + CapabilityHub", () => {
     const registry = new MigrationRegistry();
 
     registry.register({
-      schemaName: "order",
+      entityName: "order",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       up: (data) => ({ ...data, tax_rate: 0.1 }),
@@ -915,7 +915,7 @@ describe("E2E: Versioning + CapabilityHub", () => {
     const registry = new MigrationRegistry();
 
     registry.register({
-      schemaName: "item",
+      entityName: "item",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       up: (data) => data,
@@ -1117,7 +1117,7 @@ describe("E2E: Full tooling pipeline", () => {
     // Step 5: Define migration path
     const migrationRegistry = new MigrationRegistry();
     migrationRegistry.register({
-      schemaName: "employee",
+      entityName: "employee",
       fromVersion: "1.0.0",
       toVersion: "1.1.0",
       description: "Add role field",

@@ -227,7 +227,7 @@ export function registerScaffoldTools(server: McpServer): void {
   // scaffold_action
   const scaffoldActionShape = {
     name: z.string().describe("Action name in snake_case"),
-    schema: z.string().describe("Target schema name"),
+    entity: z.string().describe("Target entity name"),
     description: z.string().describe("Short description of the action").optional(),
     inputFields: z
       .record(z.string(), z.string())
@@ -240,7 +240,7 @@ export function registerScaffoldTools(server: McpServer): void {
     toMcpShape(scaffoldActionShape),
     async (args: {
       name: string;
-      schema: string;
+      entity: string;
       description?: string;
       inputFields?: Record<string, string>;
     }) => {
@@ -251,11 +251,11 @@ export function registerScaffoldTools(server: McpServer): void {
           content: [{ type: "text" as const, text: `Invalid action name: ${nameCheck.error}` }],
         };
       }
-      const schemaCheck = validateIdentifier(args.schema);
-      if (!schemaCheck.valid) {
+      const entityCheck = validateIdentifier(args.entity);
+      if (!entityCheck.valid) {
         return {
           isError: true as const,
-          content: [{ type: "text" as const, text: `Invalid schema name: ${schemaCheck.error}` }],
+          content: [{ type: "text" as const, text: `Invalid entity name: ${entityCheck.error}` }],
         };
       }
       const code = generateActionTemplate(args);

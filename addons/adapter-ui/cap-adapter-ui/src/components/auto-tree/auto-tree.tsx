@@ -81,7 +81,7 @@ interface DropTarget {
 
 export interface AutoTreeProps {
   /** Schema name (for context / key namespacing) */
-  schemaName: string;
+  entityName: string;
   /** Field referencing the parent record (e.g. "parent_id") */
   parentField: string;
   /** Flat list of records */
@@ -138,7 +138,7 @@ export interface AutoTreeProps {
 }
 
 export function AutoTree({
-  schemaName: _schemaName,
+  entityName: _entityName,
   parentField,
   records: externalRecords,
   labelField,
@@ -430,7 +430,7 @@ export function AutoTree({
       <div className="flex-1 min-w-0 p-3 overflow-auto">
         {selectedNodeId && childListSchema ? (
           <ChildListPanel
-            schemaName={childListSchema}
+            entityName={childListSchema}
             records={filteredChildList}
             labelField={childListLabelField ?? labelField}
             summaryFields={summaryFields}
@@ -449,7 +449,7 @@ export function AutoTree({
 // ── §3.3 Child List Panel ─────────────────────────────────
 
 interface ChildListPanelProps {
-  schemaName: string;
+  entityName: string;
   records: Record<string, unknown>[];
   labelField: string;
   summaryFields?: string[];
@@ -457,7 +457,7 @@ interface ChildListPanelProps {
 }
 
 function ChildListPanel({
-  schemaName: _schemaName,
+  entityName: _entityName,
   records,
   labelField,
   summaryFields,

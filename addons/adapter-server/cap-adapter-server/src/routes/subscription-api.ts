@@ -29,8 +29,8 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
   // Check schema exposure config — if GraphQL is explicitly disabled, deny SSE events too.
   if (entityRegistry) {
     const permGroups = options.permissionGroups;
-    subManager.setPermissionChecker((actor, schemaName) => {
-      const schemaDef = entityRegistry.get(schemaName);
+    subManager.setPermissionChecker((actor, entityName) => {
+      const schemaDef = entityRegistry.get(entityName);
       if (!schemaDef) return false; // Unknown schema — deny
       // If exposure is configured and graphql is explicitly false, deny
       if (schemaDef.exposure?.graphql === false) return false;
@@ -38,12 +38,12 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
       if (permGroups && actor && actor.type !== "system") {
         const actorGroups = new Set(actor.groups ?? []);
         // Find if any permission group grants read access to this schema for the actor's groups.
-        // Permission structure: permissions[capabilityName][schemaName].data.read
+        // Permission structure: permissions[capabilityName][entityName].data.read
         const hasReadPermission = permGroups.some((pg) => {
           if (!actorGroups.has(pg.name)) return false;
           // Search across all capabilities for this schema
           for (const capPerms of Object.values(pg.permissions ?? {})) {
-            const schemaPerms = capPerms[schemaName];
+            const schemaPerms = capPerms[entityName];
             if (schemaPerms?.data?.read && schemaPerms.data.read !== "none") return true;
           }
           return false;

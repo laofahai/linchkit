@@ -136,7 +136,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,
-      context: { schema: "product" },
+      context: { entity: "product" },
     });
 
     expect(prompt).toContain("Current Entity Context");
@@ -170,7 +170,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const prompt = buildSystemPrompt({
       // biome-ignore lint/suspicious/noExplicitAny: test mock registry
       entityRegistry: sr as any,
-      context: { schema: "product" },
+      context: { entity: "product" },
     });
 
     expect(prompt).toContain("Current Entity Context");
@@ -182,7 +182,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,
-      context: { schema: "product", recordId: "rec-abc-123" },
+      context: { entity: "product", recordId: "rec-abc-123" },
     });
 
     expect(prompt).toContain("Currently viewing record ID: rec-abc-123");
@@ -193,7 +193,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,
       context: {
-        schema: "product",
+        entity: "product",
         recordId: "rec-1",
         recordData: { name: "Widget", price: 29.99, category: "electronics" },
       },
@@ -213,7 +213,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,
       context: {
-        schema: "product",
+        entity: "product",
         recordId: "rec-1",
         recordData: largeData,
       },
@@ -227,7 +227,7 @@ describe("buildSystemPrompt — current schema context", () => {
     const ontology = createMockOntologyRegistry([]);
     const prompt = buildSystemPrompt({
       ontologyRegistry: ontology,
-      context: { schema: "nonexistent" },
+      context: { entity: "nonexistent" },
     });
 
     // Should not throw, and should not include schema context
@@ -242,7 +242,7 @@ describe("buildSystemPrompt — combined options", () => {
       assistantConfig: { systemPrompt: "You are a product catalog assistant." },
       ontologyRegistry: ontology,
       context: {
-        schema: "product",
+        entity: "product",
         recordId: "p-001",
         recordData: { name: "Laptop", price: 999 },
       },

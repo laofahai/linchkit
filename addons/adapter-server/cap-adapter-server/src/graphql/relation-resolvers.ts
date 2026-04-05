@@ -107,7 +107,7 @@ async function fetchOne(
   ctx: RelationResolverContext,
 ): Promise<Record<string, unknown> | null> {
   if (ctx.relationLoaders) {
-    return ctx.relationLoaders.getLoader.load({ schema, id, tenantId: ctx.tenantId });
+    return ctx.relationLoaders.getLoader.load({ entity: schema, id, tenantId: ctx.tenantId });
   }
   // Fallback: direct dataProvider call (backward compatible)
   if (!ctx.dataProvider) return null;
@@ -125,7 +125,7 @@ async function fetchByFK(
   ctx: RelationResolverContext,
 ): Promise<Record<string, unknown>[]> {
   if (ctx.relationLoaders) {
-    return ctx.relationLoaders.queryLoader.load({ schema, fkColumn, fkValue, tenantId: ctx.tenantId });
+    return ctx.relationLoaders.queryLoader.load({ entity: schema, fkColumn, fkValue, tenantId: ctx.tenantId });
   }
   // Fallback: direct dataProvider call (backward compatible)
   if (!ctx.dataProvider) return [];

@@ -109,7 +109,7 @@ describe("validatePhase1", () => {
 
     it("accepts delete operations with invalid names (delete bypasses definition checks)", () => {
       const result = validatePhase1({
-        changes: [{ target: "schema", operation: "delete", name: "MySchema" }],
+        changes: [{ target: "entity", operation: "delete", name: "MySchema" }],
       });
       // Name check still runs — delete does not skip name validation
       expect(result.errors.some((e) => e.code === "INVALID_NAME")).toBe(true);
@@ -226,7 +226,7 @@ describe("validatePhase1", () => {
   describe("missing definition on create/update", () => {
     it("errors when definition is missing for create", () => {
       const result = validatePhase1({
-        changes: [{ target: "schema", operation: "create", name: "broken" }],
+        changes: [{ target: "entity", operation: "create", name: "broken" }],
       });
       expect(result.status).toBe("failed");
       expect(result.errors.some((e) => e.code === "MISSING_DEFINITION")).toBe(true);

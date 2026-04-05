@@ -187,9 +187,9 @@ describe("queryRecords tool", () => {
   test("queries records from DataProvider and returns them", async () => {
     const dp = createMockDataProvider({ product: sampleProducts });
     const tools = buildTools({ dataProvider: dp });
-    const result = await tools.queryRecords.execute({ schema: "product" });
+    const result = await tools.queryRecords.execute({ entity: "product" });
 
-    expect(result.schema).toBe("product");
+    expect(result.entity).toBe("product");
     expect(result.records).toHaveLength(3);
     expect(result.total).toBe(3);
     expect(result.returned).toBe(3);
@@ -203,7 +203,7 @@ describe("queryRecords tool", () => {
     }));
     const dp = createMockDataProvider({ product: manyProducts });
     const tools = buildTools({ dataProvider: dp });
-    const result = await tools.queryRecords.execute({ schema: "product", limit: 5 });
+    const result = await tools.queryRecords.execute({ entity: "product", limit: 5 });
 
     expect(result.returned).toBe(5);
     expect(result.total).toBe(20);
@@ -217,7 +217,7 @@ describe("queryRecords tool", () => {
     }));
     const dp = createMockDataProvider({ product: lotsOfProducts });
     const tools = buildTools({ dataProvider: dp });
-    const result = await tools.queryRecords.execute({ schema: "product", limit: 200 });
+    const result = await tools.queryRecords.execute({ entity: "product", limit: 200 });
 
     expect(result.returned).toBe(50);
     expect(result.total).toBe(100);
@@ -237,7 +237,7 @@ describe("queryRecords tool", () => {
       count: async () => 0,
     };
     const tools = buildTools({ dataProvider: failingDp });
-    const result = await tools.queryRecords.execute({ schema: "nonexistent" });
+    const result = await tools.queryRecords.execute({ entity: "nonexistent" });
 
     expect(result.error).toBe("Table not found");
   });
@@ -251,16 +251,16 @@ describe("getRecord tool", () => {
       product: [{ id: "p1", name: "Widget", price: 10 }],
     });
     const tools = buildTools({ dataProvider: dp });
-    const result = await tools.getRecord.execute({ schema: "product", id: "p1" });
+    const result = await tools.getRecord.execute({ entity: "product", id: "p1" });
 
-    expect(result.schema).toBe("product");
+    expect(result.entity).toBe("product");
     expect(result.record).toEqual({ id: "p1", name: "Widget", price: 10 });
   });
 
   test("returns error when record not found", async () => {
     const dp = createMockDataProvider({ product: [] });
     const tools = buildTools({ dataProvider: dp });
-    const result = await tools.getRecord.execute({ schema: "product", id: "missing" });
+    const result = await tools.getRecord.execute({ entity: "product", id: "missing" });
 
     expect(result.error).toContain("not found");
   });
@@ -415,11 +415,11 @@ describe("listSchemas tool", () => {
     const result = await tools.listEntities.execute({});
 
     expect(result.total).toBe(2);
-    expect(result.schemas).toHaveLength(2);
-    expect(result.schemas[0].name).toBe("product");
-    expect(result.schemas[0].fieldCount).toBe(3);
-    expect(result.schemas[0].actionCount).toBe(1);
-    expect(result.schemas[1].name).toBe("order");
+    expect(result.entities).toHaveLength(2);
+    expect(result.entities[0].name).toBe("product");
+    expect(result.entities[0].fieldCount).toBe(3);
+    expect(result.entities[0].actionCount).toBe(1);
+    expect(result.entities[1].name).toBe("order");
   });
 });
 

@@ -21,20 +21,20 @@ import { HeaderActions } from "@/components/header-actions";
 import { useBreadcrumb } from "@/hooks/use-breadcrumb";
 import { BreadcrumbTitleProvider } from "@/hooks/use-breadcrumb-title";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { SchemaBundleCacheProvider } from "@/hooks/use-entity-bundle";
+import { EntityBundleCacheProvider } from "@/hooks/use-entity-bundle";
 import { SchemasProvider } from "@/hooks/use-entities";
 
 /** App Shell layout: Shadcn sidebar + header with breadcrumb + main content */
 export function ShellLayout() {
   return (
     <SchemasProvider>
-      <SchemaBundleCacheProvider>
+      <EntityBundleCacheProvider>
         <BreadcrumbTitleProvider>
           <TooltipProvider delayDuration={0}>
             <ShellContent />
           </TooltipProvider>
         </BreadcrumbTitleProvider>
-      </SchemaBundleCacheProvider>
+      </EntityBundleCacheProvider>
     </SchemasProvider>
   );
 }

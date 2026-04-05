@@ -42,10 +42,10 @@ function entityFromEventType(eventType: string): string | undefined {
   return parts.length >= 2 ? parts[0] : undefined;
 }
 
-/** Extract schema name from a rule context query string (e.g. "schema:purchase_request" or raw schema name) */
+/** Extract entity name from a rule context query string (e.g. "entity:purchase_request" or raw entity name) */
 function entityFromContextQuery(query: string): string | undefined {
-  // Support "schema:name" notation and bare names
-  const match = query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
+  // Support "entity:name" notation (legacy "schema:name" also accepted) and bare names
+  const match = query.match(/^entity:(\w+)$/) ?? query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
   return match?.[1];
 }
 

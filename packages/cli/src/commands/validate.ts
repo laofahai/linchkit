@@ -214,19 +214,19 @@ export const validateCommand = defineCommand({
     // ── 5. Link target existence validation ──
     {
       const issues: QualityIssue[] = [];
-      const schemaNames = new Set(entities.map((s) => s.name));
+      const entityNames = new Set(entities.map((s) => s.name));
       const relationRegistry = createRelationRegistry();
 
       for (const link of links) {
         // Check that both from and to schemas exist
-        if (!schemaNames.has(link.from)) {
+        if (!entityNames.has(link.from)) {
           issues.push({
             severity: "error",
             rule: "link-target",
             message: `Link "${link.name}": source entity "${link.from}" does not exist`,
           });
         }
-        if (!schemaNames.has(link.to)) {
+        if (!entityNames.has(link.to)) {
           issues.push({
             severity: "error",
             rule: "link-target",
@@ -285,7 +285,7 @@ export const validateCommand = defineCommand({
     // ── 8. Automation validation ──
     {
       const issues: QualityIssue[] = [];
-      const schemaNames = new Set(entities.map((s) => s.name));
+      const entityNames = new Set(entities.map((s) => s.name));
       const actionNames = new Set(actions.map((a) => a.name));
 
       for (const automation of automations) {
@@ -294,7 +294,7 @@ export const validateCommand = defineCommand({
         if (
           (trigger.type === "fieldChange" || trigger.type === "stateChange") &&
           "entity" in trigger &&
-          !schemaNames.has(trigger.entity)
+          !entityNames.has(trigger.entity)
         ) {
           issues.push({
             severity: "error",

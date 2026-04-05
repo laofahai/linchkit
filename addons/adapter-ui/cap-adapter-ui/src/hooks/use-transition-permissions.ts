@@ -14,7 +14,7 @@ export interface TransitionPermission {
 }
 
 export function useTransitionPermissions(
-  schemaName: string | undefined,
+  entityName: string | undefined,
   recordId: string | undefined,
   enabled: boolean,
 ) {
@@ -22,17 +22,17 @@ export function useTransitionPermissions(
   const [loading, setLoading] = useState(false);
 
   const fetch = useCallback(async () => {
-    if (!schemaName || !recordId || !enabled) return;
+    if (!entityName || !recordId || !enabled) return;
     setLoading(true);
     try {
-      const result = await queryAvailableTransitions(schemaName, recordId);
+      const result = await queryAvailableTransitions(entityName, recordId);
       setTransitions(result);
     } catch {
       setTransitions([]);
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId, enabled]);
+  }, [entityName, recordId, enabled]);
 
   useEffect(() => {
     fetch();

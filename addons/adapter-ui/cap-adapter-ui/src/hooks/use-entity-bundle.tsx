@@ -14,7 +14,7 @@ import type {
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { fetchEntityBundle } from "@/lib/api";
 
-export interface ResolvedSchemaBundle {
+export interface ResolvedEntityBundle {
   schema: EntityDefinition;
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
@@ -50,24 +50,24 @@ function normalizeViews(rawViews: unknown): Record<string, ViewDefinition> {
   );
 }
 
-interface SchemaBundleCacheContextValue {
-  getBundle: (name: string) => ResolvedSchemaBundle | undefined;
-  fetchBundle: (name: string) => Promise<ResolvedSchemaBundle | null>;
+interface EntityBundleCacheContextValue {
+  getBundle: (name: string) => ResolvedEntityBundle | undefined;
+  fetchBundle: (name: string) => Promise<ResolvedEntityBundle | null>;
 }
 
-const SchemaBundleCacheContext = createContext<SchemaBundleCacheContextValue>({
+const EntityBundleCacheContext = createContext<EntityBundleCacheContextValue>({
   getBundle: () => undefined,
   fetchBundle: async () => null,
 });
 
-export function SchemaBundleCacheProvider({ children }: { children: React.ReactNode }) {
-  const cacheRef = useRef<Map<string, ResolvedSchemaBundle>>(new Map());
+export function EntityBundleCacheProvider({ children }: { children: React.ReactNode }) {
+  const cacheRef = useRef<Map<string, ResolvedEntityBundle>>(new Map());
 
   const getBundle = useCallback((name: string) => {
     return cacheRef.current.get(name);
   }, []);
 
-  const fetchBundleFn = useCallback(async (name: string): Promise<ResolvedSchemaBundle | null> => {
+  const fetchBundleFn = useCallback(async (name: string): Promise<ResolvedEntityBundle | null> => {
     // Return from cache if available
     const cached = cacheRef.current.get(name);
     if (cached) return cached;
@@ -75,7 +75,7 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
     const raw = await fetchEntityBundle(name);
     if (!raw) return null;
 
-    const bundle: ResolvedSchemaBundle = {
+    const bundle: ResolvedEntityBundle = {
       schema: {
         name: raw.name,
         label: raw.label,
@@ -94,9 +94,9 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
   }, []);
 
   return (
-    <SchemaBundleCacheContext.Provider value={{ getBundle, fetchBundle: fetchBundleFn }}>
+    <EntityBundleCacheContext.Provider value={{ getBundle, fetchBundle: fetchBundleFn }}>
       {children}
-    </SchemaBundleCacheContext.Provider>
+    </EntityBundleCacheContext.Provider>
   );
 }
 
@@ -105,8 +105,8 @@ export function SchemaBundleCacheProvider({ children }: { children: React.ReactN
  * Returns loading state, bundle data, and error state.
  */
 export function useEntityBundle(name: string) {
-  const { getBundle, fetchBundle } = useContext(SchemaBundleCacheContext);
-  const [bundle, setBundle] = useState<ResolvedSchemaBundle | undefined>(() => getBundle(name));
+  const { getBundle, fetchBundle } = useContext(EntityBundleCacheContext);
+  const [bundle, setBundle] = useState<ResolvedEntityBundle | undefined>(() => getBundle(name));
   const [loading, setLoading] = useState(!getBundle(name));
   const [error, setError] = useState(false);
   const requestIdRef = useRef(0);

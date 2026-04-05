@@ -77,11 +77,11 @@ export function generateBuiltinTools(): McpToolDef[] {
     },
     {
       name: "get_rules",
-      description: "List business rules, optionally filtered by schema or action name",
+      description: "List business rules, optionally filtered by entity or action name",
       inputSchema: {
         type: "object",
         properties: {
-          schema: { type: "string", description: "Filter rules by schema name" },
+          entity: { type: "string", description: "Filter rules by entity name" },
           action: { type: "string", description: "Filter rules by action name" },
         },
       },
@@ -89,13 +89,13 @@ export function generateBuiltinTools(): McpToolDef[] {
     {
       name: "get_state_machine",
       description:
-        "Get the state machine definition for a schema, including states, transitions, and metadata",
+        "Get the state machine definition for an entity, including states, transitions, and metadata",
       inputSchema: {
         type: "object",
         properties: {
-          schema: { type: "string", description: "Schema name to get state machine for" },
+          entity: { type: "string", description: "Entity name to get state machine for" },
         },
-        required: ["schema"],
+        required: ["entity"],
       },
     },
     {

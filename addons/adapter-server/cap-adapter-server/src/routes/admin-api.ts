@@ -230,8 +230,9 @@ export function mountAdminRoutes(
     // Rule definition endpoints — consumed by Rules management UI
     .get("/api/rules", ({ query }) => {
       let filtered = rules;
-      if (query.schema && typeof query.schema === "string") {
-        const schemaFilter = query.schema;
+      const entityFilter = (query.entity ?? query.schema) as string | undefined;
+      if (entityFilter && typeof entityFilter === "string") {
+        const schemaFilter = entityFilter;
         filtered = filtered.filter((r) => {
           const trigger = r.trigger;
           if ("stateChange" in trigger) return trigger.stateChange.entity === schemaFilter;
@@ -319,7 +320,7 @@ export function mountAdminRoutes(
       try {
         const result = await executionLogger.findMany({
           action: query.action as string | undefined,
-          entity: query.schema as string | undefined,
+          entity: (query.entity ?? query.schema) as string | undefined,
           status: query.status as ExecutionStatus | undefined,
           actorId: query.actorId as string | undefined,
           since: query.since as string | undefined,

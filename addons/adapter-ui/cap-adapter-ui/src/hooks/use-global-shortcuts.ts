@@ -21,8 +21,8 @@ export function useGlobalShortcuts() {
         const match = window.location.pathname.match(/^\/schemas\/([^/]+)$/);
         if (match) {
           e.preventDefault();
-          const schemaName = match[1];
-          window.history.pushState({}, "", `/schemas/${schemaName}/new`);
+          const entityName = match[1];
+          window.history.pushState({}, "", `/schemas/${entityName}/new`);
           window.dispatchEvent(new PopStateEvent("popstate"));
         }
       }

@@ -23,7 +23,7 @@ export interface EditingCell {
 }
 
 export interface UseInlineEditOptions {
-  schemaName: string;
+  entityName: string;
   /** Fields to fetch after a successful update */
   queryFields: string[];
   /** Callback after a successful save */
@@ -46,7 +46,7 @@ export interface UseInlineEditReturn {
 }
 
 export function useInlineEdit(options: UseInlineEditOptions): UseInlineEditReturn {
-  const { schemaName, queryFields, onSaved, onError } = options;
+  const { entityName, queryFields, onSaved, onError } = options;
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [saving, setSaving] = useState(false);
   // Track the original value for rollback
@@ -66,7 +66,7 @@ export function useInlineEdit(options: UseInlineEditOptions): UseInlineEditRetur
       setSaving(true);
       setEditingCell(null);
       try {
-        const result = await updateRecord(schemaName, rowId, { [field]: value }, queryFields);
+        const result = await updateRecord(entityName, rowId, { [field]: value }, queryFields);
         onSaved?.(rowId, result);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
@@ -75,7 +75,7 @@ export function useInlineEdit(options: UseInlineEditOptions): UseInlineEditRetur
         setSaving(false);
       }
     },
-    [schemaName, queryFields, onSaved, onError],
+    [entityName, queryFields, onSaved, onError],
   );
 
   return {

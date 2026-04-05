@@ -2,7 +2,7 @@
  * EmptyState — Displayed when a list has no records.
  *
  * Two modes:
- * 1. Schema-driven: pass `schemaName` + `schemaLabel` for schema list pages (shows create button).
+ * 1. Schema-driven: pass `entityName` + `schemaLabel` for schema list pages (shows create button).
  * 2. Generic: pass `title` + optional `description` / `icon` / `hideAction` for admin pages.
  *
  * All text is localized via react-i18next.
@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 export interface EmptyStateProps {
   /** Schema machine name (used for navigation). */
-  schemaName?: string;
+  entityName?: string;
   /** Human-readable schema label. */
   schemaLabel?: string;
   /** Override default title text. */
@@ -29,7 +29,7 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({
-  schemaName,
+  entityName,
   schemaLabel,
   title,
   description,
@@ -55,7 +55,7 @@ export function EmptyState({
           })
       : undefined);
 
-  const showCreateButton = !hideAction && schemaName && schemaLabel;
+  const showCreateButton = !hideAction && entityName && schemaLabel;
 
   return (
     <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
@@ -71,7 +71,7 @@ export function EmptyState({
 
       {showCreateButton && (
         <Button
-          onClick={() => navigate({ to: "/schemas/$name/new", params: { name: schemaName } })}
+          onClick={() => navigate({ to: "/schemas/$name/new", params: { name: entityName } })}
         >
           <Plus className="mr-1.5 size-4" />
           {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}

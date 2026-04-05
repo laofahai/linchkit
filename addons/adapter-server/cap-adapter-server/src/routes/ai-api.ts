@@ -63,7 +63,7 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
     // ── AI Auto-Fill endpoint ────────────────────────────
     .post("/api/ai/auto-fill", async ({ body, set, request }) => {
       const {
-        schema: schemaName,
+        schema: entityName,
         fields,
         currentValues,
         locale: bodyLocale,
@@ -84,7 +84,7 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
       };
 
       // Always validate required fields first, before checking AI availability
-      if (!schemaName || !fields) {
+      if (!entityName || !fields) {
         set.status = 400;
         return {
           success: false,
@@ -104,12 +104,12 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
 
       // ── Step 1: Gather data context from recent records ──
       const dataProvider = options.dataProvider;
-      const schemaDef = entityRegistry?.get(schemaName);
+      const schemaDef = entityRegistry?.get(entityName);
 
       let recentRecords: Array<Record<string, unknown>> = [];
       if (dataProvider) {
         try {
-          recentRecords = await dataProvider.query(schemaName, {
+          recentRecords = await dataProvider.query(entityName, {
             sortField: "created_at",
             sortOrder: "desc",
             limit: 10,
@@ -344,7 +344,7 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
 
         const hasData = recentRecords.length > 0;
 
-        const prompt = `You are a form auto-fill assistant for a "${schemaName}" record.${schemaContext}
+        const prompt = `You are a form auto-fill assistant for a "${entityName}" record.${schemaContext}
 ${langInstruction ? `\n${langInstruction}\n` : ""}
 ${hasData ? `There are ${recentRecords.length} recent records providing data context.` : "This is a NEW system with NO existing data. Only suggest values when field constraints make the answer obvious (e.g., enum default, schema default). Otherwise, do NOT suggest — return an empty object rather than guessing."}
 
@@ -510,7 +510,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           ontologyRegistry: options.ontologyRegistry,
           entityRegistry,
           context: {
-            schema: context?.schema,
+            entity: context?.entity ?? context?.schema,
             recordId: context?.recordId,
             recordData: context?.recordData,
             locale,
@@ -561,7 +561,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         locale: bodyLocale,
       } = (body ?? {}) as {
         message?: string;
-        context?: { schema?: string; recordId?: string };
+        context?: { entity?: string; schema?: string; recordId?: string };
         locale?: string;
       };
 
@@ -620,8 +620,8 @@ Only include fields where you have genuine confidence. Omit fields where you wou
       // Build schema overview from OntologyRegistry for richer context
       let schemaOverview = "";
       if (ontologyRegistry) {
-        const schemaNames = ontologyRegistry.listEntities().filter((n) => !aiDisabledSchemas.has(n));
-        const schemaLines = schemaNames.map((n) => {
+        const entityNames = ontologyRegistry.listEntities().filter((n) => !aiDisabledSchemas.has(n));
+        const schemaLines = entityNames.map((n) => {
           const desc = ontologyRegistry.describe(n);
           if (!desc) return `- ${n}`;
           return `- ${n}${desc.label ? ` (${desc.label})` : ""}${desc.description ? `: ${desc.description}` : ""}`;
@@ -633,15 +633,16 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
       // Build current page context
       let schemaContext = "";
-      if (context?.schema && entityRegistry) {
-        const schema = entityRegistry.get(context.schema);
+      const contextEntity = context?.entity ?? context?.schema;
+      if (contextEntity && entityRegistry) {
+        const schema = entityRegistry.get(contextEntity);
         if (schema) {
           schemaContext = `\nCurrent schema context: ${schema.name}`;
           if (schema.label) schemaContext += ` (${schema.label})`;
           schemaContext += `\nFields: ${Object.entries(schema.fields)
             .map(([k, v]) => `${k}(${v.type}${v.label ? `, label: ${v.label}` : ""})`)
             .join(", ")}`;
-          if (context.recordId) schemaContext += `\nViewing record ID: ${context.recordId}`;
+          if (context?.recordId) schemaContext += `\nViewing record ID: ${context.recordId}`;
         }
       }
 

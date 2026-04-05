@@ -33,7 +33,7 @@ import type { TFunction } from "i18next";
 
 export interface EntityFormHeaderProps {
   t: TFunction;
-  schemaName: string;
+  entityName: string;
   recordId: string | undefined;
   isCreate: boolean;
   isEditing: boolean;

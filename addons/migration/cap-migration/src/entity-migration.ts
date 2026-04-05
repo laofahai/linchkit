@@ -14,10 +14,8 @@ export type MigrationTransform = (data: Record<string, unknown>) => Record<strin
 
 /** A single migration step between two versions of an entity */
 export interface EntityMigration {
-  /** Entity this migration applies to (preferred over schemaName) */
+  /** Entity this migration applies to */
   entityName?: string;
-  /** @deprecated Use entityName instead */
-  schemaName?: string;
   /** Source version (semver) */
   fromVersion: string;
   /** Target version (semver) */
@@ -52,11 +50,11 @@ export class EntityMigrationRegistry {
   /** Map of entityName → migrations indexed by "fromVersion→toVersion" */
   private migrations = new Map<string, Map<string, EntityMigration>>();
 
-  /** Resolve the effective entity name from either entityName or schemaName */
+  /** Resolve the effective entity name */
   private static resolveName(migration: EntityMigration): string {
-    const name = migration.entityName ?? migration.schemaName;
+    const name = migration.entityName;
     if (!name) {
-      throw new Error("EntityMigration must have either entityName or schemaName");
+      throw new Error("EntityMigration must have entityName");
     }
     return name;
   }

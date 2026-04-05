@@ -200,8 +200,8 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
  * Subscribes to created, updated, and deleted events for a given schema.
  * The subscription field names follow the pattern: on{PascalName}Created, etc.
  */
-export function buildEntitySubscriptionQuery(schemaName: string): string {
-  const pascal = schemaName
+export function buildEntitySubscriptionQuery(entityName: string): string {
+  const pascal = entityName
     .split(/[_-]/)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join("");

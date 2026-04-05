@@ -106,9 +106,9 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
 
     // Collect seed data from capabilities
     if (cap.seed) {
-      for (const [schemaName, records] of Object.entries(cap.seed)) {
-        if (!seed[schemaName]) seed[schemaName] = [];
-        seed[schemaName].push(...records);
+      for (const [entityName, records] of Object.entries(cap.seed)) {
+        if (!seed[entityName]) seed[entityName] = [];
+        seed[entityName].push(...records);
       }
     }
 
@@ -177,8 +177,8 @@ const runtime = createRuntimeContext({
 // Seed dev data from capabilities (only works with InMemoryStore)
 const { InMemoryStore } = await import("@linchkit/core/server");
 if (runtime.dataProvider instanceof InMemoryStore) {
-  for (const [schemaName, records] of Object.entries(capContributions.seed)) {
-    runtime.dataProvider.seed(schemaName, records);
+  for (const [entityName, records] of Object.entries(capContributions.seed)) {
+    runtime.dataProvider.seed(entityName, records);
   }
 }
 

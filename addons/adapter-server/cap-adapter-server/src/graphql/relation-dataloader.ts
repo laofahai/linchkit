@@ -13,27 +13,27 @@ import DataLoader from "dataloader";
 
 // ── Key helpers ─────────────────────────────────────────────
 
-/** Composite key encoding schema + id + tenantId for cache isolation */
+/** Composite key encoding entity + id + tenantId for cache isolation */
 interface GetLoaderKey {
-  schema: string;
+  entity: string;
   id: string;
   tenantId?: string;
 }
 
 /** Composite key for query-based loaders (one_to_many / reverse FK) */
 interface QueryLoaderKey {
-  schema: string;
+  entity: string;
   fkColumn: string;
   fkValue: string;
   tenantId?: string;
 }
 
 function getKeyStr(k: GetLoaderKey): string {
-  return `${k.schema}\0${k.id}\0${k.tenantId ?? ""}`;
+  return `${k.entity}\0${k.id}\0${k.tenantId ?? ""}`;
 }
 
 function queryKeyStr(k: QueryLoaderKey): string {
-  return `${k.schema}\0${k.fkColumn}\0${k.fkValue}\0${k.tenantId ?? ""}`;
+  return `${k.entity}\0${k.fkColumn}\0${k.fkValue}\0${k.tenantId ?? ""}`;
 }
 
 // ── DataLoader container ────────────────────────────────────
@@ -47,9 +47,9 @@ function queryKeyStr(k: QueryLoaderKey): string {
  * Must be created once per GraphQL request to ensure proper cache scoping.
  */
 export interface RelationDataLoaders {
-  /** Batch-load individual records by (schema, id) */
+  /** Batch-load individual records by (entity, id) */
   getLoader: DataLoader<GetLoaderKey, Record<string, unknown> | null>;
-  /** Batch-load query results by (schema, fkColumn, fkValue) */
+  /** Batch-load query results by (entity, fkColumn, fkValue) */
   queryLoader: DataLoader<QueryLoaderKey, Record<string, unknown>[]>;
 }
 
@@ -79,7 +79,7 @@ export function createRelationDataLoaders(dataProvider: DataProvider): RelationD
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
         if (!k) continue;
-        const groupKey = `${k.schema}\0${k.tenantId ?? ""}`;
+        const groupKey = `${k.entity}\0${k.tenantId ?? ""}`;
         let group = groups.get(groupKey);
         if (!group) {
           group = { keys: [], indices: [] };
@@ -96,7 +96,7 @@ export function createRelationDataLoaders(dataProvider: DataProvider): RelationD
           // Fetch all IDs for this schema+tenant group in parallel
           const records = await Promise.all(
             group.keys.map((k) =>
-              dataProvider.get(k.schema, k.id, { tenantId: k.tenantId }).catch(() => null),
+              dataProvider.get(k.entity, k.id, { tenantId: k.tenantId }).catch(() => null),
             ),
           );
           for (let j = 0; j < records.length; j++) {
@@ -135,7 +135,7 @@ export function createRelationDataLoaders(dataProvider: DataProvider): RelationD
         keys.map(async (k) => {
           try {
             return (await dataProvider.query(
-              k.schema,
+              k.entity,
               { [k.fkColumn]: k.fkValue },
               { tenantId: k.tenantId },
             )) as Record<string, unknown>[];

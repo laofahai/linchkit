@@ -129,7 +129,7 @@ function createMockActionRegistry(actions: ActionDefinition[]) {
 
 function createMockRelationRegistry(links: RelationDefinition[]) {
   return {
-    relationsFor: (schemaName: string) => {
+    relationsFor: (entityName: string) => {
       const result: Array<{
         relation: RelationDefinition;
         direction: "outgoing" | "incoming";
@@ -137,7 +137,7 @@ function createMockRelationRegistry(links: RelationDefinition[]) {
         label: string;
       }> = [];
       for (const link of links) {
-        if (link.from === schemaName) {
+        if (link.from === entityName) {
           result.push({
             relation: link,
             direction: "outgoing",
@@ -145,7 +145,7 @@ function createMockRelationRegistry(links: RelationDefinition[]) {
             label: link.label?.from ?? link.to,
           });
         }
-        if (link.to === schemaName) {
+        if (link.to === entityName) {
           result.push({
             relation: link,
             direction: "incoming",

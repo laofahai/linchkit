@@ -34,7 +34,7 @@ export interface CsvExportOptions {
   /** Row data to export. */
   data: Record<string, unknown>[];
   /** Schema name used in the filename. */
-  schemaName: string;
+  entityName: string;
   /** Optional label resolver for field labels. */
   resolveLabel?: (label: string | undefined, fallback: string) => string;
 }
@@ -80,6 +80,6 @@ function formatDate(): string {
 /** Export data as CSV and trigger download. */
 export function exportCsv(options: CsvExportOptions): void {
   const csv = buildCsv(options);
-  const filename = `${options.schemaName}_${formatDate()}.csv`;
+  const filename = `${options.entityName}_${formatDate()}.csv`;
   downloadCsv(csv, filename);
 }

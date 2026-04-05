@@ -68,9 +68,9 @@ for (const schema of systemSchemas) {
  */
 function serializeJsonFields(
   records: Array<Record<string, unknown>>,
-  schemaName: string,
+  entityName: string,
 ): Array<Record<string, unknown>> {
-  const jsonFields = JSON_FIELDS_BY_SCHEMA[schemaName];
+  const jsonFields = JSON_FIELDS_BY_SCHEMA[entityName];
   if (!jsonFields) return records;
 
   return records.map((record) => {
@@ -302,8 +302,8 @@ const COLUMN_ALIAS: Record<string, Record<string, string>> = {
 };
 
 /** Reverse mapping: DB column name → schema field name */
-function buildReverseAlias(schemaName: string): Record<string, string> {
-  const alias = COLUMN_ALIAS[schemaName];
+function buildReverseAlias(entityName: string): Record<string, string> {
+  const alias = COLUMN_ALIAS[entityName];
   if (!alias) return {};
   const reverse: Record<string, string> = {};
   for (const [snakeField, camelCol] of Object.entries(alias)) {
@@ -313,8 +313,8 @@ function buildReverseAlias(schemaName: string): Record<string, string> {
 }
 
 /** Convert a DB row (camelCase columns) to schema record (snake_case fields) */
-function dbRowToRecord(row: Record<string, unknown>, schemaName: string): Record<string, unknown> {
-  const reverseAlias = buildReverseAlias(schemaName);
+function dbRowToRecord(row: Record<string, unknown>, entityName: string): Record<string, unknown> {
+  const reverseAlias = buildReverseAlias(entityName);
   const record: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     const fieldName = reverseAlias[key] ?? key;

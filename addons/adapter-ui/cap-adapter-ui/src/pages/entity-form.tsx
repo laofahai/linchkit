@@ -48,7 +48,7 @@ export function EntityFormPage() {
   const searchParams = useSearch({ strict: false }) as { clone?: string; parent?: string };
   const cloneId = searchParams.clone;
   const parentId = searchParams.parent;
-  const schemaName = params.name;
+  const entityName = params.name;
   const { resolveLabel } = useEntityLabel();
   const { setBreadcrumbTitle } = useBreadcrumbTitle();
 
@@ -58,7 +58,7 @@ export function EntityFormPage() {
     loading: bundleLoading,
     error: bundleError,
     reload: reloadBundle,
-  } = useEntityBundle(schemaName ?? "");
+  } = useEntityBundle(entityName ?? "");
 
   const schema = bundle?.schema;
   const formView = useMemo(
@@ -70,10 +70,10 @@ export function EntityFormPage() {
 
   // Look up optional per-schema print layout (named '{schema}-print'); reserved for future use
   const _printView = useMemo(() => {
-    if (!bundle?.views || !schemaName) return undefined;
-    const printViewName = `${schemaName}-print`;
+    if (!bundle?.views || !entityName) return undefined;
+    const printViewName = `${entityName}-print`;
     return Object.values(bundle.views).find((v) => v.name === printViewName && v.type === "form");
-  }, [bundle?.views, schemaName]);
+  }, [bundle?.views, entityName]);
 
   // Status bar steps derived from schema, with i18n label resolution
   const statusSteps = useMemo((): StatusBarStep[] | null => {
@@ -113,11 +113,11 @@ export function EntityFormPage() {
   recordFieldsRef.current = recordFields;
 
   const fetchRecord = useCallback(async () => {
-    if (isCreate || !params.id || !schemaName || !formView) return;
+    if (isCreate || !params.id || !entityName || !formView) return;
     setLoading(true);
     setRecordError(null);
     try {
-      const result = await queryRecord(schemaName, params.id, recordFieldsRef.current);
+      const result = await queryRecord(entityName, params.id, recordFieldsRef.current);
       if (result) {
         setRecord(result as Record<string, unknown>);
       } else {
@@ -130,7 +130,7 @@ export function EntityFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [isCreate, params.id, schemaName, formView, t]);
+  }, [isCreate, params.id, entityName, formView, t]);
 
   // Dynamically find the state field name from the schema
   const stateFieldName = useMemo(
@@ -150,7 +150,7 @@ export function EntityFormPage() {
     transitions: availableTransitions,
     permMap: transitionPermMap,
     refetch: refetchTransitions,
-  } = useTransitionPermissions(schemaName, params.id, hasStateMachine && !isCreate);
+  } = useTransitionPermissions(entityName, params.id, hasStateMachine && !isCreate);
 
   // Collect ALL transition action names across the state machine (all states, not just current)
   const allTransitionActionNames = useMemo(() => {
@@ -215,7 +215,7 @@ export function EntityFormPage() {
 
   // --- Actions hook ---
   const actions = useFormActions({
-    entityName: schemaName,
+    entityName: entityName,
     recordId: params.id,
     isCreate,
     schema,
@@ -318,7 +318,7 @@ export function EntityFormPage() {
 
   // --- Early returns for loading/error states ---
 
-  if (!schemaName) {
+  if (!entityName) {
     return <MissingSchemaState t={t} />;
   }
 
@@ -327,7 +327,7 @@ export function EntityFormPage() {
   }
 
   if (bundleError || !schema || !formView) {
-    return <BundleErrorState t={t} schemaName={schemaName} onRetry={reloadBundle} />;
+    return <BundleErrorState t={t} entityName={entityName} onRetry={reloadBundle} />;
   }
 
   if (recordError && !isCreate) {
@@ -351,8 +351,8 @@ export function EntityFormPage() {
   const allLinks = bundle?.links ?? [];
   const one2manyLinks = allLinks.filter(
     (l) =>
-      (l.cardinality === "one_to_many" && l.from === schemaName) ||
-      (l.cardinality === "many_to_one" && l.to === schemaName),
+      (l.cardinality === "one_to_many" && l.from === entityName) ||
+      (l.cardinality === "many_to_one" && l.to === entityName),
   );
   const otherLinks = allLinks.filter((l) => !one2manyLinks.includes(l));
   const hasOtherLinks = otherLinks.length > 0;
@@ -362,7 +362,7 @@ export function EntityFormPage() {
       {/* Sticky control panel */}
       <EntityFormHeader
         t={t}
-        schemaName={schemaName}
+        entityName={entityName}
         recordId={params.id}
         isCreate={isCreate}
         isEditing={isEditing}
@@ -379,7 +379,7 @@ export function EntityFormPage() {
         onDuplicate={() =>
           navigate({
             to: "/schemas/$name/new",
-            params: { name: schemaName },
+            params: { name: entityName },
             search: { clone: params.id },
           })
         }
@@ -507,7 +507,7 @@ export function EntityFormPage() {
               {one2manyLinks.map((link) => (
                 <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
                   <RelatedRecordsTab
-                    parentSchema={schemaName}
+                    parentSchema={entityName}
                     parentId={params.id ?? ""}
                     link={link}
                   />
@@ -518,7 +518,7 @@ export function EntityFormPage() {
               {hasOtherLinks && (
                 <TabsContent value="related">
                   <RelatedRecordsPanel
-                    schemaName={schemaName}
+                    entityName={entityName}
                     recordId={params.id ?? ""}
                     links={otherLinks}
                     bare
@@ -533,7 +533,7 @@ export function EntityFormPage() {
                   <TabsContent key={panel.id} value={panel.id}>
                     <Suspense fallback={<div className="p-4 text-muted-foreground">{t("common.loading", "Loading...")}</div>}>
                       <LazyPanel
-                        entityName={schemaName}
+                        entityName={entityName}
                         recordId={params.id ?? ""}
                         record={record}
                         fields={schema.fields}

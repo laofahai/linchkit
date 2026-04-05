@@ -11,8 +11,8 @@
 import type { AIAssistantConfig, OntologyRegistry, EntityRegistry } from "@linchkit/core";
 
 export interface SystemPromptContext {
-  /** Current schema name the user is viewing */
-  schema?: string;
+  /** Current entity name the user is viewing */
+  entity?: string;
   /** Current record ID the user is viewing */
   recordId?: string;
   /** Current record data (if available) */
@@ -92,18 +92,18 @@ export function buildSystemPrompt(options: {
 
   // 2. System overview — list available entities
   if (ontologyRegistry) {
-    const schemaNames = ontologyRegistry.listEntities();
-    if (schemaNames.length > 0) {
+    const entityNames = ontologyRegistry.listEntities();
+    if (entityNames.length > 0) {
       parts.push(
         "\n## Available Entities",
-        `The system has ${schemaNames.length} entity(ies): ${schemaNames.join(", ")}`,
+        `The system has ${entityNames.length} entity(ies): ${entityNames.join(", ")}`,
       );
     }
   }
 
   // 3. Current schema context — detailed info
-  if (context?.schema) {
-    const descriptor = ontologyRegistry?.describe(context.schema);
+  if (context?.entity) {
+    const descriptor = ontologyRegistry?.describe(context.entity);
     if (descriptor) {
       parts.push("\n## Current Entity Context");
       parts.push(`Entity: ${descriptor.name}${descriptor.label ? ` (${descriptor.label})` : ""}`);
@@ -147,7 +147,7 @@ export function buildSystemPrompt(options: {
       }
     } else if (entityRegistry) {
       // Fallback to EntityRegistry if OntologyRegistry is not available
-      const schema = entityRegistry.get(context.schema);
+      const schema = entityRegistry.get(context.entity);
       if (schema) {
         parts.push("\n## Current Entity Context");
         parts.push(`Entity: ${schema.name}${schema.label ? ` (${schema.label})` : ""}`);

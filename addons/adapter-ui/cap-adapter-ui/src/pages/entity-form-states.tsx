@@ -61,17 +61,17 @@ export function FormLoadingSkeleton() {
 
 export interface BundleErrorStateProps {
   t: TFunction;
-  schemaName: string;
+  entityName: string;
   onRetry: () => void;
 }
 
 /** Shown when the schema bundle fails to load. */
-export function BundleErrorState({ t, schemaName, onRetry }: BundleErrorStateProps) {
+export function BundleErrorState({ t, entityName, onRetry }: BundleErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
       <ServerCrash className="size-10" />
       <p className="text-sm font-medium">
-        {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: schemaName })}
+        {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: entityName })}
       </p>
       <p className="text-xs">
         {t(

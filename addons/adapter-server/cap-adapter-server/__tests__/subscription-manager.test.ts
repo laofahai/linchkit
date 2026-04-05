@@ -726,9 +726,9 @@ describe("SubscriptionManager", () => {
   describe("permission enforcement", () => {
     test("blocks events when permission checker denies access", async () => {
       const mock = createMockConnection();
-      manager.setPermissionChecker((_actor, schemaName) => {
+      manager.setPermissionChecker((_actor, entityName) => {
         // Only allow reading "task" schema, deny "secret"
-        return schemaName === "task";
+        return entityName === "task";
       });
 
       manager.addConnection({

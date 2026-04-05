@@ -27,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/api";
 
 interface ActivityPanelProps {
-  schemaName: string;
+  entityName: string;
   recordId?: string;
 }
 
@@ -296,7 +296,7 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
 
 const MAX_SCROLL_HEIGHT = 480;
 
-export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
+export function ActivityPanel({ entityName, recordId }: ActivityPanelProps) {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<ExecutionLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,7 +305,7 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
     setLoading(true);
     try {
       const result = await queryExecutionLogs({
-        schema: schemaName,
+        schema: entityName,
         page: 1,
         pageSize: 50,
       });
@@ -320,7 +320,7 @@ export function ActivityPanel({ schemaName, recordId }: ActivityPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [schemaName, recordId]);
+  }, [entityName, recordId]);
 
   useEffect(() => {
     fetchLogs();

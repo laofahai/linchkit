@@ -446,7 +446,7 @@ export function AutoList({
   );
 
   const { editingCell, startEditing, cancelEditing, saveEdit } = useInlineEdit({
-    schemaName: schema?.name ?? "",
+    entityName: schema?.name ?? "",
     queryFields,
     onSaved: onInlineEditSaved,
     onError: onInlineEditError,
@@ -614,13 +614,13 @@ export function AutoList({
   const handleExportCsv = useCallback(() => {
     if (!isSchemaMode) return;
     const rows = table.getFilteredRowModel().rows.map((r) => r.original);
-    exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
+    exportCsv({ fields: view.fields, data: rows, entityName: schema.name, resolveLabel });
   }, [isSchemaMode, table, view?.fields, schema?.name, resolveLabel]);
 
   const handleExportSelected = useCallback(() => {
     if (!isSchemaMode) return;
     const rows = selectedRows.map((r) => r.original);
-    exportCsv({ fields: view.fields, data: rows, schemaName: schema.name, resolveLabel });
+    exportCsv({ fields: view.fields, data: rows, entityName: schema.name, resolveLabel });
   }, [isSchemaMode, selectedRows, view?.fields, schema?.name, resolveLabel]);
 
   const handleBulkAction = useCallback(
