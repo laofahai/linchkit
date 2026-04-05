@@ -31,7 +31,7 @@ interface RecentActivity {
 const DEMO_ACTIVITY: RecentActivity[] = [
   {
     id: "1",
-    tool: "list_schemas",
+    tool: "list_entities",
     clientName: "Claude Desktop",
     timestamp: new Date(Date.now() - 120_000).toISOString(),
     status: "success",

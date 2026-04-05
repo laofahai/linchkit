@@ -2,7 +2,7 @@
  * Entity metadata REST endpoints.
  *
  * - GET /api/entities — lightweight list of all entities
- * - GET /api/entities/:name — full entity with views, states, and links
+ * - GET /api/entities/:name — full entity with views, states, and relations
  */
 
 import type { Elysia } from "elysia";
@@ -56,14 +56,14 @@ export function mountEntityRoutes(app: Elysia, options: ServerOptions): void {
       const schemaStates = capabilities.flatMap((cap) =>
         (cap.states ?? []).filter((s) => s.entity === params.name),
       );
-      // Collect all links related to this schema (from or to)
-      const schemaLinks = capabilities.flatMap((cap) =>
+      // Collect all relations related to this entity (from or to)
+      const schemaRelations = capabilities.flatMap((cap) =>
         (cap.relations ?? []).filter((l) => l.from === params.name || l.to === params.name),
       );
       const internal = entityRegistry.isInternal(params.name) || undefined;
       return {
         success: true,
-        data: { ...schema, views: viewsMap, states: schemaStates, links: schemaLinks, internal },
+        data: { ...schema, views: viewsMap, states: schemaStates, relations: schemaRelations, internal },
       };
     });
 }

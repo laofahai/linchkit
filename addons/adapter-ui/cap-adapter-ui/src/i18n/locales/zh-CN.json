@@ -273,9 +273,9 @@
     "title": "通知",
     "markAllRead": "全部已读",
     "empty": "暂无通知",
-    "recordCreated": "{{schema}} 记录已创建",
-    "recordUpdated": "{{schema}} 记录已更新",
-    "recordDeleted": "{{schema}} 记录已删除",
+    "recordCreated": "{{entity}} 记录已创建",
+    "recordUpdated": "{{entity}} 记录已更新",
+    "recordDeleted": "{{entity}} 记录已删除",
     "actionSucceeded": "操作 \"{{action}}\" 执行成功",
     "actionFailed": "操作 \"{{action}}\" 执行失败"
   },
@@ -650,7 +650,7 @@
     "loadFailed": "加载状态机失败。",
     "columns": {
       "name": "名称",
-      "schema": "数据模型",
+      "entity": "实体",
       "states": "状态"
     }
   },
@@ -661,8 +661,8 @@
     "processing": "处理中...",
     "analyzing": "正在分析您的查询...",
     "resultTitle": "AI 搜索结果",
-    "selectSchema": "选择要搜索的实体",
-    "searchIn": "在 {{schema}} 中搜索",
+    "selectEntity": "选择要搜索的实体",
+    "searchIn": "在 {{entity}} 中搜索",
     "paletteAction": "AI 搜索 — 自然语言筛选",
     "palettePlaceholder": "描述您要查找的内容...",
     "notConfigured": "AI 服务未配置。",
@@ -789,7 +789,7 @@
   "systemOverview": {
     "title": "系统概览",
     "subtitle": "健康监控、系统 KPI 和能力模块概览。",
-    "links": "关联",
+    "relations": "关系",
     "eventHandlers": "事件处理器",
     "semanticRelations": "语义关系",
     "capabilityPanels": "能力模块",
@@ -841,7 +841,7 @@
     },
     "columns": {
       "name": "名称",
-      "schema": "数据模型",
+      "entity": "实体",
       "triggerType": "触发器",
       "effect": "效果",
       "priority": "优先级"
@@ -893,7 +893,7 @@
     "confirmApprove": "确认批准",
     "confirmReject": "确认驳回",
     "action": "操作",
-    "schema": "模型",
+    "entity": "实体",
     "requester": "申请人",
     "level": "审批级别",
     "reason": "原因",
@@ -920,10 +920,10 @@
   },
   "relationGraph": {
     "title": "关系图谱",
-    "subtitle": "以交互式图形展示通过 Links 定义的实体关系。",
+    "subtitle": "以交互式图形展示通过 Relations 定义的实体关系。",
     "navLabel": "关系图谱",
-    "noLinks": "暂无已注册的链接。",
-    "noLinksDesc": "使用 defineLink() 定义实体之间的关系，即可在此处查看关系图谱。",
+    "noRelations": "暂无已注册的关系。",
+    "noRelationsDesc": "使用 defineRelation() 定义实体之间的关系，即可在此处查看关系图谱。",
     "loadFailed": "图谱数据加载失败。",
     "showInternal": "显示系统实体",
     "showSemantic": "显示语义关系",

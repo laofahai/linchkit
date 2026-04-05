@@ -68,7 +68,7 @@ export default ${name}_capability;
  */
 export function generateActionTemplate(params: {
   name: string;
-  /** Target entity (schema) name */
+  /** Target entity name */
   entity?: string;
   /** @deprecated Use `entity` instead */
   schema?: string;
@@ -203,7 +203,7 @@ export function registerScaffoldTools(server: McpServer): void {
   };
   server.tool(
     "scaffold_capability",
-    "Generate a TypeScript CapabilityDefinition template with schema, action, and factory boilerplate",
+    "Generate a TypeScript CapabilityDefinition template with entity, action, and factory boilerplate",
     toMcpShape(scaffoldCapabilityShape),
     async (args: {
       name: string;

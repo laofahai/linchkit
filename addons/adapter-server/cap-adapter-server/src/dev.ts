@@ -78,7 +78,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   actions: ActionDefinition[];
   states: StateDefinition[];
   views: ViewDefinition[];
-  links: RelationDefinition[];
+  relations: RelationDefinition[];
   rules: RuleDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
@@ -89,7 +89,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
   const actions: ActionDefinition[] = [];
   const states: StateDefinition[] = [];
   const views: ViewDefinition[] = [];
-  const links: RelationDefinition[] = [];
+  const relations: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
@@ -101,7 +101,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     if (cap.actions) actions.push(...cap.actions);
     if (cap.states) states.push(...cap.states);
     if (cap.views) views.push(...cap.views);
-    if (cap.relations) links.push(...cap.relations);
+    if (cap.relations) relations.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
 
     // Collect seed data from capabilities
@@ -136,7 +136,7 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
     actions,
     states,
     views,
-    links,
+    relations,
     rules,
     middlewares,
     seed,
@@ -190,7 +190,7 @@ const graphqlSchema = buildGraphQLSchema(allEntities, {
   executor: runtime.executor,
   dataProvider: runtime.dataProvider,
   actions: customActions,
-  links: capContributions.links,
+  relations: capContributions.relations,
   stateDefinitions: capContributions.states,
   extraQueryFields: capContributions.extraQueryFields as Record<
     string,

@@ -18,7 +18,7 @@ export interface ResolvedEntityBundle {
   schema: EntityDefinition;
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
-  links?: RelationDefinition[];
+  relations?: RelationDefinition[];
   /** True for system-internal entities (read-only, managed by core) */
   internal?: boolean;
 }
@@ -85,7 +85,7 @@ export function EntityBundleCacheProvider({ children }: { children: React.ReactN
       } as EntityDefinition,
       views: normalizeViews(raw.views),
       states: raw.states,
-      links: raw.links,
+      relations: raw.relations,
       internal: raw.internal,
     };
 

@@ -5,7 +5,7 @@ import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 import { createMcpSseServer } from "../src/sse-transport";
 
-const testSchema = defineEntity({
+const testEntity = defineEntity({
   name: "order",
   label: "Order",
   description: "Sales order",
@@ -44,7 +44,7 @@ function mockCommandLayer(): CommandLayer {
 /** Helper to create a test MCP adapter */
 async function createTestAdapter(bearerToken?: string) {
   const entityRegistry = createEntityRegistry();
-  entityRegistry.register(testSchema);
+  entityRegistry.register(testEntity);
   const actionRegistry = new ActionRegistry();
   actionRegistry.register(testAction);
 

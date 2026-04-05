@@ -366,15 +366,15 @@ export function EntityFormPage() {
     ? t("common.new", "New")
     : String((titleField && record?.[titleField]) ?? record?.title ?? params.id ?? "");
 
-  // Separate one2many links (inline in form) from other links (RelatedRecordsPanel)
-  const allLinks = bundle?.links ?? [];
-  const one2manyLinks = allLinks.filter(
+  // Separate one2many relations (inline in form) from other relations (RelatedRecordsPanel)
+  const allRelations = bundle?.relations ?? [];
+  const one2manyRelations = allRelations.filter(
     (l) =>
       (l.cardinality === "one_to_many" && l.from === entityName) ||
       (l.cardinality === "many_to_one" && l.to === entityName),
   );
-  const otherLinks = allLinks.filter((l) => !one2manyLinks.includes(l));
-  const hasOtherLinks = otherLinks.length > 0;
+  const otherRelations = allRelations.filter((l) => !one2manyRelations.includes(l));
+  const hasOtherRelations = otherRelations.length > 0;
 
   return (
     <div className="bg-muted/30 min-h-full">
@@ -496,14 +496,14 @@ export function EntityFormPage() {
               return (
                 <Tabs
                   defaultValue={
-                    one2manyLinks.length > 0
-                      ? `link-${one2manyLinks[0]?.name}`
+                    one2manyRelations.length > 0
+                      ? `link-${one2manyRelations[0]?.name}`
                       : (activePanels[0]?.id ?? "version-history")
                   }
                 >
                   <TabsList variant="line">
                     {/* One_to_many relationship tabs */}
-                    {one2manyLinks.map((link) => {
+                    {one2manyRelations.map((link) => {
                       const rawLabel =
                         (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
                         link.to;
@@ -514,8 +514,8 @@ export function EntityFormPage() {
                         </TabsTrigger>
                       );
                     })}
-                    {/* Other links tab (many_to_many, etc.) */}
-                    {hasOtherLinks && (
+                    {/* Other relations tab (many_to_many, etc.) */}
+                    {hasOtherRelations && (
                       <TabsTrigger value="related">
                         {t("detail.relatedRecords", "Related Records")}
                       </TabsTrigger>
@@ -529,7 +529,7 @@ export function EntityFormPage() {
                   </TabsList>
 
                   {/* One_to_many tab content */}
-                  {one2manyLinks.map((link) => (
+                  {one2manyRelations.map((link) => (
                     <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
                       <RelatedRecordsTab
                         parentSchema={entityName}
@@ -539,13 +539,13 @@ export function EntityFormPage() {
                     </TabsContent>
                   ))}
 
-                  {/* Other links tab content */}
-                  {hasOtherLinks && (
+                  {/* Other relations tab content */}
+                  {hasOtherRelations && (
                     <TabsContent value="related">
                       <RelatedRecordsPanel
                         entityName={entityName}
                         recordId={params.id ?? ""}
-                        links={otherLinks}
+                        relations={otherRelations}
                         bare
                       />
                     </TabsContent>

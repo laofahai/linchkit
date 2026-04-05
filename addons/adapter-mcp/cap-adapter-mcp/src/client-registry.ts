@@ -20,9 +20,9 @@ export interface ResolvedMcpClient {
 
 /** Tool name → category mapping for policy filtering */
 const TOOL_CATEGORIES: Record<string, string> = {
-  list_schemas: "introspection",
-  get_schema: "introspection",
-  describe_schema: "introspection",
+  list_entities: "introspection",
+  get_entity: "introspection",
+  describe_entity: "introspection",
   list_actions: "introspection",
   get_rules: "introspection",
   get_state_machine: "introspection",

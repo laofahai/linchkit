@@ -12,8 +12,8 @@
  * - GET /api/flows/:name/status/:instanceId — query flow instance status
  * - GET /api/states, GET /api/states/:name
  * - GET /api/executions, GET /api/executions/:id
- * - GET /api/links — all registered link definitions (for relation graph)
- * - GET /api/semantic-relations — inferred semantic relations between capabilities/schemas
+ * - GET /api/relations — all registered relation definitions (for relation graph)
+ * - GET /api/semantic-relations — inferred semantic relations between capabilities/entities
  * - GET /internal/cache/stats — cache hit rate, eviction rate, memory usage (spec §9)
  */
 
@@ -59,7 +59,7 @@ export function mountAdminRoutes(
         uptime: process.uptime(),
         nodeVersion: process.version,
         platform: process.platform,
-        schemaCount: entityRegistry?.getAll().length ?? 0,
+        entityCount: entityRegistry?.getAll().length ?? 0,
         capabilityCount: capabilities.length,
       };
       const metrics = metricsCollector
@@ -132,7 +132,7 @@ export function mountAdminRoutes(
       const dp = options.dataProvider;
       const uptimeMs = Date.now() - serverStartedAt;
       const actionCount = capabilities.reduce((sum, c) => sum + (c.actions?.length ?? 0), 0);
-      const linkCount = capabilities.reduce((sum, c) => sum + (c.relations?.length ?? 0), 0);
+      const relationCount = capabilities.reduce((sum, c) => sum + (c.relations?.length ?? 0), 0);
       const eventHandlerCount = capabilities.reduce(
         (sum, c) => sum + (c.eventHandlers?.length ?? 0),
         0,
@@ -174,7 +174,7 @@ export function mountAdminRoutes(
         general: {
           version: "0.2.0",
           uptime: uptimeMs,
-          registeredSchemas: entityRegistry?.getAll().length ?? 0,
+          registeredEntities: entityRegistry?.getAll().length ?? 0,
           registeredActions: actionCount,
           registeredRules: rules.length,
           registeredFlows:
@@ -183,7 +183,7 @@ export function mountAdminRoutes(
           registeredStates:
             options.states?.length ??
             capabilities.reduce((sum, c) => sum + (c.states?.length ?? 0), 0),
-          registeredLinks: linkCount,
+          registeredRelations: relationCount,
           registeredEventHandlers: eventHandlerCount,
           capabilityCount: capabilities.length,
           capabilities: capabilities.map((c) => c.name),
@@ -428,7 +428,7 @@ export function mountAdminRoutes(
       );
       const summary = allStates.map((s) => ({
         name: s.name,
-        schema: s.entity,
+        entity: s.entity,
         field: s.field,
         initial: s.initial,
         stateCount: s.states.length,
@@ -450,14 +450,14 @@ export function mountAdminRoutes(
       }
       return { success: true, data: state };
     })
-    // ── Link REST endpoints ─────────────────────────────────
-    .get("/api/links", () => {
-      const allLinks = collectFromCapabilities<RelationDefinition>(
+    // ── Relation REST endpoints ───────────────────────────────
+    .get("/api/relations", () => {
+      const allRelations = collectFromCapabilities<RelationDefinition>(
         undefined,
         capabilities,
         "relations",
       );
-      return { success: true, data: allLinks };
+      return { success: true, data: allRelations };
     })
     // ── Semantic relation endpoint ──────────────────────────
     .get("/api/semantic-relations", () => {

@@ -1,7 +1,7 @@
 /**
- * Link-based relation field generation for GraphQL.
+ * Relation-based field generation for GraphQL.
  *
- * Generates resolver fields that navigate Link relationships (many_to_one,
+ * Generates resolver fields that navigate Relation relationships (many_to_one,
  * one_to_many, one_to_one, many_to_many) with data masking support.
  *
  * Uses DataLoader for batched loading to avoid N+1 query problems.
@@ -33,7 +33,7 @@ import type { RelationDataLoaders } from "./relation-dataloader";
 
 // ── Types ──────────────────────────────────────────────────
 
-/** Context for resolving link relation fields */
+/** Context for resolving relation fields */
 export interface RelationResolverContext {
   /** Data provider for fetching related records (optional — resolvers degrade gracefully) */
   dataProvider?: DataProvider;
@@ -45,7 +45,7 @@ export interface RelationResolverContext {
   permissionGroups?: PermissionGroupDefinition[];
   /** Entity definitions map for data masking lookups */
   entityMap?: Map<string, EntityDefinition>;
-  /** Per-request DataLoaders for batched link resolution (created in context factory) */
+  /** Per-request DataLoaders for batched relation resolution (created in context factory) */
   relationLoaders?: RelationDataLoaders;
 }
 
@@ -58,7 +58,7 @@ const NON_STRING_FIELD_TYPES = new Set(["number", "boolean", "date", "datetime",
  * Apply data masking to a single record using context actor and permissions.
  * Returns the masked record with non-string masked fields coerced to null.
  */
-function applyLinkMasking(
+function applyRelationMasking(
   record: Record<string, unknown>,
   entityName: string,
   ctx: RelationResolverContext,
@@ -88,12 +88,12 @@ function applyLinkMasking(
 /**
  * Apply data masking to an array of records.
  */
-function applyLinkMaskingArray(
+function applyRelationMaskingBatch(
   records: Record<string, unknown>[],
   entityName: string,
   ctx: RelationResolverContext,
 ): Record<string, unknown>[] {
-  return records.map((r) => applyLinkMasking(r, entityName, ctx));
+  return records.map((r) => applyRelationMasking(r, entityName, ctx));
 }
 
 // ── DataLoader-aware fetch helpers ─────────────────────────
@@ -183,7 +183,7 @@ function mapPropertyToGraphQLType(field: FieldDefinition): GraphQLOutputType {
 const edgeTypeCache = new Map<string, GraphQLObjectType>();
 
 /**
- * Build a GraphQL edge type for an M:N link with properties.
+ * Build a GraphQL edge type for an M:N relation with properties.
  * The edge type contains the related record plus all junction table property fields.
  *
  * Direction-specific naming:
@@ -236,10 +236,10 @@ function getOrCreateEdgeType(
   return edgeType;
 }
 
-// ── Link field builder ─────────────────────────────────────
+// ── Relation field builder ─────────────────────────────────
 
-/** Link field definition returned by buildRelationFields */
-export type LinkFieldDef = {
+/** Relation field definition returned by buildRelationFields */
+export type RelationFieldDef = {
   type: GraphQLOutputType;
   description?: string;
   resolve: (
@@ -250,7 +250,7 @@ export type LinkFieldDef = {
 };
 
 /**
- * Compute link-based relation fields for a given schema.
+ * Compute relation-based fields for a given entity.
  *
  * FK naming convention (matches schema-to-drizzle.ts):
  * - many_to_one / one_to_one: `{to}_id` column on `from` table
@@ -259,13 +259,13 @@ export type LinkFieldDef = {
  */
 export function buildRelationFields(
   entityName: string,
-  links: RelationDefinition[],
+  relations: RelationDefinition[],
   typeMap: Map<string, GraphQLObjectType>,
   logger: Logger,
-): Record<string, LinkFieldDef> {
-  const fields: Record<string, LinkFieldDef> = {};
+): Record<string, RelationFieldDef> {
+  const fields: Record<string, RelationFieldDef> = {};
 
-  for (const link of links) {
+  for (const link of relations) {
     const isFrom = link.from === entityName;
     const isTo = link.to === entityName;
     if (!isFrom && !isTo) continue;
@@ -288,10 +288,10 @@ export function buildRelationFields(
               if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.to, fkValue, ctx);
-                return record ? applyLinkMasking(record, link.to, ctx) : null;
+                return record ? applyRelationMasking(record, link.to, ctx) : null;
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (many_to_one from): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (many_to_one from): ${err}`,
                 );
                 return null;
               }
@@ -313,10 +313,10 @@ export function buildRelationFields(
               if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 const records = await fetchByFK(link.from, fkColumn, id, ctx);
-                return applyLinkMaskingArray(records, link.from, ctx);
+                return applyRelationMaskingBatch(records, link.from, ctx);
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (many_to_one to): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (many_to_one to): ${err}`,
                 );
                 return [];
               }
@@ -342,10 +342,10 @@ export function buildRelationFields(
               if (!id || (!ctx.dataProvider && !ctx.relationLoaders)) return [];
               try {
                 const records = await fetchByFK(link.to, fkColumn, id, ctx);
-                return applyLinkMaskingArray(records, link.to, ctx);
+                return applyRelationMaskingBatch(records, link.to, ctx);
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (one_to_many from): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (one_to_many from): ${err}`,
                 );
                 return [];
               }
@@ -367,10 +367,10 @@ export function buildRelationFields(
               if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.from, fkValue, ctx);
-                return record ? applyLinkMasking(record, link.from, ctx) : null;
+                return record ? applyRelationMasking(record, link.from, ctx) : null;
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (one_to_many to): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (one_to_many to): ${err}`,
                 );
                 return null;
               }
@@ -395,10 +395,10 @@ export function buildRelationFields(
               if (!fkValue || (!ctx.dataProvider && !ctx.relationLoaders)) return null;
               try {
                 const record = await fetchOne(link.to, fkValue, ctx);
-                return record ? applyLinkMasking(record, link.to, ctx) : null;
+                return record ? applyRelationMasking(record, link.to, ctx) : null;
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (one_to_one from): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (one_to_one from): ${err}`,
                 );
                 return null;
               }
@@ -421,10 +421,10 @@ export function buildRelationFields(
               try {
                 const results = await fetchByFK(link.from, fkColumn, id, ctx);
                 const first = results[0] ?? null;
-                return first ? applyLinkMasking(first, link.from, ctx) : null;
+                return first ? applyRelationMasking(first, link.from, ctx) : null;
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (one_to_one to): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (one_to_one to): ${err}`,
                 );
                 return null;
               }
@@ -476,7 +476,7 @@ export function buildRelationFields(
                   if (!relatedId) continue;
                   const record = await fetchOne(otherSchema, relatedId, ctx);
                   if (!record) continue;
-                  const maskedRecord = applyLinkMasking(record, otherSchema, ctx);
+                  const maskedRecord = applyRelationMasking(record, otherSchema, ctx);
 
                   // Build edge: related record + property fields (camelCase keys)
                   const edge: Record<string, unknown> = {
@@ -491,7 +491,7 @@ export function buildRelationFields(
                 return edges;
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (many_to_many edges): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (many_to_many edges): ${err}`,
                 );
                 return [];
               }
@@ -521,10 +521,10 @@ export function buildRelationFields(
                   relatedIds.map((relatedId) => fetchOne(otherSchema, relatedId, ctx)),
                 );
                 const filtered = results.filter(Boolean) as Record<string, unknown>[];
-                return applyLinkMaskingArray(filtered, otherSchema, ctx);
+                return applyRelationMaskingBatch(filtered, otherSchema, ctx);
               } catch (err) {
                 logger.error(
-                  `[link-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
+                  `[relation-resolver] Failed to resolve ${link.name} (many_to_many): ${err}`,
                 );
                 return [];
               }
@@ -541,7 +541,7 @@ export function buildRelationFields(
 
 /**
  * Clear the edge type cache. Useful in tests to avoid type name collisions
- * across test suites that build schemas with different link configurations.
+ * across test suites that build schemas with different relation configurations.
  */
 export function clearEdgeTypeCache(): void {
   edgeTypeCache.clear();

@@ -48,23 +48,23 @@ export function generateActionTools(registry: ActionRegistry): McpToolDef[] {
   return tools;
 }
 
-/** Generate built-in MCP tools for schema/action/rule/state introspection */
+/** Generate built-in MCP tools for entity/action/rule/state introspection */
 export function generateBuiltinTools(): McpToolDef[] {
   return [
     {
-      name: "list_schemas",
+      name: "list_entities",
       description:
-        "List all available schemas with their names, labels, descriptions, and field names",
+        "List all available entities with their names, labels, descriptions, and field names",
       inputSchema: { type: "object", properties: {} },
     },
     {
-      name: "get_schema",
+      name: "get_entity",
       description:
-        "Get the full definition of a schema by name, including all fields with types and constraints",
+        "Get the full definition of an entity by name, including all fields with types and constraints",
       inputSchema: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Schema name" },
+          name: { type: "string", description: "Entity name" },
         },
         required: ["name"],
       },
@@ -72,7 +72,7 @@ export function generateBuiltinTools(): McpToolDef[] {
     {
       name: "list_actions",
       description:
-        "List all available actions with their names, labels, descriptions, schemas, and input field summaries",
+        "List all available actions with their names, labels, descriptions, entities, and input field summaries",
       inputSchema: { type: "object", properties: {} },
     },
     {

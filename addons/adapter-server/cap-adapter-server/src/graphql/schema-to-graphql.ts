@@ -238,12 +238,12 @@ function toPascalCase(name: string): string {
  * Generate a GraphQL object type from a LinchKit EntityDefinition.
  * Includes system fields (id, tenant_id, created_at, etc.) and user-defined fields.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
- * When links and typeMap are provided, adds link-based relation resolver fields.
+ * When relations and typeMap are provided, adds relation-based resolver fields.
  */
 export function generateGraphQLObjectType(
   schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
-  links?: RelationDefinition[],
+  relations?: RelationDefinition[],
   typeMap?: Map<string, GraphQLObjectType>,
 ): GraphQLObjectType {
   const typeName = toPascalCase(schema.name);
@@ -383,9 +383,9 @@ export function generateGraphQLObjectType(
         }
       }
 
-      // Link-based relation fields
-      if (links && typeMap) {
-        const relationFields = buildRelationFields(schema.name, links, typeMap, moduleLogger);
+      // Relation-based resolver fields
+      if (relations && typeMap) {
+        const relationFields = buildRelationFields(schema.name, relations, typeMap, moduleLogger);
         for (const [name, fieldConfig] of Object.entries(relationFields)) {
           // Avoid overwriting existing fields (e.g., if a schema has a field named same as relation)
           if (!fields[name]) {
@@ -403,13 +403,13 @@ export function generateGraphQLObjectType(
  * Generate a GraphQL input type from a LinchKit EntityDefinition.
  * Excludes system fields — those are managed by the server.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
- * When links are provided, adds FK columns for many_to_one and one_to_one relationships
+ * When relations are provided, adds FK columns for many_to_one and one_to_one relationships
  * (e.g., department ref → department_id input field).
  */
 export function generateGraphQLInputType(
   schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
-  links?: RelationDefinition[],
+  relations?: RelationDefinition[],
 ): GraphQLInputObjectType {
   const typeName = `${toPascalCase(schema.name)}Input`;
 
@@ -436,10 +436,10 @@ export function generateGraphQLInputType(
         };
       }
 
-      // Add FK input fields for many_to_one and one_to_one links where this schema is the "from" side.
-      // E.g., if purchase_request has a many_to_one link to department, add `department_id: String`.
-      if (links) {
-        for (const link of links) {
+      // Add FK input fields for many_to_one and one_to_one relations where this entity is the "from" side.
+      // E.g., if purchase_request has a many_to_one relation to department, add `department_id: String`.
+      if (relations) {
+        for (const link of relations) {
           if (
             link.from === schema.name &&
             (link.cardinality === "many_to_one" || link.cardinality === "one_to_one")

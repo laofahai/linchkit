@@ -233,8 +233,8 @@ describe("McpClientRegistry", () => {
 
   describe("filterTools", () => {
     const tools = [
-      { name: "list_schemas" },
-      { name: "describe_schema" },
+      { name: "list_entities" },
+      { name: "describe_entity" },
       { name: "query" },
       { name: "execute_action" }, // category: actions (unmapped)
       { name: "scaffold_capability" },
@@ -249,10 +249,10 @@ describe("McpClientRegistry", () => {
     });
 
     it("allowlist with explicit tool names", () => {
-      const policy: ToolPolicy = { mode: "allowlist", tools: ["query", "list_schemas"] };
+      const policy: ToolPolicy = { mode: "allowlist", tools: ["query", "list_entities"] };
       const result = registry.filterTools(tools, policy);
       expect(result).toHaveLength(2);
-      expect(result.map((t) => t.name)).toEqual(["list_schemas", "query"]);
+      expect(result.map((t) => t.name)).toEqual(["list_entities", "query"]);
     });
 
     it("allowlist with categories", () => {
@@ -262,7 +262,7 @@ describe("McpClientRegistry", () => {
         categories: { introspection: true, query: true },
       };
       const result = registry.filterTools(tools, policy);
-      expect(result.map((t) => t.name)).toEqual(["list_schemas", "describe_schema", "query"]);
+      expect(result.map((t) => t.name)).toEqual(["list_entities", "describe_entity", "query"]);
     });
 
     it("denylist with explicit tool names", () => {
@@ -293,8 +293,8 @@ describe("McpClientRegistry", () => {
       };
       const result = registry.filterTools(tools, policy);
       expect(result.map((t) => t.name)).toEqual([
-        "list_schemas",
-        "describe_schema",
+        "list_entities",
+        "describe_entity",
         "execute_action",
       ]);
     });

@@ -1,11 +1,11 @@
 /**
- * System schema definitions for internal entities.
+ * System entity definitions for internal entities.
  *
- * These schemas describe system-managed entities (execution logs, approvals,
+ * These definitions describe system-managed entities (execution logs, approvals,
  * rules, flows, state machines, proposals) so they can be rendered through
- * the standard schema/view/extension UI mechanism.
+ * the standard entity/view/extension UI mechanism.
  *
- * All system schemas are registered via `entityRegistry.registerInternal()`,
+ * All system entities are registered via `entityRegistry.registerInternal()`,
  * making them read-only in the UI. Data comes from system tables or
  * in-memory registries via SystemDataProvider.
  */
@@ -459,7 +459,7 @@ export const stateMachineListView: ViewDefinition = {
 export const proposalSchema: EntityDefinition = {
   name: "proposal",
   label: "t:entities.proposal._label",
-  description: "AI evolution proposals for schema and capability changes",
+  description: "AI evolution proposals for entity and capability changes",
   presentation: {
     titleField: "title",
     summaryFields: ["status", "change_type", "author_name"],
@@ -565,7 +565,7 @@ export const proposalListView: ViewDefinition = {
 
 // ── Whitelist of internal schema names ────────────────────
 
-/** Canonical set of system-managed schema names. Only these can be registered as internal. */
+/** Canonical set of system-managed entity names. Only these can be registered as internal. */
 export const INTERNAL_SCHEMA_NAMES = new Set([
   "execution_log",
   "approval",

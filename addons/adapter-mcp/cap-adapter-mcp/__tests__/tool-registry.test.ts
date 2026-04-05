@@ -110,17 +110,17 @@ describe("generateActionTools", () => {
 });
 
 describe("generateBuiltinTools", () => {
-  test("returns list_schemas, get_schema, list_actions", () => {
+  test("returns list_entities, get_entity, list_actions tools", () => {
     const tools = generateBuiltinTools();
     const names = tools.map((t) => t.name);
-    expect(names).toContain("list_schemas");
-    expect(names).toContain("get_schema");
+    expect(names).toContain("list_entities");
+    expect(names).toContain("get_entity");
     expect(names).toContain("list_actions");
   });
 
-  test("get_schema requires name parameter", () => {
+  test("get_entity tool requires name parameter", () => {
     const tools = generateBuiltinTools();
-    const getTool = tools.find((t) => t.name === "get_schema");
+    const getTool = tools.find((t) => t.name === "get_entity");
     expect(getTool).toBeDefined();
     expect(getTool.inputSchema).toHaveProperty("required");
     expect((getTool.inputSchema as { required: string[] }).required).toContain("name");

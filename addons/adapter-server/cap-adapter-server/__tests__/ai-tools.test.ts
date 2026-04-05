@@ -157,19 +157,19 @@ describe("buildTools — tool registration", () => {
     expect(tools.executeAction).toBeUndefined();
   });
 
-  test("includes describeSchema, listSchemas, searchSchemas with ontologyRegistry", () => {
+  test("includes describeEntity, listEntities, searchEntities with ontologyRegistry", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    expect(tools.describeSchema).toBeDefined();
+    expect(tools.describeEntity).toBeDefined();
     expect(tools.listEntities).toBeDefined();
     expect(tools.searchEntities).toBeDefined();
   });
 
-  test("falls back to entityRegistry describeSchema when no ontologyRegistry", () => {
+  test("falls back to entityRegistry describeEntity when no ontologyRegistry", () => {
     const sr = createMockEntityRegistry([productSchema]);
     const tools = buildTools({ entityRegistry: sr });
-    expect(tools.describeSchema).toBeDefined();
-    // listSchemas and searchSchemas are NOT available without ontology
+    expect(tools.describeEntity).toBeDefined();
+    // listEntities and searchEntities are NOT available without ontology
     expect(tools.listEntities).toBeUndefined();
     expect(tools.searchEntities).toBeUndefined();
   });
@@ -354,13 +354,13 @@ describe("executeAction tool", () => {
   });
 });
 
-// ── describeSchema tool (ontology) ───────────────────────
+// ── describeEntity tool (ontology) ───────────────────────
 
-describe("describeSchema tool — with OntologyRegistry", () => {
-  test("returns full schema descriptor", async () => {
+describe("describeEntity tool — with OntologyRegistry", () => {
+  test("returns full entity descriptor", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    const result = await tools.describeSchema.execute({ name: "product" });
+    const result = await tools.describeEntity.execute({ name: "product" });
 
     expect(result.name).toBe("product");
     expect(result.label).toBe("Product");
@@ -375,40 +375,40 @@ describe("describeSchema tool — with OntologyRegistry", () => {
     expect(result.relations[0].targetEntity).toBe("order");
   });
 
-  test("returns error for unknown schema", async () => {
+  test("returns error for unknown entity", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
-    const result = await tools.describeSchema.execute({ name: "nonexistent" });
+    const result = await tools.describeEntity.execute({ name: "nonexistent" });
 
     expect(result.error).toContain("not found");
   });
 });
 
-// ── describeSchema tool (EntityRegistry fallback) ────────
+// ── describeEntity tool (EntityRegistry fallback) ────────
 
-describe("describeSchema tool — EntityRegistry fallback", () => {
-  test("returns basic schema info from EntityRegistry", async () => {
+describe("describeEntity tool — EntityRegistry fallback", () => {
+  test("returns basic entity info from EntityRegistry", async () => {
     const sr = createMockEntityRegistry([productSchema]);
     const tools = buildTools({ entityRegistry: sr });
-    const result = await tools.describeSchema.execute({ name: "product" });
+    const result = await tools.describeEntity.execute({ name: "product" });
 
     expect(result.name).toBe("product");
     expect(result.label).toBe("Product");
     expect(result.fields).toHaveLength(2);
   });
 
-  test("returns error for unknown schema", async () => {
+  test("returns error for unknown entity", async () => {
     const sr = createMockEntityRegistry([]);
     const tools = buildTools({ entityRegistry: sr });
-    const result = await tools.describeSchema.execute({ name: "missing" });
+    const result = await tools.describeEntity.execute({ name: "missing" });
 
     expect(result.error).toContain("not found");
   });
 });
 
-// ── listSchemas tool ─────────────────────────────────────
+// ── listEntities tool ─────────────────────────────────────
 
-describe("listSchemas tool", () => {
+describe("listEntities tool", () => {
   test("lists all available schemas", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });
@@ -423,9 +423,9 @@ describe("listSchemas tool", () => {
   });
 });
 
-// ── searchSchemas tool ───────────────────────────────────
+// ── searchEntities tool ───────────────────────────────────
 
-describe("searchSchemas tool", () => {
+describe("searchEntities tool", () => {
   test("searches schemas by keyword", async () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });

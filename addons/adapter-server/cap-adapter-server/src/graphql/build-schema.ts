@@ -149,8 +149,8 @@ export interface BuildGraphQLSchemaOptions {
   dataProvider?: DataProvider;
   /** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
   actions?: ActionDefinition[];
-  /** Link definitions for generating bidirectional relation resolver fields */
-  links?: RelationDefinition[];
+  /** Relation definitions for generating bidirectional relation resolver fields */
+  relations?: RelationDefinition[];
   /** Cache manager for caching query results (optional — queries go direct when absent) */
   cacheManager?: CacheManager;
   /** Event bus for wiring GraphQL subscriptions (real-time CRUD events via SSE) */
@@ -185,7 +185,7 @@ export function buildGraphQLSchema(
 ): GraphQLSchema {
   const executor = options?.executor;
   const dataProvider = options?.dataProvider;
-  const links = options?.links ?? [];
+  const relations = options?.relations ?? [];
   const eventBus = options?.eventBus;
   const permissionGroups = options?.permissionGroups ?? [];
   const derivedEngine = options?.derivedPropertyEngine;
@@ -298,7 +298,7 @@ export function buildGraphQLSchema(
   const autoEntities = entities.filter((s) => !entitiesWithCustomTypes.has(s.name));
 
   // Pre-generate object types to reuse for both CRUD and custom action return types.
-  // Pass the typeMap and links so that relation fields can reference other types lazily.
+  // Pass the typeMap and relations so that relation fields can reference other types lazily.
   const entityObjectTypes = new Map<string, GraphQLObjectType>();
   for (const entity of autoEntities) {
     entityObjectTypes.set(
@@ -306,8 +306,8 @@ export function buildGraphQLSchema(
       generateGraphQLObjectType(
         entity,
         undefined,
-        links.length > 0 ? links : undefined,
-        links.length > 0 ? entityObjectTypes : undefined,
+        relations.length > 0 ? relations : undefined,
+        relations.length > 0 ? entityObjectTypes : undefined,
       ),
     );
   }
@@ -315,7 +315,7 @@ export function buildGraphQLSchema(
   for (const entity of autoEntities) {
     const objectType = entityObjectTypes.get(entity.name);
     if (!objectType) continue;
-    const inputType = generateGraphQLInputType(entity, undefined, links);
+    const inputType = generateGraphQLInputType(entity, undefined, relations);
     const camelName = toCamelCase(entity.name);
     const pascalName = toPascalCase(entity.name);
     const entityName = entity.name;

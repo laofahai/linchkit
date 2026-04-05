@@ -39,7 +39,7 @@ import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { type EntityInfo, fetchEntities, fetchLinks, fetchSemanticRelations } from "@/lib/api";
+import { type EntityInfo, fetchEntities, fetchRelations, fetchSemanticRelations } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
 
@@ -1141,7 +1141,7 @@ export function RelationGraphPage() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const entitiesQuery = useQuery({ queryKey: ["entities"], queryFn: fetchEntities });
-  const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
+  const linksQuery = useQuery({ queryKey: ["relations"], queryFn: fetchRelations });
   // Always fetch semantic relations (not gated by showSemantic toggle)
   const semanticQuery = useQuery({
     queryKey: ["semantic-relations"],
@@ -1231,8 +1231,8 @@ export function RelationGraphPage() {
       {!hasLinks ? (
         <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/30 p-12 text-center">
           <NetworkIcon className="size-10 text-muted-foreground/40" />
-          <p className="font-medium text-muted-foreground">{t("relationGraph.noLinks")}</p>
-          <p className="text-sm text-muted-foreground/70">{t("relationGraph.noLinksDesc")}</p>
+          <p className="font-medium text-muted-foreground">{t("relationGraph.noRelations")}</p>
+          <p className="text-sm text-muted-foreground/70">{t("relationGraph.noRelationsDesc")}</p>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>

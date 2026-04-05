@@ -82,7 +82,7 @@ export const capAdapterServer = defineCapability({
           const graphqlSchema = buildGraphQLSchema(allSchemas, {
             executor: ctx.executor,
             dataProvider: systemDataProvider ?? ctx.dataProvider,
-            links: ctx.links,
+            relations: ctx.links,
             eventBus: ctx.eventBus,
             permissionGroups: permGroups,
             derivedPropertyEngine: ctx.derivedPropertyEngine,
@@ -96,7 +96,7 @@ export const capAdapterServer = defineCapability({
           const port = serverCfg.port;
           const host = serverCfg.host;
 
-          // Build entity map for link resolver data masking
+          // Build entity map for relation resolver data masking
           const entityMap = new Map<string, import("@linchkit/core").EntityDefinition>();
           for (const s of ctx.entities) {
             entityMap.set(s.name, s);

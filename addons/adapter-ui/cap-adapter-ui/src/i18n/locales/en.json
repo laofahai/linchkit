@@ -273,9 +273,9 @@
     "title": "Notifications",
     "markAllRead": "Mark all read",
     "empty": "No notifications yet",
-    "recordCreated": "{{schema}} record created",
-    "recordUpdated": "{{schema}} record updated",
-    "recordDeleted": "{{schema}} record deleted",
+    "recordCreated": "{{entity}} record created",
+    "recordUpdated": "{{entity}} record updated",
+    "recordDeleted": "{{entity}} record deleted",
     "actionSucceeded": "Action \"{{action}}\" succeeded",
     "actionFailed": "Action \"{{action}}\" failed"
   },
@@ -650,7 +650,7 @@
     "loadFailed": "Failed to load state machine.",
     "columns": {
       "name": "Name",
-      "schema": "Schema",
+      "entity": "Entity",
       "states": "States"
     }
   },
@@ -661,8 +661,8 @@
     "processing": "Processing...",
     "analyzing": "Analyzing your query...",
     "resultTitle": "AI Search Result",
-    "selectSchema": "Select an entity to search",
-    "searchIn": "Search in {{schema}}",
+    "selectEntity": "Select an entity to search",
+    "searchIn": "Search in {{entity}}",
     "paletteAction": "AI Search — natural language filter",
     "palettePlaceholder": "Describe what you're looking for...",
     "notConfigured": "AI service is not configured.",
@@ -789,7 +789,7 @@
   "systemOverview": {
     "title": "System Overview",
     "subtitle": "Health monitoring, system KPIs, and capability overview.",
-    "links": "Links",
+    "relations": "Relations",
     "eventHandlers": "Event Handlers",
     "semanticRelations": "Semantic Relations",
     "capabilityPanels": "Capability Modules",
@@ -841,7 +841,7 @@
     },
     "columns": {
       "name": "Name",
-      "schema": "Schema",
+      "entity": "Entity",
       "triggerType": "Trigger",
       "effect": "Effect",
       "priority": "Priority"
@@ -893,7 +893,7 @@
     "confirmApprove": "Confirm Approval",
     "confirmReject": "Confirm Rejection",
     "action": "Action",
-    "schema": "Schema",
+    "entity": "Entity",
     "requester": "Requester",
     "level": "Level",
     "reason": "Reason",
@@ -920,10 +920,10 @@
   },
   "relationGraph": {
     "title": "Relation Graph",
-    "subtitle": "Interactive visualization of entity relationships defined via links.",
+    "subtitle": "Interactive visualization of entity relationships defined via relations.",
     "navLabel": "Relation Graph",
-    "noLinks": "No links registered.",
-    "noLinksDesc": "Define links between entities using defineLink() to see the relationship graph.",
+    "noRelations": "No relations registered.",
+    "noRelationsDesc": "Define relations between entities using defineRelation() to see the relationship graph.",
     "loadFailed": "Failed to load graph data.",
     "showInternal": "Show system entities",
     "showSemantic": "Show semantic relations",

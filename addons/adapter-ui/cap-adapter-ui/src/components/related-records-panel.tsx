@@ -1,7 +1,7 @@
 /**
- * RelatedRecordsPanel — Displays linked records in tabs below the form.
+ * RelatedRecordsPanel — Displays related records in tabs below the form.
  *
- * For each link relationship, shows a tab with a simple table of related records.
+ * For each relation, shows a tab with a simple table of related records.
  * Clicking a record navigates to its detail page.
  */
 
@@ -15,12 +15,12 @@ import { graphql } from "../lib/api";
 interface RelatedRecordsPanelProps {
   entityName: string;
   recordId: string;
-  links: RelationDefinition[];
+  relations: RelationDefinition[];
   /** When true, renders without the outer card wrapper (for embedding in parent tabs). */
   bare?: boolean;
 }
 
-interface LinkTab {
+interface RelationTab {
   key: string;
   label: string;
   relatedSchema: string;
@@ -28,11 +28,11 @@ interface LinkTab {
   isList: boolean;
 }
 
-/** Derive tab definitions from link definitions for a given schema */
-function deriveLinkTabs(entityName: string, links: RelationDefinition[]): LinkTab[] {
-  const tabs: LinkTab[] = [];
+/** Derive tab definitions from relation definitions for a given entity */
+function deriveRelationTabs(entityName: string, relations: RelationDefinition[]): RelationTab[] {
+  const tabs: RelationTab[] = [];
 
-  for (const link of links) {
+  for (const link of relations) {
     const isFrom = link.from === entityName;
     const isTo = link.to === entityName;
 
@@ -126,11 +126,11 @@ function toCamelCase(name: string): string {
 export function RelatedRecordsPanel({
   entityName,
   recordId,
-  links,
+  relations,
   bare = false,
 }: RelatedRecordsPanelProps) {
   const { t } = useTranslation();
-  const tabs = deriveLinkTabs(entityName, links);
+  const tabs = deriveRelationTabs(entityName, relations);
 
   if (tabs.length === 0) return null;
 
@@ -178,7 +178,7 @@ function RelatedRecordsList({
 }: {
   entityName: string;
   recordId: string;
-  tab: LinkTab;
+  tab: RelationTab;
 }) {
   const { t } = useTranslation();
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
@@ -187,7 +187,7 @@ function RelatedRecordsList({
   const fetchRelated = useCallback(async () => {
     setLoading(true);
     try {
-      // Query the main record with the link field resolved
+      // Query the main record with the relation field resolved
       const queryName = toCamelCase(entityName);
       const fieldName = tab.fieldName;
 
@@ -288,7 +288,7 @@ function RelatedRecordsList({
 
 // ── Helpers ─────────────────────────────────────────────
 
-/** Common display fields to fetch for linked records */
+/** Common display fields to fetch for related records */
 function getDisplayFields(): string {
   return "title name label status created_at";
 }

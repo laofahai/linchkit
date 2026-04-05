@@ -79,8 +79,8 @@ export function useFormActions(opts: UseFormActionsOptions) {
       if (fieldDef.type === "ref") {
         const target = (fieldDef as { target?: string }).target;
         if (target) {
-          // Check bundle.links for actual FK column name, fall back to convention
-          const link = bundle?.links?.find(
+          // Check bundle.relations for actual FK column name, fall back to convention
+          const link = bundle?.relations?.find(
             (l) =>
               (l.from === entityName &&
                 l.to === target &&
@@ -170,8 +170,8 @@ export function useFormActions(opts: UseFormActionsOptions) {
             const targetSchema = (fieldDef as { target?: string }).target;
             if (!targetSchema) continue;
 
-            // Find the FK column name from links
-            const _link = bundle?.links?.find(
+            // Find the FK column name from relations
+            const _link = bundle?.relations?.find(
               (l) =>
                 (l.cardinality === "one_to_many" &&
                   l.from === entityName &&
@@ -219,7 +219,17 @@ export function useFormActions(opts: UseFormActionsOptions) {
         setSaving(false);
       }
     },
-    [entityName, recordId, isCreate, schema, bundle?.links, recordFields, navigate, fetchRecord, t],
+    [
+      entityName,
+      recordId,
+      isCreate,
+      schema,
+      bundle?.relations,
+      recordFields,
+      navigate,
+      fetchRecord,
+      t,
+    ],
   );
 
   const handleAction = useCallback(

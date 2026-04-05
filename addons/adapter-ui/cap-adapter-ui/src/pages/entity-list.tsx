@@ -498,8 +498,8 @@ export function EntityListPage() {
   listViewRef.current = listView;
   const schemaFieldsRef = useRef(schema?.fields);
   schemaFieldsRef.current = schema?.fields;
-  const bundleLinksRef = useRef(bundle?.links);
-  bundleLinksRef.current = bundle?.links;
+  const bundleRelationsRef = useRef(bundle?.relations);
+  bundleRelationsRef.current = bundle?.relations;
   const calendarDateFieldRef = useRef(calendarDateField);
   calendarDateFieldRef.current = calendarDateField;
   const primaryStateDefRef = useRef(primaryStateDef);
@@ -570,7 +570,7 @@ export function EntityListPage() {
         const fields = getQueryFields(
           currentListView,
           schemaFieldsRef.current,
-          bundleLinksRef.current,
+          bundleRelationsRef.current,
           entityName,
         );
         // Ensure the date field is included in the query for calendar view
@@ -1040,7 +1040,7 @@ export function EntityListPage() {
       <div className="p-4">
         <EmptyState
           entityName={entityName}
-          schemaLabel={resolveLabel(schema.label, entityName)}
+          entityLabel={resolveLabel(schema.label, entityName)}
           hideAction={!!bundle?.internal}
         />
       </div>

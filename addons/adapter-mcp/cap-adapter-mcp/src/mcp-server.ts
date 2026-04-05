@@ -2,11 +2,11 @@
  * MCP Server factory
  *
  * Creates an MCP server that exposes LinchKit actions as MCP tools
- * and schemas as MCP resources. All action invocations go through
+ * and entities as MCP resources. All action invocations go through
  * the CommandLayer pipeline with channel="mcp".
  *
  * Introspection tools allow AI agents to discover the full system
- * capabilities: schemas, actions, rules, state machines, and GraphQL queries.
+ * capabilities: entities, actions, rules, state machines, and GraphQL queries.
  *
  * Note: We use `as any` casts when passing Zod schemas to the MCP SDK because
  * the SDK bundles its own zod v3 (3.25.x) while the project uses zod v4.
@@ -193,7 +193,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
 
     allToolNames.push({ name: tool.name, category: "actions" });
 
-    // Build zod schema for tool parameters
+    // Build zod shape for tool parameters
     const zodShape = buildZodShape(action.input);
 
     // Cast needed: project zod v4 types differ from SDK's bundled zod types
@@ -251,8 +251,8 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
   );
 
   allToolNames.push(
-    { name: "list_schemas", category: "introspection" },
-    { name: "get_schema", category: "introspection" },
+    { name: "list_entities", category: "introspection" },
+    { name: "get_entity", category: "introspection" },
     { name: "list_actions", category: "introspection" },
     { name: "get_rules", category: "introspection" },
     { name: "get_state_machine", category: "introspection" },
@@ -417,12 +417,12 @@ function registerBuiltinTools(
   bearerToken?: string,
   tenantId?: string,
 ): void {
-  // list_schemas — returns schema summaries with field names
+  // list_entities — returns entity summaries with field names
   server.tool(
-    "list_schemas",
-    "List all available schemas with their names, labels, descriptions, and field names",
+    "list_entities",
+    "List all available entities with their names, labels, descriptions, and field names",
     async () => {
-      const schemas = entityRegistry.getAll().map((s) => ({
+      const entities = entityRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
@@ -430,18 +430,18 @@ function registerBuiltinTools(
       }));
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(schemas, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(entities, null, 2) }],
       };
     },
   );
 
-  // get_schema — full schema definition with field types and constraints
-  const getSchemaShape = { name: z.string().describe("Schema name") };
+  // get_entity — full entity definition with field types and constraints
+  const getEntityShape = { name: z.string().describe("Entity name") };
   server.tool(
-    "get_schema",
-    "Get the full definition of a schema by name, including all fields with types and constraints",
+    "get_entity",
+    "Get the full definition of an entity by name, including all fields with types and constraints",
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
-    getSchemaShape as any,
+    getEntityShape as any,
     async (args: { name: string }) => {
       const entity = entityRegistry.get(args.name);
       if (!entity) {
@@ -449,7 +449,7 @@ function registerBuiltinTools(
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({ error: `Schema '${args.name}' not found` }),
+              text: JSON.stringify({ error: `Entity '${args.name}' not found` }),
             },
           ],
           isError: true,
@@ -474,7 +474,7 @@ function registerBuiltinTools(
   // list_actions — returns MCP-exposed action summaries with input field names
   server.tool(
     "list_actions",
-    "List all MCP-exposed actions with their names, labels, descriptions, schemas, and input field summaries",
+    "List all MCP-exposed actions with their names, labels, descriptions, entities, and input field summaries",
     async () => {
       const actions = actionRegistry
         .getAll()
@@ -497,7 +497,7 @@ function registerBuiltinTools(
     },
   );
 
-  // get_rules — list rules filtered by schema or action
+  // get_rules — list rules filtered by entity or action
   const getRulesShape = {
     entity: z.string().describe("Filter rules by entity name").optional(),
     action: z.string().describe("Filter rules by action name").optional(),
@@ -688,11 +688,11 @@ function registerBuiltinTools(
 /** Register MCP resources */
 function registerResources(server: McpServer, entityRegistry: EntityRegistry): void {
   server.resource(
-    "schemas",
-    "linchkit://schemas",
-    { description: "List of all registered schemas", mimeType: "application/json" },
+    "entities",
+    "linchkit://entities",
+    { description: "List of all registered entities", mimeType: "application/json" },
     async (uri) => {
-      const schemas = entityRegistry.getAll().map((s) => ({
+      const entities = entityRegistry.getAll().map((s) => ({
         name: s.name,
         label: s.label,
         description: s.description,
@@ -703,7 +703,7 @@ function registerResources(server: McpServer, entityRegistry: EntityRegistry): v
           {
             uri: uri.href,
             mimeType: "application/json",
-            text: JSON.stringify(schemas, null, 2),
+            text: JSON.stringify(entities, null, 2),
           },
         ],
       };

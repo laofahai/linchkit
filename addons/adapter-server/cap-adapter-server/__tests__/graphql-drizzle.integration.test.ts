@@ -670,7 +670,7 @@ const prToDeptLink = defineRelation({
   },
 });
 
-describe.skipIf(!dbAvailable)("GraphQL Link resolvers (integration)", () => {
+describe.skipIf(!dbAvailable)("GraphQL Relation resolvers (integration)", () => {
   let linkProvider: DrizzleDataProvider;
   // biome-ignore lint/suspicious/noExplicitAny: yoga generic types are complex
   let linkYoga: any;
@@ -754,10 +754,10 @@ describe.skipIf(!dbAvailable)("GraphQL Link resolvers (integration)", () => {
     const graphqlSchema = buildGraphQLSchema([deptSchema, prSchema], {
       executor: linkExecutor,
       dataProvider: linkProvider,
-      links: [prToDeptLink],
+      relations: [prToDeptLink],
     });
 
-    // Create yoga instance — include dataProvider in context for link resolvers
+    // Create yoga instance — include dataProvider in context for relation resolvers
     linkYoga = createYoga({
       schema: graphqlSchema,
       graphqlEndpoint: "/graphql",

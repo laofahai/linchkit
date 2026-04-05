@@ -4,7 +4,7 @@ import { defineAction, defineEntity, defineRule, defineState } from "@linchkit/c
 import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
-const testSchema = defineEntity({
+const testEntity = defineEntity({
   name: "order",
   label: "Order",
   description: "Sales order",
@@ -77,7 +77,7 @@ function createMockCommandLayer(): CommandLayer {
 describe("createMcpAdapter", () => {
   test("creates an MCP server with registered tools", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -93,14 +93,14 @@ describe("createMcpAdapter", () => {
     expect(server).toBeDefined();
     const tools = getTools(server);
     expect(tools.create_order).toBeDefined();
-    expect(tools.list_schemas).toBeDefined();
-    expect(tools.get_schema).toBeDefined();
+    expect(tools.list_entities).toBeDefined();
+    expect(tools.get_entity).toBeDefined();
     expect(tools.list_actions).toBeDefined();
   });
 
   test("does not register actions with mcp exposure disabled", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -121,7 +121,7 @@ describe("createMcpAdapter", () => {
 
   test("registered action tool handler calls commandLayer.execute with correct args", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -161,9 +161,9 @@ describe("createMcpAdapter", () => {
     expect(parsed.data.id).toBe("test-123");
   });
 
-  test("list_schemas tool returns schema summaries", async () => {
+  test("list_entities tool returns entity summaries", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -175,7 +175,7 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.list_schemas?.handler({}, {});
+    const result = await tools.list_entities?.handler({}, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed).toHaveLength(1);
@@ -183,9 +183,9 @@ describe("createMcpAdapter", () => {
     expect(parsed[0].label).toBe("Order");
   });
 
-  test("get_schema tool returns schema definition", async () => {
+  test("get_entity tool returns entity definition", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -197,7 +197,7 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "order" }, {});
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.name).toBe("order");
@@ -205,7 +205,7 @@ describe("createMcpAdapter", () => {
     expect(parsed.fields.properties).toHaveProperty("amount");
   });
 
-  test("get_schema tool returns error for unknown schema", async () => {
+  test("get_entity tool returns error for unknown entity", async () => {
     const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -217,7 +217,7 @@ describe("createMcpAdapter", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "nonexistent" }, {});
+    const result = await tools.get_entity?.handler({ name: "nonexistent" }, {});
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0]?.text);
@@ -226,7 +226,7 @@ describe("createMcpAdapter", () => {
 
   test("list_actions tool returns action summaries", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -266,7 +266,7 @@ describe("createMcpAdapter", () => {
 
   test("resources are registered", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -278,7 +278,7 @@ describe("createMcpAdapter", () => {
     });
 
     const resources = getResources(server);
-    expect(resources["linchkit://schemas"]).toBeDefined();
+    expect(resources["linchkit://entities"]).toBeDefined();
   });
 });
 
@@ -656,7 +656,7 @@ describe("createMcpAdapter — query proxy security", () => {
 describe("createMcpAdapter — list_actions exposure filter", () => {
   test("list_actions excludes actions with exposure.mcp set to false", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -682,7 +682,7 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
 
   test("list_actions includes actions with exposure 'all'", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction); // exposure: "all"
@@ -724,7 +724,7 @@ describe("createMcpAdapter — tenantId option", () => {
 
 // ── Additional test fixtures for introspection tools ──────────────────
 
-const productSchema = defineEntity({
+const productEntity = defineEntity({
   name: "product",
   label: "Product",
   description: "Product catalog",
@@ -804,11 +804,11 @@ const productStateMachine = defineState({
   ],
 });
 
-describe("createMcpAdapter — list_actions with schema filter", () => {
-  test("list_actions returns all actions when no schema filter", async () => {
+describe("createMcpAdapter — list_actions with entity filter", () => {
+  test("list_actions returns all actions when no entity filter", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
-    entityRegistry.register(productSchema);
+    entityRegistry.register(testEntity);
+    entityRegistry.register(productEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -829,10 +829,10 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
     expect(parsed).toHaveLength(2);
   });
 
-  test("list_actions returns all actions including schema info", async () => {
+  test("list_actions returns all actions including entity info", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
-    entityRegistry.register(productSchema);
+    entityRegistry.register(testEntity);
+    entityRegistry.register(productEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -876,10 +876,10 @@ describe("createMcpAdapter — list_actions with schema filter", () => {
   });
 });
 
-describe("createMcpAdapter — get_schema (detailed)", () => {
-  test("get_schema returns full schema details with fields", async () => {
+describe("createMcpAdapter — get_entity detailed", () => {
+  test("get_entity returns full entity details with fields", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(productSchema);
+    entityRegistry.register(productEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(createProductAction);
@@ -895,7 +895,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "product" }, {});
+    const result = await tools.get_entity?.handler({ name: "product" }, {});
 
     expect(result.isError).toBeUndefined();
     const parsed = JSON.parse(result.content[0]?.text);
@@ -910,7 +910,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     expect(parsed.fields.properties).toHaveProperty("price");
   });
 
-  test("get_schema returns error for unknown schema", async () => {
+  test("get_entity returns error for unknown entity", async () => {
     const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -922,16 +922,16 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "nonexistent" }, {});
+    const result = await tools.get_entity?.handler({ name: "nonexistent" }, {});
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.error).toContain("not found");
   });
 
-  test("get_schema returns schema without presentation field", async () => {
+  test("get_entity returns entity without presentation field", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema); // testSchema has no presentation
+    entityRegistry.register(testEntity); // testEntity has no presentation
 
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -943,7 +943,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "order" }, {});
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.name).toBe("order");
@@ -951,9 +951,9 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     expect(parsed.fields.properties).toHaveProperty("customer_name");
   });
 
-  test("get_schema returns fields with correct JSON schema types", async () => {
+  test("get_entity returns fields with correct JSON Schema types", async () => {
     const entityRegistry = createEntityRegistry();
-    entityRegistry.register(testSchema);
+    entityRegistry.register(testEntity);
 
     const actionRegistry = new ActionRegistry();
     actionRegistry.register(testAction);
@@ -969,7 +969,7 @@ describe("createMcpAdapter — get_schema (detailed)", () => {
     });
 
     const tools = getTools(server);
-    const result = await tools.get_schema?.handler({ name: "order" }, {});
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
 
     const parsed = JSON.parse(result.content[0]?.text);
     expect(parsed.name).toBe("order");
@@ -998,7 +998,7 @@ describe("createMcpAdapter — get_rules", () => {
     expect(parsed).toHaveLength(2);
   });
 
-  test("get_rules filters by schema name (fieldChange trigger)", async () => {
+  test("get_rules filters by entity name (fieldChange trigger)", async () => {
     const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -1059,7 +1059,7 @@ describe("createMcpAdapter — get_rules", () => {
 });
 
 describe("createMcpAdapter — get_state_machine", () => {
-  test("get_state_machine returns state machine for schema", async () => {
+  test("get_state_machine returns state machine for entity", async () => {
     const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -1087,7 +1087,7 @@ describe("createMcpAdapter — get_state_machine", () => {
     expect(parsed[0].meta.draft.color).toBe("gray");
   });
 
-  test("get_state_machine returns error for schema with no state machine", async () => {
+  test("get_state_machine returns error for entity with no state machine", async () => {
     const entityRegistry = createEntityRegistry();
     const actionRegistry = new ActionRegistry();
     const commandLayer = createMockCommandLayer();
@@ -1119,7 +1119,7 @@ describe("createMcpAdapter — get_state_machine", () => {
     });
 
     const tools = getTools(server);
-    expect(tools.get_schema).toBeDefined();
+    expect(tools.get_entity).toBeDefined();
     expect(tools.get_rules).toBeDefined();
     expect(tools.get_state_machine).toBeDefined();
   });

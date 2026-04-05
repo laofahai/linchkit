@@ -180,7 +180,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
               </CommandGroup>
             )}
             {!aiLoading && !aiResult && (
-              <CommandGroup heading={t("aiSearch.selectSchema", "Select a schema to search")}>
+              <CommandGroup heading={t("aiSearch.selectEntity", "Select an entity to search")}>
                 {entities.map((schema) => {
                   const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
                   return (
@@ -195,8 +195,8 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                     >
                       <Icon />
                       <span>
-                        {t("aiSearch.searchIn", "Search in {{schema}}", {
-                          schema: resolveLabel(schema.label, schema.name),
+                        {t("aiSearch.searchIn", "Search in {{entity}}", {
+                          entity: resolveLabel(schema.label, schema.name),
                         })}
                       </span>
                     </CommandItem>

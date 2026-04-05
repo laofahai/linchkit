@@ -60,7 +60,7 @@ interface SystemInfo {
   uptime: number;
   nodeVersion: string;
   platform: string;
-  schemaCount: number;
+  entityCount: number;
   capabilityCount: number;
 }
 
@@ -74,12 +74,12 @@ interface HealthResponse {
 interface SettingsGeneral {
   version: string;
   uptime: number;
-  registeredSchemas: number;
+  registeredEntities: number;
   registeredActions: number;
   registeredRules: number;
   registeredFlows: number;
   registeredStates: number;
-  registeredLinks?: number;
+  registeredRelations?: number;
   registeredEventHandlers?: number;
   capabilityCount: number;
   capabilities: string[];
@@ -96,7 +96,7 @@ interface CapabilityDetail {
   rules: number;
   flows: number;
   states: number;
-  links: number;
+  relations: number;
   eventHandlers: number;
 }
 
@@ -261,13 +261,13 @@ export function SystemOverviewPage() {
   if (uptimeStr) kpis.push({ label: t("health.uptime"), value: uptimeStr });
   if (platform) kpis.push({ label: t("health.platform"), value: platform, small: true });
   if (gen) {
-    kpis.push({ label: t("settings.entities"), value: String(gen.registeredSchemas) });
+    kpis.push({ label: t("settings.entities"), value: String(gen.registeredEntities) });
     kpis.push({ label: t("settings.actions"), value: String(gen.registeredActions) });
     kpis.push({ label: t("settings.rules"), value: String(gen.registeredRules) });
     kpis.push({ label: t("settings.flows"), value: String(gen.registeredFlows) });
     kpis.push({ label: t("settings.stateMachines"), value: String(gen.registeredStates) });
-    if (gen.registeredLinks != null) {
-      kpis.push({ label: t("systemOverview.links"), value: String(gen.registeredLinks) });
+    if (gen.registeredRelations != null) {
+      kpis.push({ label: t("systemOverview.relations"), value: String(gen.registeredRelations) });
     }
     if (gen.registeredEventHandlers != null) {
       kpis.push({
@@ -435,7 +435,7 @@ export function SystemOverviewPage() {
                 <StatRow label={t("settings.rules")} value={selectedCap.rules} />
                 <StatRow label={t("settings.flows")} value={selectedCap.flows} />
                 <StatRow label={t("settings.stateMachines")} value={selectedCap.states} />
-                <StatRow label={t("systemOverview.links")} value={selectedCap.links} />
+                <StatRow label={t("systemOverview.relations")} value={selectedCap.relations} />
                 <StatRow
                   label={t("systemOverview.eventHandlers")}
                   value={selectedCap.eventHandlers}

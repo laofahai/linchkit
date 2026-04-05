@@ -1,7 +1,7 @@
 /**
  * AI Assistant Tools — Vercel AI SDK tool definitions.
  *
- * Provides schema-aware tools that the AI can call during chat conversations.
+ * Provides entity-aware tools that the AI can call during chat conversations.
  * All data access goes through DataProvider (respects tenant isolation).
  * All action execution goes through CommandLayer (respects permissions).
  *
@@ -23,9 +23,9 @@ export interface ToolContext {
   dataProvider?: DataProvider;
   /** Command layer for executing actions (permission-aware) */
   commandLayer?: CommandLayer;
-  /** Schema registry for metadata lookups */
+  /** Entity registry for metadata lookups */
   entityRegistry?: EntityRegistry;
-  /** Ontology registry for rich schema descriptions */
+  /** Ontology registry for rich entity descriptions */
   ontologyRegistry?: OntologyRegistry;
   /** Current authenticated actor (for command layer execution) */
   actor?: Actor;
@@ -45,7 +45,7 @@ export function buildTools(ctx: ToolContext) {
 
     tools.queryRecords = tool({
       description:
-        "Search and query records from a schema. Returns matching records as JSON. " +
+        "Search and query records from an entity. Returns matching records as JSON. " +
         "Use this to help users find, list, or analyze their data.",
       inputSchema: z.object({
         entity: z.string().describe("The entity name to query (e.g. 'purchase_order', 'product')"),
@@ -78,7 +78,7 @@ export function buildTools(ctx: ToolContext) {
     // ── Get single record tool ──────────────────────────────
     tools.getRecord = tool({
       description:
-        "Get a single record by its ID from a schema. " +
+        "Get a single record by its ID from an entity. " +
         "Use this when the user asks about a specific record.",
       inputSchema: z.object({
         entity: z.string().describe("The entity name"),
@@ -137,21 +137,21 @@ export function buildTools(ctx: ToolContext) {
     });
   }
 
-  // ── Describe schema tool ──────────────────────────────────
+  // ── Describe entity tool ──────────────────────────────────
   if (ctx.ontologyRegistry) {
     const ontology = ctx.ontologyRegistry;
 
-    tools.describeSchema = tool({
+    tools.describeEntity = tool({
       description:
-        "Get detailed information about a schema including its fields, actions, states, and relations. " +
+        "Get detailed information about an entity including its fields, actions, states, and relations. " +
         "Use this to understand the structure and capabilities of a data type.",
       inputSchema: z.object({
-        name: z.string().describe("The schema name to describe"),
+        name: z.string().describe("The entity name to describe"),
       }),
       execute: async (input: { name: string }) => {
         const descriptor = ontology.describe(input.name);
         if (!descriptor) {
-          return { error: `Schema '${input.name}' not found` };
+          return { error: `Entity '${input.name}' not found` };
         }
         return {
           name: descriptor.name,
@@ -178,7 +178,7 @@ export function buildTools(ctx: ToolContext) {
 
     tools.listEntities = tool({
       description:
-        "List all available schemas in the system. " +
+        "List all available entities in the system. " +
         "Use this to give the user an overview of what data types exist.",
       inputSchema: z.object({}),
       execute: async () => {
@@ -199,7 +199,7 @@ export function buildTools(ctx: ToolContext) {
 
     tools.searchEntities = tool({
       description:
-        "Search schemas by keyword. Matches against schema names, labels, descriptions, and field names.",
+        "Search entities by keyword. Matches against entity names, labels, descriptions, and field names.",
       inputSchema: z.object({
         query: z.string().describe("Search keyword"),
       }),
@@ -219,15 +219,15 @@ export function buildTools(ctx: ToolContext) {
     // Fallback: use EntityRegistry directly if Ontology is not available
     const sr = ctx.entityRegistry;
 
-    tools.describeSchema = tool({
-      description: "Get information about a schema including its fields.",
+    tools.describeEntity = tool({
+      description: "Get information about an entity including its fields.",
       inputSchema: z.object({
-        name: z.string().describe("The schema name to describe"),
+        name: z.string().describe("The entity name to describe"),
       }),
       execute: async (input: { name: string }) => {
         const schema = sr.get(input.name);
         if (!schema) {
-          return { error: `Schema '${input.name}' not found` };
+          return { error: `Entity '${input.name}' not found` };
         }
         return {
           name: schema.name,
@@ -252,7 +252,7 @@ export function buildTools(ctx: ToolContext) {
     inputSchema: z.object({
       path: z
         .string()
-        .describe("The application path (e.g. '/schemas/product', '/schemas/order/abc-123')"),
+        .describe("The application path (e.g. '/entities/product', '/entities/order/abc-123')"),
       label: z.string().describe("A human-readable label for the navigation link"),
     }),
     // No execute — this is a client-side tool rendered by the UI

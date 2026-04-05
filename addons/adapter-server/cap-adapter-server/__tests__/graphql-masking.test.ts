@@ -290,7 +290,7 @@ const linkGqlSchema = buildGraphQLSchema([departmentSchema, linkedEmployeeSchema
   executor: linkExecutor,
   dataProvider: linkStore,
   permissionGroups,
-  links: [deptEmployeeLink],
+  relations: [deptEmployeeLink],
 });
 
 async function executeLinkGql(query: string, actor: Actor, variables?: Record<string, unknown>) {

@@ -2,7 +2,7 @@
  * EmptyState — Displayed when a list has no records.
  *
  * Two modes:
- * 1. Schema-driven: pass `entityName` + `schemaLabel` for schema list pages (shows create button).
+ * 1. Entity-driven: pass `entityName` + `entityLabel` for entity list pages (shows create button).
  * 2. Generic: pass `title` + optional `description` / `icon` / `hideAction` for admin pages.
  *
  * All text is localized via react-i18next.
@@ -14,10 +14,10 @@ import { PackageOpen, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export interface EmptyStateProps {
-  /** Schema machine name (used for navigation). */
+  /** Entity machine name (used for navigation). */
   entityName?: string;
-  /** Human-readable schema label. */
-  schemaLabel?: string;
+  /** Human-readable entity label. */
+  entityLabel?: string;
   /** Override default title text. */
   title?: string;
   /** Override default description text. */
@@ -30,7 +30,7 @@ export interface EmptyStateProps {
 
 export function EmptyState({
   entityName,
-  schemaLabel,
+  entityLabel,
   title,
   description,
   icon,
@@ -41,21 +41,21 @@ export function EmptyState({
 
   const displayTitle =
     title ??
-    (schemaLabel
-      ? t("emptyState.title", "No {{label}} yet", { label: schemaLabel })
+    (entityLabel
+      ? t("emptyState.title", "No {{label}} yet", { label: entityLabel })
       : t("common.noData", "No data"));
 
   const displayDescription =
     description ??
-    (schemaLabel
+    (entityLabel
       ? hideAction
-        ? t("emptyState.descriptionReadOnly", "No {{label}} records found.", { label: schemaLabel })
+        ? t("emptyState.descriptionReadOnly", "No {{label}} records found.", { label: entityLabel })
         : t("emptyState.description", "Create your first {{label}} to get started.", {
-            label: schemaLabel,
+            label: entityLabel,
           })
       : undefined);
 
-  const showCreateButton = !hideAction && entityName && schemaLabel;
+  const showCreateButton = !hideAction && entityName && entityLabel;
 
   return (
     <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
@@ -74,7 +74,7 @@ export function EmptyState({
           onClick={() => navigate({ to: "/entities/$name/new", params: { name: entityName } })}
         >
           <Plus className="mr-1.5 size-4" />
-          {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}
+          {t("emptyState.createButton", "Create {{label}}", { label: entityLabel })}
         </Button>
       )}
     </div>

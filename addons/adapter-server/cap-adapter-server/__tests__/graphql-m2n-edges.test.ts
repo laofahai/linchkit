@@ -108,7 +108,7 @@ beforeAll(() => {
   const graphqlSchema = buildGraphQLSchema(schemas, {
     executor,
     dataProvider: store,
-    links: [orderToProducts, articleToTags],
+    relations: [orderToProducts, articleToTags],
   });
 
   app = createServer(graphqlSchema, {

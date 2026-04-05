@@ -76,7 +76,7 @@ beforeAll(() => {
   const graphqlSchema = buildGraphQLSchema(schemas, {
     executor,
     dataProvider: store,
-    links: [deptPurchaseLink],
+    relations: [deptPurchaseLink],
   });
 
   app = createServer(graphqlSchema, {
@@ -107,7 +107,7 @@ async function gql(query: string) {
 
 // ── Tests ─────────────────────────────────────────────────
 
-describe("E2E link / relationship integrity", () => {
+describe("E2E relation integrity", () => {
   test("1. Create a department and a purchase_request referencing it", async () => {
     // Create department
     const deptResult = await gql(`

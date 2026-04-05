@@ -414,7 +414,7 @@ export interface EntityBundle {
   presentation?: Record<string, unknown>;
   views: Record<string, unknown>;
   states?: StateDefinition[];
-  links?: RelationDefinition[];
+  relations?: RelationDefinition[];
   /** True for system-internal entities (read-only, managed by core) */
   internal?: boolean;
 }
@@ -450,10 +450,10 @@ export async function fetchEntityBundle(name: string): Promise<EntityBundle | nu
 export const fetchSchemaBundle = fetchEntityBundle;
 
 /**
- * Fetch all registered link definitions from the server.
+ * Fetch all registered relation definitions from the server.
  */
-export async function fetchLinks(): Promise<RelationDefinition[]> {
-  const res = await fetch("/api/links", { headers: getAuthHeaders() });
+export async function fetchRelations(): Promise<RelationDefinition[]> {
+  const res = await fetch("/api/relations", { headers: getAuthHeaders() });
   handleUnauthorized(res);
   const json = await res.json();
   return json.data ?? [];
