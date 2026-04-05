@@ -63,7 +63,13 @@ export function mountEntityRoutes(app: Elysia, options: ServerOptions): void {
       const internal = entityRegistry.isInternal(params.name) || undefined;
       return {
         success: true,
-        data: { ...schema, views: viewsMap, states: schemaStates, relations: schemaRelations, internal },
+        data: {
+          ...schema,
+          views: viewsMap,
+          states: schemaStates,
+          relations: schemaRelations,
+          internal,
+        },
       };
     });
 }
