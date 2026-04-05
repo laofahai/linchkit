@@ -310,7 +310,16 @@
     "actionCancelled": "操作已取消。",
     "missingFields": "缺少必填字段",
     "stop": "停止",
-    "resolvingIntent": "正在识别操作意图..."
+    "resolvingIntent": "正在识别操作意图...",
+    "insights": {
+      "title": "AI 洞察",
+      "analyze": "分析记录",
+      "analyzing": "正在分析记录...",
+      "noInsights": "未发现该记录的洞察。",
+      "error": "分析记录失败。",
+      "apply": "应用",
+      "avg": "平均"
+    }
   },
   "health": {
     "title": "系统健康",
@@ -917,6 +926,15 @@
     "approvedBy": "批准人",
     "rejectedBy": "驳回人",
     "decisionNote": "备注"
+  },
+  "translatable": {
+    "defaultLocale": "默认语言",
+    "addLocale": "添加语言",
+    "noTranslation": "暂无翻译",
+    "enterDefault": "输入默认值",
+    "enterTranslation": "输入 {{locale}} 的翻译",
+    "localeCount": "{{count}} 种语言",
+    "removeLocale": "移除语言"
   },
   "relationGraph": {
     "title": "关系图谱",

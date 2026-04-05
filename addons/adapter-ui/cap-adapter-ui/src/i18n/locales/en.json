@@ -310,7 +310,16 @@
     "actionCancelled": "Action cancelled.",
     "missingFields": "Missing required fields",
     "stop": "Stop",
-    "resolvingIntent": "Detecting action intent..."
+    "resolvingIntent": "Detecting action intent...",
+    "insights": {
+      "title": "AI Insights",
+      "analyze": "Analyze Record",
+      "analyzing": "Analyzing record...",
+      "noInsights": "No insights found for this record.",
+      "error": "Failed to analyze record.",
+      "apply": "Apply",
+      "avg": "avg"
+    }
   },
   "health": {
     "title": "System Health",
@@ -917,6 +926,15 @@
     "approvedBy": "Approved by",
     "rejectedBy": "Rejected by",
     "decisionNote": "Note"
+  },
+  "translatable": {
+    "defaultLocale": "Default locale",
+    "addLocale": "Add locale",
+    "noTranslation": "No translation",
+    "enterDefault": "Enter default value",
+    "enterTranslation": "Enter translation for {{locale}}",
+    "localeCount": "{{count}} locale(s)",
+    "removeLocale": "Remove locale"
   },
   "relationGraph": {
     "title": "Relation Graph",

@@ -31,9 +31,16 @@ export function FieldDisplay({ field: viewField, value, fieldDef }: FieldDisplay
     return <MaskedValue value={String(value)} />;
   }
 
-  // Derive widget override: explicit widget > editor hint > none
+  // Derive widget override: explicit widget > translatable auto-detect > editor hint > none
   const displayOverride =
-    viewField.widget ?? (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+    viewField.widget ??
+    (fieldDef.translatable && fieldDef.type === "string"
+      ? "translatable-string"
+      : fieldDef.translatable && fieldDef.type === "text"
+        ? "translatable-text"
+        : fieldDef.ui?.editor === "rich"
+          ? "text-rich"
+          : undefined);
 
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,
@@ -81,9 +88,16 @@ export function FieldInput({
     return <MaskedValue value={String(value)} />;
   }
 
-  // Derive widget override: explicit widget > editor hint > none
+  // Derive widget override: explicit widget > translatable auto-detect > editor hint > none
   const inputOverride =
-    viewField.widget ?? (fieldDef.ui?.editor === "rich" ? "text-rich" : undefined);
+    viewField.widget ??
+    (fieldDef.translatable && fieldDef.type === "string"
+      ? "translatable-string"
+      : fieldDef.translatable && fieldDef.type === "text"
+        ? "translatable-text"
+        : fieldDef.ui?.editor === "rich"
+          ? "text-rich"
+          : undefined);
 
   const widgetId = widgetRegistry.resolve({
     fieldType: fieldDef.type,

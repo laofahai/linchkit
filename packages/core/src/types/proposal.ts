@@ -9,6 +9,7 @@
 import type { ActionDefinition } from "./action";
 import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
+import type { ImpactNode } from "../ontology/impact-analysis";
 import type { RuleDefinition } from "./rule";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
@@ -78,6 +79,8 @@ export interface ProposalImpact {
   rulesAffected: string[];
   dependentsAffected: string[];
   migrationRequired: boolean;
+  /** Cascading impacts from semantic relation graph analysis */
+  cascadingImpacts?: ImpactNode[];
 }
 
 // ── Validation types ─────────────────────────────────────

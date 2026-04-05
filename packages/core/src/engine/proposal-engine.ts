@@ -12,6 +12,8 @@
  * copy-on-read semantics so callers cannot accidentally mutate stored state.
  */
 
+import { analyzeImpact } from "../ontology/impact-analysis";
+import type { SemanticRelation } from "../types/semantic-relation";
 import type {
   ChangeType,
   ProposalAuthor,
@@ -45,6 +47,15 @@ export interface CreateProposalOptions {
 export class ProposalEngine {
   private proposals = new Map<string, ProposalDefinition>();
   private versions = new Map<string, VersionRecord>();
+  private semanticRelations: SemanticRelation[] = [];
+
+  /**
+   * Set the semantic relation graph for cascading impact analysis.
+   * Called at startup after relations are inferred.
+   */
+  setSemanticRelations(relations: SemanticRelation[]): void {
+    this.semanticRelations = relations;
+  }
 
   /**
    * Create a new proposal in draft status.
@@ -70,6 +81,23 @@ export class ProposalEngine {
       }
     }
 
+    // Compute cascading impacts from semantic relation graph (if available)
+    let cascadingImpacts = options.impact?.cascadingImpacts;
+    if (!cascadingImpacts && this.semanticRelations.length > 0) {
+      const allAffectedEntities = [...autoSchemas];
+      const cascading = allAffectedEntities.flatMap((entity) => {
+        const result = analyzeImpact(entity, this.semanticRelations, { maxDepth: 3 });
+        return [...result.directImpacts, ...result.indirectImpacts];
+      });
+      // Deduplicate by entity name
+      const seen = new Set<string>();
+      cascadingImpacts = cascading.filter((n) => {
+        if (seen.has(n.entity)) return false;
+        seen.add(n.entity);
+        return true;
+      });
+    }
+
     const proposal: ProposalDefinition = {
       id: generateId(),
       title: options.title,
@@ -84,6 +112,7 @@ export class ProposalEngine {
         rulesAffected: options.impact?.rulesAffected ?? [...autoRules],
         dependentsAffected: options.impact?.dependentsAffected ?? [],
         migrationRequired: options.impact?.migrationRequired ?? false,
+        cascadingImpacts,
       },
       status: "draft",
       createdAt: now,

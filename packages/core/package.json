@@ -10,7 +10,8 @@
     "./define": "./src/define-entry.ts",
     "./server": "./src/server-entry.ts",
     "./config": "./src/config/index.ts",
-    "./utils/env": "./src/utils/env.ts"
+    "./utils/env": "./src/utils/env.ts",
+    "./ai": "./src/ai/index.ts"
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun",

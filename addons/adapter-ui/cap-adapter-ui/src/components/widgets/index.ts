@@ -20,6 +20,11 @@ import { RichTextDisplay, RichTextInput } from "./rich-text-widget";
 import { StateDisplay, StateInput } from "./state-widget";
 import { StringDisplay, StringInput } from "./string-widget";
 import { TextDisplay, TextInput } from "./text-widget";
+import {
+  TranslatableStringDisplay,
+  TranslatableStringInput,
+} from "./translatable-string-widget";
+import { TranslatableTextDisplay, TranslatableTextInput } from "./translatable-text-widget";
 
 export function registerDefaultWidgets() {
   widgetRegistry.register({
@@ -142,5 +147,27 @@ export function registerDefaultWidgets() {
     },
     display: ManyToManyDisplay,
     input: ManyToManyInput,
+  });
+
+  // Translatable string widget — locale tabs + text input for i18n fields
+  widgetRegistry.register({
+    definition: {
+      id: "translatable-string",
+      fieldTypes: "string",
+      modes: ["display", "input"],
+    },
+    display: TranslatableStringDisplay,
+    input: TranslatableStringInput,
+  });
+
+  // Translatable text widget — locale tabs + textarea for i18n multiline fields
+  widgetRegistry.register({
+    definition: {
+      id: "translatable-text",
+      fieldTypes: "text",
+      modes: ["display", "input"],
+    },
+    display: TranslatableTextDisplay,
+    input: TranslatableTextInput,
   });
 }

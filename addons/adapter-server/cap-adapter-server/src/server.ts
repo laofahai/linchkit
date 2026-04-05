@@ -52,6 +52,7 @@ import { mountEntityRoutes } from "./routes/entity-api";
 import { mountImportRoutes } from "./routes/import-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
+import { mountTranslationRoutes } from "./routes/translation-api";
 
 export interface ServerOptions {
   /** Server port (default: 3001) */
@@ -238,6 +239,7 @@ export function createServer(
   mountConfigRoutes(app, opts);
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
+  mountTranslationRoutes(app, opts);
 
   // Mount graphql-yoga — handle all methods on the graphql path
   app.all(graphqlPath, async ({ request }) => {

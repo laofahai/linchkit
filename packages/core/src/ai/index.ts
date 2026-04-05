@@ -98,5 +98,23 @@ export type {
   ProposalViolation,
 } from "./proposal-validator";
 export { createProposalValidator, validateProposal } from "./proposal-validator";
+// Record Analyzer
+export type {
+  RecordAnalysisRequest,
+  RecordAnalysis,
+  RecordInsight,
+} from "./record-analyzer";
+export { analyzeRecord, buildAnalysisPrompt, parseAnalysisResponse } from "./record-analyzer";
+// Conversation Manager
+export type {
+  AISession,
+  AISessionContext,
+  AISessionMessage,
+  ConversationManagerOptions,
+} from "./conversation-manager";
+export { ConversationManager } from "./conversation-manager";
+// Message Formatter
+export type { AIRichMessage, AIMessageBlock } from "./message-formatter";
+export { parseRichMessage, formatRichMessage } from "./message-formatter";
 // Response Cache
 export { AIResponseCache } from "./response-cache";
