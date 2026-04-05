@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1774490882296,
-      "tag": "0000_great_dragon_lord",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1774532840670,
-      "tag": "0001_fluffy_psylocke",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1775202494136,
-      "tag": "0002_chunky_longshot",
+      "when": 1775376040980,
+      "tag": "0000_melted_gateway",
       "breakpoints": true
     }
   ]

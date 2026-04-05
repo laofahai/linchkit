@@ -1,1 +1,0 @@
-ALTER TABLE "purchase_request" ALTER COLUMN "requester_email" SET NOT NULL;

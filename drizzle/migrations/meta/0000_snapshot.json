@@ -1,5 +1,5 @@
 {
-  "id": "8effda78-65fc-4789-960d-4c03c388ed3d",
+  "id": "121333fe-2c07-4b20-8760-f5d67df5be74",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -26,8 +26,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "schema_name": {
-          "name": "schema_name",
+        "entity_name": {
+          "name": "entity_name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
@@ -265,12 +265,16 @@
         "department_name_unique": {
           "name": "department_name_unique",
           "nullsNotDistinct": false,
-          "columns": ["name"]
+          "columns": [
+            "name"
+          ]
         },
         "department_code_unique": {
           "name": "department_code_unique",
           "nullsNotDistinct": false,
-          "columns": ["code"]
+          "columns": [
+            "code"
+          ]
         }
       },
       "policies": {},
@@ -453,8 +457,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "schema_name": {
-          "name": "schema_name",
+        "entity_name": {
+          "name": "entity_name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
@@ -716,6 +720,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "line_total": {
+          "name": "line_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
         "purchase_request_id": {
           "name": "purchase_request_id",
           "type": "varchar(128)",
@@ -729,8 +739,12 @@
           "name": "purchase_item_purchase_request_id_purchase_request_id_fk",
           "tableFrom": "purchase_item",
           "tableTo": "purchase_request",
-          "columnsFrom": ["purchase_request_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "purchase_request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -824,7 +838,7 @@
           "name": "requester_email",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "status": {
           "name": "status",
@@ -882,8 +896,12 @@
           "name": "purchase_request_department_id_department_id_fk",
           "tableFrom": "purchase_request",
           "tableTo": "department",
-          "columnsFrom": ["department_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -899,17 +917,34 @@
     "_linchkit.approval_status": {
       "name": "approval_status",
       "schema": "_linchkit",
-      "values": ["pending", "approved", "rejected", "expired", "cancelled"]
+      "values": [
+        "pending",
+        "approved",
+        "rejected",
+        "expired",
+        "cancelled"
+      ]
     },
     "_linchkit.event_status": {
       "name": "event_status",
       "schema": "_linchkit",
-      "values": ["pending", "processing", "completed", "failed", "dead_letter"]
+      "values": [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "dead_letter"
+      ]
     },
     "_linchkit.execution_status": {
       "name": "execution_status",
       "schema": "_linchkit",
-      "values": ["succeeded", "failed", "blocked", "pending_approval"]
+      "values": [
+        "succeeded",
+        "failed",
+        "blocked",
+        "pending_approval"
+      ]
     }
   },
   "schemas": {

@@ -556,7 +556,7 @@ export function EntityListPage() {
       // Guard: ensure the listView belongs to the current schema to prevent
       // querying with stale fields from a previously visited schema (e.g.
       // purchase_item fields being sent in a department query).
-      if (currentListView.schema !== entityName) {
+      if (currentListView.entity !== entityName) {
         // Don't clear loading — the correct listView will arrive and re-trigger fetch
         return;
       }

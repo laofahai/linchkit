@@ -7,7 +7,7 @@ CREATE TABLE "_linchkit"."approvals" (
 	"id" varchar(255) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(255),
 	"action_name" varchar(255) NOT NULL,
-	"schema_name" varchar(255),
+	"entity_name" varchar(255),
 	"record_id" varchar(255),
 	"capability" varchar(255),
 	"input" jsonb,
@@ -68,7 +68,7 @@ CREATE TABLE "_linchkit"."executions" (
 	"id" varchar(255) PRIMARY KEY NOT NULL,
 	"tenant_id" varchar(255),
 	"action_name" varchar(255) NOT NULL,
-	"schema_name" varchar(255),
+	"entity_name" varchar(255),
 	"record_id" varchar(255),
 	"capability" varchar(255),
 	"input" jsonb,
@@ -101,6 +101,7 @@ CREATE TABLE "purchase_item" (
 	"quantity" numeric NOT NULL,
 	"unit_price" numeric NOT NULL,
 	"specification" text,
+	"line_total" numeric,
 	"purchase_request_id" varchar(128)
 );
 --> statement-breakpoint
@@ -117,7 +118,7 @@ CREATE TABLE "purchase_request" (
 	"description" text,
 	"amount" numeric NOT NULL,
 	"requester" varchar(255),
-	"requester_email" varchar(255),
+	"requester_email" varchar(255) NOT NULL,
 	"status" varchar(50) DEFAULT 'draft',
 	"priority" varchar(50),
 	"notes" text,
