@@ -12,6 +12,7 @@
 
 import type { EntityRegistry } from "../entity/entity-registry";
 import type { ActionDefinition } from "../types/action";
+import type { EntityDefinition, FieldType } from "../types/entity";
 import type {
   ChangeDefinition,
   PhaseResult,
@@ -22,7 +23,6 @@ import type {
   ValidationWarning,
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
-import type { FieldType, EntityDefinition } from "../types/entity";
 import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────

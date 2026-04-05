@@ -11,7 +11,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { defineRelation, defineEntity } from "@linchkit/core";
+import { defineEntity, defineRelation } from "@linchkit/core";
 import {
   closeDatabase,
   createActionExecutor,

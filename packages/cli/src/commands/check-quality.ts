@@ -9,8 +9,8 @@
 import type {
   ActionDefinition,
   CapabilityDefinition,
-  LinchKitConfig,
   EntityDefinition,
+  LinchKitConfig,
 } from "@linchkit/core";
 import type {
   ActionInfo,

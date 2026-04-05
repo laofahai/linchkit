@@ -8,10 +8,10 @@ import type {
   CapabilityDefinition,
   ConfigRegistry,
   DataProvider,
-  InterfaceDefinition,
-  RelationDefinition,
-  MiddlewareRegistration,
   EntityDefinition,
+  InterfaceDefinition,
+  MiddlewareRegistration,
+  RelationDefinition,
 } from "@linchkit/core";
 
 interface EnvironmentInfo {
@@ -24,8 +24,8 @@ import {
   createInterfaceRegistry,
   createRelationRegistry,
   createTenantIsolationMiddleware,
-  PermissionRegistry,
   EntityRegistry,
+  PermissionRegistry,
 } from "@linchkit/core/server";
 
 export interface RegistryBuildResult {

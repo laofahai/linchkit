@@ -55,7 +55,7 @@ import {
 } from "recharts";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { type ExecutionLogEntry, graphql, queryExecutionLogs, type EntityInfo } from "@/lib/api";
+import { type EntityInfo, type ExecutionLogEntry, graphql, queryExecutionLogs } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 // CSS for react-grid-layout drag/resize handles
@@ -224,11 +224,11 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
 
 function StatCardWidget({
   config,
-  schemas,
+  entities,
   logs,
 }: {
   config: WidgetConfig;
-  schemas: EntityInfo[];
+  entities: EntityInfo[];
   logs: ExecutionLogEntry[];
 }) {
   const { resolveLabel } = useEntityLabel();
@@ -246,13 +246,13 @@ function StatCardWidget({
         .catch(() => setTotal(0))
         .finally(() => setLoading(false));
     } else {
-      // Total across all schemas
-      if (schemas.length === 0) {
+      // Total across all entities
+      if (entities.length === 0) {
         setLoading(false);
         setTotal(0);
         return;
       }
-      const queryParts = schemas.map((s) => {
+      const queryParts = entities.map((s) => {
         const alias = toCamelCase(s.name);
         return `${alias}: ${alias}List(pageSize: 1) { total }`;
       });
@@ -269,7 +269,7 @@ function StatCardWidget({
         .catch(() => setTotal(0))
         .finally(() => setLoading(false));
     }
-  }, [config.schema, schemas]);
+  }, [config.schema, entities]);
 
   // Recent count from logs
   const recentCount = useMemo(() => {
@@ -281,11 +281,11 @@ function StatCardWidget({
   }, [logs, config.schema]);
 
   const label = config.schema
-    ? resolveLabel(schemas.find((s) => s.name === config.schema)?.label, config.schema)
+    ? resolveLabel(entities.find((s) => s.name === config.schema)?.label, config.schema)
     : (config.label ?? "Total Records");
 
   const Icon = config.schema
-    ? (getLucideIcon(schemas.find((s) => s.name === config.schema)?.icon) ?? Database)
+    ? (getLucideIcon(entities.find((s) => s.name === config.schema)?.icon) ?? Database)
     : Database;
 
   return (
@@ -438,7 +438,7 @@ function RecentActivityWidget({ logs, loading }: { logs: ExecutionLogEntry[]; lo
 
 // ── Widget: Record List ───────────────────────────────────────────────────────
 
-function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: EntityInfo[] }) {
+function RecordListWidget({ config, entities }: { config: WidgetConfig; entities: EntityInfo[] }) {
   const { resolveLabel } = useEntityLabel();
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -462,14 +462,14 @@ function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: 
   if (!schema) {
     return (
       <p className="text-center text-xs text-muted-foreground py-4">
-        Configure a schema in widget settings
+        Configure an entity in widget settings
       </p>
     );
   }
 
-  const schemaInfo = schemas.find((s) => s.name === schema);
-  const label = resolveLabel(schemaInfo?.label, schema);
-  const Icon = getLucideIcon(schemaInfo?.icon) ?? Database;
+  const entityInfo = entities.find((s) => s.name === schema);
+  const label = resolveLabel(entityInfo?.label, schema);
+  const Icon = getLucideIcon(entityInfo?.icon) ?? Database;
 
   return (
     <div className="h-full flex flex-col gap-2">
@@ -479,7 +479,7 @@ function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: 
           {label}
         </div>
         <Link
-          to="/schemas/$name"
+          to="/entities/$name"
           params={{ name: schema }}
           className="text-[10px] text-muted-foreground hover:text-foreground"
         >
@@ -499,7 +499,7 @@ function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: 
           {records.map((rec) => (
             <Link
               key={String(rec.id)}
-              to="/schemas/$name/$id"
+              to="/entities/$name/$id"
               params={{ name: schema, id: String(rec.id) }}
               className="block text-xs p-1.5 rounded hover:bg-accent/50 transition-colors border"
             >
@@ -514,20 +514,20 @@ function RecordListWidget({ config, schemas }: { config: WidgetConfig; schemas: 
 
 // ── Widget: Quick Actions ─────────────────────────────────────────────────────
 
-function QuickActionsWidget({ schemas }: { schemas: EntityInfo[] }) {
+function QuickActionsWidget({ entities }: { entities: EntityInfo[] }) {
   const { resolveLabel } = useEntityLabel();
 
-  if (schemas.length === 0) {
-    return <p className="text-center text-xs text-muted-foreground py-4">No schemas available</p>;
+  if (entities.length === 0) {
+    return <p className="text-center text-xs text-muted-foreground py-4">No entities available</p>;
   }
 
   return (
     <div className="flex flex-wrap gap-2 content-start h-full overflow-auto">
-      {schemas.map((schema) => {
+      {entities.map((schema) => {
         const label = resolveLabel(schema.label, schema.name);
         const Icon = getLucideIcon(schema.icon) ?? Database;
         return (
-          <Link key={schema.name} to="/schemas/$name/new" params={{ name: schema.name }}>
+          <Link key={schema.name} to="/entities/$name/new" params={{ name: schema.name }}>
             <Badge
               variant="secondary"
               className="cursor-pointer gap-1 px-3 py-1.5 text-sm transition-colors hover:bg-accent"
@@ -547,26 +547,26 @@ function QuickActionsWidget({ schemas }: { schemas: EntityInfo[] }) {
 
 function WidgetRenderer({
   widget,
-  schemas,
+  entities,
   logs,
   logsLoading,
 }: {
   widget: DashboardWidget;
-  schemas: EntityInfo[];
+  entities: EntityInfo[];
   logs: ExecutionLogEntry[];
   logsLoading: boolean;
 }) {
   switch (widget.type) {
     case "stat_card":
-      return <StatCardWidget config={widget.config} schemas={schemas} logs={logs} />;
+      return <StatCardWidget config={widget.config} entities={entities} logs={logs} />;
     case "chart":
       return <ChartWidget config={widget.config} logs={logs} />;
     case "recent_activity":
       return <RecentActivityWidget logs={logs} loading={logsLoading} />;
     case "record_list":
-      return <RecordListWidget config={widget.config} schemas={schemas} />;
+      return <RecordListWidget config={widget.config} entities={entities} />;
     case "quick_actions":
-      return <QuickActionsWidget schemas={schemas} />;
+      return <QuickActionsWidget entities={entities} />;
   }
 }
 
@@ -629,12 +629,12 @@ function AddWidgetPanel({
 
 function WidgetConfigModal({
   widget,
-  schemas,
+  entities,
   onSave,
   onClose,
 }: {
   widget: DashboardWidget | null;
-  schemas: EntityInfo[];
+  entities: EntityInfo[];
   onSave: (config: WidgetConfig) => void;
   onClose: () => void;
 }) {
@@ -668,10 +668,10 @@ function WidgetConfigModal({
             />
           </div>
 
-          {/* Schema selector (for stat_card, record_list) */}
+          {/* Entity selector (for stat_card, record_list) */}
           {(widget.type === "stat_card" || widget.type === "record_list") && (
             <div className="space-y-1.5">
-              <Label>Schema</Label>
+              <Label>Entity</Label>
               <Select
                 value={config.schema ?? "__all__"}
                 onValueChange={(v) =>
@@ -679,11 +679,11 @@ function WidgetConfigModal({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All schemas" />
+                  <SelectValue placeholder="All entities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All schemas</SelectItem>
-                  {schemas.map((s) => (
+                  <SelectItem value="__all__">All entities</SelectItem>
+                  {entities.map((s) => (
                     <SelectItem key={s.name} value={s.name}>
                       {resolveLabel(s.label, s.name)}
                     </SelectItem>
@@ -765,7 +765,7 @@ function WidgetConfigModal({
 function DashboardWidgetCard({
   widget,
   editMode,
-  schemas,
+  entities,
   logs,
   logsLoading,
   onConfigure,
@@ -773,7 +773,7 @@ function DashboardWidgetCard({
 }: {
   widget: DashboardWidget;
   editMode: boolean;
-  schemas: EntityInfo[];
+  entities: EntityInfo[];
   logs: ExecutionLogEntry[];
   logsLoading: boolean;
   onConfigure: () => void;
@@ -813,7 +813,7 @@ function DashboardWidgetCard({
         )}
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden px-3 py-2">
-        <WidgetRenderer widget={widget} schemas={schemas} logs={logs} logsLoading={logsLoading} />
+        <WidgetRenderer widget={widget} entities={entities} logs={logs} logsLoading={logsLoading} />
       </CardContent>
     </Card>
   );
@@ -823,7 +823,7 @@ function DashboardWidgetCard({
 
 export function DashboardPage() {
   const { t } = useTranslation();
-  const { schemas } = useEntities();
+  const { entities } = useEntities();
 
   const [layout, setLayout] = useState<DashboardLayout>(loadLayout);
   const [editMode, setEditMode] = useState(false);
@@ -1012,7 +1012,7 @@ export function DashboardPage() {
               <DashboardWidgetCard
                 widget={widget}
                 editMode={editMode}
-                schemas={schemas}
+                entities={entities}
                 logs={logs}
                 logsLoading={logsLoading}
                 onConfigure={() => setConfiguringWidget(widget)}
@@ -1033,7 +1033,7 @@ export function DashboardPage() {
       {/* Widget Config Modal */}
       <WidgetConfigModal
         widget={configuringWidget}
-        schemas={schemas}
+        entities={entities}
         onSave={handleSaveConfig}
         onClose={() => setConfiguringWidget(null)}
       />

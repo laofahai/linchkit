@@ -7,24 +7,29 @@
  */
 
 import type { ViewAction } from "@linchkit/core/types";
-import { Button, toast } from "@linchkit/ui-kit/components";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@linchkit/ui-kit/components";
+import {
+  Button,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  toast,
+} from "@linchkit/ui-kit/components";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Check, Sparkles } from "lucide-react";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AutoForm } from "../components/auto-form";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { RelatedRecordsPanel } from "../components/related-records-panel";
 import { RelatedRecordsTab } from "../components/related-records-tab";
-import { StatusBar, type StatusBarStep, type StateTransitionInfo } from "../components/status-bar";
+import { type StateTransitionInfo, StatusBar, type StatusBarStep } from "../components/status-bar";
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useEntityLabel } from "../i18n/use-entity-label";
 import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
-import { getRecordPanels } from "../lib/panel-registry";
 import {
   deriveStatusSteps,
   generateFallbackFormView,
@@ -32,6 +37,7 @@ import {
   getRecordFields,
   getTransitionActionNames,
 } from "../lib/entity-form-utils";
+import { getRecordPanels } from "../lib/panel-registry";
 import { useFormActions } from "./entity-form-actions";
 import { EntityFormHeader } from "./entity-form-header";
 import {
@@ -243,7 +249,10 @@ export function EntityFormPage() {
 
   // Wrap handleSubmit to set formMode on update success
   const handleSubmit = useCallback(
-    async (data: Record<string, unknown>, enriched?: import("../components/auto-form/types").EnrichedSubmitData): Promise<undefined> => {
+    async (
+      data: Record<string, unknown>,
+      enriched?: import("../components/auto-form/types").EnrichedSubmitData,
+    ): Promise<undefined> => {
       await actions.handleSubmit(data, enriched);
       if (!isCreate) {
         await fetchRecord();
@@ -298,7 +307,17 @@ export function EntityFormPage() {
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [fetchRecord, bundleLoading, bundle, isCreate, cloneId, parentId, formView, params.id, actions]);
+  }, [
+    fetchRecord,
+    bundleLoading,
+    bundle,
+    isCreate,
+    cloneId,
+    parentId,
+    formView,
+    params.id,
+    actions,
+  ]);
 
   // Update breadcrumb title with the record's display name
   useEffect(() => {
@@ -378,7 +397,7 @@ export function EntityFormPage() {
         onPrint={actions.handlePrint}
         onDuplicate={() =>
           navigate({
-            to: "/schemas/$name/new",
+            to: "/entities/$name/new",
             params: { name: entityName },
             search: { clone: params.id },
           })
@@ -396,7 +415,11 @@ export function EntityFormPage() {
             <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
               <h1 className="text-xl font-semibold text-foreground truncate">{recordTitle}</h1>
               {!isCreate && recordStatus && statusSteps && (
-                <StatusBar steps={statusSteps} current={recordStatus} transitions={stateTransitions} />
+                <StatusBar
+                  steps={statusSteps}
+                  current={recordStatus}
+                  transitions={stateTransitions}
+                />
               )}
             </div>
 
@@ -462,95 +485,107 @@ export function EntityFormPage() {
           </div>
 
           {/* Bottom tabs: relation tabs + registered panels */}
-          {!isCreate && params.id && (() => {
-            const activeCapabilities = getActiveCapabilities();
-            const recordPanels = getRecordPanels();
-            const activePanels = recordPanels.filter(
-              (p) => p.capability === "__builtin__" || activeCapabilities.includes(p.capability),
-            );
-            return (
-            <Tabs
-              defaultValue={
-                one2manyLinks.length > 0
-                  ? `link-${one2manyLinks[0]?.name}`
-                  : activePanels[0]?.id ?? "version-history"
-              }
-            >
-              <TabsList variant="line">
-                {/* One_to_many relationship tabs */}
-                {one2manyLinks.map((link) => {
-                  const rawLabel =
-                    (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
-                    link.to;
-                  const tabLabel = resolveLabel(rawLabel, link.to);
-                  return (
-                    <TabsTrigger key={`link-${link.name}`} value={`link-${link.name}`}>
-                      {tabLabel}
-                    </TabsTrigger>
-                  );
-                })}
-                {/* Other links tab (many_to_many, etc.) */}
-                {hasOtherLinks && (
-                  <TabsTrigger value="related">
-                    {t("detail.relatedRecords", "Related Records")}
-                  </TabsTrigger>
-                )}
-                {/* Registered panels (version history, chatter, etc.) */}
-                {activePanels.map((panel) => (
-                  <TabsTrigger key={panel.id} value={panel.id}>
-                    {t(panel.label, panel.label)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+          {!isCreate &&
+            params.id &&
+            (() => {
+              const activeCapabilities = getActiveCapabilities();
+              const recordPanels = getRecordPanels();
+              const activePanels = recordPanels.filter(
+                (p) => p.capability === "__builtin__" || activeCapabilities.includes(p.capability),
+              );
+              return (
+                <Tabs
+                  defaultValue={
+                    one2manyLinks.length > 0
+                      ? `link-${one2manyLinks[0]?.name}`
+                      : (activePanels[0]?.id ?? "version-history")
+                  }
+                >
+                  <TabsList variant="line">
+                    {/* One_to_many relationship tabs */}
+                    {one2manyLinks.map((link) => {
+                      const rawLabel =
+                        (link.cardinality === "one_to_many" ? link.label?.from : link.label?.to) ??
+                        link.to;
+                      const tabLabel = resolveLabel(rawLabel, link.to);
+                      return (
+                        <TabsTrigger key={`link-${link.name}`} value={`link-${link.name}`}>
+                          {tabLabel}
+                        </TabsTrigger>
+                      );
+                    })}
+                    {/* Other links tab (many_to_many, etc.) */}
+                    {hasOtherLinks && (
+                      <TabsTrigger value="related">
+                        {t("detail.relatedRecords", "Related Records")}
+                      </TabsTrigger>
+                    )}
+                    {/* Registered panels (version history, chatter, etc.) */}
+                    {activePanels.map((panel) => (
+                      <TabsTrigger key={panel.id} value={panel.id}>
+                        {t(panel.label, panel.label)}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
 
-              {/* One_to_many tab content */}
-              {one2manyLinks.map((link) => (
-                <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
-                  <RelatedRecordsTab
-                    parentSchema={entityName}
-                    parentId={params.id ?? ""}
-                    link={link}
-                  />
-                </TabsContent>
-              ))}
+                  {/* One_to_many tab content */}
+                  {one2manyLinks.map((link) => (
+                    <TabsContent key={`link-${link.name}`} value={`link-${link.name}`}>
+                      <RelatedRecordsTab
+                        parentSchema={entityName}
+                        parentId={params.id ?? ""}
+                        link={link}
+                      />
+                    </TabsContent>
+                  ))}
 
-              {/* Other links tab content */}
-              {hasOtherLinks && (
-                <TabsContent value="related">
-                  <RelatedRecordsPanel
-                    entityName={entityName}
-                    recordId={params.id ?? ""}
-                    links={otherLinks}
-                    bare
-                  />
-                </TabsContent>
-              )}
-
-              {/* Registered panel content (lazy-loaded) */}
-              {activePanels.map((panel) => {
-                const LazyPanel = lazy(panel.component);
-                return (
-                  <TabsContent key={panel.id} value={panel.id}>
-                    <Suspense fallback={<div className="p-4 text-muted-foreground">{t("common.loading", "Loading...")}</div>}>
-                      <LazyPanel
+                  {/* Other links tab content */}
+                  {hasOtherLinks && (
+                    <TabsContent value="related">
+                      <RelatedRecordsPanel
                         entityName={entityName}
                         recordId={params.id ?? ""}
-                        record={record}
-                        fields={schema.fields}
-                        recordFields={recordFields}
-                        onRestore={() => {
-                          fetchRecord();
-                          toast.success(t("versionHistory.restoreSuccess", "Record restored to selected version"));
-                        }}
+                        links={otherLinks}
+                        bare
                       />
-                    </Suspense>
-                  </TabsContent>
-                );
-              })}
+                    </TabsContent>
+                  )}
 
-            </Tabs>
-            );
-          })()}
+                  {/* Registered panel content (lazy-loaded) */}
+                  {activePanels.map((panel) => {
+                    const LazyPanel = lazy(panel.component);
+                    return (
+                      <TabsContent key={panel.id} value={panel.id}>
+                        <Suspense
+                          fallback={
+                            <div className="p-4 text-muted-foreground">
+                              {t("common.loading", "Loading...")}
+                            </div>
+                          }
+                        >
+                          <LazyPanel
+                            entityName={entityName}
+                            recordId={params.id ?? ""}
+                            record={record}
+                            fields={schema.fields}
+                            recordFields={recordFields}
+                            onRestore={() => {
+                              fetchRecord();
+                              toast.success(
+                                t(
+                                  "versionHistory.restoreSuccess",
+                                  "Record restored to selected version",
+                                ),
+                              );
+                            }}
+                          />
+                        </Suspense>
+                      </TabsContent>
+                    );
+                  })}
+                </Tabs>
+              );
+            })()}
         </div>
       </div>
 

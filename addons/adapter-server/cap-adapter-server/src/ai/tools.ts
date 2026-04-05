@@ -12,8 +12,8 @@ import type {
   Actor,
   CommandLayer,
   DataProvider,
-  OntologyRegistry,
   EntityRegistry,
+  OntologyRegistry,
 } from "@linchkit/core";
 import { tool } from "ai";
 import { z } from "zod";

@@ -45,7 +45,8 @@ function entityFromEventType(eventType: string): string | undefined {
 /** Extract entity name from a rule context query string (e.g. "entity:purchase_request" or raw entity name) */
 function entityFromContextQuery(query: string): string | undefined {
   // Support "entity:name" notation (legacy "schema:name" also accepted) and bare names
-  const match = query.match(/^entity:(\w+)$/) ?? query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
+  const match =
+    query.match(/^entity:(\w+)$/) ?? query.match(/^schema:(\w+)$/) ?? query.match(/^(\w+)$/);
   return match?.[1];
 }
 

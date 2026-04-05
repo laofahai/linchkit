@@ -24,6 +24,7 @@ export {
   type DocSearchOptions,
   type DocSearchResult,
   type EntityDoc,
+  entityToDoc,
   type FieldDoc,
   fieldToDoc,
   generateApiDoc,
@@ -40,7 +41,6 @@ export {
   renderEntityDoc,
   renderSystemDoc,
   type SystemDoc,
-  entityToDoc,
 } from "./documentation";
 // === Governance: documentation validation, spec tracking, changelog ===
 export {
@@ -69,9 +69,9 @@ export {
   type CommitInfo,
   checkActionDefinitions,
   checkCommitMessages,
+  checkEntityDefinitions,
   checkFileNaming,
   checkImportPatterns,
-  checkEntityDefinitions,
   type DirectoryEntry,
   type EntityInfo,
   type ExportBoundaryConfig,

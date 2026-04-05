@@ -3,9 +3,9 @@
  */
 
 import type {
+  EntityDefinition,
   EnumField,
   FieldDefinition,
-  EntityDefinition,
   StateMeta,
   ViewAction,
   ViewFieldConfig,

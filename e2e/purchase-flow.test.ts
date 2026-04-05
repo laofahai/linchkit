@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { approveAction, purchaseRequestEntity, submitAction } from "@linchkit/cap-purchase-demo";
 import {
   createActionExecutor,
+  EntityRegistry,
   InMemoryExecutionLogger,
   InMemoryStore,
-  EntityRegistry,
 } from "@linchkit/core/server";
 import {
   buildGraphQLSchema,

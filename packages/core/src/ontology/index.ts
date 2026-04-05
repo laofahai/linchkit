@@ -4,9 +4,9 @@
 
 export {
   createOntologyRegistry,
+  type EntityDescriptor,
   type OntologyRegistry,
   type OntologyRegistryDeps,
   type RelationDescriptor,
-  type EntityDescriptor,
 } from "./ontology-registry";
 export { buildRelationGraph, inferSemanticRelations } from "./semantic-inference";

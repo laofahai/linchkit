@@ -1,13 +1,13 @@
 /**
- * useSchemaBundle — Fetches and caches schema bundles (schema + views).
+ * useEntityBundle — Fetches and caches entity bundles (entity + views).
  *
- * Uses a React context to cache fetched bundles by schema name.
- * Once a schema is loaded, subsequent navigations serve from cache.
+ * Uses a React context to cache fetched bundles by entity name.
+ * Once an entity is loaded, subsequent navigations serve from cache.
  */
 
 import type {
-  RelationDefinition,
   EntityDefinition,
+  RelationDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core/types";
@@ -19,7 +19,7 @@ export interface ResolvedEntityBundle {
   views: Record<string, ViewDefinition>;
   states?: StateDefinition[];
   links?: RelationDefinition[];
-  /** True for system-internal schemas (read-only, managed by core) */
+  /** True for system-internal entities (read-only, managed by core) */
   internal?: boolean;
 }
 

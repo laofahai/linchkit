@@ -57,10 +57,10 @@ export function createAwarenessEngine(opts: AwarenessEngineOptions): AwarenessEn
           const usage = usageGraph.getImportance("action", entityName, action.name);
           if (usage === 0) {
             issues.push({
-            kind: "action_never_called",
-            entity: entityName,
-            target: action.name,
-            message: `Action "${action.name}" on entity "${entityName}" has never been called`,
+              kind: "action_never_called",
+              entity: entityName,
+              target: action.name,
+              message: `Action "${action.name}" on entity "${entityName}" has never been called`,
             });
           }
         }

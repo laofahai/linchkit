@@ -40,7 +40,7 @@
     "workspace": "Workspace",
     "administration": "Administration",
     "capabilities": "Capabilities",
-    "schemas": "Schemas",
+    "entities": "Entities",
     "events": "Events",
     "settings": "Settings",
     "teams": "Teams",
@@ -62,7 +62,7 @@
     "dataOverview": "Data Overview",
     "quickActionsLabel": "Quick Actions",
     "recentActivity": "Recent Activity",
-    "recentActivityDesc": "Latest operations across all schemas.",
+    "recentActivityDesc": "Latest operations across all entities.",
     "viewAll": "View all"
   },
   "auth": {
@@ -129,7 +129,7 @@
     "placeholder": "Search...",
     "noResults": "No results found.",
     "navigation": "Navigation",
-    "schemas": "Schemas",
+    "entities": "Entities",
     "actions": "Actions",
     "actionsComingSoon": "Action launching coming soon...",
     "preferences": "Preferences",
@@ -174,7 +174,7 @@
   },
   "lens": {
     "title": "Filter",
-    "description": "Search and filter by schema fields",
+    "description": "Search and filter by entity fields",
     "trigger": "Filter",
     "selectField": "Select a field",
     "selectOperator": "Select operator",
@@ -250,9 +250,9 @@
     "zhCN": "中文"
   },
   "errors": {
-    "missingSchemaName": "No schema specified in the URL.",
-    "schemaLoadFailed": "Failed to load schema \"{{name}}\".",
-    "checkServer": "Check that the server is running and the schema is registered.",
+    "missingSchemaName": "No entity specified in the URL.",
+    "schemaLoadFailed": "Failed to load entity \"{{name}}\".",
+    "checkServer": "Check that the server is running and the entity is registered.",
     "dataLoadFailed": "Failed to load records.",
     "recordNotFound": "Record \"{{id}}\" not found.",
     "recordLoadFailed": "Failed to load record.",
@@ -324,7 +324,7 @@
     "uptime": "Uptime",
     "runtime": "Runtime",
     "platform": "Platform",
-    "schemaCount": "Schemas",
+    "schemaCount": "Entities",
     "capabilityCount": "Capabilities",
     "autoRefresh": "Auto-refreshes every {{seconds}} seconds",
     "overall": {
@@ -635,7 +635,7 @@
   "stateMachines": {
     "title": "State Machines",
     "subtitle": "Registered state machine definitions — lifecycle state management.",
-    "allSchemas": "All Schemas",
+    "allEntities": "All Entities",
     "machineCount": "state machines",
     "noMachines": "No state machines registered.",
     "states": "states",
@@ -661,7 +661,7 @@
     "processing": "Processing...",
     "analyzing": "Analyzing your query...",
     "resultTitle": "AI Search Result",
-    "selectSchema": "Select a schema to search",
+    "selectSchema": "Select an entity to search",
     "searchIn": "Search in {{schema}}",
     "paletteAction": "AI Search — natural language filter",
     "palettePlaceholder": "Describe what you're looking for...",
@@ -677,7 +677,7 @@
     "changes": "Changes",
     "changeCount": "change(s)",
     "impact": "Impact Analysis",
-    "schemasAffected": "Schemas affected",
+    "entitiesAffected": "Entities affected",
     "actionsAffected": "Actions affected",
     "rulesAffected": "Rules affected",
     "migrationRequired": "Migration required",
@@ -743,7 +743,7 @@
     "systemInfoDesc": "Core runtime metrics and registry counts.",
     "version": "Version",
     "uptime": "Uptime",
-    "schemas": "Registered Schemas",
+    "entities": "Registered Entities",
     "actions": "Registered Actions",
     "rules": "Registered Rules",
     "flows": "Registered Flows",
@@ -812,7 +812,7 @@
     "title": "Rules",
     "subtitle": "Business rule definitions — event-driven adjudicators that validate, block, enrich, or require approval.",
     "allTriggers": "All Triggers",
-    "allSchemas": "All Schemas",
+    "allEntities": "All Entities",
     "rulesCount": "rules",
     "noRules": "No rules registered.",
     "ruleNotFound": "Rule not found.",
@@ -920,12 +920,12 @@
   },
   "relationGraph": {
     "title": "Relation Graph",
-    "subtitle": "Interactive visualization of schema relationships defined via links.",
+    "subtitle": "Interactive visualization of entity relationships defined via links.",
     "navLabel": "Relation Graph",
     "noLinks": "No links registered.",
-    "noLinksDesc": "Define links between schemas using defineLink() to see the relationship graph.",
+    "noLinksDesc": "Define links between entities using defineLink() to see the relationship graph.",
     "loadFailed": "Failed to load graph data.",
-    "showInternal": "Show system schemas",
+    "showInternal": "Show system entities",
     "showSemantic": "Show semantic relations",
     "cardinalityLabels": {
       "one_to_one": "1:1",
@@ -934,7 +934,7 @@
       "many_to_many": "N:M"
     },
     "impact": {
-      "navigate": "Open schema list",
+      "navigate": "Open entity list",
       "outgoing": "Outgoing",
       "incoming": "Incoming",
       "noConnections": "No connections"

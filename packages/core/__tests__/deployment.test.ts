@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   createCacheCheck,
   createDatabaseCheck,
-  createEventBusCheck,
   createEntityCheck,
+  createEventBusCheck,
   detectEnvironment,
   GracefulShutdownManager,
   HealthCheckRegistry,

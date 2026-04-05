@@ -18,9 +18,9 @@ import type {
   ActionRegistry,
   Actor,
   CommandLayer,
+  EntityRegistry,
   OntologyRegistry,
   RuleDefinition,
-  EntityRegistry,
   StateDefinition,
 } from "@linchkit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

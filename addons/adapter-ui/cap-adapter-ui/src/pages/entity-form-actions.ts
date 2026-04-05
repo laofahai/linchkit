@@ -8,8 +8,8 @@
 import type { EntityDefinition } from "@linchkit/core/types";
 import { toast } from "@linchkit/ui-kit/components";
 import type { NavigateOptions } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
 import type { TFunction } from "i18next";
+import { useCallback, useState } from "react";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
 import type { StateTransitionInfo } from "../components/status-bar";
 import type { ResolvedEntityBundle } from "../hooks/use-entity-bundle";
@@ -23,10 +23,7 @@ import {
   transitionRecord,
   updateRecord,
 } from "../lib/api";
-import {
-  CLONE_STRIP_FIELDS,
-  getMutationReturnFields,
-} from "../lib/entity-form-utils";
+import { CLONE_STRIP_FIELDS, getMutationReturnFields } from "../lib/entity-form-utils";
 
 /** Transition descriptor from useTransitionPermissions */
 export interface TransitionInfo {
@@ -115,10 +112,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
   }
 
   const handleSubmit = useCallback(
-    async (
-      data: Record<string, unknown>,
-      enriched?: EnrichedSubmitData,
-    ): Promise<undefined> => {
+    async (data: Record<string, unknown>, enriched?: EnrichedSubmitData): Promise<undefined> => {
       if (!entityName) return;
       setSaving(true);
       try {
@@ -179,7 +173,9 @@ export function useFormActions(opts: UseFormActionsOptions) {
             // Find the FK column name from links
             const _link = bundle?.links?.find(
               (l) =>
-                (l.cardinality === "one_to_many" && l.from === entityName && l.to === targetSchema) ||
+                (l.cardinality === "one_to_many" &&
+                  l.from === entityName &&
+                  l.to === targetSchema) ||
                 (l.cardinality === "many_to_one" && l.to === entityName && l.from === targetSchema),
             );
             const fkColumn = `${entityName}_id`;
@@ -206,7 +202,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
 
         if (isCreate) {
           toast.success(t("toast.recordCreated", "Record created successfully"));
-          navigate({ to: "/schemas/$name", params: { name: entityName } });
+          navigate({ to: "/entities/$name", params: { name: entityName } });
         } else {
           toast.success(t("toast.recordUpdated", "Record updated successfully"));
           await fetchRecord();
@@ -286,7 +282,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
     try {
       await deleteRecord(entityName, recordId);
       toast.success(t("toast.recordDeleted", "Record deleted successfully"));
-      navigate({ to: "/schemas/$name", params: { name: entityName } });
+      navigate({ to: "/entities/$name", params: { name: entityName } });
     } catch (_err) {
       toast.error(t("toast.deleteFailed", "Failed to delete record"));
     } finally {
@@ -298,14 +294,14 @@ export function useFormActions(opts: UseFormActionsOptions) {
   const handleCancel = useCallback(() => {
     if (!entityName) return;
     if (isCreate) {
-      navigate({ to: "/schemas/$name", params: { name: entityName } });
+      navigate({ to: "/entities/$name", params: { name: entityName } });
     }
     // else: caller sets formMode to "view"
   }, [entityName, isCreate, navigate]);
 
   const handleBack = useCallback(() => {
     if (!entityName) return;
-    navigate({ to: "/schemas/$name", params: { name: entityName } });
+    navigate({ to: "/entities/$name", params: { name: entityName } });
   }, [entityName, navigate]);
 
   const handlePrint = useCallback(() => {

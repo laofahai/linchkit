@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   DataProvider,
-  OntologyRegistry,
   EntityDefinition,
   EntityRegistry,
+  OntologyRegistry,
 } from "@linchkit/core";
 import type { EntityDescriptor } from "@linchkit/core/server";
 import { buildTools } from "../src/ai/tools";

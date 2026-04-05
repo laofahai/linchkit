@@ -267,7 +267,7 @@ function RelatedRecordsList({
               ))}
               <td className="p-2">
                 <a
-                  href={`/schemas/${tab.relatedSchema}/${record.id}`}
+                  href={`/entities/${tab.relatedSchema}/${record.id}`}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <ExternalLink className="size-3.5" />

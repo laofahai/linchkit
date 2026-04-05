@@ -115,17 +115,22 @@ export const devCommand = defineCommand({
     );
 
     // ── Build registries (schema, action, link, interface, permission) + middleware wiring ──
-    const { entityRegistry, actionRegistry, relationRegistry, interfaceRegistry, permissionRegistry } =
-      await buildRegistries({
-        capabilities,
-        interfaces: collected.interfaces,
-        schemas: entities,
-        actions,
-        links,
-        middlewares,
-        registry,
-        environment,
-      });
+    const {
+      entityRegistry,
+      actionRegistry,
+      relationRegistry,
+      interfaceRegistry,
+      permissionRegistry,
+    } = await buildRegistries({
+      capabilities,
+      interfaces: collected.interfaces,
+      schemas: entities,
+      actions,
+      links,
+      middlewares,
+      registry,
+      environment,
+    });
 
     // ── Database setup ──
     const {

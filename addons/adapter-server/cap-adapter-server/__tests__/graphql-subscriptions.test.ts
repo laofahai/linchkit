@@ -3,7 +3,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import type { EventRecord, EntityDefinition } from "@linchkit/core";
+import type { EntityDefinition, EventRecord } from "@linchkit/core";
 import { createEventBus } from "@linchkit/core/server";
 import { type GraphQLObjectType, printSchema } from "graphql";
 import { clearEnumTypeCache } from "../src/graphql";

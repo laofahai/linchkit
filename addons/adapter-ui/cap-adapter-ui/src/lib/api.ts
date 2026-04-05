@@ -387,16 +387,16 @@ export async function requestAiAutoFill(params: {
   return json.data ?? { suggestions: {} };
 }
 
-// ── Schema metadata ─────────────────────────────────────
+// ── Entity metadata ─────────────────────────────────────
 
 /** Lightweight entity info for navigation (from GET /api/entities) */
 export interface EntityInfo {
   name: string;
   label?: string;
   description?: string;
-  /** Lucide icon name from schema presentation config */
+  /** Lucide icon name from entity presentation config */
   icon?: string;
-  /** True for system-internal schemas (read-only, managed by core) */
+  /** True for system-internal entities (read-only, managed by core) */
   internal?: boolean;
 }
 
@@ -415,7 +415,7 @@ export interface EntityBundle {
   views: Record<string, unknown>;
   states?: StateDefinition[];
   links?: RelationDefinition[];
-  /** True for system-internal schemas (read-only, managed by core) */
+  /** True for system-internal entities (read-only, managed by core) */
   internal?: boolean;
 }
 

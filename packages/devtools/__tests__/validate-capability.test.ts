@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
   defineAction,
   defineCapability,
-  defineRule,
   defineEntity,
+  defineRule,
   defineState,
   defineView,
 } from "@linchkit/core";

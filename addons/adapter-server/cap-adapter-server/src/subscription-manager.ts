@@ -42,8 +42,8 @@ export interface SubscriptionEvent {
 // ── Subscription filter ──────────────────────────────────────
 
 export interface SubscriptionFilter {
-  /** Schema names to subscribe to (empty = all accessible schemas) */
-  schemas: string[];
+  /** Entity names to subscribe to (empty = all accessible entities) */
+  entities: string[];
   /** Record IDs for fine-grained filtering (optional) */
   ids?: string[];
   /** Tenant ID for row-level isolation */
@@ -308,8 +308,8 @@ export class SubscriptionManager {
       return false;
     }
 
-    // Schema filter
-    if (filter.schemas.length > 0 && !filter.schemas.includes(event.entity)) {
+    // Entity filter
+    if (filter.entities.length > 0 && !filter.entities.includes(event.entity)) {
       return false;
     }
 
@@ -390,8 +390,8 @@ export class SubscriptionManager {
 export function parseSubscriptionQuery(
   query: Record<string, string | undefined>,
 ): SubscriptionFilter {
-  const schemas = query.schemas
-    ? query.schemas
+  const entities = query.entities
+    ? query.entities
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)
@@ -403,7 +403,7 @@ export function parseSubscriptionQuery(
         .filter(Boolean)
     : undefined;
 
-  return { schemas, ids: ids && ids.length > 0 ? ids : undefined };
+  return { entities, ids: ids && ids.length > 0 ? ids : undefined };
 }
 
 /**

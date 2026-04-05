@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@linchkit/ui-kit/components";
+import type { TFunction } from "i18next";
 import {
   ArrowLeft,
   Copy,
@@ -29,7 +30,6 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import type { TFunction } from "i18next";
 
 export interface EntityFormHeaderProps {
   t: TFunction;

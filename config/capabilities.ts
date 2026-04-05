@@ -6,8 +6,8 @@
  * Permission groups are declared by each capability, not here.
  */
 
-import { capAdapterServer } from "@linchkit/cap-adapter-server";
 import { createCapAdapterMcp } from "@linchkit/cap-adapter-mcp";
+import { capAdapterServer } from "@linchkit/cap-adapter-server";
 import { capAdapterUi } from "@linchkit/cap-adapter-ui";
 // import { createCapAuth } from "@linchkit/cap-auth";
 // import { capAuthBetterAuth } from "@linchkit/cap-auth-better-auth";

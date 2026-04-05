@@ -7,8 +7,8 @@
 
 import type { ConfigRegistry } from "../config/config-registry";
 import type { AIService } from "./ai";
-import type { Logger } from "./logger";
 import type { FieldDefinition } from "./entity";
+import type { Logger } from "./logger";
 
 // ── Actor types ──────────────────────────────────────
 

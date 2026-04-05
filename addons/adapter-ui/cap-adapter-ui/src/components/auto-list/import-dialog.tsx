@@ -11,7 +11,7 @@
  * - Download CSV template with schema field headers
  */
 
-import type { FieldDefinition, EntityDefinition } from "@linchkit/core/types";
+import type { EntityDefinition, FieldDefinition } from "@linchkit/core/types";
 import {
   Button,
   Dialog,
@@ -333,7 +333,7 @@ export function ImportDialog({ open, onOpenChange, schema, onImported }: ImportD
       formData.append("file", blob, "import.json");
       formData.append("format", "json");
 
-      const res = await fetch(`/api/schemas/${schema.name}/import`, {
+      const res = await fetch(`/api/entities/${schema.name}/import`, {
         method: "POST",
         body: formData,
       });

@@ -8,8 +8,8 @@
 import type {
   ActionDefinition,
   CapabilityDefinition,
-  FieldDefinition,
   EntityDefinition,
+  FieldDefinition,
 } from "@linchkit/core";
 
 // -- Types --------------------------------------------------------

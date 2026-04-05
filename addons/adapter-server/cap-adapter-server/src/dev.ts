@@ -10,10 +10,10 @@ import { resolve } from "node:path";
 import type {
   ActionDefinition,
   CapabilityDefinition,
-  RelationDefinition,
-  MiddlewareRegistration,
-  RuleDefinition,
   EntityDefinition,
+  MiddlewareRegistration,
+  RelationDefinition,
+  RuleDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
@@ -192,8 +192,14 @@ const graphqlSchema = buildGraphQLSchema(allEntities, {
   actions: customActions,
   links: capContributions.links,
   stateDefinitions: capContributions.states,
-  extraQueryFields: capContributions.extraQueryFields as Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>,
-  extraMutationFields: capContributions.extraMutationFields as Record<string, import("graphql").GraphQLFieldConfig<unknown, unknown>>,
+  extraQueryFields: capContributions.extraQueryFields as Record<
+    string,
+    import("graphql").GraphQLFieldConfig<unknown, unknown>
+  >,
+  extraMutationFields: capContributions.extraMutationFields as Record<
+    string,
+    import("graphql").GraphQLFieldConfig<unknown, unknown>
+  >,
 });
 
 const port = config.server?.port ?? 3001;

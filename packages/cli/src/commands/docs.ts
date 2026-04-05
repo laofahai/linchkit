@@ -13,18 +13,18 @@ import { writeFileSync } from "node:fs";
 import type {
   ActionDefinition,
   CapabilityDefinition,
+  EntityDefinition,
   LinchKitConfig,
   RelationDefinition,
   RuleDefinition,
-  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
 import {
   ActionRegistry,
   convertEntityRelationshipFieldsToImplicitRelations,
-  createRelationRegistry,
   createOntologyRegistry,
+  createRelationRegistry,
   EntityRegistry,
 } from "@linchkit/core/server";
 import {

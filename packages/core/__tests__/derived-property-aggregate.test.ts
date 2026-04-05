@@ -13,7 +13,6 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { InMemoryStore } from "../src/persistence/in-memory-store";
 import {
   type AggregateDerived,
   computeAggregate,
@@ -21,8 +20,9 @@ import {
   resolveAggregateValue,
 } from "../src/entity/derived-property";
 import { createRelationRegistry } from "../src/entity/relation-registry";
-import type { RelationDefinition } from "../src/types/relation";
+import { InMemoryStore } from "../src/persistence/in-memory-store";
 import type { EntityDefinition } from "../src/types/entity";
+import type { RelationDefinition } from "../src/types/relation";
 
 // ── computeAggregate ──────────────────────────────────────────
 

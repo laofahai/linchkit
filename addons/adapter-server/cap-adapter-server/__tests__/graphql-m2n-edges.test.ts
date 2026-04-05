@@ -7,7 +7,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import type { RelationDefinition, EntityDefinition } from "@linchkit/core";
+import type { EntityDefinition, RelationDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { clearEdgeTypeCache } from "../src/graphql/relation-resolvers";

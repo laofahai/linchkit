@@ -40,7 +40,7 @@
     "workspace": "工作台",
     "administration": "管理",
     "capabilities": "能力模块",
-    "schemas": "数据模型",
+    "entities": "数据模型",
     "events": "事件",
     "settings": "设置",
     "teams": "团队",
@@ -62,7 +62,7 @@
     "dataOverview": "数据概览",
     "quickActionsLabel": "快捷操作",
     "recentActivity": "最近活动",
-    "recentActivityDesc": "所有数据模型的最新操作记录。",
+    "recentActivityDesc": "所有实体的最新操作记录。",
     "viewAll": "查看全部"
   },
   "auth": {
@@ -129,7 +129,7 @@
     "placeholder": "搜索...",
     "noResults": "未找到结果。",
     "navigation": "导航",
-    "schemas": "数据模型",
+    "entities": "数据模型",
     "actions": "操作",
     "actionsComingSoon": "操作启动功能即将推出...",
     "preferences": "偏好设置",
@@ -250,9 +250,9 @@
     "zhCN": "中文"
   },
   "errors": {
-    "missingSchemaName": "URL 中未指定数据模型。",
-    "schemaLoadFailed": "加载数据模型「{{name}}」失败。",
-    "checkServer": "请检查服务器是否运行以及数据模型是否已注册。",
+    "missingSchemaName": "URL 中未指定实体。",
+    "schemaLoadFailed": "加载实体「{{name}}」失败。",
+    "checkServer": "请检查服务器是否运行以及实体是否已注册。",
     "dataLoadFailed": "加载数据失败。",
     "recordNotFound": "未找到记录「{{id}}」。",
     "recordLoadFailed": "加载记录失败。",
@@ -324,7 +324,7 @@
     "uptime": "运行时间",
     "runtime": "运行时",
     "platform": "平台",
-    "schemaCount": "数据模型",
+    "schemaCount": "实体",
     "capabilityCount": "能力模块",
     "autoRefresh": "每 {{seconds}} 秒自动刷新",
     "overall": {
@@ -635,7 +635,7 @@
   "stateMachines": {
     "title": "状态机",
     "subtitle": "已注册的状态机定义 — 业务对象生命周期管理。",
-    "allSchemas": "全部数据模型",
+    "allEntities": "全部实体",
     "machineCount": "个状态机",
     "noMachines": "暂无已注册的状态机。",
     "states": "个状态",
@@ -661,7 +661,7 @@
     "processing": "处理中...",
     "analyzing": "正在分析您的查询...",
     "resultTitle": "AI 搜索结果",
-    "selectSchema": "选择要搜索的数据模型",
+    "selectSchema": "选择要搜索的实体",
     "searchIn": "在 {{schema}} 中搜索",
     "paletteAction": "AI 搜索 — 自然语言筛选",
     "palettePlaceholder": "描述您要查找的内容...",
@@ -677,7 +677,7 @@
     "changes": "变更内容",
     "changeCount": "项变更",
     "impact": "影响分析",
-    "schemasAffected": "影响的 Schema",
+    "entitiesAffected": "影响的实体",
     "actionsAffected": "影响的 Action",
     "rulesAffected": "影响的 Rule",
     "migrationRequired": "需要数据库迁移",
@@ -743,7 +743,7 @@
     "systemInfoDesc": "核心运行时指标和注册表计数。",
     "version": "版本",
     "uptime": "运行时间",
-    "schemas": "已注册模型",
+    "entities": "已注册实体",
     "actions": "已注册操作",
     "rules": "已注册规则",
     "flows": "已注册工作流",
@@ -812,7 +812,7 @@
     "title": "规则",
     "subtitle": "业务规则定义 — 事件驱动的裁决器，用于验证、拦截、数据补充或要求审批。",
     "allTriggers": "全部触发器",
-    "allSchemas": "全部模型",
+    "allEntities": "全部实体",
     "rulesCount": "条规则",
     "noRules": "暂无已注册的规则。",
     "ruleNotFound": "规则未找到。",
@@ -920,12 +920,12 @@
   },
   "relationGraph": {
     "title": "关系图谱",
-    "subtitle": "以交互式图形展示通过 Links 定义的 Schema 关系。",
+    "subtitle": "以交互式图形展示通过 Links 定义的实体关系。",
     "navLabel": "关系图谱",
     "noLinks": "暂无已注册的链接。",
-    "noLinksDesc": "使用 defineLink() 定义 Schema 之间的关系，即可在此处查看关系图谱。",
+    "noLinksDesc": "使用 defineLink() 定义实体之间的关系，即可在此处查看关系图谱。",
     "loadFailed": "图谱数据加载失败。",
-    "showInternal": "显示系统 Schema",
+    "showInternal": "显示系统实体",
     "showSemantic": "显示语义关系",
     "cardinalityLabels": {
       "one_to_one": "1:1",
@@ -934,7 +934,7 @@
       "many_to_many": "N:M"
     },
     "impact": {
-      "navigate": "打开 Schema 列表",
+      "navigate": "打开实体列表",
       "outgoing": "输出关系",
       "incoming": "输入关系",
       "noConnections": "无关联"

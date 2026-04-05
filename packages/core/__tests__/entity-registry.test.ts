@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { createEntityRegistry } from "../src/entity/entity-registry";
 import type {
-  FieldDefinition,
   EntityDefinition,
   EntityExtension,
   EntityOverride,
+  FieldDefinition,
 } from "../src/types/entity";
 
 // ── Test fixtures ───────────────────────────────────────

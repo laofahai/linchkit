@@ -7,8 +7,8 @@ import { runMigrations } from "@linchkit/cap-migration";
 import type {
   ConfigRegistry,
   DataProvider,
-  RelationDefinition,
   EntityDefinition,
+  RelationDefinition,
 } from "@linchkit/core";
 import { databaseConfig } from "@linchkit/core";
 import {

@@ -10,11 +10,11 @@ export {
   type ApiDocGeneratorOptions,
   actionToDoc,
   type EntityDoc,
+  entityToDoc,
   type FieldDoc,
   fieldToDoc,
   generateApiDoc,
   type SystemDoc,
-  entityToDoc,
 } from "./api-doc-generator";
 
 export {

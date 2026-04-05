@@ -27,11 +27,11 @@ import { AIInsightsPanel } from "@/components/ai-insights-panel";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
 import {
+  type EntityInfo,
   type ExecutionLogEntry,
   fetchEntityBundle,
   graphql,
   queryExecutionLogs,
-  type EntityInfo,
 } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 import { getStateBadgeClass } from "@/lib/state-colors";
@@ -42,7 +42,7 @@ import { getStateBadgeClass } from "@/lib/state-colors";
 type StateBreakdown = Record<string, number>;
 
 /** Aggregated summary data for a schema */
-interface SchemaSummary {
+interface EntitySummary {
   total: number;
   stateBreakdown: StateBreakdown;
   recentCount: number;
@@ -67,18 +67,18 @@ function toCamelCase(name: string): string {
 // ── Data fetching ────────────────────────────────────────
 
 /**
- * Fetch record counts + state breakdown for all schemas.
+ * Fetch record counts + state breakdown for all entities.
  * Uses batched GraphQL queries to minimize round-trips.
  */
-async function fetchSchemaSummaries(
-  schemas: EntityInfo[],
+async function fetchEntitySummaries(
+  entities: EntityInfo[],
   logs: ExecutionLogEntry[],
-): Promise<Record<string, SchemaSummary>> {
-  if (schemas.length === 0) return {};
+): Promise<Record<string, EntitySummary>> {
+  if (entities.length === 0) return {};
 
-  // Step 1: Detect which schemas have state fields by fetching bundles
+  // Step 1: Detect which entities have state fields by fetching bundles
   const stateFields = new Map<string, { fieldName: string; states?: StateDefinition[] }>();
-  const bundlePromises = schemas.map(async (s) => {
+  const bundlePromises = entities.map(async (s) => {
     try {
       const bundle = await fetchEntityBundle(s.name);
       if (!bundle) return;
@@ -90,14 +90,14 @@ async function fetchSchemaSummaries(
         }
       }
     } catch {
-      // Ignore — schema will have no state breakdown
+      // Ignore — entity will have no state breakdown
     }
   });
   await Promise.all(bundlePromises);
 
-  // Step 2: Batched query for totals (all schemas) + state values (schemas with state fields)
+  // Step 2: Batched query for totals (all entities) + state values (entities with state fields)
   const queryParts: string[] = [];
-  for (const s of schemas) {
+  for (const s of entities) {
     const alias = toCamelCase(s.name);
     const _stateInfo = stateFields.get(s.name);
     // Only fetch total count — state breakdown should be a server-side
@@ -119,13 +119,13 @@ async function fetchSchemaSummaries(
   }
 
   // Step 4: Execute query and build summaries
-  const summaries: Record<string, SchemaSummary> = {};
+  const summaries: Record<string, EntitySummary> = {};
   try {
     const res =
       await graphql<Record<string, { total: number; items?: Record<string, string>[] }>>(query);
     if (res.errors) {
       // Fallback: return empty summaries
-      for (const s of schemas) {
+      for (const s of entities) {
         summaries[s.name] = {
           total: 0,
           stateBreakdown: {},
@@ -135,7 +135,7 @@ async function fetchSchemaSummaries(
       return summaries;
     }
 
-    for (const s of schemas) {
+    for (const s of entities) {
       const alias = toCamelCase(s.name);
       const data = res.data?.[alias];
       const total = data?.total ?? 0;
@@ -160,7 +160,7 @@ async function fetchSchemaSummaries(
       };
     }
   } catch {
-    for (const s of schemas) {
+    for (const s of entities) {
       summaries[s.name] = { total: 0, stateBreakdown: {}, recentCount: recentCounts[s.name] ?? 0 };
     }
   }
@@ -280,15 +280,15 @@ function StateBreakdownBadges({
   );
 }
 
-// ── Schema Summary Cards ─────────────────────────────────
+// ── Entity Summary Cards ─────────────────────────────────
 
-function SchemaSummaryCards({
-  schemas,
+function EntitySummaryCards({
+  entities,
   summaries,
   loading,
 }: {
-  schemas: EntityInfo[];
-  summaries: Record<string, SchemaSummary>;
+  entities: EntityInfo[];
+  summaries: Record<string, EntitySummary>;
   loading: boolean;
 }) {
   const { t } = useTranslation();
@@ -315,7 +315,7 @@ function SchemaSummaryCards({
     );
   }
 
-  if (schemas.length === 0) {
+  if (entities.length === 0) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -327,7 +327,7 @@ function SchemaSummaryCards({
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {schemas.map((schema) => {
+      {entities.map((schema) => {
         const label = resolveLabel(schema.label, schema.name);
         const summary = summaries[schema.name];
         const total = summary?.total ?? 0;
@@ -335,16 +335,16 @@ function SchemaSummaryCards({
         const stateBreakdown = summary?.stateBreakdown ?? {};
         const hasStates = Object.keys(stateBreakdown).length > 0;
 
-        // Resolve schema icon
-        const SchemaIcon = getLucideIcon(schema.icon) ?? Database;
+        // Resolve entity icon
+        const EntityIcon = getLucideIcon(schema.icon) ?? Database;
 
         return (
-          <Link key={schema.name} to="/schemas/$name" params={{ name: schema.name }}>
+          <Link key={schema.name} to="/entities/$name" params={{ name: schema.name }}>
             <Card className="transition-colors hover:bg-accent/50 cursor-pointer h-full">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <SchemaIcon className="h-4 w-4 text-primary" />
+                    <EntityIcon className="h-4 w-4 text-primary" />
                   </div>
                   <CardTitle className="text-sm font-medium">{label}</CardTitle>
                 </div>
@@ -382,18 +382,18 @@ function SchemaSummaryCards({
 
 // ── Quick Actions ───────────────────────────────────────
 
-function QuickActions({ schemas }: { schemas: EntityInfo[] }) {
+function QuickActions({ entities }: { entities: EntityInfo[] }) {
   const { t } = useTranslation();
   const { resolveLabel } = useEntityLabel();
 
-  if (schemas.length === 0) return null;
+  if (entities.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2">
-      {schemas.map((schema) => {
+      {entities.map((schema) => {
         const label = resolveLabel(schema.label, schema.name);
         return (
-          <Link key={schema.name} to="/schemas/$name/new" params={{ name: schema.name }}>
+          <Link key={schema.name} to="/entities/$name/new" params={{ name: schema.name }}>
             <Badge
               variant="secondary"
               className="cursor-pointer gap-1 px-3 py-1.5 text-sm transition-colors hover:bg-accent"
@@ -440,8 +440,8 @@ function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading:
   return (
     <div className="space-y-3">
       {logs.map((log) => {
-        const schemaLabel = log.entity
-          ? t(`schemas.${log.entity}._label`, { defaultValue: "" }) || log.entity
+        const entityLabel = log.entity
+          ? t(`entities.${log.entity}._label`, { defaultValue: "" }) || log.entity
           : "";
 
         return (
@@ -455,9 +455,9 @@ function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading:
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium">{log.action}</span>
-                {schemaLabel && (
+                {entityLabel && (
                   <Badge variant="outline" className="text-xs">
-                    {schemaLabel}
+                    {entityLabel}
                   </Badge>
                 )}
                 <StatusBadge status={log.status} />
@@ -490,12 +490,12 @@ function RecentActivity({ logs, loading }: { logs: ExecutionLogEntry[]; loading:
 
 // ── Workspace Page ──────────────────────────────────────
 
-/** Workspace page — data-driven dashboard with schema stats and recent activity */
+/** Workspace page — data-driven dashboard with entity stats and recent activity */
 export function WorkspacePage() {
   const { t } = useTranslation();
-  const { schemas, loading: schemasLoading } = useEntities();
+  const { entities, loading: entitiesLoading } = useEntities();
 
-  const [summaries, setSummaries] = useState<Record<string, SchemaSummary>>({});
+  const [summaries, setSummaries] = useState<Record<string, EntitySummary>>({});
   const [summariesLoading, setSummariesLoading] = useState(true);
 
   const [logs, setLogs] = useState<ExecutionLogEntry[]>([]);
@@ -513,18 +513,18 @@ export function WorkspacePage() {
       .finally(() => setLogsLoading(false));
   }, []);
 
-  // Fetch schema summaries (counts + state breakdown + recent activity)
-  // Depends on both schemas and logs being ready
+  // Fetch entity summaries (counts + state breakdown + recent activity)
+  // Depends on both entities and logs being ready
   useEffect(() => {
-    if (schemasLoading || logsLoading) return;
+    if (entitiesLoading || logsLoading) return;
     if (summariesFetchedRef.current) return;
     summariesFetchedRef.current = true;
 
     setSummariesLoading(true);
-    fetchSchemaSummaries(schemas, logs)
+    fetchEntitySummaries(entities, logs)
       .then(setSummaries)
       .finally(() => setSummariesLoading(false));
-  }, [schemas, schemasLoading, logs, logsLoading]);
+  }, [entities, entitiesLoading, logs, logsLoading]);
 
   return (
     <div className="space-y-6 p-4">
@@ -534,25 +534,25 @@ export function WorkspacePage() {
         <p className="mt-1 text-sm text-muted-foreground">{t("workspace.subtitle")}</p>
       </div>
 
-      {/* Schema summary cards */}
+      {/* Entity summary cards */}
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">
           {t("workspace.dataOverview")}
         </h2>
-        <SchemaSummaryCards
-          schemas={schemas}
+        <EntitySummaryCards
+          entities={entities}
           summaries={summaries}
-          loading={schemasLoading || summariesLoading}
+          loading={entitiesLoading || summariesLoading}
         />
       </section>
 
       {/* Quick actions */}
-      {schemas.length > 0 && (
+      {entities.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-medium text-muted-foreground">
             {t("workspace.quickActionsLabel")}
           </h2>
-          <QuickActions schemas={schemas} />
+          <QuickActions entities={entities} />
         </section>
       )}
 
@@ -573,7 +573,7 @@ export function WorkspacePage() {
                 </CardDescription>
               </div>
               <Link
-                to={"/schemas/execution_log" as "/"}
+                to={"/entities/execution_log" as "/"}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {t("workspace.viewAll")}

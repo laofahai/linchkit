@@ -91,7 +91,7 @@ interface CapabilityDetail {
   type: string;
   label?: string;
   description?: string;
-  schemas: number;
+  entities: number;
   actions: number;
   rules: number;
   flows: number;
@@ -118,7 +118,7 @@ const REFRESH_INTERVAL_MS = 30_000;
 const CHECK_ICONS: Record<string, React.ReactNode> = {
   liveness: <HeartIcon className="size-4" />,
   database: <DatabaseIcon className="size-4" />,
-  schemas: <LayersIcon className="size-4" />,
+  entities: <LayersIcon className="size-4" />,
   eventbus: <RadioIcon className="size-4" />,
   cache: <HardDriveIcon className="size-4" />,
 };
@@ -261,7 +261,7 @@ export function SystemOverviewPage() {
   if (uptimeStr) kpis.push({ label: t("health.uptime"), value: uptimeStr });
   if (platform) kpis.push({ label: t("health.platform"), value: platform, small: true });
   if (gen) {
-    kpis.push({ label: t("settings.schemas"), value: String(gen.registeredSchemas) });
+    kpis.push({ label: t("settings.entities"), value: String(gen.registeredSchemas) });
     kpis.push({ label: t("settings.actions"), value: String(gen.registeredActions) });
     kpis.push({ label: t("settings.rules"), value: String(gen.registeredRules) });
     kpis.push({ label: t("settings.flows"), value: String(gen.registeredFlows) });
@@ -430,7 +430,7 @@ export function SystemOverviewPage() {
                 <p className="text-sm text-muted-foreground">{selectedCap.description}</p>
               )}
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <StatRow label={t("settings.schemas")} value={selectedCap.schemas} />
+                <StatRow label={t("settings.entities")} value={selectedCap.entities} />
                 <StatRow label={t("settings.actions")} value={selectedCap.actions} />
                 <StatRow label={t("settings.rules")} value={selectedCap.rules} />
                 <StatRow label={t("settings.flows")} value={selectedCap.flows} />

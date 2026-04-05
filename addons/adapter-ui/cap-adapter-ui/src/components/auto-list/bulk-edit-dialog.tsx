@@ -9,7 +9,7 @@
  * - Summary on completion: X updated, Y failed
  */
 
-import type { FieldDefinition, EntityDefinition } from "@linchkit/core/types";
+import type { EntityDefinition, FieldDefinition } from "@linchkit/core/types";
 import {
   Button,
   Checkbox,

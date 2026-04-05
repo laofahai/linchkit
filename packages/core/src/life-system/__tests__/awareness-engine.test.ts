@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { OntologyRegistry, EntityDescriptor } from "../../ontology/ontology-registry";
+import type { EntityDescriptor, OntologyRegistry } from "../../ontology/ontology-registry";
 import type { SensorSignal } from "../../types/life-system";
 import { createAwarenessEngine } from "../awareness-engine";
 

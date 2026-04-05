@@ -6,8 +6,8 @@
  */
 
 import type { DataProvider } from "../engine/action-engine";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { RelationDefinition, RelationRegistryInterface } from "../types/relation";
-import type { FieldDefinition, EntityDefinition } from "../types/entity";
 import { resolveAggregateValue } from "./aggregate-engine";
 import { tokenize } from "./expression-parser";
 import { type DerivedConfig, resolveDerivedValue } from "./safe-evaluator";
@@ -121,7 +121,10 @@ export class DerivedPropertyEngine {
    * Wire the engine with a link registry and data provider for aggregate support.
    * Call this after register() once the link registry and data provider are available.
    */
-  wire(options: { relationRegistry?: RelationRegistryInterface; dataProvider?: DataProvider }): void {
+  wire(options: {
+    relationRegistry?: RelationRegistryInterface;
+    dataProvider?: DataProvider;
+  }): void {
     this.relationRegistry = options.relationRegistry;
     this.dataProvider = options.dataProvider;
     // Rebuild cascade map now that we have the link registry

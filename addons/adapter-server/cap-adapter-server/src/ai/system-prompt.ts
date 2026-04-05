@@ -8,7 +8,7 @@
  * 4. Available entities overview
  */
 
-import type { AIAssistantConfig, OntologyRegistry, EntityRegistry } from "@linchkit/core";
+import type { AIAssistantConfig, EntityRegistry, OntologyRegistry } from "@linchkit/core";
 
 export interface SystemPromptContext {
   /** Current entity name the user is viewing */

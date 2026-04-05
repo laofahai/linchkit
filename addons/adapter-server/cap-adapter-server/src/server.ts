@@ -16,6 +16,8 @@ import type {
   CommandLayer,
   ConfigStore,
   DataProvider,
+  EntityDefinition,
+  EntityRegistry,
   EventBus,
   ExecutionLogger,
   FlowDefinition,
@@ -25,8 +27,6 @@ import type {
   PermissionGroupDefinition,
   RuleDefinition,
   RuntimeConfigRegistry,
-  EntityDefinition,
-  EntityRegistry,
   StateDefinition,
   SubscriptionConfig,
   ViewDefinition,
@@ -48,8 +48,8 @@ import { mountAIRoutes } from "./routes/ai-api";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
-import { mountImportRoutes } from "./routes/import-api";
 import { mountEntityRoutes } from "./routes/entity-api";
+import { mountImportRoutes } from "./routes/import-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
 
@@ -186,7 +186,9 @@ export function createServer(
           ? createTenantAwareDataProvider(dataProvider, tenantId)
           : dataProvider;
       // Create per-request DataLoaders for batched link resolution (avoids N+1)
-      const relationLoaders = scopedProvider ? createRelationDataLoaders(scopedProvider) : undefined;
+      const relationLoaders = scopedProvider
+        ? createRelationDataLoaders(scopedProvider)
+        : undefined;
       return {
         actor,
         tenantId,

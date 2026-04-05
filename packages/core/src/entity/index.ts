@@ -21,7 +21,6 @@ export {
   resolveAggregateValue,
   resolveDerivedValue,
 } from "./derived-property";
-export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
 export { createEntityRegistry, EntityRegistry } from "./entity-registry";
 export {
   type DrizzleGeneratorOptions,
@@ -30,6 +29,7 @@ export {
   type RelationColumnsResult,
 } from "./entity-to-drizzle";
 export { generateZodSchema, type ZodGeneratorOptions } from "./entity-to-zod";
+export { generateDrizzleSchemaFile } from "./generate-drizzle-schema";
 export {
   createTranslatableValue,
   getTranslatableFields,

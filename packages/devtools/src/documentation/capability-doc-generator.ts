@@ -294,7 +294,9 @@ export function renderCapabilityDoc(doc: CapabilitySpecDoc): string {
     lines.push("");
     for (const rel of doc.relations) {
       const label = rel.label ? ` (${rel.label.from ?? rel.to} / ${rel.label.to ?? rel.from})` : "";
-      lines.push(`- **${rel.relationName}**: ${rel.from} -> ${rel.to} (${rel.cardinality})${label}`);
+      lines.push(
+        `- **${rel.relationName}**: ${rel.from} -> ${rel.to} (${rel.cardinality})${label}`,
+      );
     }
     lines.push("");
   }

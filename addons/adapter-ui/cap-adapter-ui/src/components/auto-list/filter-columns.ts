@@ -5,7 +5,7 @@
  * options / min / max from field definitions + data.
  */
 
-import type { EnumField, FieldDefinition, EntityDefinition, StateMeta } from "@linchkit/core/types";
+import type { EntityDefinition, EnumField, FieldDefinition, StateMeta } from "@linchkit/core/types";
 import type { LucideIcon } from "lucide-react";
 import { CalendarIcon, HashIcon, ListIcon, TextIcon, ToggleLeftIcon, TypeIcon } from "lucide-react";
 import { createColumnConfigHelper } from "../data-table-filter/core/filters";

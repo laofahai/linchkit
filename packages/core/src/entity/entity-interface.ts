@@ -18,10 +18,10 @@
  */
 
 import type {
+  EntityDefinition,
   FieldDefinition,
   InterfaceDefinition,
   InterfaceStateTemplate,
-  EntityDefinition,
 } from "../types/entity";
 import type { StateDefinition } from "../types/state";
 

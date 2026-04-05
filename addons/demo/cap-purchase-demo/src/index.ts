@@ -15,12 +15,12 @@ export {
   notifyHighPrioritySubmission,
 } from "./automations/purchase-status";
 export { capPurchaseDemo } from "./capability";
-export { purchaseApprovalFlow } from "./flows/purchase-approval";
-export { auditableInterface } from "./interfaces/auditable";
-export { requestToDepartment, requestToItems } from "./relations";
 export { departmentEntity } from "./entities/department";
 export { purchaseItemEntity } from "./entities/purchase-item";
 export { purchaseRequestEntity } from "./entities/purchase-request";
+export { purchaseApprovalFlow } from "./flows/purchase-approval";
+export { auditableInterface } from "./interfaces/auditable";
+export { requestToDepartment, requestToItems } from "./relations";
 export { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 export { purchaseRequestState } from "./states/purchase-request";
 export { purchaseRequestFormView } from "./views/form";

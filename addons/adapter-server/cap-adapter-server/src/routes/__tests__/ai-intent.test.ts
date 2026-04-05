@@ -11,7 +11,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
-import { createActionExecutor, InMemoryStore, EntityRegistry } from "@linchkit/core/server";
+import { createActionExecutor, EntityRegistry, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../../graphql/build-schema";
 import { createServer } from "../../server";
 

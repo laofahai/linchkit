@@ -5,8 +5,8 @@
 import { describe, expect, test } from "bun:test";
 import { buildActionChain, createExtensionResolver } from "../src/capability/extension-resolver";
 import type { ActionContext, ActionDefinition } from "../src/types/action";
-import type { RuleDefinition } from "../src/types/rule";
 import type { EntityDefinition } from "../src/types/entity";
+import type { RuleDefinition } from "../src/types/rule";
 
 // ── Helpers ──────────────────────────────────────────────
 

@@ -10,10 +10,10 @@ import type {
   ActionDefinition,
   AutomationDefinition,
   CapabilityDefinition,
+  EntityDefinition,
   InterfaceDefinition,
   LinchKitConfig,
   RelationDefinition,
-  EntityDefinition,
 } from "@linchkit/core";
 import { createInterfaceRegistry, validateTranslatableEntity } from "@linchkit/core";
 import {

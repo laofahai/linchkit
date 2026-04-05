@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { createOntologyRegistry } from "../src/ontology/ontology-registry";
 import { createInterfaceRegistry } from "../src/entity/entity-interface";
 import { createEntityRegistry } from "../src/entity/entity-registry";
-import type { InterfaceDefinition, EntityDefinition } from "../src/types/entity";
+import { createOntologyRegistry } from "../src/ontology/ontology-registry";
+import type { EntityDefinition, InterfaceDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 
 // ── Test fixtures ───────────────────────────────────────

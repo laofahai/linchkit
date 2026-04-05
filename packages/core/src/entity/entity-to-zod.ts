@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import type { FieldDefinition, EntityDefinition } from "../types/entity";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import { TRANSLATABLE_FIELD_TYPES } from "./translatable";
 
 export interface ZodGeneratorOptions {

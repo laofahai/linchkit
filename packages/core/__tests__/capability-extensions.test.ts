@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { GraphQLNonNull, GraphQLString } from "graphql";
 import { defineCapability } from "@linchkit/core";
+import { GraphQLNonNull, GraphQLString } from "graphql";
 
 describe("CapabilityDefinition extensions", () => {
   test("accepts group field", () => {

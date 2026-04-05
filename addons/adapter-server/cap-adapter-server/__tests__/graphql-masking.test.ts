@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type {
   Actor,
-  RelationDefinition,
-  PermissionGroupDefinition,
   EntityDefinition,
+  PermissionGroupDefinition,
+  RelationDefinition,
 } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { graphql } from "graphql";

@@ -55,41 +55,41 @@ function createMockConnection() {
 // ── parseSubscriptionQuery ───────────────────────────────────
 
 describe("parseSubscriptionQuery", () => {
-  test("parses comma-separated schemas", () => {
+  test("parses comma-separated entities", () => {
     const filter = parseSubscriptionQuery({
-      schemas: "task,purchase_request",
+      entities: "task,purchase_request",
     });
-    expect(filter.schemas).toEqual(["task", "purchase_request"]);
+    expect(filter.entities).toEqual(["task", "purchase_request"]);
     expect(filter.ids).toBeUndefined();
   });
 
-  test("parses schemas and ids", () => {
+  test("parses entities and ids", () => {
     const filter = parseSubscriptionQuery({
-      schemas: "task",
+      entities: "task",
       ids: "task-1,task-2",
     });
-    expect(filter.schemas).toEqual(["task"]);
+    expect(filter.entities).toEqual(["task"]);
     expect(filter.ids).toEqual(["task-1", "task-2"]);
   });
 
-  test("returns empty schemas for missing param", () => {
+  test("returns empty entities for missing param", () => {
     const filter = parseSubscriptionQuery({});
-    expect(filter.schemas).toEqual([]);
+    expect(filter.entities).toEqual([]);
     expect(filter.ids).toBeUndefined();
   });
 
-  test("trims whitespace from schema names", () => {
+  test("trims whitespace from entity names", () => {
     const filter = parseSubscriptionQuery({
-      schemas: " task , order ",
+      entities: " task , order ",
     });
-    expect(filter.schemas).toEqual(["task", "order"]);
+    expect(filter.entities).toEqual(["task", "order"]);
   });
 
   test("filters out empty segments", () => {
     const filter = parseSubscriptionQuery({
-      schemas: "task,,order,",
+      entities: "task,,order,",
     });
-    expect(filter.schemas).toEqual(["task", "order"]);
+    expect(filter.entities).toEqual(["task", "order"]);
   });
 });
 
@@ -163,7 +163,7 @@ describe("SubscriptionManager", () => {
       const connId = manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: mock.push,
         close: mock.close,
       });
@@ -182,7 +182,7 @@ describe("SubscriptionManager", () => {
         const id = manager.addConnection({
           userId: "user-1",
           actor: { type: "user", id: "user-1", groups: [] },
-          filter: { schemas: [] },
+          filter: { entities: [] },
           push: mocks[i].push,
           close: mocks[i].close,
         });
@@ -193,7 +193,7 @@ describe("SubscriptionManager", () => {
       const id = manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mocks[3].push,
         close: mocks[3].close,
       });
@@ -208,14 +208,14 @@ describe("SubscriptionManager", () => {
       const id1 = manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock1.push,
         close: mock1.close,
       });
       const id2 = manager.addConnection({
         userId: "user-2",
         actor: { type: "user", id: "user-2", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock2.push,
         close: mock2.close,
       });
@@ -236,7 +236,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: mock.push,
         close: mock.close,
       });
@@ -248,12 +248,12 @@ describe("SubscriptionManager", () => {
       expect(mock.events[0]?.entity).toBe("task");
     });
 
-    test("filters out events for non-subscribed schemas", async () => {
+    test("filters out events for non-subscribed entities", async () => {
       const mock = createMockConnection();
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: mock.push,
         close: mock.close,
       });
@@ -264,12 +264,12 @@ describe("SubscriptionManager", () => {
       expect(mock.events.length).toBe(0);
     });
 
-    test("delivers all schema events when schemas filter is empty", async () => {
+    test("delivers all entity events when entities filter is empty", async () => {
       const mock = createMockConnection();
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -286,7 +286,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"], ids: ["task-1"] },
+        filter: { entities: ["task"], ids: ["task-1"] },
         push: mock.push,
         close: mock.close,
       });
@@ -304,7 +304,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"], tenantId: "tenant-a" },
+        filter: { entities: ["task"], tenantId: "tenant-a" },
         push: mock.push,
         close: mock.close,
       });
@@ -326,7 +326,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -342,7 +342,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -358,7 +358,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -374,7 +374,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -402,7 +402,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -418,7 +418,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -439,7 +439,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -459,7 +459,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -483,7 +483,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -506,7 +506,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -529,7 +529,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -557,7 +557,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: slowPush,
         close: mock.close,
       });
@@ -589,7 +589,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: failingPush,
         close: mock.close,
       });
@@ -616,14 +616,14 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: mock1.push,
         close: mock1.close,
       });
       manager.addConnection({
         userId: "user-2",
         actor: { type: "user", id: "user-2", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: mock2.push,
         close: mock2.close,
       });
@@ -642,14 +642,14 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: ["task"] },
+        filter: { entities: ["task"] },
         push: taskMock.push,
         close: taskMock.close,
       });
       manager.addConnection({
         userId: "user-2",
         actor: { type: "user", id: "user-2", groups: [] },
-        filter: { schemas: ["order"] },
+        filter: { entities: ["order"] },
         push: orderMock.push,
         close: orderMock.close,
       });
@@ -672,14 +672,14 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock1.push,
         close: mock1.close,
       });
       manager.addConnection({
         userId: "user-2",
         actor: { type: "user", id: "user-2", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock2.push,
         close: mock2.close,
       });
@@ -696,7 +696,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -734,7 +734,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] }, // subscribe to all
+        filter: { entities: [] }, // subscribe to all
         push: mock.push,
         close: mock.close,
       });
@@ -757,7 +757,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: mock.push,
         close: mock.close,
       });
@@ -782,7 +782,7 @@ describe("SubscriptionManager", () => {
       manager.addConnection({
         userId: "user-1",
         actor: { type: "user", id: "user-1", groups: [] },
-        filter: { schemas: [] },
+        filter: { entities: [] },
         push: failingPush,
         close: mock.close,
       });

@@ -21,9 +21,9 @@ import {
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import { type CapabilityManifest, createCapabilityHub } from "@linchkit/core";
 import {
-  createRelationRegistry,
-  createOntologyRegistry,
   createEntityRegistry,
+  createOntologyRegistry,
+  createRelationRegistry,
 } from "@linchkit/core/server";
 import {
   generateApiDoc,

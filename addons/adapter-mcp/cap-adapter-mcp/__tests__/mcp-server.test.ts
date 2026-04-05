@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
-import { defineAction, defineRule, defineEntity, defineState } from "@linchkit/core";
+import { defineAction, defineEntity, defineRule, defineState } from "@linchkit/core";
 import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
@@ -533,7 +533,7 @@ describe("createMcpAdapter — query proxy security", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () =>
       new Response(
-        JSON.stringify({ errors: [{ message: "Syntax Error: Expected Name, found \"{\"" }] }),
+        JSON.stringify({ errors: [{ message: 'Syntax Error: Expected Name, found "{"' }] }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
 

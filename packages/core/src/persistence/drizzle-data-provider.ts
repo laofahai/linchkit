@@ -15,17 +15,17 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DataProvider, DataQueryOptions } from "../engine/action-engine";
 import {
+  getTranslatableFields,
+  normalizeTranslatableValue,
+  resolveTranslatableValue,
+} from "../entity/translatable";
+import {
   ConflictError,
   LinchKitError,
   NotFoundError,
   SystemError,
   ValidationError,
 } from "../errors";
-import {
-  getTranslatableFields,
-  normalizeTranslatableValue,
-  resolveTranslatableValue,
-} from "../entity/translatable";
 import type { EntityDefinition } from "../types/entity";
 import type { TableRegistry } from "./table-registry";
 

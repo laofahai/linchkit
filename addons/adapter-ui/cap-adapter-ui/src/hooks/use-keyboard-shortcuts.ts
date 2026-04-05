@@ -52,11 +52,11 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         // Skip when typing in an input field
         if (isEditableElement(document.activeElement)) return;
 
-        const match = window.location.pathname.match(/^\/schemas\/([^/]+)$/);
+        const match = window.location.pathname.match(/^\/entities\/([^/]+)$/);
         if (match) {
           e.preventDefault();
           const entityName = match[1];
-          window.history.pushState({}, "", `/schemas/${entityName}/new`);
+          window.history.pushState({}, "", `/entities/${entityName}/new`);
           window.dispatchEvent(new PopStateEvent("popstate"));
         }
         return;

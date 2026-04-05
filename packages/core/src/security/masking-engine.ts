@@ -12,13 +12,13 @@
 
 import { createHash } from "node:crypto";
 import type { Actor } from "../types/action";
-import type { PermissionGroupDefinition } from "../types/permission";
 import type {
+  EntityDefinition,
   FieldDefinition,
   MaskingConfig,
   MaskingStrategy,
-  EntityDefinition,
 } from "../types/entity";
+import type { PermissionGroupDefinition } from "../types/permission";
 
 // ── Constants ────────────────────────────────────────────────
 

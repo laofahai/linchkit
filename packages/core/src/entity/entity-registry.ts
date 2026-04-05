@@ -9,12 +9,12 @@
  */
 
 import type {
-  FieldDefinition,
-  ResolvedField,
-  ResolvedEntity,
   EntityDefinition,
   EntityExtension,
   EntityOverride,
+  FieldDefinition,
+  ResolvedEntity,
+  ResolvedField,
 } from "../types/entity";
 import type { InterfaceRegistry } from "./entity-interface";
 

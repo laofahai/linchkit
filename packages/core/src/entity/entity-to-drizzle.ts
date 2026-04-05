@@ -17,8 +17,8 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { RelationDefinition } from "../types/relation";
-import type { FieldDefinition, EntityDefinition } from "../types/entity";
 
 export interface DrizzleGeneratorOptions {
   /** Table name prefix (e.g., for multi-tenancy) */
@@ -60,7 +60,11 @@ export function convertEntityRelationshipFieldsToImplicitRelations(
   missingTargets: Array<{ entityName: string; fieldName: string; target: string }>;
 } {
   const implicitLinks: RelationDefinition[] = [];
-  const conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }> = [];
+  const conflicts: Array<{
+    name: string;
+    explicit: RelationDefinition;
+    implicit: RelationDefinition;
+  }> = [];
   const missingTargets: Array<{ entityName: string; fieldName: string; target: string }> = [];
 
   // Build a set of existing explicit link names for conflict detection

@@ -11,22 +11,24 @@ export {
   defineCapability,
   defineConfig,
   defineDataAccess,
+  defineEntity,
   defineEvent,
   defineEventHandler,
   definePermissionGroup,
   defineRule,
-  defineEntity,
   defineState,
   defineView,
   disableRule,
-  extendPermissionGroup,
   extendEntity,
+  extendPermissionGroup,
   extendState,
   extendView,
   overrideAction,
-  overrideRule,
   overrideEntity,
+  overrideRule,
 } from "./define";
+// Zod schema generator (depends only on zod, browser-safe)
+export { generateZodSchema } from "./entity/entity-to-zod";
 // Error classes
 export {
   AuthenticationError,
@@ -38,7 +40,5 @@ export {
   SystemError,
   ValidationError,
 } from "./errors";
-// Zod schema generator (depends only on zod, browser-safe)
-export { generateZodSchema } from "./entity/entity-to-zod";
 // Re-export all types for convenience
 export * from "./types-entry";

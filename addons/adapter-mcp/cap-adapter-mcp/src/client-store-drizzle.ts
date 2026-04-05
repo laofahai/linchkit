@@ -55,10 +55,7 @@ export class DrizzleMcpClientStore implements McpClientStore {
   async list(filter?: { enabled?: boolean }): Promise<McpClient[]> {
     const condition =
       filter?.enabled !== undefined ? eq(mcpClientsTable.enabled, filter.enabled) : undefined;
-    const rows = await this.db
-      .select()
-      .from(mcpClientsTable)
-      .where(condition);
+    const rows = await this.db.select().from(mcpClientsTable).where(condition);
     return rows.map(rowToClient);
   }
 

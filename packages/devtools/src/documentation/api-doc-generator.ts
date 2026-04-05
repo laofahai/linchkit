@@ -8,10 +8,10 @@
 import type {
   ActionDefinition,
   ActionExposure,
+  EntityDescriptor,
   FieldDefinition,
   OntologyRegistry,
   RelationDescriptor,
-  EntityDescriptor,
 } from "@linchkit/core";
 
 // -- Structured doc types -------------------------------------------------

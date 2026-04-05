@@ -7,12 +7,12 @@
 import { registerAdminRoute } from "./route-registry";
 
 registerAdminRoute({
-	id: "executions",
-	capability: "__builtin__",
-	path: "/admin/executions",
-	label: "executionLog.title",
-	icon: "ScrollText",
-	order: 100,
-	component: () =>
-		import("../pages/execution-logs").then((m) => ({ default: m.ExecutionLogsPage })),
+  id: "executions",
+  capability: "__builtin__",
+  path: "/admin/executions",
+  label: "executionLog.title",
+  icon: "ScrollText",
+  order: 100,
+  component: () =>
+    import("../pages/execution-logs").then((m) => ({ default: m.ExecutionLogsPage })),
 });

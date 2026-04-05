@@ -18,9 +18,9 @@ import {
   createFlowStepContext,
   createSyncFlowEngine,
   createTriggerBinding,
+  EntityRegistry,
   InMemoryExecutionLogger,
   InMemoryStore,
-  EntityRegistry,
 } from "@linchkit/core/server";
 import { purchaseApprovalFlow } from "../../../demo/cap-purchase-demo/src/flows/purchase-approval";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";

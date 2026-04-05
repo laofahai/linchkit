@@ -9,16 +9,16 @@
  */
 
 import type { ActionDefinition } from "../types/action";
+import type {
+  EntityDefinition,
+  EntityPresentation,
+  FieldDefinition,
+  InterfaceDefinition,
+} from "../types/entity";
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
 import type { RelationCardinality } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
-import type {
-  FieldDefinition,
-  InterfaceDefinition,
-  EntityDefinition,
-  EntityPresentation,
-} from "../types/entity";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
 

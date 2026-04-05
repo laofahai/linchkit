@@ -5,11 +5,11 @@
 import { describe, expect, test } from "bun:test";
 import { createOntologyRegistry, type OntologyRegistryDeps } from "../src/ontology";
 import type { ActionDefinition } from "../src/types/action";
+import type { EntityDefinition } from "../src/types/entity";
 import type { EventHandlerDefinition } from "../src/types/event";
 import type { FlowDefinition } from "../src/types/flow";
 import type { RelationDefinition } from "../src/types/relation";
 import type { RuleDefinition } from "../src/types/rule";
-import type { EntityDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 import type { ViewDefinition } from "../src/types/view";
 

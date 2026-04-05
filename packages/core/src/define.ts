@@ -9,21 +9,21 @@ import type { ActionDefinition, ActionOverride } from "./types/action";
 import type { AutomationDefinition } from "./types/automation";
 import type { CapabilityDefinition } from "./types/capability";
 import type { LinchKitConfig } from "./types/config";
+import type {
+  EntityDefinition,
+  EntityExtension,
+  EntityOverride,
+  FieldDefinition,
+  InterfaceDefinition,
+} from "./types/entity";
 import type { EventDefinition, EventHandlerDefinition } from "./types/event";
-import type { RelationDefinition } from "./types/relation";
 import type {
   DataAccessDefinition,
   PermissionGroupDefinition,
   PermissionGroupExtension,
 } from "./types/permission";
+import type { RelationDefinition } from "./types/relation";
 import type { RuleDefinition, RuleOverride } from "./types/rule";
-import type {
-  FieldDefinition,
-  InterfaceDefinition,
-  EntityDefinition,
-  EntityExtension,
-  EntityOverride,
-} from "./types/entity";
 import type { StateDefinition, StateExtension } from "./types/state";
 import type { ViewDefinition, ViewExtension } from "./types/view";
 import type { WatcherDefinition } from "./types/watcher";

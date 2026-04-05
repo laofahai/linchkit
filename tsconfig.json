@@ -40,9 +40,7 @@
       "@linchkit/cap-adapter-ui/hooks/use-subscription": [
         "./addons/adapter-ui/cap-adapter-ui/src/hooks/use-subscription.ts"
       ],
-      "@linchkit/cap-adapter-ui/lib/api": [
-        "./addons/adapter-ui/cap-adapter-ui/src/lib/api.ts"
-      ],
+      "@linchkit/cap-adapter-ui/lib/api": ["./addons/adapter-ui/cap-adapter-ui/src/lib/api.ts"],
       "@linchkit/cap-adapter-mcp": ["./addons/adapter-mcp/cap-adapter-mcp/src"],
       "@linchkit/cap-auth": ["./addons/auth/cap-auth/src"],
       "@linchkit/cap-auth/ui": ["./addons/auth/cap-auth/ui/index.ts"],

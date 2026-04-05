@@ -36,12 +36,11 @@ export { changeLanguage, default as i18n, languageNames, supportedLanguages } fr
 export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
+export type { AdminRouteRegistration } from "./lib/route-registry";
+// Admin route registry
+export { getAdminRoutes, registerAdminRoute } from "./lib/route-registry";
+export { AdminLayout } from "./pages/admin-layout";
 // Page components
 export { EntityFormPage } from "./pages/entity-form";
 export { EntityListPage } from "./pages/entity-list";
 export { WorkspacePage } from "./pages/workspace";
-
-// Admin route registry
-export { registerAdminRoute, getAdminRoutes } from "./lib/route-registry";
-export type { AdminRouteRegistration } from "./lib/route-registry";
-export { AdminLayout } from "./pages/admin-layout";

@@ -5,7 +5,7 @@
  * Provides field-level mapping with built-in transforms.
  */
 
-import type { FieldDefinition, EntityDefinition } from "@linchkit/core";
+import type { EntityDefinition, FieldDefinition } from "@linchkit/core";
 
 // ── Types ──────────────────────────────────────────────────
 

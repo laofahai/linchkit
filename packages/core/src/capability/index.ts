@@ -24,11 +24,11 @@ export type {
 } from "./capability-manifest";
 export type {
   ActionOverrideEntry,
+  EntityExtensionEntry,
+  EntityOverrideEntry,
   ExtensionResolver,
   ResolutionConflict,
   RuleOverrideEntry,
-  EntityExtensionEntry,
-  EntityOverrideEntry,
 } from "./extension-resolver";
 export {
   buildActionChain,

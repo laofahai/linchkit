@@ -1,5 +1,5 @@
 /**
- * AutoKanban — Kanban board view for schemas with state fields.
+ * AutoKanban — Kanban board view for entities with state fields.
  *
  * Groups records by state field value into draggable columns.
  * Drag-and-drop between columns triggers state transitions via GraphQL.

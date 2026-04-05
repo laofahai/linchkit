@@ -6,7 +6,7 @@
  * that navigates to create form with FK pre-filled.
  */
 
-import type { RelationDefinition, EntityDefinition } from "@linchkit/core/types";
+import type { EntityDefinition, RelationDefinition } from "@linchkit/core/types";
 import { Button, Skeleton } from "@linchkit/ui-kit/components";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -81,7 +81,7 @@ function generateChildListView(schema: EntityDefinition, fkField: string): AutoL
 
   return {
     name: `${schema.name}_list_auto`,
-    schema: schema.name,
+    entity: schema.name,
     type: "list",
     label: schema.label ?? schema.name,
     fields: fieldNames.map((field) => ({ field, sortable: true })),
@@ -170,7 +170,7 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
   // Navigation handlers
   function handleRowClick(recordId: string) {
     navigate({
-      to: "/schemas/$name/$id",
+      to: "/entities/$name/$id",
       params: { name: childSchemaName, id: recordId },
     });
   }
@@ -179,7 +179,7 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
     // Navigate to create form — the FK field will need to be set
     // We pass the parent FK as a search param so the form can pre-fill it
     navigate({
-      to: "/schemas/$name/new",
+      to: "/entities/$name/new",
       params: { name: childSchemaName },
       search: { [`default_${fkField}`]: parentId },
     });

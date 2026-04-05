@@ -20,14 +20,14 @@ import { CommandPalette } from "@/components/command-palette";
 import { HeaderActions } from "@/components/header-actions";
 import { useBreadcrumb } from "@/hooks/use-breadcrumb";
 import { BreadcrumbTitleProvider } from "@/hooks/use-breadcrumb-title";
-import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { EntitiesProvider } from "@/hooks/use-entities";
 import { EntityBundleCacheProvider } from "@/hooks/use-entity-bundle";
-import { SchemasProvider } from "@/hooks/use-entities";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 /** App Shell layout: Shadcn sidebar + header with breadcrumb + main content */
 export function ShellLayout() {
   return (
-    <SchemasProvider>
+    <EntitiesProvider>
       <EntityBundleCacheProvider>
         <BreadcrumbTitleProvider>
           <TooltipProvider delayDuration={0}>
@@ -35,11 +35,11 @@ export function ShellLayout() {
           </TooltipProvider>
         </BreadcrumbTitleProvider>
       </EntityBundleCacheProvider>
-    </SchemasProvider>
+    </EntitiesProvider>
   );
 }
 
-/** Inner shell that consumes SchemasProvider context (needed by useBreadcrumb). */
+/** Inner shell that consumes EntitiesProvider context (needed by useBreadcrumb). */
 function ShellContent() {
   const breadcrumbItems = useBreadcrumb();
   const [cmdkOpen, setCmdkOpen] = useState(false);

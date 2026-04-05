@@ -3,8 +3,8 @@
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
-import { InMemoryMcpClientStore } from "../src/client-store-memory";
 import { McpClientRegistry } from "../src/client-registry";
+import { InMemoryMcpClientStore } from "../src/client-store-memory";
 import type { ToolPolicy } from "../src/types";
 
 describe("McpClientRegistry", () => {

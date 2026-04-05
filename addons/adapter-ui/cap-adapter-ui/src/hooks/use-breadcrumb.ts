@@ -11,11 +11,11 @@ export interface BreadcrumbItem {
 
 /**
  * Well-known route segments mapped to i18n key and whether they are linkable.
- * Segments like "schemas" and "admin" are namespace prefixes without their
+ * Segments like "entities" and "admin" are namespace prefixes without their
  * own route, so they appear in the breadcrumb but are not clickable.
  */
 const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
-  schemas: { i18nKey: "nav.schemas", linkable: false },
+  entities: { i18nKey: "nav.entities", linkable: false },
   admin: { i18nKey: "nav.administration", linkable: false },
   approvals: { i18nKey: "approvals.title", linkable: true },
   executions: { i18nKey: "executionLog.title", linkable: true },
@@ -32,19 +32,19 @@ const KNOWN_SEGMENTS: Record<string, { i18nKey: string; linkable: boolean }> = {
 /**
  * Build breadcrumb items from the deepest matched route pathname.
  *
- * Because TanStack Router uses flat paths like `/schemas/$name/$id`,
+ * Because TanStack Router uses flat paths like `/entities/$name/$id`,
  * there is only one leaf match — not one per segment. We decompose
  * the pathname into cumulative segments and resolve each label via:
  *
  *   1. Well-known segment -> i18n key
- *   2. Schema name -> schema label (via useEntityLabel resolver)
+ *   2. Entity name -> entity label (via useEntityLabel resolver)
  *   3. Record ID -> custom title from BreadcrumbTitleContext, or truncated hash
  *   4. Fallback: capitalize raw segment
  */
 export function useBreadcrumb(): BreadcrumbItem[] {
   const matches = useMatches();
   const { t } = useTranslation();
-  const { schemas } = useEntities();
+  const { entities } = useEntities();
   const { resolveLabel } = useEntityLabel();
   const { title: customTitle } = useBreadcrumbTitle();
 
@@ -74,7 +74,7 @@ export function useBreadcrumb(): BreadcrumbItem[] {
       parentSegment,
       isLast,
       t,
-      schemas,
+      entities,
       resolveLabel,
       customTitle,
     );
@@ -102,7 +102,7 @@ function resolveSegmentLabel(
   parentSegment: string | undefined,
   isLast: boolean,
   t: (key: string, opts?: Record<string, unknown>) => string,
-  schemas: Array<{ name: string; label?: string }>,
+  entities: Array<{ name: string; label?: string }>,
   resolveLabel: (label: string | undefined, fallback: string) => string,
   customTitle: string | null,
 ): ResolvedSegment {
@@ -112,16 +112,16 @@ function resolveSegmentLabel(
     return { label: t(known.i18nKey), linkable: known.linkable };
   }
 
-  // 2. Schema name — when parent is "schemas"
-  if (parentSegment === "schemas") {
-    const schemaInfo = schemas.find((s) => s.name === segment);
-    if (schemaInfo?.label) {
-      return { label: resolveLabel(schemaInfo.label, formatSegment(segment)), linkable: true };
+  // 2. Entity name — when parent is "entities"
+  if (parentSegment === "entities") {
+    const entityInfo = entities.find((s) => s.name === segment);
+    if (entityInfo?.label) {
+      return { label: resolveLabel(entityInfo.label, formatSegment(segment)), linkable: true };
     }
-    // Try i18n key: schemas.<name>._label
-    const schemaI18nLabel = t(`schemas.${segment}._label`, { defaultValue: "" });
-    if (schemaI18nLabel) {
-      return { label: schemaI18nLabel, linkable: true };
+    // Try i18n key: entities.<name>._label
+    const entityI18nLabel = t(`entities.${segment}._label`, { defaultValue: "" });
+    if (entityI18nLabel) {
+      return { label: entityI18nLabel, linkable: true };
     }
     return { label: formatSegment(segment), linkable: true };
   }

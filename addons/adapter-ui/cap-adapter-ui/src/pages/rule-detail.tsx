@@ -355,7 +355,7 @@ export function RuleDetailPage() {
     return (
       <div className="p-4 space-y-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link to={"/schemas/rule" as "/"}>
+          <Link to={"/entities/rule" as "/"}>
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
           </Link>
@@ -373,7 +373,7 @@ export function RuleDetailPage() {
       {/* Back + Header */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link to={"/schemas/rule" as "/"}>
+          <Link to={"/entities/rule" as "/"}>
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
           </Link>

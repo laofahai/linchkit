@@ -11,8 +11,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { RelationDefinition } from "../types/relation";
-import type { FieldDefinition, EntityDefinition } from "../types/entity";
 import { generateDrizzleTable, generateRelationColumns } from "./entity-to-drizzle";
 
 const DEFAULT_OUTPUT_DIR = ".linchkit";

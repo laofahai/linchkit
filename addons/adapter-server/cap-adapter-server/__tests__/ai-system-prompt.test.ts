@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ActionDefinition, OntologyRegistry, EntityDefinition } from "@linchkit/core";
+import type { ActionDefinition, EntityDefinition, OntologyRegistry } from "@linchkit/core";
 import type { EntityDescriptor } from "@linchkit/core/server";
 import { buildSystemPrompt } from "../src/ai/system-prompt";
 

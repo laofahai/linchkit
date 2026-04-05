@@ -5,8 +5,8 @@
  */
 
 import type {
-  FormLayoutNode,
   EntityDefinition,
+  FormLayoutNode,
   StateDefinition,
   StateMeta,
   ViewDefinition,

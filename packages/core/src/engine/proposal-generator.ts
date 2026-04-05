@@ -14,11 +14,12 @@
  */
 
 import { z } from "zod";
+import type { EntityRegistry } from "../entity/entity-registry";
 import { BusinessRuleError } from "../errors";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
-import type { EntityRegistry } from "../entity/entity-registry";
 import type { ActionDefinition } from "../types/action";
 import type { AIService } from "../types/ai";
+import type { EntityDefinition, FieldType } from "../types/entity";
 import type {
   ProposalChange,
   ProposalDefinition,
@@ -26,7 +27,6 @@ import type {
   ProposalRequest,
   ProposalValidationResult,
 } from "../types/proposal";
-import type { FieldType, EntityDefinition } from "../types/entity";
 import type { ActionRegistry } from "./action-engine";
 
 // ── Valid field types (for validation) ──────────────────────

@@ -7,8 +7,8 @@ import {
   resolveFieldMasking,
 } from "../src/security/masking-engine";
 import type { Actor } from "../src/types/action";
+import type { EntityDefinition, FieldDefinition } from "../src/types/entity";
 import type { PermissionGroupDefinition } from "../src/types/permission";
-import type { FieldDefinition, EntityDefinition } from "../src/types/entity";
 
 // ── maskValue tests ──────────────────────────────────────
 

@@ -3,7 +3,7 @@
  *
  * Two subscription modes:
  * 1. `useSubscription` — Low-level GraphQL subscription via graphql-yoga SSE transport
- * 2. `useSchemaSubscription` — High-level schema-level subscription via /api/subscribe SSE endpoint (spec 44)
+ * 2. `useEntitySubscription` — High-level entity-level subscription via /api/subscribe SSE endpoint (spec 44)
  *
  * Both support automatic reconnection with exponential backoff.
  */
@@ -192,12 +192,12 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
   return { connected, error };
 }
 
-// ── Convenience: schema record change subscription ─────
+// ── Convenience: entity record change subscription ─────
 
 /**
- * Build a GraphQL subscription query for schema record changes.
+ * Build a GraphQL subscription query for entity record changes.
  *
- * Subscribes to created, updated, and deleted events for a given schema.
+ * Subscribes to created, updated, and deleted events for a given entity.
  * The subscription field names follow the pattern: on{PascalName}Created, etc.
  */
 export function buildEntitySubscriptionQuery(entityName: string): string {
@@ -217,7 +217,7 @@ export function buildEntitySubscriptionQuery(entityName: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Schema-level Subscription (spec 44 — /api/subscribe SSE)
+// Entity-level Subscription (spec 44 — /api/subscribe SSE)
 // ═══════════════════════════════════════════════════════════════
 
 /** SubscriptionEvent type received from /api/subscribe SSE endpoint */
@@ -243,8 +243,8 @@ export interface SubscriptionEvent {
 export const buildSchemaSubscriptionQuery = buildEntitySubscriptionQuery;
 
 export interface UseEntitySubscriptionOptions {
-  /** Schema names to subscribe to (empty array = all accessible schemas) */
-  schemas: string[];
+  /** Entity names to subscribe to (empty array = all accessible entities) */
+  entities: string[];
   /** Optional record IDs for fine-grained filtering */
   ids?: string[];
   /** Callback when a subscription event is received */
@@ -266,10 +266,10 @@ export interface UseEntitySubscriptionResult {
 }
 
 /**
- * Subscribe to schema record changes via the /api/subscribe SSE endpoint.
+ * Subscribe to entity record changes via the /api/subscribe SSE endpoint.
  *
  * This is the spec 44 compliant hook that:
- * - Connects to GET /api/subscribe?schemas=...&ids=...
+ * - Connects to GET /api/subscribe?entities=...&ids=...
  * - Receives SubscriptionEvent payloads
  * - Auto-reconnects with exponential backoff
  * - Handles heartbeat keepalive messages
@@ -280,7 +280,7 @@ export type UseSchemaSubscriptionResult = UseEntitySubscriptionResult;
 export function useEntitySubscription(
   options: UseEntitySubscriptionOptions,
 ): UseEntitySubscriptionResult {
-  const { schemas, ids, onEvent, enabled = true } = options;
+  const { entities, ids, onEvent, enabled = true } = options;
 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -290,7 +290,7 @@ export function useEntitySubscription(
   onEventRef.current = onEvent;
 
   // Stable keys to avoid unnecessary reconnections
-  const schemasKey = useMemo(() => [...schemas].sort().join(","), [schemas]);
+  const entitiesKey = useMemo(() => [...entities].sort().join(","), [entities]);
   const idsKey = useMemo(() => (ids ? ids.sort().join(",") : ""), [ids]);
 
   const reconnectAttemptRef = useRef(0);
@@ -320,7 +320,7 @@ export function useEntitySubscription(
       try {
         // Build the SSE URL
         const params = new URLSearchParams();
-        if (schemasKey) params.set("schemas", schemasKey);
+        if (entitiesKey) params.set("entities", entitiesKey);
         if (idsKey) params.set("ids", idsKey);
 
         const url = `/api/subscribe?${params.toString()}`;
@@ -422,7 +422,7 @@ export function useEntitySubscription(
       setConnected(false);
       setConnectionId(null);
     };
-  }, [schemasKey, idsKey, enabled, cleanup]);
+  }, [entitiesKey, idsKey, enabled, cleanup]);
 
   return { connected, error, connectionId };
 }

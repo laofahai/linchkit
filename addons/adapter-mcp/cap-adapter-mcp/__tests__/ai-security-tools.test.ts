@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  AIAuditLogger,
-  AIBoundary,
-} from "@linchkit/core/server";
+import { AIAuditLogger, AIBoundary } from "@linchkit/core/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAISecurityTools } from "../src/ai-security-tools";
 

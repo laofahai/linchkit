@@ -3,8 +3,8 @@
  *
  * Features:
  * - Navigate to pages (Workspace, Executions, Settings, etc.)
- * - Search and jump to any registered schema
- * - AI Search mode: type natural language queries to filter schema data
+ * - Search and jump to any registered entity
+ * - AI Search mode: type natural language queries to filter entity data
  * - Theme switching (light / dark / system)
  * - Global keyboard shortcut: Cmd+K / Ctrl+K to toggle
  *
@@ -49,7 +49,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const { t } = useTranslation();
-  const { schemas } = useEntities();
+  const { entities } = useEntities();
   const { resolveLabel } = useEntityLabel();
   const { theme, setTheme } = useTheme();
 
@@ -123,10 +123,10 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
         });
         if (result) {
           setAiResult(result.explanation);
-          // Navigate to the schema page — the AI filter will be applied via URL or state
+          // Navigate to the entity page — the AI filter will be applied via URL or state
           // For now, navigate and show the explanation
           setTimeout(() => {
-            navigateRef.current(`/schemas/${entityName}`);
+            navigateRef.current(`/entities/${entityName}`);
           }, 1500);
         } else {
           setAiResult(t("aiSearch.notConfigured", "AI service is not configured."));
@@ -181,7 +181,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
             )}
             {!aiLoading && !aiResult && (
               <CommandGroup heading={t("aiSearch.selectSchema", "Select a schema to search")}>
-                {schemas.map((schema) => {
+                {entities.map((schema) => {
                   const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
                   return (
                     <CommandItem
@@ -233,7 +233,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <LayoutDashboardIcon />
                 <span>{t("nav.workspace")}</span>
               </CommandItem>
-              <CommandItem onSelect={() => navigate("/schemas/execution_log")}>
+              <CommandItem onSelect={() => navigate("/entities/execution_log")}>
                 <ScrollTextIcon />
                 <span>{t("executionLog.title")}</span>
               </CommandItem>
@@ -241,23 +241,23 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <MonitorIcon />
                 <span>{t("systemOverview.title")}</span>
               </CommandItem>
-              <CommandItem onSelect={() => navigate("/schemas/rule")}>
+              <CommandItem onSelect={() => navigate("/entities/rule")}>
                 <ShieldCheckIcon />
                 <span>{t("rules.title")}</span>
               </CommandItem>
             </CommandGroup>
 
-            {/* Dynamic schema list */}
-            {schemas.length > 0 && (
+            {/* Dynamic entity list */}
+            {entities.length > 0 && (
               <>
                 <CommandSeparator />
-                <CommandGroup heading={t("commandPalette.schemas")}>
-                  {schemas.map((schema) => {
+                <CommandGroup heading={t("commandPalette.entities")}>
+                  {entities.map((schema) => {
                     const Icon = getLucideIcon(schema.icon) ?? DatabaseIcon;
                     return (
                       <CommandItem
                         key={schema.name}
-                        onSelect={() => navigate(`/schemas/${schema.name}`)}
+                        onSelect={() => navigate(`/entities/${schema.name}`)}
                       >
                         <Icon />
                         <span>{resolveLabel(schema.label, schema.name)}</span>

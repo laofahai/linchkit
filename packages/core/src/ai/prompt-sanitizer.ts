@@ -12,7 +12,7 @@
  */
 
 import { resolveFieldMasking } from "../security/masking-engine";
-import type { FieldDefinition, EntityDefinition } from "../types/entity";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 
 // ── Prompt Injection Detection ──────────────────────────────
 

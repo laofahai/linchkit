@@ -9,19 +9,19 @@ import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { AutomationDefinition } from "./automation";
 import type { CliCommand } from "./cli";
-import type { EventDefinition, EventHandlerDefinition } from "./event";
-import type { FlowDefinition } from "./flow";
-import type { Sensor } from "./life-system";
-import type { RelationDefinition } from "./relation";
-import type { PageRegistration } from "./page";
-import type { PermissionGroupDefinition } from "./permission";
-import type { RuleDefinition, RuleOverride } from "./rule";
 import type {
-  InterfaceDefinition,
   EntityDefinition,
   EntityExtension,
   EntityOverride,
+  InterfaceDefinition,
 } from "./entity";
+import type { EventDefinition, EventHandlerDefinition } from "./event";
+import type { FlowDefinition } from "./flow";
+import type { Sensor } from "./life-system";
+import type { PageRegistration } from "./page";
+import type { PermissionGroupDefinition } from "./permission";
+import type { RelationDefinition } from "./relation";
+import type { RuleDefinition, RuleOverride } from "./rule";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
 import type { ViewDefinition, ViewExtension } from "./view";

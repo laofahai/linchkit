@@ -51,13 +51,13 @@ export type {
   CapabilityRequires,
   CapabilitySearchOptions,
   CompatibilityIssue,
+  EntityExtensionEntry,
+  EntityOverrideEntry,
   ExtensionResolver,
   RegistryEntry,
   RegistrySearchOptions,
   ResolutionConflict,
   RuleOverrideEntry,
-  EntityExtensionEntry,
-  EntityOverrideEntry,
   TrustLevel,
   ValidationResult,
 } from "./capability";
@@ -103,24 +103,24 @@ export {
   defineCapability,
   defineConfig,
   defineDataAccess,
+  defineEntity,
   defineEvent,
   defineEventHandler,
   defineInterface,
-  defineRelation,
   definePermissionGroup,
+  defineRelation,
   defineRule,
-  defineEntity,
   defineState,
   defineView,
   defineWatcher,
   disableRule,
-  extendPermissionGroup,
   extendEntity,
+  extendPermissionGroup,
   extendState,
   extendView,
   overrideAction,
-  overrideRule,
   overrideEntity,
+  overrideRule,
 } from "./define";
 // Type re-exports from engine interfaces (browser-safe — type-only, no runtime code pulled in)
 // Class types (exported as type-only so consumers can use for annotations without pulling runtime)
@@ -165,6 +165,44 @@ export type {
 } from "./engine/rule-engine";
 export type { StateMachine } from "./engine/state-machine";
 export type { ValidationContext } from "./engine/validation-engine";
+export {
+  type AggregateDerived,
+  type CascadeTarget,
+  type ConcatDerived,
+  computeAggregate,
+  createDerivedPropertyEngine,
+  type DerivedConfig,
+  type DerivedFieldInfo,
+  DerivedPropertyEngine,
+  type ExpressionDerived,
+  evaluateExpression,
+  type FunctionDerived,
+  getDerivedStrategy,
+  isDerivedField,
+  resolveAggregateValue,
+  resolveDerivedValue,
+} from "./entity/derived-property";
+export type { InterfaceRegistry } from "./entity/entity-interface";
+export { createInterfaceRegistry } from "./entity/entity-interface";
+export type { EntityRegistry } from "./entity/entity-registry";
+export { generateZodSchema, type ZodGeneratorOptions } from "./entity/entity-to-zod";
+export type { RelationRegistry } from "./entity/relation-registry";
+export { createRelationRegistry } from "./entity/relation-registry";
+export {
+  createTranslatableValue,
+  getTranslatableFields,
+  I18N_RAW_KEY,
+  mergeTranslatableValue,
+  normalizeTranslatableRow,
+  normalizeTranslatableValue,
+  resolveTranslatableRow,
+  resolveTranslatableValue,
+  resolveTranslation,
+  TRANSLATABLE_FIELD_TYPES,
+  type TranslatableValue,
+  validateTranslatableEntity,
+  wrapTranslatableValue,
+} from "./entity/translatable";
 // Error classes
 export {
   AuthenticationError,
@@ -216,10 +254,10 @@ export type {
 } from "./observability/structured-logger";
 export type { TraceState } from "./observability/trace-context";
 export type {
+  EntityDescriptor,
   OntologyRegistry,
   OntologyRegistryDeps,
   RelationDescriptor,
-  EntityDescriptor,
 } from "./ontology";
 export { buildRelationGraph, inferSemanticRelations } from "./ontology";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
@@ -230,44 +268,6 @@ export {
   resolveOverrides,
   resolveRuleOverride,
 } from "./runtime/override-resolver";
-export {
-  type AggregateDerived,
-  type CascadeTarget,
-  type ConcatDerived,
-  computeAggregate,
-  createDerivedPropertyEngine,
-  type DerivedConfig,
-  type DerivedFieldInfo,
-  DerivedPropertyEngine,
-  type ExpressionDerived,
-  evaluateExpression,
-  type FunctionDerived,
-  getDerivedStrategy,
-  isDerivedField,
-  resolveAggregateValue,
-  resolveDerivedValue,
-} from "./entity/derived-property";
-export type { RelationRegistry } from "./entity/relation-registry";
-export { createRelationRegistry } from "./entity/relation-registry";
-export type { InterfaceRegistry } from "./entity/entity-interface";
-export { createInterfaceRegistry } from "./entity/entity-interface";
-export type { EntityRegistry } from "./entity/entity-registry";
-export { generateZodSchema, type ZodGeneratorOptions } from "./entity/entity-to-zod";
-export {
-  createTranslatableValue,
-  getTranslatableFields,
-  I18N_RAW_KEY,
-  mergeTranslatableValue,
-  normalizeTranslatableRow,
-  normalizeTranslatableValue,
-  resolveTranslatableRow,
-  resolveTranslatableValue,
-  resolveTranslation,
-  TRANSLATABLE_FIELD_TYPES,
-  type TranslatableValue,
-  validateTranslatableEntity,
-  wrapTranslatableValue,
-} from "./entity/translatable";
 // Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
 export type { MaskRecordOptions } from "./security";
 // Type exports

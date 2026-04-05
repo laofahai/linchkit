@@ -2,7 +2,7 @@
  * AutoForm type definitions.
  */
 
-import type { RecordTemplate, EntityDefinition, ViewDefinition } from "@linchkit/core/types";
+import type { EntityDefinition, RecordTemplate, ViewDefinition } from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
 
 export type { RecordTemplate };

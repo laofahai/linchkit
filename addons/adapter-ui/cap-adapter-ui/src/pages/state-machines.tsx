@@ -186,7 +186,7 @@ export function StateMachineDetailPage() {
   if (error || !machine) {
     return (
       <div className="p-4 space-y-4">
-        <Link to={"/schemas/state_machine" as "/"}>
+        <Link to={"/entities/state_machine" as "/"}>
           <Button variant="ghost" size="sm">
             <ArrowLeftIcon className="size-4 mr-1" />
             {t("common.back")}
@@ -203,7 +203,7 @@ export function StateMachineDetailPage() {
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to={"/schemas/state_machine" as "/"}>
+        <Link to={"/entities/state_machine" as "/"}>
           <Button variant="ghost" size="icon-sm">
             <ArrowLeftIcon className="size-4" />
           </Button>

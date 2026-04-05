@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test";
 import {
   defineAction,
   defineCapability,
+  defineEntity,
   defineEventHandler,
   defineRule,
-  defineEntity,
   defineState,
   defineView,
 } from "../src";

@@ -25,19 +25,19 @@ import { getLucideIcon } from "@/lib/dynamic-icon";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation();
-  const { schemas } = useEntities();
+  const { entities } = useEntities();
   const { resolveLabel } = useEntityLabel();
 
   const data = useMemo(() => {
-    // Split schemas into business vs system (internal) groups
-    const businessSchemas = schemas.filter((s) => !s.internal);
-    const systemSchemas = schemas.filter((s) => s.internal);
+    // Split entities into business vs system (internal) groups
+    const businessEntities = entities.filter((s) => !s.internal);
+    const systemEntities = entities.filter((s) => s.internal);
 
-    const toNavItem = (s: (typeof schemas)[0]) => {
+    const toNavItem = (s: (typeof entities)[0]) => {
       const Icon = getLucideIcon(s.icon);
       return {
         title: resolveLabel(s.label, s.name),
-        url: `/schemas/${s.name}`,
+        url: `/entities/${s.name}`,
         icon: Icon ? <Icon className="size-4" /> : undefined,
       };
     };
@@ -68,27 +68,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ],
       navMain: [
         {
-          title: t("nav.schemas"),
+          title: t("nav.entities"),
           url: "#",
           icon: <DatabaseIcon />,
           isActive: true,
-          items: businessSchemas.map(toNavItem),
+          items: businessEntities.map(toNavItem),
         },
-        ...(systemSchemas.length > 0
+        ...(systemEntities.length > 0
           ? [
               {
                 title: t("nav.system"),
                 url: "#",
                 icon: <ScrollTextIcon />,
                 isActive: false,
-                items: systemSchemas.map(toNavItem),
+                items: systemEntities.map(toNavItem),
               },
             ]
           : []),
       ],
       adminItems,
     };
-  }, [schemas, t, resolveLabel]);
+  }, [entities, t, resolveLabel]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -111,7 +111,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Schema models section — dynamically generated from API */}
+        {/* Entity models section — dynamically generated from API */}
         <NavMain items={data.navMain} />
 
         {/* Administration section — dynamically populated from capability menuItems */}

@@ -620,7 +620,9 @@ Only include fields where you have genuine confidence. Omit fields where you wou
       // Build schema overview from OntologyRegistry for richer context
       let schemaOverview = "";
       if (ontologyRegistry) {
-        const entityNames = ontologyRegistry.listEntities().filter((n) => !aiDisabledSchemas.has(n));
+        const entityNames = ontologyRegistry
+          .listEntities()
+          .filter((n) => !aiDisabledSchemas.has(n));
         const schemaLines = entityNames.map((n) => {
           const desc = ontologyRegistry.describe(n);
           if (!desc) return `- ${n}`;

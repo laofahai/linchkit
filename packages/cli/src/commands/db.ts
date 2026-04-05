@@ -9,9 +9,9 @@
 import { runMigrations } from "@linchkit/cap-migration";
 import type {
   CapabilityDefinition,
+  EntityDefinition,
   LinchKitConfig,
   RelationDefinition,
-  EntityDefinition,
 } from "@linchkit/core";
 import {
   closeDatabase,

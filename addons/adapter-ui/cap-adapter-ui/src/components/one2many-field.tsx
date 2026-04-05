@@ -10,7 +10,7 @@
  * - CRUD operations via GraphQL mutations
  */
 
-import type { FieldDefinition, RelationDefinition, EntityDefinition } from "@linchkit/core/types";
+import type { EntityDefinition, FieldDefinition, RelationDefinition } from "@linchkit/core/types";
 import {
   Button,
   Input,

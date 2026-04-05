@@ -10,14 +10,14 @@
  */
 
 import type { ActionContext, ActionDefinition, ActionOverride } from "../types/action";
-import type { RuleDefinition, RuleOverride } from "../types/rule";
 import type {
-  FieldConstraints,
-  FieldDefinition,
   EntityDefinition,
   EntityExtension,
   EntityOverride,
+  FieldConstraints,
+  FieldDefinition,
 } from "../types/entity";
+import type { RuleDefinition, RuleOverride } from "../types/rule";
 
 // ── Collected entry types ──────────────────────────────────
 

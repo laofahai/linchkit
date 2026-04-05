@@ -1,9 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import {
-  registerRecordPanel,
-  getRecordPanels,
-  clearRecordPanels,
-} from "../src/lib/panel-registry";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { clearRecordPanels, getRecordPanels, registerRecordPanel } from "../src/lib/panel-registry";
 
 beforeEach(() => {
   clearRecordPanels();

@@ -40,13 +40,6 @@ export {
 // ── Drizzle DB migration runner ────────────────────────────
 export { type MigrateOptions, runMigrations } from "./db-migrate";
 export {
-  type MigrationPlan,
-  type MigrationResult,
-  MigrationResumeTracker,
-  MigrationRunner,
-  type MigrationRunnerOptions,
-} from "./migration-runner";
-export {
   type BuiltInTransform,
   type FieldMapping,
   type MappedRecord,
@@ -55,9 +48,9 @@ export {
 } from "./entity-mapper";
 // ── Entity migration transforms ────────────────────────────
 export type {
+  EntityMigration,
   MigrationResult as SchemaMigrationResult,
   MigrationTransform,
-  EntityMigration,
   SchemaMigration,
 } from "./entity-migration";
 export {
@@ -66,6 +59,13 @@ export {
   MigrationRegistry,
   validateUpgrade,
 } from "./entity-migration";
+export {
+  type MigrationPlan,
+  type MigrationResult,
+  MigrationResumeTracker,
+  MigrationRunner,
+  type MigrationRunnerOptions,
+} from "./migration-runner";
 // ── Version registry ───────────────────────────────────────
 export type {
   CompatibilityCheckResult,

@@ -14,9 +14,9 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   Actor,
+  EntityDefinition,
   FlowDefinition,
   RuleDefinition,
-  EntityDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import {
@@ -27,8 +27,8 @@ import {
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
-  createEventBus,
   createEntityRegistry,
+  createEventBus,
   createStateMachine,
   createSyncFlowEngine,
   type DataProvider,

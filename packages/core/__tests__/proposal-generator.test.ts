@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { mockAIService } from "@linchkit/devtools";
-import type { ProposalDefinition, EntityDefinition } from "../src";
+import type { EntityDefinition, ProposalDefinition } from "../src";
 import { ProposalGenerationError } from "../src/engine/proposal-generator";
 import { createOntologyRegistry } from "../src/ontology/ontology-registry";
-import { ActionRegistry, createProposalGenerator, createEntityRegistry } from "../src/server-entry";
+import { ActionRegistry, createEntityRegistry, createProposalGenerator } from "../src/server-entry";
 
 // ── Test fixtures ───────────────────────────────────────
 

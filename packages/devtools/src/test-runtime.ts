@@ -16,11 +16,11 @@ import type {
   AIService,
   CapabilityDefinition,
   DataProvider,
-  EventBus,
   EntityDefinition,
   EntityRegistry,
+  EventBus,
 } from "@linchkit/core";
-import { createActionExecutor, createEventBus, createEntityRegistry } from "@linchkit/core/server";
+import { createActionExecutor, createEntityRegistry, createEventBus } from "@linchkit/core/server";
 
 // ── InMemoryDataProvider ────────────────────────────────────
 

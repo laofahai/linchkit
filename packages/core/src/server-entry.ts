@@ -118,8 +118,6 @@ export {
   createDerivedPropertyEngine,
   DerivedPropertyEngine,
 } from "./entity/derived-property";
-export { generateDrizzleSchemaFile } from "./entity/generate-drizzle-schema";
-export { createRelationRegistry, RelationRegistry } from "./entity/relation-registry";
 export { createInterfaceRegistry, InterfaceRegistry } from "./entity/entity-interface";
 export { createEntityRegistry, EntityRegistry } from "./entity/entity-registry";
 export {
@@ -132,6 +130,8 @@ export {
   generateRelationColumns,
   type RelationColumnsResult,
 } from "./entity/entity-to-drizzle";
+export { generateDrizzleSchemaFile } from "./entity/generate-drizzle-schema";
+export { createRelationRegistry, RelationRegistry } from "./entity/relation-registry";
 
 // === Event bus ===
 
@@ -371,10 +371,10 @@ export {
 
 export {
   createOntologyRegistry,
+  type EntityDescriptor,
   type OntologyRegistry,
   type OntologyRegistryDeps,
   type RelationDescriptor,
-  type EntityDescriptor,
 } from "./ontology";
 
 // === Life-system: Sense layer (Spec 55) ===
@@ -400,8 +400,8 @@ export {
   type AggregatedHealthStatus,
   createCacheCheck,
   createDatabaseCheck,
-  createEventBusCheck,
   createEntityCheck,
+  createEventBusCheck,
   detectEnvironment,
   type EnvironmentConfig,
   type EnvironmentFeatureFlags,

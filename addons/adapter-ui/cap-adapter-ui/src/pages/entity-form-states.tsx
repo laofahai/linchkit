@@ -3,8 +3,8 @@
  */
 
 import { Button, Skeleton } from "@linchkit/ui-kit/components";
-import { ArrowLeft, RefreshCw, ServerCrash } from "lucide-react";
 import type { TFunction } from "i18next";
+import { ArrowLeft, RefreshCw, ServerCrash } from "lucide-react";
 
 export interface MissingSchemaStateProps {
   t: TFunction;
@@ -15,9 +15,7 @@ export function MissingSchemaState({ t }: MissingSchemaStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
       <ServerCrash className="size-10" />
-      <p className="text-sm">
-        {t("errors.missingSchemaName", "No schema specified in the URL.")}
-      </p>
+      <p className="text-sm">{t("errors.missingSchemaName", "No schema specified in the URL.")}</p>
     </div>
   );
 }
@@ -74,10 +72,7 @@ export function BundleErrorState({ t, entityName, onRetry }: BundleErrorStatePro
         {t("errors.schemaLoadFailed", 'Failed to load schema "{{name}}".', { name: entityName })}
       </p>
       <p className="text-xs">
-        {t(
-          "errors.checkServer",
-          "Check that the server is running and the schema is registered.",
-        )}
+        {t("errors.checkServer", "Check that the server is running and the schema is registered.")}
       </p>
       <Button variant="outline" size="sm" onClick={onRetry}>
         <RefreshCw className="mr-1.5 size-3.5" />

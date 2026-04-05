@@ -14,8 +14,8 @@ import type { CreateMcpClientInput, McpClient, ToolPolicy, UpdateMcpClientInput 
 
 /** Result of resolving an actor from a token */
 export interface ResolvedMcpClient {
-	actor: Actor;
-	client: McpClient;
+  actor: Actor;
+  client: McpClient;
 }
 
 /** Tool name → category mapping for policy filtering */

@@ -15,11 +15,11 @@ import type {
   AIServiceConfig,
   CommandLayer,
   DataProvider,
+  EntityDefinition,
   EventBus,
   ExecutionLogger,
   InterfaceDefinition,
   MiddlewareRegistration,
-  EntityDefinition,
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
@@ -30,9 +30,9 @@ import {
   createInterfaceRegistry,
   createNoopAIService,
   createStateMachine,
+  EntityRegistry,
   InMemoryExecutionLogger,
   InMemoryStore,
-  EntityRegistry,
 } from "@linchkit/core/server";
 
 export interface RuntimeContext {

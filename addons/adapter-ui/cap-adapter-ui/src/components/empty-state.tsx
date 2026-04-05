@@ -71,7 +71,7 @@ export function EmptyState({
 
       {showCreateButton && (
         <Button
-          onClick={() => navigate({ to: "/schemas/$name/new", params: { name: entityName } })}
+          onClick={() => navigate({ to: "/entities/$name/new", params: { name: entityName } })}
         >
           <Plus className="mr-1.5 size-4" />
           {t("emptyState.createButton", "Create {{label}}", { label: schemaLabel })}

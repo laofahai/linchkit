@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
   createCacheCheck,
   createDatabaseCheck,
-  createEventBusCheck,
   createEntityCheck,
+  createEventBusCheck,
   HealthCheckRegistry,
   livenessCheck,
 } from "../src/deployment/health-check";

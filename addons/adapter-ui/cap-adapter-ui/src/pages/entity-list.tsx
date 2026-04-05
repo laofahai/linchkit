@@ -36,10 +36,10 @@ import type { FiltersState } from "../components/data-table-filter/core/types";
 import { EmptyState } from "../components/empty-state";
 import { ListView } from "../components/list-view";
 import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
+import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
-import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { buildEntitySubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { useEntityLabel } from "../i18n/use-entity-label";
 import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
@@ -165,7 +165,7 @@ function generateFallbackListView(schema: {
   const fieldNames = Object.keys(schema.fields).slice(0, 6);
   return {
     name: `${schema.name}_list_auto`,
-    schema: schema.name,
+    entity: schema.name,
     type: "list",
     label: schema.label ?? schema.name,
     fields: fieldNames.map((field) => ({ field, sortable: true })),
@@ -699,7 +699,7 @@ export function EntityListPage() {
   });
 
   // Initial data fetch — depends on entityName, bundle readiness, and bundle identity.
-  // bundleSchemaName ensures re-fetch when navigating between cached schemas
+  // bundleSchemaName ensures re-fetch when navigating between cached entities
   // (bundleReady stays true→true but the bundle itself changes).
   const bundleReady = !bundleLoading && !!bundle;
   const _bundleSchemaName = bundle?.schema?.name;
@@ -775,7 +775,7 @@ export function EntityListPage() {
     if (!entityName) return;
     switch (actionName) {
       case "create":
-        navigate({ to: "/schemas/$name/new", params: { name: entityName } });
+        navigate({ to: "/entities/$name/new", params: { name: entityName } });
         break;
       case "edit": {
         const editRoute = listView?.rowActionRoute;
@@ -783,13 +783,13 @@ export function EntityListPage() {
           const url = editRoute.replace("{id}", recordId).replace("{name}", entityName);
           navigate({ to: url as "/" });
         } else {
-          navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
+          navigate({ to: "/entities/$name/$id", params: { name: entityName, id: recordId } });
         }
         break;
       }
       case "duplicate":
         navigate({
-          to: "/schemas/$name/new",
+          to: "/entities/$name/new",
           params: { name: entityName },
           search: { clone: recordId },
         });
@@ -807,7 +807,7 @@ export function EntityListPage() {
     if (!entityName) return;
     switch (action) {
       case "edit":
-        navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
+        navigate({ to: "/entities/$name/$id", params: { name: entityName, id: recordId } });
         break;
       case "delete":
         pendingSingleDeleteId.current = recordId;
@@ -815,7 +815,7 @@ export function EntityListPage() {
         break;
       case "add_child":
         navigate({
-          to: "/schemas/$name/new",
+          to: "/entities/$name/new",
           params: { name: entityName },
           search: { parent: recordId },
         });
@@ -833,7 +833,7 @@ export function EntityListPage() {
       const url = customRoute.replace("{id}", recordId).replace("{name}", entityName);
       navigate({ to: url as "/" });
     } else {
-      navigate({ to: "/schemas/$name/$id", params: { name: entityName, id: recordId } });
+      navigate({ to: "/entities/$name/$id", params: { name: entityName, id: recordId } });
     }
   }
 
@@ -1096,7 +1096,7 @@ export function EntityListPage() {
     </span>
   ) : null;
 
-  // Primary action button for non-list views (hidden for internal/system schemas)
+  // Primary action button for non-list views (hidden for internal/system entities)
   const primaryActionButton = (() => {
     if (bundle?.internal) return null;
     const primary = (listView.actions ?? []).find((a) => a.position === "toolbar");

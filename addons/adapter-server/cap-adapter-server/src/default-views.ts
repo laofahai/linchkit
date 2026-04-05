@@ -6,8 +6,8 @@
  */
 
 import type {
-  FormLayoutNode,
   EntityDefinition,
+  FormLayoutNode,
   ViewAction,
   ViewDefinition,
   ViewFieldConfig,

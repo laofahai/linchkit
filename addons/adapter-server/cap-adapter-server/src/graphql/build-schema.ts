@@ -13,11 +13,11 @@ import type {
   DataProvider,
   DataQueryOptions,
   DerivedPropertyEngine,
+  EntityDefinition,
   EventBus,
-  RelationDefinition,
   MaskRecordOptions,
   PermissionGroupDefinition,
-  EntityDefinition,
+  RelationDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
@@ -349,7 +349,10 @@ export function buildGraphQLSchema(
                 if (!record) return null;
                 // Resolve compute-strategy derived fields on read (async to support aggregates)
                 if (derivedEngine) {
-                  await derivedEngine.resolveComputeFieldsAsync(entityName, record as Record<string, unknown>);
+                  await derivedEngine.resolveComputeFieldsAsync(
+                    entityName,
+                    record as Record<string, unknown>,
+                  );
                 }
                 // Resolve translatable JSONB → plain strings BEFORE masking,
                 // so masking always operates on strings, not locale-map objects.
@@ -475,13 +478,15 @@ export function buildGraphQLSchema(
               // Resolve compute-strategy derived fields on read, then resolve
               // translatable JSONB → plain strings BEFORE masking so masking
               // always operates on strings, not locale-map objects.
-              const items = await Promise.all((rawItems as Record<string, unknown>[]).map(async (r) => {
-                if (derivedEngine) {
-                  await derivedEngine.resolveComputeFieldsAsync(entityName, r);
-                }
-                const resolved = resolveTranslatableRow(r, entity, locale);
-                return applyMasking(resolved, entityName, ctx);
-              }));
+              const items = await Promise.all(
+                (rawItems as Record<string, unknown>[]).map(async (r) => {
+                  if (derivedEngine) {
+                    await derivedEngine.resolveComputeFieldsAsync(entityName, r);
+                  }
+                  const resolved = resolveTranslatableRow(r, entity, locale);
+                  return applyMasking(resolved, entityName, ctx);
+                }),
+              );
               const hasMore = offset + items.length < total;
               return { items, total, pageInfo: { limit: pageSize, offset, hasMore } };
             });

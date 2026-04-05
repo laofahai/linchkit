@@ -19,12 +19,12 @@ import {
   autoSetSubmittedAt,
   notifyHighPrioritySubmission,
 } from "./automations/purchase-status";
+import { departmentEntity } from "./entities/department";
+import { purchaseItemEntity } from "./entities/purchase-item";
+import { purchaseRequestEntity } from "./entities/purchase-request";
 import { purchaseApprovalFlow } from "./flows/purchase-approval";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./relations";
-import { purchaseRequestEntity } from "./entities/purchase-request";
-import { departmentEntity } from "./entities/department";
-import { purchaseItemEntity } from "./entities/purchase-item";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";

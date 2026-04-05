@@ -18,7 +18,7 @@ export type ViewFilterType = "text" | "select" | "dateRange";
 
 export interface AutoListViewDefinition {
   name: string;
-  schema: string;
+  entity: string;
   type: "list";
   label?: string;
   description?: string;

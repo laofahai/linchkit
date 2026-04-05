@@ -23,7 +23,7 @@ export interface ProposalChange {
 }
 
 export interface ProposalImpact {
-  schemasAffected: string[];
+  entitiesAffected: string[];
   actionsAffected: string[];
   rulesAffected: string[];
   dependentsAffected: string[];

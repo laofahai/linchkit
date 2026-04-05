@@ -17,8 +17,8 @@ import type {
   Actor,
   AICompletionResult,
   AIService,
-  InterfaceDefinition,
   EntityDefinition,
+  InterfaceDefinition,
 } from "@linchkit/core";
 import { AuthorizationError } from "@linchkit/core";
 import {
@@ -29,9 +29,9 @@ import {
   canUnmask,
   createActionExecutor,
   createCommandLayer,
+  createEntityRegistry,
   createInterfaceRegistry,
   createOntologyRegistry,
-  createEntityRegistry,
   createTenantAwareDataProvider,
   type DataProvider,
   InMemoryExecutionLogger,

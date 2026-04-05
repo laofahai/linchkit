@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { validatePhase1, validateProposal } from "../src/engine/validation-engine";
 import type { ActionDefinition } from "../src/types/action";
+import type { EntityDefinition } from "../src/types/entity";
 import type { ProposalChange } from "../src/types/proposal";
 import type { RuleDefinition } from "../src/types/rule";
-import type { EntityDefinition } from "../src/types/entity";
 import type { StateDefinition } from "../src/types/state";
 
 // ── Helpers ──────────────────────────────────────────────

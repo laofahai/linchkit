@@ -1,17 +1,17 @@
 /**
  * RelationGraphPage — /admin/graph
  *
- * Interactive schema relationship diagram.
- * Renders schemas as nodes and relationships as edges using ReactFlow + dagre auto-layout.
+ * Interactive entity relationship diagram.
+ * Renders entities as nodes and relationships as edges using ReactFlow + dagre auto-layout.
  *
  * Visual hierarchy:
  * - SemanticRelation edges are primary (colored solid lines, labeled by relation type)
  * - Link edges are secondary — merged onto semantic edges as cardinality annotations,
  *   or shown as gray dashed "structural-only" edges when no semantic match exists.
- * - Non-schema endpoints (actions, capabilities) from semantic relations are filtered out.
+ * - Non-entity endpoints (actions, capabilities) from semantic relations are filtered out.
  *
  * Single-click a node to select it and view impact analysis.
- * Double-click a node to navigate to its schema list page.
+ * Double-click a node to navigate to its entity list page.
  */
 
 import {
@@ -39,7 +39,7 @@ import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { fetchLinks, fetchEntities, fetchSemanticRelations, type EntityInfo } from "@/lib/api";
+import { type EntityInfo, fetchEntities, fetchLinks, fetchSemanticRelations } from "@/lib/api";
 
 // ── Layout constants ─────────────────────────────────────
 
@@ -372,7 +372,7 @@ const edgeTypes = { semantic: SemanticEdge, structural: StructuralEdge };
 // ── Merge helper: match Links to SemanticRelations ──────
 
 /**
- * Find the Link that corresponds to a given semantic relation (same from/to schemas).
+ * Find the Link that corresponds to a given semantic relation (same from/to entities).
  * Returns the matched link or undefined.
  */
 function findMatchingLink(
@@ -390,7 +390,7 @@ function findMatchingLink(
 // ── Graph builder ────────────────────────────────────────
 
 function buildGraph(
-  schemas: EntityInfo[],
+  entities: EntityInfo[],
   links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   showInternal: boolean,
@@ -400,13 +400,13 @@ function buildGraph(
   onNavigate: (name: string) => void,
   resolveLabel: (label: string | undefined, fallback: string) => string,
 ): { nodes: Node[]; edges: Edge[] } {
-  const knownSchemaNames = new Set(schemas.map((s) => s.name));
+  const knownEntityNames = new Set(entities.map((s) => s.name));
 
-  // Collect schemas that participate in at least one link or semantic relation
-  const linkedSchemas = new Set<string>();
+  // Collect entities that participate in at least one link or semantic relation
+  const linkedEntities = new Set<string>();
   for (const link of links) {
-    linkedSchemas.add(link.from);
-    linkedSchemas.add(link.to);
+    linkedEntities.add(link.from);
+    linkedEntities.add(link.to);
   }
 
   // Track which links are covered by semantic relations (for deduplication)
@@ -414,27 +414,28 @@ function buildGraph(
 
   if (showSemantic) {
     for (const rel of semanticRelations) {
-      // Only include endpoints that are actual known schemas (filter out action/capability nodes)
-      if (rel.from.entity && knownSchemaNames.has(rel.from.entity)) {
-        linkedSchemas.add(rel.from.entity);
+      // Only include endpoints that are actual known entities (filter out action/capability nodes)
+      if (rel.from.entity && knownEntityNames.has(rel.from.entity)) {
+        linkedEntities.add(rel.from.entity);
       }
-      if (rel.to.entity && knownSchemaNames.has(rel.to.entity)) {
-        linkedSchemas.add(rel.to.entity);
+      if (rel.to.entity && knownEntityNames.has(rel.to.entity)) {
+        linkedEntities.add(rel.to.entity);
       }
     }
   }
 
-  // Filter: only known schemas that participate in links; respect internal toggle.
+  // Filter: only known entities that participate in links; respect internal toggle.
   // No fallback for unknown endpoints — this prevents "action" ghost nodes.
-  const visibleSchemas = schemas.filter(
-    (s) => linkedSchemas.has(s.name) && (showInternal || !s.internal),
+  const visibleEntities = entities.filter(
+    (s) => linkedEntities.has(s.name) && (showInternal || !s.internal),
   );
-  const visibleSet = new Set(visibleSchemas.map((s) => s.name));
+  const visibleSet = new Set(visibleEntities.map((s) => s.name));
 
-  // Count relations per schema for tooltip
+  // Count relations per entity for tooltip
   const linkCountMap = new Map<string, number>();
   for (const link of links) {
-    if (visibleSet.has(link.from)) linkCountMap.set(link.from, (linkCountMap.get(link.from) ?? 0) + 1);
+    if (visibleSet.has(link.from))
+      linkCountMap.set(link.from, (linkCountMap.get(link.from) ?? 0) + 1);
     if (visibleSet.has(link.to)) linkCountMap.set(link.to, (linkCountMap.get(link.to) ?? 0) + 1);
   }
   if (showSemantic) {
@@ -472,7 +473,7 @@ function buildGraph(
     }
   }
 
-  const nodes: Node[] = visibleSchemas.map((s) => ({
+  const nodes: Node[] = visibleEntities.map((s) => ({
     id: s.name,
     type: "schema",
     position: { x: 0, y: 0 },
@@ -492,7 +493,7 @@ function buildGraph(
   const semanticEdges: Edge[] = [];
   if (showSemantic) {
     for (const r of semanticRelations) {
-      // Only include edges where both endpoints are known visible schemas
+      // Only include edges where both endpoints are known visible entities
       if (
         !r.from.entity ||
         !r.to.entity ||
@@ -556,14 +557,14 @@ interface ImpactEntry {
 }
 
 function computeImpact(
-  selectedSchema: string,
-  schemas: EntityInfo[],
+  selectedEntity: string,
+  entities: EntityInfo[],
   links: RelationDefinition[],
   semanticRelations: SemanticRelation[],
   resolveLabel: (label: string | undefined, fallback: string) => string,
 ): ImpactEntry[] {
-  const knownSchemaNames = new Set(schemas.map((s) => s.name));
-  const labelMap = new Map(schemas.map((s) => [s.name, resolveLabel(s.label, s.name)]));
+  const knownEntityNames = new Set(entities.map((s) => s.name));
+  const labelMap = new Map(entities.map((s) => [s.name, resolveLabel(s.label, s.name)]));
   const entries: ImpactEntry[] = [];
 
   // Track which link pairs are covered by semantic relations
@@ -571,7 +572,11 @@ function computeImpact(
 
   // Semantic relations first (primary)
   for (const rel of semanticRelations) {
-    if (rel.from.entity === selectedSchema && rel.to.entity && knownSchemaNames.has(rel.to.entity)) {
+    if (
+      rel.from.entity === selectedEntity &&
+      rel.to.entity &&
+      knownEntityNames.has(rel.to.entity)
+    ) {
       coveredPairs.add(`${rel.from.entity}->${rel.to.entity}`);
       coveredPairs.add(`${rel.to.entity}->${rel.from.entity}`);
       const matchedLink = findMatchingLink(rel, links);
@@ -586,7 +591,11 @@ function computeImpact(
         edgeType: "semantic",
         relationType: rel.type,
       });
-    } else if (rel.to.entity === selectedSchema && rel.from.entity && knownSchemaNames.has(rel.from.entity)) {
+    } else if (
+      rel.to.entity === selectedEntity &&
+      rel.from.entity &&
+      knownEntityNames.has(rel.from.entity)
+    ) {
       coveredPairs.add(`${rel.from.entity}->${rel.to.entity}`);
       coveredPairs.add(`${rel.to.entity}->${rel.from.entity}`);
       const matchedLink = findMatchingLink(rel, links);
@@ -606,7 +615,7 @@ function computeImpact(
 
   // Structural links not covered by semantic relations
   for (const link of links) {
-    if (link.from === selectedSchema && !coveredPairs.has(`${link.from}->${link.to}`)) {
+    if (link.from === selectedEntity && !coveredPairs.has(`${link.from}->${link.to}`)) {
       entries.push({
         schema: link.to,
         label: labelMap.get(link.to),
@@ -614,7 +623,7 @@ function computeImpact(
         direction: "outgoing",
         edgeType: "structural",
       });
-    } else if (link.to === selectedSchema && !coveredPairs.has(`${link.to}->${link.from}`)) {
+    } else if (link.to === selectedEntity && !coveredPairs.has(`${link.to}->${link.from}`)) {
       entries.push({
         schema: link.from,
         label: labelMap.get(link.from),
@@ -631,8 +640,8 @@ function computeImpact(
 // ── Impact panel ─────────────────────────────────────────
 
 interface ImpactPanelProps {
-  selectedSchema: string;
-  schemas: EntityInfo[];
+  selectedEntity: string;
+  entities: EntityInfo[];
   links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   onNavigate: (name: string) => void;
@@ -641,8 +650,8 @@ interface ImpactPanelProps {
 }
 
 function ImpactPanel({
-  selectedSchema,
-  schemas,
+  selectedEntity,
+  entities,
   links,
   semanticRelations,
   onNavigate,
@@ -650,11 +659,11 @@ function ImpactPanel({
   resolveLabel,
 }: ImpactPanelProps) {
   const { t } = useTranslation();
-  const schemaInfo = schemas.find((s) => s.name === selectedSchema);
-  const schemaLabel = resolveLabel(schemaInfo?.label, selectedSchema);
+  const entityInfo = entities.find((s) => s.name === selectedEntity);
+  const entityLabel = resolveLabel(entityInfo?.label, selectedEntity);
   const entries = useMemo(
-    () => computeImpact(selectedSchema, schemas, links, semanticRelations, resolveLabel),
-    [selectedSchema, schemas, links, semanticRelations, resolveLabel],
+    () => computeImpact(selectedEntity, entities, links, semanticRelations, resolveLabel),
+    [selectedEntity, entities, links, semanticRelations, resolveLabel],
   );
 
   const outgoing = entries.filter((e) => e.direction === "outgoing");
@@ -698,10 +707,10 @@ function ImpactPanel({
                 whiteSpace: "nowrap",
               }}
             >
-              {schemaLabel}
+              {entityLabel}
             </div>
-            {schemaLabel !== selectedSchema && (
-              <div style={{ fontSize: 10, color: "#94a3b8" }}>{selectedSchema}</div>
+            {entityLabel !== selectedEntity && (
+              <div style={{ fontSize: 10, color: "#94a3b8" }}>{selectedEntity}</div>
             )}
           </div>
         </div>
@@ -729,7 +738,7 @@ function ImpactPanel({
       <div style={{ padding: "10px 16px", borderBottom: "1px solid #f1f5f9" }}>
         <button
           type="button"
-          onClick={() => onNavigate(selectedSchema)}
+          onClick={() => onNavigate(selectedEntity)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -974,7 +983,7 @@ function GraphLegend({ activeSemanticTypes, hasOrphanLinks }: GraphLegendProps) 
 // ── GraphCanvas — inner component that owns ReactFlow state ─
 
 interface GraphCanvasProps {
-  schemas: EntityInfo[];
+  entities: EntityInfo[];
   links: RelationDefinition[];
   semanticRelations: SemanticRelation[];
   showInternal: boolean;
@@ -986,7 +995,7 @@ interface GraphCanvasProps {
 }
 
 function GraphCanvas({
-  schemas,
+  entities,
   links,
   semanticRelations,
   showInternal,
@@ -1001,7 +1010,7 @@ function GraphCanvas({
 
   useEffect(() => {
     const { nodes: n, edges: e } = buildGraph(
-      schemas,
+      entities,
       links,
       semanticRelations,
       showInternal,
@@ -1014,7 +1023,7 @@ function GraphCanvas({
     setRfNodes(n);
     setRfEdges(e);
   }, [
-    schemas,
+    entities,
     links,
     semanticRelations,
     showInternal,
@@ -1030,10 +1039,10 @@ function GraphCanvas({
   // Compute which semantic relation types are actually visible for the legend
   const activeSemanticTypes = useMemo(() => {
     if (!showSemantic) return new Set<string>();
-    const knownNames = new Set(schemas.map((s) => s.name));
+    const knownNames = new Set(entities.map((s) => s.name));
     const types = new Set<string>();
     for (const rel of semanticRelations) {
-      // Only count types that are actually rendered (both endpoints must be known schemas)
+      // Only count types that are actually rendered (both endpoints must be known entities)
       if (
         rel.from.entity &&
         rel.to.entity &&
@@ -1044,7 +1053,7 @@ function GraphCanvas({
       }
     }
     return types;
-  }, [showSemantic, semanticRelations, schemas]);
+  }, [showSemantic, semanticRelations, entities]);
 
   // Check if there are orphan (structural-only) links displayed
   const hasOrphanLinks = useMemo(() => {
@@ -1131,7 +1140,7 @@ export function RelationGraphPage() {
   const [showSemantic, setShowSemantic] = useState(true);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  const schemasQuery = useQuery({ queryKey: ["schemas"], queryFn: fetchEntities });
+  const entitiesQuery = useQuery({ queryKey: ["entities"], queryFn: fetchEntities });
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: fetchLinks });
   // Always fetch semantic relations (not gated by showSemantic toggle)
   const semanticQuery = useQuery({
@@ -1139,10 +1148,10 @@ export function RelationGraphPage() {
     queryFn: fetchSemanticRelations,
   });
 
-  const loading = schemasQuery.isLoading || linksQuery.isLoading;
-  const error = schemasQuery.isError || linksQuery.isError;
+  const loading = entitiesQuery.isLoading || linksQuery.isLoading;
+  const error = entitiesQuery.isError || linksQuery.isError;
 
-  const schemas = schemasQuery.data ?? [];
+  const entities = entitiesQuery.data ?? [];
   const links = linksQuery.data ?? [];
   const semanticRelations = semanticQuery.data ?? [];
 
@@ -1152,7 +1161,7 @@ export function RelationGraphPage() {
 
   const handleNavigate = useCallback(
     (name: string) => {
-      navigate({ to: "/schemas/$name", params: { name } });
+      navigate({ to: "/entities/$name", params: { name } });
     },
     [navigate],
   );
@@ -1229,7 +1238,7 @@ export function RelationGraphPage() {
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <GraphCanvas
-              schemas={schemas}
+              entities={entities}
               links={links}
               semanticRelations={semanticRelations}
               showInternal={showInternal}
@@ -1242,8 +1251,8 @@ export function RelationGraphPage() {
           </div>
           {selectedNode && (
             <ImpactPanel
-              selectedSchema={selectedNode}
-              schemas={schemas}
+              selectedEntity={selectedNode}
+              entities={entities}
               links={links}
               semanticRelations={semanticRelations}
               onNavigate={handleNavigate}

@@ -452,7 +452,11 @@ export function mountAdminRoutes(
     })
     // ── Link REST endpoints ─────────────────────────────────
     .get("/api/links", () => {
-      const allLinks = collectFromCapabilities<RelationDefinition>(undefined, capabilities, "relations");
+      const allLinks = collectFromCapabilities<RelationDefinition>(
+        undefined,
+        capabilities,
+        "relations",
+      );
       return { success: true, data: allLinks };
     })
     // ── Semantic relation endpoint ──────────────────────────

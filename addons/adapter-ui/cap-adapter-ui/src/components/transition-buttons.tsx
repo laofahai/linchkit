@@ -76,7 +76,7 @@ export function TransitionButtons({
       }
     }
     // Try schema-specific i18n key, then common state key
-    const schemaKey = `schemas.${entityName}.states.${stateValue}`;
+    const schemaKey = `entities.${entityName}.states.${stateValue}`;
     const schemaTranslated = t(schemaKey, { defaultValue: "" });
     if (schemaTranslated) return schemaTranslated;
     const commonKey = `states.${stateValue}`;

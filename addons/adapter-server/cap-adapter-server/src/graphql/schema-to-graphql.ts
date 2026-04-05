@@ -7,10 +7,10 @@
 
 import type {
   ActionDefinition,
-  FieldDefinition,
-  RelationDefinition,
-  Logger,
   EntityDefinition,
+  FieldDefinition,
+  Logger,
+  RelationDefinition,
   StateDefinition,
 } from "@linchkit/core";
 import { I18N_RAW_KEY, resolveTranslatableValue } from "@linchkit/core";

@@ -9,7 +9,7 @@
  * Uses graphql-yoga's built-in SSE-based subscription transport.
  */
 
-import type { EventBus, EventRecord, EntityDefinition } from "@linchkit/core";
+import type { EntityDefinition, EventBus, EventRecord } from "@linchkit/core";
 import {
   type GraphQLFieldConfig,
   GraphQLID,
