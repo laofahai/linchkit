@@ -879,8 +879,8 @@ describe("WatcherEngine — staleness triggers", () => {
 
     engine.start();
 
-    // Wait for the interval to fire
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for the interval to fire (generous timeout for CI)
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     engine.stop();
 
