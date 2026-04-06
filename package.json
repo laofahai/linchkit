@@ -19,10 +19,12 @@
     "db:generate": "bun ./packages/cli/src/index.ts db generate",
     "db:migrate": "bun ./node_modules/.bin/drizzle-kit migrate",
     "db:studio": "bun ./node_modules/.bin/drizzle-kit studio",
-    "release": "bun scripts/release.ts",
-    "release:dry": "bun scripts/release.ts --dry-run"
+    "changeset": "bunx changeset",
+    "version-packages": "bunx changeset version",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "bun-types": "latest",
     "drizzle-kit": "^0.31.10",
     "tsup": "^8.5.1"

@@ -1,13 +1,13 @@
 /**
- * Release script for LinchKit monorepo.
+ * Release script for LinchKit monorepo (changesets-based).
+ *
+ * Builds packages in dependency order, then runs `changeset publish`
+ * to publish only packages with pending version bumps.
  *
  * Usage:
- *   bun scripts/release.ts              # publish all packages
+ *   bun scripts/release.ts              # build + publish changed packages
  *   bun scripts/release.ts --dry-run    # show what would be published
  *   bun scripts/release.ts --tag=next   # publish with dist-tag "next"
- *
- * Publishes packages in dependency order (tiers).
- * Packages within the same tier are published in parallel.
  */
 
 import { relative, resolve } from "node:path";
@@ -18,7 +18,7 @@ const DRY_RUN = Bun.argv.includes("--dry-run");
 const TAG = Bun.argv.find((a) => a.startsWith("--tag="))?.split("=")[1] || "latest";
 
 // ---------------------------------------------------------------------------
-// Discover all publishable packages
+// Package discovery
 // ---------------------------------------------------------------------------
 
 interface PkgInfo {
@@ -26,6 +26,7 @@ interface PkgInfo {
   version: string;
   path: string; // relative to ROOT
   private: boolean;
+  hasBuild: boolean;
 }
 
 async function discoverPackages(): Promise<PkgInfo[]> {
@@ -47,6 +48,7 @@ async function discoverPackages(): Promise<PkgInfo[]> {
         version: pkg.version,
         path: relative(ROOT, resolve(fullPath, "..")),
         private: pkg.private === true,
+        hasBuild: !!pkg.scripts?.build,
       });
     }
   }
@@ -58,12 +60,10 @@ async function discoverPackages(): Promise<PkgInfo[]> {
 // Dependency-ordered tiers
 // ---------------------------------------------------------------------------
 
-// Tier 0: no @linchkit deps (core)
+// Tier 0: core (no @linchkit deps)
 // Tier 1: depends on core only (devtools, ui-kit)
 // Tier 2: everything else (cli, all cap-* addons)
 function organizeTiers(packages: PkgInfo[]): PkgInfo[][] {
-  const _byName = new Map(packages.map((p) => [p.name, p]));
-
   const tier0Names = new Set(["@linchkit/core"]);
   const tier1Names = new Set(["@linchkit/devtools", "@linchkit/ui-kit"]);
 
@@ -82,28 +82,11 @@ function organizeTiers(packages: PkgInfo[]): PkgInfo[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-async function validateGitClean(): Promise<boolean> {
-  const result = await $`git -C ${ROOT} status --porcelain`.text();
-  if (result.trim().length > 0) {
-    console.error("ERROR: Uncommitted changes detected. Commit or stash first.");
-    console.error(result);
-    return false;
-  }
-  return true;
-}
-
-// ---------------------------------------------------------------------------
 // Build
 // ---------------------------------------------------------------------------
 
 async function buildPackage(pkg: PkgInfo): Promise<boolean> {
-  const pkgJson = await Bun.file(resolve(ROOT, pkg.path, "package.json")).json();
-  if (!pkgJson.scripts?.build) {
-    return true; // nothing to build
-  }
+  if (!pkg.hasBuild) return true;
 
   console.log(`  Building ${pkg.name}...`);
   if (DRY_RUN) {
@@ -122,31 +105,6 @@ async function buildPackage(pkg: PkgInfo): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Publish
-// ---------------------------------------------------------------------------
-
-async function publishPackage(pkg: PkgInfo): Promise<boolean> {
-  const dir = resolve(ROOT, pkg.path);
-  const args = ["publish", "--access", "public", "--tag", TAG];
-
-  if (DRY_RUN) {
-    console.log(
-      `  [dry-run] Would publish: ${pkg.name}@${pkg.version} (tag: ${TAG}) from ${pkg.path}`,
-    );
-    return true;
-  }
-
-  try {
-    await $`cd ${dir} && bun ${args}`.quiet();
-    console.log(`  Published ${pkg.name}@${pkg.version}`);
-    return true;
-  } catch (e) {
-    console.error(`  FAILED to publish ${pkg.name}:`, (e as Error).message);
-    return false;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -154,7 +112,7 @@ async function main() {
   console.log(`\nLinchKit Release${DRY_RUN ? " (DRY RUN)" : ""}`);
   console.log(`Tag: ${TAG}\n`);
 
-  // Discover
+  // Discover all packages
   const allPackages = await discoverPackages();
   const publishable = allPackages.filter((p) => !p.private);
 
@@ -164,54 +122,47 @@ async function main() {
   }
   console.log();
 
-  // Validate git state
-  if (!DRY_RUN) {
-    const clean = await validateGitClean();
-    if (!clean) process.exit(1);
-  }
-
-  // Organize into tiers
+  // Build in dependency order
   const tiers = organizeTiers(allPackages);
-
-  const succeeded: string[] = [];
-  const failed: string[] = [];
+  const buildFailed: string[] = [];
 
   for (let i = 0; i < tiers.length; i++) {
     const tier = tiers[i];
-    console.log(`\n--- Tier ${i} (${tier.map((p) => p.name).join(", ")}) ---`);
+    console.log(`\n--- Build Tier ${i} (${tier.map((p) => p.name).join(", ")}) ---`);
 
-    // Build all in tier
-    console.log("Building...");
-    const buildResults = await Promise.all(tier.map((pkg) => buildPackage(pkg)));
+    const results = await Promise.all(tier.map((pkg) => buildPackage(pkg)));
     for (let j = 0; j < tier.length; j++) {
-      if (!buildResults[j]) {
-        console.error(`  Skipping publish for ${tier[j].name} due to build failure`);
-        failed.push(tier[j].name);
-      }
+      if (!results[j]) buildFailed.push(tier[j].name);
     }
-
-    // Publish all successfully built packages in this tier
-    console.log("Publishing...");
-    const publishPromises = tier.map(async (pkg, j) => {
-      if (!buildResults[j]) return; // skip failed builds
-      const ok = await publishPackage(pkg);
-      if (ok) succeeded.push(pkg.name);
-      else failed.push(pkg.name);
-    });
-    await Promise.all(publishPromises);
   }
 
-  // Summary
-  console.log("\n========== SUMMARY ==========");
-  console.log(`Succeeded: ${succeeded.length}`);
-  for (const name of succeeded) console.log(`  + ${name}`);
-  if (failed.length > 0) {
-    console.log(`Failed: ${failed.length}`);
-    for (const name of failed) console.log(`  - ${name}`);
+  if (buildFailed.length > 0) {
+    console.error("\nBuild failures:");
+    for (const name of buildFailed) console.error(`  - ${name}`);
+    process.exit(1);
   }
-  console.log("=============================\n");
 
-  if (failed.length > 0) process.exit(1);
+  // Publish via changesets
+  console.log("\n--- Publishing via changesets ---");
+
+  if (DRY_RUN) {
+    console.log("[dry-run] Would run: bunx changeset publish --tag", TAG);
+    console.log("[dry-run] Checking changeset status instead:\n");
+    try {
+      await $`cd ${ROOT} && bunx changeset status`;
+    } catch {
+      console.log("No pending changesets (this is normal if versions are already bumped).");
+    }
+  } else {
+    const tagArgs = TAG !== "latest" ? ["--tag", TAG] : [];
+    try {
+      await $`cd ${ROOT} && bunx changeset publish ${tagArgs}`;
+      console.log("\nPublish complete.");
+    } catch (e) {
+      console.error("\nPublish failed:", (e as Error).message);
+      process.exit(1);
+    }
+  }
 }
 
 main().catch((err) => {

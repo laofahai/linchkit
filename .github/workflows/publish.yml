@@ -1,12 +1,15 @@
-name: Publish
+name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   quality:
@@ -31,8 +34,8 @@ jobs:
       - name: Run tests
         run: bun test
 
-  publish:
-    name: Publish to npm
+  release:
+    name: Release
     needs: quality
     runs-on: ubuntu-latest
     steps:
@@ -45,29 +48,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Extract and validate version
-        id: version
-        run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
-
-          # Validate tag version matches @linchkit/core version
-          CORE_VERSION=$(jq -r '.version' packages/core/package.json)
-          if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match @linchkit/core version ($CORE_VERSION)"
-            exit 1
-          fi
-          echo "Tag version $TAG_VERSION matches core package version"
-
-      - name: Build and publish packages
-        run: bun scripts/release.ts
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          title: "chore: version packages"
+          commit: "chore: version packages"
+          version: bunx changeset version
+          publish: bun scripts/release.ts
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
-            --generate-notes
-        env:
-          GH_TOKEN: ${{ github.token }}
