@@ -8,6 +8,8 @@ import { defineCommand } from "citty";
 import {
   agentsMdTemplate,
   claudeMdTemplate,
+  envExampleTemplate,
+  gitignoreTemplate,
   linchkitConfigTemplate,
   packageJsonTemplate,
   tsconfigTemplate,
@@ -39,12 +41,10 @@ export const initCommand = defineCommand({
     // Create directory structure
     mkdirSync(projectDir, { recursive: true });
     mkdirSync(resolve(projectDir, "addons"), { recursive: true });
-    mkdirSync(resolve(projectDir, "migrations"), { recursive: true });
     mkdirSync(resolve(projectDir, "tests"), { recursive: true });
 
     // Write .gitkeep files
     writeFileSync(resolve(projectDir, "addons/.gitkeep"), "");
-    writeFileSync(resolve(projectDir, "migrations/.gitkeep"), "");
     writeFileSync(resolve(projectDir, "tests/.gitkeep"), "");
 
     // Write config and project files
@@ -55,6 +55,11 @@ export const initCommand = defineCommand({
     writeFileSync(resolve(projectDir, "CLAUDE.md"), claudeMdTemplate(projectName));
     writeFileSync(resolve(projectDir, "AGENTS.md"), agentsMdTemplate(projectName));
 
+    // Write env and gitignore files
+    writeFileSync(resolve(projectDir, ".env.example"), envExampleTemplate());
+    writeFileSync(resolve(projectDir, ".env"), envExampleTemplate());
+    writeFileSync(resolve(projectDir, ".gitignore"), gitignoreTemplate());
+
     console.log("");
     console.log("Project created successfully!");
     console.log("");
@@ -63,8 +68,10 @@ export const initCommand = defineCommand({
     console.log("    ├── linchkit.config.ts");
     console.log("    ├── package.json");
     console.log("    ├── tsconfig.json");
+    console.log("    ├── .env.example");
+    console.log("    ├── .env");
+    console.log("    ├── .gitignore");
     console.log("    ├── addons/");
-    console.log("    ├── migrations/");
     console.log("    ├── tests/");
     console.log("    ├── CLAUDE.md");
     console.log("    └── AGENTS.md");

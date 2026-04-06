@@ -1,32 +1,39 @@
 {
   "name": "@linchkit/cap-adapter-server",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun",
     "dev": "bun --watch src/dev.ts",
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*",
     "@elysiajs/cors": "^1.4.1",
     "elysia": "^1.4.28",
     "graphql": "^16.13.1",
     "graphql-yoga": "^5.18.1",
     "dataloader": "^2.2.3"
   },
+  "peerDependencies": {
+    "@linchkit/core": "^0.1.0"
+  },
   "devDependencies": {
+    "@linchkit/core": "workspace:*",
     "typescript": "^5.9.3"
   },
   "linchkit": {
+    "minCoreVersion": "^0.1.0",
     "type": "adapter",
-    "category": "integration",
-    "trustLevel": "official"
+    "category": "integration"
   }
 }
