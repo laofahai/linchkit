@@ -50,6 +50,7 @@ import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountEntityRoutes } from "./routes/entity-api";
 import { mountImportRoutes } from "./routes/import-api";
+import { mountOverlayRoutes } from "./routes/overlay-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
 import { mountTranslationRoutes } from "./routes/translation-api";
@@ -139,6 +140,13 @@ export interface ServerOptions {
   configStore?: ConfigStore;
   /** Cache manager — when provided, enables /internal/cache/stats endpoint */
   cacheManager?: CacheManager;
+  /** Overlay registry — when provided, enables /api/overlays REST endpoints */
+  overlayRegistry?: import("@linchkit/core/server").OverlayRegistry;
+  /**
+   * Callback to rebuild GraphQL schema after overlay changes.
+   * Receives the current yoga instance and triggers schema replacement.
+   */
+  rebuildGraphQLSchema?: () => GraphQLSchema;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -165,9 +173,12 @@ export function createServer(
   const executionLogger = options?.executionLogger;
   const serverStartedAt = Date.now();
 
+  // Track current schema for hot-reload support
+  let currentSchema = graphqlSchema;
+
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
-    schema: graphqlSchema,
+    schema: () => currentSchema,
     graphqlEndpoint: graphqlPath,
     // Landing page serves as GraphQL playground in development
     landingPage: true,
@@ -240,6 +251,23 @@ export function createServer(
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
   mountTranslationRoutes(app, opts);
+
+  // Mount overlay management endpoints when overlay registry is available
+  if (options?.overlayRegistry) {
+    const overlayRegistry = options.overlayRegistry;
+    const rebuildSchema = options?.rebuildGraphQLSchema;
+    const entityNameSet = options?.entityMap ? new Set(options.entityMap.keys()) : undefined;
+    mountOverlayRoutes(app, {
+      overlayRegistry,
+      entityNames: entityNameSet,
+      onOverlayChange: rebuildSchema
+        ? (_entityName: string) => {
+            // Hot-reload GraphQL schema after overlay CRUD
+            currentSchema = rebuildSchema();
+          }
+        : undefined,
+    });
+  }
 
   // Mount graphql-yoga — handle all methods on the graphql path
   app.all(graphqlPath, async ({ request }) => {

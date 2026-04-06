@@ -21,7 +21,7 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
-import type { CacheManager } from "@linchkit/core/server";
+import type { CacheManager, OverlayRegistry } from "@linchkit/core/server";
 import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
 
 export { type GenerateCrudActionsOptions, generateCrudActions } from "./build-crud-actions";
@@ -167,6 +167,8 @@ export interface BuildGraphQLSchemaOptions {
   extraQueryFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
   /** Extra mutation fields from capability graphqlExtensions */
   extraMutationFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
+  /** Overlay registry for dynamic runtime fields (Phase 3 — overlay fields in GraphQL) */
+  overlayRegistry?: OverlayRegistry;
 }
 
 /**
@@ -192,6 +194,7 @@ export function buildGraphQLSchema(
   const stateDefinitions = options?.stateDefinitions ?? [];
   const cacheManager = options?.cacheManager;
   const internalSchemas = options?.internalSchemas ?? new Set<string>();
+  const overlayRegistry = options?.overlayRegistry;
 
   /** Default TTL for GraphQL query cache entries (30s) */
   const GQL_CACHE_TTL = 30_000;
@@ -299,8 +302,10 @@ export function buildGraphQLSchema(
 
   // Pre-generate object types to reuse for both CRUD and custom action return types.
   // Pass the typeMap and relations so that relation fields can reference other types lazily.
+  // When overlayRegistry is available, overlay fields are included on entity types.
   const entityObjectTypes = new Map<string, GraphQLObjectType>();
   for (const entity of autoEntities) {
+    const entityOverlays = overlayRegistry?.overlaysFor(entity.name);
     entityObjectTypes.set(
       entity.name,
       generateGraphQLObjectType(
@@ -308,6 +313,7 @@ export function buildGraphQLSchema(
         undefined,
         relations.length > 0 ? relations : undefined,
         relations.length > 0 ? entityObjectTypes : undefined,
+        entityOverlays?.length ? entityOverlays : undefined,
       ),
     );
   }
@@ -315,7 +321,13 @@ export function buildGraphQLSchema(
   for (const entity of autoEntities) {
     const objectType = entityObjectTypes.get(entity.name);
     if (!objectType) continue;
-    const inputType = generateGraphQLInputType(entity, undefined, relations);
+    const entityOverlays = overlayRegistry?.overlaysFor(entity.name);
+    const inputType = generateGraphQLInputType(
+      entity,
+      undefined,
+      relations,
+      entityOverlays?.length ? entityOverlays : undefined,
+    );
     const camelName = toCamelCase(entity.name);
     const pascalName = toPascalCase(entity.name);
     const entityName = entity.name;

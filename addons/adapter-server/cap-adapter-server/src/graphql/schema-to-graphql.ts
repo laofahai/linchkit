@@ -9,6 +9,7 @@ import type {
   ActionDefinition,
   EntityDefinition,
   FieldDefinition,
+  FieldOverlayRecord,
   Logger,
   RelationDefinition,
   StateDefinition,
@@ -239,12 +240,14 @@ function toPascalCase(name: string): string {
  * Includes system fields (id, tenant_id, created_at, etc.) and user-defined fields.
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
  * When relations and typeMap are provided, adds relation-based resolver fields.
+ * When overlays are provided, adds overlay fields from _extensions JSONB.
  */
 export function generateGraphQLObjectType(
   schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
   relations?: RelationDefinition[],
   typeMap?: Map<string, GraphQLObjectType>,
+  overlays?: FieldOverlayRecord[],
 ): GraphQLObjectType {
   const typeName = toPascalCase(schema.name);
 
@@ -394,6 +397,16 @@ export function generateGraphQLObjectType(
         }
       }
 
+      // Overlay fields from _extensions JSONB (runtime-added fields)
+      if (overlays?.length) {
+        const overlayFields = buildOverlayOutputFields(overlays, schema);
+        for (const [name, fieldConfig] of Object.entries(overlayFields)) {
+          if (!fields[name]) {
+            fields[name] = fieldConfig;
+          }
+        }
+      }
+
       return fields;
     },
   });
@@ -405,11 +418,13 @@ export function generateGraphQLObjectType(
  * When stateMachines is provided, state fields generate proper GraphQLEnumType.
  * When relations are provided, adds FK columns for many_to_one and one_to_one relationships
  * (e.g., department ref → department_id input field).
+ * When overlays are provided, adds overlay fields as optional inputs.
  */
 export function generateGraphQLInputType(
   schema: EntityDefinition,
   stateMachines?: Map<string, StateDefinition>,
   relations?: RelationDefinition[],
+  overlays?: FieldOverlayRecord[],
 ): GraphQLInputObjectType {
   const typeName = `${toPascalCase(schema.name)}Input`;
 
@@ -456,6 +471,16 @@ export function generateGraphQLInputType(
         }
       }
 
+      // Overlay input fields (always optional for backwards compatibility)
+      if (overlays?.length) {
+        const overlayInputFields = buildOverlayInputFields(overlays, schema);
+        for (const [name, fieldConfig] of Object.entries(overlayInputFields)) {
+          if (!fields[name]) {
+            fields[name] = fieldConfig;
+          }
+        }
+      }
+
       return fields;
     },
   });
@@ -466,6 +491,154 @@ export function generateGraphQLInputType(
  */
 export function clearEnumTypeCache(): void {
   enumTypeCache.clear();
+}
+
+// ── Overlay field support ────────────────────────────────────────
+
+/** System field names that overlay fields must not collide with */
+const SYSTEM_FIELD_NAMES = new Set([
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+  "_extensions",
+]);
+
+/**
+ * Map an overlay field type to a GraphQL output type.
+ * Generates GraphQLEnumType for enum-type overlays with enumValues.
+ */
+function mapOverlayFieldToGraphQLType(overlay: FieldOverlayRecord): GraphQLOutputType | null {
+  switch (overlay.fieldType) {
+    case "string":
+    case "date":
+      return GraphQLString;
+    case "number":
+      return GraphQLFloat;
+    case "boolean":
+      return GraphQLBoolean;
+    case "enum": {
+      if (overlay.config.enumValues?.length) {
+        const enumName = `${toPascalCase(overlay.entityName)}${toPascalCase(overlay.fieldName)}OverlayEnum`;
+        const cached = enumTypeCache.get(enumName);
+        if (cached) return cached;
+        const enumType = new GraphQLEnumType({
+          name: enumName,
+          values: Object.fromEntries(
+            overlay.config.enumValues.map((v) => [sanitizeEnumValue(v), { value: v }]),
+          ),
+        });
+        enumTypeCache.set(enumName, enumType);
+        return enumType;
+      }
+      return GraphQLString;
+    }
+    case "json":
+      return GraphQLString;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Map an overlay field type to a GraphQL input type.
+ */
+function mapOverlayFieldToGraphQLInputType(overlay: FieldOverlayRecord): GraphQLInputType | null {
+  // Reuse the same mapping — overlay enum types are shared between output and input
+  return mapOverlayFieldToGraphQLType(overlay) as GraphQLInputType | null;
+}
+
+/**
+ * Build GraphQL output fields from overlay records.
+ * Each overlay field resolves from `source._extensions?.[fieldName]`.
+ */
+export function buildOverlayOutputFields(
+  overlays: FieldOverlayRecord[],
+  schema: EntityDefinition,
+): Record<
+  string,
+  {
+    type: GraphQLOutputType;
+    description?: string;
+    resolve?: (obj: Record<string, unknown>) => unknown;
+  }
+> {
+  const fields: Record<
+    string,
+    {
+      type: GraphQLOutputType;
+      description?: string;
+      resolve?: (obj: Record<string, unknown>) => unknown;
+    }
+  > = {};
+
+  for (const overlay of overlays) {
+    // Skip overlays that collide with code-defined or system fields
+    if (overlay.fieldName in schema.fields || SYSTEM_FIELD_NAMES.has(overlay.fieldName)) {
+      moduleLogger.warn(
+        `[schema-to-graphql] Overlay field "${overlay.fieldName}" on entity "${schema.name}" collides with existing field — skipping`,
+      );
+      continue;
+    }
+
+    const graphqlType = mapOverlayFieldToGraphQLType(overlay);
+    if (!graphqlType) continue;
+
+    const fieldName = overlay.fieldName;
+    const description = overlay.config.description
+      ? `[Overlay] ${overlay.config.description}`
+      : `[Overlay] ${fieldName}`;
+
+    fields[fieldName] = {
+      type: graphqlType, // Always nullable for overlay fields
+      description,
+      resolve: (obj: Record<string, unknown>) => {
+        // Read from _extensions JSONB column
+        const extensions = obj._extensions as Record<string, unknown> | undefined;
+        if (extensions && fieldName in extensions) {
+          return extensions[fieldName] ?? null;
+        }
+        // Also check top-level (in case DataProvider already spread _extensions)
+        return obj[fieldName] ?? null;
+      },
+    };
+  }
+
+  return fields;
+}
+
+/**
+ * Build GraphQL input fields from overlay records.
+ * All overlay input fields are optional (for backwards compatibility).
+ */
+export function buildOverlayInputFields(
+  overlays: FieldOverlayRecord[],
+  schema: EntityDefinition,
+): Record<string, GraphQLInputFieldConfig> {
+  const fields: Record<string, GraphQLInputFieldConfig> = {};
+
+  for (const overlay of overlays) {
+    // Skip overlays that collide with code-defined or system fields
+    if (overlay.fieldName in schema.fields || SYSTEM_FIELD_NAMES.has(overlay.fieldName)) {
+      continue;
+    }
+
+    const graphqlType = mapOverlayFieldToGraphQLInputType(overlay);
+    if (!graphqlType) continue;
+
+    fields[overlay.fieldName] = {
+      // Always optional in input — even if config.required=true (backwards compatibility)
+      type: graphqlType,
+      description: overlay.config.description
+        ? `[Overlay] ${overlay.config.description}`
+        : `[Overlay] ${overlay.fieldName}`,
+    };
+  }
+
+  return fields;
 }
 
 /**
