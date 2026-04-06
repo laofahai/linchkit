@@ -350,6 +350,11 @@ export {
   overrideTargetTypeEnum,
   tenantOverridesTable,
 } from "./persistence/system-tables";
+export { InMemoryOverlayStore } from "./persistence/in-memory-overlay-store";
+export {
+  fieldOverlaysTable,
+  overlayStatusEnum,
+} from "./persistence/overlay-table";
 export { TableRegistry } from "./persistence/table-registry";
 export {
   type OverrideTargetType,

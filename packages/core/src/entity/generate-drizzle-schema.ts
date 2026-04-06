@@ -231,7 +231,9 @@ export {
   eventStatusEnum,
   executionsTable,
   executionStatusEnum,
+  fieldOverlaysTable,
   linchkitSchema,
+  overlayStatusEnum,
 } from "@linchkit/core/server";
 
 // Capability tables

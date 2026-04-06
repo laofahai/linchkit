@@ -246,6 +246,7 @@ export function buildSystemColumns(): Record<string, any> {
     updated_by: varchar("updated_by", { length: 128 }),
     _version: integer("_version").default(1).notNull(),
     deleted_at: timestamp("deleted_at", { mode: "date" }),
+    _extensions: jsonb("_extensions"),
   };
 }
 
