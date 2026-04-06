@@ -20,7 +20,7 @@ import { changelogCommand } from "./commands/changelog";
 import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
-import { describeCommand } from "./commands/describe";
+
 import { devCommand } from "./commands/dev";
 import { doctorCommand } from "./commands/doctor";
 import { docsCommand } from "./commands/docs";
@@ -55,7 +55,6 @@ const RESERVED_NAMESPACES = new Set([
   "docs",
   "changelog",
   "doctor",
-  "describe",
   "agents-md",
   "mcp-dev",
 ]);
@@ -169,8 +168,6 @@ function buildCommandsManifest(
     docs: "Generate documentation",
     changelog: "Generate changelog entries",
     doctor: "Run project health checks",
-    describe:
-      "Show project meta-model overview (entities, actions, rules, states, flows, relations)",
     "agents-md": "Generate AGENTS.md from project ontology",
     "mcp-dev": "Start a development-time MCP server for AI coding tools",
   };
@@ -219,7 +216,6 @@ async function run() {
     changelog: changelogCommand,
     validate: validateCommand,
     doctor: doctorCommand,
-    describe: describeCommand,
     "agents-md": agentsMdCommand,
     "mcp-dev": mcpDevCommand,
   };
