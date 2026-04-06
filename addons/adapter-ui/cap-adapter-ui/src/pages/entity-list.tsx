@@ -38,6 +38,7 @@ import { ListView } from "../components/list-view";
 import { isNaturalLanguageQuery, useAISearch } from "../hooks/use-ai-search";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
+import { useOverlayFields } from "../hooks/use-overlay-fields";
 import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
 import { buildEntitySubscriptionQuery, useSubscription } from "../hooks/use-subscription";
@@ -250,6 +251,10 @@ export function EntityListPage() {
   } = useEntityBundle(entityName ?? "");
 
   const schema = bundle?.schema;
+
+  // Fetch runtime overlay fields for this entity
+  const { overlayFields } = useOverlayFields(entityName);
+
   const explicitListView = getPrimaryView(bundle?.views, "list") as
     | AutoListViewDefinition
     | undefined;
@@ -592,6 +597,10 @@ export function EntityListPage() {
           }
         }
         if (!fields.includes("created_at")) fields.push("created_at");
+        // Include _extensions when overlay fields exist (contains overlay field values)
+        if (overlayFields.length > 0 && !fields.includes("_extensions")) {
+          fields.push("_extensions");
+        }
         // Ensure self-referencing parent field is included for tree view
         const srf = selfRefFieldRef.current;
         if (srf && !fields.includes(srf)) fields.push(srf);
@@ -629,7 +638,7 @@ export function EntityListPage() {
         setLoading(false);
       }
     },
-    [entityName, t],
+    [entityName, t, overlayFields.length],
   );
 
   // ── Real-time subscription via SSE ──────────────────────
@@ -1210,6 +1219,7 @@ export function EntityListPage() {
       data={viewFilteredData}
       loading={loading}
       selectable={!bundle?.internal}
+      overlayFields={overlayFields.length > 0 ? overlayFields : undefined}
       onAction={bundle?.internal ? undefined : handleAction}
       onBulkAction={bundle?.internal ? undefined : handleBulkAction}
       onRowClick={handleRowClick}

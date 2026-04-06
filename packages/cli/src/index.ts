@@ -33,6 +33,7 @@ import { collectCapabilityDefinitions } from "./commands/startup/collect-capabil
 import { uninstallCommand } from "./commands/uninstall";
 import { updateCommand } from "./commands/update";
 import { mcpDevCommand } from "./commands/mcp-dev";
+import { overlayCommand } from "./commands/overlay";
 import { validateCommand } from "./commands/validate";
 import { loadConfig } from "./utils/load-config";
 
@@ -57,6 +58,7 @@ const RESERVED_NAMESPACES = new Set([
   "doctor",
   "agents-md",
   "mcp-dev",
+  "overlay",
 ]);
 
 /**
@@ -170,6 +172,7 @@ function buildCommandsManifest(
     doctor: "Run project health checks",
     "agents-md": "Generate AGENTS.md from project ontology",
     "mcp-dev": "Start a development-time MCP server for AI coding tools",
+    overlay: "Manage runtime overlay fields (list, promote)",
   };
 
   for (const name of builtinNames) {
@@ -218,6 +221,7 @@ async function run() {
     doctor: doctorCommand,
     "agents-md": agentsMdCommand,
     "mcp-dev": mcpDevCommand,
+    overlay: overlayCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

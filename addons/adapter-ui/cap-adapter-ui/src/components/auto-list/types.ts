@@ -5,6 +5,7 @@ import type {
   ViewFieldConfig,
 } from "@linchkit/core/types";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import type { FieldOverlayRecord } from "../../lib/overlay-types";
 
 export interface ViewFilter {
   field: string;
@@ -89,6 +90,8 @@ export interface AutoListProps {
   onInlineEditError?: (error: Error) => void;
   /** Callback fired when the active bazza filter state changes. Used by saved views. */
   onFiltersChange?: (filters: SavedFilterEntry[]) => void;
+  /** Runtime overlay fields to render as additional columns after schema-defined fields. */
+  overlayFields?: FieldOverlayRecord[];
 
   // ── Controlled filter state (optional) ─────────────────────────────────────
   // When provided, AutoList uses these instead of its own internal state.

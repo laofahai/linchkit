@@ -96,7 +96,8 @@
       "invalidOption": "Please select a valid option for {{field}}",
       "hasErrors": "Please fix the errors below before submitting",
       "uniqueHint": "Must be unique — validated on save"
-    }
+    },
+    "overlayFields": "Custom Fields"
   },
   "list": {
     "noResults": "No results found",
@@ -960,5 +961,10 @@
     "legend": {
       "title": "Semantic relations"
     }
+  },
+  "overlay": {
+    "fieldBadge": "Custom field",
+    "fieldBadgeTooltip": "Runtime custom field (overlay)",
+    "customFieldsSection": "Custom Fields"
   }
 }

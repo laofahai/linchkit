@@ -292,6 +292,7 @@ export function AutoList({
   onInlineEditSaved,
   onInlineEditError,
   onFiltersChange,
+  overlayFields,
   // Controlled filter state (optional)
   globalFilter: globalFilterProp,
   onGlobalFilterChange: onGlobalFilterChangeProp,
@@ -519,6 +520,7 @@ export function AutoList({
       onAction,
       stateMeta,
       resolveLabel,
+      overlayFields,
       ...(hasEditableFields
         ? {
             editingCell,
@@ -541,6 +543,7 @@ export function AutoList({
     selectable,
     stateMeta,
     resolveLabel,
+    overlayFields,
     hasEditableFields,
     editingCell,
     startEditing,
