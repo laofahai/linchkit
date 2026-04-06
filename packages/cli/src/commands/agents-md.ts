@@ -9,7 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { CapabilityDefinition } from "@linchkit/core";
-import { generateAgentsMd } from "@linchkit/core";
+import { generateAgentsMd, initI18n, registerTranslations } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 
@@ -52,6 +52,16 @@ export const agentsMdCommand = defineCommand({
     }
 
     const capabilities = (config.config.capabilities ?? []) as CapabilityDefinition[];
+
+    // Initialize core i18n and register capability translations
+    await initI18n();
+    for (const cap of capabilities) {
+      if (cap.extensions?.i18n) {
+        for (const [locale, resources] of Object.entries(cap.extensions.i18n)) {
+          registerTranslations(cap.name, locale, resources as Record<string, unknown>);
+        }
+      }
+    }
 
     // Collect all definitions from capabilities
     const entities = capabilities.flatMap((c) => c.entities ?? []);

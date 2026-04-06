@@ -12,6 +12,7 @@ import type { RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition, Transition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
+import { resolveLabel } from "../i18n/label-resolver";
 
 // ── Overview ────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ function describeField(name: string, field: FieldDefinition): FieldDescription {
     required: !!field.required,
     system: SYSTEM_FIELDS.has(name),
   };
-  if (field.label) desc.label = field.label;
+  if (field.label) desc.label = resolveLabel(field.label, name);
 
   // Collect constraints (FieldDefinition is a union — use 'in' narrowing)
   const constraints: Record<string, unknown> = {};
@@ -164,16 +165,16 @@ export function buildProjectOverview(input: DescribeInput): ProjectOverview {
     entities: allEntities.map((e) => ({
       name: e.name,
       fieldCount: Object.keys(e.fields).length,
-      label: e.label,
+      label: resolveLabel(e.label, e.name),
     })),
     actions: allActions.map((a) => ({
       name: a.name,
       entity: a.entity,
-      label: a.label,
+      label: resolveLabel(a.label, a.name),
     })),
     rules: allRules.map((r) => ({
       name: r.name,
-      label: r.label,
+      label: resolveLabel(r.label, r.name),
     })),
     states: allStates.map((s) => ({
       name: s.name,
@@ -182,7 +183,7 @@ export function buildProjectOverview(input: DescribeInput): ProjectOverview {
     })),
     flows: allFlows.map((f) => ({
       name: f.name,
-      label: f.label,
+      label: f.label ? resolveLabel(f.label, f.name) : undefined,
     })),
     relations: allRelations.map((l) => ({
       name: l.name,
@@ -209,7 +210,7 @@ export function describeEntity(
 
   const entityActions = (opts.actions ?? [])
     .filter((a) => a.entity === entity.name)
-    .map((a) => ({ name: a.name, label: a.label }));
+    .map((a) => ({ name: a.name, label: resolveLabel(a.label, a.name) }));
 
   const state = (opts.states ?? []).find((s) => s.entity === entity.name);
   const stateDesc = state
@@ -236,7 +237,7 @@ export function describeEntity(
 
   return {
     name: entity.name,
-    label: entity.label,
+    label: resolveLabel(entity.label, entity.name),
     description: entity.description,
     fields,
     actions: entityActions,
@@ -272,7 +273,7 @@ export function describeAction(action: ActionDefinition): ActionDescription {
   return {
     name: action.name,
     entity: action.entity,
-    label: action.label,
+    label: resolveLabel(action.label, action.name),
     description: action.description,
     input,
     output,

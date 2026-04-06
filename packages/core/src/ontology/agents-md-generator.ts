@@ -13,6 +13,7 @@ import type { LinchKitConfig } from "../types/config";
 import type { RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
+import { resolveLabel } from "../i18n/label-resolver";
 
 // ── Public interface ──────────────────────────────────────────
 
@@ -90,7 +91,8 @@ function renderEntities(entities: EntityDefinition[]): string {
   const lines: string[] = ["## Entities", ""];
 
   for (const entity of entities) {
-    const label = entity.label ? ` — ${entity.label}` : "";
+    const resolvedLabel = resolveLabel(entity.label, "");
+    const label = resolvedLabel ? ` — ${resolvedLabel}` : "";
     lines.push(`### \`${entity.name}\`${label}`);
     if (entity.description) {
       lines.push("");
@@ -105,7 +107,7 @@ function renderEntities(entities: EntityDefinition[]): string {
       lines.push("|-------|------|----------|-------------|");
       for (const [name, field] of fieldEntries) {
         const req = field.required ? "Yes" : "No";
-        const desc = field.label ?? "";
+        const desc = resolveLabel(field.label, "") || "";
         lines.push(`| \`${name}\` | ${field.type} | ${req} | ${desc} |`);
       }
       lines.push("");
@@ -135,7 +137,7 @@ function renderActions(actions: ActionDefinition[]): string {
       const desc = action.description ? ` — ${action.description}` : "";
       const inputFields = action.input ? Object.keys(action.input) : [];
       const inputStr = inputFields.length > 0 ? ` Input: \`${inputFields.join("`, `")}\`` : "";
-      lines.push(`- \`${action.name}\` (${action.label})${desc}${inputStr}`);
+      lines.push(`- \`${action.name}\` (${resolveLabel(action.label, action.name)})${desc}${inputStr}`);
     }
     lines.push("");
   }
@@ -188,7 +190,7 @@ function renderRules(rules: RuleDefinition[]): string {
 
   for (const rule of rules) {
     const desc = rule.description ? ` — ${rule.description}` : "";
-    lines.push(`- \`${rule.name}\` (${rule.label})${desc}`);
+    lines.push(`- \`${rule.name}\` (${resolveLabel(rule.label, rule.name)})${desc}`);
   }
   lines.push("");
 

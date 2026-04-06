@@ -274,17 +274,18 @@
       "name": "@linchkit/cli",
       "version": "0.1.0",
       "bin": {
-        "linch": "src/index.ts",
+        "linch": "dist/index.js",
       },
       "dependencies": {
         "@linchkit/cap-flow-restate": "workspace:*",
         "@linchkit/cap-migration": "workspace:*",
         "@linchkit/core": "workspace:*",
         "@linchkit/devtools": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.27.1",
         "citty": "^0.2.1",
-        "consola": "^3.4.2",
       },
       "devDependencies": {
+        "consola": "^3.4.2",
         "typescript": "^5.9.3",
       },
     },
@@ -294,6 +295,7 @@
       "dependencies": {
         "croner": "^10.0.1",
         "drizzle-orm": "^0.45.1",
+        "i18next": "^26.0.3",
         "pino": "^10.3.1",
         "postgres": "^3.4.8",
         "zod": "^4.3.6",
@@ -2259,6 +2261,8 @@
     "@graphql-tools/schema/@graphql-tools/utils": ["@graphql-tools/utils@11.0.0", "https://registry.npmmirror.com/@graphql-tools/utils/-/utils-11.0.0.tgz", { "dependencies": { "@graphql-typed-document-node/core": "^3.1.1", "@whatwg-node/promise-helpers": "^1.0.0", "cross-inspect": "1.0.1", "tslib": "^2.4.0" }, "peerDependencies": { "graphql": "^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0" } }, "sha512-bM1HeZdXA2C3LSIeLOnH/bcqSgbQgKEDrjxODjqi3y58xai2TkNrtYcQSoWzGbt9VMN1dORGjR7Vem8SPnUFQA=="],
 
     "@linchkit/cap-ai-provider/ai": ["ai@6.0.138", "", { "dependencies": { "@ai-sdk/gateway": "3.0.80", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.21", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-49OfPe0f5uxJ6jUdA5BBXjIinP6+ZdYfAtpF2aEH64GA5wPcxH2rf/TBUQQ0bbamBz/D+TLMV18xilZqOC+zaA=="],
+
+    "@linchkit/core/i18next": ["i18next@26.0.3", "", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-1571kXINxHKY7LksWp8wP+zP0YqHSSpl/OW0Y0owFEf2H3s8gCAffWaZivcz14rMkOvn3R/psiQxVsR9t2Nafg=="],
 
     "@manypkg/find-root/@types/node": ["@types/node@12.20.55", "", {}, "sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ=="],
 

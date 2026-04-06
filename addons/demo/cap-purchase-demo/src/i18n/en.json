@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "purchase_request": {
+      "_label": "Purchase Request",
+      "_labelPlural": "Purchase Requests",
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "amount": "Amount",
+        "department": "Department",
+        "requester": "Requester",
+        "requester_email": "Requester Email",
+        "status": "Status",
+        "priority": "Priority",
+        "notes": "Notes",
+        "audit_notes": "Audit Notes",
+        "submitted_at": "Submitted At",
+        "approved_at": "Approved At",
+        "approved_by": "Approved By",
+        "total_amount": "Total Amount",
+        "display_title": "Display Title",
+        "items": "Items"
+      },
+      "enums": {
+        "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }
+      },
+      "states": {
+        "draft": "Draft",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "actions": {
+        "create_request": "New Request",
+        "submit_for_approval": "Submit for Approval",
+        "approve": "Approve",
+        "reject": "Reject",
+        "cancel": "Cancel Request"
+      }
+    },
+    "department": {
+      "_label": "Department",
+      "_labelPlural": "Departments",
+      "fields": {
+        "name": "Name",
+        "code": "Code",
+        "manager": "Manager",
+        "budget_limit": "Budget Limit"
+      },
+      "actions": {
+        "create": "New Department"
+      }
+    },
+    "purchase_item": {
+      "_label": "Purchase Item",
+      "_labelPlural": "Purchase Items",
+      "fields": {
+        "name": "Item Name",
+        "quantity": "Quantity",
+        "unit_price": "Unit Price",
+        "specification": "Specification",
+        "line_total": "Line Total"
+      }
+    }
+  }
+}

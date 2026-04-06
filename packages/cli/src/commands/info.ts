@@ -25,6 +25,8 @@ import {
   describeAction,
   describeEntity,
   describeRelation,
+  initI18n,
+  registerTranslations,
   type ActionDescription,
   type EntityDescription,
   type FieldDescription,
@@ -160,7 +162,19 @@ async function loadProjectCaps(): Promise<{ config: LinchKitConfig; capabilities
     console.error(`[linch] Failed to load config: ${msg}`);
     process.exit(1);
   }
-  return { config, capabilities: (config.capabilities ?? []) as CapabilityDefinition[] };
+
+  // Initialize core i18n and register capability translations
+  await initI18n();
+  const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
+  for (const cap of capabilities) {
+    if (cap.extensions?.i18n) {
+      for (const [locale, resources] of Object.entries(cap.extensions.i18n)) {
+        registerTranslations(cap.name, locale, resources as Record<string, unknown>);
+      }
+    }
+  }
+
+  return { config, capabilities };
 }
 
 const entitySubcommand = defineCommand({

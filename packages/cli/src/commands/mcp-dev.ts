@@ -9,6 +9,7 @@
  */
 
 import type { LinchKitConfig } from "@linchkit/core";
+import { initI18n } from "@linchkit/core";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { defineCommand } from "citty";
 import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
@@ -48,7 +49,10 @@ export const mcpDevCommand = defineCommand({
       process.exit(1);
     }
 
-    // Collect definitions from capabilities
+    // Initialize core i18n before collecting capabilities (so registerTranslations works)
+    await initI18n();
+
+    // Collect definitions from capabilities (also registers i18n resources)
     const capabilities = config.capabilities ?? [];
     const definitions = collectCapabilityDefinitions(capabilities);
 

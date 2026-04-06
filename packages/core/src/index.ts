@@ -227,10 +227,14 @@ export type {
   FlowStepContextDeps,
   TriggerBinding,
 } from "./flow";
-// i18n — shared types and locale utilities
+// i18n — shared types, locale utilities, and core label resolver
 export {
+  detectLocale,
   type I18nConfig,
+  initI18n,
   parseAcceptLanguage,
+  registerTranslations,
+  resolveLabel,
   resolveLocale,
   type SupportedLanguage,
 } from "./i18n";
