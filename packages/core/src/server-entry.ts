@@ -351,10 +351,14 @@ export {
   tenantOverridesTable,
 } from "./persistence/system-tables";
 export { InMemoryOverlayStore } from "./persistence/in-memory-overlay-store";
+export { DrizzleOverlayStore } from "./persistence/drizzle-overlay-store";
+export { OverlayAwareDataProvider } from "./persistence/overlay-aware-data-provider";
 export {
   fieldOverlaysTable,
   overlayStatusEnum,
 } from "./persistence/overlay-table";
+export type { OverlayChangeListener, OverlayRegistry } from "./overlay/overlay-registry";
+export { DefaultOverlayRegistry } from "./overlay/overlay-registry";
 export { TableRegistry } from "./persistence/table-registry";
 export {
   type OverrideTargetType,
