@@ -11,6 +11,13 @@ import type { Elysia } from "elysia";
 import { extractLocale, getLanguageInstruction } from "../ai/system-prompt";
 import type { ServerOptions } from "../server";
 
+// ── Analysis cache (in-memory, 15 min TTL) ──────────────────
+const ANALYSIS_CACHE_TTL = 15 * 60 * 1000;
+const analysisCache = new Map<
+  string,
+  { result: import("@linchkit/core/ai").RecordAnalysis; timestamp: number }
+>();
+
 /**
  * Validate an AI-generated filter: only allow fields that exist in the schema.
  * Recursively walks composite conditions (and/or/not) and strips invalid or sensitive fields.
@@ -844,6 +851,131 @@ Rules:
         };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Action execution failed";
+        set.status = 500;
+        return { success: false, error: { message: errorMessage } };
+      }
+    })
+    // ── AI Analyze Record endpoint — deep AI analysis of a specific record ──
+    .post("/api/ai/analyze-record", async ({ body, set }) => {
+      const { entityName, recordId } = (body ?? {}) as {
+        entityName?: string;
+        recordId?: string;
+      };
+
+      if (!entityName || !recordId) {
+        set.status = 400;
+        return {
+          success: false,
+          error: { message: "entityName and recordId are required" },
+        };
+      }
+
+      if (!aiService?.configured) {
+        set.status = 503;
+        return { success: false, error: { message: "AI service is not configured." } };
+      }
+
+      const dataProvider = options.dataProvider;
+      if (!dataProvider) {
+        set.status = 500;
+        return { success: false, error: { message: "Data provider not configured." } };
+      }
+
+      const entityDef = entityRegistry?.get(entityName);
+      if (!entityDef) {
+        set.status = 404;
+        return { success: false, error: { message: `Entity "${entityName}" not found.` } };
+      }
+
+      // Check in-memory cache (15 min TTL)
+      const cacheKey = `${entityName}:${recordId}`;
+      const cached = analysisCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ANALYSIS_CACHE_TTL) {
+        return { success: true, data: cached.result };
+      }
+
+      try {
+        // Fetch the record
+        const record = await dataProvider.get(entityName, recordId);
+        if (!record) {
+          set.status = 404;
+          return { success: false, error: { message: `Record "${recordId}" not found.` } };
+        }
+
+        // Gather related records via ontology relations
+        const relatedRecords: Record<string, Record<string, unknown>[]> = {};
+        const ontologyRegistry = options.ontologyRegistry;
+        if (ontologyRegistry) {
+          const desc = ontologyRegistry.describe(entityName);
+          if (desc) {
+            for (const rel of desc.relations.slice(0, 5)) {
+              try {
+                // For outgoing relations, query the target entity
+                const targetEntity = rel.targetEntity;
+                const results = await dataProvider.query(targetEntity, {
+                  limit: 5,
+                });
+                if (results.length > 0) {
+                  relatedRecords[targetEntity] = results;
+                }
+              } catch {
+                // Related entity query may fail — skip
+              }
+            }
+          }
+        }
+
+        // Gather execution history
+        let executionHistory: Array<{ action: string; timestamp: Date; actor: string }> | undefined;
+        const executionLogger = options.executionLogger;
+        if (executionLogger) {
+          try {
+            // Use findMany with entity filter and page limit to avoid unbounded fetches
+            const result = await executionLogger.findMany({
+              entity: entityName,
+              pageSize: 200,
+              sortField: "startedAt",
+              sortOrder: "desc",
+            });
+            executionHistory = result.items
+              .filter(
+                (log) =>
+                  log.input &&
+                  typeof log.input === "object" &&
+                  (log.input as Record<string, unknown>).id === recordId,
+              )
+              .slice(0, 20)
+              .map((log) => ({
+                action: log.action,
+                timestamp: new Date(log.startedAt),
+                actor: log.actor?.id ?? "unknown",
+              }));
+          } catch {
+            // Execution log query may fail — skip
+          }
+        }
+
+        const { analyzeRecord } = await import("@linchkit/core/ai");
+
+        const analysis = await analyzeRecord(
+          {
+            entityName,
+            recordId,
+            record,
+            entityDefinition: entityDef,
+            relatedRecords: Object.keys(relatedRecords).length > 0 ? relatedRecords : undefined,
+            executionHistory:
+              executionHistory && executionHistory.length > 0 ? executionHistory : undefined,
+          },
+          aiService,
+        );
+
+        // Cache the result
+        analysisCache.set(cacheKey, { result: analysis, timestamp: Date.now() });
+
+        return { success: true, data: analysis };
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Record analysis failed";
         set.status = 500;
         return { success: false, error: { message: errorMessage } };
       }

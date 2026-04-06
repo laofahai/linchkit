@@ -155,6 +155,11 @@ export {
   evaluateCondition,
   resolveField,
 } from "./engine/condition-evaluator";
+export {
+  canAutoApproveOverlayChange,
+  canAutoApproveOverlayProposal,
+  executeOverlayProposal,
+} from "./engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "./engine/permission-engine";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
@@ -222,10 +227,14 @@ export type {
   FlowStepContextDeps,
   TriggerBinding,
 } from "./flow";
-// i18n — shared types and locale utilities
+// i18n — shared types, locale utilities, and core label resolver
 export {
+  detectLocale,
   type I18nConfig,
+  initI18n,
   parseAcceptLanguage,
+  registerTranslations,
+  resolveLabel,
   resolveLocale,
   type SupportedLanguage,
 } from "./i18n";
@@ -260,6 +269,19 @@ export type {
   RelationDescriptor,
 } from "./ontology";
 export { buildRelationGraph, inferSemanticRelations } from "./ontology";
+export { generateAgentsMd, type AgentsMdOptions } from "./ontology";
+export {
+  buildProjectOverview,
+  describeAction,
+  describeEntity,
+  describeRelation,
+  type ActionDescription,
+  type DescribeInput,
+  type EntityDescription,
+  type FieldDescription,
+  type ProjectOverview,
+  type RelationDescription,
+} from "./ontology";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
 export {
   applyOverride,
@@ -290,6 +312,15 @@ export type {
   SemanticRelationType,
 } from "./types/semantic-relation";
 export { defineSemanticRelation } from "./types/semantic-relation";
+// Doctor — project health check registry
+export type {
+  CheckCategory,
+  CheckStatus,
+  DoctorCheck,
+  DoctorCheckResult,
+  DoctorContext,
+} from "./doctor";
+export { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";

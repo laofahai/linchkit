@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { _clearAdminRoutes, getAdminRoutes, registerAdminRoute } from "../src/lib/route-registry";
 
 // ── Helpers ─────────────────────────────────────────────
@@ -17,6 +17,10 @@ function makeRoute(overrides: Record<string, unknown> = {}) {
 // ── Tests ───────────────────────────────────────────────
 
 describe("Admin Route Registry", () => {
+  beforeEach(() => {
+    _clearAdminRoutes();
+  });
+
   afterEach(() => {
     _clearAdminRoutes();
   });

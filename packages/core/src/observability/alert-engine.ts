@@ -8,6 +8,7 @@
  * periodically or on-demand against the MetricsCollector.
  */
 
+import type { AlertDispatcher, FiredAlert } from "./alert-channels";
 import type { InMemoryMetricsCollector } from "./metrics";
 
 // ── Types ────────────────────────────────────────────────
@@ -90,18 +91,27 @@ export interface AlertEngineOptions {
   metrics: InMemoryMetricsCollector;
   /** Handler called when an alert triggers */
   onAlert?: AlertHandler;
+  /** Optional dispatcher for delivering alerts through channels */
+  dispatcher?: AlertDispatcher;
 }
 
 export class AlertEngine {
   private alerts = new Map<string, SystemAlertDefinition>();
   private readonly metrics: InMemoryMetricsCollector;
   private readonly onAlert: AlertHandler;
+  private dispatcher: AlertDispatcher | undefined;
   /** Track firing state to avoid duplicate notifications */
   private firingState = new Map<string, boolean>();
 
   constructor(options: AlertEngineOptions) {
     this.metrics = options.metrics;
     this.onAlert = options.onAlert ?? (() => {});
+    this.dispatcher = options.dispatcher;
+  }
+
+  /** Set or replace the alert dispatcher */
+  setDispatcher(dispatcher: AlertDispatcher): void {
+    this.dispatcher = dispatcher;
   }
 
   /** Register an alert definition */
@@ -137,6 +147,13 @@ export class AlertEngine {
       const wasFiring = this.firingState.get(alert.name) ?? false;
       if (result.triggered && !wasFiring) {
         this.onAlert(result, alert);
+        // Dispatch through channels if dispatcher is configured
+        if (this.dispatcher) {
+          const fired: FiredAlert = { result, definition: alert };
+          this.dispatcher.dispatch(fired).catch(() => {
+            // Dispatcher handles its own error logging per-channel
+          });
+        }
       }
       this.firingState.set(alert.name, result.triggered);
     }

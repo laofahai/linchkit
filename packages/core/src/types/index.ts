@@ -31,6 +31,7 @@ export type * from "./execution-log";
 export type * from "./flow";
 export type * from "./life-system";
 export type * from "./logger";
+export type * from "./overlay";
 export type * from "./page";
 export type * from "./permission";
 export type * from "./proposal";

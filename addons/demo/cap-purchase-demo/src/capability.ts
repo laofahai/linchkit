@@ -30,6 +30,8 @@ import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
+import i18nEn from "./i18n/en.json";
+import i18nZhCN from "./i18n/zh-CN.json";
 
 export const capPurchaseDemo = defineCapability({
   name: "cap-purchase-demo",
@@ -51,6 +53,10 @@ export const capPurchaseDemo = defineCapability({
   automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
   extensions: {
+    i18n: {
+      en: i18nEn,
+      "zh-CN": i18nZhCN,
+    },
     permissionGroups: [
       {
         name: "purchase_user",

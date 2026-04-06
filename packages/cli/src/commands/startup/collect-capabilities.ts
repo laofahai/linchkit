@@ -19,6 +19,7 @@ import type {
   TransportAdapterDefinition,
   ViewDefinition,
 } from "@linchkit/core";
+import { registerTranslations } from "@linchkit/core";
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
@@ -83,6 +84,13 @@ export function collectCapabilityDefinitions(
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
     }
     if (cap.extensions?.commands) commands.push(...cap.extensions.commands);
+
+    // Register i18n translation resources from the capability
+    if (cap.extensions?.i18n) {
+      for (const [locale, resources] of Object.entries(cap.extensions.i18n)) {
+        registerTranslations(cap.name, locale, resources as Record<string, unknown>);
+      }
+    }
   }
 
   return {

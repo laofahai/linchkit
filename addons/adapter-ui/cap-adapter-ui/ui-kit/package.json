@@ -1,8 +1,13 @@
 {
   "name": "@linchkit/ui-kit",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./components": "./src/components/index.ts",
@@ -27,5 +32,10 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.1.0",
+    "type": "standard",
+    "category": "system"
   }
 }

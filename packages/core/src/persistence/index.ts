@@ -19,4 +19,6 @@ export {
 } from "./drizzle-schema";
 export { DrizzleTransactionManager } from "./drizzle-transaction-manager";
 export { type FindManyOptions, InMemoryStore } from "./in-memory-store";
+export { DrizzleOverlayStore } from "./drizzle-overlay-store";
+export { OverlayAwareDataProvider } from "./overlay-aware-data-provider";
 export { TableRegistry } from "./table-registry";

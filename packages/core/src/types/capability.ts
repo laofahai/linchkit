@@ -225,6 +225,12 @@ export interface CapabilityExtensions {
   sensors?: Sensor[];
   /** GraphQL schema extensions — query/mutation fields merged into the main schema */
   graphqlExtensions?: GraphQLExtensionRegistration;
+  /**
+   * i18n translation resources keyed by locale.
+   * Registered into the core i18next instance at capability load time.
+   * Example: { "en": { entities: { order: { _label: "Order" } } }, "zh-CN": { ... } }
+   */
+  i18n?: Record<string, Record<string, unknown>>;
 }
 
 // ── Middleware registration (Command Layer slots) ─────────────────

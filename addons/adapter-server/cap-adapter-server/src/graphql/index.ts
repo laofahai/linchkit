@@ -11,6 +11,8 @@ export { buildGraphQLSchema, generateCrudActions } from "./build-schema";
 export { buildSubscriptionFields, buildTopic, createEventBusPubSub } from "./build-subscriptions";
 export type { RelationResolverContext } from "./schema-to-graphql";
 export {
+  buildOverlayInputFields,
+  buildOverlayOutputFields,
   clearEnumTypeCache,
   generateActionInputType,
   generateGraphQLInputType,

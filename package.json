@@ -18,11 +18,16 @@
     "dev:ui": "bun run --filter @linchkit/cap-adapter-ui dev",
     "db:generate": "bun ./packages/cli/src/index.ts db generate",
     "db:migrate": "bun ./node_modules/.bin/drizzle-kit migrate",
-    "db:studio": "bun ./node_modules/.bin/drizzle-kit studio"
+    "db:studio": "bun ./node_modules/.bin/drizzle-kit studio",
+    "changeset": "bunx changeset",
+    "version-packages": "bunx changeset version",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "bun-types": "latest",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "tsup": "^8.5.1"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.63",

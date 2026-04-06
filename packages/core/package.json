@@ -1,24 +1,60 @@
 {
   "name": "@linchkit/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "src/",
+    "package.json",
+    "README.md"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./types": "./src/types-entry.ts",
-    "./define": "./src/define-entry.ts",
-    "./server": "./src/server-entry.ts",
-    "./config": "./src/config/index.ts",
-    "./utils/env": "./src/utils/env.ts"
+    ".": {
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "bun": "./src/types-entry.ts",
+      "import": "./dist/types-entry.js",
+      "types": "./dist/types-entry.d.ts"
+    },
+    "./define": {
+      "bun": "./src/define-entry.ts",
+      "import": "./dist/define-entry.js",
+      "types": "./dist/define-entry.d.ts"
+    },
+    "./server": {
+      "bun": "./src/server-entry.ts",
+      "import": "./dist/server-entry.js",
+      "types": "./dist/server-entry.d.ts"
+    },
+    "./config": {
+      "bun": "./src/config/index.ts",
+      "import": "./dist/config/index.js",
+      "types": "./dist/config/index.d.ts"
+    },
+    "./utils/env": {
+      "bun": "./src/utils/env.ts",
+      "import": "./dist/utils/env.js",
+      "types": "./dist/utils/env.d.ts"
+    },
+    "./ai": {
+      "bun": "./src/ai/index.ts",
+      "import": "./dist/ai/index.js",
+      "types": "./dist/ai/index.d.ts"
+    }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build": "tsup",
     "test": "bun test"
   },
   "dependencies": {
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.1",
+    "i18next": "^26.0.3",
     "pino": "^10.3.1",
     "postgres": "^3.4.8",
     "zod": "^4.3.6"

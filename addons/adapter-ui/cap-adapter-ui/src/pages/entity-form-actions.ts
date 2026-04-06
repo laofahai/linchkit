@@ -58,7 +58,6 @@ export function useFormActions(opts: UseFormActionsOptions) {
     availableTransitions,
     navigate,
     fetchRecord,
-    refetchTransitions,
     t,
   } = opts;
 
@@ -229,6 +228,8 @@ export function useFormActions(opts: UseFormActionsOptions) {
       navigate,
       fetchRecord,
       t,
+      // biome-ignore lint/correctness/useExhaustiveDependencies: prepareMutationInput only depends on schema which is stable
+      prepareMutationInput,
     ],
   );
 
@@ -283,7 +284,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
         setSaving(false);
       }
     },
-    [recordId, entityName, availableTransitions, recordFields, fetchRecord, refetchTransitions, t],
+    [recordId, entityName, availableTransitions, recordFields, fetchRecord, t],
   );
 
   const executeDeleteAction = useCallback(async () => {

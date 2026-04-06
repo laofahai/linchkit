@@ -1,0 +1,245 @@
+/**
+ * AGENTS.md Generator — Generates a comprehensive AGENTS.md file
+ * from the current project's ontology (entities, actions, rules, relations, etc.)
+ *
+ * The generated file teaches AI coding tools how to work with a specific
+ * LinchKit project by documenting its domain model and conventions.
+ */
+
+import type { ActionDefinition } from "../types/action";
+import type { CapabilityDefinition } from "../types/capability";
+import type { EntityDefinition } from "../types/entity";
+import type { LinchKitConfig } from "../types/config";
+import type { RelationDefinition } from "../types/relation";
+import type { RuleDefinition } from "../types/rule";
+import type { StateDefinition } from "../types/state";
+import { resolveLabel } from "../i18n/label-resolver";
+
+// ── Public interface ──────────────────────────────────────────
+
+export interface AgentsMdOptions {
+  projectName: string;
+  config: LinchKitConfig;
+  capabilities: CapabilityDefinition[];
+  entities: EntityDefinition[];
+  actions: ActionDefinition[];
+  relations: RelationDefinition[];
+  rules?: RuleDefinition[];
+  states?: StateDefinition[];
+}
+
+/**
+ * Generate AGENTS.md content from the project's ontology.
+ * Returns the full Markdown string.
+ */
+export function generateAgentsMd(options: AgentsMdOptions): string {
+  const sections: string[] = [];
+
+  sections.push(renderHeader(options.projectName));
+  sections.push(renderTechStack());
+  sections.push(renderEntities(options.entities));
+  sections.push(renderActions(options.actions));
+  sections.push(renderRelations(options.relations));
+  sections.push(renderStateMachines(options.states ?? []));
+  sections.push(renderRules(options.rules ?? []));
+  sections.push(renderCapabilities(options.capabilities));
+  sections.push(renderDevCommands());
+  sections.push(renderConventions());
+
+  // Filter out empty sections and join
+  return sections.filter((s) => s.length > 0).join("\n\n");
+}
+
+// ── Section renderers ──────────────────────────────────────────
+
+function renderHeader(projectName: string): string {
+  return [
+    `# ${projectName} — Development Guide`,
+    "",
+    "## Overview",
+    "",
+    "This project is built with **LinchKit**, an AI-Native Software Capability Runtime.",
+    "",
+    "Meta-model: **Entity + Action + Rule + State + Event + EventHandler + View + Flow + Relation**",
+    "",
+    "Key principle: All mutations flow through **Actions** — there is no direct CRUD.",
+  ].join("\n");
+}
+
+function renderTechStack(): string {
+  return [
+    "## Tech Stack",
+    "",
+    "| Layer | Stack |",
+    "|-------|-------|",
+    "| Runtime | Bun |",
+    "| Language | TypeScript (strict mode) |",
+    "| Backend | Elysia |",
+    "| GraphQL | graphql-yoga + graphql-js (code-first) |",
+    "| ORM | Drizzle (PostgreSQL) |",
+    "| Frontend | React 19 + Vite |",
+    "| Routing | TanStack Router |",
+    "| UI | Shadcn + Radix + Tailwind |",
+    "| Testing | bun test |",
+    "| Code Quality | Biome |",
+  ].join("\n");
+}
+
+function renderEntities(entities: EntityDefinition[]): string {
+  if (entities.length === 0) return "";
+
+  const lines: string[] = ["## Entities", ""];
+
+  for (const entity of entities) {
+    const resolvedLabel = resolveLabel(entity.label, "");
+    const label = resolvedLabel ? ` — ${resolvedLabel}` : "";
+    lines.push(`### \`${entity.name}\`${label}`);
+    if (entity.description) {
+      lines.push("");
+      lines.push(entity.description);
+    }
+    lines.push("");
+
+    // Fields table
+    const fieldEntries = Object.entries(entity.fields);
+    if (fieldEntries.length > 0) {
+      lines.push("| Field | Type | Required | Description |");
+      lines.push("|-------|------|----------|-------------|");
+      for (const [name, field] of fieldEntries) {
+        const req = field.required ? "Yes" : "No";
+        const desc = resolveLabel(field.label, "") || "";
+        lines.push(`| \`${name}\` | ${field.type} | ${req} | ${desc} |`);
+      }
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function renderActions(actions: ActionDefinition[]): string {
+  if (actions.length === 0) return "";
+
+  const lines: string[] = ["## Actions", ""];
+
+  // Group by entity
+  const byEntity = new Map<string, ActionDefinition[]>();
+  for (const action of actions) {
+    const list = byEntity.get(action.entity) ?? [];
+    list.push(action);
+    byEntity.set(action.entity, list);
+  }
+
+  for (const [entity, entityActions] of byEntity) {
+    lines.push(`### ${entity}`);
+    lines.push("");
+    for (const action of entityActions) {
+      const desc = action.description ? ` — ${action.description}` : "";
+      const inputFields = action.input ? Object.keys(action.input) : [];
+      const inputStr = inputFields.length > 0 ? ` Input: \`${inputFields.join("`, `")}\`` : "";
+      lines.push(`- \`${action.name}\` (${resolveLabel(action.label, action.name)})${desc}${inputStr}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+function renderRelations(relations: RelationDefinition[]): string {
+  if (relations.length === 0) return "";
+
+  const lines: string[] = ["## Relations", ""];
+
+  for (const rel of relations) {
+    const label = rel.label?.from ? ` — "${rel.label.from}"` : "";
+    lines.push(`- \`${rel.from}\` → \`${rel.to}\` (${rel.cardinality})${label}`);
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function renderStateMachines(states: StateDefinition[]): string {
+  if (states.length === 0) return "";
+
+  const lines: string[] = ["## State Machines", ""];
+
+  for (const state of states) {
+    lines.push(`### ${state.entity} — \`${state.field}\``);
+    lines.push("");
+    lines.push(`- **States:** ${state.states.join(", ")}`);
+    lines.push(`- **Initial:** ${state.initial}`);
+
+    if (state.transitions.length > 0) {
+      lines.push("- **Transitions:**");
+      for (const t of state.transitions) {
+        const from = Array.isArray(t.from) ? t.from.join(" | ") : t.from;
+        lines.push(`  - \`${from}\` → \`${t.to}\` via action \`${t.action}\``);
+      }
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+function renderRules(rules: RuleDefinition[]): string {
+  if (rules.length === 0) return "";
+
+  const lines: string[] = ["## Rules", ""];
+
+  for (const rule of rules) {
+    const desc = rule.description ? ` — ${rule.description}` : "";
+    lines.push(`- \`${rule.name}\` (${resolveLabel(rule.label, rule.name)})${desc}`);
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function renderCapabilities(capabilities: CapabilityDefinition[]): string {
+  if (capabilities.length === 0) return "";
+
+  const lines: string[] = ["## Capabilities", ""];
+  lines.push("| Name | Type | Category | Description |");
+  lines.push("|------|------|----------|-------------|");
+
+  for (const cap of capabilities) {
+    const desc = cap.description ?? "";
+    lines.push(`| ${cap.name} | ${cap.type} | ${cap.category} | ${desc} |`);
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function renderDevCommands(): string {
+  return [
+    "## Dev Commands",
+    "",
+    "```bash",
+    "bun run dev:server    # Start server on :3001",
+    "bun run dev:ui        # Start UI on :3000 (proxies API to :3001)",
+    "bun test              # Run all tests",
+    "bun run check         # Biome lint + format",
+    "bun run typecheck     # TypeScript check",
+    "bun run db:generate   # Generate migration SQL from schema changes",
+    "bun run db:migrate    # Apply pending migrations",
+    "```",
+  ].join("\n");
+}
+
+function renderConventions(): string {
+  return [
+    "## Conventions",
+    "",
+    "- **Entity naming:** snake_case",
+    "- **Action naming:** verb_noun (e.g. `submit_request`, `approve_order`)",
+    "- **All mutations** go through Actions — never modify data directly",
+    "- **Comments and docs** in English",
+    "- **Use `bunx`** never `npx`",
+    "- **Commit messages:** Conventional Commits",
+    "- **Function signatures:** Use `{}` options object when > 3 parameters",
+    "- **System fields** (auto-managed, never set by client): `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`",
+  ].join("\n");
+}

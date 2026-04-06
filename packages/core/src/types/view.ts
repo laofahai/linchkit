@@ -48,6 +48,8 @@ export interface ViewFieldConfig {
   widget?: string;
   /** When set, field is only visible if the condition is met (form views) */
   visibleWhen?: FieldVisibilityCondition;
+  /** Arbitrary widget options passed through to the widget component */
+  options?: Record<string, unknown>;
 }
 
 // ── View Action buttons ────────────────────────────────

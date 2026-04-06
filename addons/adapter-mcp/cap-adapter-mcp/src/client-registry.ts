@@ -46,14 +46,6 @@ const TOOL_CATEGORIES: Record<string, string> = {
   mcp_usage_stats: "management",
 };
 
-/** Default actor returned for simple bearer token auth */
-const DEFAULT_MCP_ACTOR: Actor = {
-  type: "ai",
-  id: "mcp-default",
-  name: "MCP Client",
-  groups: ["ai_agent"],
-};
-
 /** Get the category for a tool name; unknown tools are "actions" */
 function getToolCategory(toolName: string): string {
   return TOOL_CATEGORIES[toolName] ?? "actions";

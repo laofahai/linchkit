@@ -1,4 +1,15 @@
 export {
+  type AlertChannel,
+  type AlertChannelType,
+  AlertDispatcher,
+  type AlertEventEmitter,
+  EventBusAlertChannel,
+  type FiredAlert,
+  LogAlertChannel,
+  WebhookAlertChannel,
+  type WebhookAlertChannelOptions,
+} from "./alert-channels";
+export {
   type AlertCondition,
   type AlertEffect,
   AlertEngine,

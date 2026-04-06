@@ -15,11 +15,14 @@ console.info = (...args: unknown[]) => {
 
 import type { CliCommand, CliCommandContext } from "@linchkit/core";
 import { defineCommand, runMain, showUsage } from "citty";
+import { agentsMdCommand } from "./commands/agents-md";
 import { changelogCommand } from "./commands/changelog";
 import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
+
 import { devCommand } from "./commands/dev";
+import { doctorCommand } from "./commands/doctor";
 import { docsCommand } from "./commands/docs";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
@@ -29,6 +32,7 @@ import { searchCommand } from "./commands/search";
 import { collectCapabilityDefinitions } from "./commands/startup/collect-capabilities";
 import { uninstallCommand } from "./commands/uninstall";
 import { updateCommand } from "./commands/update";
+import { mcpDevCommand } from "./commands/mcp-dev";
 import { validateCommand } from "./commands/validate";
 import { loadConfig } from "./utils/load-config";
 
@@ -50,6 +54,9 @@ const RESERVED_NAMESPACES = new Set([
   "check",
   "docs",
   "changelog",
+  "doctor",
+  "agents-md",
+  "mcp-dev",
 ]);
 
 /**
@@ -160,6 +167,9 @@ function buildCommandsManifest(
     check: "Run code quality checks",
     docs: "Generate documentation",
     changelog: "Generate changelog entries",
+    doctor: "Run project health checks",
+    "agents-md": "Generate AGENTS.md from project ontology",
+    "mcp-dev": "Start a development-time MCP server for AI coding tools",
   };
 
   for (const name of builtinNames) {
@@ -205,6 +215,9 @@ async function run() {
     check: checkQualityCommand,
     changelog: changelogCommand,
     validate: validateCommand,
+    doctor: doctorCommand,
+    "agents-md": agentsMdCommand,
+    "mcp-dev": mcpDevCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

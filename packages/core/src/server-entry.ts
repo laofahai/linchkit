@@ -350,6 +350,15 @@ export {
   overrideTargetTypeEnum,
   tenantOverridesTable,
 } from "./persistence/system-tables";
+export { InMemoryOverlayStore } from "./persistence/in-memory-overlay-store";
+export { DrizzleOverlayStore } from "./persistence/drizzle-overlay-store";
+export { OverlayAwareDataProvider } from "./persistence/overlay-aware-data-provider";
+export {
+  fieldOverlaysTable,
+  overlayStatusEnum,
+} from "./persistence/overlay-table";
+export type { OverlayChangeListener, OverlayRegistry } from "./overlay/overlay-registry";
+export { DefaultOverlayRegistry } from "./overlay/overlay-registry";
 export { TableRegistry } from "./persistence/table-registry";
 export {
   type OverrideTargetType,
@@ -419,6 +428,17 @@ export {
   type ShutdownStatus,
   validateRequiredEnvVars,
 } from "./deployment";
+
+// === Doctor — project health check registry + built-in checks ===
+
+export type {
+  CheckCategory,
+  CheckStatus,
+  DoctorCheck,
+  DoctorCheckResult,
+  DoctorContext,
+} from "./doctor";
+export { builtinChecks, clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
 
 // === Addon discovery (Spec 57) ===
 

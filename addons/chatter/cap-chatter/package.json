@@ -1,10 +1,14 @@
 {
   "name": "@linchkit/cap-chatter",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts",
@@ -14,16 +18,17 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@linchkit/core": "workspace:*",
+    "@linchkit/core": "^0.1.0",
     "drizzle-orm": "^0.45.1",
     "graphql": "^16.13.1"
   },
   "devDependencies": {
+    "@linchkit/core": "workspace:*",
     "typescript": "^5.9.3"
   },
   "linchkit": {
+    "minCoreVersion": "^0.1.0",
     "type": "standard",
-    "category": "system",
-    "trustLevel": "official"
+    "category": "system"
   }
 }

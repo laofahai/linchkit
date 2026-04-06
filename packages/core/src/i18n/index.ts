@@ -99,6 +99,16 @@ export function resolveLocale(options: {
   return options.defaultLocale;
 }
 
+// ── Core label resolver (i18next-based, for CLI / MCP / non-UI contexts) ────
+
+export {
+  coreI18n,
+  detectLocale,
+  initI18n,
+  registerTranslations,
+  resolveLabel,
+} from "./label-resolver";
+
 // ── Re-exports from translatable helpers ────────────────────────────────────
 
 export {

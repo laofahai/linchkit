@@ -461,8 +461,8 @@ describe("Security: secretHash never exposed", () => {
     });
 
     expect(result.errors).toBeDefined();
-    expect(result.errors!.length).toBeGreaterThan(0);
-    expect(result.errors![0].message).toContain("secretHash");
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(result.errors?.[0].message).toContain("secretHash");
   });
 });
 

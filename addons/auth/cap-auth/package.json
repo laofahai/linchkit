@@ -1,24 +1,27 @@
 {
   "name": "@linchkit/cap-auth",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./ui": "./ui/index.ts"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun",
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*",
     "jose": "^6.2.2"
   },
   "peerDependencies": {
-    "@linchkit/core": "^0.0.1",
-    "@linchkit/ui-kit": "^0.0.1",
+    "@linchkit/core": "^0.1.0",
+    "@linchkit/ui-kit": "^0.1.0",
     "react": "^19.0.0"
   },
   "peerDependenciesMeta": {
@@ -30,12 +33,12 @@
     }
   },
   "devDependencies": {
+    "@linchkit/core": "workspace:*",
     "typescript": "^5.9.3"
   },
   "linchkit": {
-    "minCoreVersion": "^0.0.1",
+    "minCoreVersion": "^0.1.0",
     "type": "standard",
-    "category": "system",
-    "trustLevel": "official"
+    "category": "system"
   }
 }
