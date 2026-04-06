@@ -4,6 +4,7 @@
 
 import type { EntityDefinition, RecordTemplate, ViewDefinition } from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
+import type { FieldOverlayRecord } from "../../lib/overlay-types";
 
 export type { RecordTemplate };
 
@@ -83,4 +84,10 @@ export interface AutoFormProps {
    * When provided and mode === "create", a TemplateSelector is shown above the form.
    */
   templates?: RecordTemplate[];
+  /**
+   * Runtime overlay fields for this entity. When provided, renders a
+   * "Custom Fields" section after the main layout with overlay field inputs.
+   * Values are stored in and read from the record's `_extensions` object.
+   */
+  overlayFields?: FieldOverlayRecord[];
 }

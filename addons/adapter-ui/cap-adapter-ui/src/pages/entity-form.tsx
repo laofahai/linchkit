@@ -27,6 +27,7 @@ import { type StateTransitionInfo, StatusBar, type StatusBarStep } from "../comp
 import { useAiAutoFill } from "../hooks/use-ai-auto-fill";
 import { useBreadcrumbTitle } from "../hooks/use-breadcrumb-title";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
+import { useOverlayFields } from "../hooks/use-overlay-fields";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useEntityLabel } from "../i18n/use-entity-label";
 import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
@@ -67,6 +68,10 @@ export function EntityFormPage() {
   } = useEntityBundle(entityName ?? "");
 
   const schema = bundle?.schema;
+
+  // Fetch runtime overlay fields for this entity
+  const { overlayFields } = useOverlayFields(entityName);
+
   const formView = useMemo(
     () =>
       getPrimaryView(bundle?.views, "form") ??
@@ -109,10 +114,15 @@ export function EntityFormPage() {
   );
   const aiSuggestionCount = Object.keys(aiAutoFill.state.suggestions).length;
 
-  const recordFields = useMemo(
-    () => (formView ? getRecordFields(formView, schema) : []),
-    [formView, schema],
-  );
+  const recordFields = useMemo(() => {
+    if (!formView) return [];
+    const fields = getRecordFields(formView, schema);
+    // Include _extensions when overlay fields exist (contains overlay field values)
+    if (overlayFields.length > 0 && !fields.includes("_extensions")) {
+      fields.push("_extensions");
+    }
+    return fields;
+  }, [formView, schema, overlayFields]);
 
   // Stabilize recordFields via ref so fetchRecord doesn't get recreated on every render
   const recordFieldsRef = useRef(recordFields);
@@ -481,6 +491,7 @@ export function EntityFormPage() {
               registerSetField={(setter) => {
                 autoFormSetFieldRef.current = setter;
               }}
+              overlayFields={overlayFields.length > 0 ? overlayFields : undefined}
             />
           </div>
 

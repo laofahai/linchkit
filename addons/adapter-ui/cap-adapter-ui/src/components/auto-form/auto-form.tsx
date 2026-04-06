@@ -27,11 +27,12 @@ import type {
 } from "@linchkit/core/types";
 import { Button } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Puzzle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
+import type { FieldOverlayRecord, OverlayFieldType } from "../../lib/overlay-types";
 import { AiSuggestionBadge } from "../ai-suggestion-badge";
 import { FormFieldRow } from "./form-field";
 import { FormGroup } from "./form-group";
@@ -63,11 +64,15 @@ export function AutoForm({
   onValuesChange,
   registerSetField,
   templates,
+  overlayFields,
   formId: customFormId,
 }: AutoFormProps) {
   const { t } = useTranslation();
   const formId = customFormId ?? "auto-form";
   const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
+
+  // Convert overlay fields to FieldDefinition map for rendering via widget registry
+  const overlayFieldDefs = useMemo(() => buildOverlayFieldDefs(overlayFields), [overlayFields]);
 
   const [formData, setFormData] = useState<Record<string, unknown>>(() => {
     const initial: Record<string, unknown> = {};
@@ -76,6 +81,17 @@ export function AutoForm({
       const fieldDef = schema.fields[vf.field];
       if (!fieldDef) continue;
       initial[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
+    }
+    // Initialize overlay field values from _extensions
+    if (overlayFields && overlayFields.length > 0) {
+      const extensions = (data?._extensions ?? {}) as Record<string, unknown>;
+      for (const overlay of overlayFields) {
+        const key = overlayFieldKey(overlay.fieldName);
+        initial[key] =
+          extensions[overlay.fieldName] ??
+          overlay.config.defaultValue ??
+          getOverlayDefault(overlay.fieldType);
+      }
     }
     return initial;
   });
@@ -425,6 +441,21 @@ export function AutoForm({
       collectHiddenLayoutFields(view.layout.nodes);
     }
 
+    // Move overlay field values into _extensions and remove from top-level
+    if (overlayFields && overlayFields.length > 0) {
+      const extensions: Record<string, unknown> = {};
+      for (const overlay of overlayFields) {
+        const key = overlayFieldKey(overlay.fieldName);
+        if (key in submitData) {
+          extensions[overlay.fieldName] = submitData[key];
+          delete submitData[key];
+        }
+      }
+      if (Object.keys(extensions).length > 0) {
+        submitData._extensions = extensions;
+      }
+    }
+
     // Collect virtual ref records and has_many child commands
     const virtualRefs: Record<string, VirtualRecord> = {};
     const childCommands: Record<string, ChildCommand[]> = {};
@@ -740,6 +771,49 @@ export function AutoForm({
         <Fragment key={getNodeKey(node, i)}>{renderNode(node, 0)}</Fragment>
       ))}
 
+      {/* Overlay (custom) fields section */}
+      {overlayFields && overlayFields.length > 0 && (
+        <div className="mt-4" data-overlay-fields>
+          <div className="py-3 border-b border-border/50">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Puzzle className="size-3.5 opacity-60" />
+              {t("form.overlayFields", "Custom Fields")}
+            </h3>
+          </div>
+          <div
+            className="grid gap-y-2 items-center mt-2 max-md:!grid-cols-1"
+            style={{ gridTemplateColumns: "auto minmax(0, 1fr)" }}
+          >
+            {overlayFields.map((overlay) => {
+              const key = overlayFieldKey(overlay.fieldName);
+              const fieldDef = overlayFieldDefs[overlay.fieldName];
+              if (!fieldDef) return null;
+              const node: FormFieldNode = { type: "field", field: key };
+              const vf = { field: key };
+              const readonly = isViewMode;
+              const required = !!overlay.config.required && !isViewMode;
+              return (
+                <FormFieldRow
+                  key={key}
+                  node={node}
+                  fieldDef={fieldDef}
+                  viewField={vf}
+                  value={formData[key]}
+                  isViewMode={isViewMode}
+                  required={required}
+                  readonly={readonly}
+                  error={errors[key]}
+                  isDirty={dirtyFields.has(key)}
+                  onChange={(val) => handleChange(key, val)}
+                  onBlur={() => handleBlur(key)}
+                  overlayIndicator
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       {!isViewMode && !hideFooter && (
         <div className="flex items-center justify-between pt-4">
@@ -785,6 +859,101 @@ function getDefaultForType(fieldDef: FieldDefinition): unknown {
     default:
       return "";
   }
+}
+
+/** Prefix for overlay field keys in formData to avoid collision with schema fields. */
+const OVERLAY_PREFIX = "_ovl_";
+
+function overlayFieldKey(fieldName: string): string {
+  return `${OVERLAY_PREFIX}${fieldName}`;
+}
+
+/** Map overlay field type to core FieldType for widget resolution. */
+function overlayTypeToFieldType(overlayType: OverlayFieldType): FieldDefinition["type"] {
+  switch (overlayType) {
+    case "string":
+      return "string";
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "date":
+      return "date";
+    case "enum":
+      return "enum";
+    case "json":
+      return "json";
+    default:
+      return "string";
+  }
+}
+
+/** Get default value for an overlay field type. */
+function getOverlayDefault(overlayType: OverlayFieldType): unknown {
+  switch (overlayType) {
+    case "boolean":
+      return false;
+    case "number":
+      return null;
+    case "json":
+      return null;
+    default:
+      return "";
+  }
+}
+
+/**
+ * Convert overlay field records to a map of synthetic FieldDefinition objects
+ * that the widget registry can use for rendering.
+ */
+function buildOverlayFieldDefs(
+  overlayFields: FieldOverlayRecord[] | undefined,
+): Record<string, FieldDefinition> {
+  if (!overlayFields) return {};
+  const defs: Record<string, FieldDefinition> = {};
+  for (const overlay of overlayFields) {
+    const base: FieldDefinition = {
+      type: overlayTypeToFieldType(overlay.fieldType),
+      label: resolveOverlayLabel(overlay),
+      required: overlay.config.required,
+    } as FieldDefinition;
+
+    // Add enum options if applicable
+    if (overlay.fieldType === "enum" && overlay.config.enumValues) {
+      (base as { options: Array<{ value: string; label: string }> }).options =
+        overlay.config.enumValues.map((v) => ({ value: v, label: v }));
+    }
+
+    // Add numeric constraints
+    if (overlay.fieldType === "number") {
+      if (overlay.config.min !== undefined) base.min = overlay.config.min;
+      if (overlay.config.max !== undefined) base.max = overlay.config.max;
+    }
+
+    // Add string max length
+    if (overlay.fieldType === "string" && overlay.config.maxLength !== undefined) {
+      base.max = overlay.config.maxLength;
+    }
+
+    defs[overlay.fieldName] = base;
+  }
+  return defs;
+}
+
+/**
+ * Resolve the best label for an overlay field.
+ * Tries current i18next language, then 'en', then field name.
+ */
+function resolveOverlayLabel(overlay: FieldOverlayRecord): string {
+  if (!overlay.config.label) return overlay.fieldName;
+  // Try browser language first, then English fallback
+  const lang = typeof navigator !== "undefined" ? navigator.language.replace("-", "-") : "en";
+  return (
+    overlay.config.label[lang] ??
+    overlay.config.label.en ??
+    Object.values(overlay.config.label)[0] ??
+    overlay.fieldName
+  );
 }
 
 function _mapVariant(v?: string): "default" | "destructive" | "outline" | "ghost" | "secondary" {

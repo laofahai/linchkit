@@ -13,6 +13,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
+import { OverlayFieldBadge } from "../overlay-field-badge";
 
 export interface FormFieldRowProps {
   node: FormFieldNode;
@@ -26,6 +27,8 @@ export interface FormFieldRowProps {
   isDirty: boolean;
   onChange: (value: unknown) => void;
   onBlur: () => void;
+  /** Show a visual indicator that this is a runtime overlay (custom) field */
+  overlayIndicator?: boolean;
 }
 
 export function FormFieldRow({
@@ -40,6 +43,7 @@ export function FormFieldRow({
   isDirty,
   onChange,
   onBlur,
+  overlayIndicator,
 }: FormFieldRowProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useEntityLabel();
@@ -100,7 +104,10 @@ export function FormFieldRow({
           node.className,
         )}
       >
-        {label}
+        <span className="inline-flex items-center gap-1">
+          {label}
+          {overlayIndicator && <OverlayFieldBadge />}
+        </span>
       </Label>
 
       {/* Value cell */}

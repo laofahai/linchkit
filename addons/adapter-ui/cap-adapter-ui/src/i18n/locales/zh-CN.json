@@ -96,7 +96,8 @@
       "invalidOption": "请为{{field}}选择一个有效选项",
       "hasErrors": "请先修正以下错误再提交",
       "uniqueHint": "必须唯一 — 保存时验证"
-    }
+    },
+    "overlayFields": "自定义字段"
   },
   "list": {
     "noResults": "未找到结果",
@@ -960,5 +961,10 @@
     "legend": {
       "title": "语义关系"
     }
+  },
+  "overlay": {
+    "fieldBadge": "自定义字段",
+    "fieldBadgeTooltip": "运行时自定义字段（覆盖层）",
+    "customFieldsSection": "自定义字段"
   }
 }
