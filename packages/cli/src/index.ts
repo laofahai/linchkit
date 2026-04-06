@@ -172,6 +172,7 @@ function buildCommandsManifest(
     describe:
       "Show project meta-model overview (entities, actions, rules, states, flows, relations)",
     "agents-md": "Generate AGENTS.md from project ontology",
+    "mcp-dev": "Start a development-time MCP server for AI coding tools",
   };
 
   for (const name of builtinNames) {
@@ -220,6 +221,7 @@ async function run() {
     doctor: doctorCommand,
     describe: describeCommand,
     "agents-md": agentsMdCommand,
+    "mcp-dev": mcpDevCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();
