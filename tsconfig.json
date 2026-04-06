@@ -24,8 +24,12 @@
       "@linchkit/core/server": ["./packages/core/src/server-entry.ts"],
       "@linchkit/core/config": ["./packages/core/src/config/index.ts"],
       "@linchkit/core/utils/env": ["./packages/core/src/utils/env.ts"],
+      "@linchkit/core/ai": ["./packages/core/src/ai/index.ts"],
       "@linchkit/cli": ["./packages/cli/src"],
       "@linchkit/devtools": ["./packages/devtools/src"],
+      "@linchkit/devtools/documentation": ["./packages/devtools/src/documentation/index.ts"],
+      "@linchkit/devtools/methodology": ["./packages/devtools/src/methodology/index.ts"],
+      "@linchkit/devtools/governance": ["./packages/devtools/src/governance/index.ts"],
       "@linchkit/cap-adapter-server": ["./addons/adapter-server/cap-adapter-server/src"],
       "@linchkit/cap-adapter-server/capability": [
         "./addons/adapter-server/cap-adapter-server/src/capability.ts"

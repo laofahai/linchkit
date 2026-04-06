@@ -48,8 +48,7 @@ export const initCommand = defineCommand({
     writeFileSync(resolve(projectDir, "tests/.gitkeep"), "");
 
     // Write config and project files
-    const dbName = projectName.replace(/-/g, "_");
-    writeFileSync(resolve(projectDir, "linchkit.config.ts"), linchkitConfigTemplate(dbName));
+    writeFileSync(resolve(projectDir, "linchkit.config.ts"), linchkitConfigTemplate());
     writeFileSync(resolve(projectDir, "package.json"), packageJsonTemplate(projectName));
     writeFileSync(resolve(projectDir, "tsconfig.json"), tsconfigTemplate());
     writeFileSync(resolve(projectDir, "CLAUDE.md"), claudeMdTemplate(projectName));

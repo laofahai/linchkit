@@ -141,7 +141,7 @@ function InsightCard({
             {insight.data.relatedRecords.map((rec) => (
               <Link
                 key={`${rec.entity}-${rec.id}`}
-                to={"/schemas/$name/$id" as "/"}
+                to={"/entities/$name/$id" as "/"}
                 params={{ name: rec.entity, id: rec.id }}
                 className="text-[11px] text-primary hover:underline"
               >

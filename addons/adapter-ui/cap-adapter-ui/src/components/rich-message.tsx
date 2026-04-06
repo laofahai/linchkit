@@ -85,7 +85,7 @@ export interface RichMessageProps {
 function RecordLinkRenderer({ block }: { block: RecordLinkBlock }) {
   return (
     <Link
-      to={"/schemas/$name/$id" as "/"}
+      to={"/entities/$name/$id" as "/"}
       params={{ name: block.data.entity, id: block.data.id }}
       className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-primary hover:bg-accent transition-colors"
     >
@@ -105,7 +105,7 @@ function RecordListRenderer({ block }: { block: RecordListBlock }) {
         {block.data.records.map((rec) => (
           <Link
             key={rec.id}
-            to={"/schemas/$name/$id" as "/"}
+            to={"/entities/$name/$id" as "/"}
             params={{ name: block.data.entity, id: rec.id }}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline"
           >

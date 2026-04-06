@@ -21,7 +21,7 @@ function cleanup(dir: string) {
 
 describe("templates", () => {
   test("linchkitConfigTemplate generates valid config", () => {
-    const result = linchkitConfigTemplate("my_project");
+    const result = linchkitConfigTemplate();
     expect(result).toContain("import { defineConfig } from '@linchkit/core'");
     expect(result).toContain("defineConfig({");
     expect(result).toContain("process.env.DATABASE_URL");

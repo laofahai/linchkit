@@ -2,7 +2,7 @@
  * Template functions for linch init scaffolding
  */
 
-export function linchkitConfigTemplate(_dbName: string): string {
+export function linchkitConfigTemplate(): string {
   return `import { defineConfig } from '@linchkit/core'
 
 export default defineConfig({

@@ -930,8 +930,14 @@ Rules:
         const executionLogger = options.executionLogger;
         if (executionLogger) {
           try {
-            const allLogs = await executionLogger.getByEntity(entityName);
-            executionHistory = allLogs
+            // Use findMany with entity filter and page limit to avoid unbounded fetches
+            const result = await executionLogger.findMany({
+              entity: entityName,
+              pageSize: 200,
+              sortField: "startedAt",
+              sortOrder: "desc",
+            });
+            executionHistory = result.items
               .filter(
                 (log) =>
                   log.input &&
