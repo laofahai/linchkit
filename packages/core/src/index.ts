@@ -265,6 +265,19 @@ export type {
   RelationDescriptor,
 } from "./ontology";
 export { buildRelationGraph, inferSemanticRelations } from "./ontology";
+export { generateAgentsMd, type AgentsMdOptions } from "./ontology";
+export {
+  buildProjectOverview,
+  describeAction,
+  describeEntity,
+  describeRelation,
+  type ActionDescription,
+  type DescribeInput,
+  type EntityDescription,
+  type FieldDescription,
+  type ProjectOverview,
+  type RelationDescription,
+} from "./ontology";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
 export {
   applyOverride,

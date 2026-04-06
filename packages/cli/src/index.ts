@@ -15,10 +15,12 @@ console.info = (...args: unknown[]) => {
 
 import type { CliCommand, CliCommandContext } from "@linchkit/core";
 import { defineCommand, runMain, showUsage } from "citty";
+import { agentsMdCommand } from "./commands/agents-md";
 import { changelogCommand } from "./commands/changelog";
 import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
+import { describeCommand } from "./commands/describe";
 import { devCommand } from "./commands/dev";
 import { doctorCommand } from "./commands/doctor";
 import { docsCommand } from "./commands/docs";
@@ -30,6 +32,7 @@ import { searchCommand } from "./commands/search";
 import { collectCapabilityDefinitions } from "./commands/startup/collect-capabilities";
 import { uninstallCommand } from "./commands/uninstall";
 import { updateCommand } from "./commands/update";
+import { mcpDevCommand } from "./commands/mcp-dev";
 import { validateCommand } from "./commands/validate";
 import { loadConfig } from "./utils/load-config";
 
@@ -52,6 +55,9 @@ const RESERVED_NAMESPACES = new Set([
   "docs",
   "changelog",
   "doctor",
+  "describe",
+  "agents-md",
+  "mcp-dev",
 ]);
 
 /**
@@ -163,6 +169,9 @@ function buildCommandsManifest(
     docs: "Generate documentation",
     changelog: "Generate changelog entries",
     doctor: "Run project health checks",
+    describe:
+      "Show project meta-model overview (entities, actions, rules, states, flows, relations)",
+    "agents-md": "Generate AGENTS.md from project ontology",
   };
 
   for (const name of builtinNames) {
@@ -209,6 +218,8 @@ async function run() {
     changelog: changelogCommand,
     validate: validateCommand,
     doctor: doctorCommand,
+    describe: describeCommand,
+    "agents-md": agentsMdCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

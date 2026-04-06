@@ -2,6 +2,19 @@
  * Ontology module — unified semantic layer over all registries
  */
 
+export { generateAgentsMd, type AgentsMdOptions } from "./agents-md-generator";
+export {
+  buildProjectOverview,
+  describeAction,
+  describeEntity,
+  describeRelation,
+  type ActionDescription,
+  type DescribeInput,
+  type EntityDescription,
+  type FieldDescription,
+  type ProjectOverview,
+  type RelationDescription,
+} from "./describe";
 export {
   analyzeImpact,
   type ImpactAnalysisOptions,
