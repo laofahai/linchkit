@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { parseRichMessage, formatRichMessage } from "../src/ai/message-formatter";
 import type { AIRichMessage } from "../src/ai/message-formatter";
+import { formatRichMessage, parseRichMessage } from "../src/ai/message-formatter";
 
 describe("parseRichMessage", () => {
   it("returns plain text when no blocks are present", () => {
@@ -15,8 +15,8 @@ describe("parseRichMessage", () => {
     expect(result.text).toContain("Here is the record:");
     expect(result.text).toContain("check it out.");
     expect(result.blocks).toHaveLength(1);
-    expect(result.blocks![0].type).toBe("record_link");
-    const data = result.blocks![0].data as { entity: string; id: string; label: string };
+    expect(result.blocks?.[0].type).toBe("record_link");
+    const data = result.blocks?.[0].data as { entity: string; id: string; label: string };
     expect(data.entity).toBe("purchase_order");
     expect(data.id).toBe("po-001");
   });
@@ -31,28 +31,28 @@ describe("parseRichMessage", () => {
     const input = `I suggest:\n<<BLOCK:action_proposal>>{"action":"approve","input":{"id":"po-001"},"confidence":0.9,"explanation":"Ready for approval"}<<END_BLOCK>>`;
     const result = parseRichMessage(input);
     expect(result.blocks).toHaveLength(1);
-    expect(result.blocks![0].type).toBe("action_proposal");
+    expect(result.blocks?.[0].type).toBe("action_proposal");
   });
 
   it("extracts data_table block", () => {
     const input = `<<BLOCK:data_table>>{"columns":["Name","Amount"],"rows":[["A",100],["B",200]]}<<END_BLOCK>>`;
     const result = parseRichMessage(input);
     expect(result.blocks).toHaveLength(1);
-    expect(result.blocks![0].type).toBe("data_table");
+    expect(result.blocks?.[0].type).toBe("data_table");
   });
 
   it("extracts insight block", () => {
     const input = `<<BLOCK:insight>>{"type":"risk","severity":"warning","title":"High Cost","description":"Cost exceeds budget"}<<END_BLOCK>>`;
     const result = parseRichMessage(input);
     expect(result.blocks).toHaveLength(1);
-    expect(result.blocks![0].type).toBe("insight");
+    expect(result.blocks?.[0].type).toBe("insight");
   });
 
   it("extracts navigation block", () => {
     const input = `<<BLOCK:navigation>>{"url":"/schemas/order","label":"View Orders"}<<END_BLOCK>>`;
     const result = parseRichMessage(input);
     expect(result.blocks).toHaveLength(1);
-    expect(result.blocks![0].type).toBe("navigation");
+    expect(result.blocks?.[0].type).toBe("navigation");
   });
 
   it("leaves unknown block types as-is in text", () => {
@@ -107,9 +107,7 @@ describe("formatRichMessage", () => {
   it("formats record_link block", () => {
     const msg: AIRichMessage = {
       text: "Found:",
-      blocks: [
-        { type: "record_link", data: { entity: "order", id: "1", label: "Order #1" } },
-      ],
+      blocks: [{ type: "record_link", data: { entity: "order", id: "1", label: "Order #1" } }],
     };
     const result = formatRichMessage(msg);
     expect(result).toContain("[order] Order #1 (1)");
@@ -142,7 +140,13 @@ describe("formatRichMessage", () => {
       blocks: [
         {
           type: "data_table",
-          data: { columns: ["Name", "Value"], rows: [["A", 1], ["B", 2]] },
+          data: {
+            columns: ["Name", "Value"],
+            rows: [
+              ["A", 1],
+              ["B", 2],
+            ],
+          },
         },
       ],
     };
@@ -174,9 +178,7 @@ describe("formatRichMessage", () => {
   it("formats navigation block", () => {
     const msg: AIRichMessage = {
       text: "",
-      blocks: [
-        { type: "navigation", data: { url: "/orders", label: "View Orders" } },
-      ],
+      blocks: [{ type: "navigation", data: { url: "/orders", label: "View Orders" } }],
     };
     const result = formatRichMessage(msg);
     expect(result).toContain("View Orders");

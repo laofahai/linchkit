@@ -61,8 +61,8 @@ function collectFocusedNodes(
     const to = endpointKey(rel.to);
     if (!adjacency.has(from)) adjacency.set(from, new Set());
     if (!adjacency.has(to)) adjacency.set(to, new Set());
-    adjacency.get(from)!.add(to);
-    adjacency.get(to)!.add(from);
+    adjacency.get(from)?.add(to);
+    adjacency.get(to)?.add(from);
   }
 
   // BFS

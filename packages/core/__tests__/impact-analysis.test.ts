@@ -100,10 +100,10 @@ describe("analyzeImpact", () => {
 
     expect(result.source).toBe("entity_a");
     expect(result.directImpacts.length).toBe(1);
-    expect(result.directImpacts[0]!.entity).toBe("entity_b");
-    expect(result.directImpacts[0]!.depth).toBe(0);
-    expect(result.directImpacts[0]!.path).toEqual(["entity_a", "entity_b"]);
-    expect(result.directImpacts[0]!.relationTypes).toEqual(["references"]);
+    expect(result.directImpacts[0]?.entity).toBe("entity_b");
+    expect(result.directImpacts[0]?.depth).toBe(0);
+    expect(result.directImpacts[0]?.path).toEqual(["entity_a", "entity_b"]);
+    expect(result.directImpacts[0]?.relationTypes).toEqual(["references"]);
   });
 
   it("detects indirect/cascading impacts through chain", () => {
@@ -114,12 +114,14 @@ describe("analyzeImpact", () => {
     expect(entities).toEqual(["entity_c", "entity_d"]);
 
     // entity_c is at depth 1
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - find result verified by length check above
     const nodeC = result.indirectImpacts.find((n) => n.entity === "entity_c")!;
     expect(nodeC.depth).toBe(1);
     expect(nodeC.path).toEqual(["entity_a", "entity_b", "entity_c"]);
     expect(nodeC.relationTypes).toEqual(["references", "triggers"]);
 
     // entity_d is at depth 2
+    // biome-ignore lint/style/noNonNullAssertion: test assertion - find result verified by entity list check above
     const nodeD = result.indirectImpacts.find((n) => n.entity === "entity_d")!;
     expect(nodeD.depth).toBe(2);
   });
@@ -142,7 +144,7 @@ describe("analyzeImpact", () => {
     // Only depth 0 and depth 1 should be found
     expect(result.directImpacts.length).toBe(1);
     expect(result.indirectImpacts.length).toBe(1);
-    expect(result.indirectImpacts[0]!.entity).toBe("entity_c");
+    expect(result.indirectImpacts[0]?.entity).toBe("entity_c");
     // entity_d should NOT be included (depth 2)
     const allEntities = [
       ...result.directImpacts.map((n) => n.entity),
@@ -161,7 +163,7 @@ describe("analyzeImpact", () => {
 
     // Indirect: d (reachable via both b and c, but only counted once)
     expect(result.indirectImpacts.length).toBe(1);
-    expect(result.indirectImpacts[0]!.entity).toBe("entity_d");
+    expect(result.indirectImpacts[0]?.entity).toBe("entity_d");
   });
 
   it("returns empty results for isolated node", () => {
@@ -173,7 +175,7 @@ describe("analyzeImpact", () => {
 
   it("includes capability info when available", () => {
     const result = analyzeImpact("entity_a", linearChain());
-    expect(result.directImpacts[0]!.capability).toBe("cap_b");
+    expect(result.directImpacts[0]?.capability).toBe("cap_b");
   });
 
   it("reports correct maxDepth and totalAffected", () => {

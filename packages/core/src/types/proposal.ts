@@ -6,10 +6,10 @@
  * AI can never directly modify production — every change must be proposed and validated first.
  */
 
+import type { ImpactNode } from "../ontology/impact-analysis";
 import type { ActionDefinition } from "./action";
 import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
-import type { ImpactNode } from "../ontology/impact-analysis";
 import type { RuleDefinition } from "./rule";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";

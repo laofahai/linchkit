@@ -38,9 +38,20 @@ export type {
   UsageEvent,
 } from "./anomaly-detector";
 export { AnomalyDetector } from "./anomaly-detector";
+// Conversation Manager
+export type {
+  AISession,
+  AISessionContext,
+  AISessionMessage,
+  ConversationManagerOptions,
+} from "./conversation-manager";
+export { ConversationManager } from "./conversation-manager";
 // Cost Estimator
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
+// Message Formatter
+export type { AIMessageBlock, AIRichMessage } from "./message-formatter";
+export { formatRichMessage, parseRichMessage } from "./message-formatter";
 // Output Validator
 export type {
   OutputValidationResult,
@@ -100,21 +111,10 @@ export type {
 export { createProposalValidator, validateProposal } from "./proposal-validator";
 // Record Analyzer
 export type {
-  RecordAnalysisRequest,
   RecordAnalysis,
+  RecordAnalysisRequest,
   RecordInsight,
 } from "./record-analyzer";
 export { analyzeRecord, buildAnalysisPrompt, parseAnalysisResponse } from "./record-analyzer";
-// Conversation Manager
-export type {
-  AISession,
-  AISessionContext,
-  AISessionMessage,
-  ConversationManagerOptions,
-} from "./conversation-manager";
-export { ConversationManager } from "./conversation-manager";
-// Message Formatter
-export type { AIRichMessage, AIMessageBlock } from "./message-formatter";
-export { parseRichMessage, formatRichMessage } from "./message-formatter";
 // Response Cache
 export { AIResponseCache } from "./response-cache";

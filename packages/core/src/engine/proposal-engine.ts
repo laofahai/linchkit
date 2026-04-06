@@ -13,7 +13,6 @@
  */
 
 import { analyzeImpact } from "../ontology/impact-analysis";
-import type { SemanticRelation } from "../types/semantic-relation";
 import type {
   ChangeType,
   ProposalAuthor,
@@ -21,6 +20,7 @@ import type {
   ProposalDefinition,
   ProposalImpact,
 } from "../types/proposal";
+import type { SemanticRelation } from "../types/semantic-relation";
 import type { VersionRecord } from "../types/version";
 import { type ValidationContext, validateProposal } from "./validation-engine";
 

@@ -113,9 +113,7 @@ export function formatRichMessage(message: AIRichMessage): string {
         break;
 
       case "record_list": {
-        const items = block.data.records
-          .map((r) => `  - ${r.label} (${r.id})`)
-          .join("\n");
+        const items = block.data.records.map((r) => `  - ${r.label} (${r.id})`).join("\n");
         parts.push(`\n[${block.data.entity} list]\n${items}`);
         break;
       }

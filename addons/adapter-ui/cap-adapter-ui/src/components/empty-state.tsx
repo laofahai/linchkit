@@ -10,7 +10,7 @@
 
 import { Button } from "@linchkit/ui-kit/components";
 import { useNavigate } from "@tanstack/react-router";
-import { PackageOpen, Plus } from "lucide-react";
+import { PackageOpen, Plus, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export interface EmptyStateProps {
@@ -26,6 +26,8 @@ export interface EmptyStateProps {
   icon?: React.ReactNode;
   /** Hide the create/action button (useful for admin pages where creation is not user-driven). */
   hideAction?: boolean;
+  /** Callback for refresh button. */
+  onRefresh?: () => void;
 }
 
 export function EmptyState({
@@ -35,6 +37,7 @@ export function EmptyState({
   description,
   icon,
   hideAction = false,
+  onRefresh,
 }: EmptyStateProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -69,14 +72,21 @@ export function EmptyState({
         <p className="text-sm text-muted-foreground mb-6 max-w-sm">{displayDescription}</p>
       )}
 
-      {showCreateButton && (
-        <Button
-          onClick={() => navigate({ to: "/entities/$name/new", params: { name: entityName } })}
-        >
-          <Plus className="mr-1.5 size-4" />
-          {t("emptyState.createButton", "Create {{label}}", { label: entityLabel })}
-        </Button>
-      )}
+      <div className="flex items-center gap-2">
+        {showCreateButton && (
+          <Button
+            onClick={() => navigate({ to: "/entities/$name/new", params: { name: entityName } })}
+          >
+            <Plus className="mr-1.5 size-4" />
+            {t("emptyState.createButton", "Create {{label}}", { label: entityLabel })}
+          </Button>
+        )}
+        {onRefresh && (
+          <Button variant="ghost" size="icon" onClick={onRefresh} className="text-muted-foreground">
+            <RefreshCw className="size-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { ConversationManager } from "../src/ai/conversation-manager";
 
 describe("ConversationManager", () => {
@@ -94,7 +94,7 @@ describe("ConversationManager", () => {
       const created = manager.getOrCreateSession("user-1");
       const fetched = manager.getSession(created.id);
       expect(fetched).toBeDefined();
-      expect(fetched!.id).toBe(created.id);
+      expect(fetched?.id).toBe(created.id);
     });
 
     it("returns undefined for unknown ID", () => {

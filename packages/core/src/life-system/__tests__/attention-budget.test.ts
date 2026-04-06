@@ -13,7 +13,6 @@ describe("AttentionBudget", () => {
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(results[0]!.item).toBe("high");
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
-    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(results[0]!.score).toBeGreaterThan(results[1]!.score);
   });
 
@@ -33,7 +32,6 @@ describe("AttentionBudget", () => {
     budget.recordIgnore("alert");
     const after = budget.rank([{ item: "x", confidence: 1, impact: 1, type: "alert" }]);
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
-    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(after[0]!.score).toBeLessThan(before[0]!.score);
   });
 
@@ -42,7 +40,6 @@ describe("AttentionBudget", () => {
     const before = budget.rank([{ item: "x", confidence: 1, impact: 1, type: "report" }]);
     budget.recordEndorse("report");
     const after = budget.rank([{ item: "x", confidence: 1, impact: 1, type: "report" }]);
-    // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     // biome-ignore lint/style/noNonNullAssertion: test assertion - length verified above
     expect(after[0]!.score).toBeGreaterThan(before[0]!.score);
   });

@@ -3,6 +3,13 @@
  */
 
 export {
+  analyzeImpact,
+  type ImpactAnalysisOptions,
+  type ImpactAnalysisResult,
+  type ImpactNode,
+} from "./impact-analysis";
+export { generateSemanticMermaid, type MermaidExportOptions } from "./mermaid-export";
+export {
   createOntologyRegistry,
   type EntityDescriptor,
   type OntologyRegistry,
@@ -10,10 +17,3 @@ export {
   type RelationDescriptor,
 } from "./ontology-registry";
 export { buildRelationGraph, inferSemanticRelations } from "./semantic-inference";
-export {
-  analyzeImpact,
-  type ImpactAnalysisOptions,
-  type ImpactAnalysisResult,
-  type ImpactNode,
-} from "./impact-analysis";
-export { generateSemanticMermaid, type MermaidExportOptions } from "./mermaid-export";

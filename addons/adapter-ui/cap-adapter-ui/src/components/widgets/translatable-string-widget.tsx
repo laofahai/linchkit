@@ -29,7 +29,7 @@ function extractI18nOptions(viewField: { options?: Record<string, unknown> }) {
 }
 
 /** Display: show resolved value with locale indicator */
-export function TranslatableStringDisplay({ value, fieldDef, viewField }: WidgetDisplayProps) {
+export function TranslatableStringDisplay({ value, viewField }: WidgetDisplayProps) {
   const i18nOpts = extractI18nOptions(viewField);
   const { currentValue, availableLocales } = useTranslatableField(value, i18nOpts);
 
@@ -53,7 +53,6 @@ export function TranslatableStringDisplay({ value, fieldDef, viewField }: Widget
 /** Input: locale pill tabs + text input */
 export function TranslatableStringInput({
   value,
-  fieldDef,
   viewField,
   onChange,
   onBlur,

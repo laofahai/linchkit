@@ -47,7 +47,7 @@ const TOOL_CATEGORIES: Record<string, string> = {
 };
 
 /** Default actor returned for simple bearer token auth */
-const DEFAULT_MCP_ACTOR: Actor = {
+const _DEFAULT_MCP_ACTOR: Actor = {
   type: "ai",
   id: "mcp-default",
   name: "MCP Client",

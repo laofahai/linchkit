@@ -7,8 +7,8 @@
  * See spec 52 — AI Deep Integration, P2 Record Analysis.
  */
 
-import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { AICompletionResult, AIService } from "../types/ai";
+import type { EntityDefinition, FieldDefinition } from "../types/entity";
 
 // ── Types ───────────────────────────────────────────────────
 

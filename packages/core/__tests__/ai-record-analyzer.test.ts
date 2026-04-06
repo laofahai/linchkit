@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
+  analyzeRecord,
   buildAnalysisPrompt,
   parseAnalysisResponse,
-  analyzeRecord,
   type RecordAnalysisRequest,
 } from "../src/ai/record-analyzer";
 import type { AIService } from "../src/types/ai";
@@ -134,7 +134,8 @@ describe("parseAnalysisResponse", () => {
   });
 
   it("strips markdown code fences", () => {
-    const raw = '```json\n[{"type":"risk","severity":"info","title":"Test","description":"Desc"}]\n```';
+    const raw =
+      '```json\n[{"type":"risk","severity":"info","title":"Test","description":"Desc"}]\n```';
     const insights = parseAnalysisResponse(raw);
     expect(insights).toHaveLength(1);
     expect(insights[0].title).toBe("Test");
@@ -203,7 +204,12 @@ describe("analyzeRecord", () => {
       providerNames: ["test"],
       complete: async () => ({
         content: JSON.stringify([
-          { type: "risk", severity: "warning", title: "High amount", description: "Amount is high" },
+          {
+            type: "risk",
+            severity: "warning",
+            title: "High amount",
+            description: "Amount is high",
+          },
         ]),
         usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
         model: "test-model",

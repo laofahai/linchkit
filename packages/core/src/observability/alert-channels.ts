@@ -171,10 +171,11 @@ export class AlertDispatcher {
     const results = await Promise.allSettled(this.channels.map((ch) => ch.send(alert)));
 
     for (let i = 0; i < results.length; i++) {
-      const r = results[i]!;
+      const r = results[i];
+      if (!r) continue;
       if (r.status === "rejected") {
         console.error(
-          `[AlertDispatcher] channel "${this.channels[i]!.name}" failed: ${(r as PromiseRejectedResult).reason}`,
+          `[AlertDispatcher] channel "${this.channels[i]?.name}" failed: ${(r as PromiseRejectedResult).reason}`,
         );
       }
     }

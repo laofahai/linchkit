@@ -20,10 +20,7 @@ import { RichTextDisplay, RichTextInput } from "./rich-text-widget";
 import { StateDisplay, StateInput } from "./state-widget";
 import { StringDisplay, StringInput } from "./string-widget";
 import { TextDisplay, TextInput } from "./text-widget";
-import {
-  TranslatableStringDisplay,
-  TranslatableStringInput,
-} from "./translatable-string-widget";
+import { TranslatableStringDisplay, TranslatableStringInput } from "./translatable-string-widget";
 import { TranslatableTextDisplay, TranslatableTextInput } from "./translatable-text-widget";
 
 export function registerDefaultWidgets() {

@@ -3,8 +3,9 @@
  * EventBusAlertChannel, AlertDispatcher.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
+  type AlertChannel,
   AlertDispatcher,
   EventBusAlertChannel,
   type FiredAlert,
@@ -51,10 +52,10 @@ describe("WebhookAlertChannel", () => {
 
   it("sends POST with correct JSON payload", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
-    globalThis.fetch = mock(async (url: any, init: any) => {
-      calls.push({ url: url as string, init });
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
       return new Response("OK", { status: 200 });
-    }) as any;
+    }) as typeof fetch;
 
     const channel = new WebhookAlertChannel("ops-webhook", {
       url: "https://hooks.example.com/alert",
@@ -88,7 +89,7 @@ describe("WebhookAlertChannel", () => {
         return new Response("Internal Server Error", { status: 500 });
       }
       return new Response("OK", { status: 200 });
-    }) as any;
+    }) as typeof fetch;
 
     const channel = new WebhookAlertChannel("retry-test", {
       url: "https://hooks.example.com/alert",
@@ -101,7 +102,7 @@ describe("WebhookAlertChannel", () => {
   it("does not throw when both attempts fail", async () => {
     globalThis.fetch = mock(async () => {
       return new Response("Server Error", { status: 500 });
-    }) as any;
+    }) as typeof fetch;
 
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const channel = new WebhookAlertChannel("fail-test", {
@@ -164,8 +165,8 @@ describe("LogAlertChannel", () => {
 
 describe("EventBusAlertChannel", () => {
   it("emits system.alert.fired event with payload", async () => {
-    const emitted: any[] = [];
-    const emit = mock(async (event: any) => {
+    const emitted: Array<{ type: string; payload: FiredAlert }> = [];
+    const emit = mock(async (event: { type: string; payload: FiredAlert }) => {
       emitted.push(event);
     });
 
@@ -185,14 +186,14 @@ describe("EventBusAlertChannel", () => {
 describe("AlertDispatcher", () => {
   it("dispatches to multiple channels in parallel", async () => {
     const received: string[] = [];
-    const ch1: any = {
+    const ch1: AlertChannel = {
       name: "ch1",
       type: "log",
       send: mock(async () => {
         received.push("ch1");
       }),
     };
-    const ch2: any = {
+    const ch2: AlertChannel = {
       name: "ch2",
       type: "log",
       send: mock(async () => {
@@ -214,14 +215,14 @@ describe("AlertDispatcher", () => {
   it("handles channel failure gracefully — other channels still fire", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const received: string[] = [];
-    const failCh: any = {
+    const failCh: AlertChannel = {
       name: "fail-ch",
       type: "webhook",
       send: mock(async () => {
         throw new Error("connection refused");
       }),
     };
-    const okCh: any = {
+    const okCh: AlertChannel = {
       name: "ok-ch",
       type: "log",
       send: mock(async () => {
@@ -244,7 +245,7 @@ describe("AlertDispatcher", () => {
 
   it("addChannel / removeChannel / listChannels work correctly", () => {
     const dispatcher = new AlertDispatcher();
-    const ch: any = { name: "test", type: "log", send: async () => {} };
+    const ch: AlertChannel = { name: "test", type: "log", send: async () => {} };
     dispatcher.addChannel(ch);
     expect(dispatcher.listChannels()).toHaveLength(1);
     dispatcher.removeChannel("test");

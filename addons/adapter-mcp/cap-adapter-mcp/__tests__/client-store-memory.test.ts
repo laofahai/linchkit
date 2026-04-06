@@ -39,8 +39,8 @@ describe("InMemoryMcpClientStore", () => {
 
       const found = await store.findById(client.id);
       expect(found).not.toBeNull();
-      expect(found!.name).toBe("Test Client");
-      expect(found!.clientId).toBe("test-client-1");
+      expect(found?.name).toBe("Test Client");
+      expect(found?.clientId).toBe("test-client-1");
     });
 
     it("returns null for unknown id", async () => {
@@ -56,7 +56,7 @@ describe("InMemoryMcpClientStore", () => {
 
       const found = await store.findByClientId("claude-desktop-prod");
       expect(found).not.toBeNull();
-      expect(found!.id).toBe(client.id);
+      expect(found?.id).toBe(client.id);
     });
 
     it("returns null for unknown clientId", async () => {
@@ -95,7 +95,7 @@ describe("InMemoryMcpClientStore", () => {
 
       await store.update(client.id, { name: "Updated Name" });
       const found = await store.findById(client.id);
-      expect(found!.name).toBe("Updated Name");
+      expect(found?.name).toBe("Updated Name");
     });
 
     it("throws for unknown id", async () => {
@@ -130,8 +130,8 @@ describe("InMemoryMcpClientStore", () => {
       await store.touchLastUsed(client.id);
 
       const found = await store.findById(client.id);
-      expect(found!.lastUsedAt).toBeDefined();
-      expect(found!.lastUsedAt!.getTime()).toBeGreaterThan(client.createdAt.getTime());
+      expect(found?.lastUsedAt).toBeDefined();
+      expect(found?.lastUsedAt?.getTime()).toBeGreaterThan(client.createdAt.getTime());
     });
 
     it("is a no-op for unknown id", async () => {

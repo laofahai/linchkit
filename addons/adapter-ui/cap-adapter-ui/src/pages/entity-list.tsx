@@ -1042,6 +1042,7 @@ export function EntityListPage() {
           entityName={entityName}
           entityLabel={resolveLabel(schema.label, entityName)}
           hideAction={!!bundle?.internal}
+          onRefresh={() => fetchData()}
         />
       </div>
     );

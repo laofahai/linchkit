@@ -61,7 +61,10 @@ export function analyzeImpact(
   const maxDepth = options?.maxDepth ?? 3;
 
   // Build adjacency list (both from→to and to→from endpoints)
-  const adjacency = new Map<string, { target: string; capability?: string; relationType: string }[]>();
+  const adjacency = new Map<
+    string,
+    { target: string; capability?: string; relationType: string }[]
+  >();
 
   for (const rel of relations) {
     const fromKey = endpointKey(rel.from);
@@ -70,7 +73,7 @@ export function analyzeImpact(
 
     // Forward edge: from → to
     if (!adjacency.has(fromKey)) adjacency.set(fromKey, []);
-    adjacency.get(fromKey)!.push({
+    adjacency.get(fromKey)?.push({
       target: toKey,
       capability: rel.to.capability,
       relationType: rel.type,
@@ -78,7 +81,7 @@ export function analyzeImpact(
 
     // Reverse edge: to → from (impact propagates both directions)
     if (!adjacency.has(toKey)) adjacency.set(toKey, []);
-    adjacency.get(toKey)!.push({
+    adjacency.get(toKey)?.push({
       target: fromKey,
       capability: rel.from.capability,
       relationType: rel.type,
@@ -103,7 +106,9 @@ export function analyzeImpact(
   }
 
   while (queue.length > 0) {
-    const [nodeKey, depth, path, relTypes] = queue.shift()!;
+    const entry = queue.shift();
+    if (!entry) break;
+    const [nodeKey, depth, path, relTypes] = entry;
 
     if (visited.has(nodeKey)) continue;
     visited.add(nodeKey);

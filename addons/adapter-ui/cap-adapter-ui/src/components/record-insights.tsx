@@ -157,12 +157,12 @@ function InsightCard({
             variant="outline"
             size="sm"
             className="h-6 text-[10px] mt-1"
-            onClick={() =>
-              onApplyAction(
-                insight.data?.suggestedAction?.action,
-                insight.data?.suggestedAction?.input,
-              )
-            }
+            onClick={() => {
+              const sa = insight.data?.suggestedAction;
+              if (!sa) return;
+              const { action, input } = sa;
+              onApplyAction(action, input);
+            }}
           >
             <SparklesIcon className="mr-1 size-3" />
             {t("ai.insights.apply")}

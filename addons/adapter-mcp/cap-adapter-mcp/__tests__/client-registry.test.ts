@@ -79,11 +79,11 @@ describe("McpClientRegistry", () => {
       const result = await registry.resolveActor(token);
 
       expect(result).not.toBeNull();
-      expect(result!.actor.id).toBe("actor-42");
-      expect(result!.actor.name).toBe("My Actor");
-      expect(result!.actor.type).toBe("ai");
-      expect(result!.actor.groups).toEqual(["ai_agent", "reader"]);
-      expect(result!.client.clientId).toBe("my-client");
+      expect(result?.actor.id).toBe("actor-42");
+      expect(result?.actor.name).toBe("My Actor");
+      expect(result?.actor.type).toBe("ai");
+      expect(result?.actor.groups).toEqual(["ai_agent", "reader"]);
+      expect(result?.client.clientId).toBe("my-client");
     });
 
     it("returns null for invalid secret", async () => {

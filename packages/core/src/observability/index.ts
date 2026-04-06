@@ -1,4 +1,15 @@
 export {
+  type AlertChannel,
+  type AlertChannelType,
+  AlertDispatcher,
+  type AlertEventEmitter,
+  EventBusAlertChannel,
+  type FiredAlert,
+  LogAlertChannel,
+  WebhookAlertChannel,
+  type WebhookAlertChannelOptions,
+} from "./alert-channels";
+export {
   type AlertCondition,
   type AlertEffect,
   AlertEngine,
@@ -10,17 +21,6 @@ export {
   defineSystemAlert,
   type SystemAlertDefinition,
 } from "./alert-engine";
-export {
-  type AlertChannel,
-  type AlertChannelType,
-  AlertDispatcher,
-  type AlertEventEmitter,
-  EventBusAlertChannel,
-  type FiredAlert,
-  LogAlertChannel,
-  WebhookAlertChannel,
-  type WebhookAlertChannelOptions,
-} from "./alert-channels";
 export { consoleLogger } from "./console-logger";
 export { InMemoryExecutionLogger } from "./execution-logger";
 export {
