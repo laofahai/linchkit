@@ -155,6 +155,11 @@ export {
   evaluateCondition,
   resolveField,
 } from "./engine/condition-evaluator";
+export {
+  canAutoApproveOverlayChange,
+  canAutoApproveOverlayProposal,
+  executeOverlayProposal,
+} from "./engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "./engine/permission-engine";
 export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";

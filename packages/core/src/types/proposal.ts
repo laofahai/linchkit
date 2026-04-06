@@ -10,6 +10,7 @@ import type { ImpactNode } from "../ontology/impact-analysis";
 import type { ActionDefinition } from "./action";
 import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
+import type { FieldOverlayDefinition } from "./overlay";
 import type { RuleDefinition } from "./rule";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
@@ -46,7 +47,8 @@ export type ProposalChangeTarget =
   | "view"
   | "state"
   | "event"
-  | "flow";
+  | "flow"
+  | "overlay";
 
 export type ProposalChangeOperation = "create" | "update" | "delete";
 
@@ -56,7 +58,18 @@ export type ChangeDefinition =
   | RuleDefinition
   | ViewDefinition
   | StateDefinition
-  | EventDefinition;
+  | EventDefinition
+  | OverlayChangeDefinition;
+
+/** Overlay-specific change definition — carries field overlay details */
+export interface OverlayChangeDefinition {
+  /** Discriminator — always "overlay" for overlay changes */
+  kind: "overlay";
+  /** Target entity name */
+  entityName: string;
+  /** Field overlay definition (for create/update) */
+  overlay: FieldOverlayDefinition;
+}
 
 export interface ProposalChange {
   /** What type of definition is being changed */

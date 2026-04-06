@@ -51,6 +51,12 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "./permission-engine";
+// Overlay proposal executor
+export {
+  canAutoApproveOverlayChange,
+  canAutoApproveOverlayProposal,
+  executeOverlayProposal,
+} from "./overlay-proposal-executor";
 // Proposal engine
 export {
   bumpVersion,
