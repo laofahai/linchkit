@@ -20,6 +20,7 @@ import { checkQualityCommand } from "./commands/check-quality";
 import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
 import { devCommand } from "./commands/dev";
+import { doctorCommand } from "./commands/doctor";
 import { docsCommand } from "./commands/docs";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
@@ -50,6 +51,7 @@ const RESERVED_NAMESPACES = new Set([
   "check",
   "docs",
   "changelog",
+  "doctor",
 ]);
 
 /**
@@ -160,6 +162,7 @@ function buildCommandsManifest(
     check: "Run code quality checks",
     docs: "Generate documentation",
     changelog: "Generate changelog entries",
+    doctor: "Run project health checks",
   };
 
   for (const name of builtinNames) {
@@ -205,6 +208,7 @@ async function run() {
     check: checkQualityCommand,
     changelog: changelogCommand,
     validate: validateCommand,
+    doctor: doctorCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

@@ -429,6 +429,17 @@ export {
   validateRequiredEnvVars,
 } from "./deployment";
 
+// === Doctor — project health check registry + built-in checks ===
+
+export type {
+  CheckCategory,
+  CheckStatus,
+  DoctorCheck,
+  DoctorCheckResult,
+  DoctorContext,
+} from "./doctor";
+export { builtinChecks, clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
+
 // === Addon discovery (Spec 57) ===
 
 export { scanAddonsPath } from "./capability/addon-scanner";

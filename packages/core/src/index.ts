@@ -295,6 +295,15 @@ export type {
   SemanticRelationType,
 } from "./types/semantic-relation";
 export { defineSemanticRelation } from "./types/semantic-relation";
+// Doctor — project health check registry
+export type {
+  CheckCategory,
+  CheckStatus,
+  DoctorCheck,
+  DoctorCheckResult,
+  DoctorContext,
+} from "./doctor";
+export { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
