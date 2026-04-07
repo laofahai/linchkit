@@ -23,7 +23,7 @@
   "devDependencies": {
     "@linchkit/core": "workspace:*",
     "@linchkit/cap-auth": "workspace:*",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "linchkit": {
     "minCoreVersion": "^0.1.0",

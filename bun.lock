@@ -9,6 +9,7 @@
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
+        "@modelcontextprotocol/sdk": "1.29.0",
         "@restatedev/restate-sdk": "1.11.1",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
@@ -33,7 +34,7 @@
       "devDependencies": {
         "@linchkit/core": "workspace:*",
         "@linchkit/devtools": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/core": "^0.1.0",
@@ -67,7 +68,7 @@
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/core": "^0.1.0",
@@ -97,14 +98,14 @@
         "dagre": "^0.8.5",
         "date-fns": "^4.1.0",
         "i18next": "^25.10.4",
-        "lucide-react": "^0.577.0",
+        "lucide-react": "^1.7.0",
         "mermaid": "^11.6.0",
         "next-themes": "^0.4.6",
         "react": "^19.2.4",
         "react-day-picker": "^9.14.0",
         "react-dom": "^19.2.4",
         "react-grid-layout": "^2.2.3",
-        "react-i18next": "^16.6.1",
+        "react-i18next": "^17.0.2",
         "recharts": "^3.8.1",
         "shadcn": "^4.1.0",
         "sonner": "^2.0.7",
@@ -117,7 +118,7 @@
         "@vitejs/plugin-react": "^6.0.1",
         "autoprefixer": "^10.4.27",
         "tailwindcss": "^4.2.2",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
         "vite": "^8.0.1",
       },
       "peerDependencies": {
@@ -131,7 +132,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
-        "lucide-react": "^0.577.0",
+        "lucide-react": "^1.7.0",
         "radix-ui": "^1.4.3",
         "react-day-picker": "^9.14.0",
         "sonner": "^2.0.7",
@@ -154,7 +155,7 @@
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/core": "^0.1.0",
@@ -164,15 +165,15 @@
       "name": "@linchkit/cap-auth",
       "version": "0.1.0",
       "dependencies": {
-        "@linchkit/core": "workspace:*",
         "jose": "^6.2.2",
       },
       "devDependencies": {
-        "typescript": "^5.9.3",
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.0.1",
-        "@linchkit/ui-kit": "^0.0.1",
+        "@linchkit/core": "^0.1.0",
+        "@linchkit/ui-kit": "^0.1.0",
         "react": "^19.0.0",
       },
       "optionalPeers": [
@@ -184,16 +185,16 @@
       "name": "@linchkit/cap-auth-better-auth",
       "version": "0.1.0",
       "dependencies": {
-        "@linchkit/cap-auth": "workspace:*",
-        "@linchkit/core": "workspace:*",
         "better-auth": "^1.5.5",
       },
       "devDependencies": {
-        "typescript": "^5.9.3",
+        "@linchkit/cap-auth": "workspace:*",
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/cap-auth": "^0.0.1",
-        "@linchkit/core": "^0.0.1",
+        "@linchkit/cap-auth": "^0.1.0",
+        "@linchkit/core": "^0.1.0",
         "drizzle-orm": ">=0.41.0",
       },
     },
@@ -202,7 +203,7 @@
       "version": "0.1.0",
       "devDependencies": {
         "@linchkit/core": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/core": "^0.1.0",
@@ -240,7 +241,7 @@
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/core": "^0.1.0",
@@ -260,14 +261,12 @@
     "addons/permission/cap-permission": {
       "name": "@linchkit/cap-permission",
       "version": "0.1.0",
-      "dependencies": {
-        "@linchkit/core": "workspace:*",
-      },
       "devDependencies": {
-        "typescript": "^5.9.3",
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.0.1",
+        "@linchkit/core": "^0.1.0",
       },
     },
     "packages/cli": {
@@ -286,7 +285,7 @@
       },
       "devDependencies": {
         "consola": "^3.4.2",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
     },
     "packages/core": {
@@ -303,7 +302,7 @@
       "devDependencies": {
         "@linchkit/cap-migration": "workspace:*",
         "@linchkit/devtools": "workspace:*",
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
     },
     "packages/devtools": {
@@ -313,7 +312,7 @@
         "@linchkit/core": "workspace:*",
       },
       "devDependencies": {
-        "typescript": "^5.9.3",
+        "typescript": "^6.0.2",
       },
     },
   },
@@ -1692,7 +1691,7 @@
 
     "lru-cache": ["lru-cache@10.4.3", "https://registry.npmmirror.com/lru-cache/-/lru-cache-10.4.3.tgz", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 
-    "lucide-react": ["lucide-react@0.577.0", "https://registry.npmmirror.com/lucide-react/-/lucide-react-0.577.0.tgz", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-4LjoFv2eEPwYDPg/CUdBJQSDfPyzXCRrVW1X7jrx/trgxnxkHFjnVZINbzvzxjN70dxychOfg+FTYwBiS3pQ5A=="],
+    "lucide-react": ["lucide-react@1.7.0", "https://registry.npmmirror.com/lucide-react/-/lucide-react-1.7.0.tgz", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-yI7BeItCLZJTXikmK4KNUGCKoGzSvbKlfCvw44bU4fXAL6v3gYS4uHD1jzsLkfwODYwI6Drw5Tu9Z5ulDe0TSg=="],
 
     "magic-string": ["magic-string@0.30.21", "https://registry.npmmirror.com/magic-string/-/magic-string-0.30.21.tgz", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
@@ -1934,7 +1933,7 @@
 
     "react-grid-layout": ["react-grid-layout@2.2.3", "", { "dependencies": { "clsx": "^2.1.1", "fast-equals": "^4.0.3", "prop-types": "^15.8.1", "react-draggable": "^4.4.6", "react-resizable": "^3.1.3", "resize-observer-polyfill": "^1.5.1" }, "peerDependencies": { "react": ">= 16.3.0", "react-dom": ">= 16.3.0" } }, "sha512-OAEJHBxmfuxQfVtZwRzmsokijGlBgzYIJ7MUlLk/VSa43SaGzu15w5D0P2RDrfX5EvP9POMbL6bFrai/huDzbQ=="],
 
-    "react-i18next": ["react-i18next@16.6.1", "https://registry.npmmirror.com/react-i18next/-/react-i18next-16.6.1.tgz", { "dependencies": { "@babel/runtime": "^7.29.2", "html-parse-stringify": "^3.0.1", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "i18next": ">= 25.6.2", "react": ">= 16.8.0", "typescript": "^5" }, "optionalPeers": ["typescript"] }, "sha512-izjXh+AkBLy3h3xe3sh6Gg1flhFHc3UyzsMftMKYJr2Z7WvAZQIdjjpHypctN41zFoeLdJUNGDgP1+Qich2fYg=="],
+    "react-i18next": ["react-i18next@17.0.2", "https://registry.npmmirror.com/react-i18next/-/react-i18next-17.0.2.tgz", { "dependencies": { "@babel/runtime": "^7.29.2", "html-parse-stringify": "^3.0.1", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "i18next": ">= 26.0.1", "react": ">= 16.8.0", "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-shBftH2vaTWK2Bsp7FiL+cevx3xFJlvFxmsDFQSrJc+6twHkP0tv/bGa01VVWzpreUVVwU+3Hev5iFqRg65RwA=="],
 
     "react-is": ["react-is@16.13.1", "", {}, "sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ=="],
 
@@ -2142,7 +2141,7 @@
 
     "type-is": ["type-is@2.0.1", "https://registry.npmmirror.com/type-is/-/type-is-2.0.1.tgz", { "dependencies": { "content-type": "^1.0.5", "media-typer": "^1.1.0", "mime-types": "^3.0.0" } }, "sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw=="],
 
-    "typescript": ["typescript@5.9.3", "https://registry.npmmirror.com/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@6.0.2", "https://registry.npmmirror.com/typescript/-/typescript-6.0.2.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 
     "uc.micro": ["uc.micro@2.1.0", "", {}, "sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A=="],
 
@@ -2308,6 +2307,8 @@
 
     "express/cookie": ["cookie@0.7.2", "https://registry.npmmirror.com/cookie/-/cookie-0.7.2.tgz", {}, "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w=="],
 
+    "i18next/typescript": ["typescript@5.9.3", "https://registry.npmmirror.com/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
     "import-fresh/resolve-from": ["resolve-from@4.0.0", "https://registry.npmmirror.com/resolve-from/-/resolve-from-4.0.0.tgz", {}, "sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g=="],
 
     "katex/commander": ["commander@8.3.0", "", {}, "sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww=="],
@@ -2323,6 +2324,8 @@
     "prompts/kleur": ["kleur@3.0.3", "https://registry.npmmirror.com/kleur/-/kleur-3.0.3.tgz", {}, "sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w=="],
 
     "react-grid-layout/fast-equals": ["fast-equals@4.0.3", "", {}, "sha512-G3BSX9cfKttjr+2o1O22tYMLq0DPluZnYtq1rXumE1SpL/F/SLIfHx08WYQoWSIpeMYf8sRbJ8++71+v6Pnxfg=="],
+
+    "react-i18next/i18next": ["i18next@26.0.3", "", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-1571kXINxHKY7LksWp8wP+zP0YqHSSpl/OW0Y0owFEf2H3s8gCAffWaZivcz14rMkOvn3R/psiQxVsR9t2Nafg=="],
 
     "read-yaml-file/js-yaml": ["js-yaml@3.14.2", "", { "dependencies": { "argparse": "^1.0.7", "esprima": "^4.0.0" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg=="],
 

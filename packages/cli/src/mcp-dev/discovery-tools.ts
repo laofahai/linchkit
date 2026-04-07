@@ -43,6 +43,8 @@ export function registerDiscoveryTools(
       description: "Get full entity definition including fields, types, validations, and relations",
       inputSchema: nameInputSchema,
     },
+    // biome-ignore lint/suspicious/noTsIgnore: TS2589 triggers inconsistently across TS versions (MCP SDK #985)
+    // @ts-ignore — TS2589: MCP SDK registerTool deep type recursion
     async ({ name }: { name: string }) => {
       const entity = defs.entities.find((e) => e.name === name);
       if (!entity) {

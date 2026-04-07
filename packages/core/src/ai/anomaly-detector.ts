@@ -190,8 +190,8 @@ export class AnomalyDetector {
    * Returns all detected anomalies. Also fires onAnomaly callback
    * for each detection.
    */
-  detect(options?: { tenantId?: string; actorId?: string }): AnomalyDetection[] {
-    const now = new Date();
+  detect(options?: { tenantId?: string; actorId?: string; now?: Date }): AnomalyDetection[] {
+    const now = options?.now ?? new Date();
     const windowStart = new Date(now.getTime() - this.config.windowSizeMs);
     const anomalies: AnomalyDetection[] = [];
 
