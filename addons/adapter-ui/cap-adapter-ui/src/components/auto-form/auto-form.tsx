@@ -46,6 +46,7 @@ import type {
   VirtualRecord,
 } from "./types";
 
+/** Schema-driven form component that renders entity fields with validation, layout groups, and overlay field support. */
 export function AutoForm({
   schema,
   view,

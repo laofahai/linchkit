@@ -236,6 +236,7 @@ function findSelfRefField(
   return null;
 }
 
+/** Page component for browsing entity records with list, calendar, kanban, and tree view modes. */
 export function EntityListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();

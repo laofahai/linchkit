@@ -51,6 +51,7 @@ function fmtDate(d: Date): string {
 
 // ── list subcommand ──────────────────────────────────────────
 
+/** CLI subcommand: list runtime overlay fields, optionally filtered by entity name. */
 export const overlayListCommand = defineCommand({
   meta: {
     name: "list",
@@ -118,6 +119,7 @@ export const overlayListCommand = defineCommand({
 
 // ── promote subcommand ───────────────────────────────────────
 
+/** CLI subcommand: promote overlay field(s) to code-defined fields with generated migration SQL. */
 export const overlayPromoteCommand = defineCommand({
   meta: {
     name: "promote",
@@ -227,6 +229,7 @@ export const overlayPromoteCommand = defineCommand({
 
 // ── Parent command ───────────────────────────────────────────
 
+/** CLI parent command for runtime overlay field management (list, promote). */
 export const overlayCommand = defineCommand({
   meta: {
     name: "overlay",

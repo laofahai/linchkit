@@ -7,6 +7,7 @@ import type {
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import type { FieldOverlayRecord } from "../../lib/overlay-types";
 
+/** Filter configuration for a single field in the list view toolbar. */
 export interface ViewFilter {
   field: string;
   type: ViewFilterType;
@@ -15,8 +16,10 @@ export interface ViewFilter {
   options?: { value: string; label: string }[];
 }
 
+/** Supported filter input types for list view toolbar filters. */
 export type ViewFilterType = "text" | "select" | "dateRange";
 
+/** View definition specific to list-type views, extending core ViewDefinition with list-specific options. */
 export interface AutoListViewDefinition {
   name: string;
   entity: string;
