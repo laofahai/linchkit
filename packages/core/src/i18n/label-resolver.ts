@@ -72,7 +72,7 @@ function detectLocale(): string {
   // "zh_CN.UTF-8" -> "zh-CN", "en_US.UTF-8" -> "en"
   const match = env.match(/^([a-z]{2})[-_]?([A-Z]{2})?/i);
   if (match) {
-    const lang = match[1]!.toLowerCase();
+    const lang = match[1]?.toLowerCase() ?? "";
     const region = match[2]?.toUpperCase();
     if (region) return `${lang}-${region}`;
     return lang;

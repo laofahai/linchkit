@@ -7,7 +7,6 @@
  */
 
 import type {
-  CapabilityDefinition,
   FieldOverlayRecord,
   LinchKitConfig,
 } from "@linchkit/core";
@@ -23,7 +22,7 @@ import { join } from "node:path";
 import { loadConfig } from "../utils/load-config";
 
 /** Load config, returning null on failure */
-async function tryLoadConfig(): Promise<LinchKitConfig | null> {
+async function _tryLoadConfig(): Promise<LinchKitConfig | null> {
   try {
     const { config } = await loadConfig();
     return config;
@@ -241,5 +240,5 @@ export const overlayCommand = defineCommand({
 
 /** Right-pad a string to the given width */
 function padR(s: string, width: number): string {
-  return s.length >= width ? s + " " : s + " ".repeat(width - s.length);
+  return s.length >= width ? `${s} ` : s + " ".repeat(width - s.length);
 }

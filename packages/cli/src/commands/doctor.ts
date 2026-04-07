@@ -66,7 +66,7 @@ export const doctorCommand = defineCommand({
 
     // Load project config (optional — doctor should work even without config)
     let config: LinchKitConfig | undefined;
-    let projectRoot = process.cwd();
+    const projectRoot = process.cwd();
     let hasDatabase = false;
 
     try {

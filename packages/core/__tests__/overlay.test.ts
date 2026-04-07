@@ -9,9 +9,6 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { InMemoryOverlayStore } from "../src/persistence/in-memory-overlay-store";
 import type {
   FieldOverlayDefinition,
-  FieldOverlayRecord,
-  OverlayFieldConfig,
-  OverlayStatus,
 } from "../src/types/overlay";
 import { buildSystemColumns } from "../src/entity/entity-to-drizzle";
 

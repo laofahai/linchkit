@@ -37,7 +37,7 @@ describe("Doctor Registry", () => {
     registerDoctorCheck(check);
     const checks = getDoctorChecks();
     expect(checks).toHaveLength(1);
-    expect(checks[0]!.name).toBe("test-check");
+    expect(checks[0]?.name).toBe("test-check");
   });
 
   test("getDoctorChecks returns all registered checks", () => {
@@ -185,16 +185,14 @@ describe("Built-in checks", () => {
 
   test("database-connection check skips when no database", async () => {
     const result = await builtinChecks
-      .find((c) => c.name === "database-connection")!
-      .run(baseCtx);
+      .find((c) => c.name === "database-connection")?.run(baseCtx);
     expect(result.status).toBe("skip");
     expect(result.message).toContain("InMemoryStore");
   });
 
   test("database-migrations check skips when no database", async () => {
     const result = await builtinChecks
-      .find((c) => c.name === "database-migrations")!
-      .run(baseCtx);
+      .find((c) => c.name === "database-migrations")?.run(baseCtx);
     expect(result.status).toBe("skip");
   });
 
