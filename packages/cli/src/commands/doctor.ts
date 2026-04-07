@@ -57,7 +57,8 @@ export const doctorCommand = defineCommand({
     },
     category: {
       type: "string",
-      description: "Only run checks in a specific category (runtime, database, definitions, quality, capability)",
+      description:
+        "Only run checks in a specific category (runtime, database, definitions, quality, capability)",
     },
   },
   async run({ args }) {

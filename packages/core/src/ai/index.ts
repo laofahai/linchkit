@@ -90,11 +90,11 @@ export {
 } from "./prompt-sanitizer";
 // Proposal Code Generator
 export {
-  ProposalCodeGenerator,
   type CodeGenerationProvider,
   type CodeGenerationResult,
-  type QualityGateRunner,
   type ProjectContext,
+  ProposalCodeGenerator,
+  type QualityGateRunner,
 } from "./proposal-code-generator";
 // Proposal Engine
 export type {

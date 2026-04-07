@@ -13,11 +13,7 @@ import type {
   LinchKitConfig,
   RelationDefinition,
 } from "@linchkit/core";
-import {
-  closeDatabase,
-  createDatabase,
-  generateDrizzleSchemaFile,
-} from "@linchkit/core/server";
+import { closeDatabase, createDatabase, generateDrizzleSchemaFile } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
 

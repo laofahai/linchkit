@@ -168,7 +168,9 @@ describe("MCP Dev Server Prompts", () => {
   });
 
   test("linchkit_define_action includes entity fields and existing actions", async () => {
-    const result = await callPrompt(server, "linchkit_define_action", { entity: "purchase_request" });
+    const result = await callPrompt(server, "linchkit_define_action", {
+      entity: "purchase_request",
+    });
 
     const text = result.messages[0].content.text;
     expect(text).toContain("purchase_request");

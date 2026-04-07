@@ -6,19 +6,16 @@
  *   promote  — Promote an overlay field to a code-defined field
  */
 
-import type {
-  FieldOverlayRecord,
-  LinchKitConfig,
-} from "@linchkit/core";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { FieldOverlayRecord, LinchKitConfig } from "@linchkit/core";
 import {
-  createDatabase,
   closeDatabase,
+  createDatabase,
   DrizzleOverlayStore,
   generatePromotionPlan,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { loadConfig } from "../utils/load-config";
 
 /** Load config, returning null on failure */
@@ -93,11 +90,7 @@ export const overlayListCommand = defineCommand({
       // Table header
       console.log("");
       console.log(
-        padR("Entity", 25) +
-          padR("Field", 20) +
-          padR("Type", 10) +
-          padR("Status", 12) +
-          "Created",
+        `${padR("Entity", 25) + padR("Field", 20) + padR("Type", 10) + padR("Status", 12)}Created`,
       );
       console.log("-".repeat(80));
 
@@ -195,10 +188,30 @@ export const overlayPromoteCommand = defineCommand({
           migDir,
           `promote_${sanitizeForFilename(overlay.entityName)}_${sanitizeForFilename(overlay.fieldName)}.sql`,
         );
+
+        if (existsSync(migFile)) {
+          console.warn(`[linch] Migration file already exists: ${migFile}`);
+          console.warn(
+            "[linch] A previous promote may have partially failed. Skipping this field.",
+          );
+          console.warn("[linch] Delete the file manually and re-run if you want to regenerate it.");
+          continue;
+        }
+
         writeFileSync(migFile, plan.migrationSql, "utf-8");
 
-        // Mark as promoted in the database
-        await conn.store.updateOverlay(overlay.id, { status: "promoted" });
+        // Mark as promoted in the database — clean up file on failure
+        try {
+          await conn.store.updateOverlay(overlay.id, { status: "promoted" });
+        } catch (err) {
+          // Remove orphaned migration file so state stays consistent
+          try {
+            unlinkSync(migFile);
+          } catch {
+            // Best-effort cleanup
+          }
+          throw err;
+        }
 
         // Output summary
         console.log("");

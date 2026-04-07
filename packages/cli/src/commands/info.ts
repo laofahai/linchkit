@@ -22,15 +22,15 @@ import type {
   ViewDefinition,
 } from "@linchkit/core";
 import {
+  type ActionDescription,
   describeAction,
   describeEntity,
   describeRelation,
-  initI18n,
-  registerTranslations,
-  type ActionDescription,
   type EntityDescription,
   type FieldDescription,
+  initI18n,
   type RelationDescription,
+  registerTranslations,
 } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
@@ -152,7 +152,10 @@ function printRelationDescription(desc: RelationDescription): void {
 
 // ── Subcommands ─────────────────────────────────────────
 
-async function loadProjectCaps(): Promise<{ config: LinchKitConfig; capabilities: CapabilityDefinition[] }> {
+async function loadProjectCaps(): Promise<{
+  config: LinchKitConfig;
+  capabilities: CapabilityDefinition[];
+}> {
   let config: LinchKitConfig;
   try {
     const result = await loadConfig();
@@ -188,11 +191,22 @@ const entitySubcommand = defineCommand({
     const defs = collectDefinitions(capabilities);
     const entity = defs.entities.find((e) => e.name === (args.name as string));
     if (!entity) {
-      console.error(`[linch] Entity "${args.name}" not found. Available: ${defs.entities.map((e) => e.name).join(", ") || "(none)"}`);
+      console.error(
+        `[linch] Entity "${args.name}" not found. Available: ${defs.entities.map((e) => e.name).join(", ") || "(none)"}`,
+      );
       process.exit(1);
     }
-    const desc = describeEntity(entity, { actions: defs.actions, states: defs.states, relations: defs.relations, views: defs.views });
-    if (args.json) { console.log(JSON.stringify(desc, null, 2)); } else { printEntityDescription(desc); }
+    const desc = describeEntity(entity, {
+      actions: defs.actions,
+      states: defs.states,
+      relations: defs.relations,
+      views: defs.views,
+    });
+    if (args.json) {
+      console.log(JSON.stringify(desc, null, 2));
+    } else {
+      printEntityDescription(desc);
+    }
   },
 });
 
@@ -207,11 +221,17 @@ const actionSubcommand = defineCommand({
     const defs = collectDefinitions(capabilities);
     const action = defs.actions.find((a) => a.name === (args.name as string));
     if (!action) {
-      console.error(`[linch] Action "${args.name}" not found. Available: ${defs.actions.map((a) => a.name).join(", ") || "(none)"}`);
+      console.error(
+        `[linch] Action "${args.name}" not found. Available: ${defs.actions.map((a) => a.name).join(", ") || "(none)"}`,
+      );
       process.exit(1);
     }
     const desc = describeAction(action);
-    if (args.json) { console.log(JSON.stringify(desc, null, 2)); } else { printActionDescription(desc); }
+    if (args.json) {
+      console.log(JSON.stringify(desc, null, 2));
+    } else {
+      printActionDescription(desc);
+    }
   },
 });
 
@@ -226,11 +246,17 @@ const relationSubcommand = defineCommand({
     const defs = collectDefinitions(capabilities);
     const relation = defs.relations.find((r) => r.name === (args.name as string));
     if (!relation) {
-      console.error(`[linch] Relation "${args.name}" not found. Available: ${defs.relations.map((r) => r.name).join(", ") || "(none)"}`);
+      console.error(
+        `[linch] Relation "${args.name}" not found. Available: ${defs.relations.map((r) => r.name).join(", ") || "(none)"}`,
+      );
       process.exit(1);
     }
     const desc = describeRelation(relation);
-    if (args.json) { console.log(JSON.stringify(desc, null, 2)); } else { printRelationDescription(desc); }
+    if (args.json) {
+      console.log(JSON.stringify(desc, null, 2));
+    } else {
+      printRelationDescription(desc);
+    }
   },
 });
 

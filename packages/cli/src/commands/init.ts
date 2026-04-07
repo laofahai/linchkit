@@ -101,10 +101,7 @@ export const initCommand = defineCommand({
       );
       writeFileSync(resolve(projectDir, ".cursor/mcp.json"), mcpJsonTemplate());
       for (const skill of skills) {
-        writeFileSync(
-          resolve(projectDir, `.cursor/rules/linch/${skill.filename}`),
-          skill.content,
-        );
+        writeFileSync(resolve(projectDir, `.cursor/rules/linch/${skill.filename}`), skill.content);
       }
       generatedAiFiles.push(
         ".cursor/rules/linchkit.md",
@@ -120,10 +117,7 @@ export const initCommand = defineCommand({
 
     if (selectedTools.includes("trae")) {
       mkdirSync(resolve(projectDir, ".trae/rules/linch"), { recursive: true });
-      writeFileSync(
-        resolve(projectDir, ".trae/rules/linchkit.md"),
-        traeRulesTemplate(projectName),
-      );
+      writeFileSync(resolve(projectDir, ".trae/rules/linchkit.md"), traeRulesTemplate(projectName));
       for (const skill of skills) {
         writeFileSync(resolve(projectDir, `.trae/rules/linch/${skill.filename}`), skill.content);
       }
@@ -170,5 +164,26 @@ export const initCommand = defineCommand({
     console.log(`    cd ${projectName}`);
     console.log("    bun install");
     console.log("    linch dev");
+    console.log("");
+    console.log("  AI-guided setup:");
+    console.log("    Open this project in your AI coding tool and paste:");
+    console.log("");
+    if (selectedTools.includes("claude-code")) {
+      console.log("    Claude Code:");
+      console.log("      /skill linch:bootstrap");
+      console.log("");
+    }
+    if (
+      selectedTools.includes("cursor") ||
+      selectedTools.includes("trae") ||
+      selectedTools.includes("codex") ||
+      selectedTools.includes("copilot")
+    ) {
+      console.log("    Cursor / Codex / Trae / Copilot:");
+      console.log("      I just created this LinchKit project. Help me set it up:");
+      console.log("      ask what I want to build, recommend and install capabilities,");
+      console.log("      then help me define entities, actions, and rules.");
+      console.log("");
+    }
   },
 });

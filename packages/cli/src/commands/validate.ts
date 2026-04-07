@@ -16,10 +16,7 @@ import type {
   RelationDefinition,
 } from "@linchkit/core";
 import { createInterfaceRegistry, validateTranslatableEntity } from "@linchkit/core";
-import {
-  createRelationRegistry,
-  EntityRegistry,
-} from "@linchkit/core/server";
+import { createRelationRegistry, EntityRegistry } from "@linchkit/core/server";
 import type { ActionInfo, EntityInfo, QualityIssue } from "@linchkit/devtools/methodology";
 import { checkActionDefinitions, checkEntityDefinitions } from "@linchkit/devtools/methodology";
 import { defineCommand } from "citty";

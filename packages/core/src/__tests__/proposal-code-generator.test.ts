@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import type {
   CodeGenerationProvider,
   ProjectContext,
@@ -116,9 +116,7 @@ describe("ProposalCodeGenerator", () => {
     });
 
     it("should fail after max retries exceeded", async () => {
-      const provider = createMockProvider(
-        JSON.stringify({ files: { "src/rule.ts": "bad" } }),
-      );
+      const provider = createMockProvider(JSON.stringify({ files: { "src/rule.ts": "bad" } }));
       const qualityGates: QualityGateRunner = {
         check: async () => ["Persistent error"],
       };
@@ -209,15 +207,9 @@ describe("ProposalCodeGenerator", () => {
       const generator = new ProposalCodeGenerator(provider);
 
       const rulePrompt = generator.buildPrompt(createProposal({ type: "add_rule" }));
-      const automationPrompt = generator.buildPrompt(
-        createProposal({ type: "add_automation" }),
-      );
-      const schemaPrompt = generator.buildPrompt(
-        createProposal({ type: "modify_schema" }),
-      );
-      const defaultPrompt = generator.buildPrompt(
-        createProposal({ type: "add_default" }),
-      );
+      const automationPrompt = generator.buildPrompt(createProposal({ type: "add_automation" }));
+      const schemaPrompt = generator.buildPrompt(createProposal({ type: "modify_schema" }));
+      const defaultPrompt = generator.buildPrompt(createProposal({ type: "add_default" }));
 
       expect(rulePrompt).toContain("RuleDefinition");
       expect(automationPrompt).toContain("AutomationDefinition");

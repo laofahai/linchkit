@@ -852,7 +852,12 @@ describe("WatcherEngine — staleness triggers", () => {
           entity: "purchase_request",
           filter: { field: "target.status", operator: "eq", value: "submitted" },
         },
-        trigger: { type: "staleness", field: "updated_at", threshold: "48h", debounce: "once_until_reset" },
+        trigger: {
+          type: "staleness",
+          field: "updated_at",
+          threshold: "48h",
+          debounce: "once_until_reset",
+        },
         effect: { action: "escalate", params: {} },
       }),
     );

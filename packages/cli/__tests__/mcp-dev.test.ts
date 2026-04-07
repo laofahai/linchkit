@@ -91,6 +91,22 @@ const mockDefinitions: CollectedDefinitions = {
 
 // ── Helpers ─────────────────────────────────────────────────────
 
+interface RegisteredTool {
+  handler: (
+    args: Record<string, unknown>,
+    extra: unknown,
+  ) => Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }>;
+}
+
+type ToolsMap = Record<string, RegisteredTool>;
+
+function getTools(server: ReturnType<typeof createMcpDevServer>): ToolsMap {
+  return (server as unknown as { _registeredTools: ToolsMap })._registeredTools;
+}
+
 /**
  * Call a tool on the MCP server by name and return the parsed JSON result.
  * Uses the server's internal _registeredTools object (McpServer internals).
@@ -100,15 +116,25 @@ async function callTool(
   toolName: string,
   args: Record<string, unknown> = {},
 ): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
-  // biome-ignore lint/suspicious/noExplicitAny: accessing internal for testing
-  const registeredTools = (server as any)._registeredTools as Record<string, { handler: (...args: never[]) => unknown }>;
+  const registeredTools = getTools(server);
 
   const tool = registeredTools?.[toolName];
   if (!tool) {
-    throw new Error(`Tool '${toolName}' not registered. Available: ${Object.keys(registeredTools ?? {}).join(", ")}`);
+    throw new Error(
+      `Tool '${toolName}' not registered. Available: ${Object.keys(registeredTools ?? {}).join(", ")}`,
+    );
   }
 
-  return tool.handler(args, {}) as ReturnType<typeof callTool>;
+  return tool.handler(args, {});
+}
+
+/** Parse JSON text from tool result, throwing a clear error if content is missing. */
+function parseToolResult(result: { content: Array<{ type: string; text: string }> }): unknown {
+  const text = result.content[0]?.text;
+  if (text === undefined) {
+    throw new Error("Tool returned no text content");
+  }
+  return JSON.parse(text);
 }
 
 // ── Tests ───────────────────────────────────────────────────────
@@ -123,7 +149,7 @@ describe("MCP Dev Server", () => {
   describe("linchkit_list_entities", () => {
     test("returns all entities with name, label, fieldCount", async () => {
       const result = await callTool(server, "linchkit_list_entities");
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data).toHaveLength(2);
       expect(data[0].name).toBe("purchase_request");
@@ -139,7 +165,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_describe_entity", {
         name: "purchase_request",
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.name).toBe("purchase_request");
       expect(data.label).toBe("Purchase Request");
@@ -157,7 +183,7 @@ describe("MCP Dev Server", () => {
       });
 
       expect(result.isError).toBe(true);
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
       expect(data.error).toContain("not found");
     });
   });
@@ -165,7 +191,7 @@ describe("MCP Dev Server", () => {
   describe("linchkit_list_actions", () => {
     test("returns all actions with name, entity, description", async () => {
       const result = await callTool(server, "linchkit_list_actions");
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data).toHaveLength(1);
       expect(data[0].name).toBe("submit_request");
@@ -179,7 +205,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_describe_action", {
         name: "submit_request",
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.name).toBe("submit_request");
       expect(data.entity).toBe("purchase_request");
@@ -198,7 +224,7 @@ describe("MCP Dev Server", () => {
   describe("linchkit_list_relations", () => {
     test("returns all relations", async () => {
       const result = await callTool(server, "linchkit_list_relations");
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data).toHaveLength(1);
       expect(data[0].name).toBe("department_requests");
@@ -211,7 +237,7 @@ describe("MCP Dev Server", () => {
   describe("linchkit_list_capabilities", () => {
     test("returns capability info", async () => {
       const result = await callTool(server, "linchkit_list_capabilities");
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data).toHaveLength(1);
       expect(data[0].name).toBe("cap-purchase");
@@ -224,7 +250,7 @@ describe("MCP Dev Server", () => {
   describe("linchkit_project_overview", () => {
     test("returns project summary counts", async () => {
       const result = await callTool(server, "linchkit_project_overview");
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.counts.entities).toBe(2);
       expect(data.counts.actions).toBe(1);
@@ -248,7 +274,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_entity", {
         definition: JSON.stringify(valid),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(true);
       expect(data.errors).toHaveLength(0);
@@ -258,7 +284,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_entity", {
         definition: "not json",
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors).toContain("Invalid JSON");
@@ -268,7 +294,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_entity", {
         definition: JSON.stringify({ fields: {} }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors).toContain("Entity name is required");
@@ -278,7 +304,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_entity", {
         definition: JSON.stringify({ name: "MyEntity", fields: {} }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("snake_case"))).toBe(true);
@@ -291,7 +317,7 @@ describe("MCP Dev Server", () => {
           fields: { bad_field: { type: "invalid_type" } },
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("invalid type"))).toBe(true);
@@ -304,7 +330,7 @@ describe("MCP Dev Server", () => {
           fields: { status: { type: "enum" } },
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("options"))).toBe(true);
@@ -317,7 +343,7 @@ describe("MCP Dev Server", () => {
           fields: { title: { type: "string" } },
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(true);
       expect(data.warnings.some((w: string) => w.includes("already exists"))).toBe(true);
@@ -327,7 +353,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_entity", {
         definition: JSON.stringify({ name: "test_entity" }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("fields object"))).toBe(true);
@@ -347,7 +373,7 @@ describe("MCP Dev Server", () => {
       const result = await callTool(server, "linchkit_validate_action", {
         definition: JSON.stringify(valid),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(true);
       expect(data.errors).toHaveLength(0);
@@ -361,7 +387,7 @@ describe("MCP Dev Server", () => {
           policy: { requiresAuth: true },
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("entity"))).toBe(true);
@@ -376,7 +402,7 @@ describe("MCP Dev Server", () => {
           policy: { requiresAuth: true },
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(true);
       expect(data.warnings.some((w: string) => w.includes("verb_noun"))).toBe(true);
@@ -390,7 +416,7 @@ describe("MCP Dev Server", () => {
           label: "Create Invoice",
         }),
       });
-      const data = JSON.parse(result.content[0]?.text);
+      const data = parseToolResult(result);
 
       expect(data.valid).toBe(false);
       expect(data.errors.some((e: string) => e.includes("policy"))).toBe(true);

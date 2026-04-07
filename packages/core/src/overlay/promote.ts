@@ -120,10 +120,7 @@ export function generateFieldCode(overlay: FieldOverlayRecord): string {
  * 2. UPDATE to backfill from _extensions JSONB
  * 3. UPDATE to remove the key from _extensions
  */
-export function generateMigrationSql(
-  entityName: string,
-  overlay: FieldOverlayRecord,
-): string {
+export function generateMigrationSql(entityName: string, overlay: FieldOverlayRecord): string {
   const { fieldName, fieldType, config } = overlay;
   const sqlType = SQL_TYPE_MAP[fieldType] ?? "TEXT";
   const castType = SQL_CAST_MAP[fieldType] ?? "TEXT";
@@ -209,10 +206,7 @@ export function generatePromotionPlan(overlay: FieldOverlayRecord): PromotionPla
 }
 
 /** Get a SQL default expression for a field type, used when column is NOT NULL */
-function getDefaultExpression(
-  fieldType: string,
-  config: OverlayFieldConfig,
-): string | null {
+function getDefaultExpression(fieldType: string, config: OverlayFieldConfig): string | null {
   if (config.defaultValue !== undefined) {
     if (typeof config.defaultValue === "string") {
       return quoteLiteral(config.defaultValue);

@@ -4,12 +4,12 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  _resetI18n,
   detectLocale,
   initI18n,
   registerTranslations,
   resolveLabel,
 } from "../src/i18n/label-resolver";
-import { _resetI18n } from "../src/i18n/label-resolver";
 
 describe("core i18n label resolver", () => {
   beforeEach(async () => {

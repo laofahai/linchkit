@@ -18,10 +18,7 @@ const coreI18n: i18n = i18next.createInstance();
 let initialized = false;
 
 /** Initialize the core i18n instance */
-async function initI18n(options?: {
-  locale?: string;
-  fallbackLocale?: string;
-}): Promise<void> {
+async function initI18n(options?: { locale?: string; fallbackLocale?: string }): Promise<void> {
   if (initialized) return;
   const locale = options?.locale ?? detectLocale();
   const fallbackLocale = options?.fallbackLocale ?? "en";
@@ -88,4 +85,4 @@ function _resetI18n(): void {
   initialized = false;
 }
 
-export { coreI18n, detectLocale, initI18n, registerTranslations, resolveLabel, _resetI18n };
+export { _resetI18n, coreI18n, detectLocale, initI18n, registerTranslations, resolveLabel };

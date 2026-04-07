@@ -49,7 +49,10 @@ export function registerDiscoveryTools(
       if (!entity) {
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify({ error: `Entity '${name}' not found` }) },
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: `Entity '${name}' not found` }),
+            },
           ],
           isError: true,
         };
@@ -103,7 +106,10 @@ export function registerDiscoveryTools(
       if (!action) {
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify({ error: `Action '${name}' not found` }) },
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: `Action '${name}' not found` }),
+            },
           ],
           isError: true,
         };

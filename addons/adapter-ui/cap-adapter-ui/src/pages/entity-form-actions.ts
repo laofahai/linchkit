@@ -152,7 +152,9 @@ export function useFormActions(opts: UseFormActionsOptions) {
             // Resolve target entity from relation by semantic name
             const relation = bundle?.relations?.find(
               (l) =>
-                (l.cardinality === "one_to_many" && l.from === entityName && l.fromName === fieldName) ||
+                (l.cardinality === "one_to_many" &&
+                  l.from === entityName &&
+                  l.fromName === fieldName) ||
                 (l.cardinality === "many_to_one" && l.to === entityName && l.toName === fieldName),
             );
             if (!relation) continue;

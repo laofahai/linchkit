@@ -30,6 +30,7 @@ import { cn } from "@linchkit/ui-kit/lib/utils";
 import { AlertCircle, Puzzle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
 import type { FieldOverlayRecord, OverlayFieldType } from "../../lib/overlay-types";
@@ -70,7 +71,17 @@ export function AutoForm({
 }: AutoFormProps) {
   const { t } = useTranslation();
   const formId = customFormId ?? "auto-form";
-  const zodSchema = useMemo(() => generateZodSchema(schema), [schema]);
+  const zodSchema = useMemo(() => {
+    const base = generateZodSchema(schema);
+    if (!overlayFields || overlayFields.length === 0) return base;
+    // Merge overlay field validation rules into the base zod schema
+    const overlayShape: Record<string, z.ZodTypeAny> = {};
+    for (const overlay of overlayFields) {
+      const key = overlayFieldKey(overlay.fieldName);
+      overlayShape[key] = buildOverlayZodField(overlay);
+    }
+    return base.extend(overlayShape);
+  }, [schema, overlayFields]);
 
   // Convert overlay fields to FieldDefinition map for rendering via widget registry
   const overlayFieldDefs = useMemo(() => buildOverlayFieldDefs(overlayFields), [overlayFields]);
@@ -350,6 +361,17 @@ export function AutoForm({
       const fieldDef = schema.fields[vf.field];
       if (!fieldDef) continue;
       defaultData[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
+    }
+    // Restore overlay field defaults
+    if (overlayFields && overlayFields.length > 0) {
+      const extensions = (data?._extensions ?? {}) as Record<string, unknown>;
+      for (const overlay of overlayFields) {
+        const key = overlayFieldKey(overlay.fieldName);
+        defaultData[key] =
+          extensions[overlay.fieldName] ??
+          overlay.config.defaultValue ??
+          getOverlayDefault(overlay.fieldType);
+      }
     }
     setFormData(defaultData);
     setAppliedTemplateId(undefined);
@@ -903,6 +925,57 @@ function getOverlayDefault(overlayType: OverlayFieldType): unknown {
     default:
       return "";
   }
+}
+
+/**
+ * Build a Zod schema for a single overlay field based on its type and config.
+ * Used to merge overlay validation into the base entity Zod schema.
+ */
+function buildOverlayZodField(overlay: FieldOverlayRecord): z.ZodTypeAny {
+  const { fieldType, config } = overlay;
+  let schema: z.ZodTypeAny;
+
+  switch (fieldType) {
+    case "string": {
+      let s = z.string();
+      if (config.maxLength !== undefined) s = s.max(config.maxLength);
+      schema = s;
+      break;
+    }
+    case "number": {
+      let n = z.number();
+      if (config.min !== undefined) n = n.min(config.min);
+      if (config.max !== undefined) n = n.max(config.max);
+      schema = n;
+      break;
+    }
+    case "boolean":
+      schema = z.boolean();
+      break;
+    case "date":
+      schema = z.string(); // dates arrive as ISO strings from the UI
+      break;
+    case "enum": {
+      const values = config.enumValues ?? [];
+      if (values.length > 0) {
+        schema = z.enum(values as [string, ...string[]]);
+      } else {
+        schema = z.string();
+      }
+      break;
+    }
+    case "json":
+      schema = z.unknown();
+      break;
+    default:
+      schema = z.string();
+  }
+
+  if (!config.required) {
+    schema = schema.optional().or(z.literal("")).or(z.null());
+  }
+
+  return schema;
 }
 
 /**

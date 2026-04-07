@@ -190,6 +190,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
           return formatOverlayCellValue(value, overlay.fieldType);
         },
         enableSorting: sortable,
+        sortUndefined: -1,
         size: 150,
       });
     }

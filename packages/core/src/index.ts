@@ -122,6 +122,15 @@ export {
   overrideEntity,
   overrideRule,
 } from "./define";
+// Doctor — project health check registry
+export type {
+  CheckCategory,
+  CheckStatus,
+  DoctorCheck,
+  DoctorCheckResult,
+  DoctorContext,
+} from "./doctor";
+export { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
 // Type re-exports from engine interfaces (browser-safe — type-only, no runtime code pulled in)
 // Class types (exported as type-only so consumers can use for annotations without pulling runtime)
 export type {
@@ -268,17 +277,19 @@ export type {
   OntologyRegistryDeps,
   RelationDescriptor,
 } from "./ontology";
-export { buildRelationGraph, inferSemanticRelations } from "./ontology";
-export { generateAgentsMd, type AgentsMdOptions } from "./ontology";
 export {
+  type ActionDescription,
+  type AgentsMdOptions,
   buildProjectOverview,
+  buildRelationGraph,
+  type DescribeInput,
   describeAction,
   describeEntity,
   describeRelation,
-  type ActionDescription,
-  type DescribeInput,
   type EntityDescription,
   type FieldDescription,
+  generateAgentsMd,
+  inferSemanticRelations,
   type ProjectOverview,
   type RelationDescription,
 } from "./ontology";
@@ -312,15 +323,6 @@ export type {
   SemanticRelationType,
 } from "./types/semantic-relation";
 export { defineSemanticRelation } from "./types/semantic-relation";
-// Doctor — project health check registry
-export type {
-  CheckCategory,
-  CheckStatus,
-  DoctorCheck,
-  DoctorCheckResult,
-  DoctorContext,
-} from "./doctor";
-export { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor";
 // Utilities
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";

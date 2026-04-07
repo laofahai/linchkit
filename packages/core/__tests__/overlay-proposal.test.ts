@@ -11,10 +11,7 @@ import {
   canAutoApproveOverlayProposal,
   executeOverlayProposal,
 } from "../src/engine/overlay-proposal-executor";
-import {
-  type CreateProposalOptions,
-  ProposalEngine,
-} from "../src/engine/proposal-engine";
+import { type CreateProposalOptions, ProposalEngine } from "../src/engine/proposal-engine";
 import { InMemoryOverlayStore } from "../src/persistence/in-memory-overlay-store";
 import type { OverlayChangeDefinition, ProposalChange } from "../src/types/proposal";
 

@@ -59,11 +59,7 @@ export class ProposalCodeGenerator {
   private readonly qualityGates?: QualityGateRunner;
   private readonly maxRetries: number;
 
-  constructor(
-    provider: CodeGenerationProvider,
-    qualityGates?: QualityGateRunner,
-    maxRetries = 3,
-  ) {
+  constructor(provider: CodeGenerationProvider, qualityGates?: QualityGateRunner, maxRetries = 3) {
     this.provider = provider;
     this.qualityGates = qualityGates;
     this.maxRetries = maxRetries;
@@ -73,10 +69,7 @@ export class ProposalCodeGenerator {
    * Generate implementation code from an approved proposal.
    * Retries on quality gate failures up to maxRetries.
    */
-  async generate(
-    proposal: Proposal,
-    context?: ProjectContext,
-  ): Promise<CodeGenerationResult> {
+  async generate(proposal: Proposal, context?: ProjectContext): Promise<CodeGenerationResult> {
     let lastErrors: string[] = [];
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
@@ -164,7 +157,9 @@ export class ProposalCodeGenerator {
 
     sections.push("");
     sections.push("## LinchKit Conventions");
-    sections.push("- Use defineEntity() for entities, defineAction() for actions, defineRule() for rules");
+    sections.push(
+      "- Use defineEntity() for entities, defineAction() for actions, defineRule() for rules",
+    );
     sections.push("- Entity naming: snake_case");
     sections.push("- Action naming: verb_noun");
     sections.push("- TypeScript strict mode, no `any` types");

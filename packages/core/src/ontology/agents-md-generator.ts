@@ -6,14 +6,14 @@
  * LinchKit project by documenting its domain model and conventions.
  */
 
+import { resolveLabel } from "../i18n/label-resolver";
 import type { ActionDefinition } from "../types/action";
 import type { CapabilityDefinition } from "../types/capability";
-import type { EntityDefinition } from "../types/entity";
 import type { LinchKitConfig } from "../types/config";
+import type { EntityDefinition } from "../types/entity";
 import type { RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
-import { resolveLabel } from "../i18n/label-resolver";
 
 // ── Public interface ──────────────────────────────────────────
 
@@ -150,7 +150,9 @@ function renderActions(actions: ActionDefinition[]): string {
       const desc = action.description ? ` — ${action.description}` : "";
       const inputFields = action.input ? Object.keys(action.input) : [];
       const inputStr = inputFields.length > 0 ? ` Input: \`${inputFields.join("`, `")}\`` : "";
-      lines.push(`- \`${action.name}\` (${resolveLabel(action.label, action.name)})${desc}${inputStr}`);
+      lines.push(
+        `- \`${action.name}\` (${resolveLabel(action.label, action.name)})${desc}${inputStr}`,
+      );
     }
     lines.push("");
   }

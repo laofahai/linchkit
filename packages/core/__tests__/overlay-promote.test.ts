@@ -39,7 +39,7 @@ describe("generateFieldCode", () => {
       config: { label: { en: "Nickname", "zh-CN": "昵称" }, maxLength: 100 },
     });
     const code = generateFieldCode(overlay);
-    expect(code).toContain('nickname:');
+    expect(code).toContain("nickname:");
     expect(code).toContain('type: "string"');
     expect(code).toContain('label: "Nickname"');
     expect(code).toContain("maxLength: 100");
@@ -226,7 +226,7 @@ describe("generateMigrationSql", () => {
     expect(sql).toContain("ALTER TABLE");
     expect(sql).toContain("ADD COLUMN");
     // Step 2: Backfill
-    expect(sql).toContain("SET \"tag\" =");
+    expect(sql).toContain('SET "tag" =');
     expect(sql).toContain("WHERE _extensions ? 'tag'");
     // Step 3: Cleanup
     expect(sql).toContain("_extensions - 'tag'");

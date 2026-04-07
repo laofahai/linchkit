@@ -129,6 +129,21 @@ All business logic is defined declaratively using \`defineXxx()\` functions.
 - **View**: UI view definitions using \`defineView()\`
 - **Relation**: Relationships between entities using \`defineRelation()\`
 
+## Getting Started (AI-Guided)
+
+When a user asks you to help set up this project, follow this workflow:
+
+1. **Understand intent** — Ask what kind of system they want to build (e.g. e-commerce, CRM, project management)
+2. **Recommend capabilities** — Based on their needs, suggest which capabilities to install via \`linch install <name>\`
+3. **Design entities** — Help define entities using \`defineEntity()\` following snake_case naming
+4. **Design actions** — Help define actions using \`defineAction()\` following verb_noun naming
+5. **Design rules/states** — Add business rules and state machines as needed
+6. **Register in config** — Add capabilities to \`linchkit.config.ts\`
+7. **Verify** — Run \`linch dev\` and check that everything works
+8. **Quality gates** — Run \`linch validate\`, \`bun run check\`, \`bun run typecheck\`, \`bun test\`
+
+Ask one question at a time. Use MCP tools (\`linchkit_list_entities\`, \`linchkit_validate_entity\`, etc.) for project introspection.
+
 ## Development Workflow
 
 1. Define capabilities in \`addons/\` directory

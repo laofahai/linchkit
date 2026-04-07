@@ -22,18 +22,19 @@ import { createCommand } from "./commands/create";
 import { dbCommand } from "./commands/db";
 
 import { devCommand } from "./commands/dev";
-import { doctorCommand } from "./commands/doctor";
 import { docsCommand } from "./commands/docs";
+import { doctorCommand } from "./commands/doctor";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
+import { mcpDevCommand } from "./commands/mcp-dev";
+import { overlayCommand } from "./commands/overlay";
 import { publishCommand } from "./commands/publish";
+import { registryCommand } from "./commands/registry";
 import { searchCommand } from "./commands/search";
 import { collectCapabilityDefinitions } from "./commands/startup/collect-capabilities";
 import { uninstallCommand } from "./commands/uninstall";
 import { updateCommand } from "./commands/update";
-import { mcpDevCommand } from "./commands/mcp-dev";
-import { overlayCommand } from "./commands/overlay";
 import { validateCommand } from "./commands/validate";
 import { loadConfig } from "./utils/load-config";
 
@@ -59,6 +60,7 @@ const RESERVED_NAMESPACES = new Set([
   "agents-md",
   "mcp-dev",
   "overlay",
+  "registry",
 ]);
 
 /**
@@ -173,6 +175,7 @@ function buildCommandsManifest(
     "agents-md": "Generate AGENTS.md from project ontology",
     "mcp-dev": "Start a development-time MCP server for AI coding tools",
     overlay: "Manage runtime overlay fields (list, promote)",
+    registry: "Capability registry management (sync, list)",
   };
 
   for (const name of builtinNames) {
@@ -222,6 +225,7 @@ async function run() {
     "agents-md": agentsMdCommand,
     "mcp-dev": mcpDevCommand,
     overlay: overlayCommand,
+    registry: registryCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();
