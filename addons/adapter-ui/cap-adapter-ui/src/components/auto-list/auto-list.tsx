@@ -273,6 +273,7 @@ function TableShell({
 
 // ── Unified AutoList ────────────────────────────────────────────────────────
 
+/** Unified entity list view with schema-driven columns, filtering, sorting, pagination, and overlay field support. */
 export function AutoList({
   data,
   loading = false,

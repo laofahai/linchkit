@@ -78,10 +78,9 @@ const employeeSchema: EntityDefinition = {
     name: { type: "string", required: true, label: "Name", description: "Full name" },
     email: { type: "string", required: true, label: "Email", description: "Work email" },
     department_id: {
-      type: "ref",
-      target: "department",
+      type: "string",
       label: "Department",
-      description: "Assigned department",
+      description: "FK to department",
     },
     hire_date: { type: "date", label: "Hire Date", description: "Date of hire" },
     role: {
@@ -141,6 +140,8 @@ const deptEmpLink: RelationDefinition = {
   from: "department",
   to: "employee",
   cardinality: "one_to_many",
+  fromName: "employees",
+  toName: "department",
   label: {
     from: "Employees",
     to: "Department",
@@ -152,6 +153,8 @@ const projectEmpLink: RelationDefinition = {
   from: "project",
   to: "employee",
   cardinality: "many_to_many",
+  fromName: "members",
+  toName: "projects",
   label: {
     from: "Members",
     to: "Projects",
@@ -217,9 +220,9 @@ describe("E2E: Documentation + OntologyRegistry", () => {
     expect(fieldNames).toContain("department_id");
     expect(fieldNames).toContain("role");
 
-    // Ref field target
+    // FK field (plain string — relations are declared via defineRelation)
     const deptField = empDoc?.fields.find((f) => f.name === "department_id");
-    expect(deptField?.target).toBe("department");
+    expect(deptField?.type).toBe("string");
 
     // Enum field options
     const roleField = empDoc?.fields.find((f) => f.name === "role");

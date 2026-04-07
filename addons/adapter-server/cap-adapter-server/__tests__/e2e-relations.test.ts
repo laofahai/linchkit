@@ -44,6 +44,8 @@ const deptPurchaseLink: RelationDefinition = {
   from: "department",
   to: "purchase_request",
   cardinality: "one_to_many",
+  fromName: "purchase_requests",
+  toName: "department",
   label: {
     from: "Purchase Requests",
     to: "Department",
@@ -202,7 +204,7 @@ describe("E2E relation integrity", () => {
         department(id: "dept_2") {
           id
           name
-          purchase_requests {
+          purchaseRequests {
             id
             title
             amount
@@ -215,7 +217,7 @@ describe("E2E relation integrity", () => {
     const dept = result.data.department as Record<string, unknown>;
     expect(dept.name).toBe("Marketing");
 
-    const prs = dept.purchase_requests as Array<Record<string, unknown>>;
+    const prs = dept.purchaseRequests as Array<Record<string, unknown>>;
     expect(prs).toBeDefined();
     expect(prs.length).toBe(2);
 
@@ -274,7 +276,7 @@ describe("E2E relation integrity", () => {
       query {
         department(id: "${deptId}") {
           id name
-          purchase_requests {
+          purchaseRequests {
             id title
           }
         }
@@ -283,7 +285,7 @@ describe("E2E relation integrity", () => {
 
     expect(result.errors).toBeUndefined();
     const dept = result.data.department as Record<string, unknown>;
-    const prs = dept.purchase_requests as Array<Record<string, unknown>>;
+    const prs = dept.purchaseRequests as Array<Record<string, unknown>>;
     expect(prs.length).toBe(3);
   });
 
@@ -294,7 +296,7 @@ describe("E2E relation integrity", () => {
       query {
         department(id: "dept_empty") {
           id name
-          purchase_requests {
+          purchaseRequests {
             id title
           }
         }
@@ -303,7 +305,7 @@ describe("E2E relation integrity", () => {
 
     expect(result.errors).toBeUndefined();
     const dept = result.data.department as Record<string, unknown>;
-    const prs = dept.purchase_requests as Array<Record<string, unknown>>;
+    const prs = dept.purchaseRequests as Array<Record<string, unknown>>;
     expect(prs).toBeDefined();
     expect(prs.length).toBe(0);
   });

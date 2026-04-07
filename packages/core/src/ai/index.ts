@@ -88,6 +88,14 @@ export {
   sanitizePrompt,
   sanitizeRecordForAI,
 } from "./prompt-sanitizer";
+// Proposal Code Generator
+export {
+  type CodeGenerationProvider,
+  type CodeGenerationResult,
+  type ProjectContext,
+  ProposalCodeGenerator,
+  type QualityGateRunner,
+} from "./proposal-code-generator";
 // Proposal Engine
 export type {
   AIProposalStatus,

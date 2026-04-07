@@ -57,7 +57,8 @@ export const doctorCommand = defineCommand({
     },
     category: {
       type: "string",
-      description: "Only run checks in a specific category (runtime, database, definitions, quality, capability)",
+      description:
+        "Only run checks in a specific category (runtime, database, definitions, quality, capability)",
     },
   },
   async run({ args }) {
@@ -66,7 +67,7 @@ export const doctorCommand = defineCommand({
 
     // Load project config (optional — doctor should work even without config)
     let config: LinchKitConfig | undefined;
-    let projectRoot = process.cwd();
+    const projectRoot = process.cwd();
     let hasDatabase = false;
 
     try {

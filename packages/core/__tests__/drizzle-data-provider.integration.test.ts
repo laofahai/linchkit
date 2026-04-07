@@ -90,6 +90,7 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
         "updated_by" varchar(128),
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp,
+        "_extensions" jsonb,
         "title" varchar(255) NOT NULL,
         "amount" numeric,
         "status" varchar(50)

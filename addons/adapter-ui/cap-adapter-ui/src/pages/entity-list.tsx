@@ -47,8 +47,11 @@ import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 
 type ActiveView = "list" | "calendar" | "kanban" | "tree";
 
-/** Relationship field types that require subfield selection in GraphQL. */
-const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
+/**
+ * Relation field types no longer exist (Spec 61). Subfield selection is now
+ * determined by link-generated resolver names from buildLinkFieldNames().
+ */
+const RELATION_FIELD_TYPES = new Set<string>();
 
 /**
  * Build a set of GraphQL field names that are link-generated resolvers
@@ -221,7 +224,8 @@ function findDateField(
 }
 
 /**
- * Find a self-referencing ref field in the schema (e.g. parent_id pointing to same schema).
+ * Find a self-referencing FK field in the schema (e.g. parent_id pointing to same entity).
+ * Uses naming convention: field ending in `_id` where the prefix matches the entity name.
  * Returns the field name if found, or null.
  */
 function findSelfRefField(
@@ -229,13 +233,19 @@ function findSelfRefField(
   schemaFields: Record<string, { type?: string; target?: string }>,
 ): string | null {
   for (const [fieldName, def] of Object.entries(schemaFields)) {
-    if (def.type === "ref" && def.target === entityName) {
+    // Check by convention: parent_id for the same entity, or entity_name_id
+    if (def.type === "string" && fieldName === `${entityName}_id`) {
+      return fieldName;
+    }
+    // Also check for common self-ref patterns like "parent_id"
+    if (def.type === "string" && fieldName === "parent_id") {
       return fieldName;
     }
   }
   return null;
 }
 
+/** Page component for browsing entity records with list, calendar, kanban, and tree view modes. */
 export function EntityListPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();

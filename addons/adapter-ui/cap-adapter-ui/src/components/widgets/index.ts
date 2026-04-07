@@ -115,32 +115,35 @@ export function registerDefaultWidgets() {
     display: StringDisplay,
   });
 
-  // ref widget for reference/Link FK fields
+  // ref widget for FK string fields that reference other entities
+  // Registered with id="ref" but bound to string type; resolved via explicit widget overrides
   widgetRegistry.register({
-    definition: { id: "ref", fieldTypes: "ref", modes: ["display", "input"], isDefault: true },
+    definition: { id: "ref", fieldTypes: "string", modes: ["display", "input"], isDefault: false },
     display: RefDisplay,
     input: RefInput,
   });
 
-  // has_many widget for one-to-many relationship fields
+  // has_many widget for one-to-many relationship display (via relation, not field type)
+  // Registered with id="has_many"; resolved via explicit widget overrides on relation fields
   widgetRegistry.register({
     definition: {
       id: "has_many",
-      fieldTypes: "has_many",
+      fieldTypes: "string",
       modes: ["display", "input"],
-      isDefault: true,
+      isDefault: false,
     },
     display: HasManyDisplay,
     input: HasManyInput,
   });
 
-  // many_to_many widget for many-to-many relationship fields
+  // many_to_many widget for many-to-many relationship display (via relation, not field type)
+  // Registered with id="many_to_many"; resolved via explicit widget overrides on relation fields
   widgetRegistry.register({
     definition: {
       id: "many_to_many",
-      fieldTypes: "many_to_many",
+      fieldTypes: "string",
       modes: ["display", "input"],
-      isDefault: true,
+      isDefault: false,
     },
     display: ManyToManyDisplay,
     input: ManyToManyInput,

@@ -27,6 +27,7 @@ async function fetchOverlayFields(entityName: string): Promise<FieldOverlayRecor
   }
 }
 
+/** Return type for the useOverlayFields hook, providing overlay field data and refresh capability. */
 export interface UseOverlayFieldsResult {
   overlayFields: FieldOverlayRecord[];
   loading: boolean;

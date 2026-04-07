@@ -12,6 +12,12 @@ import type { FieldType } from "./entity";
 
 export type WidgetMode = "display" | "input";
 
+/** Relation widget types — used by relation-aware widgets registered by cardinality */
+export type RelationWidgetType = "ref" | "has_many" | "many_to_many";
+
+/** All widget-registrable type identifiers */
+export type WidgetFieldType = FieldType | RelationWidgetType;
+
 // ── Widget definition ──────────────────────────────────────
 
 export interface WidgetDefinition {
@@ -21,8 +27,8 @@ export interface WidgetDefinition {
   /** Human-readable name */
   name?: string;
 
-  /** Field type(s) this widget can handle */
-  fieldTypes: FieldType | FieldType[];
+  /** Field type(s) or relation widget type(s) this widget can handle */
+  fieldTypes: WidgetFieldType | WidgetFieldType[];
 
   /** Which mode(s) this widget supports */
   modes: WidgetMode[];
@@ -47,8 +53,8 @@ export interface WidgetDefinition {
  * 4. Default widget for field type
  */
 export interface WidgetResolutionContext {
-  /** The field type being rendered */
-  fieldType: FieldType;
+  /** The field type or relation widget type being rendered */
+  fieldType: WidgetFieldType;
 
   /** Widget mode */
   mode: WidgetMode;

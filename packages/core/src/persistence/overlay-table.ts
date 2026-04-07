@@ -29,7 +29,5 @@ export const fieldOverlaysTable = linchkitSchema.table(
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (table) => [
-    uniqueIndex("idx_field_overlays_entity_field").on(table.entityName, table.fieldName),
-  ],
+  (table) => [uniqueIndex("idx_field_overlays_entity_field").on(table.entityName, table.fieldName)],
 );

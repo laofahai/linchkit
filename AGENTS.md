@@ -51,6 +51,10 @@ Meta-model: **Entity + Action + Rule + State + Event + EventHandler + View + Flo
 - Sanitize all user inputs; parameterized queries only
 - System fields are server-managed, never client-settable
 - All API endpoints go through CommandLayer (permission slot never skipped)
+- Apply good design patterns and algorithms, but do not over-engineer
+- Files must not exceed 500 lines — split when approaching the limit
+- Verify third-party API usage with context7 before calling — training data may be stale
+- PR merge gate: all CodeRabbit and Gemini review comments must be replied to and resolved before merging
 
 ## Core Boundary Rules (Three-Way Review Consensus)
 

@@ -852,7 +852,12 @@ describe("WatcherEngine — staleness triggers", () => {
           entity: "purchase_request",
           filter: { field: "target.status", operator: "eq", value: "submitted" },
         },
-        trigger: { type: "staleness", field: "updated_at", threshold: "48h" },
+        trigger: {
+          type: "staleness",
+          field: "updated_at",
+          threshold: "48h",
+          debounce: "once_until_reset",
+        },
         effect: { action: "escalate", params: {} },
       }),
     );
@@ -879,9 +884,8 @@ describe("WatcherEngine — staleness triggers", () => {
 
     engine.start();
 
-    // Wait for the interval to fire (generous timeout for CI)
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
+    // Wait for at least one polling cycle to fire
+    await new Promise((resolve) => setTimeout(resolve, 200));
     engine.stop();
 
     // Only req-1 should trigger (stale + submitted)

@@ -11,7 +11,11 @@
  */
 
 import type { OverlayStore } from "../types/overlay";
-import type { OverlayChangeDefinition, ProposalChange, ProposalDefinition } from "../types/proposal";
+import type {
+  OverlayChangeDefinition,
+  ProposalChange,
+  ProposalDefinition,
+} from "../types/proposal";
 
 // ── Auto-approval evaluation ──────────────────────────────
 
@@ -70,9 +74,7 @@ export async function executeOverlayProposal(options: {
 
     const def = change.definition;
     if (!def || !isOverlayChangeDefinition(def)) {
-      throw new Error(
-        `Overlay change "${change.name}" is missing a valid OverlayChangeDefinition`,
-      );
+      throw new Error(`Overlay change "${change.name}" is missing a valid OverlayChangeDefinition`);
     }
 
     switch (change.operation) {
@@ -131,11 +133,7 @@ function isOverlayChangeDefinition(def: unknown): def is OverlayChangeDefinition
 }
 
 /** Find an overlay record by entity name and field name */
-async function findOverlayByField(
-  store: OverlayStore,
-  entityName: string,
-  fieldName: string,
-) {
+async function findOverlayByField(store: OverlayStore, entityName: string, fieldName: string) {
   const overlays = await store.getOverlays(entityName);
   return overlays.find((o) => o.fieldName === fieldName) ?? null;
 }

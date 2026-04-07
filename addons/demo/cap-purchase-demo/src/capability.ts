@@ -23,6 +23,8 @@ import { departmentEntity } from "./entities/department";
 import { purchaseItemEntity } from "./entities/purchase-item";
 import { purchaseRequestEntity } from "./entities/purchase-request";
 import { purchaseApprovalFlow } from "./flows/purchase-approval";
+import i18nEn from "./i18n/en.json";
+import i18nZhCN from "./i18n/zh-CN.json";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./relations";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
@@ -30,8 +32,6 @@ import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
-import i18nEn from "./i18n/en.json";
-import i18nZhCN from "./i18n/zh-CN.json";
 
 export const capPurchaseDemo = defineCapability({
   name: "cap-purchase-demo",

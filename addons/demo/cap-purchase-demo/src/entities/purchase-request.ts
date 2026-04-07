@@ -6,7 +6,7 @@
  * - Derived/computed properties (total_amount, display_title)
  * - Data masking (requester_email marked sensitive)
  * - Field UI hints (importance, format, display)
- * - Rich field types (enum, state, ref, datetime)
+ * - Rich field types (enum, state, datetime)
  */
 
 import type { EntityDefinition } from "@linchkit/core";
@@ -38,10 +38,10 @@ export const purchaseRequestEntity: EntityDefinition = {
       label: "t:entities.purchase_request.fields.description",
       ui: { editor: "rich" },
     },
-    department: {
-      type: "ref",
-      target: "department",
+    department_id: {
+      type: "string",
       label: "t:entities.purchase_request.fields.department",
+      description: "Foreign key to department (relationship managed via defineRelation)",
     },
     amount: {
       type: "number",
@@ -105,13 +105,6 @@ export const purchaseRequestEntity: EntityDefinition = {
       label: "t:entities.purchase_request.fields.approved_by",
       immutable: true,
       ui: { importance: "detail" },
-    },
-
-    // Has-many: inline purchase items
-    items: {
-      type: "has_many",
-      target: "purchase_item",
-      label: "t:entities.purchase_request.fields.items",
     },
 
     // Derived properties — computed, not user-input

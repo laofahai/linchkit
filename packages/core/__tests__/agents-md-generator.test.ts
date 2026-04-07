@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { generateAgentsMd, type AgentsMdOptions } from "../src/ontology/agents-md-generator";
+import { type AgentsMdOptions, generateAgentsMd } from "../src/ontology/agents-md-generator";
 
 function makeOptions(overrides: Partial<AgentsMdOptions> = {}): AgentsMdOptions {
   return {

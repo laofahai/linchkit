@@ -231,9 +231,7 @@ describe("OverlayAwareDataProvider", () => {
   });
 
   test("get with no _extensions returns record as-is", async () => {
-    innerStore.seed("order", [
-      { id: "order-2", title: "No Extensions" },
-    ]);
+    innerStore.seed("order", [{ id: "order-2", title: "No Extensions" }]);
 
     const result = await provider.get("order", "order-2");
     expect(result.title).toBe("No Extensions");

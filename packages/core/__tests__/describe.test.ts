@@ -5,10 +5,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildProjectOverview,
+  type DescribeInput,
   describeAction,
   describeEntity,
   describeRelation,
-  type DescribeInput,
 } from "../src/ontology/describe";
 import type { ActionDefinition } from "../src/types/action";
 import type { EntityDefinition } from "../src/types/entity";
@@ -79,6 +79,8 @@ const orderDeptRelation: RelationDefinition = {
   from: "purchase_order",
   to: "department",
   cardinality: "many_to_one",
+  fromName: "department",
+  toName: "purchase_orders",
   label: { from: "Department", to: "Purchase Orders" },
   required: true,
   cascade: "nullify",
@@ -103,7 +105,15 @@ describe("buildProjectOverview", () => {
           version: "1.0.0",
           entities: [orderEntity, departmentEntity],
           actions: [createOrderAction, approveOrderAction],
-          rules: [{ name: "auto_approve", label: "Auto Approve", trigger: { action: "create_purchase_order" }, conditions: [], effects: [] }],
+          rules: [
+            {
+              name: "auto_approve",
+              label: "Auto Approve",
+              trigger: { action: "create_purchase_order" },
+              conditions: [],
+              effects: [],
+            },
+          ],
           states: [orderState],
           flows: [],
           relations: [orderDeptRelation],
@@ -279,6 +289,8 @@ describe("describeRelation", () => {
       from: "a",
       to: "b",
       cardinality: "one_to_many",
+      fromName: "bs",
+      toName: "a",
     });
     expect(desc.cascade).toBe("none");
     expect(desc.required).toBe(false);
@@ -291,6 +303,8 @@ describe("describeRelation", () => {
       from: "purchase_order",
       to: "tag",
       cardinality: "many_to_many",
+      fromName: "tags",
+      toName: "purchase_orders",
       properties: {
         weight: { type: "number", min: 0, max: 100 },
       },

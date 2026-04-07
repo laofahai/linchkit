@@ -39,7 +39,7 @@ const purchaseRequestSchema: EntityDefinition = {
     title: { type: "string", label: "Title", required: true },
     amount: { type: "number", label: "Amount", min: 0 },
     status: { type: "state", label: "Status", machine: "purchase_lifecycle" },
-    department_id: { type: "ref", label: "Department", target: "department" },
+    department_id: { type: "string", label: "Department", description: "FK to department" },
     priority: {
       type: "enum",
       label: "Priority",
@@ -114,6 +114,8 @@ const deptToPurchaseLink: RelationDefinition = {
   from: "department",
   to: "purchase_request",
   cardinality: "one_to_many",
+  fromName: "purchase_requests",
+  toName: "department",
   label: { from: "Purchase Requests", to: "Department" },
 };
 
@@ -188,11 +190,6 @@ describe("fieldToDoc", () => {
       unique: true,
     });
     expect(doc.constraints).toEqual({ min: 0, max: 100000, unique: true });
-  });
-
-  test("includes ref target", () => {
-    const doc = fieldToDoc("dept", { type: "ref", target: "department", label: "Dept" });
-    expect(doc.target).toBe("department");
   });
 
   test("includes enum options", () => {
@@ -440,10 +437,9 @@ describe("generateOpenAPISpec", () => {
     const amount = prSchema.properties?.amount as { type: string };
     expect(amount.type).toBe("number");
 
-    // Ref field
-    const deptId = prSchema.properties?.department_id as { type: string; format: string };
+    // FK field (plain string, not a ref type — relations are declared via defineRelation)
+    const deptId = prSchema.properties?.department_id as { type: string };
     expect(deptId.type).toBe("string");
-    expect(deptId.format).toBe("uuid");
 
     // Enum field
     const priority = prSchema.properties?.priority as { type: string; enum: string[] };

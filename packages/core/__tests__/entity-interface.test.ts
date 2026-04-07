@@ -16,7 +16,7 @@ const approvableInterface: InterfaceDefinition = {
       type: "string",
       default: "draft",
     },
-    approver_id: { type: "ref", target: "user", required: false },
+    approver_id: { type: "string", required: false, description: "FK to user" },
     approved_at: { type: "datetime", required: false },
     rejection_reason: { type: "text", required: false },
   },

@@ -20,7 +20,6 @@ interface EnvironmentInfo {
 
 import {
   ActionRegistry,
-  convertEntityRelationshipFieldsToImplicitRelations,
   createInterfaceRegistry,
   createRelationRegistry,
   createTenantIsolationMiddleware,
@@ -34,8 +33,6 @@ export interface RegistryBuildResult {
   relationRegistry: ReturnType<typeof createRelationRegistry>;
   interfaceRegistry: ReturnType<typeof createInterfaceRegistry>;
   permissionRegistry: PermissionRegistry;
-  /** Implicit links auto-promoted from schema relationship fields */
-  implicitLinkCount: number;
 }
 
 export interface RegistryBuildInput {
@@ -50,46 +47,15 @@ export interface RegistryBuildInput {
 }
 
 /**
- * Build and populate all registries. Promotes implicit links from schema
- * relationship fields, wires permission middleware, and appends tenant
- * isolation middleware.
+ * Build and populate all registries. Wires permission middleware
+ * and appends tenant isolation middleware.
  *
- * Mutates `links`, `actions`, and `middlewares` arrays in place
- * (appending implicit links, tenant middleware, permission middleware).
+ * Mutates `actions` and `middlewares` arrays in place
+ * (tenant middleware, permission middleware).
  */
 export async function buildRegistries(input: RegistryBuildInput): Promise<RegistryBuildResult> {
   const { capabilities, interfaces, schemas, actions, links, middlewares, registry, environment } =
     input;
-
-  // Auto-promote schema relationship fields to implicit links
-  const { implicitLinks, conflicts, missingTargets } =
-    convertEntityRelationshipFieldsToImplicitRelations(schemas, links);
-  if (conflicts.length > 0) {
-    console.warn(
-      `[linch] Found ${conflicts.length} conflict(s) between implicit and explicit links:`,
-    );
-    for (const c of conflicts) {
-      console.warn(
-        `[linch]   - "${c.name}": explicit declaration overrides implicit from schema field`,
-      );
-    }
-  }
-  if (missingTargets.length > 0) {
-    console.warn(
-      `[linch] Found ${missingTargets.length} relationship field(s) with missing target entities:`,
-    );
-    for (const mt of missingTargets) {
-      console.warn(
-        `[linch]   - ${mt.entityName}.${mt.fieldName}: target entity "${mt.target}" not found - skipped`,
-      );
-    }
-  }
-  if (implicitLinks.length > 0) {
-    links.push(...implicitLinks);
-    console.log(
-      `[linch] Auto-promoted ${implicitLinks.length} relationship field(s) to implicit links`,
-    );
-  }
 
   // Build InterfaceRegistry (must happen before schema registration)
   const interfaceRegistry = createInterfaceRegistry();
@@ -109,15 +75,13 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     entityRegistry.register(entity);
   }
 
-  // Build RelationRegistry (explicit + implicit)
+  // Build RelationRegistry
   const relationRegistry = createRelationRegistry();
   for (const relation of links) {
     relationRegistry.register(relation);
   }
   if (links.length > 0) {
-    console.log(
-      `[linch] Registered ${links.length} total link(s) (${links.length - implicitLinks.length} explicit, ${implicitLinks.length} implicit)`,
-    );
+    console.log(`[linch] Registered ${links.length} relation(s)`);
   }
 
   // Build ActionRegistry
@@ -191,7 +155,6 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     relationRegistry,
     interfaceRegistry,
     permissionRegistry,
-    implicitLinkCount: implicitLinks.length,
   };
 }
 

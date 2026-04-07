@@ -19,6 +19,7 @@ interface OverlayFieldBadgeProps {
   className?: string;
 }
 
+/** Renders a small puzzle icon badge to visually distinguish runtime overlay fields from code-defined fields. */
 export function OverlayFieldBadge({ className }: OverlayFieldBadgeProps) {
   const { t } = useTranslation();
 

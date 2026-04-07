@@ -12,9 +12,9 @@ import type { LinchKitConfig } from "@linchkit/core";
 import { initI18n } from "@linchkit/core";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { defineCommand } from "citty";
-import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
-import { loadConfig } from "../utils/load-config";
 import { createMcpDevServer } from "../mcp-dev/server";
+import { loadConfig } from "../utils/load-config";
+import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
 
 export const mcpDevCommand = defineCommand({
   meta: {

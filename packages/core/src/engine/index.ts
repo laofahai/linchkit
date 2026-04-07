@@ -44,6 +44,12 @@ export {
 } from "./command-layer";
 // Condition evaluator
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
+// Overlay proposal executor
+export {
+  canAutoApproveOverlayChange,
+  canAutoApproveOverlayProposal,
+  executeOverlayProposal,
+} from "./overlay-proposal-executor";
 // Permission engine
 export {
   checkActionPermission,
@@ -51,12 +57,6 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "./permission-engine";
-// Overlay proposal executor
-export {
-  canAutoApproveOverlayChange,
-  canAutoApproveOverlayProposal,
-  executeOverlayProposal,
-} from "./overlay-proposal-executor";
 // Proposal engine
 export {
   bumpVersion,

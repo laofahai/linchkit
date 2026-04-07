@@ -157,8 +157,8 @@ function schemaDocToInputSchema(schema: EntityDoc): OpenAPISchemaObject {
   const required: string[] = [];
 
   for (const field of schema.fields) {
-    // Skip computed and has_many/many_to_many (not directly writable)
-    if (field.type === "computed" || field.type === "has_many" || field.type === "many_to_many") {
+    // Skip computed fields (not directly writable)
+    if (field.type === "computed") {
       continue;
     }
     properties[field.name] = fieldTypeToOpenAPI(field);

@@ -104,10 +104,12 @@ describe("generateRelationColumns", () => {
       name: "employee_department",
       from: "employee",
       to: "department",
+      fromName: "department",
+      toName: "employees",
       cardinality: "many_to_one",
     };
 
-    test("generates FK column {to}_id on the 'from' table", () => {
+    test("generates FK column {fromName}_id on the 'from' table", () => {
       const result = generateRelationColumns([relation], tables);
 
       // FK column should be on employee table
@@ -141,10 +143,12 @@ describe("generateRelationColumns", () => {
       name: "department_employees",
       from: "department",
       to: "employee",
+      fromName: "employees",
+      toName: "department",
       cardinality: "one_to_many",
     };
 
-    test("generates FK column {from}_id on the 'to' table", () => {
+    test("generates FK column {toName}_id on the 'to' table", () => {
       const result = generateRelationColumns([relation], tables);
 
       // FK column should be on employee table (the 'to' side)
@@ -166,10 +170,12 @@ describe("generateRelationColumns", () => {
       name: "employee_profile",
       from: "employee",
       to: "profile",
+      fromName: "profile",
+      toName: "employee",
       cardinality: "one_to_one",
     };
 
-    test("generates FK column {to}_id on the 'from' table", () => {
+    test("generates FK column {fromName}_id on the 'from' table", () => {
       const result = generateRelationColumns([relation], tables);
 
       expect(result.fkColumns.employee).toBeDefined();
@@ -198,15 +204,17 @@ describe("generateRelationColumns", () => {
       name: "employee_project",
       from: "employee",
       to: "project",
+      fromName: "projects",
+      toName: "employees",
       cardinality: "many_to_many",
     };
 
-    test("creates a junction table named _link_{name}", () => {
+    test("creates a junction table named _rel_{name}", () => {
       const result = generateRelationColumns([relation], tables);
 
       expect(result.junctionTables).toHaveLength(1);
       const jt = result.junctionTables[0];
-      expect(getTableName(jt)).toBe("_link_employee_project");
+      expect(getTableName(jt)).toBe("_rel_employee_project");
     });
 
     test("junction table has composite PK on both FK columns", () => {
@@ -252,6 +260,8 @@ describe("generateRelationColumns", () => {
       name: "employee_project_with_role",
       from: "employee",
       to: "project",
+      fromName: "project_roles",
+      toName: "employee_roles",
       cardinality: "many_to_many",
       properties: {
         role: { type: "string", required: true, label: "Role" },
@@ -283,6 +293,8 @@ describe("generateRelationColumns", () => {
         name: "employee_department_cascade",
         from: "employee",
         to: "department",
+        fromName: "department",
+        toName: "employees",
         cardinality: "many_to_one",
         cascade: "delete",
       };
@@ -302,6 +314,8 @@ describe("generateRelationColumns", () => {
         name: "employee_department_nullify",
         from: "employee",
         to: "department",
+        fromName: "department",
+        toName: "employees",
         cardinality: "many_to_one",
         cascade: "nullify",
       };
@@ -320,6 +334,8 @@ describe("generateRelationColumns", () => {
         name: "dept_emp_cascade",
         from: "department",
         to: "employee",
+        fromName: "employees",
+        toName: "department",
         cardinality: "one_to_many",
         cascade: "delete",
       };
@@ -338,6 +354,8 @@ describe("generateRelationColumns", () => {
         name: "emp_proj_cascade",
         from: "employee",
         to: "project",
+        fromName: "projects",
+        toName: "employees",
         cardinality: "many_to_many",
         cascade: "delete",
       };
@@ -360,6 +378,8 @@ describe("generateRelationColumns", () => {
         name: "employee_department",
         from: "employee",
         to: "department",
+        fromName: "department",
+        toName: "employees",
         cardinality: "many_to_one",
       };
       const result = generateRelationColumns([relation], tables, {
@@ -376,6 +396,8 @@ describe("generateRelationColumns", () => {
         name: "emp_proj",
         from: "employee",
         to: "project",
+        fromName: "projects",
+        toName: "employees",
         cardinality: "many_to_many",
       };
       const result = generateRelationColumns([relation], tables, {
@@ -383,7 +405,7 @@ describe("generateRelationColumns", () => {
       });
 
       expect(result.junctionTables).toHaveLength(1);
-      expect(getTableName(result.junctionTables[0])).toBe("app__link_emp_proj");
+      expect(getTableName(result.junctionTables[0])).toBe("app__rel_emp_proj");
     });
   });
 
@@ -394,6 +416,8 @@ describe("generateRelationColumns", () => {
       name: "employee_department_required",
       from: "employee",
       to: "department",
+      fromName: "department",
+      toName: "employees",
       cardinality: "many_to_one",
       required: true,
     };
@@ -412,6 +436,8 @@ describe("generateRelationColumns", () => {
       name: "employee_unknown",
       from: "employee",
       to: "nonexistent",
+      fromName: "nonexistent",
+      toName: "employees",
       cardinality: "many_to_one",
     };
     const result = generateRelationColumns([relation], tables);
@@ -434,6 +460,8 @@ describe("GraphQL link field generation", () => {
       name: "employee_department",
       from: "employee",
       to: "department",
+      fromName: "department",
+      toName: "employees",
       cardinality: "many_to_one",
       label: {
         from: "Department",
@@ -487,6 +515,8 @@ describe("GraphQL link field generation", () => {
       name: "department_employees",
       from: "department",
       to: "employee",
+      fromName: "employees",
+      toName: "department",
       cardinality: "one_to_many",
       label: {
         from: "Employees",
@@ -544,6 +574,8 @@ describe("GraphQL link field generation", () => {
       name: "employee_profile",
       from: "employee",
       to: "profile",
+      fromName: "profile",
+      toName: "employee",
       cardinality: "one_to_one",
     };
     const links = [relation];
@@ -582,6 +614,8 @@ describe("GraphQL link field generation", () => {
       name: "employee_project",
       from: "employee",
       to: "project",
+      fromName: "projects",
+      toName: "employees",
       cardinality: "many_to_many",
     };
     const links = [relation];
@@ -617,6 +651,8 @@ describe("GraphQL link field generation", () => {
       name: "employee_department",
       from: "employee",
       to: "department",
+      fromName: "department",
+      toName: "employees",
       cardinality: "many_to_one",
     };
     const links = [relation];

@@ -1,8 +1,12 @@
 /**
- * Link type definitions
+ * Relation type definitions — Spec 61: Semantic Relation Unification
  *
- * Links define relationships between Schemas as first-class citizens.
- * Supports bidirectional navigation, cardinality declarations, and M:N junction table properties.
+ * Relations define semantic, bidirectional relationships between Entities
+ * as first-class citizens. Each relation has semantic navigation names
+ * (fromName/toName) used for GraphQL fields, AI queries, and code navigation.
+ *
+ * All entity relationships are declared via defineRelation() — entity fields
+ * no longer contain ref/has_many/many_to_many types.
  */
 
 import type { FieldDefinition } from "./entity";
@@ -15,30 +19,48 @@ export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" |
 
 export type RelationCascade = "none" | "delete" | "nullify";
 
-// ── Link definition ──────────────────────────────────────────
+// ── Relation definition ──────────────────────────────────────────
 
 export interface RelationDefinition {
-  /** Unique identifier for this link */
+  /** Unique identifier (e.g. "request_department", "person_authored_doc") */
   name: string;
 
-  /** Human-readable labels from each direction */
+  /** Source entity name */
+  from: string;
+
+  /** Target entity name */
+  to: string;
+
+  /** Structural cardinality */
+  cardinality: RelationCardinality;
+
+  /**
+   * Semantic navigation name from the `from` side.
+   * Used as GraphQL field name, code navigation, AI query identifier.
+   * Convention: snake_case, English.
+   * Example: "department", "authored_documents", "reviewed_documents"
+   */
+  fromName: string;
+
+  /**
+   * Semantic navigation name from the `to` side.
+   * Used as reverse GraphQL field name, code navigation, AI query identifier.
+   * Example: "purchase_requests", "authors", "reviewers"
+   */
+  toName: string;
+
+  /**
+   * Display labels for UI. Optional. Supports i18n "t:" prefix.
+   * Falls back to fromName/toName if not provided.
+   */
   label?: {
-    /** Label when viewed from the `from` side (e.g. "Department") */
+    /** Label when viewed from the `from` side (e.g. "t:relation.department") */
     from?: string;
-    /** Label when viewed from the `to` side (e.g. "Purchase Requests") */
+    /** Label when viewed from the `to` side (e.g. "t:relation.purchase_requests") */
     to?: string;
   };
 
   description?: string;
-
-  /** Source schema name */
-  from: string;
-
-  /** Target schema name */
-  to: string;
-
-  /** Relationship cardinality */
-  cardinality: RelationCardinality;
 
   /** Extra properties on the M:N junction table (only for many_to_many) */
   properties?: Record<string, FieldDefinition>;
@@ -50,40 +72,46 @@ export interface RelationDefinition {
   required?: boolean;
 }
 
-// ── Link info (directional view) ──────────────────────────────────────────
+// ── Relation info (directional view) ──────────────────────────────────────────
 
 export interface RelationInfo {
-  /** The underlying link definition */
+  /** The underlying relation definition */
   relation: RelationDefinition;
 
-  /** Direction relative to the querying schema */
+  /** Direction relative to the querying entity */
   direction: "outgoing" | "incoming";
 
-  /** The schema on the other end */
+  /** The entity on the other end */
   relatedEntity: string;
 
-  /** Label for this direction */
+  /** Semantic name for this direction (fromName or toName) */
+  semanticName: string;
+
+  /** Display label for this direction (from label or semanticName fallback) */
   label: string;
 }
 
-// ── Link registry interface ──────────────────────────────────────────
+// ── Relation registry interface ──────────────────────────────────────────
 
 export interface RelationRegistryInterface {
-  /** Register a link definition */
-  register(link: RelationDefinition): void;
+  /** Register a relation definition */
+  register(relation: RelationDefinition): void;
 
-  /** Get all links for an entity (both outgoing and incoming) */
+  /** Get all relations for an entity (both outgoing and incoming) */
   relationsFor(entityName: string): RelationInfo[];
 
-  /** Get the link between two entities (if any) */
-  relationBetween(from: string, to: string): RelationDefinition | null;
+  /** Get all relations between two entities (may return multiple) */
+  relationsBetween(from: string, to: string): RelationDefinition[];
 
-  /** Get all outgoing links from an entity */
+  /** Find a relation by semantic name on an entity */
+  relationByName(entityName: string, semanticName: string): RelationInfo | null;
+
+  /** Get all outgoing relations from an entity */
   outgoingRelations(entityName: string): RelationDefinition[];
 
-  /** Get all incoming links to an entity */
+  /** Get all incoming relations to an entity */
   incomingRelations(entityName: string): RelationDefinition[];
 
-  /** List all registered links */
+  /** List all registered relations */
   list(): RelationDefinition[];
 }

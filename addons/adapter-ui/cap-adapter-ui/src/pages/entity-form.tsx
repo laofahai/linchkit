@@ -48,6 +48,7 @@ import {
   RecordErrorState,
 } from "./entity-form-states";
 
+/** Page component for creating, viewing, and editing entity records with schema-driven form, status bar, and AI auto-fill. */
 export function EntityFormPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();

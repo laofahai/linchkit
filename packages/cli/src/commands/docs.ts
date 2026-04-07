@@ -22,7 +22,6 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
-  convertEntityRelationshipFieldsToImplicitRelations,
   createOntologyRegistry,
   createRelationRegistry,
   EntityRegistry,
@@ -87,10 +86,6 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
   }
-
-  // Auto-promote relationship fields to implicit links
-  const { implicitLinks } = convertEntityRelationshipFieldsToImplicitRelations(entities, links);
-  links.push(...implicitLinks);
 
   // Build registries
   const entityRegistry = new EntityRegistry();

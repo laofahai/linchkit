@@ -31,6 +31,7 @@ import { StatusBadge } from "./status-badge";
 
 type DataRow = Record<string, unknown>;
 
+/** Options for building TanStack Table column definitions from schema and view configuration. */
 export interface BuildColumnsOptions {
   fields: ViewFieldConfig[];
   schema: EntityDefinition;
@@ -51,6 +52,7 @@ export interface BuildColumnsOptions {
   overlayFields?: FieldOverlayRecord[];
 }
 
+/** Build TanStack Table column definitions from schema fields, including overlay columns and row action menus. */
 export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
   const {
     fields,
@@ -188,6 +190,7 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
           return formatOverlayCellValue(value, overlay.fieldType);
         },
         enableSorting: sortable,
+        sortUndefined: -1,
         size: 150,
       });
     }
@@ -319,6 +322,7 @@ function formatOverlayCellValue(value: unknown, fieldType: OverlayFieldType): Re
   }
 }
 
+/** Extract enum option entries from a field definition, returning an empty array for non-enum fields. */
 export function getEnumOptions(fieldDef?: FieldDefinition): { value: string; label: string }[] {
   if (!fieldDef) return [];
   if (fieldDef.type === "enum" && (fieldDef as EnumField).options) {

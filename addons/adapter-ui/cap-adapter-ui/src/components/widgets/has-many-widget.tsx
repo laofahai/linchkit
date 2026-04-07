@@ -120,8 +120,7 @@ export function HasManyInput({ value, onChange, readonly, fieldDef }: WidgetInpu
       .filter(([name, def]) => {
         if (systemFields.has(name)) return false;
         const fieldType = (def as { type?: string }).type;
-        if (fieldType === "ref" || fieldType === "has_many" || fieldType === "many_to_many")
-          return false;
+        // Skip state/computed/derived fields — they are not user-editable
         if (fieldType === "state") return false;
         if ((def as { derived?: unknown }).derived) return false;
         if (fieldType === "computed") return false;

@@ -28,6 +28,7 @@ LinchKit 的 9 个一等公民构建块。
 | [07](./07_event.md) | Event | `defineEvent()` — 领域事件、命名规范、Payload 定义 | M0 | 完成 |
 | [08](./08_event_handler_and_queue.md) | EventHandler 与队列 | `defineEventHandler()` — 同步/异步、重试、死信、顺序保证 | M0 | 完成 |
 | [46](./46_link_type.md) | Relation 类型 | `defineRelation()` — 关系作为一等公民，FK/中间表，双向导航 | M2 | 完成 |
+| [61](./61_semantic_relation_unification.md) | 语义关系统一 | 统一 ref/has_many/defineRelation 为语义化 defineRelation，fromName/toName | M3 | 草案 |
 | [47](./47_schema_interface.md) | Entity 接口 | `defineEntityInterface()` — 可复用字段契约，合规校验 | M2 | 完成 |
 | [48](./48_derived_properties.md) | 派生属性 | `derived` 配置的计算字段，查询时求值 | M2 | 完成 |
 | [49](./49_schema_inheritance.md) | Entity 继承 | 单父继承 `extends`，字段/Action/Rule/State 继承链 | M2 | 完成 |

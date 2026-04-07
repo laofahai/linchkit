@@ -2,6 +2,7 @@
  * Doctor module — project health check registry and built-in checks
  */
 
+export { builtinChecks } from "./builtin-checks";
 export type {
   CheckCategory,
   CheckStatus,
@@ -10,4 +11,3 @@ export type {
   DoctorContext,
 } from "./doctor-registry";
 export { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "./doctor-registry";
-export { builtinChecks } from "./builtin-checks";

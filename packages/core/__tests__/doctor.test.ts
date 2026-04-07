@@ -3,15 +3,19 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { DoctorCheck, DoctorCheckResult, DoctorContext } from "../src/doctor/doctor-registry";
-import { clearDoctorChecks, getDoctorChecks, registerDoctorCheck } from "../src/doctor/doctor-registry";
 import {
   actionDefinitionsCheck,
-  bunRuntimeCheck,
   builtinChecks,
+  bunRuntimeCheck,
   entityDefinitionsCheck,
   nodeEnvCheck,
 } from "../src/doctor/builtin-checks";
+import type { DoctorCheck, DoctorCheckResult, DoctorContext } from "../src/doctor/doctor-registry";
+import {
+  clearDoctorChecks,
+  getDoctorChecks,
+  registerDoctorCheck,
+} from "../src/doctor/doctor-registry";
 
 // ── Registry tests ──────────────────────────────────────────────
 
@@ -37,7 +41,7 @@ describe("Doctor Registry", () => {
     registerDoctorCheck(check);
     const checks = getDoctorChecks();
     expect(checks).toHaveLength(1);
-    expect(checks[0]!.name).toBe("test-check");
+    expect(checks[0]?.name).toBe("test-check");
   });
 
   test("getDoctorChecks returns all registered checks", () => {
@@ -150,9 +154,7 @@ describe("Built-in checks", () => {
     const ctx: DoctorContext = {
       ...baseCtx,
       config: {
-        capabilities: [
-          { entities: [{ name: "order" }, { name: "product" }] },
-        ],
+        capabilities: [{ entities: [{ name: "order" }, { name: "product" }] }],
       },
     };
     const result = await entityDefinitionsCheck.run(ctx);
@@ -172,9 +174,7 @@ describe("Built-in checks", () => {
     const ctx: DoctorContext = {
       ...baseCtx,
       config: {
-        capabilities: [
-          { actions: [{ name: "create_order" }] },
-        ],
+        capabilities: [{ actions: [{ name: "create_order" }] }],
       },
     };
     const result = await actionDefinitionsCheck.run(ctx);
@@ -184,17 +184,13 @@ describe("Built-in checks", () => {
   });
 
   test("database-connection check skips when no database", async () => {
-    const result = await builtinChecks
-      .find((c) => c.name === "database-connection")!
-      .run(baseCtx);
+    const result = await builtinChecks.find((c) => c.name === "database-connection")?.run(baseCtx);
     expect(result.status).toBe("skip");
     expect(result.message).toContain("InMemoryStore");
   });
 
   test("database-migrations check skips when no database", async () => {
-    const result = await builtinChecks
-      .find((c) => c.name === "database-migrations")!
-      .run(baseCtx);
+    const result = await builtinChecks.find((c) => c.name === "database-migrations")?.run(baseCtx);
     expect(result.status).toBe("skip");
   });
 

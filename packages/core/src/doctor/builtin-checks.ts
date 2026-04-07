@@ -259,10 +259,7 @@ export const typescriptCheck: DoctorCheck = {
     }
 
     // Count error lines
-    const errorLines = result.stdout
-      .split("\n")
-      .filter((line) => line.includes("error TS"))
-      .length;
+    const errorLines = result.stdout.split("\n").filter((line) => line.includes("error TS")).length;
 
     return {
       name: "typescript",
@@ -278,10 +275,7 @@ export const biomeLintCheck: DoctorCheck = {
   description: "Run Biome linting",
   category: "quality",
   async run(ctx: DoctorContext): Promise<DoctorCheckResult> {
-    const result = await runCommand(
-      ["bunx", "@biomejs/biome", "check", "."],
-      ctx.projectRoot,
-    );
+    const result = await runCommand(["bunx", "@biomejs/biome", "check", "."], ctx.projectRoot);
     if (result.exitCode === 0) {
       return {
         name: "biome-lint",

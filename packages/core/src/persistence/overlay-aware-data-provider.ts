@@ -56,10 +56,7 @@ export class OverlayAwareDataProvider implements DataProvider {
    * Split incoming data into core fields and overlay fields.
    * Overlay fields go into `_extensions`; everything else stays at root.
    */
-  private splitFields(
-    entityName: string,
-    data: Record<string, unknown>,
-  ): Record<string, unknown> {
+  private splitFields(entityName: string, data: Record<string, unknown>): Record<string, unknown> {
     const overlayFields = this.getOverlayFieldNames(entityName);
     if (overlayFields.size === 0) {
       return data;
@@ -154,10 +151,7 @@ export class OverlayAwareDataProvider implements DataProvider {
     return records.map((r) => this.spreadExtensions(r));
   }
 
-  async create(
-    schema: string,
-    data: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  async create(schema: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
     const splitData = this.splitFields(schema, data);
     const record = await this.inner.create(schema, splitData);
     return this.spreadExtensions(record);

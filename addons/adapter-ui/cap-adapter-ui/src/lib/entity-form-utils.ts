@@ -69,11 +69,17 @@ export function getTransitionActionNames(
   return actionNames;
 }
 
-/** Relationship field types that require subfield selection in GraphQL */
-const RELATION_FIELD_TYPES = new Set(["ref", "has_many", "many_to_many"]);
+/**
+ * Relation field types that require subfield selection in GraphQL.
+ * Note: ref/has_many/many_to_many field types have been removed (Spec 61).
+ * Relations are now declared via defineRelation(). These sets are kept for
+ * backward compatibility with views that may reference relation semantic names.
+ * TODO: Refactor to use RelationRegistry for subfield resolution.
+ */
+const RELATION_FIELD_TYPES = new Set<string>();
 
-/** has_many / many_to_many are only available on query types, not mutation return types */
-const COLLECTION_RELATION_TYPES = new Set(["has_many", "many_to_many"]);
+/** Collection relation types excluded from mutation return types */
+const COLLECTION_RELATION_TYPES = new Set<string>();
 
 /** Extract GraphQL field names from view fields, always including the state field */
 export function getRecordFields(view: ViewDefinition, schema?: EntityDefinition): string[] {
@@ -195,8 +201,8 @@ export function generateFallbackFormView(schema: {
   };
 }
 
-/** Field types excluded from child-record form views (relation back-refs, state, derived) */
-const CHILD_EXCLUDED_TYPES = new Set(["ref", "has_many", "many_to_many", "state", "computed"]);
+/** Field types excluded from child-record form views (state, derived) */
+const CHILD_EXCLUDED_TYPES = new Set(["state", "computed"]);
 
 /**
  * Generate a form view for child records in a has_many dialog.

@@ -90,33 +90,7 @@ export function inferSemanticRelations(input: InferenceInput): SemanticRelation[
       });
     }
 
-    // ── 2. Schema ref / has_many → references / contains ─────
-    for (const schema of cap.entities ?? []) {
-      for (const [fieldName, field] of Object.entries(schema.fields ?? {})) {
-        if (field.type === "ref" && "target" in field && field.target) {
-          add({
-            id: makeId(cap.name, schema.name, "references", undefined, field.target, fieldName),
-            type: "references",
-            from: { capability: cap.name, entity: schema.name },
-            to: { entity: field.target },
-            source: "schema_ref",
-            inferredFrom: `${schema.name}.${fieldName}`,
-          });
-        }
-        if (field.type === "has_many" && "target" in field && field.target) {
-          add({
-            id: makeId(cap.name, schema.name, "contains", undefined, field.target, fieldName),
-            type: "contains",
-            from: { capability: cap.name, entity: schema.name },
-            to: { entity: field.target },
-            source: "schema_has_many",
-            inferredFrom: `${schema.name}.${fieldName}`,
-          });
-        }
-      }
-    }
-
-    // ── 3. Bridge.bridges → bridges + affects ────────────────
+    // ── 2. Bridge.bridges → bridges + affects ────────────────
     if (cap.type === "bridge" && cap.bridges) {
       for (const bridged of cap.bridges) {
         add({

@@ -5,6 +5,7 @@
  * capability definitions without requiring a running server or database.
  */
 
+import { resolveLabel } from "../i18n/label-resolver";
 import type { ActionDefinition } from "../types/action";
 import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { FlowDefinition } from "../types/flow";
@@ -12,7 +13,6 @@ import type { RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition, Transition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
-import { resolveLabel } from "../i18n/label-resolver";
 
 // ── Overview ────────────────────────────────────────────
 

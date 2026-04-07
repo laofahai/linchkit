@@ -5,15 +5,10 @@
  * duplicate field name prevention, and _extensions column presence.
  */
 
-import { describe, expect, test, beforeEach } from "bun:test";
-import { InMemoryOverlayStore } from "../src/persistence/in-memory-overlay-store";
-import type {
-  FieldOverlayDefinition,
-  FieldOverlayRecord,
-  OverlayFieldConfig,
-  OverlayStatus,
-} from "../src/types/overlay";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { buildSystemColumns } from "../src/entity/entity-to-drizzle";
+import { InMemoryOverlayStore } from "../src/persistence/in-memory-overlay-store";
+import type { FieldOverlayDefinition } from "../src/types/overlay";
 
 // ── Type validation helpers ─────────────────────────────────
 
@@ -367,9 +362,9 @@ describe("OverlayStore duplicate prevention", () => {
       status: "active",
     });
 
-    await expect(
-      store.updateOverlay(recordB.id, { fieldName: "field_a" }),
-    ).rejects.toThrow('Overlay field "field_a" already exists on entity "order"');
+    await expect(store.updateOverlay(recordB.id, { fieldName: "field_a" })).rejects.toThrow(
+      'Overlay field "field_a" already exists on entity "order"',
+    );
   });
 });
 

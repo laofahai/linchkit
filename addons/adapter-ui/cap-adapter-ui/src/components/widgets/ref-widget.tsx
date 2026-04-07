@@ -255,7 +255,7 @@ export function RefInput({
         const fieldType = (def as { type?: string }).type;
         if (fieldType === "state" || fieldType === "computed") return false;
         if ((def as { derived?: unknown }).derived) return false;
-        if (fieldType === "has_many" || fieldType === "many_to_many") return false;
+        // Relation fields are now managed via defineRelation(), skip non-input types
         return true;
       })
       .map(([name, def]) => ({

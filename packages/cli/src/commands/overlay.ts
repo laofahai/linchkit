@@ -6,24 +6,20 @@
  *   promote  — Promote an overlay field to a code-defined field
  */
 
-import type {
-  CapabilityDefinition,
-  FieldOverlayRecord,
-  LinchKitConfig,
-} from "@linchkit/core";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { FieldOverlayRecord, LinchKitConfig } from "@linchkit/core";
 import {
-  createDatabase,
   closeDatabase,
+  createDatabase,
   DrizzleOverlayStore,
   generatePromotionPlan,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { loadConfig } from "../utils/load-config";
 
 /** Load config, returning null on failure */
-async function tryLoadConfig(): Promise<LinchKitConfig | null> {
+async function _tryLoadConfig(): Promise<LinchKitConfig | null> {
   try {
     const { config } = await loadConfig();
     return config;
@@ -52,6 +48,7 @@ function fmtDate(d: Date): string {
 
 // ── list subcommand ──────────────────────────────────────────
 
+/** CLI subcommand: list runtime overlay fields, optionally filtered by entity name. */
 export const overlayListCommand = defineCommand({
   meta: {
     name: "list",
@@ -93,11 +90,7 @@ export const overlayListCommand = defineCommand({
       // Table header
       console.log("");
       console.log(
-        padR("Entity", 25) +
-          padR("Field", 20) +
-          padR("Type", 10) +
-          padR("Status", 12) +
-          "Created",
+        `${padR("Entity", 25) + padR("Field", 20) + padR("Type", 10) + padR("Status", 12)}Created`,
       );
       console.log("-".repeat(80));
 
@@ -119,6 +112,7 @@ export const overlayListCommand = defineCommand({
 
 // ── promote subcommand ───────────────────────────────────────
 
+/** CLI subcommand: promote overlay field(s) to code-defined fields with generated migration SQL. */
 export const overlayPromoteCommand = defineCommand({
   meta: {
     name: "promote",
@@ -192,12 +186,32 @@ export const overlayPromoteCommand = defineCommand({
         // Write migration SQL file
         const migFile = join(
           migDir,
-          `promote_${overlay.entityName}_${overlay.fieldName}.sql`,
+          `promote_${sanitizeForFilename(overlay.entityName)}_${sanitizeForFilename(overlay.fieldName)}.sql`,
         );
+
+        if (existsSync(migFile)) {
+          console.warn(`[linch] Migration file already exists: ${migFile}`);
+          console.warn(
+            "[linch] A previous promote may have partially failed. Skipping this field.",
+          );
+          console.warn("[linch] Delete the file manually and re-run if you want to regenerate it.");
+          continue;
+        }
+
         writeFileSync(migFile, plan.migrationSql, "utf-8");
 
-        // Mark as promoted in the database
-        await conn.store.updateOverlay(overlay.id, { status: "promoted" });
+        // Mark as promoted in the database — clean up file on failure
+        try {
+          await conn.store.updateOverlay(overlay.id, { status: "promoted" });
+        } catch (err) {
+          // Remove orphaned migration file so state stays consistent
+          try {
+            unlinkSync(migFile);
+          } catch {
+            // Best-effort cleanup
+          }
+          throw err;
+        }
 
         // Output summary
         console.log("");
@@ -228,6 +242,7 @@ export const overlayPromoteCommand = defineCommand({
 
 // ── Parent command ───────────────────────────────────────────
 
+/** CLI parent command for runtime overlay field management (list, promote). */
 export const overlayCommand = defineCommand({
   meta: {
     name: "overlay",
@@ -241,5 +256,10 @@ export const overlayCommand = defineCommand({
 
 /** Right-pad a string to the given width */
 function padR(s: string, width: number): string {
-  return s.length >= width ? s + " " : s + " ".repeat(width - s.length);
+  return s.length >= width ? `${s} ` : s + " ".repeat(width - s.length);
+}
+
+/** Sanitize a string for safe use in filenames (prevent path traversal). */
+function sanitizeForFilename(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, "_");
 }

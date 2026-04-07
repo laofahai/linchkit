@@ -15,6 +15,7 @@ import { useEntityLabel } from "../../i18n/use-entity-label";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 import { OverlayFieldBadge } from "../overlay-field-badge";
 
+/** Props for a single form field row with label and value cells in a grid layout. */
 export interface FormFieldRowProps {
   node: FormFieldNode;
   fieldDef: FieldDefinition;
@@ -31,6 +32,7 @@ export interface FormFieldRowProps {
   overlayIndicator?: boolean;
 }
 
+/** Renders a single form field row with label alignment and overlay badge support. */
 export function FormFieldRow({
   node,
   fieldDef,
