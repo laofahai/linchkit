@@ -1,12 +1,13 @@
 /**
- * Zod schema re-export for MCP SDK type compatibility.
+ * Zod re-export for MCP SDK compatibility.
  *
- * The MCP SDK's AnySchema type is `z3.ZodTypeAny | z4.$ZodType`.
- * Zod v4 classic wrappers (from `zod/v4`) add properties that create
- * structural type mismatches with `z4.$ZodType` under strict TS checking.
+ * MCP SDK's AnySchema = z3.ZodTypeAny | z4.$ZodType.
+ * zod/v4 classic wrappers don't satisfy z4.$ZodType (SDK issue #796).
+ * zod/v3 compat layer satisfies z3.ZodTypeAny cleanly.
  *
- * We use zod's v3 compat layer since `z3.ZodTypeAny` is the other half
- * of the `AnySchema` union and matches without structural issues.
+ * When using registerTool/registerPrompt with inputSchema/argsSchema,
+ * always annotate callback parameters explicitly to avoid TS2589
+ * from zod v3's deeply recursive type inference.
  */
 
 export { z } from "zod/v3";

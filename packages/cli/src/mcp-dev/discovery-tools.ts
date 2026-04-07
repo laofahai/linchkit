@@ -9,8 +9,8 @@ import type { CollectedDefinitions } from "../commands/startup/collect-capabilit
 import { serializeFields, serializeRelation } from "./helpers";
 import { z } from "./schema";
 
-// Pre-declare schemas to avoid TS2589 "excessively deep" errors
-// from zod v3 recursive type inference inside registerTool generics.
+// Raw shape for registerTool inputSchema. Callback params must be
+// explicitly typed to prevent TS2589 from zod v3 deep type inference.
 const nameInputSchema = { name: z.string().describe("Entity or action name") };
 
 /** Register all discovery tools on the MCP server. */
@@ -37,14 +37,13 @@ export function registerDiscoveryTools(
   );
 
   // linchkit_describe_entity
-  // @ts-expect-error — TS2589: zod v3 + MCP SDK registerTool causes deep type recursion
   server.registerTool(
     "linchkit_describe_entity",
     {
       description: "Get full entity definition including fields, types, validations, and relations",
       inputSchema: nameInputSchema,
     },
-    async ({ name }) => {
+    async ({ name }: { name: string }) => {
       const entity = defs.entities.find((e) => e.name === name);
       if (!entity) {
         return {
@@ -101,7 +100,7 @@ export function registerDiscoveryTools(
       description: "Get full action definition including input fields and validations",
       inputSchema: nameInputSchema,
     },
-    async ({ name }) => {
+    async ({ name }: { name: string }) => {
       const action = defs.actions.find((a) => a.name === name);
       if (!action) {
         return {

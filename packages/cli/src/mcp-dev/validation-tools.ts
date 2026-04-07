@@ -7,12 +7,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
 import { z } from "./schema";
 
-// Pre-declare schemas to avoid TS2589 "excessively deep" errors
-// from zod v3 recursive type inference inside registerTool generics.
-const definitionInputSchema = {
-  definition: z.string().describe("JSON string of the definition to validate"),
-};
-
 // Valid field types for validation
 const VALID_FIELD_TYPES: readonly string[] = [
   "string",
@@ -27,10 +21,13 @@ const VALID_FIELD_TYPES: readonly string[] = [
   "computed",
 ] satisfies FieldType[];
 
+const definitionInputSchema = {
+  definition: z.string().describe("JSON string of the definition to validate"),
+};
+
 /** Register all validation tools on the MCP server. */
 export function registerValidationTools(server: McpServer, defs: CollectedDefinitions): void {
   // linchkit_validate_entity
-  // @ts-expect-error — TS2589: zod v3 + MCP SDK registerTool causes deep type recursion
   server.registerTool(
     "linchkit_validate_entity",
     {
@@ -38,7 +35,8 @@ export function registerValidationTools(server: McpServer, defs: CollectedDefini
         "Validate a proposed EntityDefinition JSON. Checks field types, naming conventions, and references.",
       inputSchema: definitionInputSchema,
     },
-    async ({ definition }) => {
+    // @ts-expect-error — TS2589: MCP SDK #985 registerTool deep type recursion, fix planned in SDK v2
+    async ({ definition }: { definition: string }) => {
       const errors: string[] = [];
       const warnings: string[] = [];
 
@@ -118,7 +116,7 @@ export function registerValidationTools(server: McpServer, defs: CollectedDefini
         "Validate a proposed ActionDefinition JSON. Checks naming, entity reference, and input fields.",
       inputSchema: definitionInputSchema,
     },
-    async ({ definition }) => {
+    async ({ definition }: { definition: string }) => {
       const errors: string[] = [];
       const warnings: string[] = [];
 

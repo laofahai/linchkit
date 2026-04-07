@@ -7,8 +7,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
 import { z } from "./schema";
 
-// Pre-declare schemas to avoid TS2589 "excessively deep" errors
-// from zod v3 recursive type inference inside registerPrompt generics.
+// Raw shapes for registerPrompt argsSchema. Callback params must be
+// explicitly typed to prevent TS2589 from zod v3 deep type inference.
 const nameSchema = { name: z.string().describe("Name parameter") };
 const entitySchema = { entity: z.string().describe("Target entity name") };
 const fromToSchema = {
@@ -29,7 +29,7 @@ export function registerPrompts(
       description: "Step-by-step workflow for developing a new LinchKit capability",
       argsSchema: nameSchema,
     },
-    async ({ name }) => ({
+    async ({ name }: { name: string }) => ({
       messages: [
         {
           role: "user" as const,
@@ -73,7 +73,7 @@ Naming conventions:
       description: "Guidance and reference for defining a LinchKit entity",
       argsSchema: nameSchema,
     },
-    async ({ name }) => ({
+    async ({ name }: { name: string }) => ({
       messages: [
         {
           role: "user" as const,
@@ -141,7 +141,7 @@ export const ${name} = defineEntity({
       description: "Guidance and reference for defining a LinchKit action",
       argsSchema: entitySchema,
     },
-    async ({ entity: entityName }) => {
+    async ({ entity: entityName }: { entity: string }) => {
       const entity = defs.entities.find((e) => e.name === entityName);
       const entityFields = entity ? Object.keys(entity.fields).join(", ") : "(entity not found)";
       const entityActions = defs.actions.filter((a) => a.entity === entityName);
@@ -212,7 +212,7 @@ Actions are the sole write entry point — all mutations flow through Actions.`,
       description: "Guidance and reference for defining a LinchKit relation between entities",
       argsSchema: fromToSchema,
     },
-    async ({ from, to }) => ({
+    async ({ from, to }: { from: string; to: string }) => ({
       messages: [
         {
           role: "user" as const,
