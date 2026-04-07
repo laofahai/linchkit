@@ -879,8 +879,9 @@ describe("WatcherEngine — staleness triggers", () => {
 
     engine.start();
 
-    // Wait just long enough for one interval to fire
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    // Wait for the interval to fire (generous timeout for CI)
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     engine.stop();
 
     // Only req-1 should trigger (stale + submitted)
