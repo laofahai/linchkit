@@ -444,7 +444,9 @@ export function AutoForm({
 
     // Move overlay field values into _extensions and remove from top-level
     if (overlayFields && overlayFields.length > 0) {
-      const extensions: Record<string, unknown> = {};
+      const extensions: Record<string, unknown> = {
+        ...((data?._extensions as Record<string, unknown>) ?? {}),
+      };
       for (const overlay of overlayFields) {
         const key = overlayFieldKey(overlay.fieldName);
         if (key in submitData) {
@@ -948,7 +950,7 @@ function buildOverlayFieldDefs(
 function resolveOverlayLabel(overlay: FieldOverlayRecord): string {
   if (!overlay.config.label) return overlay.fieldName;
   // Try browser language first, then English fallback
-  const lang = typeof navigator !== "undefined" ? navigator.language.replace("-", "-") : "en";
+  const lang = typeof navigator !== "undefined" ? navigator.language : "en";
   return (
     overlay.config.label[lang] ??
     overlay.config.label.en ??

@@ -193,7 +193,7 @@ export const overlayPromoteCommand = defineCommand({
         // Write migration SQL file
         const migFile = join(
           migDir,
-          `promote_${overlay.entityName}_${overlay.fieldName}.sql`,
+          `promote_${sanitizeForFilename(overlay.entityName)}_${sanitizeForFilename(overlay.fieldName)}.sql`,
         );
         writeFileSync(migFile, plan.migrationSql, "utf-8");
 
@@ -244,4 +244,9 @@ export const overlayCommand = defineCommand({
 /** Right-pad a string to the given width */
 function padR(s: string, width: number): string {
   return s.length >= width ? `${s} ` : s + " ".repeat(width - s.length);
+}
+
+/** Sanitize a string for safe use in filenames (prevent path traversal). */
+function sanitizeForFilename(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
