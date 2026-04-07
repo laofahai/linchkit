@@ -79,6 +79,8 @@ const orderDeptRelation: RelationDefinition = {
   from: "purchase_order",
   to: "department",
   cardinality: "many_to_one",
+  fromName: "department",
+  toName: "purchase_orders",
   label: { from: "Department", to: "Purchase Orders" },
   required: true,
   cascade: "nullify",
@@ -287,6 +289,8 @@ describe("describeRelation", () => {
       from: "a",
       to: "b",
       cardinality: "one_to_many",
+      fromName: "bs",
+      toName: "a",
     });
     expect(desc.cascade).toBe("none");
     expect(desc.required).toBe(false);
@@ -299,6 +303,8 @@ describe("describeRelation", () => {
       from: "purchase_order",
       to: "tag",
       cardinality: "many_to_many",
+      fromName: "tags",
+      toName: "purchase_orders",
       properties: {
         weight: { type: "number", min: 0, max: 100 },
       },

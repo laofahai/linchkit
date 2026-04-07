@@ -250,6 +250,8 @@ describe("DerivedPropertyEngine — aggregate store fields", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     });
 
@@ -340,6 +342,8 @@ describe("DerivedPropertyEngine — cascade recalculation", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     });
 
@@ -511,6 +515,8 @@ describe("DerivedPropertyEngine — chained fields with aggregates", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     });
 
@@ -584,6 +590,8 @@ describe("DerivedPropertyEngine — aggregate with compute strategy", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     });
 
@@ -808,6 +816,8 @@ describe("DerivedPropertyEngine — cascade updates dependent expression fields"
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     });
 

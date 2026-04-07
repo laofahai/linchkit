@@ -238,7 +238,7 @@ describe("GraphQL data masking", () => {
   });
 });
 
-// ── Link traversal masking tests ────────────────────────────
+// ── Relation traversal masking tests ────────────────────────
 
 const departmentSchema: EntityDefinition = {
   name: "department",
@@ -249,9 +249,9 @@ const departmentSchema: EntityDefinition = {
   },
 };
 
-const linkedEmployeeSchema: EntityDefinition = {
-  name: "linked_employee",
-  label: "Linked Employee",
+const testEmployeeSchema: EntityDefinition = {
+  name: "test_employee",
+  label: "Test Employee",
   fields: {
     name: { type: "string", required: true, label: "Name" },
     email: { type: "string", required: true, label: "Email", sensitive: true },
@@ -260,66 +260,72 @@ const linkedEmployeeSchema: EntityDefinition = {
   },
 };
 
-const deptEmployeeLink: RelationDefinition = {
+const deptEmployeeRelation: RelationDefinition = {
   name: "dept_employee",
   from: "department",
-  to: "linked_employee",
+  to: "test_employee",
   cardinality: "one_to_many",
+  fromName: "employees",
+  toName: "department",
   label: {
     from: "Employees",
     to: "Department",
   },
 };
 
-// Build linked schema
-const linkStore = new InMemoryStore();
-const linkExecutor = createActionExecutor({ dataProvider: linkStore });
+// Build relation test schema
+const relationStore = new InMemoryStore();
+const relationExecutor = createActionExecutor({ dataProvider: relationStore });
 
 for (const action of generateCrudActions(departmentSchema)) {
-  linkExecutor.registry.register(action);
+  relationExecutor.registry.register(action);
 }
-for (const action of generateCrudActions(linkedEmployeeSchema)) {
-  linkExecutor.registry.register(action);
+for (const action of generateCrudActions(testEmployeeSchema)) {
+  relationExecutor.registry.register(action);
 }
 
-const linkSchemaMap = new Map<string, EntityDefinition>();
-linkSchemaMap.set("department", departmentSchema);
-linkSchemaMap.set("linked_employee", linkedEmployeeSchema);
+const relationSchemaMap = new Map<string, EntityDefinition>();
+relationSchemaMap.set("department", departmentSchema);
+relationSchemaMap.set("test_employee", testEmployeeSchema);
 
-const linkGqlSchema = buildGraphQLSchema([departmentSchema, linkedEmployeeSchema], {
-  executor: linkExecutor,
-  dataProvider: linkStore,
+const relationGqlSchema = buildGraphQLSchema([departmentSchema, testEmployeeSchema], {
+  executor: relationExecutor,
+  dataProvider: relationStore,
   permissionGroups,
-  relations: [deptEmployeeLink],
+  relations: [deptEmployeeRelation],
 });
 
-async function executeLinkGql(query: string, actor: Actor, variables?: Record<string, unknown>) {
+async function executeRelationGql(
+  query: string,
+  actor: Actor,
+  variables?: Record<string, unknown>,
+) {
   const ctx: GraphQLContext = {
     actor,
     permissionGroups,
-    dataProvider: linkStore,
-    entityMap: linkSchemaMap,
+    dataProvider: relationStore,
+    entityMap: relationSchemaMap,
   };
   return graphql({
-    schema: linkGqlSchema,
+    schema: relationGqlSchema,
     source: query,
     contextValue: ctx,
     variableValues: variables,
   });
 }
 
-describe("GraphQL link traversal masking", () => {
-  const deptId = "dept-link-1";
-  const empId1 = "emp-link-1";
-  const empId2 = "emp-link-2";
+describe("GraphQL relation traversal masking", () => {
+  const deptId = "dept-rel-1";
+  const empId1 = "emp-rel-1";
+  const empId2 = "emp-rel-2";
 
   test("setup: create test records", async () => {
-    await linkStore.create("department", {
+    await relationStore.create("department", {
       id: deptId,
       name: "Engineering",
       location: "Building A",
     });
-    await linkStore.create("linked_employee", {
+    await relationStore.create("test_employee", {
       id: empId1,
       name: "Bob Smith",
       email: "bob@secret.com",
@@ -327,7 +333,7 @@ describe("GraphQL link traversal masking", () => {
       salary: 120000,
       department_id: deptId,
     });
-    await linkStore.create("linked_employee", {
+    await relationStore.create("test_employee", {
       id: empId2,
       name: "Carol Jones",
       email: "carol@secret.com",
@@ -337,9 +343,9 @@ describe("GraphQL link traversal masking", () => {
     });
   });
 
-  test("anonymous: sensitive fields masked when traversing one_to_many link", async () => {
-    const result = await executeLinkGql(
-      `{ department(id: "${deptId}") { id name linked_employees { id name email ssn salary } } }`,
+  test("anonymous: sensitive fields masked when traversing one_to_many relation", async () => {
+    const result = await executeRelationGql(
+      `{ department(id: "${deptId}") { id name employees { id name email ssn salary } } }`,
       anonymousActor,
     );
 
@@ -348,7 +354,7 @@ describe("GraphQL link traversal masking", () => {
     expect(dept).not.toBeNull();
     expect(dept.name).toBe("Engineering");
 
-    const employees = dept.linked_employees as Record<string, unknown>[];
+    const employees = dept.employees as Record<string, unknown>[];
     expect(employees).toHaveLength(2);
 
     for (const emp of employees) {
@@ -367,14 +373,14 @@ describe("GraphQL link traversal masking", () => {
     }
   });
 
-  test("anonymous: sensitive fields masked when traversing many_to_one (reverse) link", async () => {
-    const result = await executeLinkGql(
-      `{ linkedEmployee(id: "${empId1}") { id name department { id name location } } }`,
+  test("anonymous: sensitive fields masked when traversing many_to_one (reverse) relation", async () => {
+    const result = await executeRelationGql(
+      `{ testEmployee(id: "${empId1}") { id name department { id name location } } }`,
       anonymousActor,
     );
 
     expect(result.errors).toBeUndefined();
-    const emp = result.data?.linkedEmployee as Record<string, unknown>;
+    const emp = result.data?.testEmployee as Record<string, unknown>;
     expect(emp).not.toBeNull();
 
     // Department fields are all non-sensitive, should be visible
@@ -384,15 +390,15 @@ describe("GraphQL link traversal masking", () => {
     expect(dept.location).toBe("Building A");
   });
 
-  test("system_admin: sees unmasked data through link traversal", async () => {
-    const result = await executeLinkGql(
-      `{ department(id: "${deptId}") { id name linked_employees { id name email ssn salary } } }`,
+  test("system_admin: sees unmasked data through relation traversal", async () => {
+    const result = await executeRelationGql(
+      `{ department(id: "${deptId}") { id name employees { id name email ssn salary } } }`,
       adminActor,
     );
 
     expect(result.errors).toBeUndefined();
     const dept = result.data?.department as Record<string, unknown>;
-    const employees = dept.linked_employees as Record<string, unknown>[];
+    const employees = dept.employees as Record<string, unknown>[];
     expect(employees).toHaveLength(2);
 
     const bob = employees.find((e) => e.name === "Bob Smith") as Record<string, unknown>;

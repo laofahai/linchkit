@@ -209,12 +209,12 @@ describe("generateRelationColumns", () => {
       cardinality: "many_to_many",
     };
 
-    test("creates a junction table named _link_{name}", () => {
+    test("creates a junction table named _rel_{name}", () => {
       const result = generateRelationColumns([relation], tables);
 
       expect(result.junctionTables).toHaveLength(1);
       const jt = result.junctionTables[0];
-      expect(getTableName(jt)).toBe("_link_employee_project");
+      expect(getTableName(jt)).toBe("_rel_employee_project");
     });
 
     test("junction table has composite PK on both FK columns", () => {
@@ -405,7 +405,7 @@ describe("generateRelationColumns", () => {
       });
 
       expect(result.junctionTables).toHaveLength(1);
-      expect(getTableName(result.junctionTables[0])).toBe("app__link_emp_proj");
+      expect(getTableName(result.junctionTables[0])).toBe("app__rel_emp_proj");
     });
   });
 

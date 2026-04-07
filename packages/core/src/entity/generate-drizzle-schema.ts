@@ -166,7 +166,7 @@ export function generateDrizzleSchemaFile(
       for (const col of config.columns) {
         // Check if this column has a FK reference
         const link = links.find(
-          (l) => l.cardinality === "many_to_many" && config.name.endsWith(`_link_${l.name}`),
+          (l) => l.cardinality === "many_to_many" && config.name.endsWith(`_rel_${l.name}`),
         );
         if (link) {
           // Serialize onDelete cascade behavior for junction FK columns

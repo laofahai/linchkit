@@ -151,7 +151,7 @@ describe("M:N link with properties (edge types)", () => {
     await store.create("product", { id: "prod_2", name: "Widget B", sku: "WB-002", price: 50 });
 
     // Seed junction table rows with properties
-    await store.create("_link_order_to_products", {
+    await store.create("_rel_order_to_products", {
       id: "jn_1",
       sales_order_id: "so_1",
       product_id: "prod_1",
@@ -160,7 +160,7 @@ describe("M:N link with properties (edge types)", () => {
       discount: 5,
       note: "Bulk order",
     });
-    await store.create("_link_order_to_products", {
+    await store.create("_rel_order_to_products", {
       id: "jn_2",
       sales_order_id: "so_1",
       product_id: "prod_2",
@@ -225,7 +225,7 @@ describe("M:N link with properties (edge types)", () => {
     await store.create("sales_order", { id: "so_2", title: "Order #2", total: 100 });
     await store.create("product", { id: "prod_3", name: "Gadget X", sku: "GX-001", price: 100 });
 
-    await store.create("_link_order_to_products", {
+    await store.create("_rel_order_to_products", {
       id: "jn_3",
       sales_order_id: "so_2",
       product_id: "prod_3",
@@ -301,12 +301,12 @@ describe("M:N link without properties (plain arrays)", () => {
     await store.create("tag", { id: "tag_2", label: "GraphQL" });
 
     // Seed junction table (no extra properties)
-    await store.create("_link_article_to_tags", {
+    await store.create("_rel_article_to_tags", {
       id: "jn_t1",
       article_id: "art_1",
       tag_id: "tag_1",
     });
-    await store.create("_link_article_to_tags", {
+    await store.create("_rel_article_to_tags", {
       id: "jn_t2",
       article_id: "art_1",
       tag_id: "tag_2",
@@ -341,7 +341,7 @@ describe("M:N link without properties (plain arrays)", () => {
     await store.create("article", { id: "art_2", title: "Article Two" });
     await store.create("tag", { id: "tag_3", label: "Bun" });
 
-    await store.create("_link_article_to_tags", {
+    await store.create("_rel_article_to_tags", {
       id: "jn_t3",
       article_id: "art_2",
       tag_id: "tag_3",
@@ -376,7 +376,7 @@ describe("Edge type field typing", () => {
     await store.create("sales_order", { id: "so_typed", title: "Typed Order", total: 0 });
     await store.create("product", { id: "prod_typed", name: "Item", sku: "I-1", price: 10 });
 
-    await store.create("_link_order_to_products", {
+    await store.create("_rel_order_to_products", {
       id: "jn_typed",
       sales_order_id: "so_typed",
       product_id: "prod_typed",
@@ -415,7 +415,7 @@ describe("Edge type field typing", () => {
     await store.create("sales_order", { id: "so_orphan", title: "Orphan Order", total: 0 });
 
     // Junction row points to a product that doesn't exist
-    await store.create("_link_order_to_products", {
+    await store.create("_rel_order_to_products", {
       id: "jn_orphan",
       sales_order_id: "so_orphan",
       product_id: "nonexistent_product",

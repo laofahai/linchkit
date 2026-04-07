@@ -167,7 +167,7 @@ ALTER TABLE purchase_item ADD COLUMN purchase_request_id TEXT REFERENCES purchas
 
 ```sql
 -- defineRelation({ from: 'sales_order', to: 'product', cardinality: 'many_to_many', properties: {...} })
-CREATE TABLE _link_order_to_products (
+CREATE TABLE _rel_order_to_products (
   sales_order_id TEXT REFERENCES sales_order(id),
   product_id TEXT REFERENCES product(id),
   quantity INTEGER NOT NULL,
@@ -177,7 +177,7 @@ CREATE TABLE _link_order_to_products (
 );
 ```
 
-中间表命名规则：`_link_{link_name}`。
+中间表命名规则：`_rel_{relation_name}`。
 
 ### 6.4 与 Drizzle Schema 生成集成
 

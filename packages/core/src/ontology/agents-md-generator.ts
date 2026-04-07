@@ -256,5 +256,8 @@ function renderConventions(): string {
     "- **Commit messages:** Conventional Commits",
     "- **Function signatures:** Use `{}` options object when > 3 parameters",
     "- **System fields** (auto-managed, never set by client): `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`",
+    "- **Design patterns:** Apply good design patterns and algorithms, but do not over-engineer",
+    "- **File size limit:** Files must not exceed 500 lines — split when approaching the limit",
+    "- **API verification:** Verify third-party API usage with context7 before calling — training data may be stale",
   ].join("\n");
 }

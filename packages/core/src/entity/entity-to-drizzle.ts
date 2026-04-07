@@ -187,7 +187,7 @@ export interface RelationColumnsResult {
  *
  * - many_to_one / one_to_one: adds `{fromName}_id` FK column on the `from` table
  * - one_to_many: adds `{toName}_id` FK column on the `to` table
- * - many_to_many: creates a `_link_{name}` junction table with composite PK
+ * - many_to_many: creates a `_rel_{name}` junction table with composite PK
  *
  * @param links - All registered link definitions
  * @param tableMap - Map of schema name → generated pgTable (needed for `.references()`)
@@ -279,8 +279,8 @@ export function generateRelationColumns(
       }
 
       case "many_to_many": {
-        // Junction table: {prefix}_link_{name} (avoid double underscore when prefix is empty)
-        const junctionName = prefix ? `${prefix}_link_${link.name}` : `_link_${link.name}`;
+        // Junction table: {prefix}_rel_{name} (avoid double underscore when prefix is empty)
+        const junctionName = prefix ? `${prefix}_rel_${link.name}` : `_rel_${link.name}`;
         const fromTable = tableMap[link.from];
         const toTable = tableMap[link.to];
         if (!fromTable || !toTable) break;
