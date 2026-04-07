@@ -27,6 +27,7 @@ import { doctorCommand } from "./commands/doctor";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
+import { setupCommand } from "./commands/setup";
 import { mcpDevCommand } from "./commands/mcp-dev";
 import { overlayCommand } from "./commands/overlay";
 import { publishCommand } from "./commands/publish";
@@ -61,6 +62,7 @@ const RESERVED_NAMESPACES = new Set([
   "mcp-dev",
   "overlay",
   "registry",
+  "setup",
 ]);
 
 /**
@@ -176,6 +178,7 @@ function buildCommandsManifest(
     "mcp-dev": "Start a development-time MCP server for AI coding tools",
     overlay: "Manage runtime overlay fields (list, promote)",
     registry: "Capability registry management (sync, list)",
+    setup: "Sync AI tool configurations (skills, MCP config) for the current project",
   };
 
   for (const name of builtinNames) {
@@ -226,6 +229,7 @@ async function run() {
     "mcp-dev": mcpDevCommand,
     overlay: overlayCommand,
     registry: registryCommand,
+    setup: setupCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

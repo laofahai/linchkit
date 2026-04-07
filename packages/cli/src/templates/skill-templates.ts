@@ -4,6 +4,9 @@
 
 /** A single skill file definition */
 export interface SkillDefinition {
+  /** Used as directory name for Claude Code (.claude/skills/<slug>/SKILL.md) */
+  slug: string;
+  /** Used as filename for Cursor/Trae rules (<slug>.md) */
   filename: string;
   content: string;
 }
@@ -12,46 +15,57 @@ export interface SkillDefinition {
 export function linchkitSkills(): SkillDefinition[] {
   return [
     {
+      slug: "linch-capability-dev",
       filename: "capability-dev.md",
       content: capabilityDevSkillContent(),
     },
     {
+      slug: "linch-entity-design",
       filename: "entity-design.md",
       content: entityDesignSkillContent(),
     },
     {
+      slug: "linch-action-design",
       filename: "action-design.md",
       content: actionDesignSkillContent(),
     },
     {
+      slug: "linch-rule-design",
       filename: "rule-design.md",
       content: ruleDesignSkillContent(),
     },
     {
+      slug: "linch-state-design",
       filename: "state-design.md",
       content: stateDesignSkillContent(),
     },
     {
+      slug: "linch-view-design",
       filename: "view-design.md",
       content: viewDesignSkillContent(),
     },
     {
+      slug: "linch-relation-design",
       filename: "relation-design.md",
       content: relationDesignSkillContent(),
     },
     {
+      slug: "linch-quality-gates",
       filename: "quality-gates.md",
       content: qualityGatesSkillContent(),
     },
     {
+      slug: "linch-overlay-management",
       filename: "overlay-management.md",
       content: overlayManagementSkillContent(),
     },
     {
+      slug: "linch-architecture",
       filename: "architecture.md",
       content: architectureSkillContent(),
     },
     {
+      slug: "linch-bootstrap",
       filename: "bootstrap.md",
       content: bootstrapSkillContent(),
     },
