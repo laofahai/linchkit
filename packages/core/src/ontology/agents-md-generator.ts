@@ -259,5 +259,6 @@ function renderConventions(): string {
     "- **Design patterns:** Apply good design patterns and algorithms, but do not over-engineer",
     "- **File size limit:** Files must not exceed 500 lines — split when approaching the limit",
     "- **API verification:** Verify third-party API usage with context7 before calling — training data may be stale",
+    "- **PR merge gate:** All CodeRabbit and Gemini review comments must be replied to and resolved before merging",
   ].join("\n");
 }
