@@ -128,6 +128,7 @@ describe.skipIf(!dbAvailable)("GraphQL + DrizzleDataProvider (integration)", () 
         "updated_by" text,
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp with time zone,
+        "_extensions" jsonb,
         "title" text NOT NULL,
         "amount" numeric,
         "status" text
@@ -710,6 +711,7 @@ describe.skipIf(!dbAvailable)("GraphQL Relation resolvers (integration)", () => 
         "updated_by" text,
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp with time zone,
+        "_extensions" jsonb,
         "name" text NOT NULL
       )
     `),
@@ -727,6 +729,7 @@ describe.skipIf(!dbAvailable)("GraphQL Relation resolvers (integration)", () => 
         "updated_by" text,
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp with time zone,
+        "_extensions" jsonb,
         "title" text NOT NULL,
         "amount" numeric,
         "department_id" text REFERENCES "link_dept"("id")

@@ -29,7 +29,7 @@
     "@linchkit/cap-migration": "workspace:*",
     "@linchkit/core": "workspace:*",
     "@linchkit/devtools": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "citty": "^0.2.1"
   },
   "devDependencies": {

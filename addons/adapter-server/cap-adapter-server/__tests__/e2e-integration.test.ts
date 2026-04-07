@@ -116,6 +116,7 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
         "updated_by" text,
         "_version" integer DEFAULT 1 NOT NULL,
         "deleted_at" timestamp with time zone,
+        "_extensions" jsonb,
         "title" text NOT NULL,
         "amount" numeric,
         "status" text
