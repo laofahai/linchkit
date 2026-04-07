@@ -123,6 +123,8 @@ export interface AIServiceConfig {
   tenants?: Record<string, AITenantConfig>;
   /** AI Assistant configuration for the chat UI */
   assistant?: AIAssistantConfig;
+  /** Path to user-maintained AI instructions file (default: './AGENTS.user.md') */
+  userInstructions?: string;
 }
 
 /** Configuration for the AI chat assistant */

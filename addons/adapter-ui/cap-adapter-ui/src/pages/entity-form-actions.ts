@@ -65,7 +65,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  /** Prepare mutation input by stripping non-input fields and converting ref values to FK columns. */
+  /** Prepare mutation input by stripping non-input fields. FK fields (string type) are passed through directly. */
   function prepareMutationInput(data: Record<string, unknown>): Record<string, unknown> {
     if (!schema) return data;
     const input: Record<string, unknown> = {};
@@ -74,37 +74,19 @@ export function useFormActions(opts: UseFormActionsOptions) {
       if (!fieldDef) continue;
       // Skip derived fields — they are computed, not user input
       if (fieldDef.derived) continue;
-      // Convert ref field values to FK column format (e.g., department -> department_id)
-      if (fieldDef.type === "ref") {
-        const target = (fieldDef as { target?: string }).target;
-        if (target) {
-          // Check bundle.relations for actual FK column name, fall back to convention
-          const link = bundle?.relations?.find(
-            (l) =>
-              (l.from === entityName &&
-                l.to === target &&
-                (l.cardinality === "many_to_one" || l.cardinality === "one_to_one")) ||
-              (l.to === entityName && l.from === target && l.cardinality === "one_to_many"),
-          );
-          const fkKey = link
-            ? link.from === entityName
-              ? `${link.to}_id`
-              : `${link.from}_id`
-            : `${target}_id`;
-          // Extract ID from expanded object or use raw value
-          const refValue =
-            typeof value === "object" && value !== null && "id" in value
-              ? (value as { id: string }).id
-              : value;
-          // Only send if the value is not empty
-          if (refValue != null && refValue !== "") {
-            input[fkKey] = refValue;
-          }
+      // Extract ID from expanded object for FK string fields (e.g. department_id)
+      if (
+        fieldDef.type === "string" &&
+        typeof value === "object" &&
+        value !== null &&
+        "id" in value
+      ) {
+        const refValue = (value as { id: string }).id;
+        if (refValue != null && refValue !== "") {
+          input[key] = refValue;
         }
         continue;
       }
-      // Skip has_many and many_to_many — they are managed via junction tables, not direct input
-      if (fieldDef.type === "has_many" || fieldDef.type === "many_to_many") continue;
       input[key] = value;
     }
     return input;
@@ -120,9 +102,12 @@ export function useFormActions(opts: UseFormActionsOptions) {
         if (enriched?.virtualRefs) {
           for (const [fieldName, virtualRecord] of Object.entries(enriched.virtualRefs)) {
             const fieldDef = schema?.fields[fieldName];
-            if (!fieldDef || fieldDef.type !== "ref") continue;
-            const targetSchema = (fieldDef as { target?: string }).target;
-            if (!targetSchema) continue;
+            if (!fieldDef || fieldDef.type !== "string") continue;
+            // Resolve target entity from relations
+            const relation = bundle?.relations?.find(
+              (l) => l.from === entityName && l.fromName === fieldName.replace(/_id$/, ""),
+            );
+            if (!relation) continue;
 
             // Build input from virtual record, stripping internal fields
             const refInput: Record<string, unknown> = {};
@@ -131,7 +116,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
               refInput[key] = val;
             }
 
-            const created = await createRecord<{ id: string }>(targetSchema, refInput, ["id"]);
+            const created = await createRecord<{ id: string }>(relation.to, refInput, ["id"]);
             virtualRefIdMap.set(virtualRecord._tempId, created.id);
           }
         }
@@ -161,22 +146,17 @@ export function useFormActions(opts: UseFormActionsOptions) {
           await updateRecord(entityName, parentRecordId, mutationInput, mutationReturnFields);
         }
 
-        // Step 4: Process child commands (has_many inline records)
+        // Step 4: Process child commands (one_to_many inline records via relations)
         if (enriched?.childCommands && parentRecordId) {
           for (const [fieldName, commands] of Object.entries(enriched.childCommands)) {
-            const fieldDef = schema?.fields[fieldName];
-            if (!fieldDef || fieldDef.type !== "has_many") continue;
-            const targetSchema = (fieldDef as { target?: string }).target;
-            if (!targetSchema) continue;
-
-            // Find the FK column name from relations
-            const _link = bundle?.relations?.find(
+            // Resolve target entity from relation by semantic name
+            const relation = bundle?.relations?.find(
               (l) =>
-                (l.cardinality === "one_to_many" &&
-                  l.from === entityName &&
-                  l.to === targetSchema) ||
-                (l.cardinality === "many_to_one" && l.to === entityName && l.from === targetSchema),
+                (l.cardinality === "one_to_many" && l.from === entityName && l.fromName === fieldName) ||
+                (l.cardinality === "many_to_one" && l.to === entityName && l.toName === fieldName),
             );
+            if (!relation) continue;
+            const targetSchema = relation.from === entityName ? relation.to : relation.from;
             const fkColumn = `${entityName}_id`;
 
             for (const cmd of commands) {

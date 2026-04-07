@@ -33,9 +33,6 @@ const VALID_FIELD_TYPES: readonly string[] = [
   "json",
   "state",
   "computed",
-  "ref",
-  "has_many",
-  "many_to_many",
 ] satisfies FieldType[];
 
 // ── Types ───────────────────────────────────────────────────────
@@ -67,6 +64,7 @@ export function createMcpDevServer(options: McpDevServerOptions): McpServer {
       capabilities: {
         tools: {},
         resources: {},
+        prompts: {},
       },
     },
   );
@@ -75,6 +73,7 @@ export function createMcpDevServer(options: McpDevServerOptions): McpServer {
   registerValidationTools(server, definitions);
   registerUtilityTools(server, definitions, capabilities, projectRoot);
   registerResources(server, definitions);
+  registerPrompts(server, definitions, capabilities);
 
   return server;
 }
@@ -272,13 +271,6 @@ function registerValidationTools(server: McpServer, defs: CollectedDefinitions):
             const enumField = field as { options?: unknown[] };
             if (!enumField.options || enumField.options.length === 0) {
               errors.push(`Enum field '${fieldName}' must have options[]`);
-            }
-          }
-          // Check ref has target
-          if (field.type === "ref") {
-            const refField = field as { target?: string };
-            if (!refField.target) {
-              errors.push(`Ref field '${fieldName}' must have a 'target' property pointing to target entity`);
             }
           }
         }
@@ -544,6 +536,305 @@ function registerResources(server: McpServer, defs: CollectedDefinitions): void 
   }
 }
 
+// ── Prompts ────────────────────────────────────────────────────
+
+function registerPrompts(
+  server: McpServer,
+  defs: CollectedDefinitions,
+  capabilities: CapabilityDefinition[],
+): void {
+  // linchkit_develop_capability — step-by-step capability development workflow
+  server.prompt(
+    "linchkit_develop_capability",
+    "Step-by-step workflow for developing a new LinchKit capability",
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK type mismatch
+    { name: z.string().describe("Capability name to develop") } as any,
+    async (args: { name: string }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `You are developing a new LinchKit capability called "${args.name}".
+
+Follow this step-by-step workflow:
+
+1. **Define Entities** — Use defineEntity() to declare data structures with fields, labels, and validations.
+2. **Define Actions** — Use defineAction() for all write operations. Follow verb_noun naming (e.g. create_${args.name}, update_${args.name}).
+3. **Define Rules** — Use defineRule() for declarative conditions and effects triggered by actions/events.
+4. **Define States** — Use defineState() for finite state machines on entity instances.
+5. **Define Views** — Use defineView() for UI rendering config (list, form, kanban).
+6. **Define Relations** — Use defineRelation() for relationships between entities.
+7. **Register Capability** — Use defineCapability() to bundle everything and register extensions.
+8. **Test** — Write tests using bun:test to verify all definitions and behavior.
+
+Existing entities in the project: ${defs.entities.map((e) => e.name).join(", ") || "(none)"}
+Existing actions in the project: ${defs.actions.map((a) => a.name).join(", ") || "(none)"}
+
+Use the following validation tools to check your definitions:
+- linchkit_validate_entity — validates EntityDefinition JSON
+- linchkit_validate_action — validates ActionDefinition JSON
+
+Naming conventions:
+- Entity names: snake_case (e.g. purchase_order)
+- Action names: verb_noun (e.g. submit_request, approve_order)
+- Field names: snake_case (e.g. total_amount)
+- Comments and docs: English`,
+          },
+        },
+      ],
+    }),
+  );
+
+  // linchkit_define_entity — guidance for defining an entity
+  server.prompt(
+    "linchkit_define_entity",
+    "Guidance and reference for defining a LinchKit entity",
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK type mismatch
+    { name: z.string().describe("Entity name to define") } as any,
+    async (args: { name: string }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `You are defining a LinchKit entity called "${args.name}".
+
+## Field Types and Options
+
+| Type | Description | Key Options |
+|------|-------------|-------------|
+| string | Short text | min, max, pattern, format |
+| text | Long text | min, max |
+| number | Numeric value | min, max |
+| boolean | True/false | default |
+| date | Date only | min, max |
+| datetime | Date and time | min, max |
+| enum | Fixed set of values | options (required) |
+| ref | Reference to another entity | entity, required |
+| has_many | One-to-many relation | entity |
+| many_to_many | Many-to-many relation | entity |
+| json | Arbitrary JSON | — |
+
+## System Fields (DO NOT define — auto-managed)
+id, tenant_id, created_at, updated_at, created_by, updated_by, _version
+
+## Existing Entities
+${defs.entities.map((e) => `- ${e.name}${e.label ? ` (${e.label})` : ""}`).join("\n") || "(none)"}
+
+## Entity Inheritance
+Use \`extends: "parent_entity_name"\` to inherit fields from a parent entity.
+
+## Entity Interfaces
+Use \`implements: ["interface_name"]\` to implement reusable field contracts defined with defineEntityInterface().
+
+## Code Pattern
+
+\`\`\`typescript
+import { defineEntity } from "@linchkit/core";
+
+export const ${args.name} = defineEntity({
+  name: "${args.name}",
+  label: "Your Label",
+  description: "Description of the entity",
+  fields: {
+    field_name: {
+      type: "string",
+      label: "Field Label",
+      required: true,
+    },
+    // ... more fields
+  },
+});
+\`\`\``,
+          },
+        },
+      ],
+    }),
+  );
+
+  // linchkit_define_action — guidance for defining an action
+  server.prompt(
+    "linchkit_define_action",
+    "Guidance and reference for defining a LinchKit action",
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK type mismatch
+    { entity: z.string().describe("Target entity name") } as any,
+    async (args: { entity: string }) => {
+      const entity = defs.entities.find((e) => e.name === args.entity);
+      const entityFields = entity ? Object.keys(entity.fields).join(", ") : "(entity not found)";
+      const entityActions = defs.actions.filter((a) => a.entity === args.entity);
+
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `You are defining an action for entity "${args.entity}".
+
+## Entity Fields
+${entityFields}
+
+## Naming Convention
+Action names follow verb_noun pattern: e.g. create_${args.entity}, update_${args.entity}, delete_${args.entity}, submit_${args.entity}, approve_${args.entity}
+
+## Action Types
+- **create** — Creates a new entity instance
+- **update** — Modifies an existing entity instance
+- **delete** — Removes an entity instance
+- **custom** — Any domain-specific operation (e.g. submit, approve, reject)
+
+## Existing Actions for "${args.entity}"
+${entityActions.map((a) => `- ${a.name}${a.label ? ` (${a.label})` : ""}`).join("\n") || "(none)"}
+
+## Code Pattern
+
+\`\`\`typescript
+import { defineAction } from "@linchkit/core";
+
+export const create_${args.entity} = defineAction({
+  name: "create_${args.entity}",
+  entity: "${args.entity}",
+  label: "Create ${args.entity}",
+  description: "Creates a new ${args.entity}",
+  input: {
+    field_name: {
+      type: "string",
+      label: "Field Label",
+      required: true,
+    },
+  },
+  policy: {
+    requiresAuth: true,
+  },
+  handler: async (ctx) => {
+    // Implementation
+  },
+});
+\`\`\`
+
+## Policy Requirements
+Every action MUST have a policy object. At minimum: \`{ requiresAuth: true }\`.
+Actions are the sole write entry point — all mutations flow through Actions.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  // linchkit_define_relation — guidance for defining a relation
+  server.prompt(
+    "linchkit_define_relation",
+    "Guidance and reference for defining a LinchKit relation between entities",
+    // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK type mismatch
+    { from: z.string().describe("Source entity name"), to: z.string().describe("Target entity name") } as any,
+    async (args: { from: string; to: string }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `You are defining a relation from entity "${args.from}" to entity "${args.to}".
+
+## Cardinality Types
+- **one_to_one** — Each instance of "${args.from}" has exactly one "${args.to}"
+- **one_to_many** — Each "${args.from}" has many "${args.to}" instances
+- **many_to_one** — Many "${args.from}" instances reference one "${args.to}"
+- **many_to_many** — Many-to-many via junction table
+
+## Existing Relations
+${defs.links.map((r) => `- ${r.name}: ${r.from} → ${r.to} (${r.cardinality})`).join("\n") || "(none)"}
+
+## Code Pattern
+
+\`\`\`typescript
+import { defineRelation } from "@linchkit/core";
+
+export const ${args.from}_${args.to} = defineRelation({
+  name: "${args.from}_${args.to}",
+  from: "${args.from}",
+  to: "${args.to}",
+  cardinality: "one_to_many",
+  label: "${args.from} to ${args.to}",
+  description: "Describes the relationship",
+  required: false,
+  cascade: {
+    onDelete: "restrict", // "cascade" | "restrict" | "set_null"
+    onUpdate: "cascade",
+  },
+});
+\`\`\`
+
+## Cascade Behavior
+- **cascade** — Delete/update related records automatically
+- **restrict** — Prevent delete/update if related records exist
+- **set_null** — Set FK to null on delete/update`,
+          },
+        },
+      ],
+    }),
+  );
+
+  // linchkit_architecture_guide — overall architecture reference (no args)
+  server.prompt(
+    "linchkit_architecture_guide",
+    "LinchKit architecture overview: capability types, extension points, pipeline, and boundaries",
+    async () => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `# LinchKit Architecture Guide
+
+## Capability Types
+- **standard** — Business modules (e.g. purchase management, auth)
+- **adapter** — Protocol adapters (MCP, A2A, AG-UI)
+- **bridge** — Cross-module connectors
+
+## Extension Points
+
+| Extension | Purpose | Example |
+|-----------|---------|---------|
+| fieldTypes | Custom field types | money, file, address |
+| viewTypes | Custom view types | map, gantt, timeline |
+| ruleEffects | Custom rule effects | send_sms, create_ticket |
+| services | Injectable services | storage, search |
+| hooks | Lifecycle hooks | system.start, action.before |
+| middlewares | CommandLayer slot middleware | auth, rate-limit |
+| transports | Protocol adapters | MCP, A2A, AG-UI |
+
+## CommandLayer Pipeline
+All API requests flow through 7 middleware slots in order:
+1. **pre** — Pre-processing, request enrichment
+2. **auth** — Authentication (JWT, sessions)
+3. **exposure** — API exposure control
+4. **permission** — Authorization (RBAC)
+5. **tenant** — Multi-tenancy isolation
+6. **pre-action** — Pre-action hooks, validation
+7. **post-action** — Post-action hooks, audit logging
+
+## Core Boundary Rule
+Before adding functionality, ask: "Without this, is a zero-capability LinchKit still AI-Native?"
+- If yes → it belongs in a capability
+- If no → it belongs in core
+
+## Module Boundaries
+- core MUST NOT import from any other package
+- ui MUST NOT import from server (communicates via HTTP/GraphQL only)
+- No circular dependencies between packages
+- Dependency flows one way: Capability → Core
+
+## Installed Capabilities
+${capabilities.map((c) => `- ${c.name} (${c.type}${c.category ? `, ${c.category}` : ""})`).join("\n") || "(none)"}`,
+          },
+        },
+      ],
+    }),
+  );
+}
+
 // ── Helpers ─────────────────────────────────────────────────────
 
 /** Serialize fields to a JSON-safe representation */
@@ -566,9 +857,6 @@ function serializeFields(fields: Record<string, FieldDefinition>): Record<string
     // Type-specific properties
     if (field.type === "enum") {
       serialized.options = field.options;
-    }
-    if (field.type === "ref" || field.type === "has_many" || field.type === "many_to_many") {
-      serialized.target = field.target;
     }
     if (field.type === "state") {
       serialized.machine = field.machine;

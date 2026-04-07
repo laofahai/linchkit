@@ -17,10 +17,7 @@ export type FieldType =
   | "enum"
   | "json"
   | "state"
-  | "computed"
-  | "ref"
-  | "has_many"
-  | "many_to_many";
+  | "computed";
 
 // ── Field constraints ──────────────────────────────────────────
 
@@ -122,21 +119,6 @@ export interface ComputedField extends BaseFieldDefinition {
   compute: (record: Record<string, unknown>) => unknown;
 }
 
-export interface RefField extends BaseFieldDefinition {
-  type: "ref";
-  target: string;
-}
-
-export interface HasManyField extends BaseFieldDefinition {
-  type: "has_many";
-  target: string;
-}
-
-export interface ManyToManyField extends BaseFieldDefinition {
-  type: "many_to_many";
-  target: string;
-}
-
 export type FieldDefinition =
   | StringField
   | TextField
@@ -147,10 +129,7 @@ export type FieldDefinition =
   | EnumField
   | JsonField
   | StateField
-  | ComputedField
-  | RefField
-  | HasManyField
-  | ManyToManyField;
+  | ComputedField;
 
 // ── Field-level UI hints ──────────────────────────────────
 

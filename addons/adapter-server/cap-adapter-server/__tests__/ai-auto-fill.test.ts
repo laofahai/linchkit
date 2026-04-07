@@ -19,7 +19,7 @@ const taskSchema: EntityDefinition = {
       options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
     },
     amount: { type: "number", label: "Amount", min: 0, max: 10000 },
-    department_id: { type: "ref", label: "Department", target: "department" },
+    department_id: { type: "string", label: "Department", description: "FK to department" },
   },
 };
 

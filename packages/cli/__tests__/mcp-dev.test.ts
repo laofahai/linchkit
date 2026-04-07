@@ -26,7 +26,7 @@ const mockEntity: EntityDefinition = {
     amount: { type: "number", label: "Amount", required: true, min: 0 },
     status: { type: "enum", label: "Status", options: ["draft", "submitted", "approved"] },
     notes: { type: "text", label: "Notes" },
-    department_id: { type: "ref", label: "Department", target: "department" },
+    department_id: { type: "string", label: "Department", description: "FK to department" },
   },
 };
 
@@ -56,6 +56,8 @@ const mockRelation: RelationDefinition = {
   from: "department",
   to: "purchase_request",
   cardinality: "one_to_many",
+  fromName: "requests",
+  toName: "department",
   label: { from: "Requests", to: "Department" },
 };
 

@@ -26,126 +26,7 @@ export interface DrizzleGeneratorOptions {
 }
 
 // Field types that are virtual and should not produce columns
-// Relationship fields (ref/has_many/many_to_many) are handled by generateRelationColumns
-const SKIPPED_FIELD_TYPES = new Set(["computed", "ref", "has_many", "many_to_many"]);
-
-/**
- * Type guard for relationship field types that have a `target` property.
- */
-function isRelationshipField(
-  field: FieldDefinition,
-): field is FieldDefinition & { target: string } {
-  return field.type === "ref" || field.type === "has_many" || field.type === "many_to_many";
-}
-
-/**
- * Convert relationship fields (ref, has_many, many_to_many) from Schema fields
- * to implicit RelationDefinition objects.
- *
- * This implements the "implicit link auto-promotion" feature: existing schema
- * field relationships are automatically promoted to first-class Link objects
- * and merged with explicit defineRelation declarations.
- *
- * If there's a name conflict, explicit links win and a warning is logged.
- *
- * @param schemas - All schema definitions (used to validate targets exist)
- * @param explicitLinks - Explicitly defined links (for conflict detection)
- */
-export function convertEntityRelationshipFieldsToImplicitRelations(
-  schemas: EntityDefinition[],
-  explicitLinks: RelationDefinition[],
-): {
-  implicitLinks: RelationDefinition[];
-  conflicts: Array<{ name: string; explicit: RelationDefinition; implicit: RelationDefinition }>;
-  missingTargets: Array<{ entityName: string; fieldName: string; target: string }>;
-} {
-  const implicitLinks: RelationDefinition[] = [];
-  const conflicts: Array<{
-    name: string;
-    explicit: RelationDefinition;
-    implicit: RelationDefinition;
-  }> = [];
-  const missingTargets: Array<{ entityName: string; fieldName: string; target: string }> = [];
-
-  // Build a set of existing explicit link names for conflict detection
-  const explicitLinkNames = new Set(explicitLinks.map((l) => l.name));
-  // Build a set of all entity names for target validation
-  const entityNames = new Set(schemas.map((s) => s.name));
-
-  for (const entity of schemas) {
-    const entityName = entity.name;
-
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
-      if (!isRelationshipField(field)) continue;
-
-      const cardinality: RelationDefinition["cardinality"] =
-        field.type === "ref"
-          ? "many_to_one"
-          : field.type === "has_many"
-            ? "one_to_many"
-            : "many_to_many";
-      const target = field.target;
-
-      // Validate target schema exists
-      if (!entityNames.has(target)) {
-        missingTargets.push({ entityName, fieldName, target });
-        continue;
-      }
-
-      // For implicit links from schema fields:
-      // - The original field name becomes the label on the from side (matches what the user wrote)
-      // - Reverse direction gets the entity name
-      const labelFrom = fieldName;
-      const labelTo = entityName;
-      const finalLabelFrom: string | undefined = field.label ?? labelFrom;
-      const finalLabelTo: string | undefined = labelTo;
-
-      // Generate a predictable unique name: entityName_fieldName
-      const relationName = `${entityName}_${fieldName}`;
-
-      // Check for conflict with explicit links
-      if (explicitLinkNames.has(relationName)) {
-        // biome-ignore lint/style/noNonNullAssertion: name is guaranteed to exist in the set
-        const explicit = explicitLinks.find((l) => l.name === relationName)!;
-        conflicts.push({
-          name: relationName,
-          explicit,
-          implicit: {
-            name: relationName,
-            from: entityName,
-            to: target,
-            cardinality,
-            label: {
-              from: finalLabelFrom,
-              to: finalLabelTo,
-            },
-            required: field.required,
-          },
-        });
-        continue;
-      }
-
-      // Also check for duplicates among the implicit links we just generated
-      // This can happen if same name is generated twice (unlikely but safe-guard)
-      if (implicitLinks.some((l) => l.name === relationName)) continue;
-
-      // Create the implicit link
-      implicitLinks.push({
-        name: relationName,
-        from: entityName,
-        to: target,
-        cardinality,
-        label: {
-          from: finalLabelFrom,
-          to: finalLabelTo,
-        },
-        required: field.required,
-      });
-    }
-  }
-
-  return { implicitLinks, conflicts, missingTargets };
-}
+const SKIPPED_FIELD_TYPES = new Set(["computed"]);
 
 // Re-use from translatable.ts to avoid duplication
 import { TRANSLATABLE_FIELD_TYPES } from "./translatable";
@@ -304,8 +185,8 @@ export interface RelationColumnsResult {
 /**
  * Generate FK columns and junction tables from RelationDefinitions.
  *
- * - many_to_one / one_to_one: adds `{to}_id` FK column on the `from` table
- * - one_to_many: adds `{from}_id` FK column on the `to` table
+ * - many_to_one / one_to_one: adds `{fromName}_id` FK column on the `from` table
+ * - one_to_many: adds `{toName}_id` FK column on the `to` table
  * - many_to_many: creates a `_link_{name}` junction table with composite PK
  *
  * @param links - All registered link definitions
@@ -328,7 +209,7 @@ export function generateRelationColumns(
       case "one_to_one": {
         // FK column on the `from` table pointing to `to` table
         const fromTable = `${prefix}${link.from}`;
-        const colName = `${link.to}_id`;
+        const colName = `${link.fromName}_id`;
         const toTable = tableMap[link.to];
         if (!toTable) break;
 
@@ -366,7 +247,7 @@ export function generateRelationColumns(
       case "one_to_many": {
         // FK column on the `to` table pointing to `from` table
         const toTableName = `${prefix}${link.to}`;
-        const colName = `${link.from}_id`;
+        const colName = `${link.toName}_id`;
         const fromTable = tableMap[link.from];
         if (!fromTable) break;
 

@@ -12,9 +12,9 @@
 
 import type {
   FieldDefinition,
-  FieldType,
   ViewFieldConfig,
   WidgetDefinition,
+  WidgetFieldType,
   WidgetMode,
   WidgetResolutionContext,
 } from "@linchkit/core/types";
@@ -87,7 +87,7 @@ export function createWidgetRegistry(): WidgetRegistry {
   // Index: fieldType+mode → default widget ID
   const defaults = new Map<string, string>();
 
-  function defaultKey(fieldType: FieldType, mode: WidgetMode): string {
+  function defaultKey(fieldType: WidgetFieldType, mode: WidgetMode): string {
     return `${fieldType}:${mode}`;
   }
 

@@ -6,7 +6,7 @@
  * how to work with this specific LinchKit project.
  */
 
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { CapabilityDefinition } from "@linchkit/core";
 import { generateAgentsMd, initI18n, registerTranslations } from "@linchkit/core";
@@ -74,6 +74,11 @@ export const agentsMdCommand = defineCommand({
     const projectDir = resolve(config.configPath, "..");
     const projectName = projectDir.split("/").pop() ?? "LinchKit Project";
 
+    // Check for user-maintained AGENTS.user.md
+    const userInstructionsPath = config.config.ai?.userInstructions ?? "./AGENTS.user.md";
+    const resolvedUserInstructions = resolve(projectDir, userInstructionsPath);
+    const hasUserInstructions = existsSync(resolvedUserInstructions);
+
     const content = generateAgentsMd({
       projectName,
       config: config.config,
@@ -83,6 +88,7 @@ export const agentsMdCommand = defineCommand({
       relations,
       rules,
       states,
+      hasUserInstructions,
     });
 
     if (dryRun) {

@@ -24,7 +24,7 @@ export interface FieldDoc {
   description?: string;
   required: boolean;
   constraints: Record<string, unknown>;
-  /** Target schema for ref/has_many/many_to_many */
+  /** @deprecated Relationships now use defineRelation() instead of ref fields */
   target?: string;
   /** Enum options for enum fields */
   options?: Array<{ value: string; label?: string }>;
@@ -91,9 +91,6 @@ export function fieldToDoc(name: string, field: FieldDefinition): FieldDoc {
   };
 
   // Type-specific properties
-  if (field.type === "ref" || field.type === "has_many" || field.type === "many_to_many") {
-    doc.target = field.target;
-  }
   if (field.type === "enum") {
     doc.options = field.options;
   }

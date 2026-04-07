@@ -208,13 +208,12 @@ describe("validatePhase1", () => {
       expect(result.errors.some((e) => e.code === "REQUIRED_NO_DEFAULT")).toBe(true);
     });
 
-    it("does not error on required virtual fields (ref, has_many, computed)", () => {
+    it("does not error on required computed fields", () => {
       const result = validatePhase1({
         changes: [
           makeEntityChange("virtual_schema", {
             fields: {
-              items: { type: "has_many", required: true } as never,
-              parent: { type: "ref", required: true } as never,
+              total: { type: "computed", compute: () => 0, required: true } as never,
             },
           }),
         ],

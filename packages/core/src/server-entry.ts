@@ -124,7 +124,6 @@ export {
   buildColumn,
   buildSystemColumns,
   buildTableColumns,
-  convertEntityRelationshipFieldsToImplicitRelations,
   type DrizzleGeneratorOptions,
   generateDrizzleTable,
   generateRelationColumns,

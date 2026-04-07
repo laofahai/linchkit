@@ -17,8 +17,7 @@ const capA: CapabilityDefinition = {
       name: "leave_request",
       label: "Leave Request",
       fields: {
-        employee_id: { type: "ref", target: "employee", label: "Employee" },
-        project_refs: { type: "has_many", target: "project", label: "Projects" },
+        employee_id: { type: "string", label: "Employee", description: "FK to employee" },
       },
     },
   ],
@@ -148,26 +147,8 @@ describe("inferSemanticRelations", () => {
     expect(dep?.source).toBe("capability_dependency");
   });
 
-  it("infers references from schema ref fields", () => {
-    const rels = inferSemanticRelations({ capabilities: caps });
-    const ref = rels.find(
-      (r) =>
-        r.type === "references" && r.from.entity === "leave_request" && r.to.entity === "employee",
-    );
-    expect(ref).toBeDefined();
-    expect(ref?.source).toBe("schema_ref");
-    expect(ref?.inferredFrom).toBe("leave_request.employee_id");
-  });
-
-  it("infers contains from schema has_many fields", () => {
-    const rels = inferSemanticRelations({ capabilities: caps });
-    const contains = rels.find(
-      (r) =>
-        r.type === "contains" && r.from.entity === "leave_request" && r.to.entity === "project",
-    );
-    expect(contains).toBeDefined();
-    expect(contains?.source).toBe("schema_has_many");
-  });
+  // Note: ref/has_many field type inference was removed — relations are now
+  // declared via defineRelation(), not inferred from field types.
 
   it("infers bridges from bridge capability", () => {
     const rels = inferSemanticRelations({ capabilities: caps });

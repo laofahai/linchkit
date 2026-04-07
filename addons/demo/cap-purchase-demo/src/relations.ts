@@ -12,6 +12,8 @@ export const requestToDepartment = defineRelation({
   from: "purchase_request",
   to: "department",
   cardinality: "many_to_one",
+  fromName: "department",
+  toName: "purchase_requests",
   label: { from: "Department", to: "Purchase Requests" },
 });
 
@@ -21,6 +23,8 @@ export const requestToItems = defineRelation({
   from: "purchase_request",
   to: "purchase_item",
   cardinality: "one_to_many",
+  fromName: "items",
+  toName: "purchase_request",
   cascade: "delete",
   label: { from: "Items", to: "Purchase Request" },
 });

@@ -85,40 +85,6 @@ describe("fieldToJsonSchema", () => {
     });
   });
 
-  test("converts ref field to string with target description", () => {
-    const field: FieldDefinition = { type: "ref", target: "department" };
-    const result = fieldToJsonSchema(field);
-    expect(result).toEqual({
-      type: "string",
-      description: "Reference to department",
-    });
-  });
-
-  test("converts ref field with label", () => {
-    const field: FieldDefinition = {
-      type: "ref",
-      target: "department",
-      label: "Department",
-      description: "The department this employee belongs to",
-    };
-    const result = fieldToJsonSchema(field);
-    expect(result).toEqual({
-      type: "string",
-      description: "The department this employee belongs to (references department)",
-      title: "Department",
-    });
-  });
-
-  test("returns null for has_many field (virtual, no physical column)", () => {
-    const field: FieldDefinition = { type: "has_many", target: "order_line" };
-    expect(fieldToJsonSchema(field)).toBeNull();
-  });
-
-  test("returns null for many_to_many field (virtual, no physical column)", () => {
-    const field: FieldDefinition = { type: "many_to_many", target: "tag" };
-    expect(fieldToJsonSchema(field)).toBeNull();
-  });
-
   test("returns null for computed field", () => {
     const field: FieldDefinition = {
       type: "computed",
@@ -194,12 +160,10 @@ describe("fieldsToJsonSchema", () => {
     expect(Object.keys(result.properties)).toEqual(["name"]);
   });
 
-  test("includes ref fields but skips has_many and many_to_many", () => {
+  test("includes FK string fields for relations", () => {
     const fields: Record<string, FieldDefinition> = {
       name: { type: "string" },
-      department_id: { type: "ref", target: "department", required: true },
-      items: { type: "has_many", target: "order_item" },
-      tags: { type: "many_to_many", target: "tag" },
+      department_id: { type: "string", required: true, description: "FK to department" },
     };
 
     const result = fieldsToJsonSchema(fields);
@@ -207,7 +171,7 @@ describe("fieldsToJsonSchema", () => {
     expect(result.required).toEqual(["department_id"]);
     expect(result.properties.department_id).toEqual({
       type: "string",
-      description: "Reference to department",
+      description: "FK to department",
     });
   });
 

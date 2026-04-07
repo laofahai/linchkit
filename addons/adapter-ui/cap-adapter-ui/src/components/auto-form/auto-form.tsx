@@ -467,9 +467,9 @@ export function AutoForm({
       const fieldDef = schema.fields[key];
       if (!fieldDef) continue;
 
-      // Detect virtual ref records (ref fields holding an object with _virtual flag)
+      // Detect virtual ref records (string FK fields holding an object with _virtual flag)
       if (
-        fieldDef.type === "ref" &&
+        fieldDef.type === "string" &&
         typeof val === "object" &&
         val !== null &&
         "_virtual" in val &&
@@ -483,8 +483,8 @@ export function AutoForm({
         };
       }
 
-      // Collect has_many child record commands
-      if (fieldDef.type === "has_many" && Array.isArray(val)) {
+      // Collect has_many child record commands (for relation-managed one_to_many fields)
+      if (Array.isArray(val) && fieldDef.type === "json") {
         const commands: ChildCommand[] = [];
         const existingRecords = Array.isArray(data?.[key])
           ? (data[key] as Array<Record<string, unknown>>)

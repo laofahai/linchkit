@@ -26,8 +26,7 @@ import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
 
 // ── Valid field types ────────────────────────────────────
-// Relationship fields (ref/has_many/many_to_many) are valid but virtual
-// They don't produce data columns — FK columns are added by generateRelationColumns
+// Relationships are now declared via defineRelation(), not field types
 
 const VALID_FIELD_TYPES = new Set<FieldType>([
   "string",
@@ -40,9 +39,6 @@ const VALID_FIELD_TYPES = new Set<FieldType>([
   "json",
   "state",
   "computed",
-  "ref",
-  "has_many",
-  "many_to_many",
 ]);
 
 // ── Name format regex ────────────────────────────────────
@@ -289,12 +285,7 @@ function validateEntity(
     }
 
     // Required field without a default will fail at record creation time — this is an error
-    // Relationship fields (ref/has_many/many_to_many) are virtual and don't need this check
-    const isVirtual =
-      field.type === "computed" ||
-      field.type === "ref" ||
-      field.type === "has_many" ||
-      field.type === "many_to_many";
+    const isVirtual = field.type === "computed";
     if (field.required && field.default === undefined && !isVirtual) {
       errors.push({
         code: "REQUIRED_NO_DEFAULT",

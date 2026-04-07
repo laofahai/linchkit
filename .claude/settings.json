@@ -8,17 +8,11 @@
     "allow": [
       "Bash(bun *)",
       "Bash(bunx *)",
-      "Bash(git *)",
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(tail *)",
       "Bash(head *)",
-      "Bash(rm *)",
       "Bash(mkdir *)",
-      "Bash(ov *)",
-      "Bash(sd *)",
-      "Bash(ml *)",
-      "Bash(mulch *)",
       "Read(**)",
       "Write(**)",
       "Edit(**)"

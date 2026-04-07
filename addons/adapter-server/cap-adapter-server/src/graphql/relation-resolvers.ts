@@ -252,9 +252,9 @@ export type RelationFieldDef = {
 /**
  * Compute relation-based fields for a given entity.
  *
- * FK naming convention (matches schema-to-drizzle.ts):
- * - many_to_one / one_to_one: `{to}_id` column on `from` table
- * - one_to_many: `{from}_id` column on `to` table
+ * FK naming convention (matches entity-to-drizzle.ts, uses semantic names):
+ * - many_to_one / one_to_one: `{fromName}_id` column on `from` table
+ * - one_to_many: `{toName}_id` column on `to` table
  * - many_to_many: junction table `_link_{name}` with `{from}_id` and `{to}_id`
  */
 export function buildRelationFields(
@@ -274,11 +274,11 @@ export function buildRelationFields(
       case "many_to_one": {
         if (isFrom) {
           // From side: singular field pointing to the "to" schema
-          // FK column: `{to}_id` on from table
+          // FK column: `{fromName}_id` on from table
           const relatedType = typeMap.get(link.to);
           if (!relatedType) break;
-          const fkColumn = `${link.to}_id`;
-          const fieldName = link.to;
+          const fkColumn = `${link.fromName}_id`;
+          const fieldName = toCamelCase(link.fromName);
           const label = link.label?.from;
           fields[fieldName] = {
             type: relatedType,
@@ -302,8 +302,8 @@ export function buildRelationFields(
           // To side (reverse): plural field listing records from "from" schema
           const relatedType = typeMap.get(link.from);
           if (!relatedType) break;
-          const fkColumn = `${link.to}_id`;
-          const fieldName = `${link.from}s`;
+          const fkColumn = `${link.fromName}_id`;
+          const fieldName = toCamelCase(link.toName);
           const label = link.label?.to;
           fields[fieldName] = {
             type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
@@ -331,8 +331,8 @@ export function buildRelationFields(
           // From side: plural field listing records from "to" schema
           const relatedType = typeMap.get(link.to);
           if (!relatedType) break;
-          const fkColumn = `${link.from}_id`;
-          const fieldName = `${link.to}s`;
+          const fkColumn = `${link.toName}_id`;
+          const fieldName = toCamelCase(link.fromName);
           const label = link.label?.from;
           fields[fieldName] = {
             type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(relatedType))),
@@ -356,8 +356,8 @@ export function buildRelationFields(
           // To side (reverse): singular field pointing to "from" schema
           const relatedType = typeMap.get(link.from);
           if (!relatedType) break;
-          const fkColumn = `${link.from}_id`;
-          const fieldName = link.from;
+          const fkColumn = `${link.toName}_id`;
+          const fieldName = toCamelCase(link.toName);
           const label = link.label?.to;
           fields[fieldName] = {
             type: relatedType,
@@ -384,8 +384,8 @@ export function buildRelationFields(
         if (isFrom) {
           const relatedType = typeMap.get(link.to);
           if (!relatedType) break;
-          const fkColumn = `${link.to}_id`;
-          const fieldName = link.to;
+          const fkColumn = `${link.fromName}_id`;
+          const fieldName = toCamelCase(link.fromName);
           const label = link.label?.from;
           fields[fieldName] = {
             type: relatedType,
@@ -406,11 +406,11 @@ export function buildRelationFields(
           };
         }
         if (isTo) {
-          // Reverse: query from table for record where {to}_id = this.id
+          // Reverse: query from table for record where {fromName}_id = this.id
           const relatedType = typeMap.get(link.from);
           if (!relatedType) break;
-          const fkColumn = `${link.to}_id`;
-          const fieldName = link.from;
+          const fkColumn = `${link.fromName}_id`;
+          const fieldName = toCamelCase(link.toName);
           const label = link.label?.to;
           fields[fieldName] = {
             type: relatedType,
@@ -443,11 +443,12 @@ export function buildRelationFields(
         const junctionTable = `_link_${link.name}`;
         const thisFkCol = isFrom ? `${link.from}_id` : `${link.to}_id`;
         const otherFkCol = isFrom ? `${link.to}_id` : `${link.from}_id`;
+        const semanticName = isFrom ? link.fromName : link.toName;
         const hasProperties = link.properties && Object.keys(link.properties).length > 0;
 
         if (hasProperties) {
           // M:N with properties: generate Edge type field (e.g. productEdges)
-          const relatedFieldName = toCamelCase(otherSchema);
+          const relatedFieldName = toCamelCase(semanticName);
           const edgeType = getOrCreateEdgeType(
             link,
             relatedType,
@@ -499,7 +500,7 @@ export function buildRelationFields(
           };
         } else {
           // M:N without properties: plain array of related records
-          const fieldName = `${otherSchema}s`;
+          const fieldName = toCamelCase(semanticName);
           const label = isFrom ? link.label?.from : link.label?.to;
 
           fields[fieldName] = {

@@ -33,7 +33,7 @@ const purchaseRequestSchema: EntityDefinition = {
     title: { type: "string", label: "Title", required: true },
     amount: { type: "number", label: "Amount" },
     status: { type: "state", label: "Status", machine: "purchase_request" },
-    department_id: { type: "ref", label: "Department", target: "department" },
+    department_id: { type: "string", label: "Department", description: "FK to department" },
   },
   presentation: {
     titleField: "title",
@@ -172,6 +172,8 @@ const deptPurchaseLink: RelationDefinition = {
   from: "purchase_request",
   to: "department",
   cardinality: "many_to_one",
+  fromName: "department",
+  toName: "purchase_requests",
   label: { from: "Department", to: "Purchase Requests" },
 };
 

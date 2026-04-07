@@ -95,6 +95,8 @@ describe("resolveAggregateValue", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     };
 
@@ -119,6 +121,8 @@ describe("resolveAggregateValue", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     };
 
@@ -142,6 +146,8 @@ describe("resolveAggregateValue", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     };
 
@@ -162,6 +168,8 @@ describe("resolveAggregateValue", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     };
 
@@ -182,6 +190,8 @@ describe("resolveAggregateValue", () => {
       name: "order_to_items",
       from: "order",
       to: "order_item",
+      fromName: "items",
+      toName: "order",
       cardinality: "one_to_many",
     };
 
@@ -209,6 +219,8 @@ describe("resolveAggregateValue", () => {
       name: "emp_to_dept",
       from: "employee",
       to: "department",
+      fromName: "department",
+      toName: "employees",
       cardinality: "many_to_one",
     };
 
@@ -623,6 +635,8 @@ describe("DerivedPropertyEngine — wire()", () => {
       name: "dept_to_emp",
       from: "department",
       to: "employee",
+      fromName: "employees",
+      toName: "department",
       cardinality: "one_to_many",
     });
 
@@ -703,12 +717,16 @@ describe("DerivedPropertyEngine — multiple parent schemas", () => {
       name: "project_to_tasks",
       from: "project",
       to: "task",
+      fromName: "tasks",
+      toName: "project",
       cardinality: "one_to_many",
     });
     relationRegistry.register({
       name: "sprint_to_tasks",
       from: "sprint",
       to: "task",
+      fromName: "tasks",
+      toName: "sprint",
       cardinality: "one_to_many",
     });
 
@@ -864,12 +882,16 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       name: "company_to_depts",
       from: "company",
       to: "department",
+      fromName: "departments",
+      toName: "company",
       cardinality: "one_to_many",
     });
     relationRegistry.register({
       name: "dept_to_employees",
       from: "department",
       to: "employee",
+      fromName: "employees",
+      toName: "department",
       cardinality: "one_to_many",
     });
 
@@ -947,12 +969,16 @@ describe("DerivedPropertyEngine — recursive cascade", () => {
       name: "company_to_depts",
       from: "company",
       to: "department",
+      fromName: "departments",
+      toName: "company",
       cardinality: "one_to_many",
     });
     relationRegistry.register({
       name: "dept_to_employees",
       from: "department",
       to: "employee",
+      fromName: "employees",
+      toName: "department",
       cardinality: "one_to_many",
     });
 

@@ -32,7 +32,7 @@ const purchaseCapability: CapabilityDefinition = {
       fields: {
         title: { type: "string", label: "Title", required: true },
         amount: { type: "number", label: "Amount", required: true, min: 0 },
-        department_id: { type: "ref", label: "Department", target: "department" },
+        department_id: { type: "string", label: "Department", description: "FK to department" },
         status: { type: "state", label: "Status", machine: "purchase_lifecycle" },
         priority: {
           type: "enum",
@@ -116,6 +116,8 @@ const purchaseCapability: CapabilityDefinition = {
       from: "department",
       to: "purchase_request",
       cardinality: "one_to_many",
+      fromName: "purchase_requests",
+      toName: "department",
       label: { from: "Purchase Requests", to: "Department" },
     },
   ],
@@ -194,8 +196,9 @@ describe("generateCapabilityDoc", () => {
     expect(titleField?.type).toBe("string");
     expect(titleField?.required).toBe(true);
 
-    const refField = doc.entities[0]?.fields.find((f) => f.name === "department_id");
-    expect(refField?.target).toBe("department");
+    // department_id is a plain string FK field (relations are declared via defineRelation)
+    const fkField = doc.entities[0]?.fields.find((f) => f.name === "department_id");
+    expect(fkField?.type).toBe("string");
   });
 
   test("includes action documentation with state transitions", () => {
@@ -282,7 +285,7 @@ describe("renderCapabilityDoc", () => {
     expect(md).toContain("**purchase_request**");
     expect(md).toContain("title (string, required)");
     expect(md).toContain("amount (number, required)");
-    expect(md).toContain("-> department");
+    expect(md).toContain("department_id (string)");
   });
 
   test("renders action section with state transitions", () => {

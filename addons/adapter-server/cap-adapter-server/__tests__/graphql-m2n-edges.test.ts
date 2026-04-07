@@ -58,6 +58,8 @@ const orderToProducts: RelationDefinition = {
   from: "sales_order",
   to: "product",
   cardinality: "many_to_many",
+  fromName: "products",
+  toName: "sales_orders",
   properties: {
     quantity: { type: "number", required: true, label: "Quantity" },
     unit_price: { type: "number", required: true, label: "Unit Price" },
@@ -76,6 +78,8 @@ const articleToTags: RelationDefinition = {
   from: "article",
   to: "tag",
   cardinality: "many_to_many",
+  fromName: "tags",
+  toName: "articles",
   label: {
     from: "Tags",
     to: "Articles",
@@ -166,14 +170,14 @@ describe("M:N link with properties (edge types)", () => {
       note: null,
     });
 
-    // Query: salesOrder should have productEdges field
+    // Query: salesOrder should have productsEdges field
     const result = await gql(`
       query {
         salesOrder(id: "so_1") {
           id
           title
-          productEdges {
-            product {
+          productsEdges {
+            products {
               id
               name
               sku
@@ -192,12 +196,12 @@ describe("M:N link with properties (edge types)", () => {
     const order = result.data.salesOrder as Record<string, unknown>;
     expect(order.title).toBe("Order #1");
 
-    const edges = order.productEdges as Array<Record<string, unknown>>;
+    const edges = order.productsEdges as Array<Record<string, unknown>>;
     expect(edges).toBeDefined();
     expect(edges.length).toBe(2);
 
     // Find the Widget A edge
-    const edgeA = edges.find((e) => (e.product as Record<string, unknown>).name === "Widget A");
+    const edgeA = edges.find((e) => (e.products as Record<string, unknown>).name === "Widget A");
     expect(edgeA).toBeDefined();
     expect(edgeA?.quantity).toBe(10);
     expect(edgeA?.unitPrice).toBe(25);
@@ -205,19 +209,19 @@ describe("M:N link with properties (edge types)", () => {
     expect(edgeA?.note).toBe("Bulk order");
 
     // Verify the product record
-    const prodA = edgeA?.product as Record<string, unknown>;
+    const prodA = edgeA?.products as Record<string, unknown>;
     expect(prodA.id).toBe("prod_1");
     expect(prodA.sku).toBe("WA-001");
 
     // Find the Widget B edge
-    const edgeB = edges.find((e) => (e.product as Record<string, unknown>).name === "Widget B");
+    const edgeB = edges.find((e) => (e.products as Record<string, unknown>).name === "Widget B");
     expect(edgeB).toBeDefined();
     expect(edgeB?.quantity).toBe(5);
     expect(edgeB?.unitPrice).toBe(50);
     expect(edgeB?.discount).toBe(0);
   });
 
-  test("2. Reverse direction: product has salesOrderEdges", async () => {
+  test("2. Reverse direction: product has salesOrdersEdges", async () => {
     await store.create("sales_order", { id: "so_2", title: "Order #2", total: 100 });
     await store.create("product", { id: "prod_3", name: "Gadget X", sku: "GX-001", price: 100 });
 
@@ -236,8 +240,8 @@ describe("M:N link with properties (edge types)", () => {
         product(id: "prod_3") {
           id
           name
-          salesOrderEdges {
-            salesOrder {
+          salesOrdersEdges {
+            salesOrders {
               id
               title
             }
@@ -254,7 +258,7 @@ describe("M:N link with properties (edge types)", () => {
     const product = result.data.product as Record<string, unknown>;
     expect(product.name).toBe("Gadget X");
 
-    const edges = product.salesOrderEdges as Array<Record<string, unknown>>;
+    const edges = product.salesOrdersEdges as Array<Record<string, unknown>>;
     expect(edges).toBeDefined();
     expect(edges.length).toBe(1);
     expect(edges[0].quantity).toBe(1);
@@ -262,7 +266,7 @@ describe("M:N link with properties (edge types)", () => {
     expect(edges[0].discount).toBe(10);
     expect(edges[0].note).toBe("VIP discount");
 
-    const order = edges[0].salesOrder as Record<string, unknown>;
+    const order = edges[0].salesOrders as Record<string, unknown>;
     expect(order.id).toBe("so_2");
     expect(order.title).toBe("Order #2");
   });
@@ -274,8 +278,8 @@ describe("M:N link with properties (edge types)", () => {
       query {
         salesOrder(id: "so_empty") {
           id
-          productEdges {
-            product { id name }
+          productsEdges {
+            products { id name }
             quantity
           }
         }
@@ -284,7 +288,7 @@ describe("M:N link with properties (edge types)", () => {
 
     expect(result.errors).toBeUndefined();
     const order = result.data.salesOrder as Record<string, unknown>;
-    const edges = order.productEdges as Array<Record<string, unknown>>;
+    const edges = order.productsEdges as Array<Record<string, unknown>>;
     expect(edges).toBeDefined();
     expect(edges.length).toBe(0);
   });
@@ -385,8 +389,8 @@ describe("Edge type field typing", () => {
     const result = await gql(`
       query {
         salesOrder(id: "so_typed") {
-          productEdges {
-            product { id name }
+          productsEdges {
+            products { id name }
             quantity
             unitPrice
             discount
@@ -398,7 +402,7 @@ describe("Edge type field typing", () => {
 
     expect(result.errors).toBeUndefined();
     const order = result.data.salesOrder as Record<string, unknown>;
-    const edges = order.productEdges as Array<Record<string, unknown>>;
+    const edges = order.productsEdges as Array<Record<string, unknown>>;
     expect(edges.length).toBe(1);
     expect(edges[0].quantity).toBe(3);
     expect(edges[0].unitPrice).toBe(10);
@@ -422,8 +426,8 @@ describe("Edge type field typing", () => {
     const result = await gql(`
       query {
         salesOrder(id: "so_orphan") {
-          productEdges {
-            product { id name }
+          productsEdges {
+            products { id name }
             quantity
           }
         }
@@ -432,7 +436,7 @@ describe("Edge type field typing", () => {
 
     expect(result.errors).toBeUndefined();
     const order = result.data.salesOrder as Record<string, unknown>;
-    const edges = order.productEdges as Array<Record<string, unknown>>;
+    const edges = order.productsEdges as Array<Record<string, unknown>>;
     // Orphan junction row should be skipped (product not found)
     expect(edges.length).toBe(0);
   });

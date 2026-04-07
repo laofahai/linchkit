@@ -18,7 +18,7 @@ const testEntity: EntityDefinition = {
     title: { type: "string", label: "Title", required: true },
     amount: { type: "number", label: "Amount", required: true },
     status: { type: "state", label: "Status" },
-    supplier_id: { type: "ref", label: "Supplier", target: "supplier" },
+    supplier_id: { type: "string", label: "Supplier", description: "FK to supplier" },
   },
 };
 

@@ -180,16 +180,8 @@ export function mountAIRoutes(app: Elysia, options: ServerOptions): void {
         for (const [fieldName, value] of Object.entries(currentValues)) {
           if (!value || value === "") continue;
           const fieldDef = schemaDef.fields[fieldName];
-          if (fieldDef?.type === "ref" && "target" in fieldDef && typeof value === "string") {
-            try {
-              const related = await dataProvider.get(fieldDef.target, value);
-              if (related) {
-                relatedContext[fieldName] = related;
-              }
-            } catch {
-              // Related record not found — skip
-            }
-          }
+          // Relation context is now resolved via RelationRegistry, not ref fields.
+          // FK string fields (e.g. department_id) hold the foreign key value.
         }
       }
 

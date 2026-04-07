@@ -10,7 +10,7 @@
  */
 
 import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
-import { ConfigRegistry } from "@linchkit/core";
+import { ConfigRegistry, initI18n } from "@linchkit/core";
 import { closeDatabase, detectEnvironment, GracefulShutdownManager } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
@@ -101,6 +101,9 @@ export const devCommand = defineCommand({
     if (generatedStylesheet?.updated) {
       console.log(`[linch] Generated capability stylesheet: ${generatedStylesheet.path}`);
     }
+
+    // ── Initialize i18n before collecting (registerTranslations needs it) ──
+    await initI18n();
 
     // ── Collect all definitions from capabilities ──
     const collected = collectCapabilityDefinitions(capabilities);

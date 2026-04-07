@@ -15,7 +15,6 @@ import type {
 } from "@linchkit/core";
 import {
   closeDatabase,
-  convertEntityRelationshipFieldsToImplicitRelations,
   createDatabase,
   generateDrizzleSchemaFile,
 } from "@linchkit/core/server";
@@ -43,12 +42,6 @@ async function loadEntitiesAndRelations(): Promise<{
   for (const cap of capabilities) {
     if (cap.entities) entities.push(...cap.entities);
     if (cap.relations) relations.push(...cap.relations);
-  }
-
-  // Auto-promote schema relationship fields to implicit links (same as dev.ts)
-  const { implicitLinks } = convertEntityRelationshipFieldsToImplicitRelations(entities, relations);
-  if (implicitLinks.length > 0) {
-    relations.push(...implicitLinks);
   }
 
   return { entities, relations };
