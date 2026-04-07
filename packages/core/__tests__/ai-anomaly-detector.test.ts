@@ -4,7 +4,10 @@ import { AnomalyDetector } from "../src/ai/anomaly-detector";
 
 // ── Helpers ────────────────────────────────────────────────────
 
-/** Create a usage event at a relative time offset (ms from now) */
+// Fixed reference time to avoid timing-dependent test failures in CI
+const NOW = Date.now();
+
+/** Create a usage event at a relative time offset (ms before NOW) */
 function event(opts: {
   offsetMs?: number;
   success?: boolean;
@@ -15,7 +18,7 @@ function event(opts: {
   tokens?: number;
 }): UsageEvent {
   return {
-    timestamp: new Date(Date.now() - (opts.offsetMs ?? 0)),
+    timestamp: new Date(NOW - (opts.offsetMs ?? 0)),
     success: opts.success ?? true,
     actionName: opts.actionName,
     tenantId: opts.tenantId,
@@ -32,7 +35,7 @@ function buildBaseline(detector: AnomalyDetector, eventCount: number, windowMs: 
     for (let i = 0; i < eventCount; i++) {
       detector.recordEvent(event({ offsetMs: windowMs * (w + 1) + i * 10, actionName: "query" }));
     }
-    detector.detect();
+    detector.detect({ now: new Date(NOW) });
   }
 }
 
@@ -56,7 +59,7 @@ describe("AnomalyDetector", () => {
         detector.recordEvent(event({ offsetMs: i * 10, actionName: "query" }));
       }
 
-      const anomalies = detector.detect();
+      const anomalies = detector.detect({ now: new Date(NOW) });
       const spike = anomalies.find((a) => a.type === "request_spike");
       expect(spike).toBeDefined();
       // Severity depends on how far above threshold — critical when > 2x threshold
