@@ -35,7 +35,8 @@ export function registerValidationTools(server: McpServer, defs: CollectedDefini
         "Validate a proposed EntityDefinition JSON. Checks field types, naming conventions, and references.",
       inputSchema: definitionInputSchema,
     },
-    // @ts-expect-error — TS2589: MCP SDK #985 registerTool deep type recursion, fix planned in SDK v2
+    // biome-ignore lint/suspicious/noTsIgnore: TS2589 triggers on some TS versions but not others (MCP SDK #985)
+    // @ts-ignore — TS2589: MCP SDK registerTool deep type recursion, fix planned in SDK v2
     async ({ definition }: { definition: string }) => {
       const errors: string[] = [];
       const warnings: string[] = [];
