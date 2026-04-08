@@ -223,7 +223,7 @@ describe("generateAgentsMd", () => {
             fields: { name: { type: "text", required: true } },
           },
         ],
-        // No actions, relations, states, rules
+        // No actions, relations, states, rules, views
       }),
     );
 
@@ -232,5 +232,74 @@ describe("generateAgentsMd", () => {
     expect(result).not.toContain("## Relations");
     expect(result).not.toContain("## State Machines");
     expect(result).not.toContain("## Rules");
+    expect(result).not.toContain("## Views");
+  });
+
+  it("includes views table when views exist", () => {
+    const result = generateAgentsMd(
+      makeOptions({
+        views: [
+          {
+            name: "request_list",
+            entity: "purchase_request",
+            type: "list",
+            fields: [],
+          },
+          {
+            name: "request_form",
+            entity: "purchase_request",
+            type: "form",
+            fields: [],
+          },
+        ],
+      }),
+    );
+
+    expect(result).toContain("## Views");
+    expect(result).toContain("| request_list | purchase_request | list |");
+    expect(result).toContain("| request_form | purchase_request | form |");
+  });
+
+  it("omits views section when no views exist", () => {
+    const result = generateAgentsMd(makeOptions({ views: [] }));
+    expect(result).not.toContain("## Views");
+  });
+
+  it("includes anti-patterns section", () => {
+    const result = generateAgentsMd(makeOptions());
+
+    expect(result).toContain("## Anti-Patterns");
+    expect(result).toContain("Do NOT** write to the database directly");
+    expect(result).toContain("Do NOT** skip CommandLayer");
+    expect(result).toContain("Do NOT** use `npm`, `npx`, or `node`");
+    expect(result).toContain("Do NOT** hand-write `CREATE TABLE`");
+  });
+
+  it("includes semantic names (fromName/toName) in relations", () => {
+    const result = generateAgentsMd(
+      makeOptions({
+        relations: [
+          {
+            name: "request_department",
+            from: "purchase_request",
+            to: "department",
+            cardinality: "many_to_one" as const,
+            fromName: "department",
+            toName: "purchase_requests",
+            label: { from: "Department" },
+          },
+        ],
+      }),
+    );
+
+    expect(result).toContain("[department ↔ purchase_requests]");
+    expect(result).toContain("`purchase_request` → `department`");
+  });
+
+  it("includes relation naming convention", () => {
+    const result = generateAgentsMd(makeOptions());
+    expect(result).toContain("Relation naming:");
+    expect(result).toContain("fromName");
+    expect(result).toContain("toName");
   });
 });

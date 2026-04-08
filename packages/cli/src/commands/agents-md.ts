@@ -69,6 +69,7 @@ export const agentsMdCommand = defineCommand({
     const relations = capabilities.flatMap((c) => c.relations ?? []);
     const rules = capabilities.flatMap((c) => c.rules ?? []);
     const states = capabilities.flatMap((c) => c.states ?? []);
+    const views = capabilities.flatMap((c) => c.views ?? []);
 
     // Derive project name from config path directory
     const configDir = dirname(config.configPath);
@@ -89,6 +90,7 @@ export const agentsMdCommand = defineCommand({
       relations,
       rules,
       states,
+      views,
       hasUserInstructions,
     });
 
@@ -101,7 +103,7 @@ export const agentsMdCommand = defineCommand({
     writeFileSync(fullPath, content, "utf-8");
     console.log(`[linch] AGENTS.md generated at ${fullPath}`);
     console.log(
-      `[linch] Documented: ${entities.length} entities, ${actions.length} actions, ${relations.length} relations, ${rules.length} rules, ${states.length} states`,
+      `[linch] Documented: ${entities.length} entities, ${actions.length} actions, ${relations.length} relations, ${rules.length} rules, ${states.length} states, ${views.length} views`,
     );
   },
 });
