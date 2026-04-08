@@ -14,6 +14,7 @@ import type { EntityDefinition } from "../types/entity";
 import type { RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
+import type { ViewDefinition } from "../types/view";
 
 // ── Public interface ──────────────────────────────────────────
 
@@ -26,6 +27,7 @@ export interface AgentsMdOptions {
   relations: RelationDefinition[];
   rules?: RuleDefinition[];
   states?: StateDefinition[];
+  views?: ViewDefinition[];
   /** Whether a user-maintained AGENTS.user.md file exists in the project */
   hasUserInstructions?: boolean;
 }
@@ -56,9 +58,11 @@ export function generateAgentsMd(options: AgentsMdOptions): string {
   sections.push(renderRelations(options.relations));
   sections.push(renderStateMachines(options.states ?? []));
   sections.push(renderRules(options.rules ?? []));
+  sections.push(renderViews(options.views ?? []));
   sections.push(renderCapabilities(options.capabilities));
   sections.push(renderDevCommands());
   sections.push(renderConventions());
+  sections.push(renderAntiPatterns());
 
   // Filter out empty sections and join
   return sections.filter((s) => s.length > 0).join("\n\n");
@@ -180,7 +184,9 @@ function renderRelations(relations: RelationDefinition[]): string {
 
   for (const rel of relations) {
     const label = rel.label?.from ? ` — "${rel.label.from}"` : "";
-    lines.push(`- \`${rel.from}\` → \`${rel.to}\` (${rel.cardinality})${label}`);
+    const semanticNames =
+      rel.fromName || rel.toName ? ` [${rel.fromName ?? "?"} ↔ ${rel.toName ?? "?"}]` : "";
+    lines.push(`- \`${rel.from}\` → \`${rel.to}\` (${rel.cardinality})${semanticNames}${label}`);
   }
   lines.push("");
 
@@ -263,6 +269,7 @@ function renderConventions(): string {
     "",
     "- **Entity naming:** snake_case",
     "- **Action naming:** verb_noun (e.g. `submit_request`, `approve_order`)",
+    "- **Relation naming:** snake_case semantic names for `fromName`/`toName` (e.g. `department`, `purchase_requests`)",
     "- **All mutations** go through Actions — never modify data directly",
     "- **Comments and docs** in English",
     "- **Use `bunx`** never `npx`",
@@ -273,5 +280,31 @@ function renderConventions(): string {
     "- **File size limit:** Files must not exceed 500 lines — split when approaching the limit",
     "- **API verification:** Verify third-party API usage with context7 before calling — training data may be stale",
     "- **PR merge gate:** All CodeRabbit and Gemini review comments must be replied to and resolved before merging",
+  ].join("\n");
+}
+
+function renderViews(views: ViewDefinition[]): string {
+  if (views.length === 0) return "";
+
+  const lines: string[] = ["## Views", ""];
+  lines.push("| Name | Entity | Type |");
+  lines.push("|------|--------|------|");
+
+  for (const view of views) {
+    lines.push(`| ${view.name} | ${view.entity} | ${view.type} |`);
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function renderAntiPatterns(): string {
+  return [
+    "## Anti-Patterns",
+    "",
+    "- **Do NOT** write to the database directly — all mutations must go through Actions",
+    "- **Do NOT** skip CommandLayer — all API endpoints must pass through the 7-slot middleware pipeline",
+    "- **Do NOT** use `npm`, `npx`, or `node` — always use `bun` and `bunx`",
+    "- **Do NOT** hand-write `CREATE TABLE` / `ALTER TABLE` — always delegate DDL to drizzle-kit",
   ].join("\n");
 }
