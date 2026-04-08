@@ -101,10 +101,7 @@ export function syncAiToolConfigs(opts: SetupOptions): string[] {
     for (const skill of skills) {
       writeFileSync(resolve(skillDir, skill.filename), skill.content);
     }
-    writeFileSync(
-      resolve(projectDir, ".trae/rules/linchkit.md"),
-      traeRulesTemplate(projectName),
-    );
+    writeFileSync(resolve(projectDir, ".trae/rules/linchkit.md"), traeRulesTemplate(projectName));
     updated.push(`.trae/rules/linch/ (${skills.length} skills)`, ".trae/rules/linchkit.md");
   }
 
@@ -152,9 +149,7 @@ export const setupCommand = defineCommand({
     } else {
       selectedTools = detectAiTools(projectDir);
       if (selectedTools.length === 0) {
-        console.log(
-          "No AI tools detected. Use --ai-tools or --all to specify which to configure.",
-        );
+        console.log("No AI tools detected. Use --ai-tools or --all to specify which to configure.");
         console.log(`  Supported: ${ALL_AI_TOOLS.join(", ")}`);
         return;
       }
