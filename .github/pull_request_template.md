@@ -15,9 +15,12 @@
 ## Test Plan
 <!-- How did you verify these changes? -->
 - [ ] New/updated tests cover the changes
-- [ ] Manual testing performed (describe below if applicable)
+- [ ] Manual testing performed
 
-## Quality Gates
+### Manual Testing Results
+<!-- Describe the steps taken, the environment, and the results. Attach screenshots if applicable. -->
+
+## Quality Gates (Mandatory)
 - [ ] `linch validate` passes
 - [ ] `bun run check` passes
 - [ ] `bun run typecheck` passes
