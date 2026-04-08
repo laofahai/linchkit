@@ -12,8 +12,8 @@ import type { FieldType } from "./entity";
 
 export type WidgetMode = "display" | "input";
 
-/** Relation widget types — used by relation-aware widgets registered by cardinality */
-export type RelationWidgetType = "ref" | "has_many" | "many_to_many";
+/** Relation widget types — keyed by cardinality, used by relation-aware widgets */
+export type RelationWidgetType = "one_to_one" | "many_to_one" | "one_to_many" | "many_to_many";
 
 /** All widget-registrable type identifiers */
 export type WidgetFieldType = FieldType | RelationWidgetType;

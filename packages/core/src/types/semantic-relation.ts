@@ -15,8 +15,8 @@
  */
 export type SemanticRelationType =
   | "depends_on" // A depends on B existing (from capability.dependencies)
-  | "contains" // A contains B records (from has_many fields)
-  | "references" // A references B (from ref fields)
+  | "contains" // A contains B records (manual — entity relations use defineRelation())
+  | "references" // A references B (manual — entity relations use defineRelation())
   | "affects" // A changes affect B (from Bridge/EventHandler cross-module)
   | "triggers" // A triggers events in B (from EventHandler cross-module)
   | "orchestrates" // A orchestrates B actions (from Flow cross-module steps)
@@ -29,8 +29,6 @@ export type SemanticRelationType =
 /** Source of inference — which mechanism detected this relation */
 export type SemanticRelationSource =
   | "capability_dependency"
-  | "schema_ref"
-  | "schema_has_many"
   | "bridge_definition"
   | "event_handler"
   | "flow_step"

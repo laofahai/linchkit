@@ -12,7 +12,7 @@ function linearChain(): SemanticRelation[] {
       type: "references",
       from: { capability: "cap_a", entity: "entity_a" },
       to: { capability: "cap_b", entity: "entity_b" },
-      source: "schema_ref",
+      source: "manual",
     },
     {
       id: "b->triggers->c",
@@ -39,7 +39,7 @@ function cyclicGraph(): SemanticRelation[] {
       type: "references",
       from: { entity: "entity_a" },
       to: { entity: "entity_b" },
-      source: "schema_ref",
+      source: "manual",
     },
     {
       id: "b->triggers->c",
@@ -66,14 +66,14 @@ function branchingGraph(): SemanticRelation[] {
       type: "references",
       from: { entity: "entity_a" },
       to: { entity: "entity_b" },
-      source: "schema_ref",
+      source: "manual",
     },
     {
       id: "a->contains->c",
       type: "contains",
       from: { entity: "entity_a" },
       to: { entity: "entity_c" },
-      source: "schema_has_many",
+      source: "manual",
     },
     {
       id: "b->triggers->d",
