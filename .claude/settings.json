@@ -26,7 +26,7 @@
           {
             "type": "command",
             "if": "Bash(git commit*)",
-            "command": "if git diff HEAD~1 --name-only 2>/dev/null | grep -qE '^(packages|addons)/'; then echo 'npm-published code changed. Run bunx changeset if this needs a version bump.'; fi",
+            "command": "if git rev-parse HEAD~1 >/dev/null 2>&1 && git diff HEAD~1 --name-only | grep -qE '^(packages|addons)/'; then echo 'npm-published code changed. Run bunx changeset if this needs a version bump.'; fi",
             "statusMessage": "Checking changeset need..."
           }
         ]
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bunx biome check --write --unsafe $CLAUDE_FILE_PATH 2>/dev/null || true",
+            "command": "bunx @biomejs/biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true",
             "statusMessage": "Auto-formatting..."
           }
         ]

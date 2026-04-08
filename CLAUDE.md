@@ -82,6 +82,7 @@ Spec format: see existing specs in `docs/specs/` for the pattern.
 2. **Follow relevant Skills** — Use `/linch-*` skills for guided development
 3. **Write tests alongside code** — Not after. Use `/test` skill.
 4. **Keep files under 500 lines** — Split by responsibility
+5. **Unrelated issues** — If you discover pre-existing bugs, lint errors, or tech debt unrelated to the current task: **do not fix them in the same PR**. Create a GitHub issue (`gh issue create`) to track them, then continue with the current task.
 
 ### Phase 4: Verify
 
@@ -104,6 +105,16 @@ bun test              # Full test suite (3870+ tests)
 6. **All comments resolved + CI green** → merge
 
 **PR merge gate:** All review comments must be replied to and resolved before merging.
+
+### Parallel Subagent Dispatch
+
+When multiple independent issues can be worked on simultaneously:
+
+1. **Subagents only write code** — Dispatch with `isolation: "worktree"`. Instruct agents to do file changes only, NOT `git commit/push` or `gh pr create`.
+2. **Orchestrator handles git** — After agents complete, the orchestrator commits, pushes, and creates PRs from each worktree.
+3. **Bash `cd` persists** — Working directory carries over between Bash calls. Always use `cd /absolute/path && git ...` in a single Bash call. Never assume you're in the main repo.
+4. **Permission allowlist** — `settings.json` only allows specific Bash patterns. Subagents cannot receive interactive permission prompts, so they fail silently on `git`/`gh` commands.
+5. **No file overlap** — Ensure parallel branches don't modify the same files to avoid merge conflicts.
 
 ### Phase 6: Close
 
