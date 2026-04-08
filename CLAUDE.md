@@ -62,9 +62,11 @@ Life system: **Sense + Memory + Awareness + Insight + Proposal** (Spec 55)
 Every new session MUST begin by understanding current state:
 
 1. Read this file (CLAUDE.md) for conventions and constraints
-2. Read `docs/specs/INDEX.md` for milestone progress and spec status
-3. Check `gh issue list --milestone <current>` for active tasks
+2. Read `docs/specs/INDEX.md` for spec status, tracking links, and relevant design docs
+3. Check GitHub milestones and issues for active execution truth
 4. Ask the user what to work on
+
+**Execution rule:** GitHub milestones and issues are the authoritative task tracker. Specs define target design and stable constraints. README is background only, not a task source.
 
 ### Phase 2: Spec First
 

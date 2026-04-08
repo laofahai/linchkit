@@ -1,7 +1,6 @@
 # 进化系统 — 活的软件
 
 > 本规范定义 LinchKit 的自进化能力。与产品愿景（[00a](./00a_product_vision.md)）互补：00a 定义"用户说→系统出现"的显式生长，本规范定义"系统自己感知→自己进化"的隐式生长。
->
 > 相关规范：[15 — AI 开发者体验](./15_ai_developer_experience.md)（evolver Agent）、[36 — AI 服务层](./36_ai_service.md)（ctx.ai）、[45 — Reactive Automation](./45_reactive_automation.md)（TriggerBinding）、[22 — AI Rule Boundary](./22_ai_rule_boundary.md)（边界约束）。
 
 ## 1. 核心理念

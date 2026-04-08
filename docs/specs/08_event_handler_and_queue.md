@@ -1,5 +1,13 @@
 # EventHandler 与队列设计规范
 
+> Tracking milestones:
+> - foundational runtime architecture reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 EventHandler 负责事件的后续处理。当 Action 产生事件后，EventHandler 监听并执行后续逻辑（通知、联动、统计等）。

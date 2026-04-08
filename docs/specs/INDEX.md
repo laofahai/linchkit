@@ -1,9 +1,7 @@
 # LinchKit Spec Index
 
 > 66 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
->
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
->
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
 ---

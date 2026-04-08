@@ -1,5 +1,14 @@
 # Capability 生态系统设计规范
 
+> Tracking milestones:
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - GitHub Issue `#84` — Repository separation: core vs official capabilities
+> - GitHub Issue `#85` — Capability Hub: discovery and marketplace
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 概述
 
 本文档定义 LinchKit Capability 生态系统的全生命周期架构：仓库策略、命名规范、分发机制、信任层级、商业模型、元数据 Schema、安装机制、质量保障、版本兼容性。

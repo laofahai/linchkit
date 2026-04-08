@@ -56,7 +56,7 @@ AI 代理会一步步引导你选择能力、设计实体和动作。
 - `linchkit.config.ts` — 项目配置
 - `AGENTS.md` / `CLAUDE.md` — AI 开发指令
 - `.mcp.json` — MCP 开发服务器配置
-- `.claude/skills/linch/` — 10 个开发技能（实体设计、动作设计等）
+- `.claude/skills/linch/` — 开发技能（实体设计、动作设计等）
 - `.cursor/rules/linch/` — Cursor 版本的同样技能
 
 ---
@@ -340,7 +340,7 @@ linch publish           # 发布包
 docker compose up -d    # PostgreSQL + Restate
 
 bun install             # 安装依赖
-bun test                # 运行测试（约 3700 个）
+bun test                # 运行测试
 bun run dev             # 启动开发服务器（服务端 :3001 + UI :3000）
 bun run dev:server      # 仅启动服务端
 bun run dev:ui          # 仅启动 UI（代理 API 到 :3001）
@@ -352,25 +352,6 @@ bun run db:generate     # 从 schema 变更生成迁移 SQL
 bun run db:migrate      # 执行未应用的迁移
 bun run db:studio       # 打开 Drizzle Studio GUI
 ```
-
----
-
-## 里程碑
-
-- [x] **M0a** — 开发基础设施 + UI 壳子
-- [x] **M0b** — 核心运行时（全部引擎、E2E 采购管理演示）
-- [x] **M1** — Flow 引擎（Restate 双模式）、审批 + Proposal 引擎
-- [x] **M2** — 关系类型、OntologyRegistry、GraphQL 订阅、实体接口、继承、派生属性、软删除、数据脱敏、响应式自动化
-- [ ] **M3** — 开发者体验、发布、AI 工作空间 *（进行中）*
-  - [x] 运行时实体 Overlay（6 阶段完成）
-  - [x] MCP 开发服务器 + AI 开发工作流
-  - [x] 发布基础设施（Changesets、tsup、CI/CD）
-  - [x] 可观测性（告警、影响分析）
-  - [x] i18n（能力级翻译）
-  - [ ] 认证 + 权限能力
-- [ ] **M4** — 生产级（完整多租户、多节点部署、OpenTelemetry）
-
----
 
 ## 许可
 

@@ -3,6 +3,14 @@
 > Status: Draft | Date: 2026-04-07
 > Supersedes: Spec 46 (Link Type) partially, Spec 24 (Semantic Relations) partially
 > Milestone: M3
+>
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - GitHub Issue `#87` — Semantic relation unification
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. Problem
 

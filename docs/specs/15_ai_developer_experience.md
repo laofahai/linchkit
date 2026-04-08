@@ -1,5 +1,15 @@
 # AI 开发者体验设计规范
 
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - GitHub Issue `#82` — AI Workspace completion
+> - GitHub Issue `#89` — Protocol adapters: A2A and AG-UI
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 LinchKit 不只是"AI 能用"，而是"AI 天然知道怎么在上面开发"。

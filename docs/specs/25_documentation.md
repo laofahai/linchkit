@@ -1,6 +1,15 @@
 # 文档能力设计规范
 
 > 文档产物形态见本文；文档维护、校验、索引和归档规则见 `37_documentation_governance.md`。
+>
+> Tracking milestones:
+> - `M5: Production Readiness`
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - GitHub Issue `#75` — Documentation auto-generation
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. 定位
 

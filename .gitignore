@@ -45,3 +45,4 @@ superpowers/
 
 # Overstory worktrees (dynamic agent workspaces)
 .overstory/worktrees/
+.claude/worktrees/

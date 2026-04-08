@@ -3,7 +3,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { defineCommand } from "citty";
 import {
   agentsMdTemplate,
@@ -35,19 +35,20 @@ export const initCommand = defineCommand({
     },
   },
   run({ args }) {
-    const projectName = args.name;
-    const projectDir = resolve(process.cwd(), projectName);
+    const requestedName = args.name as string;
+    const projectDir = resolve(process.cwd(), requestedName);
+    const projectName = basename(projectDir);
 
     const selectedTools: AiTool[] = args["ai-tools"]
       ? (args["ai-tools"].split(",").map((t: string) => t.trim()) as AiTool[])
       : [...ALL_AI_TOOLS];
 
     if (existsSync(projectDir)) {
-      console.error(`Error: Directory "${projectName}" already exists.`);
+      console.error(`Error: Directory "${projectDir}" already exists.`);
       process.exit(1);
     }
 
-    console.log(`Creating LinchKit project: ${projectName}`);
+    console.log(`Creating LinchKit project: ${projectDir}`);
 
     // Create directory structure
     mkdirSync(projectDir, { recursive: true });
@@ -85,7 +86,7 @@ export const initCommand = defineCommand({
     console.log("Project created successfully!");
     console.log("");
     console.log("  Project structure:");
-    console.log(`  ${projectName}/`);
+    console.log(`  ${projectDir}/`);
     console.log("    ├── linchkit.config.ts");
     console.log("    ├── package.json");
     console.log("    ├── tsconfig.json");
@@ -106,7 +107,7 @@ export const initCommand = defineCommand({
     }
     console.log("");
     console.log("  Next steps:");
-    console.log(`    cd ${projectName}`);
+    console.log(`    cd ${projectDir}`);
     console.log("    bun install");
     console.log("    linch dev");
     console.log("");
@@ -126,8 +127,10 @@ export const initCommand = defineCommand({
     ) {
       console.log("    Cursor / Codex / Trae / Copilot:");
       console.log("      I just created this LinchKit project. Help me set it up:");
+      console.log("      first read CLAUDE.md and AGENTS.md, then docs/specs/INDEX.md,");
+      console.log("      treat GitHub milestones/issues as the execution source of truth,");
       console.log("      ask what I want to build, recommend and install capabilities,");
-      console.log("      then help me define entities, actions, and rules.");
+      console.log("      then help me define entities, actions, and rules via the relevant specs.");
       console.log("");
     }
   },

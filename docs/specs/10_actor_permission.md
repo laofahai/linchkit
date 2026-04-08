@@ -1,5 +1,13 @@
 # Actor 与权限模型设计规范
 
+> Tracking milestones:
+> - foundational security architecture reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 权限管理本身作为系统内置 Capability 实现，见 14_system_capabilities.md
 > 认证机制详见 [10a_authentication.md](10a_authentication.md)
 

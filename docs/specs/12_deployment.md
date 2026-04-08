@@ -1,6 +1,14 @@
 # 部署架构设计规范
 
 > 本文说明部署流程与组件职责；共享数据库蓝绿下的兼容性硬约束见 `38_release_compatibility.md`。
+>
+> Tracking milestones:
+> - `M5: Production Readiness`
+>
+> Related issues:
+> - GitHub Issue `#72` — Deployment strategy
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. 整体架构
 

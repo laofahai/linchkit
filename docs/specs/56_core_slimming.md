@@ -3,6 +3,14 @@
 > Status: Draft | Date: 2026-03-27
 > 里程碑: M3
 > 审查来源: Claude Code, Codex GPT-5.4, 原审计（三方独立审查）
+>
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - GitHub Issue `#77` — Core slimming: move implementations to capabilities
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. 背景与动机
 

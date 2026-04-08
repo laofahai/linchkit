@@ -1,7 +1,6 @@
 # Chatter — 统一记录时间线
 
 > 本 spec 扩展 [Spec 14 — System Capabilities](./14_system_capabilities.md) 4.7。请先阅读该 spec。
->
 > Spec 14 列出 `@linchkit/cap-comment` 作为"建议安装"的系统 Capability，提供评论/活动功能。本 spec 提供 `@linchkit/cap-chatter` 的**完整设计**，定位从"聊天+活动日志"升级为**统一记录级时间线**，涵盖字段级变更审计、执行日志、人工评论、AI 对话、状态流转和可观测性数据。
 
 > Status: Draft | Date: 2026-03-27

@@ -1,5 +1,14 @@
 # Capability 结构与组织规范
 
+> Tracking milestones:
+> - foundational capability architecture reference
+>
+> Related issues:
+> - GitHub Issue `#84` — Repository separation: core vs official capabilities
+> - GitHub Issue `#85` — Capability Hub: discovery and marketplace
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. Capability 定义
 
 Capability 是 LinchKit 中系统能力的基本组织单位。一个 Capability 代表一个可以独立存在、独立演进的业务模块。

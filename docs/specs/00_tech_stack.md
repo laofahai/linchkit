@@ -1,5 +1,13 @@
 # LinchKit 技术栈与基础设施
 
+> Tracking milestones:
+> - foundational architecture reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 核心技术选型
 
 | 层面 | 选型 | 理由 |

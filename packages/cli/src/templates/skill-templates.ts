@@ -139,8 +139,8 @@ description: "Entity design rules: naming, field types, system fields, inheritan
 | \`date\` | — |
 | \`datetime\` | — |
 | \`enum\` | \`options\`: [{ value, label }] |
-| \`ref\` | \`target\`: entity name |
 | \`json\` | \`schema\`: Zod schema |
+| \`state\` | state machine-backed field |
 
 ## System Fields (DO NOT define — auto-managed)
 \`id\`, \`tenant_id\`, \`created_at\`, \`updated_at\`, \`created_by\`, \`updated_by\`, \`_version\`
@@ -336,20 +336,21 @@ description: "Relation design: cardinality types, defineRelation pattern, cascad
 \`\`\`ts
 defineRelation({
   name: 'order_customer',
-  source: 'order',
-  target: 'customer',
+  from: 'order',
+  to: 'customer',
   cardinality: 'many_to_one',
-  sourceField: 'customer_id',
-  cascade: { onDelete: 'restrict' },
+  fromName: 'customer',
+  toName: 'orders',
+  cascade: 'none',
 })
 \`\`\`
 
 ## Cascade Rules
 | Rule | Description |
 |------|-------------|
-| \`restrict\` | Prevent deletion if related records exist (default) |
-| \`cascade\` | Delete related records |
-| \`set_null\` | Set foreign key to null |
+| \`none\` | Do not cascade deletes or nullification |
+| \`delete\` | Delete related records |
+| \`nullify\` | Set the relation to null when supported |
 `;
 }
 

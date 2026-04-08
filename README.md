@@ -56,7 +56,7 @@ The AI agent will interactively guide you through capability selection, entity d
 - `linchkit.config.ts` — Project configuration
 - `AGENTS.md` / `CLAUDE.md` — AI development instructions
 - `.mcp.json` — MCP dev server config for AI tools
-- `.claude/skills/linch/` — 10 development skills (entity design, action design, etc.)
+- `.claude/skills/linch/` — development skills (entity design, action design, etc.)
 - `.cursor/rules/linch/` — Same skills for Cursor
 
 ---
@@ -340,7 +340,7 @@ linch publish           # Publish packages
 docker compose up -d    # PostgreSQL + Restate
 
 bun install             # Install dependencies
-bun test                # Run tests (~3700 tests)
+bun test                # Run tests
 bun run dev             # Start dev server (server :3001 + UI :3000)
 bun run dev:server      # Server only
 bun run dev:ui          # UI only (proxies API to :3001)
@@ -352,25 +352,6 @@ bun run db:generate     # Generate migration SQL from schema changes
 bun run db:migrate      # Apply pending migrations
 bun run db:studio       # Open Drizzle Studio GUI
 ```
-
----
-
-## Milestones
-
-- [x] **M0a** — Dev Infrastructure + UI Shell
-- [x] **M0b** — Core Runtime (all engines, E2E purchase management demo)
-- [x] **M1** — Flow Engine (Restate dual-mode), Approval + Proposal engines
-- [x] **M2** — Relations, OntologyRegistry, GraphQL Subscriptions, Entity Interfaces, Inheritance, Derived Properties, Soft Delete, Data Masking, Reactive Automation
-- [ ] **M3** — Developer Experience, Publishing, AI Workspace *(in progress)*
-  - [x] Runtime Entity Overlay (6 phases)
-  - [x] MCP Dev Server + AI development workflow
-  - [x] Publishing infrastructure (Changesets, tsup, CI/CD)
-  - [x] Observability (alerts, impact analysis)
-  - [x] i18n (capability-owned translations)
-  - [ ] Auth + Permission capabilities
-- [ ] **M4** — Production Grade (full multi-tenancy, multi-node, OpenTelemetry)
-
----
 
 ## License
 
