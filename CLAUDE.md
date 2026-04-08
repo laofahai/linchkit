@@ -113,10 +113,11 @@ bun test              # Full test suite (3870+ tests)
 When multiple independent issues can be worked on simultaneously:
 
 1. **Subagents only write code** — Dispatch with `isolation: "worktree"`. Instruct agents to do file changes only, NOT `git commit/push` or `gh pr create`.
-2. **Orchestrator handles git** — After agents complete, the orchestrator commits, pushes, and creates PRs from each worktree.
-3. **Bash `cd` persists** — Working directory carries over between Bash calls. Always use `cd /absolute/path && git ...` in a single Bash call. Never assume you're in the main repo.
-4. **Permission allowlist** — `settings.json` only allows specific Bash patterns. Subagents cannot receive interactive permission prompts, so they fail silently on `git`/`gh` commands.
+2. **Worktree starts from `origin/HEAD` (main)** — Agents always work on a fresh branch from main. Do NOT instruct agents to `git checkout` another branch — they should make changes directly in their worktree.
+3. **Orchestrator handles git** — After agents complete, the orchestrator creates a feat branch, copies files from worktree via `cp`, commits, pushes, and creates PRs.
+4. **Bash `cd` persists** — Working directory carries over between Bash calls. Always use `cd /absolute/path && git ...` in a single Bash call. Never assume you're in the main repo.
 5. **No file overlap** — Ensure parallel branches don't modify the same files to avoid merge conflicts.
+6. **Retrieving worktree files** — Use `cp <worktree-path>/file <main-repo>/file`. Do NOT use `git checkout <worktree-path>` — worktree paths are not git refs.
 
 ### Phase 6: Close
 
