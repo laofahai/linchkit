@@ -509,7 +509,7 @@ describe("generateOpenAPISpec", () => {
     const doc = generateApiDoc(ontology);
     const spec = generateOpenAPISpec(doc);
 
-    // purchase_request_input should not have has_many or computed fields
+    // purchase_request_input should not have computed fields
     const inputSchema = spec.components.schemas.purchase_request_input;
     // All purchase_request fields are writable in our test data
     expect(inputSchema.properties).toBeDefined();

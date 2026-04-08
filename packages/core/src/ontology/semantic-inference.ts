@@ -6,11 +6,13 @@
  *
  * Inference sources (in order of spec 24 §2.2):
  * 1. capability.dependencies → depends_on
- * 2. Schema ref/has_many fields → references / contains
- * 3. capability.bridges → bridges / affects
- * 4. EventHandler cross-module listeners → triggers / affects
- * 5. Flow cross-module action steps → orchestrates
- * 6. Rule cross-module context queries → reads_from
+ * 2. capability.bridges → bridges / affects
+ * 3. EventHandler cross-module listeners → triggers / affects
+ * 4. Flow cross-module action steps → orchestrates
+ * 5. Rule cross-module context queries → reads_from
+ *
+ * Note: Entity field-level inference (ref → references, has_many → contains) was
+ * removed in Spec 61. All entity relationships are now declared via defineRelation().
  */
 
 import type { CapabilityDefinition } from "../types/capability";

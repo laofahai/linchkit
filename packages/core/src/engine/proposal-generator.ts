@@ -141,7 +141,7 @@ LinchKit has the following concepts:
 
 ${contextSection}
 
-Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed, ref, has_many, many_to_many
+Valid field types: string, text, number, boolean, date, datetime, enum, json, state, computed
 
 Rules for generating proposals:
 1. For "create" changes, always include a complete "definition" object

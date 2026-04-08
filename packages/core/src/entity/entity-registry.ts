@@ -20,7 +20,7 @@ import type { InterfaceRegistry } from "./entity-interface";
 
 // ── Non-storable field types ────────────────────────────────────
 
-const NON_STORABLE_TYPES = new Set(["computed", "has_many", "many_to_many"]);
+const NON_STORABLE_TYPES = new Set(["computed"]);
 
 /** Maximum inheritance depth (A -> B -> C = depth 2, max allowed is 3 levels total) */
 const MAX_INHERITANCE_DEPTH = 3;

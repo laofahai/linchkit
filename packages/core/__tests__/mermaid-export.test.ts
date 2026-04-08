@@ -11,14 +11,14 @@ function sampleRelations(): SemanticRelation[] {
       type: "references",
       from: { capability: "sales", entity: "order" },
       to: { capability: "crm", entity: "customer" },
-      source: "schema_ref",
+      source: "manual",
     },
     {
       id: "order->contains->order_line",
       type: "contains",
       from: { capability: "sales", entity: "order" },
       to: { capability: "sales", entity: "order_line" },
-      source: "schema_has_many",
+      source: "manual",
     },
     {
       id: "order->triggers->invoice",
@@ -64,7 +64,7 @@ describe("generateSemanticMermaid", () => {
         type: "references",
         from: { entity: "a" },
         to: { entity: "b" },
-        source: "schema_ref",
+        source: "manual",
       },
     ]);
 
@@ -118,7 +118,7 @@ describe("generateSemanticMermaid", () => {
         type: "references",
         from: { entity: "my-entity" },
         to: { entity: "other.entity" },
-        source: "schema_ref",
+        source: "manual",
       },
     ]);
 
