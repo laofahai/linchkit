@@ -288,7 +288,7 @@ function printActionDescription(desc: ActionDescription): void {
   }
 }
 
-function printCapabilityDescription(cap: CapabilityDefinition, defs: ProjectDefinitions): void {
+function printCapabilityDescription(cap: CapabilityDefinition): void {
   console.log("");
   console.log(`  Capability: ${cap.name}`);
   console.log(`  Label:      ${cap.label}`);
@@ -303,7 +303,6 @@ function printCapabilityDescription(cap: CapabilityDefinition, defs: ProjectDefi
 
   // Filter definitions belonging to this capability
   const capEntities = cap.entities ?? [];
-  const entityNames = new Set(capEntities.map((e) => e.name));
   const capActions = (cap.actions ?? []) as ActionDefinition[];
   const capRules = (cap.rules ?? []) as RuleDefinition[];
   const capStates = (cap.states ?? []) as StateDefinition[];
@@ -468,7 +467,7 @@ const capabilitySubcommand = defineCommand({
       };
       console.log(JSON.stringify(summary, null, 2));
     } else {
-      printCapabilityDescription(cap, defs);
+      printCapabilityDescription(cap);
     }
   },
 });
