@@ -1,0 +1,25 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+language: en
+reviews:
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "packages/core/**"
+      instructions: |
+        Core package. Must not import from any other package.
+        No concrete implementations — only engines, types, and pipeline.
+    - path: "addons/**"
+      instructions: |
+        Capability packages. Dependency flows one way: Capability -> Core.
+        UI must not import from server packages.
+    - path: "docs/specs/**"
+      instructions: |
+        Specification files. Check that implementation matches spec design.
+chat:
+  auto_reply: true

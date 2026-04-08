@@ -17,5 +17,41 @@
       "Write(**)",
       "Edit(**)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "if git diff HEAD~1 --name-only 2>/dev/null | grep -qE '^(packages|addons)/'; then echo 'npm-published code changed. Run bunx changeset if this needs a version bump.'; fi",
+            "statusMessage": "Checking changeset need..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bunx biome check --write --unsafe $CLAUDE_FILE_PATH 2>/dev/null || true",
+            "statusMessage": "Auto-formatting..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: If you changed spec implementation status, update docs/specs/INDEX.md before ending.'"
+          }
+        ]
+      }
+    ]
   }
 }
