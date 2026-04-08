@@ -1,7 +1,6 @@
 # Spec 54 — Advanced UI Features
 
 > This spec extends [Spec 13 — View & UI](./13_view_and_ui.md). Read that spec first for context.
->
 > Spec 13 defines the view system, view types (`list`, `form`, `detail`, `kanban`, `dashboard`, `calendar`, `tree`), layout priority chain, Widget Registry, SearchBar architecture, and AI-native design principles. This spec does NOT redefine those concepts. Instead, it adds:
 > - **Field dependencies** (show/hide) — new `visibleWhen` property for conditional form rendering
 > - **Saved filters / custom views** — persistent named filter presets
@@ -10,20 +9,11 @@
 > - **Rich text editor** — Tiptap-based editor (implementing the `rich_text` field type referenced in spec 13 §7)
 > - **Print / PDF export** — client-side print CSS
 > - **Record templates** — pre-filled field value presets
->
 > Also references: [Spec 14 — System Capabilities](./14_system_capabilities.md) §4.9 (`cap-dashboard`), [Spec 03 — Schema](./03_schema.md), [Spec 46 — Link Type](./46_link_type.md)
 
 > **Status:** Draft
 > **Milestone:** M3
 > **Dependencies:** Spec 13 (View & UI), Spec 03 (Schema), Spec 46 (Link Type)
->
-> Tracking milestones:
-> - `M7: Ecosystem`
->
-> Related issues:
-> - GitHub Issue `#86` — Advanced UI views: kanban, calendar, timeline
->
-> Execution source of truth: GitHub milestones and issues.
 
 ## Overview
 

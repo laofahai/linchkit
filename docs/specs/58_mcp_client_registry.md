@@ -1,7 +1,6 @@
 # MCP Client Registry — AI Agent 接入管理
 
 > 本 spec 扩展 [Spec 15 — AI Developer Experience](./15_ai_developer_experience.md) §3 和 [Spec 20 — Extension Mechanism](./20_extension_mechanism.md) §8.5。
->
 > Spec 15 定义了 MCP 工具集（查询、操作、Proposal），Spec 20 定义了 transport 注册机制。本 spec 补充 **Client 注册、per-client 授权、工具可见性策略、使用统计** 以及配套管理 UI。
 
 > Status: Draft | Date: 2026-04-03

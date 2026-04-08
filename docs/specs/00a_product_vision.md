@@ -1,15 +1,6 @@
 # 产品愿景 — 用户说，要有光
 
-> Tracking milestones:
-> - long-range product vision reference across multiple milestones
->
-> Related issues:
-> - No dedicated open issue is currently tracked for this spec.
->
-> Execution source of truth: GitHub milestones and issues.
-
 > **"用户说，要有光。"**
->
 > 系统不是被设计出来的，是从使用中长出来的。
 
 ## 1. 核心理念

@@ -3,7 +3,6 @@
 > Status: Active | Date: 2026-03-22
 > **Last Updated**: 2026-03-25
 > Prerequisite: **✅ M0b complete** (auth/permission integration finalized)
->
 > ### Current Progress
 > - ✅ M0b: 100% complete (all tasks done, all tests passing)
 > - ✅ M1a Stage 1: Drizzle ORM Infrastructure 100% complete
@@ -40,13 +39,10 @@
 > - ✅ Spec 29: Methodology — complete
 > - ✅ Spec 37: Documentation Governance — complete
 > - ✅ Spec 38: Release Compatibility — complete
->
 > ### Test Coverage
 > - ~1983 tests, 0 failures
->
 > ### Tech Debt Fixed (2026-03-25)
 > - 12 items resolved: resolveApiKey, permission self-registration, identifier validation, Link FK column merging, GraphQL Link resolver tests, console logger fixes, schema-to-zod improvements, schema-to-drizzle Link support, flow types refinement, transport types update, validation engine enhancements, proposal generator improvements
->
 > ### Integration Wiring Completed (2026-03-25)
 > - GraphQL state transitions: availableTransitions query + transition mutation
 > - GraphQL optimistic locking: _version check with 409 conflict response
@@ -61,12 +57,10 @@
 > - 5 CLI commands: docs, check, changelog, validate, info
 > - 4 MCP AI security tools
 > - Purchase demo enhanced (interfaces, derived, automations, masking)
->
 > ### Architecture Improvements
 > - **Browser/Server Boundaries**: Clean separation of browser-safe and server-only code paths across all packages
 > - **Error Hierarchy**: Structured error types with proper HTTP status mapping (validation→400, auth→401, authz→403, not_found→404, business→422, conflict→409, system→500)
 > - **EventBusLike Decoupling**: Core engines depend on `EventBusLike` interface, not concrete EventBus — enables in-memory, persistent, and test implementations interchangeably
->
 > ### Remaining Work (TODO)
 > - Final polish and M2 remaining items
 

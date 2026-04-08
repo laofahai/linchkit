@@ -1,14 +1,5 @@
 # 统一 Command Layer、API、CLI、MCP 设计规范
 
-> Tracking milestones:
-> - foundational runtime and transport architecture reference
->
-> Related issues:
-> - GitHub Issue `#72` — Deployment strategy
-> - GitHub Issue `#78` — AI deep integration: NL intent resolution
->
-> Execution source of truth: GitHub milestones and issues.
-
 ## 1. 核心架构
 
 ```
@@ -22,11 +13,9 @@ UI ───────┘         │
 所有入口（CLI、MCP、HTTP API、UI）走同一个 Command Layer。核心逻辑写一次，不同传输协议只是适配器。
 
 > 所有入口（HTTP、MCP、UI）均由 Capability（type: adapter）通过 `extensions.transports` 注册。Core 只提供 CommandLayer 管道，不内置任何 transport。CLI 是唯一的内置入口，作为编排器加载 Capability 并启动 transport。
->
 > - `cap-adapter-server` — 注册 HTTP REST + GraphQL transport
 > - `cap-adapter-mcp` — 注册 MCP transport（stdio + Streamable HTTP）
 > - `cap-adapter-ui` — 注册 UI Shell（通过 cap-adapter-server 的 HTTP 服务静态文件）
->
 > 不同部署场景只需加载不同的 adapter Capability，Core 代码不变。
 
 ## 2. Command Layer

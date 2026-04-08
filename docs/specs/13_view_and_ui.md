@@ -1,29 +1,14 @@
 # View 与 UI 设计规范
 
-> Tracking milestones:
-> - foundational UI architecture reference
-> - `M7: Ecosystem`
->
-> Related issues:
-> - GitHub Issue `#86` — Advanced UI views: kanban, calendar, timeline
-> - No dedicated open issue is currently tracked for the rest of this spec.
->
-> Execution source of truth: GitHub milestones and issues.
-
 > **UI 架构原则**：UI 不是 Core 的一部分，而是由 Capability 提供。
->
 > - `cap-adapter-ui` — 官方 UI Shell Capability（React + Shadcn + TanStack），在 `capabilities/` 中。内含基础组件库（原 ui-kit）。
 > - 各业务 Capability — 通过 `defineCapability({ pages, views })` 声明自己的页面和视图
 > - 第三方可实现其他 UI Shell（如 cap-adapter-ui-vue），只要遵守相同的 View/Widget 抽象声明
->
 > 安装 Capability 自动获得 UI 页面，卸载后路由自动移除。不需要 UI 的应用（如纯 MCP 或 Headless API）不安装 cap-adapter-ui 即可。
->
 > **UI 与逻辑完全解耦**：Core 中的 ViewDefinition、FormLayout、WidgetDefinition 都是纯数据声明，不包含任何框架特定代码（无 React/Vue/Angular 依赖）。Capability 只声明"要什么"，UI Shell 负责"怎么渲染"。
->
 > - `extensions.viewTypes` 中的自定义视图类型（map, gantt 等）由 UI Shell 注册具体渲染组件
 > - Widget Registry 由 UI Shell 维护（cap-adapter-ui 用 React 组件，cap-adapter-ui-vue 用 Vue 组件）
 > - 没装任何 UI Shell → 所有 pages/views 声明被忽略，系统以 Headless 模式运行
->
 > cap-adapter-ui 负责：
 > - 路由注册（扫描所有 Capability 的 `pages` 声明）
 > - Sidebar 导航（根据 Capability 的 category + pages 自动生成）
