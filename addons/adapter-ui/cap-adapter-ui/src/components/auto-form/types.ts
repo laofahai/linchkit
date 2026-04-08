@@ -2,7 +2,12 @@
  * AutoForm type definitions.
  */
 
-import type { EntityDefinition, RecordTemplate, ViewDefinition } from "@linchkit/core/types";
+import type {
+  EntityDefinition,
+  RecordTemplate,
+  RelationDefinition,
+  ViewDefinition,
+} from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
 import type { FieldOverlayRecord } from "../../lib/overlay-types";
 
@@ -90,4 +95,9 @@ export interface AutoFormProps {
    * Values are stored in and read from the record's `_extensions` object.
    */
   overlayFields?: FieldOverlayRecord[];
+  /**
+   * Relation definitions for the entity. Used to identify virtual ref records
+   * and child record commands by cardinality rather than field type (Spec 61).
+   */
+  relations?: RelationDefinition[];
 }

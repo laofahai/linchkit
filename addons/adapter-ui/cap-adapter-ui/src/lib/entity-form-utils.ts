@@ -7,6 +7,7 @@
 import type {
   EntityDefinition,
   FormLayoutNode,
+  RelationDefinition,
   StateDefinition,
   StateMeta,
   ViewDefinition,
@@ -70,25 +71,74 @@ export function getTransitionActionNames(
 }
 
 /**
- * Relation field types that require subfield selection in GraphQL.
- * Note: ref/has_many/many_to_many field types have been removed (Spec 61).
- * Relations are now declared via defineRelation(). These sets are kept for
- * backward compatibility with views that may reference relation semantic names.
- * TODO: Refactor to use RelationRegistry for subfield resolution.
+ * Build a set of semantic relation field names for a given entity
+ * from RelationDefinition[]. Used to determine which GraphQL fields
+ * need subfield selection `{ id name }`.
  */
-const RELATION_FIELD_TYPES = new Set<string>();
+function buildRelationFieldSet(entityName: string, relations: RelationDefinition[]): Set<string> {
+  const names = new Set<string>();
+  for (const rel of relations) {
+    if (rel.from === entityName) names.add(rel.fromName);
+    if (rel.to === entityName) names.add(rel.toName);
+  }
+  return names;
+}
 
-/** Collection relation types excluded from mutation return types */
-const COLLECTION_RELATION_TYPES = new Set<string>();
+/** Collection cardinalities excluded from mutation return types (one_to_many, many_to_many) */
+const COLLECTION_CARDINALITIES = new Set(["one_to_many", "many_to_many"]);
 
-/** Extract GraphQL field names from view fields, always including the state field */
-export function getRecordFields(view: ViewDefinition, schema?: EntityDefinition): string[] {
+/**
+ * Build a set of semantic relation field names that represent collection relations
+ * (one_to_many / many_to_many) for a given entity. These are excluded from mutation
+ * return types because they are only available on query types.
+ */
+function buildCollectionRelationFields(
+  entityName: string,
+  relations: RelationDefinition[],
+): Set<string> {
+  const names = new Set<string>();
+  for (const rel of relations) {
+    const isFrom = rel.from === entityName;
+    const isTo = rel.to === entityName;
+    if (isFrom && COLLECTION_CARDINALITIES.has(rel.cardinality)) {
+      names.add(rel.fromName);
+    }
+    if (isTo) {
+      // Incoming side: many_to_one from-side appears as one_to_many on to-side
+      const reverseCardinality =
+        rel.cardinality === "many_to_one"
+          ? "one_to_many"
+          : rel.cardinality === "one_to_many"
+            ? "many_to_one"
+            : rel.cardinality;
+      if (COLLECTION_CARDINALITIES.has(reverseCardinality)) {
+        names.add(rel.toName);
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * Extract GraphQL field names from view fields, always including the state field.
+ * Relation fields are resolved from RelationDefinition[] metadata (Spec 61)
+ * instead of entity field types.
+ */
+export function getRecordFields(
+  view: ViewDefinition,
+  schema?: EntityDefinition,
+  relations?: RelationDefinition[],
+): string[] {
   const fields = new Set<string>(["id"]);
+  const entityName = schema?.name ?? "";
+  const relationFields = relations
+    ? buildRelationFieldSet(entityName, relations)
+    : new Set<string>();
+
   for (const f of view.fields) {
     if (f.field.includes(".")) continue;
-    const fieldDef = schema?.fields?.[f.field];
-    if (fieldDef && RELATION_FIELD_TYPES.has(fieldDef.type ?? "")) {
-      // Include display fields so the UI can show a human-readable label
+    if (relationFields.has(f.field)) {
+      // Relation field — include display subfields for human-readable labels
       fields.add(`${f.field} { id name }`);
     } else {
       fields.add(f.field);
@@ -103,20 +153,21 @@ export function getRecordFields(view: ViewDefinition, schema?: EntityDefinition)
 
 /**
  * Filter record fields safe for mutation return types.
- * Excludes has_many/many_to_many fields which are only available on query types,
- * not on create/update mutation return types.
+ * Excludes collection relation fields (one_to_many / many_to_many) which are
+ * only available on query types, not on create/update mutation return types.
  */
 export function getMutationReturnFields(
   recordFields: string[],
   schema?: EntityDefinition,
+  relations?: RelationDefinition[],
 ): string[] {
-  if (!schema) return recordFields;
+  if (!schema || !relations) return recordFields;
+  const entityName = schema.name;
+  const collectionFields = buildCollectionRelationFields(entityName, relations);
   return recordFields.filter((f) => {
     // Extract field name from "fieldName { subfields }" format
     const fieldName = f.split(" ")[0] ?? f;
-    const fieldDef = schema.fields[fieldName];
-    if (!fieldDef) return true;
-    return !COLLECTION_RELATION_TYPES.has(fieldDef.type ?? "");
+    return !collectionFields.has(fieldName);
   });
 }
 

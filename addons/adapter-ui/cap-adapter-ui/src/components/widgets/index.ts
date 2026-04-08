@@ -115,29 +115,28 @@ export function registerDefaultWidgets() {
     display: StringDisplay,
   });
 
-  // ref widget for FK string fields that reference other entities
-  // Registered with id="ref" but bound to string type; resolved via explicit widget overrides
-  widgetRegistry.register({
-    definition: { id: "ref", fieldTypes: "string", modes: ["display", "input"], isDefault: false },
-    display: RefDisplay,
-    input: RefInput,
-  });
+  // ── Relation widgets — resolved by cardinality from RelationRegistry (Spec 61) ──
+  // IDs that share the same display/input components are registered in a loop.
 
-  // has_many widget for one-to-many relationship display (via relation, not field type)
-  // Registered with id="has_many"; resolved via explicit widget overrides on relation fields
-  widgetRegistry.register({
-    definition: {
-      id: "has_many",
-      fieldTypes: "string",
-      modes: ["display", "input"],
-      isDefault: false,
-    },
-    display: HasManyDisplay,
-    input: HasManyInput,
-  });
+  // Single-ref widgets: many_to_one, one_to_one, and backward-compatible "ref" alias
+  for (const id of ["many_to_one", "one_to_one", "ref"] as const) {
+    widgetRegistry.register({
+      definition: { id, fieldTypes: "string", modes: ["display", "input"], isDefault: false },
+      display: RefDisplay,
+      input: RefInput,
+    });
+  }
 
-  // many_to_many widget for many-to-many relationship display (via relation, not field type)
-  // Registered with id="many_to_many"; resolved via explicit widget overrides on relation fields
+  // Collection widgets: one_to_many and backward-compatible "has_many" alias
+  for (const id of ["one_to_many", "has_many"] as const) {
+    widgetRegistry.register({
+      definition: { id, fieldTypes: "string", modes: ["display", "input"], isDefault: false },
+      display: HasManyDisplay,
+      input: HasManyInput,
+    });
+  }
+
+  // many_to_many: multi-select tags
   widgetRegistry.register({
     definition: {
       id: "many_to_many",
