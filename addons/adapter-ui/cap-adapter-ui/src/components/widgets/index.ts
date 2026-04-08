@@ -116,40 +116,25 @@ export function registerDefaultWidgets() {
   });
 
   // ── Relation widgets — resolved by cardinality from RelationRegistry (Spec 61) ──
+  // IDs that share the same display/input components are registered in a loop.
 
-  // many_to_one / one_to_one: combobox select for FK reference
-  widgetRegistry.register({
-    definition: {
-      id: "many_to_one",
-      fieldTypes: "string",
-      modes: ["display", "input"],
-      isDefault: false,
-    },
-    display: RefDisplay,
-    input: RefInput,
-  });
-  widgetRegistry.register({
-    definition: {
-      id: "one_to_one",
-      fieldTypes: "string",
-      modes: ["display", "input"],
-      isDefault: false,
-    },
-    display: RefDisplay,
-    input: RefInput,
-  });
+  // Single-ref widgets: many_to_one, one_to_one, and backward-compatible "ref" alias
+  for (const id of ["many_to_one", "one_to_one", "ref"] as const) {
+    widgetRegistry.register({
+      definition: { id, fieldTypes: "string", modes: ["display", "input"], isDefault: false },
+      display: RefDisplay,
+      input: RefInput,
+    });
+  }
 
-  // one_to_many: inline sub-table with dialog editing
-  widgetRegistry.register({
-    definition: {
-      id: "one_to_many",
-      fieldTypes: "string",
-      modes: ["display", "input"],
-      isDefault: false,
-    },
-    display: HasManyDisplay,
-    input: HasManyInput,
-  });
+  // Collection widgets: one_to_many and backward-compatible "has_many" alias
+  for (const id of ["one_to_many", "has_many"] as const) {
+    widgetRegistry.register({
+      definition: { id, fieldTypes: "string", modes: ["display", "input"], isDefault: false },
+      display: HasManyDisplay,
+      input: HasManyInput,
+    });
+  }
 
   // many_to_many: multi-select tags
   widgetRegistry.register({
@@ -161,23 +146,6 @@ export function registerDefaultWidgets() {
     },
     display: ManyToManyDisplay,
     input: ManyToManyInput,
-  });
-
-  // Backward-compatible aliases — old widget IDs still resolve
-  widgetRegistry.register({
-    definition: { id: "ref", fieldTypes: "string", modes: ["display", "input"], isDefault: false },
-    display: RefDisplay,
-    input: RefInput,
-  });
-  widgetRegistry.register({
-    definition: {
-      id: "has_many",
-      fieldTypes: "string",
-      modes: ["display", "input"],
-      isDefault: false,
-    },
-    display: HasManyDisplay,
-    input: HasManyInput,
   });
 
   // Translatable string widget — locale tabs + text input for i18n fields

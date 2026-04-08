@@ -497,11 +497,12 @@ export function AutoForm({
           }
         }
         if (rel.to === schema.name) {
-          if (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one") {
+          if (rel.cardinality === "many_to_one") {
             // Incoming many_to_one means this side is the "one" — appears as collection
             collectionFieldNames.add(rel.toName);
-          } else if (rel.cardinality === "one_to_many") {
-            // Incoming one_to_many means this side is the "many" — appears as ref
+          } else if (rel.cardinality === "one_to_many" || rel.cardinality === "one_to_one") {
+            // Incoming one_to_many: this side is "many" — holds FK ref
+            // Incoming one_to_one: single related record — also a ref
             refFieldNames.add(rel.toName);
           } else {
             collectionFieldNames.add(rel.toName);
