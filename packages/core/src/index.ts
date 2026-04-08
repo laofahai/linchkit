@@ -313,6 +313,7 @@ export {
   ERROR_STATUS_MAP,
   validateCapabilityMetadata,
 } from "./types";
+export type { ErrorContext } from "./types/error";
 export type { Logger } from "./types/logger";
 export type { PermissionGroupDefinition } from "./types/permission";
 export type {

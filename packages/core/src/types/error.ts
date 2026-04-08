@@ -23,6 +23,29 @@ export type ErrorType =
   | "conflict"
   | "system";
 
+// ── AI-friendly error context (Spec 60 §3.4) ────────────
+
+/**
+ * Structured context for AI agents to understand and fix errors autonomously.
+ * Populated by engines (ActionEngine, RuleEngine, StateMachine, ValidationEngine).
+ */
+export interface ErrorContext {
+  /** Which entity was involved */
+  entity?: string;
+  /** Which action was attempted */
+  action?: string;
+  /** Which field caused the issue */
+  field?: string;
+  /** Which constraint failed (rule name, validation name) */
+  constraint?: string;
+  /** What was expected */
+  expected?: string;
+  /** What was provided */
+  actual?: string;
+  /** What to change (human-readable suggestion) */
+  suggestion?: string;
+}
+
 // ── Base error ────────────────────────────────────────
 
 export interface LinchKitErrorOptions {
@@ -33,6 +56,8 @@ export interface LinchKitErrorOptions {
   messageKey?: string;
   /** i18n interpolation params for the messageKey template */
   messageParams?: Record<string, unknown>;
+  /** AI-friendly error context (Spec 60 §3.4) */
+  context?: ErrorContext;
 }
 
 // ── Error variants ────────────────────────────────────────
@@ -83,6 +108,8 @@ export interface LinchKitErrorResponse {
     messageKey?: string;
     /** i18n interpolation params for the messageKey template */
     messageParams?: Record<string, unknown>;
+    /** AI-friendly error context (Spec 60 §3.4) */
+    context?: ErrorContext;
     fields?: ValidationErrorData["fields"];
     rules?: BusinessRuleErrorData["rules"];
     approvalId?: string;

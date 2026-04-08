@@ -9,6 +9,7 @@
 
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
+import type { ErrorContext } from "../types/error";
 import type {
   BlockEffect,
   CodeCondition,
@@ -88,6 +89,8 @@ export interface RuleEvalOutput {
   results: RuleEvaluationResult[];
   /** Total evaluation duration in ms */
   duration: number;
+  /** AI-friendly error contexts for block/warn effects (Spec 60 §3.4) */
+  contexts: ErrorContext[];
 }
 
 /**
@@ -114,6 +117,7 @@ export async function evaluateRules(
     actions: [],
     results: [],
     duration: 0,
+    contexts: [],
   };
 
   const metrics = options?.metrics ?? noopMetricsCollector;
@@ -198,7 +202,7 @@ export async function evaluateRules(
     if (!triggered) continue;
 
     output.triggered = true;
-    mergeEffect(output, rule.effect);
+    mergeEffect(output, rule.effect, rule.name);
 
     // Track block events separately for alert/dashboard convenience
     if (rule.effect.type === "block") {
@@ -214,16 +218,26 @@ export async function evaluateRules(
 /**
  * Merge a single effect into the cumulative output.
  */
-function mergeEffect(output: RuleEvalOutput, effect: RuleEffect): void {
+function mergeEffect(output: RuleEvalOutput, effect: RuleEffect, ruleName?: string): void {
   switch (effect.type) {
     case "block": {
       const block = effect as BlockEffect;
       output.blocked = true;
       output.blockReasons.push(block.reason ?? block.message);
+      output.contexts.push({
+        constraint: ruleName,
+        expected: block.reason ?? block.message,
+        suggestion: `Rule "${ruleName ?? "unknown"}" blocked this action: ${block.reason ?? block.message}`,
+      });
       break;
     }
     case "warn": {
-      output.warnings.push(effect as WarnEffect);
+      const warn = effect as WarnEffect;
+      output.warnings.push(warn);
+      output.contexts.push({
+        constraint: ruleName,
+        suggestion: `Warning from rule "${ruleName ?? "unknown"}": ${warn.message}`,
+      });
       break;
     }
     case "require_approval": {

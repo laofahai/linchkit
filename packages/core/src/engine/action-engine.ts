@@ -17,7 +17,7 @@ import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { Logger } from "../types/logger";
 import type { StateMachine } from "./state-machine";
-import { canTransition } from "./state-machine";
+import { canTransition, getAvailableActions } from "./state-machine";
 
 export { ActionRegistry } from "./action-registry";
 
@@ -282,7 +282,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       });
       return {
         success: false,
-        data: { error: `Action "${actionName}" not found` } as T,
+        data: {
+          error: `Action "${actionName}" not found`,
+          context: {
+            action: actionName,
+            suggestion: `Check action name spelling or register the action with defineAction({ name: "${actionName}", ... })`,
+          },
+        } as T,
         executionId,
       };
     }
@@ -309,7 +315,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         });
         return {
           success: false,
-          data: { error: errorMsg } as T,
+          data: {
+            error: errorMsg,
+            context: {
+              action: actionName,
+              entity: action.entity,
+              constraint: "exposure",
+              expected: `Action exposed for channel "${channel}"`,
+              actual: `Not exposed for "${channel}"`,
+              suggestion: `Add exposure config: defineAction({ ..., exposure: { ${channel}: true } })`,
+            },
+          } as T,
           executionId,
         };
       }
@@ -340,6 +356,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 4: Input validation
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
+      const firstError = inputValidation.errors?.[0];
       await logExecution({
         id: executionId,
         action: actionName,
@@ -352,7 +369,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       });
       return {
         success: false,
-        data: { error: "Input validation failed", details: inputValidation.errors } as T,
+        data: {
+          error: "Input validation failed",
+          details: inputValidation.errors,
+          context: {
+            action: actionName,
+            entity: action.entity,
+            field: firstError?.field,
+            constraint: "input_validation",
+            expected: firstError?.message,
+            suggestion: firstError
+              ? `Fix field "${firstError.field}": ${firstError.message}`
+              : "Check action input against the defined input schema",
+          },
+        } as T,
         executionId,
       };
     }
@@ -428,6 +458,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 5: Pre-validation
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
+      const firstError = preValidation.errors?.[0];
       await logExecution({
         id: executionId,
         action: actionName,
@@ -440,7 +471,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       });
       return {
         success: false,
-        data: { error: "Validation failed", details: preValidation.errors } as T,
+        data: {
+          error: "Validation failed",
+          details: preValidation.errors,
+          context: {
+            action: actionName,
+            entity: action.entity,
+            constraint: "pre_validation",
+            field: firstError?.field,
+            expected: firstError?.message,
+            suggestion: firstError
+              ? `Fix field "${firstError.field}": ${firstError.message}`
+              : "Check input values against action validation rules",
+          },
+        } as T,
         executionId,
       };
     }
@@ -498,13 +542,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           });
           return {
             success: false,
-            data: { error: errorMsg } as T,
+            data: {
+              error: errorMsg,
+              context: {
+                entity: action.entity,
+                action: actionName,
+                field: "status",
+                constraint: "state_transition",
+                expected: `Current state in [${fromStates.join(", ")}]`,
+                actual: `Current state is "${currentState}"`,
+                suggestion: `Record is in "${currentState}" state. Allowed source states for "${actionName}" are: [${fromStates.join(", ")}]`,
+              },
+            } as T,
             executionId,
           };
         }
 
         // Also validate against state machine if available
         if (!canTransition(stateMachine, currentState, actionName)) {
+          const available = getAvailableActions(stateMachine, currentState);
           const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
           await logExecution({
             id: executionId,
@@ -518,7 +574,21 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           });
           return {
             success: false,
-            data: { error: errorMsg } as T,
+            data: {
+              error: errorMsg,
+              context: {
+                entity: action.entity,
+                action: actionName,
+                field: "status",
+                constraint: "state_machine",
+                expected: `Action "${actionName}" allowed from current state`,
+                actual: `State "${currentState}" does not permit "${actionName}"`,
+                suggestion:
+                  available.length > 0
+                    ? `Available actions from "${currentState}": [${available.join(", ")}]`
+                    : `No actions available from state "${currentState}"`,
+              },
+            } as T,
             executionId,
           };
         }

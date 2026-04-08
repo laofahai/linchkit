@@ -5,6 +5,8 @@
  * Transitions must be bound to Actions; direct state field modification is not allowed.
  */
 
+import type { ErrorContext } from "./error";
+
 // ── State metadata ──────────────────────────────────────
 
 export interface StateMeta {
@@ -53,4 +55,6 @@ export interface TransitionResult {
   to?: string;
   action?: string;
   reason?: string;
+  /** AI-friendly error context for failed transitions (Spec 60 §3.4) */
+  context?: ErrorContext;
 }
