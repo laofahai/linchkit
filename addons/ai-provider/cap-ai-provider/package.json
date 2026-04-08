@@ -1,6 +1,6 @@
 {
   "name": "@linchkit/cap-ai-provider",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -19,7 +19,7 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "@linchkit/core": "^0.1.0"
+    "@linchkit/core": "^0.2.0"
   },
   "devDependencies": {
     "@linchkit/core": "workspace:*",
