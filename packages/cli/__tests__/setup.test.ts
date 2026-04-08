@@ -6,12 +6,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  type AiTool,
-  ALL_AI_TOOLS,
-  detectAiTools,
-  syncAiToolConfigs,
-} from "../src/commands/setup";
+import { type AiTool, ALL_AI_TOOLS, detectAiTools, syncAiToolConfigs } from "../src/commands/setup";
 import { linchkitSkills } from "../src/templates";
 
 const TEST_DIR = resolve(import.meta.dir, ".tmp-test-setup");
