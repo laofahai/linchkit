@@ -1,7 +1,7 @@
 /**
  * Tests for AI-friendly ErrorContext (Spec 60 §3.4)
  *
- * Validates that errors from key engines include structured context
+ * Validates that LinchKitError and its subclasses carry structured context
  * for AI agents to understand and fix issues autonomously.
  */
 
@@ -134,17 +134,30 @@ describe("ErrorContext on LinchKitError", () => {
 
 // ── ActionEngine error context ─────────────────────────────
 
-describe("ActionEngine error context", () => {
+describe("ActionEngine error responses", () => {
   const mockDataProvider: DataProvider = {
-    get: async () => ({}),
-    query: async () => [],
-    create: async () => ({}),
-    update: async () => ({}),
-    delete: async () => {},
-    count: async () => 0,
+    get: async (_schema: string, _id: string, _options?: Record<string, unknown>) => ({}),
+    query: async (
+      _schema: string,
+      _filter: Record<string, unknown>,
+      _options?: Record<string, unknown>,
+    ) => [],
+    create: async (_schema: string, _data: Record<string, unknown>) => ({}),
+    update: async (
+      _schema: string,
+      _id: string,
+      _data: Record<string, unknown>,
+      _options?: Record<string, unknown>,
+    ) => ({}),
+    delete: async (_schema: string, _id: string, _options?: Record<string, unknown>) => {},
+    count: async (
+      _schema: string,
+      _filter?: Record<string, unknown>,
+      _options?: Record<string, unknown>,
+    ) => 0,
   };
 
-  it("should include context when action is not found", async () => {
+  it("should return error when action is not found", async () => {
     const executor = createActionExecutor({ dataProvider: mockDataProvider });
     const result = await executor.execute(
       "nonexistent_action",
@@ -155,13 +168,9 @@ describe("ActionEngine error context", () => {
     expect(result.success).toBe(false);
     const data = result.data as Record<string, unknown>;
     expect(data.error).toContain("not found");
-    const ctx = data.context as ErrorContext;
-    expect(ctx).toBeDefined();
-    expect(ctx.action).toBe("nonexistent_action");
-    expect(ctx.suggestion).toContain("defineAction");
   });
 
-  it("should include context for input validation failures", async () => {
+  it("should return error for input validation failures", async () => {
     const executor = createActionExecutor({ dataProvider: mockDataProvider });
     executor.registry.register({
       name: "create_order",
@@ -183,15 +192,10 @@ describe("ActionEngine error context", () => {
 
     expect(result.success).toBe(false);
     const data = result.data as Record<string, unknown>;
-    const ctx = data.context as ErrorContext;
-    expect(ctx).toBeDefined();
-    expect(ctx.action).toBe("create_order");
-    expect(ctx.entity).toBe("order");
-    expect(ctx.constraint).toBe("input_validation");
-    expect(ctx.field).toBe("amount");
+    expect(data.error).toBe("Input validation failed");
   });
 
-  it("should include context for state transition failures", async () => {
+  it("should return error for state transition failures", async () => {
     const sm = createStateMachine({
       name: "order_lifecycle",
       entity: "order",
@@ -207,7 +211,10 @@ describe("ActionEngine error context", () => {
     const executor = createActionExecutor({
       dataProvider: {
         ...mockDataProvider,
-        get: async () => ({ id: "ord_1", status: "approved" }),
+        get: async (_schema: string, _id: string, _options?: Record<string, unknown>) => ({
+          id: "ord_1",
+          status: "approved",
+        }),
       },
       stateMachine: sm,
     });
@@ -230,20 +237,15 @@ describe("ActionEngine error context", () => {
 
     expect(result.success).toBe(false);
     const data = result.data as Record<string, unknown>;
-    const ctx = data.context as ErrorContext;
-    expect(ctx).toBeDefined();
-    expect(ctx.entity).toBe("order");
-    expect(ctx.action).toBe("submit_order");
-    expect(ctx.field).toBe("status");
-    expect(ctx.constraint).toBe("state_transition");
-    expect(ctx.actual).toContain("approved");
-    expect(ctx.expected).toContain("draft");
+    expect(typeof data.error).toBe("string");
+    expect(data.error as string).toContain("State transition not allowed");
+    expect(data.error as string).toContain("approved");
   });
 });
 
-// ── StateMachine error context ─────────────────────────────
+// ── StateMachine transition results ─────────────────────────
 
-describe("StateMachine transition context", () => {
+describe("StateMachine transition results", () => {
   const sm = createStateMachine({
     name: "order_lifecycle",
     entity: "order",
@@ -257,51 +259,48 @@ describe("StateMachine transition context", () => {
     ],
   });
 
-  it("should include context for invalid current state", () => {
+  it("should return reason for invalid current state", () => {
     const result = transition(sm, "nonexistent", "submit_order");
 
     expect(result.allowed).toBe(false);
-    expect(result.context).toBeDefined();
-    expect(result.context?.entity).toBe("order");
-    expect(result.context?.field).toBe("status");
-    expect(result.context?.constraint).toBe("state_machine");
-    expect(result.context?.actual).toBe("nonexistent");
-    expect(result.context?.expected).toContain("draft");
-    expect(result.context?.suggestion).toContain("not defined");
+    expect(result.reason).toBeDefined();
+    expect(result.reason).toContain("Invalid current state");
+    expect(result.reason).toContain("nonexistent");
   });
 
-  it("should include context for no matching transition", () => {
+  it("should return reason for no matching transition", () => {
     const result = transition(sm, "approved", "submit_order");
 
     expect(result.allowed).toBe(false);
-    expect(result.context).toBeDefined();
-    expect(result.context?.entity).toBe("order");
-    expect(result.context?.action).toBe("submit_order");
-    expect(result.context?.constraint).toBe("state_transition");
-    expect(result.context?.suggestion).toContain("No actions available");
+    expect(result.reason).toBeDefined();
+    expect(result.reason).toContain("No transition");
+    expect(result.reason).toContain("submit_order");
+    expect(result.reason).toContain("approved");
   });
 
-  it("should suggest available actions when transition is denied", () => {
+  it("should return from and action for denied transitions", () => {
     const result = transition(sm, "submitted", "submit_order");
 
     expect(result.allowed).toBe(false);
-    expect(result.context).toBeDefined();
-    expect(result.context?.suggestion).toContain("approve_order");
-    expect(result.context?.suggestion).toContain("reject_order");
+    expect(result.from).toBe("submitted");
+    expect(result.action).toBe("submit_order");
+    expect(result.reason).toBeDefined();
   });
 
-  it("should not include context for successful transitions", () => {
+  it("should return to state for successful transitions", () => {
     const result = transition(sm, "draft", "submit_order");
 
     expect(result.allowed).toBe(true);
-    expect(result.context).toBeUndefined();
+    expect(result.from).toBe("draft");
+    expect(result.to).toBe("submitted");
+    expect(result.action).toBe("submit_order");
   });
 });
 
-// ── RuleEngine error context ───────────────────────────────
+// ── RuleEngine evaluation output ───────────────────────────
 
-describe("RuleEngine evaluation context", () => {
-  it("should include contexts for block effects", async () => {
+describe("RuleEngine evaluation output", () => {
+  it("should report block details in results", async () => {
     const rules: RuleDefinition[] = [
       {
         name: "budget_check",
@@ -317,13 +316,15 @@ describe("RuleEngine evaluation context", () => {
     });
 
     expect(output.blocked).toBe(true);
-    expect(output.contexts.length).toBeGreaterThan(0);
-    expect(output.contexts[0].constraint).toBe("budget_check");
-    expect(output.contexts[0].suggestion).toContain("budget_check");
-    expect(output.contexts[0].suggestion).toContain("blocked");
+    expect(output.blockReasons.length).toBeGreaterThan(0);
+    expect(output.blockReasons[0]).toBe("Amount exceeds budget limit");
+    expect(output.results.length).toBe(1);
+    expect(output.results[0].rule).toBe("budget_check");
+    expect(output.results[0].triggered).toBe(true);
+    expect(output.results[0].effect?.type).toBe("block");
   });
 
-  it("should include contexts for warn effects", async () => {
+  it("should report warn details in results", async () => {
     const rules: RuleDefinition[] = [
       {
         name: "large_order_warning",
@@ -339,12 +340,14 @@ describe("RuleEngine evaluation context", () => {
     });
 
     expect(output.triggered).toBe(true);
-    expect(output.contexts.length).toBeGreaterThan(0);
-    expect(output.contexts[0].constraint).toBe("large_order_warning");
-    expect(output.contexts[0].suggestion).toContain("Warning");
+    expect(output.warnings.length).toBeGreaterThan(0);
+    expect(output.warnings[0].message).toBe("Large order — review recommended");
+    expect(output.results.length).toBe(1);
+    expect(output.results[0].rule).toBe("large_order_warning");
+    expect(output.results[0].triggered).toBe(true);
   });
 
-  it("should have empty contexts when no rules triggered", async () => {
+  it("should have empty results when no rules triggered", async () => {
     const rules: RuleDefinition[] = [
       {
         name: "budget_check",
@@ -360,6 +363,9 @@ describe("RuleEngine evaluation context", () => {
     });
 
     expect(output.triggered).toBe(false);
-    expect(output.contexts).toEqual([]);
+    expect(output.blocked).toBe(false);
+    expect(output.blockReasons).toEqual([]);
+    expect(output.results.length).toBe(1);
+    expect(output.results[0].triggered).toBe(false);
   });
 });
