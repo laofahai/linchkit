@@ -197,11 +197,10 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 44 |
-| Partial | 7 |
+| Done | 48 |
+| Partial | 9 |
 | Draft | 8 |
-| Deprecated | 1 |
-| **Total** | **59** unique specs + 1 deprecated |
+| **Total** | **65** unique specs |
 
 ### Change Log
 
