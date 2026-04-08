@@ -354,11 +354,12 @@ describe("syncAiToolConfigs — multiple tools and edge cases", () => {
     };
 
     syncAiToolConfigs(opts);
-    const firstRun = syncAiToolConfigs(opts);
+    const secondRun = syncAiToolConfigs(opts);
 
     // Second run should still report skills (they are always overwritten)
     // but not .mcp.json (only written if missing)
-    expect(firstRun.some((f) => f.includes("skills"))).toBe(true);
+    expect(secondRun.some((f) => f.includes("skills"))).toBe(true);
+    expect(secondRun).not.toContain(".mcp.json");
   });
 
   test("skill content is non-empty for all generated skills", () => {
