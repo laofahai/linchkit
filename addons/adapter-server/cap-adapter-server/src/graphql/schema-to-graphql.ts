@@ -459,12 +459,12 @@ export function generateGraphQLInputType(
             link.from === schema.name &&
             (link.cardinality === "many_to_one" || link.cardinality === "one_to_one")
           ) {
-            const fkFieldName = `${link.to}_id`;
+            const fkFieldName = `${link.fromName}_id`;
             // Don't overwrite if already defined
             if (!fields[fkFieldName]) {
               fields[fkFieldName] = {
                 type: GraphQLString,
-                description: `FK reference to ${link.to} (from link "${link.name}")`,
+                description: `FK reference to ${link.to} via "${link.fromName}" (from relation "${link.name}")`,
               };
             }
           }
