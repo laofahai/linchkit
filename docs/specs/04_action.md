@@ -1,5 +1,14 @@
 # Action 设计规范
 
+> Tracking milestones:
+> - foundational meta-model reference
+>
+> Related issues:
+> - GitHub Issue `#78` — AI deep integration: NL intent resolution
+> - No dedicated open issue is currently tracked for the rest of this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 本文定义 Action 结构；Action 与 Rule / Approval / Event / Execution / Error 的统一执行时序见 `39_execution_contract.md`。
 
 ## 1. 定位

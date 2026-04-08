@@ -1,5 +1,13 @@
 # 缓存策略设计规范
 
+> Tracking milestones:
+> - `M5: Production Readiness`
+>
+> Related issues:
+> - GitHub Issue `#73` — Cache strategy completion
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 概述
 
 核心设计原则：

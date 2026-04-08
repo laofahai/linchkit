@@ -1,5 +1,15 @@
 # View 与 UI 设计规范
 
+> Tracking milestones:
+> - foundational UI architecture reference
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - GitHub Issue `#86` — Advanced UI views: kanban, calendar, timeline
+> - No dedicated open issue is currently tracked for the rest of this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > **UI 架构原则**：UI 不是 Core 的一部分，而是由 Capability 提供。
 >
 > - `cap-adapter-ui` — 官方 UI Shell Capability（React + Shadcn + TanStack），在 `capabilities/` 中。内含基础组件库（原 ui-kit）。

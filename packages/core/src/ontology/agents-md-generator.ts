@@ -49,6 +49,7 @@ export function generateAgentsMd(options: AgentsMdOptions): string {
   }
 
   sections.push(renderHeader(options.projectName));
+  sections.push(renderExecutionWorkflow());
   sections.push(renderTechStack());
   sections.push(renderEntities(options.entities));
   sections.push(renderActions(options.actions));
@@ -95,6 +96,18 @@ function renderTechStack(): string {
     "| UI | Shadcn + Radix + Tailwind |",
     "| Testing | bun test |",
     "| Code Quality | Biome |",
+  ].join("\n");
+}
+
+function renderExecutionWorkflow(): string {
+  return [
+    "## Execution Workflow",
+    "",
+    "- **Execution source of truth:** GitHub milestones and issues",
+    "- **Specs:** Define target design and stable constraints",
+    "- **README:** Background and project introduction only, not a task source",
+    "- **Suggested startup order for AI agents:** read `CLAUDE.md` / `AGENTS.md`, then `docs/specs/INDEX.md`, then inspect current GitHub milestones and issues, then read only the relevant spec files",
+    "- **Rule:** If a spec exists for the area being changed, read it before implementation",
   ].join("\n");
 }
 

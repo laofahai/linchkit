@@ -1,5 +1,13 @@
 # Event 设计规范
 
+> Tracking milestones:
+> - foundational meta-model reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 本文定义事件模型；事件在统一执行链中的产出时序见 `39_execution_contract.md`。
 
 ## 1. 定位

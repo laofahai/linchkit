@@ -1,5 +1,13 @@
 # Capability Hub 设计规范
 
+> Tracking milestones:
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - GitHub Issue `#85` — Capability Hub: discovery and marketplace
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 Capability Hub 是 LinchKit 的能力市场，用于发布、分享、安装可复用的 Capability。类似 npm 之于 Node.js。

@@ -8,6 +8,12 @@ export function claudeMdTemplate(projectName: string): string {
 ## Overview
 LinchKit AI-Native Software Capability Runtime project.
 
+## Execution Workflow
+- GitHub milestones and issues are the execution source of truth
+- Specs define target design and stable constraints
+- README is background only, not a task source
+- Read this file first, then AGENTS.md, then docs/specs/INDEX.md, then inspect current GitHub milestones/issues
+
 ## Tech Stack
 - Runtime: Bun
 - Framework: LinchKit
@@ -40,7 +46,6 @@ export const customer = defineEntity({
       { value: 'active', label: 'Active' },
       { value: 'inactive', label: 'Inactive' },
     ]},
-    company: { type: 'ref', target: 'company' },
   },
 })
 \`\`\`
@@ -101,7 +106,7 @@ export default defineConfig({
 \`\`\`
 
 ## Field Types
-string, text, number, boolean, date, datetime, enum, ref, has_many, many_to_many, json
+string, text, number, boolean, date, datetime, enum, json, state
 
 ## Project Structure
 - \`linchkit.config.ts\` — Configuration
@@ -118,6 +123,13 @@ export function agentsMdTemplate(projectName: string): string {
 
 This project uses LinchKit, an AI-Native Software Capability Runtime.
 All business logic is defined declaratively using \`defineXxx()\` functions.
+
+## Execution Workflow
+
+- **Execution source of truth**: GitHub milestones and issues
+- **Specs**: Define target design and stable constraints
+- **README**: Background only, not a task source
+- **Startup order for AI agents**: read \`CLAUDE.md\` / \`AGENTS.md\`, then \`docs/specs/INDEX.md\`, then inspect current GitHub milestones/issues, then read only the relevant specs
 
 ## Key Concepts
 
@@ -139,17 +151,20 @@ When a user asks you to help set up this project, follow this workflow:
 4. **Design actions** — Help define actions using \`defineAction()\` following verb_noun naming
 5. **Design rules/states** — Add business rules and state machines as needed
 6. **Register in config** — Add capabilities to \`linchkit.config.ts\`
-7. **Verify** — Run \`linch dev\` and check that everything works
-8. **Quality gates** — Run \`linch validate\`, \`bun run check\`, \`bun run typecheck\`, \`bun test\`
+7. **Read the relevant spec** — If a spec exists for the area being changed, read it before implementation
+8. **Verify** — Run \`linch dev\` and check that everything works
+9. **Quality gates** — Run \`linch validate\`, \`bun run check\`, \`bun run typecheck\`, \`bun test\`
 
 Ask one question at a time. Use MCP tools (\`linchkit_list_entities\`, \`linchkit_validate_entity\`, etc.) for project introspection.
 
 ## Development Workflow
 
-1. Define capabilities in \`addons/\` directory
-2. Register capabilities in \`linchkit.config.ts\`
-3. Run \`linch dev\` to start the development server
-4. The framework auto-detects changes and applies migrations
+1. Read GitHub milestones/issues to determine the active task
+2. Read the relevant spec files before changing a spec'd area
+3. Define capabilities in \`addons/\` directory
+4. Register capabilities in \`linchkit.config.ts\`
+5. Run \`linch dev\` to start the development server
+6. Run quality gates before commit
 
 ## Entity Field Types Reference
 
@@ -162,10 +177,8 @@ Ask one question at a time. Use MCP tools (\`linchkit_list_entities\`, \`linchki
 | \`date\` | Date only | — |
 | \`datetime\` | Date + time | — |
 | \`enum\` | Fixed options | \`options\`: [{ value, label }] |
-| \`ref\` | Many-to-one reference | \`target\`: entity name |
-| \`has_many\` | One-to-many | \`target\`, \`foreignKey\` |
-| \`many_to_many\` | Many-to-many | \`target\`, \`through\` |
 | \`json\` | Arbitrary JSON | \`schema\`: Zod schema |
+| \`state\` | State machine-backed field | state definition + transitions |
 
 ## Action Types
 
@@ -247,10 +260,11 @@ import { defineRelation } from '@linchkit/core'
 
 export const orderCustomerRelation = defineRelation({
   name: 'order_customer',
-  source: 'order',
-  target: 'customer',
+  from: 'order',
+  to: 'customer',
   cardinality: 'many_to_one',
-  sourceField: 'customer_id',
+  fromName: 'customer',
+  toName: 'orders',
 })
 \`\`\`
 

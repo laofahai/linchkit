@@ -1,5 +1,14 @@
 # Rule 设计规范
 
+> Tracking milestones:
+> - foundational meta-model reference
+>
+> Related issues:
+> - GitHub Issue `#79` — AI-Rule boundary definition
+> - No dedicated open issue is currently tracked for the rest of this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 本文定义 Rule 模型；Rule 在统一执行链中的时序见 `39_execution_contract.md`，`execute_action` 的使用边界见 `40_rule_execute_action_boundary.md`。
 
 ## 1. 定位

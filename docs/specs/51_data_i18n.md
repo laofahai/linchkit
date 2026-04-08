@@ -2,6 +2,14 @@
 
 > Spec: 51 | Status: Active | Supersedes: spec 41 (original data i18n design)
 > Last Updated: 2026-03-26
+>
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. Overview
 

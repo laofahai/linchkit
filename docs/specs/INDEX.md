@@ -5,6 +5,41 @@
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 >
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
+>
+> **Execution source of truth**: GitHub milestones and issues are the authoritative task tracker. This index tracks design intent and implementation status; the `Milestone` column is a design-stage target, not the canonical execution plan.
+
+---
+
+## Active Execution Tracking
+
+As of 2026-04-08, active delivery planning is tracked in GitHub, not in this document.
+
+### GitHub Milestones
+
+- `M5: Production Readiness` — deployment, caching, release compatibility, documentation generation, observability completion
+- `M5: Platform Maturity & AI Evolution` — core slimming, semantic relation unification, documentation auto-gen, AI workspace completion
+- `M6: AI Intelligence` — AI deep integration, AI-Rule boundary, AI security hardening, Evolution system MVP
+- `M7: Ecosystem` — Capability Hub, repository separation, advanced UI views, protocol adapters
+
+### Current Open Tracking Issues
+
+- `#72` Deployment strategy (Spec 12)
+- `#73` Cache strategy completion (Spec 34)
+- `#74` Release compatibility & versioning (Spec 38)
+- `#75` Documentation auto-generation (Spec 25)
+- `#77` Core slimming — move implementations to capabilities (Spec 56)
+- `#78` AI deep integration — NL intent resolution (Spec 52)
+- `#79` AI-Rule boundary definition (Spec 22)
+- `#80` AI security hardening (Spec 27)
+- `#81` Evolution system MVP — Sense + Memory + Awareness (Spec 55)
+- `#82` AI Workspace completion (Spec 60)
+- `#83` Record analysis and data quality scanning (Spec 52)
+- `#84` Repository separation — core vs official capabilities
+- `#85` Capability Hub — discovery and marketplace (Spec 21b)
+- `#86` Advanced UI views — kanban, calendar, timeline (Spec 54)
+- `#87` Semantic relation unification (Spec 61)
+- `#88` Evolution system — Insight + Proposal cycle (Spec 55)
+- `#89` Protocol adapters — A2A and AG-UI (Spec 15)
 
 ---
 

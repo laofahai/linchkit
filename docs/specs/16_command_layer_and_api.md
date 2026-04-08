@@ -1,5 +1,14 @@
 # 统一 Command Layer、API、CLI、MCP 设计规范
 
+> Tracking milestones:
+> - foundational runtime and transport architecture reference
+>
+> Related issues:
+> - GitHub Issue `#72` — Deployment strategy
+> - GitHub Issue `#78` — AI deep integration: NL intent resolution
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 核心架构
 
 ```

@@ -1,5 +1,13 @@
 # State Machine 设计规范
 
+> Tracking milestones:
+> - foundational meta-model reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 State Machine 管理业务对象的生命周期状态。状态是业务真相的一部分 — 它决定了当前能做什么操作、不能做什么操作。

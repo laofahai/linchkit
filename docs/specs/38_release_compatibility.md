@@ -1,5 +1,13 @@
 # 发布兼容性与迁移协议
 
+> Tracking milestones:
+> - `M5: Production Readiness`
+>
+> Related issues:
+> - GitHub Issue `#74` — Release compatibility & versioning
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 本文定义 LinchKit 在以下场景中的**硬约束**：

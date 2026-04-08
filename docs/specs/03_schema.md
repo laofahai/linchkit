@@ -1,5 +1,14 @@
 # Schema 设计规范
 
+> Tracking milestones:
+> - foundational meta-model reference
+>
+> Related issues:
+> - GitHub Issue `#87` — Semantic relation unification
+> - No dedicated open issue is currently tracked for the rest of this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 Schema 是 LinchKit 的数据基础。所有其他概念（Action、Rule、State、Event）都围绕 Schema 运转。

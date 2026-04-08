@@ -1,5 +1,14 @@
 # Proposal / Validation / Version 设计规范
 
+> Tracking milestones:
+> - foundational governance architecture reference
+>
+> Related issues:
+> - GitHub Issue `#82` — AI Workspace completion
+> - GitHub Issue `#88` — Evolution system: Insight + Proposal cycle
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 这三者构成 LinchKit 的变更治理核心：

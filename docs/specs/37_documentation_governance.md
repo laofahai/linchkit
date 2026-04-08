@@ -1,5 +1,13 @@
 # 文档治理规范
 
+> Tracking milestones:
+> - `M5: Production Readiness`
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 `25_documentation.md` 定义的是“文档作为系统能力的产物形态”。

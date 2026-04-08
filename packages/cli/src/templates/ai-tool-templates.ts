@@ -22,6 +22,11 @@ export function cursorRulesTemplate(projectName: string): string {
 
 Read AGENTS.md at the project root for full conventions, meta-model reference, and development workflow.
 
+Execution order for AI work:
+- GitHub milestones and issues are the execution source of truth
+- Specs define target design and stable constraints
+- README is background only, not a task source
+
 ## Quick Reference
 - Runtime: Bun (never Node/npx/npm)
 - Language: TypeScript strict mode
@@ -38,6 +43,11 @@ export function codexMdTemplate(): string {
 
 Read AGENTS.md at the project root for full conventions, meta-model reference, and development workflow.
 
+Execution order for AI work:
+- GitHub milestones and issues are the execution source of truth
+- Specs define target design and stable constraints
+- README is background only, not a task source
+
 Key rules:
 - Runtime: Bun (never Node/npx/npm)
 - TypeScript strict mode
@@ -50,6 +60,11 @@ export function traeRulesTemplate(projectName: string): string {
   return `# ${projectName} — Trae Rules
 
 Read AGENTS.md at the project root for full conventions, meta-model reference, and development workflow.
+
+Execution order for AI work:
+- GitHub milestones and issues are the execution source of truth
+- Specs define target design and stable constraints
+- README is background only, not a task source
 
 ## Quick Reference
 - Runtime: Bun (never Node/npx/npm)
@@ -66,6 +81,11 @@ export function copilotInstructionsTemplate(projectName: string): string {
   return `# ${projectName} — GitHub Copilot Instructions
 
 This project uses LinchKit, an AI-Native Software Capability Runtime.
+
+## Execution Workflow
+- **Execution source of truth**: GitHub milestones and issues
+- **Specs**: Define target design and stable constraints
+- **README**: Background only, not a task source
 
 ## Key Conventions
 - **Runtime**: Bun — never use Node.js, npx, or npm

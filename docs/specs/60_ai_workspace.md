@@ -3,6 +3,14 @@
 > Status: Design | Date: 2026-04-06
 > Milestone: M3
 > Related: [15 — AI Developer Experience](./15_ai_developer_experience.md), [43 — Ontology Layer](./43_ontology_layer.md), [55 — Evolution System](./55_evolution_system.md), [58 — MCP Client Registry](./58_mcp_client_registry.md)
+>
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - GitHub Issue `#82` — AI Workspace completion
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. Motivation
 

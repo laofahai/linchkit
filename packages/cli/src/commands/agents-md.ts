@@ -7,7 +7,7 @@
  */
 
 import { existsSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import type { CapabilityDefinition } from "@linchkit/core";
 import { generateAgentsMd, initI18n, registerTranslations } from "@linchkit/core";
 import { defineCommand } from "citty";
@@ -71,7 +71,8 @@ export const agentsMdCommand = defineCommand({
     const states = capabilities.flatMap((c) => c.states ?? []);
 
     // Derive project name from config path directory
-    const projectDir = resolve(config.configPath, "..");
+    const configDir = dirname(config.configPath);
+    const projectDir = basename(configDir) === "config" ? dirname(configDir) : configDir;
     const projectName = projectDir.split("/").pop() ?? "LinchKit Project";
 
     // Check for user-maintained AGENTS.user.md

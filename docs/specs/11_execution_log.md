@@ -1,5 +1,13 @@
 # Execution Log 设计规范
 
+> Tracking milestones:
+> - foundational observability reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 本文定义 Execution 的存储与查询；Execution 在统一执行链中的产生时机见 `39_execution_contract.md`。
 
 ## 1. 定位

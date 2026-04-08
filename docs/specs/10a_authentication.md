@@ -1,5 +1,13 @@
 # Token 与认证机制设计规范
 
+> Tracking milestones:
+> - foundational security architecture reference
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 > 权限模型详见 [10_actor_permission.md](10_actor_permission.md)
 > Command Layer 的 auth slot 详见 [16_command_layer_and_api.md](16_command_layer_and_api.md) §2.2
 

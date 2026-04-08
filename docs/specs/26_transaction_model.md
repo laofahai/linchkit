@@ -1,5 +1,13 @@
 # 事务模型设计规范
 
+> Tracking milestones:
+> - `M5: Production Readiness`
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 三层事务
 
 ### 1.1 单动作事务

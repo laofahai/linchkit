@@ -1,5 +1,13 @@
 # 系统内置 Capability 设计规范
 
+> Tracking milestones:
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - No dedicated open issue is currently tracked for this spec.
+>
+> Execution source of truth: GitHub milestones and issues.
+
 ## 1. 定位
 
 LinchKit 的系统功能不是框架硬编码的功能，而是官方 Capability 包。
