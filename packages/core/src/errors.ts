@@ -10,6 +10,7 @@ import type {
   BusinessRuleErrorData,
   ConflictErrorData,
   ErrorCode,
+  ErrorContext,
   ErrorType,
   LinchKitErrorOptions,
   LinchKitErrorResponse,
@@ -32,6 +33,8 @@ export class LinchKitError extends Error {
   readonly type: ErrorType;
   readonly messageKey?: string;
   readonly messageParams?: Record<string, unknown>;
+  /** AI-friendly error context for autonomous diagnosis (Spec 60 §3.4) */
+  readonly context?: ErrorContext;
 
   constructor(options: LinchKitErrorOptions, type: ErrorType = "system") {
     super(options.message);
@@ -42,6 +45,7 @@ export class LinchKitError extends Error {
     this.statusCode = ERROR_STATUS_MAP[type];
     this.messageKey = options.messageKey;
     this.messageParams = options.messageParams;
+    this.context = options.context;
   }
 
   /** Convert to a standardized error response object. */
@@ -55,6 +59,7 @@ export class LinchKitError extends Error {
         ...(this.details !== undefined && { details: this.details }),
         ...(this.messageKey !== undefined && { messageKey: this.messageKey }),
         ...(this.messageParams !== undefined && { messageParams: this.messageParams }),
+        ...(this.context !== undefined && { context: this.context }),
       },
     };
   }

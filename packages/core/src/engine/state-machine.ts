@@ -82,6 +82,15 @@ export function transition(
       from: currentState,
       action,
       reason: `Invalid current state: "${currentState}"`,
+      context: {
+        entity: machine.definition.entity,
+        action,
+        field: machine.definition.field,
+        constraint: "state_machine",
+        expected: `One of [${machine.definition.states.join(", ")}]`,
+        actual: currentState,
+        suggestion: `State "${currentState}" is not defined in state machine "${machine.definition.name}". Valid states: [${machine.definition.states.join(", ")}]`,
+      },
     };
   }
 
@@ -89,11 +98,24 @@ export function transition(
   const match = findTransition(machine, currentState, action);
 
   if (!match) {
+    const available = getAvailableActions(machine, currentState);
     return {
       allowed: false,
       from: currentState,
       action,
       reason: `No transition for action "${action}" from state "${currentState}"`,
+      context: {
+        entity: machine.definition.entity,
+        action,
+        field: machine.definition.field,
+        constraint: "state_transition",
+        expected: `Action "${action}" allowed from state "${currentState}"`,
+        actual: `No transition defined for "${action}" from "${currentState}"`,
+        suggestion:
+          available.length > 0
+            ? `Available actions from "${currentState}": [${available.join(", ")}]`
+            : `No actions available from state "${currentState}" — this may be a terminal state`,
+      },
     };
   }
 
