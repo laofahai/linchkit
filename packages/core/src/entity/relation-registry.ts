@@ -12,6 +12,26 @@ import type {
   RelationRegistryInterface,
 } from "../types/relation";
 
+// ── Validation helpers ──────────────────────────────────────────────
+
+/** Valid snake_case identifier: lowercase letters, digits, underscores; must start with letter */
+const SNAKE_CASE_RE = /^[a-z][a-z0-9_]*$/;
+
+function validateSemanticName(
+  relationName: string,
+  field: "fromName" | "toName",
+  value: unknown,
+): void {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Relation "${relationName}" missing ${field}`);
+  }
+  if (!SNAKE_CASE_RE.test(value)) {
+    throw new Error(
+      `Relation "${relationName}" ${field} "${value}" is not a valid identifier (must be snake_case)`,
+    );
+  }
+}
+
 // ── RelationRegistry ──────────────────────────────────────────────
 
 export class RelationRegistry implements RelationRegistryInterface {
@@ -19,13 +39,17 @@ export class RelationRegistry implements RelationRegistryInterface {
 
   /**
    * Register a relation definition.
-   * Throws if a relation with the same name is already registered,
-   * or if semantic names conflict on the same entity.
+   * Validates required fields, semantic name format, and uniqueness.
+   * Throws on any validation failure.
    */
   register(relation: RelationDefinition): void {
     if (this.relations.has(relation.name)) {
       throw new Error(`Relation "${relation.name}" is already registered`);
     }
+
+    // Validate fromName/toName are present and valid identifiers
+    validateSemanticName(relation.name, "fromName", relation.fromName);
+    validateSemanticName(relation.name, "toName", relation.toName);
 
     // Validate semantic name uniqueness per entity
     for (const existing of this.relations.values()) {
