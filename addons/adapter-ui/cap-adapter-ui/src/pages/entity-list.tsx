@@ -48,56 +48,21 @@ import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
 type ActiveView = "list" | "calendar" | "kanban" | "tree";
 
 /**
- * Relation field types no longer exist (Spec 61). Subfield selection is now
- * determined by link-generated resolver names from buildLinkFieldNames().
- */
-const RELATION_FIELD_TYPES = new Set<string>();
-
-/**
- * Build a set of GraphQL field names that are link-generated resolvers
- * and therefore require subfield selection `{ id }`.
+ * Build a set of GraphQL field names that are relation-generated resolvers
+ * and therefore require subfield selection `{ id name }`.
  *
- * Link resolver naming convention (see link-resolvers.ts):
- * - many_to_one from-side:   fieldName = link.to          (singular)
- * - many_to_one to-side:     fieldName = `${link.from}s`  (plural)
- * - one_to_many from-side:   fieldName = `${link.to}s`    (plural)
- * - one_to_many to-side:     fieldName = link.from         (singular)
- * - one_to_one:              fieldName = link.to / link.from
- * - many_to_many:            fieldName = `${otherSchema}s` (plural)
+ * Uses semantic names from RelationDefinition (Spec 61):
+ * - from-side uses `fromName` (e.g. "department", "items", "authored_documents")
+ * - to-side uses `toName` (e.g. "purchase_requests", "authors")
  */
-function buildLinkFieldNames(
-  links: Array<{ from: string; to: string; cardinality: string }>,
+function buildRelationFieldNames(
+  relations: Array<{ from: string; to: string; fromName: string; toName: string }>,
   entityName?: string,
 ): Set<string> {
   const names = new Set<string>();
-  for (const link of links) {
-    const isFrom = link.from === entityName;
-    const isTo = link.to === entityName;
-
-    switch (link.cardinality) {
-      case "many_to_one":
-        if (isFrom) names.add(link.to); // singular
-        if (isTo) names.add(`${link.from}s`); // plural
-        break;
-      case "one_to_many":
-        if (isFrom) names.add(`${link.to}s`); // plural
-        if (isTo) names.add(link.from); // singular
-        break;
-      case "one_to_one":
-        if (isFrom) names.add(link.to);
-        if (isTo) names.add(link.from);
-        break;
-      case "many_to_many":
-        if (isFrom) names.add(`${link.to}s`);
-        if (isTo) names.add(`${link.from}s`);
-        break;
-      default:
-        // Fallback: add both sides
-        names.add(link.to);
-        names.add(link.from);
-        names.add(`${link.to}s`);
-        names.add(`${link.from}s`);
-    }
+  for (const rel of relations) {
+    if (rel.from === entityName) names.add(rel.fromName);
+    if (rel.to === entityName) names.add(rel.toName);
   }
   return names;
 }
@@ -106,13 +71,15 @@ function buildLinkFieldNames(
 function getQueryFields(
   view: AutoListViewDefinition,
   schemaFields?: Record<string, { type?: string; target?: string }>,
-  links?: Array<{ from: string; to: string; cardinality: string }>,
+  relations?: Array<{ from: string; to: string; fromName: string; toName: string }>,
   entityName?: string,
 ): string[] {
   const fields = new Set<string>(["id"]);
 
-  // Build a set of field names that are link-generated resolvers
-  const linkFieldNames = links ? buildLinkFieldNames(links, entityName) : new Set<string>();
+  // Build a set of field names that are relation-generated resolvers (Spec 61)
+  const relationFieldNames = relations
+    ? buildRelationFieldNames(relations, entityName)
+    : new Set<string>();
 
   for (const f of view.fields) {
     if (f.field.includes(".")) continue;
@@ -120,13 +87,10 @@ function getQueryFields(
     const fieldDef = schemaFields?.[f.field];
 
     // Determine if this field is a relationship that needs subfield selection:
-    // 1. Schema field with relationship type (ref, has_many, many_to_many)
-    // 2. Field name matches a link-generated resolver name
-    // 3. Field not in schema AND not a system field (likely a link resolver)
+    // 1. Field name matches a relation semantic name (fromName/toName)
+    // 2. Field not in schema AND not a system field (likely a relation resolver)
     const isRelation =
-      (fieldDef && RELATION_FIELD_TYPES.has(fieldDef.type ?? "")) ||
-      linkFieldNames.has(f.field) ||
-      (!fieldDef && !SYSTEM_FIELDS.has(f.field));
+      relationFieldNames.has(f.field) || (!fieldDef && !SYSTEM_FIELDS.has(f.field));
 
     if (isRelation) {
       // Request id + display fields for object/list types so the UI can

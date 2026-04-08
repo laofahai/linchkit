@@ -67,6 +67,7 @@ export function AutoForm({
   registerSetField,
   templates,
   overlayFields,
+  relations,
   formId: customFormId,
 }: AutoFormProps) {
   const { t } = useTranslation();
@@ -481,17 +482,43 @@ export function AutoForm({
       }
     }
 
-    // Collect virtual ref records and has_many child commands
+    // Build relation lookup sets from RelationDefinition[] (Spec 61).
+    // Used to identify ref fields (many_to_one/one_to_one) and collection fields
+    // (one_to_many/many_to_many) by semantic name instead of field type.
+    const refFieldNames = new Set<string>();
+    const collectionFieldNames = new Set<string>();
+    if (relations) {
+      for (const rel of relations) {
+        if (rel.from === schema.name) {
+          if (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one") {
+            refFieldNames.add(rel.fromName);
+          } else {
+            collectionFieldNames.add(rel.fromName);
+          }
+        }
+        if (rel.to === schema.name) {
+          if (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one") {
+            // Incoming many_to_one means this side is the "one" — appears as collection
+            collectionFieldNames.add(rel.toName);
+          } else if (rel.cardinality === "one_to_many") {
+            // Incoming one_to_many means this side is the "many" — appears as ref
+            refFieldNames.add(rel.toName);
+          } else {
+            collectionFieldNames.add(rel.toName);
+          }
+        }
+      }
+    }
+
+    // Collect virtual ref records and child commands
     const virtualRefs: Record<string, VirtualRecord> = {};
     const childCommands: Record<string, ChildCommand[]> = {};
 
     for (const [key, val] of Object.entries(submitData)) {
-      const fieldDef = schema.fields[key];
-      if (!fieldDef) continue;
-
-      // Detect virtual ref records (string FK fields holding an object with _virtual flag)
+      // Detect virtual ref records — identified by relation metadata or string field + _virtual flag
+      const isRefField = refFieldNames.has(key) || schema.fields[key]?.type === "string";
       if (
-        fieldDef.type === "string" &&
+        isRefField &&
         typeof val === "object" &&
         val !== null &&
         "_virtual" in val &&
@@ -505,8 +532,10 @@ export function AutoForm({
         };
       }
 
-      // Collect has_many child record commands (for relation-managed one_to_many fields)
-      if (Array.isArray(val) && fieldDef.type === "json") {
+      // Collect child record commands for collection relation fields (one_to_many / many_to_many)
+      const isCollectionField =
+        collectionFieldNames.has(key) || schema.fields[key]?.type === "json";
+      if (Array.isArray(val) && isCollectionField) {
         const commands: ChildCommand[] = [];
         const existingRecords = Array.isArray(data?.[key])
           ? (data[key] as Array<Record<string, unknown>>)

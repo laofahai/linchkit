@@ -115,15 +115,16 @@ export function EntityFormPage() {
   );
   const aiSuggestionCount = Object.keys(aiAutoFill.state.suggestions).length;
 
+  const entityRelations = bundle?.relations;
   const recordFields = useMemo(() => {
     if (!formView) return [];
-    const fields = getRecordFields(formView, schema);
+    const fields = getRecordFields(formView, schema, entityRelations);
     // Include _extensions when overlay fields exist (contains overlay field values)
     if (overlayFields.length > 0 && !fields.includes("_extensions")) {
       fields.push("_extensions");
     }
     return fields;
-  }, [formView, schema, overlayFields]);
+  }, [formView, schema, entityRelations, overlayFields]);
 
   // Stabilize recordFields via ref so fetchRecord doesn't get recreated on every render
   const recordFieldsRef = useRef(recordFields);
@@ -493,6 +494,7 @@ export function EntityFormPage() {
                 autoFormSetFieldRef.current = setter;
               }}
               overlayFields={overlayFields.length > 0 ? overlayFields : undefined}
+              relations={entityRelations}
             />
           </div>
 

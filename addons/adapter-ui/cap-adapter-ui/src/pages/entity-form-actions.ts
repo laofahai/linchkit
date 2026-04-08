@@ -134,7 +134,11 @@ export function useFormActions(opts: UseFormActionsOptions) {
 
         // Step 3: Create/update parent record
         // Filter out has_many/many_to_many fields — they exist on query types but not mutation return types
-        const mutationReturnFields = getMutationReturnFields(recordFields, schema);
+        const mutationReturnFields = getMutationReturnFields(
+          recordFields,
+          schema,
+          bundle?.relations,
+        );
         let parentRecordId = recordId;
         if (isCreate) {
           const created = await createRecord<{ id: string }>(entityName, mutationInput, [
