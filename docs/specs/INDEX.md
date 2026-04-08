@@ -7,6 +7,11 @@
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 >
 > **Execution source of truth**: GitHub milestones and issues are the authoritative task tracker. This index tracks design intent and implementation status; the `Milestone` column is a design-stage target, not the canonical execution plan.
+>
+> **AI interpretation rule**:
+> - If a spec links to active GitHub issues, treat GitHub as the execution source and the spec as the design reference.
+> - If a spec has no dedicated open issue, treat it as design/reference material unless the user explicitly asks to work on it.
+> - Do not use README as a task source.
 
 ---
 
@@ -40,6 +45,13 @@ As of 2026-04-08, active delivery planning is tracked in GitHub, not in this doc
 - `#87` Semantic relation unification (Spec 61)
 - `#88` Evolution system — Insight + Proposal cycle (Spec 55)
 - `#89` Protocol adapters — A2A and AG-UI (Spec 15)
+
+### Execution Heuristic
+
+- Read GitHub milestones/issues to determine what is actively scheduled now.
+- Read only the spec files relevant to the active issue or requested task.
+- If multiple specs apply, prefer the more specific spec over the more general one.
+- If a spec is `Draft` or `Partial`, verify current code and issue state before assuming missing implementation.
 
 ---
 

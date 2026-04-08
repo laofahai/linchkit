@@ -38,9 +38,6 @@ export const initCommand = defineCommand({
     const requestedName = args.name as string;
     const projectDir = resolve(process.cwd(), requestedName);
     const projectName = basename(projectDir);
-    console.log(
-      `[linch:init:debug] requested=${requestedName} projectDir=${projectDir} projectName=${projectName}`,
-    );
 
     const selectedTools: AiTool[] = args["ai-tools"]
       ? (args["ai-tools"].split(",").map((t: string) => t.trim()) as AiTool[])
