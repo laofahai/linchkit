@@ -108,6 +108,8 @@ bun test              # Full test suite (3870+ tests)
 
 **PR merge gate:** All review comments must be replied to and resolved before merging.
 
+**NEVER use `--admin` flag to bypass branch protection.** If `gh pr merge` is blocked by policy, that means reviews are not done — WAIT. Only merge when review status is APPROVED and CI is green. No exceptions.
+
 ### Parallel Subagent Dispatch
 
 When multiple independent issues can be worked on simultaneously:
