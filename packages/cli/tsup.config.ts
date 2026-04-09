@@ -10,7 +10,7 @@ export default defineConfig({
   clean: true,
   target: "es2022",
   banner: {
-    js: "#!/usr/bin/env node",
+    js: "#!/usr/bin/env bun",
   },
   esbuildOptions(options) {
     // Strip the source file's #!/usr/bin/env bun shebang so only the
@@ -21,7 +21,7 @@ export default defineConfig({
   },
   esbuildPlugins: [
     {
-      name: "strip-bun-shebang",
+      name: "strip-source-shebang",
       setup(build) {
         build.onLoad({ filter: /packages\/cli\/src\/index\.ts$/ }, async (args) => {
           const fs = await import("node:fs");
