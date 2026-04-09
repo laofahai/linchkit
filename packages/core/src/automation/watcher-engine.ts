@@ -19,8 +19,14 @@ import type {
   WatcherEvaluationResult,
   WatcherStateEntry,
 } from "../types/watcher";
-import type { AutomationActionExecutor } from "./automation-engine";
 import type { WatcherRegistry } from "./watcher-registry";
+
+// ── Action executor interface (shared with watcher effects) ──
+
+export interface WatcherActionExecutor {
+  /** Execute a named action with given input. Returns action result. */
+  executeAction(actionName: string, input: Record<string, unknown>): Promise<unknown>;
+}
 
 // ── Data query interface (avoids coupling to DataProvider) ──
 
@@ -66,7 +72,7 @@ export interface WatcherEngineOptions {
   /** Event bus — subscribe to record.created / record.updated for reactive evaluation */
   eventBus?: EventBusLike;
   /** Action executor for running watcher effects */
-  actionExecutor?: AutomationActionExecutor;
+  actionExecutor?: WatcherActionExecutor;
   /** Data querier for staleness checks (queries matching records) */
   dataQuerier?: WatcherDataQuerier;
   /** Staleness check interval in ms (default: 60_000 = 1 minute) */
@@ -119,7 +125,7 @@ export function evaluateComparison(value: number, condition: WatcherComparisonCo
 class WatcherEngineImpl implements WatcherEngine {
   private registry: WatcherRegistry;
   private eventBus?: EventBusLike;
-  private actionExecutor?: AutomationActionExecutor;
+  private actionExecutor?: WatcherActionExecutor;
   private dataQuerier?: WatcherDataQuerier;
   private logger: Logger;
   private stalenessIntervalMs: number;

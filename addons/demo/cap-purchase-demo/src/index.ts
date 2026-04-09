@@ -3,7 +3,7 @@
  *
  * Provides a complete purchase request workflow with schema,
  * custom actions (submit/approve), state machine, links, views,
- * interfaces, derived fields, automations, and data masking.
+ * interfaces, derived fields, event handlers, and data masking.
  */
 
 export { approveAction } from "./actions/approve";

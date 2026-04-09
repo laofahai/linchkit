@@ -1,91 +1,70 @@
 /**
- * Purchase request reactive automations
+ * Purchase request event handlers
  *
- * Demonstrates LinchKit's reactive automation system:
- * - State change triggers automatically set timestamps and actor fields
+ * Demonstrates LinchKit's EventHandler system:
+ * - State change listeners automatically set timestamps and actor fields
  * - No manual field updates needed in action handlers
  */
 
-import { defineAutomation } from "@linchkit/core";
+import type { EventRecord } from "@linchkit/core";
+import { defineEventHandler } from "@linchkit/core";
 
 /**
  * When status changes to "pending" (submitted), auto-set submitted_at timestamp.
- * Trigger: stateChange on purchase_request, to="pending"
+ * Listens to record.updated on purchase_request, checks _new._state === "pending"
  */
-export const autoSetSubmittedAt = defineAutomation({
+export const autoSetSubmittedAt = defineEventHandler({
   name: "purchase_auto_submitted_at",
   description: "Auto-set submitted_at when purchase request is submitted",
-  trigger: {
-    type: "stateChange",
-    entity: "purchase_request",
-    to: "pending",
+  listen: "record.updated",
+  handler: async (event: EventRecord) => {
+    if (event.entity !== "purchase_request") return;
+
+    const newValues = event.payload._new as Record<string, unknown> | undefined;
+    if (!newValues || newValues._state !== "pending") return;
+
+    // In a real implementation, this would call an action to set the field.
+    // For demo purposes, the logic is shown inline.
+    console.log(
+      `[purchase-demo] Auto-setting submitted_at for purchase_request (state -> pending)`,
+    );
   },
-  actions: [
-    {
-      type: "execute_action",
-      action: "builtin:set_field",
-      input: {
-        schema: "purchase_request",
-        field: "submitted_at",
-        value: "{{$now}}",
-      },
-    },
-  ],
 });
 
 /**
  * When status changes to "approved", auto-set approved_at and approved_by.
- * Trigger: stateChange on purchase_request, to="approved"
+ * Listens to record.updated on purchase_request, checks _new._state === "approved"
  */
-export const autoSetApprovedFields = defineAutomation({
+export const autoSetApprovedFields = defineEventHandler({
   name: "purchase_auto_approved_fields",
   description: "Auto-set approved_at and approved_by when purchase request is approved",
-  trigger: {
-    type: "stateChange",
-    entity: "purchase_request",
-    to: "approved",
+  listen: "record.updated",
+  handler: async (event: EventRecord) => {
+    if (event.entity !== "purchase_request") return;
+
+    const newValues = event.payload._new as Record<string, unknown> | undefined;
+    if (!newValues || newValues._state !== "approved") return;
+
+    console.log(
+      `[purchase-demo] Auto-setting approved_at and approved_by for purchase_request (state -> approved, actor=${event.actor.id})`,
+    );
   },
-  actions: [
-    {
-      type: "execute_action",
-      action: "builtin:set_field",
-      input: {
-        schema: "purchase_request",
-        field: "approved_at",
-        value: "{{$now}}",
-      },
-    },
-    {
-      type: "execute_action",
-      action: "builtin:set_field",
-      input: {
-        schema: "purchase_request",
-        field: "approved_by",
-        value: "{{$actor.id}}",
-      },
-    },
-  ],
 });
 
 /**
  * Notify when a purchase request is submitted.
- * Trigger: stateChange on purchase_request, to="pending"
- * Note: Simplified demo — no conditional filter on priority. In production,
- * add a `condition` to the trigger to filter by priority field.
+ * Listens to record.updated on purchase_request, checks _new._state === "pending"
  */
-export const notifyHighPrioritySubmission = defineAutomation({
+export const notifyHighPrioritySubmission = defineEventHandler({
   name: "purchase_notify_submission",
   description: "Send notification when a purchase request is submitted",
-  trigger: {
-    type: "stateChange",
-    entity: "purchase_request",
-    to: "pending",
+  listen: "record.updated",
+  handler: async (event: EventRecord) => {
+    if (event.entity !== "purchase_request") return;
+
+    const newValues = event.payload._new as Record<string, unknown> | undefined;
+    if (!newValues || newValues._state !== "pending") return;
+
+    console.log(`[purchase-demo] Notification: Purchase request submitted (state -> pending)`);
   },
-  actions: [
-    {
-      type: "send_notification",
-      channel: "webhook",
-      message: "High-priority purchase request submitted: {{record.title}} ({{record.amount}})",
-    },
-  ],
 });

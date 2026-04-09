@@ -212,7 +212,7 @@ describe("ProposalCodeGenerator", () => {
       const defaultPrompt = generator.buildPrompt(createProposal({ type: "add_default" }));
 
       expect(rulePrompt).toContain("RuleDefinition");
-      expect(automationPrompt).toContain("AutomationDefinition");
+      expect(automationPrompt).toContain("EventHandlerDefinition");
       expect(schemaPrompt).toContain("EntityDefinition");
       expect(defaultPrompt).toContain("default values");
     });

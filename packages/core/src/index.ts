@@ -25,8 +25,6 @@ export type {
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
 export type {
-  AutomationEngine,
-  AutomationRegistry,
   WatcherEngine,
   WatcherRegistry,
 } from "./automation";
@@ -99,7 +97,6 @@ export {
 // Define function exports
 export {
   defineAction,
-  defineAutomation,
   defineCapability,
   defineConfig,
   defineDataAccess,

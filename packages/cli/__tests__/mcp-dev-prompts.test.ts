@@ -80,7 +80,6 @@ const mockDefinitions: CollectedDefinitions = {
   links: [mockRelation],
   rules: [],
   eventHandlers: [],
-  automations: [],
   middlewares: [],
   transports: [],
   graphqlExtensions: [],

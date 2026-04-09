@@ -7,19 +7,6 @@
  * Usage: import { createActionExecutor, EntityRegistry } from "@linchkit/core/server"
  */
 
-// === Automation engine ===
-
-export {
-  type AutomationActionExecutor,
-  type AutomationEngine,
-  type AutomationEngineOptions,
-  type AutomationFlowStarter,
-  type AutomationNotifier,
-  type AutomationRegistry,
-  createAutomationEngine,
-  createAutomationRegistry,
-} from "./automation";
-
 // === Watcher engine (data-condition automation, spec 45) ===
 
 export {

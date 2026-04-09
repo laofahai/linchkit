@@ -7,7 +7,6 @@
 
 import type { CommandContext } from "../engine/command-layer";
 import type { ActionDefinition, ActionOverride } from "./action";
-import type { AutomationDefinition } from "./automation";
 import type { CliCommand } from "./cli";
 import type {
   EntityDefinition,
@@ -141,7 +140,6 @@ export interface CapabilityDefinition {
   views?: ViewDefinition[];
   pages?: PageRegistration[];
   flows?: FlowDefinition[];
-  automations?: AutomationDefinition[];
   ui?: CapabilityUiDefinition;
 
   /**
