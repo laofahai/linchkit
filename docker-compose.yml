@@ -32,6 +32,28 @@ services:
       timeout: 5s
       retries: 5
 
+  linchkit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: linchkit-app
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:-postgres://linchkit:linchkit@postgres:5432/linchkit}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    restart: unless-stopped
+
   restate:
     image: docker.restate.dev/restatedev/restate:latest
     ports:
