@@ -65,11 +65,34 @@ export function useFormActions(opts: UseFormActionsOptions) {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // Build set of auto-generated FK column names from relations (e.g., "department_id")
+  // These may not be in schema.fields but are valid mutation input fields.
+  const relationFkColumns = new Set<string>();
+  if (bundle?.relations && entityName) {
+    for (const rel of bundle.relations) {
+      if (
+        rel.from === entityName &&
+        (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one")
+      ) {
+        relationFkColumns.add(`${rel.fromName}_id`);
+      }
+    }
+  }
+
   /** Prepare mutation input by stripping non-input fields. FK fields (string type) are passed through directly. */
   function prepareMutationInput(data: Record<string, unknown>): Record<string, unknown> {
     if (!schema) return data;
     const input: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data)) {
+      // Allow relation FK columns that are auto-generated from defineRelation()
+      if (relationFkColumns.has(key)) {
+        if (typeof value === "object" && value !== null && "id" in value) {
+          input[key] = (value as { id: string }).id;
+        } else {
+          input[key] = value;
+        }
+        continue;
+      }
       const fieldDef = schema.fields[key];
       if (!fieldDef) continue;
       // Skip derived fields — they are computed, not user input
@@ -101,8 +124,10 @@ export function useFormActions(opts: UseFormActionsOptions) {
         const virtualRefIdMap = new Map<string, string>(); // tempId -> real ID
         if (enriched?.virtualRefs) {
           for (const [fieldName, virtualRecord] of Object.entries(enriched.virtualRefs)) {
+            // Allow both explicit FK fields and auto-generated FK columns from relations
             const fieldDef = schema?.fields[fieldName];
-            if (!fieldDef || fieldDef.type !== "string") continue;
+            const isRelationFk = relationFkColumns.has(fieldName);
+            if (!isRelationFk && (!fieldDef || fieldDef.type !== "string")) continue;
             // Resolve target entity from relations
             const relation = bundle?.relations?.find(
               (l) => l.from === entityName && l.fromName === fieldName.replace(/_id$/, ""),

@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 66 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 67 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -53,7 +53,7 @@ How the meta-model executes at runtime.
 | [32](./32_state_machine_implementation.md) | State Machine Impl | Transition validation, guard evaluation, auto-transitions, history records | M0 | Done |
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
-| [45](./45_reactive_automation.md) | Reactive Automation | AutomationEngine + TriggerBinding — event/fieldChange/stateChange/schedule/flowCompleted triggers | M2 | Done |
+| [45](./45_reactive_automation.md) | Reactive Automation | AutomationEngine + TriggerBinding — event/fieldChange/stateChange/schedule/flowCompleted triggers | M3 | Done |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
 
 ## Capability System
@@ -83,7 +83,8 @@ Capability definition, extension, composition, and distribution.
 | [30](./30_multi_tenancy.md) | Multi-Tenancy | tenant_id isolation, row-level security, tenant config overrides | M0 | Done |
 | [34](./34_cache_strategy.md) | Cache Strategy | CacheManager, in-memory cache, PostgreSQL invalidation, TTL, tenant isolation | M1 | Done |
 | [41a](./41_data_security_and_masking.md) | Data Security & Masking | Field-level masking rules, MaskingEngine, permission-based display | M1 | Done |
-| [51](./51_data_i18n.md) | Data i18n | JSONB translation storage, shared i18n package, messageKey API (supersedes spec 41 i18n) | M1 | Partial |
+| [51](./51_data_i18n.md) | Data i18n | JSONB translation storage, shared i18n package, messageKey API (supersedes spec 41 i18n) | M1 | Done |
+| [63](./63_field_immutability_and_locking.md) | Field Immutability & Locking | Immutable fields, state-driven conditional locks, core enforcement + cap-lock capability | M5 | Draft |
 
 > **Note**: `41_data_i18n.md` is deprecated, superseded by `51_data_i18n.md` — do not implement based on 41.
 
@@ -106,7 +107,7 @@ Capability definition, extension, composition, and distribution.
 | [13](./13_view_and_ui.md) | Views & UI | `defineView()` — AutoList, AutoForm, Widget registry, SearchBar, state colors | M0 | Done |
 | [44](./44_realtime_subscription.md) | Realtime Subscription | GraphQL SSE subscriptions, PersistentEventBus integration, per-entity change streams | M2 | Done |
 | [53](./53_chatter_and_collaboration.md) | Unified Record Timeline | Chatter — field audit + execution log + comments + AI conversation unified timeline (Capability) | M3 | Done |
-| [54](./54_advanced_ui_features.md) | Advanced UI Features | Kanban, calendar, timeline views, drag-and-drop, dashboard builder | M2+ | Draft |
+| [54](./54_advanced_ui_features.md) | Advanced UI Features | Kanban, calendar, timeline views, drag-and-drop, dashboard builder | M2+ | Partial |
 
 ## Authentication & Permission
 
@@ -196,9 +197,9 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 48 |
+| Done | 49 |
 | Partial | 10 |
-| Draft | 8 |
+| Draft | 7 |
 | **Total** | **66** unique specs |
 
 ### Change Log

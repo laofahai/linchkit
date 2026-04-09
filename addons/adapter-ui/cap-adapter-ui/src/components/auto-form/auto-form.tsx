@@ -31,6 +31,7 @@ import { AlertCircle, Puzzle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
 import type { FieldOverlayRecord, OverlayFieldType } from "../../lib/overlay-types";
@@ -87,12 +88,26 @@ export function AutoForm({
   // Convert overlay fields to FieldDefinition map for rendering via widget registry
   const overlayFieldDefs = useMemo(() => buildOverlayFieldDefs(overlayFields), [overlayFields]);
 
+  // Relation field map: semantic name → { fkColumn, target, cardinality, widget, fieldDef }
+  const relationFieldMap = useMemo(
+    () => (relations ? buildRelationFieldMap(schema.name, relations, schema.fields) : new Map()),
+    [schema.name, schema.fields, relations],
+  );
+
   const [formData, setFormData] = useState<Record<string, unknown>>(() => {
     const initial: Record<string, unknown> = {};
     for (const vf of view.fields) {
       if (vf.visible === false) continue;
       const fieldDef = schema.fields[vf.field];
-      if (!fieldDef) continue;
+      if (!fieldDef) {
+        // Check if this is a relation field (e.g., "department" → FK "department_id")
+        const relInfo = relationFieldMap.get(vf.field);
+        if (relInfo) {
+          initial[vf.field] = data?.[vf.field] ?? data?.[relInfo.fkColumn] ?? null;
+          continue;
+        }
+        continue;
+      }
       initial[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
     }
     // Initialize overlay field values from _extensions
@@ -259,24 +274,31 @@ export function AutoForm({
   );
 
   const validateAll = useCallback((): boolean => {
-    // Strip masked values before validation — masked fields are read-only
-    // and their server-side values are preserved; validating the masked
-    // placeholder (e.g. "****e.com") against format rules (email) would
-    // produce false negatives.
+    // Strip masked values and hidden fields before validation.
     const dataToValidate = { ...formData };
+    const maskedFieldNames = new Set<string>();
     for (const [key, value] of Object.entries(dataToValidate)) {
       if (isMaskedValue(value)) {
         delete dataToValidate[key];
+        maskedFieldNames.add(key);
       }
     }
-    // Strip fields hidden by visibleWhen — they are not user-editable and
-    // should not block form submission with validation errors.
     for (const vf of view.fields) {
       if (vf.visibleWhen && !evaluateVisibility(vf.visibleWhen, formData)) {
         delete dataToValidate[vf.field];
       }
     }
-    const result = zodSchema.safeParse(dataToValidate);
+    // Make masked fields optional in validation — they are read-only server
+    // placeholders and should not block submission with "required" errors.
+    let schemaForValidation = zodSchema;
+    if (maskedFieldNames.size > 0) {
+      const overrides: Record<string, z.ZodTypeAny> = {};
+      for (const name of maskedFieldNames) {
+        overrides[name] = z.any().optional();
+      }
+      schemaForValidation = zodSchema.extend(overrides);
+    }
+    const result = schemaForValidation.safeParse(dataToValidate);
     if (result.success) {
       setErrors({});
       return true;
@@ -360,7 +382,13 @@ export function AutoForm({
     for (const vf of view.fields) {
       if (vf.visible === false) continue;
       const fieldDef = schema.fields[vf.field];
-      if (!fieldDef) continue;
+      if (!fieldDef) {
+        const relInfo = relationFieldMap.get(vf.field);
+        if (relInfo) {
+          defaultData[vf.field] = data?.[vf.field] ?? data?.[relInfo.fkColumn] ?? null;
+        }
+        continue;
+      }
       defaultData[vf.field] = data?.[vf.field] ?? fieldDef.default ?? getDefaultForType(fieldDef);
     }
     // Restore overlay field defaults
@@ -428,7 +456,6 @@ export function AutoForm({
     setFormError(null);
 
     if (!validateAll()) {
-      // Scroll to first field with an error
       scrollToFirstError();
       return;
     }
@@ -511,6 +538,26 @@ export function AutoForm({
       }
     }
 
+    // Convert relation semantic names to FK column names before submission.
+    // e.g., submitData["department"] = "uuid" → submitData["department_id"] = "uuid"
+    for (const [semanticName, relInfo] of relationFieldMap) {
+      if (!(semanticName in submitData)) continue;
+      const val = submitData[semanticName];
+      // Only convert ref fields (many_to_one / one_to_one) — they have FK columns on this table
+      if (relInfo.cardinality === "many_to_one" || relInfo.cardinality === "one_to_one") {
+        if (typeof val === "object" && val !== null && "id" in val) {
+          // Expanded object (from GraphQL response or virtual record) — extract ID
+          submitData[relInfo.fkColumn] = (val as Record<string, unknown>).id;
+        } else if (val != null) {
+          // Plain ID string
+          submitData[relInfo.fkColumn] = val;
+        } else {
+          submitData[relInfo.fkColumn] = null;
+        }
+        // Keep the semantic key for virtual ref detection below, then clean up
+      }
+    }
+
     // Collect virtual ref records and child commands
     const virtualRefs: Record<string, VirtualRecord> = {};
     const childCommands: Record<string, ChildCommand[]> = {};
@@ -588,6 +635,19 @@ export function AutoForm({
       }
     }
 
+    // Remove relation semantic name keys from submit data — only FK columns should be sent
+    for (const [semanticName, relInfo] of relationFieldMap) {
+      if (semanticName in submitData) {
+        if (relInfo.cardinality === "many_to_one" || relInfo.cardinality === "one_to_one") {
+          delete submitData[semanticName];
+        }
+        // Collection fields are handled by childCommands, remove from submitData
+        if (relInfo.cardinality === "one_to_many" || relInfo.cardinality === "many_to_many") {
+          delete submitData[semanticName];
+        }
+      }
+    }
+
     const enriched: EnrichedSubmitData = {
       values: submitData,
       virtualRefs,
@@ -653,9 +713,22 @@ export function AutoForm({
   // ── Layout rendering ──
 
   function renderField(node: FormFieldNode) {
-    const fieldDef = schema.fields[node.field];
-    const vf = view.fields.find((f) => f.field === node.field);
+    let viewField = view.fields.find((f) => f.field === node.field);
+    let widgetOverride: string | undefined;
+
+    // Resolve field definition: try entity fields first, then relation semantic names
+    const relInfo = relationFieldMap.get(node.field);
+    const fieldDef: FieldDefinition | undefined = schema.fields[node.field] ?? relInfo?.fieldDef;
     if (!fieldDef) return null;
+    if (relInfo && !schema.fields[node.field]) {
+      widgetOverride = relInfo.widget;
+    }
+    const vf = viewField ?? { field: node.field };
+    // Apply widget override for relation fields
+    if (widgetOverride && !vf.widget) {
+      viewField = { ...vf, widget: widgetOverride };
+    }
+    const effectiveVf = viewField ?? vf;
 
     const visible = isFieldVisible(node);
 
@@ -675,7 +748,7 @@ export function AutoForm({
         key={node.field}
         node={node}
         fieldDef={fieldDef}
-        viewField={vf ?? { field: node.field }}
+        viewField={effectiveVf}
         value={formData[node.field]}
         isViewMode={isViewMode}
         required={required}

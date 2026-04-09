@@ -237,7 +237,10 @@
     }
   },
   "masking": {
-    "tooltip": "This field is masked for privacy"
+    "tooltip": "This field is masked for privacy",
+    "clickToEdit": "Click to enter a new value",
+    "cancelEdit": "Cancel editing and keep original value",
+    "newValuePlaceholder": "Enter new value..."
   },
   "tenant": {
     "noTenant": "No tenant",

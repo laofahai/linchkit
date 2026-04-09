@@ -1,7 +1,7 @@
 # 发布兼容性与迁移协议
 
 > Tracking milestones:
-> - `M5: Production Readiness`
+> - `M5: Platform Maturity & AI Evolution`
 >
 > Related issues:
 > - GitHub Issue `#74` — Release compatibility & versioning

@@ -3,6 +3,14 @@
 > Status: Draft | Date: 2026-04-09
 > Target milestone: M7+
 >
+> Tracking milestones:
+> - `M7: Ecosystem`
+>
+> Related issues:
+> - GitHub Issue `#114` — AI proposal data migration
+>
+> Execution source of truth: GitHub milestones and issues.
+>
 > Related specs:
 > - [09 — Proposal & Validation](./09_proposal_validation_version.md) (governance pipeline, ProposalImpact.migrationRequired)
 > - [55 — Evolution System](./55_evolution_system.md) (Insight → Proposal cycle)

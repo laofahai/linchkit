@@ -1,6 +1,6 @@
 # Runtime Entity Overlay — Schema Modification Without Redeployment
 
-> Status: Draft | Date: 2026-04-06
+> Status: Done | Date: 2026-04-06
 > Milestone: M3
 
 ## 1. Problem

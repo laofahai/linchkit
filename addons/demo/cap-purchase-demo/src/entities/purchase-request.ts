@@ -38,11 +38,6 @@ export const purchaseRequestEntity: EntityDefinition = {
       label: "t:entities.purchase_request.fields.description",
       ui: { editor: "rich" },
     },
-    department_id: {
-      type: "string",
-      label: "t:entities.purchase_request.fields.department",
-      description: "Foreign key to department (relationship managed via defineRelation)",
-    },
     amount: {
       type: "number",
       required: true,

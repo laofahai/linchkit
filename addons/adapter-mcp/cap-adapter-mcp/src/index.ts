@@ -12,6 +12,7 @@ export { DrizzleMcpClientStore } from "./client-store-drizzle";
 export { InMemoryMcpClientStore } from "./client-store-memory";
 // Config schema
 export { capAdapterMcpConfig } from "./config";
+export { registerExecutionLogTools } from "./execution-log-tools";
 export type { CapAdapterMcpOptions } from "./factory";
 export { createCapAdapterMcp } from "./factory";
 export { fieldsToJsonSchema, fieldToJsonSchema } from "./field-to-json-schema";
@@ -20,6 +21,7 @@ export { buildMcpGraphQLExtension } from "./graphql";
 export { registerManagementTools } from "./management-tools";
 export type { McpAdapterOptions, McpAdapterResult } from "./mcp-server";
 export { createMcpAdapter } from "./mcp-server";
+export { registerProposalTools } from "./proposal-tools";
 export type { McpSseServerOptions, McpSseServerResult } from "./sse-transport";
 export { createMcpSseServer } from "./sse-transport";
 export { mcpClientsTable } from "./system-tables";

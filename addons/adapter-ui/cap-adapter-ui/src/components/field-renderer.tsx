@@ -11,6 +11,7 @@ import { Input, Label } from "@linchkit/ui-kit/components";
 import { isMaskedValue } from "../lib/masking";
 import type { WidgetDisplayProps, WidgetInputProps } from "../lib/widget-registry";
 import { widgetRegistry } from "../lib/widget-registry";
+import { MaskedFieldInput } from "./masked-field-input";
 import { MaskedValue } from "./masked-value";
 
 // ── Display component ─────────────────────────────────────
@@ -83,9 +84,21 @@ export function FieldInput({
   dirty,
   required,
 }: FieldInputProps) {
-  // Masked values are always read-only — show masked display instead of input
+  // Masked values: in readonly mode show placeholder, otherwise show click-to-unlock input
   if (isMaskedValue(value)) {
-    return <MaskedValue value={String(value)} />;
+    if (readonly) {
+      return <span className="text-muted-foreground italic">••••••••</span>;
+    }
+    return (
+      <MaskedFieldInput
+        maskedValue={String(value)}
+        fieldDef={fieldDef}
+        field={viewField}
+        onChange={onChange}
+        onBlur={onBlur}
+        error={error}
+      />
+    );
   }
 
   // Derive widget override: explicit widget > translatable auto-detect > editor hint > none
