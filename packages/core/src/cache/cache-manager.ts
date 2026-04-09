@@ -13,6 +13,8 @@ import type { EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
 import type { CacheProvider, CacheSetOptions, CacheStats } from "./cache-provider";
 import type { CacheManagerStats, CacheManagerStatsOptions } from "./cache-stats";
+import type { CacheTtlPolicy } from "./cache-ttl-policy";
+import { resolveTtlForNamespace } from "./cache-ttl-policy";
 import { InMemoryCacheProvider } from "./in-memory-cache";
 
 // ── Configuration ─────────────────────────────────────────
@@ -28,6 +30,8 @@ export interface CacheManagerOptions {
   logger?: Logger;
   /** Default TTL in ms when none is specified on set(). Undefined = no default TTL. */
   defaultTtl?: number;
+  /** Per-namespace TTL policies. Auto-applied when set() has no explicit TTL. */
+  ttlPolicies?: CacheTtlPolicy[];
 }
 
 // ── Namespace handle ──────────────────────────────────────
@@ -67,12 +71,14 @@ export class CacheManager {
   private l2: CacheProvider | undefined;
   private logger: Logger | undefined;
   private defaultTtl: number | undefined;
+  private ttlPolicies: CacheTtlPolicy[];
 
   constructor(options?: CacheManagerOptions) {
     this.l1 = options?.l1 ?? new InMemoryCacheProvider();
     this.l2 = options?.l2;
     this.logger = options?.logger;
     this.defaultTtl = options?.defaultTtl;
+    this.ttlPolicies = options?.ttlPolicies ?? [];
 
     // Wire up event-driven invalidation
     if (options?.eventBus) {
@@ -191,6 +197,7 @@ export class CacheManager {
   namespace(ns: string): NamespacedCache {
     const prefix = `${ns}:`;
     const manager = this;
+    const resolvedPolicy = resolveTtlForNamespace(ns, this.ttlPolicies);
 
     return {
       get<T = unknown>(key: string): T | undefined {
@@ -200,7 +207,17 @@ export class CacheManager {
         return manager.getWithStaleness<T>(`${prefix}${key}`);
       },
       set<T = unknown>(key: string, value: T, options?: CacheSetOptions): void {
-        manager.set(`${prefix}${key}`, value, options);
+        // Auto-apply TTL policy when no explicit TTL is provided
+        if (resolvedPolicy && options?.ttl === undefined) {
+          const merged: CacheSetOptions = {
+            ...options,
+            ttl: resolvedPolicy.ttl,
+            swrTtl: options?.swrTtl ?? resolvedPolicy.swrTtl,
+          };
+          manager.set(`${prefix}${key}`, value, merged);
+        } else {
+          manager.set(`${prefix}${key}`, value, options);
+        }
       },
       delete(key: string): boolean {
         return manager.delete(`${prefix}${key}`);
@@ -212,6 +229,21 @@ export class CacheManager {
         return manager.invalidateByPrefix(prefix);
       },
     };
+  }
+
+  /**
+   * Create a tenant-scoped namespaced cache.
+   * Keys are prefixed with `{ns}:{tenantId}:` for tenant isolation.
+   * Convenience wrapper around `namespace()`.
+   */
+  tenantNamespace(ns: string, tenantId: string): NamespacedCache {
+    if (ns.includes(":")) {
+      throw new Error(`Cache namespace must not contain ':' delimiter, got "${ns}"`);
+    }
+    if (tenantId.includes(":")) {
+      throw new Error(`Tenant ID must not contain ':' delimiter, got "${tenantId}"`);
+    }
+    return this.namespace(`${ns}:${tenantId}`);
   }
 
   // ── Event-driven invalidation ───────────────────────────
