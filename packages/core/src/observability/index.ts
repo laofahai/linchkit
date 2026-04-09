@@ -30,6 +30,11 @@ export {
   type MetricsSummary,
   noopMetricsCollector,
 } from "./metrics";
+export {
+  type BuildObservabilitySummaryOptions,
+  buildObservabilitySummary,
+  type ObservabilitySummary,
+} from "./observability-summary";
 export { createPinoLogger, type PinoLoggerOptions } from "./pino-logger";
 export {
   createStructuredLogger,
@@ -39,6 +44,7 @@ export {
   type StructuredLogEntry,
   type StructuredLoggerOptions,
 } from "./structured-logger";
+export { type RegisterSystemAlertsOptions, registerSystemAlerts } from "./system-alerts";
 export {
   getCurrentTrace,
   getTraceDepth,

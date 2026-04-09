@@ -363,6 +363,11 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       const run = compose(pipeline);
       await run(ctx);
     } catch (err) {
+      metrics.increment("action.executions", { action: ctx.command, status: "error" });
+      metrics.increment("action.errors", { action: ctx.command });
+      metrics.timing("action.duration_ms", Date.now() - pipelineStart, {
+        action: ctx.command,
+      });
       metrics.increment("command.processed", { command: ctx.command, status: "failed" });
       metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
         command: ctx.command,
@@ -398,6 +403,10 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
 
     // If action didn't execute (middleware blocked by not calling next())
     if (!ctx.result) {
+      metrics.increment("action.executions", { action: ctx.command, status: "blocked" });
+      metrics.timing("action.duration_ms", Date.now() - pipelineStart, {
+        action: ctx.command,
+      });
       metrics.increment("command.processed", { command: ctx.command, status: "blocked" });
       metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
         command: ctx.command,
@@ -438,6 +447,15 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         }
       }
     }
+
+    const actionStatus = ctx.result.success ? "success" : "error";
+    metrics.increment("action.executions", { action: ctx.command, status: actionStatus });
+    if (!ctx.result.success) {
+      metrics.increment("action.errors", { action: ctx.command });
+    }
+    metrics.timing("action.duration_ms", Date.now() - pipelineStart, {
+      action: ctx.command,
+    });
 
     metrics.increment("command.processed", { command: ctx.command, status: "succeeded" });
     metrics.timing("command.duration_ms", Date.now() - pipelineStart, {
