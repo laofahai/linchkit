@@ -3,7 +3,6 @@
 > 文档产物形态见本文；文档维护、校验、索引和归档规则见 `37_documentation_governance.md`。
 >
 > Tracking milestones:
-> - `M5: Production Readiness`
 > - `M5: Platform Maturity & AI Evolution`
 >
 > Related issues:

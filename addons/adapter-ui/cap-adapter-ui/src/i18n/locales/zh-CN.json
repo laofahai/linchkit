@@ -237,7 +237,10 @@
     }
   },
   "masking": {
-    "tooltip": "此字段已遮罩，数据受隐私保护"
+    "tooltip": "此字段已遮罩，数据受隐私保护",
+    "clickToEdit": "点击输入新值",
+    "cancelEdit": "取消编辑，保留原始值",
+    "newValuePlaceholder": "输入新值..."
   },
   "tenant": {
     "noTenant": "未选择租户",

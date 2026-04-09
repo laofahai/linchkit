@@ -217,6 +217,11 @@ export {
   validateTranslatableEntity,
   wrapTranslatableValue,
 } from "./entity/translatable";
+export {
+  generateExpressionIndex,
+  generateGinIndex,
+  generateTranslatableIndexes,
+} from "./entity/translatable-index";
 // Error classes
 export {
   AuthenticationError,

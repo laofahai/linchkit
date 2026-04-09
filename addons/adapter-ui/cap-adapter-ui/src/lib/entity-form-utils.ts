@@ -6,6 +6,7 @@
 
 import type {
   EntityDefinition,
+  FieldDefinition,
   FormLayoutNode,
   RelationDefinition,
   StateDefinition,
@@ -117,6 +118,148 @@ function buildCollectionRelationFields(
     }
   }
   return names;
+}
+
+// ── Relation field resolution ─────────────────────────────
+
+/** Resolved relation field info for UI rendering */
+export interface ResolvedRelationField {
+  /** FK column name in the entity (e.g., "department_id") */
+  fkColumn: string;
+  /** Target entity name (e.g., "department") */
+  target: string;
+  /** Relation cardinality as seen from this entity's perspective */
+  cardinality: "many_to_one" | "one_to_one" | "one_to_many" | "many_to_many";
+  /** Widget ID to use for rendering (matches widget registry IDs) */
+  widget: string;
+  /** Synthetic FieldDefinition for the widget renderer */
+  fieldDef: FieldDefinition;
+  /** The original relation definition */
+  relation: RelationDefinition;
+}
+
+/**
+ * Build a map of relation semantic names → resolved relation field info
+ * for a given entity. Used by auto-form and list views to resolve view field
+ * names like "department" to their FK columns, target entities, and widgets.
+ *
+ * FK naming convention matches server-side relation-resolvers.ts:
+ * - many_to_one from-side: `{fromName}_id` on from table
+ * - one_to_one from-side:  `{fromName}_id` on from table
+ * - one_to_many from-side: `{toName}_id` on to table
+ * - Reverse sides derive accordingly
+ */
+export function buildRelationFieldMap(
+  entityName: string,
+  relations: RelationDefinition[],
+  entityFields?: Record<string, FieldDefinition>,
+): Map<string, ResolvedRelationField> {
+  const map = new Map<string, ResolvedRelationField>();
+
+  for (const rel of relations) {
+    const isFrom = rel.from === entityName;
+    const isTo = rel.to === entityName;
+
+    if (isFrom) {
+      const semanticName = rel.fromName;
+      if (!semanticName) continue;
+
+      if (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one") {
+        const fkColumn = `${rel.fromName}_id`;
+        const fkFieldDef = entityFields?.[fkColumn];
+        map.set(semanticName, {
+          fkColumn,
+          target: rel.to,
+          cardinality: rel.cardinality,
+          widget: rel.cardinality,
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: fkFieldDef?.label ?? rel.label?.from ?? semanticName,
+            target: rel.to,
+          } as FieldDefinition & { target: string },
+        });
+      } else if (rel.cardinality === "one_to_many") {
+        map.set(semanticName, {
+          fkColumn: `${rel.toName}_id`,
+          target: rel.to,
+          cardinality: "one_to_many",
+          widget: "one_to_many",
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: rel.label?.from ?? semanticName,
+            target: rel.to,
+          } as FieldDefinition & { target: string },
+        });
+      } else if (rel.cardinality === "many_to_many") {
+        map.set(semanticName, {
+          fkColumn: `${rel.from}_id`,
+          target: rel.to,
+          cardinality: "many_to_many",
+          widget: "many_to_many",
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: rel.label?.from ?? semanticName,
+            target: rel.to,
+          } as FieldDefinition & { target: string },
+        });
+      }
+    }
+
+    if (isTo) {
+      const semanticName = rel.toName;
+      if (!semanticName) continue;
+
+      if (rel.cardinality === "many_to_one") {
+        // Incoming many_to_one: this side sees it as one_to_many
+        map.set(semanticName, {
+          fkColumn: `${rel.fromName}_id`,
+          target: rel.from,
+          cardinality: "one_to_many",
+          widget: "one_to_many",
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: rel.label?.to ?? semanticName,
+            target: rel.from,
+          } as FieldDefinition & { target: string },
+        });
+      } else if (rel.cardinality === "one_to_many") {
+        // Incoming one_to_many: this side sees it as many_to_one
+        const fkColumn = `${rel.toName}_id`;
+        const fkFieldDef = entityFields?.[fkColumn];
+        map.set(semanticName, {
+          fkColumn,
+          target: rel.from,
+          cardinality: "many_to_one",
+          widget: "many_to_one",
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: fkFieldDef?.label ?? rel.label?.to ?? semanticName,
+            target: rel.from,
+          } as FieldDefinition & { target: string },
+        });
+      } else if (rel.cardinality === "one_to_one") {
+        map.set(semanticName, {
+          fkColumn: `${rel.fromName}_id`,
+          target: rel.from,
+          cardinality: "one_to_one",
+          widget: "one_to_one",
+          relation: rel,
+          fieldDef: {
+            type: "string",
+            label: rel.label?.to ?? semanticName,
+            target: rel.from,
+          } as FieldDefinition & { target: string },
+        });
+      }
+    }
+  }
+
+  return map;
 }
 
 /**

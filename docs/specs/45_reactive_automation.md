@@ -1,6 +1,6 @@
 # 响应式自动化 — 数据条件触发
 
-> Status: Draft | Date: 2026-03-23
+> Status: Done | Date: 2026-03-23
 > 灵感来源: Palantir Automate（对象集条件触发、阈值越界）
 > 里程碑: M3
 

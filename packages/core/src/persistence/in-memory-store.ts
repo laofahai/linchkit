@@ -249,16 +249,41 @@ export class InMemoryStore implements DataProvider {
     if (options?.filter) {
       for (const [key, value] of Object.entries(options.filter)) {
         if (value !== undefined && value !== null) {
-          records = records.filter((r) => r[key] === value);
+          records = records.filter((r) => {
+            const recordVal = r[key];
+            // Translatable field: record value is a locale map object, filter value is a string
+            if (
+              typeof value === "string" &&
+              recordVal !== null &&
+              recordVal !== undefined &&
+              typeof recordVal === "object" &&
+              !Array.isArray(recordVal)
+            ) {
+              return Object.values(recordVal as Record<string, unknown>).some(
+                (localeVal) => localeVal === value,
+              );
+            }
+            return recordVal === value;
+          });
         }
       }
     }
 
-    // Full-text search across all string values
+    // Full-text search across all string values (including translatable JSONB)
     if (options?.search) {
       const keyword = options.search.toLowerCase();
       records = records.filter((r) =>
-        Object.values(r).some((v) => typeof v === "string" && v.toLowerCase().includes(keyword)),
+        Object.values(r).some((v) => {
+          if (typeof v === "string") return v.toLowerCase().includes(keyword);
+          // Translatable field: search across all locale values
+          if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
+            return Object.values(v as Record<string, unknown>).some(
+              (localeVal) =>
+                typeof localeVal === "string" && localeVal.toLowerCase().includes(keyword),
+            );
+          }
+          return false;
+        }),
       );
     }
 

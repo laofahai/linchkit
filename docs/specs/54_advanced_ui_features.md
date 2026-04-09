@@ -14,6 +14,14 @@
 > **Status:** Draft
 > **Milestone:** M3
 > **Dependencies:** Spec 13 (View & UI), Spec 03 (Schema), Spec 46 (Link Type)
+>
+> Tracking milestones:
+> - `M5: Platform Maturity & AI Evolution`
+>
+> Related issues:
+> - GitHub Issue `#86` — Advanced UI features
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## Overview
 
