@@ -122,6 +122,7 @@ describe("CommandLayer action metrics", () => {
     expect(
       metrics.getCounter("action.executions", { action: "nonexistent_action", status: "error" }),
     ).toBe(0);
+    expect(metrics.getCounter("action.errors", { action: "nonexistent_action" })).toBe(0);
     expect(metrics.getHistogramValues("action.duration_ms")).toHaveLength(0);
   });
 
