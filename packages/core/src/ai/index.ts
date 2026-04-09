@@ -1,4 +1,8 @@
 // AI Audit
+
+// AI Action Audit Store
+export type { AIActionAuditEntry, AIActionAuditQueryOptions } from "./ai-action-audit-store";
+export { AIActionAuditStore } from "./ai-action-audit-store";
 export type {
   AIAuditEntry,
   AIAuditEventType,
@@ -20,6 +24,13 @@ export type {
   AIRateLimits,
   AIUsageRecord,
 } from "./ai-policy";
+// Rate Limiter
+export type {
+  AIRateLimiterConfig,
+  RateLimitResult,
+  RateLimitWindow,
+} from "./ai-rate-limiter";
+export { AIRateLimiter } from "./ai-rate-limiter";
 export {
   createAIService,
   createNoopAIService,
@@ -38,6 +49,13 @@ export type {
   UsageEvent,
 } from "./anomaly-detector";
 export { AnomalyDetector } from "./anomaly-detector";
+// Context Masker
+export type {
+  ContextMaskerConfig,
+  ContextMaskingRule,
+  MaskingResult,
+} from "./context-masker";
+export { MaskingSession, maskContext, maskRecord, unmaskContext } from "./context-masker";
 // Conversation Manager
 export type {
   AISession,

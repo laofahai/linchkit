@@ -515,3 +515,7 @@ export class AIAuditLogger {
     return `${content.slice(0, this.maxContentLength)}... [truncated, ${content.length} chars total]`;
   }
 }
+
+// Re-export from split file for backwards compatibility
+export type { AIActionAuditEntry, AIActionAuditQueryOptions } from "./ai-action-audit-store";
+export { AIActionAuditStore } from "./ai-action-audit-store";
