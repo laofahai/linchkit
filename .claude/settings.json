@@ -55,7 +55,11 @@
       "Bash(git rebase *)",
       "Bash(git branch -D *)",
       "Bash(git branch -d *)",
-      "Bash(gh repo delete*)"
+      "Bash(gh repo delete*)",
+      "Bash(gh pr merge * --admin*)",
+      "Bash(gh pr merge --admin*)",
+      "Bash(gh pr merge * --auto*)",
+      "Bash(gh pr merge --auto*)"
     ]
   },
   "hooks": {
