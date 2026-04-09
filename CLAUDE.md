@@ -104,14 +104,16 @@ bun test              # Full test suite (3870+ tests)
 3. **Wait for CI** — GitHub Actions runs all quality gates
 4. **Read review comments** — CodeRabbit and/or human reviewers
 5. **Fix and resolve** — Address every comment, push fixes
-6. **All comments resolved + CI green** → merge
+6. **Reply to each comment** — Explain what was fixed, then **resolve** the thread (NEVER dismiss)
+7. **All comments resolved + CI green + APPROVED** → merge
 
 **PR merge rules (MANDATORY — no exceptions):**
 
 1. **NEVER use `--admin` or `--auto` flag** — If `gh pr merge` is blocked by policy, that means reviews are not done. WAIT.
 2. **NEVER merge with CHANGES_REQUESTED status** — Must wait for reviewers to re-approve after fixes. Request re-review explicitly if needed.
-3. **ALWAYS read ALL review comments BEFORE attempting merge** — Every single comment from CodeRabbit, Gemini, or human reviewers must be read, understood, and either fixed or explicitly replied to with reasoning.
-4. **Only merge when: review status = APPROVED + CI = green** — Both conditions must be true. No shortcuts.
+3. **NEVER dismiss review threads** — Always reply explaining the fix, then resolve via GraphQL `resolveReviewThread`.
+4. **ALWAYS read ALL review comments BEFORE attempting merge** — Every single comment from CodeRabbit, Gemini, or human reviewers must be read, understood, and either fixed or explicitly replied to with reasoning.
+5. **Only merge when: review status = APPROVED + CI = green** — Both conditions must be true. No shortcuts.
 
 ### Parallel Subagent Dispatch
 
