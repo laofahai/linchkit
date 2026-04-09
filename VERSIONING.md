@@ -119,8 +119,8 @@ Each addon package declares its minimum compatible core version. The general rul
 | Core Version | Compatible Addon Versions |
 |-------------|--------------------------|
 | 0.1.x       | Addons built for 0.1.x   |
-| 0.2.x       | Addons built for 0.1.x or 0.2.x (minor is additive) |
-| 1.0.x       | Only addons built for ^1.0.0 |
+| 0.2.x       | Only addons built for 0.2.x (minor may be breaking) |
+| 1.x.x       | Only addons built for ^1.0.0 |
 
 **Rule**: Addons MUST declare `@linchkit/core` as a `peerDependency` with a
 caret range (e.g., `"@linchkit/core": "^0.1.0"`). This ensures consumers get
@@ -211,4 +211,6 @@ Before removing public API:
 1. Mark with `@deprecated` JSDoc tag including the replacement
 2. Log a runtime deprecation warning on first use
 3. Keep deprecated API for at least one minor release cycle
-4. Remove in the next major release with a migration guide
+4. Remove in the next major release (X.0.0) with a migration guide
+
+**Pre-1.0 exception:** Since minor versions may contain breaking changes before 1.0, deprecated APIs may be removed in the next 0.X.0 release with at least one 0.x.Y patch release of notice.
