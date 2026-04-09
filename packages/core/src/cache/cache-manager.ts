@@ -12,6 +12,7 @@ import type { EventBus } from "../event/event-bus";
 import type { EventRecord } from "../types/event";
 import type { Logger } from "../types/logger";
 import type { CacheProvider, CacheSetOptions, CacheStats } from "./cache-provider";
+import type { CacheManagerStats, CacheManagerStatsOptions } from "./cache-stats";
 import { InMemoryCacheProvider } from "./in-memory-cache";
 
 // ── Configuration ─────────────────────────────────────────
@@ -148,6 +149,43 @@ export class CacheManager {
     };
   }
 
+  /**
+   * Return comprehensive diagnostics including per-namespace breakdown
+   * and memory estimates. See spec §9.
+   */
+  getStats(options?: CacheManagerStatsOptions): CacheManagerStats {
+    const l1 = this.l1.stats();
+    const l2 = this.l2?.stats();
+
+    const totalHits = l1.hits + (l2?.hits ?? 0);
+    const totalMisses = l2?.misses ?? l1.misses;
+    const totalRequests = totalHits + totalMisses;
+
+    const rawAvg = options?.avgEntrySizeBytes ?? 256;
+    const avgEntryBytes = Number.isFinite(rawAvg) && rawAvg > 0 ? rawAvg : 256;
+
+    const namespaces = this.collectNamespaceBreakdown();
+    const totalEntries = l1.size + (l2?.size ?? 0);
+
+    // Account for L2 entries not visible in L1 namespace scan
+    const namespacedEntries = Object.values(namespaces).reduce((sum, count) => sum + count, 0);
+    if (namespacedEntries < totalEntries) {
+      namespaces._unattributed = totalEntries - namespacedEntries;
+    }
+
+    return {
+      totalEntries,
+      hits: totalHits,
+      misses: totalMisses,
+      hitRate: totalRequests === 0 ? 0 : totalHits / totalRequests,
+      evictions: l1.evictions + (l2?.evictions ?? 0),
+      estimatedMemoryBytes: totalEntries * avgEntryBytes,
+      namespaces,
+      l1,
+      l2,
+    };
+  }
+
   // ── Namespace factory ───────────────────────────────────
 
   namespace(ns: string): NamespacedCache {
@@ -200,6 +238,23 @@ export class CacheManager {
       const count = this.invalidateByTag(permTag);
       this.logger?.debug?.(`Cache invalidated ${count} permission entries for tag "${permTag}"`);
     }
+  }
+
+  /**
+   * Scan L1 keys to build per-namespace entry counts.
+   * Only works when L1 exposes a keys() method (e.g. InMemoryCacheProvider).
+   */
+  private collectNamespaceBreakdown(): Record<string, number> {
+    const result: Record<string, number> = {};
+    const provider = this.l1 as { keys?: () => string[] };
+    if (typeof provider.keys !== "function") return result;
+
+    for (const key of provider.keys()) {
+      const colonIdx = key.indexOf(":");
+      const ns = colonIdx === -1 ? "_default" : key.slice(0, colonIdx);
+      result[ns] = (result[ns] ?? 0) + 1;
+    }
+    return result;
   }
 
   private subscribeToEvents(eventBus: EventBus): void {
