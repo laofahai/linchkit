@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies and build ─────────────────
-FROM oven/bun:latest AS builder
+FROM oven/bun:1.2.15 AS builder
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ COPY config/ config/
 RUN bun run build
 
 # ── Stage 2: Production image ───────────────────────────────
-FROM oven/bun:latest AS production
+FROM oven/bun:1.2.15 AS production
 
 WORKDIR /app
 
@@ -81,9 +81,15 @@ COPY --from=builder /app/addons/ addons/
 # Copy config directory (linchkit.config.ts)
 COPY --from=builder /app/config/ config/
 
+RUN addgroup --system --gid 1001 bunjs && \
+    adduser --system --uid 1001 --ingroup bunjs bunuser
+
+RUN chown -R bunuser:bunjs /app
+USER bunuser
+
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD bun -e "fetch('http://localhost:3001/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
 
-CMD ["bun", "run", "dev:server"]
+CMD ["bun", "addons/adapter-server/cap-adapter-server/src/dev.ts"]
