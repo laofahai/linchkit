@@ -65,7 +65,7 @@ export function generateTranslatableIndexes(entity: EntityDefinition, tableName:
   const translatableFields = getTranslatableFields(entity);
   if (translatableFields.size === 0) return [];
 
-  const locales: string[] = entity.i18n?.supportedLocales ?? [];
+  const locales: string[] = [...(entity.i18n?.supportedLocales ?? [])];
   // Fall back to defaultLocale only when supportedLocales is empty
   if (locales.length === 0 && entity.i18n?.defaultLocale) {
     locales.push(entity.i18n.defaultLocale);
