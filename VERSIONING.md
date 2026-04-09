@@ -8,9 +8,9 @@ guarantees for all LinchKit packages. For the full deployment-level compatibilit
 
 All LinchKit packages follow [Semantic Versioning 2.0.0](https://semver.org/):
 
-- **MAJOR** (X.0.0) — Breaking changes to public API
-- **MINOR** (0.X.0) — New features, backward-compatible
-- **PATCH** (0.0.X) — Bug fixes, backward-compatible
+- **MAJOR** (`X.y.z`) — Increments when introducing incompatible public API changes
+- **MINOR** (`x.Y.z`) — Increments when adding backward-compatible functionality
+- **PATCH** (`x.y.Z`) — Increments for backward-compatible bug fixes
 
 ### Pre-1.0 Rules
 
@@ -34,7 +34,7 @@ compatible core version range in `peerDependencies`.
 
 ## What Constitutes a Breaking Change
 
-The following changes to a public package require a **major** version bump:
+For packages at **1.0.0 and above**, the following changes require a **major** version bump (pre-1.0 packages may introduce these in minor releases per the pre-1.0 rules above):
 
 ### Type System
 
