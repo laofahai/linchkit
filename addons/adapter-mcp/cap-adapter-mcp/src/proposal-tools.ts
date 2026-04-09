@@ -103,8 +103,11 @@ export function registerProposalTools(
       try {
         // Derive author from session actor if available, otherwise use default
         const actor = options?.getSessionActor?.();
+        // Map ActorType to ProposalAuthor.type — only "human" and "ai" are valid;
+        // all non-human actor types (system, worker, timer, external) are treated as "ai"
+        const authorType = actor?.type === "human" ? "human" : "ai";
         const author: ProposalAuthor = actor
-          ? { type: actor.type as "human" | "ai", id: actor.id, name: actor.name ?? actor.id }
+          ? { type: authorType, id: actor.id, name: actor.name ?? actor.id }
           : { type: "ai", id: "mcp-agent", name: "MCP AI Agent" };
 
         const proposal = proposalEngine.createProposal({
