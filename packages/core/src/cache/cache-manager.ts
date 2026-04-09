@@ -158,7 +158,7 @@ export class CacheManager {
     const l2 = this.l2?.stats();
 
     const totalHits = l1.hits + (l2?.hits ?? 0);
-    const totalMisses = l1.misses + (l2?.misses ?? 0);
+    const totalMisses = l2?.misses ?? l1.misses;
     const totalRequests = totalHits + totalMisses;
 
     const avgEntryBytes = options?.avgEntrySizeBytes ?? 256;

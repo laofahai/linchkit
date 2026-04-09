@@ -45,8 +45,6 @@ export function createCacheHealthCheck(
     try {
       cacheManager.set(probeKey, probeValue, { ttl: 5000 });
       const retrieved = cacheManager.get<string>(probeKey);
-      // Clean up probe key
-      cacheManager.delete(probeKey);
 
       if (retrieved !== probeValue) {
         return {
@@ -64,6 +62,8 @@ export function createCacheHealthCheck(
         message: `Operational check threw: ${msg}`,
         durationMs: Date.now() - start,
       };
+    } finally {
+      cacheManager.delete(probeKey);
     }
 
     // Stats-based checks

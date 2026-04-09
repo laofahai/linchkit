@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createCacheHealthCheck } from "../src/cache/cache-health";
 import { CacheManager } from "../src/cache/cache-manager";
 import { InMemoryCacheProvider } from "../src/cache/in-memory-cache";
+import type { HealthCheckResult } from "../src/deployment/health-check";
 
 // ── getStats() ───────────────────────────────────────────
 
@@ -156,12 +157,11 @@ describe("createCacheHealthCheck()", () => {
   test("returns healthy for operational cache", () => {
     const cm = new CacheManager();
     const check = createCacheHealthCheck(cm);
-    const result = check() as ReturnType<typeof check>;
+    const result = check() as HealthCheckResult;
 
-    // HealthCheckFn may return sync or async
     expect(result).toBeDefined();
-    expect((result as { status: string }).status).toBe("healthy");
-    expect((result as { name: string }).name).toBe("cache");
+    expect(result.status).toBe("healthy");
+    expect(result.name).toBe("cache");
   });
 
   test("includes stats metadata when healthy", () => {
@@ -170,7 +170,7 @@ describe("createCacheHealthCheck()", () => {
     cm.get("a");
 
     const check = createCacheHealthCheck(cm);
-    const result = check() as { metadata?: Record<string, unknown> };
+    const result = check() as HealthCheckResult;
 
     expect(result.metadata).toBeDefined();
     expect(result.metadata?.totalEntries).toBeDefined();
@@ -190,7 +190,7 @@ describe("createCacheHealthCheck()", () => {
 
     // Hit rate = 1/5 = 0.20, threshold = 0.50
     const check = createCacheHealthCheck(cm, { minHitRate: 0.5 });
-    const result = check() as { status: string; message?: string };
+    const result = check() as HealthCheckResult;
 
     expect(result.status).toBe("degraded");
     expect(result.message).toContain("below threshold");
@@ -206,7 +206,7 @@ describe("createCacheHealthCheck()", () => {
     cm.get("a");
 
     const check = createCacheHealthCheck(cm, { minHitRate: 0.5 });
-    const result = check() as { status: string };
+    const result = check() as HealthCheckResult;
 
     expect(result.status).toBe("healthy");
   });
@@ -214,7 +214,7 @@ describe("createCacheHealthCheck()", () => {
   test("hit rate check skipped when no traffic yet", () => {
     const cm = new CacheManager();
     const check = createCacheHealthCheck(cm, { minHitRate: 0.9 });
-    const result = check() as { status: string };
+    const result = check() as HealthCheckResult;
 
     // No requests yet, threshold should not trigger degraded
     expect(result.status).toBe("healthy");
@@ -227,7 +227,7 @@ describe("createCacheHealthCheck()", () => {
     cm.get("y");
 
     const check = createCacheHealthCheck(cm);
-    const result = check() as { status: string };
+    const result = check() as HealthCheckResult;
 
     expect(result.status).toBe("healthy");
   });
@@ -235,7 +235,7 @@ describe("createCacheHealthCheck()", () => {
   test("uses custom probe key", () => {
     const cm = new CacheManager();
     const check = createCacheHealthCheck(cm, { probeKey: "__custom_probe__" });
-    const result = check() as { status: string };
+    const result = check() as HealthCheckResult;
 
     expect(result.status).toBe("healthy");
     // Probe key should be cleaned up
@@ -245,7 +245,7 @@ describe("createCacheHealthCheck()", () => {
   test("reports durationMs >= 0", () => {
     const cm = new CacheManager();
     const check = createCacheHealthCheck(cm);
-    const result = check() as { durationMs: number };
+    const result = check() as HealthCheckResult;
 
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
