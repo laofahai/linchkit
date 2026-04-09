@@ -82,7 +82,7 @@ export const purchaseRequestEntity: EntityDefinition = {
     notes: { type: "text", label: "t:entities.purchase_request.fields.notes" },
     audit_notes: { type: "text", label: "t:entities.purchase_request.fields.audit_notes" },
 
-    // Timestamp fields (auto-populated by automations)
+    // Timestamp fields (auto-populated by event handlers)
     submitted_at: {
       type: "datetime",
       label: "t:entities.purchase_request.fields.submitted_at",

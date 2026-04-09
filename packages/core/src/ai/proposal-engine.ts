@@ -3,14 +3,14 @@
  *
  * Manages the lifecycle of AI-generated proposals derived from PatternInsights.
  * Proposals go through: draft → pending → approved/rejected.
- * Approved proposals can be applied to generate Rule/Automation/Schema changes.
+ * Approved proposals can be applied to generate Rule/EventHandler/Schema changes.
  *
  * All proposals must pass AIBoundary/ProposalValidator checks before application.
  * AI cannot directly modify production — every change is a Proposal first.
  * See spec 09_proposal_validation_version.md and spec 22_ai_rule_boundary.md.
  */
 
-import type { AutomationDefinition } from "../types/automation";
+import type { EventHandlerDefinition } from "../types/event";
 import type { RuleDefinition } from "../types/rule";
 import type { PatternInsight } from "./pattern-detector";
 import type {
@@ -43,11 +43,11 @@ export interface ProposalDraft {
 /** The diff describing what a proposal would change */
 export interface ProposalDiff {
   /** Type of definition being changed */
-  target: "rule" | "automation" | "entity";
+  target: "rule" | "event_handler" | "entity";
   /** What operation is being performed */
   operation: "create" | "update";
   /** The generated definition (for create/update) */
-  definition?: RuleDefinition | AutomationDefinition | Record<string, unknown>;
+  definition?: RuleDefinition | EventHandlerDefinition | Record<string, unknown>;
   /** Human-readable summary of the change */
   summary: string;
 }
@@ -320,9 +320,9 @@ export class ProposalEngine {
 
       case "add_automation":
         return {
-          target: "automation",
+          target: "event_handler",
           operation: "create",
-          definition: this.buildAutomationDefinition(insight),
+          definition: this.buildEventHandlerDefinition(insight),
           summary: draft.description,
         };
 
@@ -388,70 +388,42 @@ export class ProposalEngine {
     };
   }
 
-  /** Generate an AutomationDefinition from a pattern insight */
-  private buildAutomationDefinition(insight: PatternInsight): AutomationDefinition {
+  /** Generate an EventHandlerDefinition from a pattern insight */
+  private buildEventHandlerDefinition(insight: PatternInsight): EventHandlerDefinition {
     const details = insight.suggestedAction.details;
 
     if (insight.type === "timing") {
-      const cron = (details.suggestedCron as string) ?? "0 9 * * *";
       const action = (details.action as string) ?? `process_${insight.entity}`;
 
       return {
         name: `auto_schedule_${action}_${Date.now()}`,
         description: insight.description,
-        trigger: { type: "schedule", cron },
-        actions: [
-          {
-            type: "execute_action",
-            action,
-            input: {},
-          },
-        ],
-        enabled: true,
+        listen: `${insight.entity}.updated`,
+        handler: async () => {
+          // Placeholder — concrete implementation generated at apply time
+        },
       };
     }
 
     if (insight.type === "state_flow") {
-      const steps = (details.steps as string[]) ?? [];
-      const fromState = steps[0];
-      const toState = steps.length > 1 ? steps[1] : undefined;
-
       return {
         name: `auto_flow_${insight.entity}_${Date.now()}`,
         description: insight.description,
-        trigger: {
-          type: "stateChange",
-          entity: insight.entity,
-          from: fromState,
-          to: toState,
+        listen: "record.updated",
+        handler: async () => {
+          // Placeholder — concrete implementation generated at apply time
         },
-        actions: [
-          {
-            type: "send_notification",
-            channel: "system",
-            message: `Auto-detected state flow pattern: ${(details.path as string) ?? "unknown"}`,
-          },
-        ],
-        enabled: true,
       };
     }
 
-    // Fallback generic automation
+    // Fallback generic event handler
     return {
       name: `auto_${insight.entity}_${Date.now()}`,
       description: insight.description,
-      trigger: {
-        type: "event",
-        eventType: `${insight.entity}.updated`,
+      listen: `${insight.entity}.updated`,
+      handler: async () => {
+        // Placeholder — concrete implementation generated at apply time
       },
-      actions: [
-        {
-          type: "send_notification",
-          channel: "system",
-          message: insight.description,
-        },
-      ],
-      enabled: true,
     };
   }
 

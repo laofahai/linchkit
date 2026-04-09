@@ -18,7 +18,7 @@ export function registerUtilityTools(
     "linchkit_project_overview",
     {
       description:
-        "Get full project summary: entity count, action count, relation count, capability count, states, rules, event handlers, automations, views",
+        "Get full project summary: entity count, action count, relation count, capability count, states, rules, event handlers, views",
     },
     async () => {
       const overview = {
@@ -31,7 +31,6 @@ export function registerUtilityTools(
           states: defs.states.length,
           rules: defs.rules.length,
           eventHandlers: defs.eventHandlers.length,
-          automations: defs.automations.length,
           views: defs.views.length,
           interfaces: defs.interfaces.length,
         },

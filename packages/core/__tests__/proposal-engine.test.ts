@@ -110,7 +110,7 @@ describe("ProposalEngine", () => {
       const proposal = engine.createFromInsight(insight);
 
       expect(proposal.type).toBe("add_automation");
-      expect(proposal.diff.target).toBe("automation");
+      expect(proposal.diff.target).toBe("event_handler");
       expect(proposal.diff.operation).toBe("create");
       expect(proposal.diff.definition).toBeDefined();
     });

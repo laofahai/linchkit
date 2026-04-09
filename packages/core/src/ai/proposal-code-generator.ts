@@ -38,8 +38,8 @@ const typeGuidance: Record<ProposalType, string> = {
     "Effect types: block, enrich, validate.",
   ].join("\n"),
   add_automation: [
-    "Generate an AutomationDefinition for reactive automation.",
-    "Include: name, description, trigger (event/schedule/stateChange), actions array, enabled flag.",
+    "Generate an EventHandlerDefinition for reactive event handling.",
+    "Include: name, description, listen (event type), handler function.",
   ].join("\n"),
   modify_schema: [
     "Generate or modify an EntityDefinition using defineEntity().",

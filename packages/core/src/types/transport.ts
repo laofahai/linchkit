@@ -8,7 +8,6 @@
 
 import type { AIAuditLogger } from "../ai/ai-audit";
 import type { AIBoundary } from "../ai/ai-boundary";
-import type { AutomationEngine } from "../automation/automation-engine";
 import type { CacheManager } from "../cache/cache-manager";
 import type { ConfigRegistry } from "../config/config-registry";
 import type { EnvironmentConfig } from "../deployment/environment";
@@ -72,8 +71,6 @@ export interface TransportContext {
   healthCheckRegistry?: HealthCheckRegistry;
   /** Derived property engine — computes store/compute-strategy derived fields */
   derivedPropertyEngine?: DerivedPropertyEngine;
-  /** Automation engine — reactive event-driven automations */
-  automationEngine?: AutomationEngine;
   /** Detected environment config with feature flags */
   environment?: EnvironmentConfig;
   /** AI boundary engine — enforces safety constraints on AI operations */

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  type AutomationActionExecutor,
   createWatcherEngine,
   evaluateComparison,
   parseDuration,
+  type WatcherActionExecutor,
   type WatcherEngine,
 } from "../src/automation";
 import { createWatcherRegistry, type WatcherRegistry } from "../src/automation/watcher-registry";
@@ -62,7 +62,7 @@ function makeEvent(
   };
 }
 
-function createMockActionExecutor(): AutomationActionExecutor & {
+function createMockActionExecutor(): WatcherActionExecutor & {
   calls: Array<{ actionName: string; input: Record<string, unknown> }>;
 } {
   const calls: Array<{ actionName: string; input: Record<string, unknown> }> = [];
@@ -1024,7 +1024,7 @@ describe("WatcherEngine — disabled watchers", () => {
 describe("WatcherEngine — error handling", () => {
   it("catches errors from action executor and reports them", async () => {
     const registry = createWatcherRegistry();
-    const failingExecutor: AutomationActionExecutor = {
+    const failingExecutor: WatcherActionExecutor = {
       async executeAction() {
         throw new Error("action failed");
       },

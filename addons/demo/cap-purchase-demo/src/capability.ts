@@ -4,7 +4,7 @@
  * Demo purchase request capability showcasing:
  * - Schema interfaces (auditable)
  * - Derived/computed properties
- * - Reactive automations (state change triggers)
+ * - Event handlers (state change listeners)
  * - Data masking (sensitive fields)
  * - Rich schema presentation metadata
  * - Links, state machine, permission groups
@@ -38,7 +38,7 @@ export const capPurchaseDemo = defineCapability({
   label: "Purchase Request Demo",
   description:
     "Demo purchase request capability with approval workflow, " +
-    "showcasing interfaces, derived fields, automations, and data masking",
+    "showcasing interfaces, derived fields, event handlers, and data masking",
   type: "standard",
   category: "business",
   version: "0.1.0",
@@ -50,7 +50,7 @@ export const capPurchaseDemo = defineCapability({
   views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
   relations: [requestToDepartment, requestToItems],
   flows: [purchaseApprovalFlow],
-  automations: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
+  eventHandlers: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
   extensions: {
     i18n: {

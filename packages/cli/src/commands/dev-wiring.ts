@@ -15,7 +15,6 @@ import {
 } from "@linchkit/cap-flow-restate";
 import type {
   ActionDefinition,
-  AutomationDefinition,
   CapabilityDefinition,
   DataProvider,
   EntityDefinition,
@@ -37,8 +36,6 @@ import {
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
-  createAutomationEngine,
-  createAutomationRegistry,
   createCacheCheck,
   createCommandLayer,
   createDatabaseCheck,
@@ -89,7 +86,6 @@ export interface WireDevEnginesInput {
   states: StateDefinition[];
   links: RelationDefinition[];
   rules: RuleDefinition[];
-  automations: AutomationDefinition[];
   middlewares: MiddlewareRegistration[];
   capabilities: CapabilityDefinition[];
 
@@ -105,10 +101,6 @@ export interface WireDevEnginesResult {
   restateEndpoint?: Awaited<ReturnType<typeof setupRestateEndpoint>>;
   /** OutboxWorker handle for shutdown (if started) */
   outboxWorker?: OutboxWorker;
-  /** AutomationEngine for shutdown (if automations exist) */
-  automationEngine: ReturnType<typeof createAutomationEngine>;
-  /** Whether automations were started */
-  automationsStarted: boolean;
 }
 
 // ── Main wiring function ────────────────────────────────────
@@ -129,7 +121,6 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     states,
     links,
     rules,
-    automations,
     middlewares,
     capabilities,
     dbInstance,
@@ -371,34 +362,6 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     console.log(`[linch] DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
   }
 
-  // ── Automation engine — reactive event-driven automations ──
-  const automationRegistry = createAutomationRegistry();
-  for (const automation of automations) {
-    automationRegistry.register(automation);
-  }
-
-  const automationEngine = createAutomationEngine({
-    registry: automationRegistry,
-    eventBus,
-    actionExecutor: {
-      executeAction: async (actionName, input) => {
-        const result = await executor.execute(
-          actionName,
-          input,
-          { type: "system", id: "automation-engine", groups: [] },
-          { channel: "internal" },
-        );
-        return result;
-      },
-    },
-  });
-
-  const automationsStarted = automations.length > 0;
-  if (automationsStarted) {
-    automationEngine.start();
-    console.log(`[linch] AutomationEngine started with ${automations.length} automation(s)`);
-  }
-
   // Build OntologyRegistry — unified semantic facade over all registries
   const ontologyRegistry = createOntologyRegistry({
     schemas: entityRegistry,
@@ -478,7 +441,6 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     healthCheckRegistry,
     environment,
     derivedPropertyEngine,
-    automationEngine,
     aiBoundary,
     aiAuditLogger,
     aiService,
@@ -489,7 +451,5 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     transportCtx,
     restateEndpoint,
     outboxWorker,
-    automationEngine,
-    automationsStarted,
   };
 }

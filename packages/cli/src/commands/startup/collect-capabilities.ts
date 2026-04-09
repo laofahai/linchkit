@@ -5,7 +5,6 @@
 
 import type {
   ActionDefinition,
-  AutomationDefinition,
   CapabilityDefinition,
   CliCommand,
   EntityDefinition,
@@ -30,7 +29,6 @@ export interface CollectedDefinitions {
   links: RelationDefinition[];
   rules: RuleDefinition[];
   eventHandlers: EventHandlerDefinition[];
-  automations: AutomationDefinition[];
   middlewares: MiddlewareRegistration[];
   transports: TransportAdapterDefinition[];
   graphqlExtensions: GraphQLExtensionRegistration[];
@@ -53,7 +51,6 @@ export function collectCapabilityDefinitions(
   const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const eventHandlers: EventHandlerDefinition[] = [];
-  const automations: AutomationDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const transports: TransportAdapterDefinition[] = [];
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
@@ -68,7 +65,6 @@ export function collectCapabilityDefinitions(
     if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
     if (cap.eventHandlers) eventHandlers.push(...cap.eventHandlers);
-    if (cap.automations) automations.push(...cap.automations);
     if (cap.extensions?.middlewares) {
       for (const [i, mw] of cap.extensions.middlewares.entries()) {
         middlewares.push({
@@ -102,7 +98,6 @@ export function collectCapabilityDefinitions(
     links,
     rules,
     eventHandlers,
-    automations,
     middlewares,
     transports,
     graphqlExtensions,

@@ -8,7 +8,6 @@
 
 import type {
   ActionDefinition,
-  AutomationDefinition,
   CapabilityDefinition,
   EntityDefinition,
   InterfaceDefinition,
@@ -73,19 +72,17 @@ export const validateCommand = defineCommand({
     const actions: ActionDefinition[] = [];
     const interfaces: InterfaceDefinition[] = [];
     const links: RelationDefinition[] = [];
-    const automations: AutomationDefinition[] = [];
 
     for (const cap of capabilities) {
       if (cap.entities) entities.push(...cap.entities);
       if (cap.actions) actions.push(...cap.actions);
       if (cap.interfaces) interfaces.push(...cap.interfaces);
       if (cap.relations) links.push(...cap.relations);
-      if (cap.automations) automations.push(...cap.automations);
     }
 
     if (!outputJson) {
       consola.info(
-        `Found ${entities.length} entity(ies), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s), ${automations.length} automation(s)`,
+        `Found ${entities.length} entity(ies), ${actions.length} action(s), ${interfaces.length} interface(s), ${links.length} link(s)`,
       );
     }
 
@@ -246,44 +243,6 @@ export const validateCommand = defineCommand({
       }));
       const report = checkActionDefinitions(actionInfos);
       categories.push({ name: "Action Naming Conventions", issues: report.issues });
-    }
-
-    // ── 7. Automation validation ──
-    {
-      const issues: QualityIssue[] = [];
-      const entityNames = new Set(entities.map((s) => s.name));
-      const actionNames = new Set(actions.map((a) => a.name));
-
-      for (const automation of automations) {
-        // Check trigger entity references (fieldChange and stateChange triggers)
-        const trigger = automation.trigger;
-        if (
-          (trigger.type === "fieldChange" || trigger.type === "stateChange") &&
-          "entity" in trigger &&
-          !entityNames.has(trigger.entity)
-        ) {
-          issues.push({
-            severity: "error",
-            rule: "automation-trigger",
-            message: `Automation "${automation.name}": trigger references unknown entity "${trigger.entity}"`,
-          });
-        }
-
-        // Check that action references in steps are valid
-        for (const automationAction of automation.actions) {
-          if (automationAction.type === "execute_action") {
-            if (!actionNames.has(automationAction.action)) {
-              issues.push({
-                severity: "warning",
-                rule: "automation-action-ref",
-                message: `Automation "${automation.name}": references unknown action "${automationAction.action}"`,
-              });
-            }
-          }
-        }
-      }
-
-      categories.push({ name: "Automations", issues });
     }
 
     // ── Aggregate results ──

@@ -107,8 +107,7 @@ export const devCommand = defineCommand({
 
     // ── Collect all definitions from capabilities ──
     const collected = collectCapabilityDefinitions(capabilities);
-    const { entities, actions, views, states, links, rules, automations, middlewares, transports } =
-      collected;
+    const { entities, actions, views, states, links, rules, middlewares, transports } = collected;
 
     console.log(
       `[linch] Loaded ${capabilities.length} capabilities, ${entities.length} schemas, ${actions.length} actions`,
@@ -158,30 +157,28 @@ export const devCommand = defineCommand({
       dbInstance,
     });
 
-    // ── Wire all runtime engines (executor, event bus, flows, automation, etc.) ──
-    const { transportCtx, restateEndpoint, outboxWorker, automationEngine, automationsStarted } =
-      await wireDevEngines({
-        config,
-        registry,
-        environment,
-        entityRegistry,
-        actionRegistry,
-        relationRegistry,
-        interfaceRegistry,
-        permissionRegistry,
-        entities,
-        actions,
-        views,
-        states,
-        links,
-        rules,
-        automations,
-        middlewares,
-        capabilities,
-        dbInstance,
-        dataProvider: devDataProvider,
-        usingDatabase,
-      });
+    // ── Wire all runtime engines (executor, event bus, flows, etc.) ──
+    const { transportCtx, restateEndpoint, outboxWorker } = await wireDevEngines({
+      config,
+      registry,
+      environment,
+      entityRegistry,
+      actionRegistry,
+      relationRegistry,
+      interfaceRegistry,
+      permissionRegistry,
+      entities,
+      actions,
+      views,
+      states,
+      links,
+      rules,
+      middlewares,
+      capabilities,
+      dbInstance,
+      dataProvider: devDataProvider,
+      usingDatabase,
+    });
 
     // Start all transports
     const lifecycles: TransportLifecycle[] = [];
@@ -211,11 +208,6 @@ export const devCommand = defineCommand({
     // Priority 10: drain transports (HTTP connections, etc.)
     for (const lc of lifecycles) {
       shutdownManager.register("transport", () => lc.stop(), 10);
-    }
-
-    // Priority 15: stop automation engine
-    if (automationsStarted) {
-      shutdownManager.register("automation-engine", () => automationEngine.stop(), 15);
     }
 
     // Priority 20: stop event bus + outbox worker
