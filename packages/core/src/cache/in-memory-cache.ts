@@ -176,6 +176,11 @@ export class InMemoryCacheProvider implements CacheProvider {
     };
   }
 
+  /** Return all current cache keys (for diagnostics). */
+  keys(): string[] {
+    return Array.from(this.store.keys());
+  }
+
   // ── Internal helpers ────────────────────────────────────
 
   private removeEntry(key: string, entry: CacheEntry): void {
