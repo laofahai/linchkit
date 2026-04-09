@@ -91,6 +91,11 @@ export class AIRateLimiter {
   /**
    * Check whether a request is allowed under current rate limits.
    * Does NOT record the request — call `record()` after the request succeeds.
+   *
+   * Note: Token budget enforcement is best-effort. Since the actual token cost
+   * is unknown until after the AI call completes, a caller near the budget limit
+   * may slightly exceed it. This is a deliberate design trade-off — pre-call
+   * estimation is unreliable. Callers should treat the budget as a soft cap.
    */
   check(identity: { tenantId?: string; userId?: string }): RateLimitResult {
     const key = this.buildKey(identity);

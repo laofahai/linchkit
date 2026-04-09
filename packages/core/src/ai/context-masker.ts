@@ -81,12 +81,16 @@ export class MaskingSession {
 
   /** Replace all mask tokens in a string with their original values */
   unmask(text: string): string {
-    let result = text;
-    for (const [token, original] of this.tokenMap) {
-      // Use split+join for literal string replacement (no regex escaping needed)
-      result = result.split(token).join(original);
-    }
-    return result;
+    if (this.tokenMap.size === 0) return text;
+
+    // Single-pass replacement to avoid recursive token expansion
+    // (earlier replacements could introduce tokens matched by later entries)
+    const escaped = [...this.tokenMap.keys()].map((token) =>
+      token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+    const tokenRegex = new RegExp(escaped.join("|"), "g");
+
+    return text.replace(tokenRegex, (token) => this.tokenMap.get(token) ?? token);
   }
 
   /** Get the number of masked values in this session */
@@ -142,6 +146,10 @@ const BUILTIN_RULES: ContextMaskingRule[] = [
 /**
  * Mask sensitive patterns in a string. Returns a MaskingResult with
  * the masked string and a session that can reverse the masking.
+ *
+ * Security note: `customRules` execute caller-supplied RegExp objects.
+ * This is a trusted-only API — callers must ensure custom patterns are safe.
+ * Do not pass user-supplied regex patterns without validation.
  */
 export function maskContext(text: string, config?: ContextMaskerConfig): MaskingResult<string> {
   const session = new MaskingSession(config?.tokenPrefix ?? "MASKED");
