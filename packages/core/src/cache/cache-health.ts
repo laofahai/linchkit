@@ -34,7 +34,11 @@ export function createCacheHealthCheck(
   cacheManager: CacheManager,
   options?: CacheHealthCheckOptions,
 ): HealthCheckFn {
-  const minHitRate = options?.minHitRate ?? 0;
+  const rawMinHitRate = options?.minHitRate ?? 0;
+  if (!Number.isFinite(rawMinHitRate) || rawMinHitRate < 0 || rawMinHitRate > 1) {
+    throw new RangeError("minHitRate must be a finite number between 0 and 1");
+  }
+  const minHitRate = rawMinHitRate;
   const probeKeyPrefix = options?.probeKey ?? "__health_probe__";
 
   return (): HealthCheckResult => {

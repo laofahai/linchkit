@@ -13,7 +13,7 @@ export interface CacheManagerStats {
   totalEntries: number;
   /** Total cache hits (L1 + L2) */
   hits: number;
-  /** Total cache misses (L1 + L2) */
+  /** Manager-level misses (final-layer miss count, not L1+L2 sum) */
   misses: number;
   /** Hit rate as a ratio 0..1 */
   hitRate: number;
