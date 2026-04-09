@@ -83,15 +83,18 @@ export class AIActionAuditStore {
   private readonly entries: AIActionAuditEntry[] = [];
   private readonly maxEntries: number;
   constructor(maxEntries = 50_000) {
+    if (!Number.isInteger(maxEntries) || maxEntries <= 0) {
+      throw new RangeError("maxEntries must be a positive integer");
+    }
     this.maxEntries = maxEntries;
   }
 
   /** Record a new AI action audit entry. Returns a frozen entry. */
   record(params: Omit<AIActionAuditEntry, "id" | "timestamp">): AIActionAuditEntry {
     const entry: AIActionAuditEntry = Object.freeze({
+      ...params,
       id: crypto.randomUUID(),
       timestamp: new Date(),
-      ...params,
     });
 
     // Trim oldest half when at capacity
