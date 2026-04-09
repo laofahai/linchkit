@@ -132,7 +132,7 @@ Capability definition, extension, composition, and distribution.
 | [25](./25_documentation.md) | Documentation | Auto-generated API docs, Entity docs, Capability docs | M1 | Draft |
 | [29](./29_methodology_and_sop.md) | Methodology & SOP | Development methodology, Capability dev SOP, release process | M0 | Done |
 | [37](./37_documentation_governance.md) | Documentation Governance | Documentation standards, review process, versioned lifecycle | M1 | Draft |
-| [38](./38_release_compatibility.md) | Release Compatibility | Semantic versioning rules, migration guides, breaking change strategy | M1 | Draft |
+| [38](./38_release_compatibility.md) | Release Compatibility | Semantic versioning rules, migration guides, breaking change strategy | M1 | Partial |
 | [56](./56_core_slimming.md) | Core Slimming | Three-party audit consensus: ~17 files safe to extract, life-system engines stay in core, interface+impl split | M3 | Draft |
 
 ## Deployment & Migration
@@ -196,8 +196,8 @@ Capability definition, extension, composition, and distribution.
 | Status | Count |
 |--------|-------|
 | Done | 48 |
-| Partial | 9 |
-| Draft | 8 |
+| Partial | 10 |
+| Draft | 7 |
 | **Total** | **65** unique specs |
 
 ### Change Log
