@@ -28,7 +28,7 @@ Current gaps:
 
 This spec covers AI-originated Proposals that require database schema changes. It does NOT cover:
 
-- Manual developer-authored migrations (use `drizzle-kit` directly)
+- Manual developer-authored migrations (use `bun ./node_modules/.bin/drizzle-kit` directly)
 - Runtime Overlay changes (Spec 59 handles additive JSONB fields)
 - Legacy system migration (Spec 17 handles external DB import)
 
@@ -66,7 +66,7 @@ interface MigrationImpact {
 interface MigrationChange {
   entity: string;
   changeType: 'add_column' | 'drop_column' | 'alter_column' | 'rename_column'
-    | 'add_index' | 'add_fk' | 'create_table' | 'data_transform';
+    | 'add_index' | 'drop_index' | 'add_fk' | 'drop_fk' | 'create_table' | 'data_transform';
   field?: string;
   details: Record<string, unknown>;
   destructive: boolean;
@@ -80,7 +80,7 @@ Once detection identifies the need, the system generates a migration plan:
 
 1. **Diff computation** — Compare current EntityDefinition (from OntologyRegistry) with proposed EntityDefinition
 2. **Drizzle schema generation** — Translate the diff into Drizzle schema changes (leveraging `generateDrizzleSchemaFile()`)
-3. **Migration SQL generation** — Run `drizzle-kit generate` against the new schema to produce SQL
+3. **Migration SQL generation** — Run `bun ./node_modules/.bin/drizzle-kit generate` against the new schema to produce SQL
 4. **Backfill script** — For required fields or type changes, generate a data backfill query with the default value or transformation logic specified in the Proposal
 5. **Rollback script** — Generate the reverse migration (where possible)
 
@@ -109,10 +109,10 @@ Migration plans go through a dedicated validation pipeline before reaching human
 
 ### 5.1 Non-destructive Check
 
-- ADD COLUMN → always safe
+- ADD COLUMN → generally safe, but on older PostgreSQL versions (< 11) with a `DEFAULT` value, may rewrite the entire table and acquire `ACCESS EXCLUSIVE` lock. On PG 11+ with a non-volatile default, this is a metadata-only change.
 - DROP COLUMN → **destructive**, requires explicit `allowDestructive` flag in Proposal
 - ALTER COLUMN type → safe only if cast is lossless (e.g., `int → bigint`); lossy casts (e.g., `text → int`) blocked
-- CREATE INDEX → safe but may lock table; check estimated row count
+- CREATE INDEX → safe but may lock table; prefer `CREATE INDEX CONCURRENTLY` for large tables. Check estimated row count to decide.
 
 ### 5.2 Reversibility Check
 
@@ -175,7 +175,7 @@ Hard rules that cannot be overridden:
 1. **Destructive migrations always require human approval** — no auto-approve for DROP COLUMN, lossy ALTER, or data deletes
 2. **Production migration requires explicit environment confirmation** — development/staging can auto-execute approved migrations
 3. **Batch size limits** — backfill operations are batched; no single UPDATE on entire table
-4. **Timeout protection** — migrations exceeding estimated duration by 3x are paused, not killed
+4. **Timeout protection** — migrations exceeding estimated duration by 3x are paused, not killed. Pausing means: the current batch completes, then execution stops. No locks are held during the paused state. Resumption picks up from the last completed batch checkpoint recorded in `_linchkit_migration_runs`.
 5. **Concurrent migration lock** — only one migration runs per entity at a time
 6. **AI cannot approve its own migration** — Proposals originated by AI require human approval when `migrationRequired: true`
 
