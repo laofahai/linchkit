@@ -95,7 +95,7 @@ export class AIRateLimiter {
   check(identity: { tenantId?: string; userId?: string }): RateLimitResult {
     const key = this.buildKey(identity);
     const now = Date.now();
-    const entries = this.getEntries(key);
+    const entries = this.entries.get(key) ?? [];
 
     // Check each window
     for (const window of this.windows) {
@@ -165,7 +165,7 @@ export class AIRateLimiter {
     tokensPerHour?: { used: number; limit: number };
   } {
     const key = this.buildKey(identity);
-    const entries = this.getEntries(key);
+    const entries = this.entries.get(key) ?? [];
     const now = Date.now();
 
     const requestsPerWindow = this.windows.map((w) => ({
@@ -200,7 +200,7 @@ export class AIRateLimiter {
 
   private buildKey(identity: { tenantId?: string; userId?: string }): string {
     if (this.perUser && identity.userId) {
-      return `user:${identity.userId}@${identity.tenantId ?? "_"}`;
+      return `user:${identity.userId}\0${identity.tenantId ?? "_"}`;
     }
     return `tenant:${identity.tenantId ?? "_global"}`;
   }

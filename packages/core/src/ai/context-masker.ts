@@ -103,17 +103,7 @@ export class MaskingSession {
 // ── Built-in Rules ──────────────────────────────────────────
 
 const BUILTIN_RULES: ContextMaskingRule[] = [
-  {
-    name: "email",
-    pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-    category: "EMAIL",
-  },
-  {
-    name: "phone_international",
-    // Matches: +1-234-567-8901, (234) 567-8901, 13800138000
-    pattern: /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}\b/g,
-    category: "PHONE",
-  },
+  // Order: most specific patterns first to avoid partial matches
   {
     name: "ssn",
     pattern: /\b\d{3}-\d{2}-\d{4}\b/g,
@@ -128,6 +118,17 @@ const BUILTIN_RULES: ContextMaskingRule[] = [
     name: "chinese_id",
     pattern: /\b[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b/g,
     category: "ID",
+  },
+  {
+    name: "email",
+    pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    category: "EMAIL",
+  },
+  {
+    name: "phone_international",
+    // Matches: +1-234-567-8901, (234) 567-8901, 13800138000
+    pattern: /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}\b/g,
+    category: "PHONE",
   },
   {
     name: "ip_address",
@@ -188,7 +189,13 @@ export function maskRecord(
         masked[key] = token;
         maskCount++;
       } else if (value !== null && value !== undefined) {
-        const strValue = JSON.stringify(value);
+        let strValue: string;
+        try {
+          strValue = JSON.stringify(value);
+        } catch {
+          // Handle BigInt, circular references, or other non-serializable values
+          strValue = "[REDACTED]";
+        }
         const token = session.mask(strValue, "FIELD");
         masked[key] = token;
         maskCount++;

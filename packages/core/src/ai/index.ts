@@ -1,4 +1,8 @@
 // AI Audit
+
+// AI Action Audit Store
+export type { AIActionAuditEntry, AIActionAuditQueryOptions } from "./ai-action-audit-store";
+export { AIActionAuditStore } from "./ai-action-audit-store";
 export type {
   AIAuditEntry,
   AIAuditEventType,
