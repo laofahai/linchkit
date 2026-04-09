@@ -157,7 +157,7 @@ describe("registerProposalTools", () => {
 
     expect(result.isError).toBe(true);
     const parsed = parseToolResult(result) as Record<string, unknown>;
-    expect(parsed.error).toContain("not found");
+    expect(parsed.error).toBe("Operation failed");
   });
 
   test("list_proposals returns all proposals when no filter", async () => {

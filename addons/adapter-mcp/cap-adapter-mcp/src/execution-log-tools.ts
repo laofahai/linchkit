@@ -89,7 +89,7 @@ export function registerExecutionLogTools(
             {
               type: "text" as const,
               text: JSON.stringify({
-                error: err instanceof Error ? err.message : String(err),
+                error: "Failed to retrieve execution log",
               }),
             },
           ],
@@ -159,7 +159,7 @@ export function registerExecutionLogTools(
             {
               type: "text" as const,
               text: JSON.stringify({
-                error: err instanceof Error ? err.message : String(err),
+                error: "Failed to retrieve execution log",
               }),
             },
           ],
