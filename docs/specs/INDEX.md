@@ -141,6 +141,7 @@ Capability definition, extension, composition, and distribution.
 |---|-------|---------|-----------|--------|
 | [12](./12_deployment.md) | Deployment | Deployment strategy, environment config, health checks, graceful shutdown | M1 | Partial |
 | [17](./17_legacy_system_migration.md) | Legacy System Migration | Data import, progressive migration, entity mapping, version registry (cap-migration) | M2+ | Done |
+| [62](./62_ai_proposal_migration.md) | AI Proposal Data Migration | AI Proposal → migration detection, plan generation, safety validation, governed execution | M7+ | Draft |
 
 ## Semantic Layer
 
@@ -181,7 +182,7 @@ Capability definition, extension, composition, and distribution.
 | AI features | 36, 15, 22, 27, 52, 60 |
 | Auth/permission | 10, 10a, 35 |
 | Multi-tenancy | 30, 42 |
-| Evolution system | 00a, 55 |
+| Evolution system | 00a, 55, 62 |
 | Core slimming/module split | 56, 01, 20 |
 | Chatter/record timeline/audit | 53, 11 |
 | Data security | 41a, 30 |
@@ -189,7 +190,7 @@ Capability definition, extension, composition, and distribution.
 | Deployment | 12, 19 |
 | MCP / AI agent access | 58, 60 |
 | Runtime overlay | 59, 09 |
-| Legacy migration | 17 |
+| Legacy migration | 17, 62 |
 
 ## Statistics
 
@@ -197,11 +198,12 @@ Capability definition, extension, composition, and distribution.
 |--------|-------|
 | Done | 48 |
 | Partial | 10 |
-| Draft | 7 |
-| **Total** | **65** unique specs |
+| Draft | 8 |
+| **Total** | **66** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-04-09 | Added spec 62 (AI Proposal Data Migration) |
 | 2026-04-08 | Full audit: aligned all statuses with codebase reality; added specs 59 & 60 |
