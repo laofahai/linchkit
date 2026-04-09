@@ -515,3 +515,144 @@ export class AIAuditLogger {
     return `${content.slice(0, this.maxContentLength)}... [truncated, ${content.length} chars total]`;
   }
 }
+
+// ── AI Action Audit Entry ───────────────────────────────────
+
+/** Extended audit entry specifically for AI-initiated action modifications */
+export interface AIActionAuditEntry {
+  /** Unique entry ID */
+  id: string;
+
+  /** When the action was attempted */
+  timestamp: Date;
+
+  /** AI actor identifier */
+  actor: string;
+
+  /** Action name (e.g. "update_order") */
+  action: string;
+
+  /** Target entity name */
+  entity: string;
+
+  /** AI modification level used */
+  modificationLevel: "read_only" | "suggest" | "auto_safe" | "auto_all";
+
+  /** Whether the action was approved */
+  approved: boolean;
+
+  /** Who approved (undefined if auto-approved or not yet approved) */
+  approvedBy?: string;
+
+  /** AI confidence score (0-1) */
+  confidence: number;
+
+  /** Optional tenant context */
+  tenantId?: string;
+
+  /** Additional structured metadata */
+  metadata?: Record<string, unknown>;
+}
+
+/** Options for querying AIActionAuditEntry records */
+export interface AIActionAuditQueryOptions {
+  /** Filter by entity name */
+  entity?: string;
+
+  /** Filter by action name */
+  action?: string;
+
+  /** Filter entries after this date */
+  after?: Date;
+
+  /** Filter entries before this date */
+  before?: Date;
+
+  /** Filter by approval status */
+  approved?: boolean;
+
+  /** Filter by actor */
+  actor?: string;
+
+  /** Maximum entries to return */
+  limit?: number;
+}
+
+// ── AI Action Audit Store ───────────────────────────────────
+
+/**
+ * In-memory store for AI action audit entries.
+ * Tracks all AI-initiated modifications with queryable history.
+ */
+export class AIActionAuditStore {
+  private readonly entries: AIActionAuditEntry[] = [];
+  private readonly maxEntries: number;
+  private entryCounter = 0;
+
+  constructor(maxEntries = 50_000) {
+    this.maxEntries = maxEntries;
+  }
+
+  /** Record a new AI action audit entry */
+  record(params: Omit<AIActionAuditEntry, "id" | "timestamp">): AIActionAuditEntry {
+    this.entryCounter += 1;
+    const entry: AIActionAuditEntry = {
+      id: `ai-action-audit-${Date.now()}-${this.entryCounter}`,
+      timestamp: new Date(),
+      ...params,
+    };
+
+    // Trim oldest half when at capacity
+    if (this.entries.length >= this.maxEntries) {
+      this.entries.splice(0, this.entries.length >> 1);
+    }
+
+    this.entries.push(entry);
+    return entry;
+  }
+
+  /** Query audit entries with filters */
+  query(options?: AIActionAuditQueryOptions): AIActionAuditEntry[] {
+    let results = [...this.entries];
+
+    if (options?.entity) {
+      results = results.filter((e) => e.entity === options.entity);
+    }
+    if (options?.action) {
+      results = results.filter((e) => e.action === options.action);
+    }
+    if (options?.actor) {
+      results = results.filter((e) => e.actor === options.actor);
+    }
+    if (options?.approved !== undefined) {
+      results = results.filter((e) => e.approved === options.approved);
+    }
+    if (options?.after) {
+      const afterTime = options.after.getTime();
+      results = results.filter((e) => e.timestamp.getTime() > afterTime);
+    }
+    if (options?.before) {
+      const beforeTime = options.before.getTime();
+      results = results.filter((e) => e.timestamp.getTime() < beforeTime);
+    }
+
+    // Most recent first
+    results.reverse();
+
+    if (options?.limit) {
+      results = results.slice(0, options.limit);
+    }
+
+    return results;
+  }
+
+  /** Get total entry count */
+  get size(): number {
+    return this.entries.length;
+  }
+
+  /** Clear all entries (for testing) */
+  clear(): void {
+    this.entries.length = 0;
+  }
+}
