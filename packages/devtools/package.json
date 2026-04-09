@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "test": "bun test"
   },
   "dependencies": {

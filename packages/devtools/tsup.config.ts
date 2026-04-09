@@ -9,7 +9,7 @@ export default defineConfig({
     "governance/index": "src/governance/index.ts",
   },
   format: ["esm"],
-  dts: true,
+  dts: false,
   clean: true,
   target: "es2022",
   external: ["@linchkit/core"],
