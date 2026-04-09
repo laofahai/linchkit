@@ -23,11 +23,15 @@ import type {
   RuleDefinition,
   StateDefinition,
 } from "@linchkit/core";
+import type { ProposalEngine } from "@linchkit/core/server";
+import type { ExecutionLogger } from "@linchkit/core/types";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpClientRegistry } from "./client-registry";
+import { registerExecutionLogTools } from "./execution-log-tools";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
 import { registerManagementTools } from "./management-tools";
+import { registerProposalTools } from "./proposal-tools";
 import { registerScaffoldTools } from "./scaffold-tools";
 import { generateActionTools } from "./tool-registry";
 import type { McpClient, ToolPolicy } from "./types";
@@ -67,6 +71,16 @@ export interface McpAdapterOptions {
    * to simple bearerToken comparison for backward compatibility.
    */
   clientRegistry?: McpClientRegistry;
+  /**
+   * Proposal engine for AI-driven structural change proposals.
+   * When provided, registers create_proposal, get_proposal_status, list_proposals tools.
+   */
+  proposalEngine?: ProposalEngine;
+  /**
+   * Execution logger for querying action execution history.
+   * When provided, registers get_execution_log, get_recent_executions tools.
+   */
+  executionLogger?: ExecutionLogger;
 }
 
 /**
@@ -115,6 +129,8 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     version = "1.0.0",
     bearerToken,
     clientRegistry,
+    proposalEngine,
+    executionLogger,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -272,6 +288,46 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
       { name: "mcp_toggle_client", category: "management" },
       { name: "mcp_rotate_secret", category: "management" },
       { name: "mcp_usage_stats", category: "management" },
+    );
+  }
+
+  // Shared tool policy checker — delegates to clientRegistry.isToolAllowed
+  const checkToolPolicy = (toolName: string, category: string) => {
+    if (sessionToolPolicy && clientRegistry) {
+      if (!clientRegistry.isToolAllowed(toolName, sessionToolPolicy, category)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: "Tool not allowed by client policy" }),
+            },
+          ],
+          isError: true as const,
+        };
+      }
+    }
+    return undefined;
+  };
+
+  // Register proposal tools if proposal engine is available
+  if (proposalEngine) {
+    registerProposalTools(server, proposalEngine, {
+      getSessionActor: () => sessionActor,
+      checkToolPolicy,
+    });
+    allToolNames.push(
+      { name: "create_proposal", category: "proposals" },
+      { name: "get_proposal_status", category: "proposals" },
+      { name: "list_proposals", category: "proposals" },
+    );
+  }
+
+  // Register execution log tools if execution logger is available
+  if (executionLogger) {
+    registerExecutionLogTools(server, executionLogger, { tenantId, checkToolPolicy });
+    allToolNames.push(
+      { name: "get_execution_log", category: "observability" },
+      { name: "get_recent_executions", category: "observability" },
     );
   }
 
