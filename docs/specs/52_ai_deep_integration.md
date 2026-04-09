@@ -4,6 +4,15 @@
 > - **Spec 15** covers *developer-facing* AI: MCP tools, Proposals, code scaffolding, CLAUDE.md/AGENTS.md auto-generation, AI Management UI (Proposal approval, Insights dashboard, Evolution timeline, AI assistant panel, AI search/auto-fill). This spec does NOT duplicate those features.
 > - **Spec 36** covers the AI service layer (`ctx.ai`, provider configuration, model aliases, rate limiting, cost control, tool calling). This spec uses `ctx.ai` as the underlying engine and does NOT redefine its API or configuration.
 > - **Spec 22** defines AI rule boundaries. **Spec 27** defines AI security hardening. Both apply here without modification.
+>
+> Tracking milestones:
+> - `M6: AI Intelligence`
+>
+> Related issues:
+> - GitHub Issue `#78` — AI deep integration
+> - GitHub Issue `#83` — AI deep integration
+>
+> Execution source of truth: GitHub milestones and issues.
 
 ## 1. Overview
 
