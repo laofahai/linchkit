@@ -110,12 +110,14 @@ export class DrizzleDataProvider implements DataProvider {
 
   /**
    * Build an ILIKE OR condition across all string-like columns for full-text search.
+   * For translatable fields, searches on the locale-specific extraction `(col->>'locale')`.
    * Returns undefined when no searchable columns exist or search is empty.
    */
   private buildSearchCondition(
     entityName: string,
     table: PgTable,
     search: string,
+    locale?: string,
   ): ReturnType<typeof or> | undefined {
     if (!search) return undefined;
     const schemaDef = this.entityDefinitions.get(entityName);
@@ -123,19 +125,29 @@ export class DrizzleDataProvider implements DataProvider {
 
     const columns = getTableColumns(table);
     const pattern = `%${search}%`;
-    const ilikeConditions: ReturnType<typeof ilike>[] = [];
+    const translatableFields = getTranslatableFields(schemaDef);
+    const searchLocale = locale ?? schemaDef.i18n?.defaultLocale;
+    const conditions: ReturnType<typeof ilike>[] = [];
 
     for (const [fieldName, fieldDef] of Object.entries(schemaDef.fields)) {
       if (DrizzleDataProvider.SEARCHABLE_FIELD_TYPES.has(fieldDef.type)) {
         const col = columns[fieldName] as PgColumn | undefined;
-        if (col) {
-          ilikeConditions.push(ilike(col, pattern));
+        if (!col) continue;
+
+        if (translatableFields.has(fieldName) && searchLocale) {
+          // Translatable field: search via JSONB locale extraction
+          conditions.push(
+            sql`(${col}->>${searchLocale}) ILIKE ${pattern}` as ReturnType<typeof ilike>,
+          );
+        } else if (!translatableFields.has(fieldName)) {
+          // Normal string field
+          conditions.push(ilike(col, pattern));
         }
       }
     }
 
-    if (ilikeConditions.length === 0) return undefined;
-    return or(...ilikeConditions);
+    if (conditions.length === 0) return undefined;
+    return or(...conditions);
   }
 
   /**
@@ -376,6 +388,9 @@ export class DrizzleDataProvider implements DataProvider {
       "limit",
       "search",
     ]);
+    const locale = (options as I18nQueryOptions | undefined)?.locale;
+    const schemaDef = this.entityDefinitions.get(schema);
+    const translatableFields = schemaDef ? getTranslatableFields(schemaDef) : new Set<string>();
     const conditions = [...this.buildBaseConditions(table, options)];
 
     for (const [key, value] of Object.entries(filter)) {
@@ -384,14 +399,24 @@ export class DrizzleDataProvider implements DataProvider {
 
       const col = columns[key] as PgColumn | undefined;
       if (col) {
-        conditions.push(eq(col, value));
+        if (translatableFields.has(key) && typeof value === "string") {
+          // Translatable field: use JSONB extraction for locale-aware filtering
+          const filterLocale = locale ?? schemaDef?.i18n?.defaultLocale;
+          if (filterLocale) {
+            conditions.push(sql`(${col}->>${filterLocale}) = ${value}` as ReturnType<typeof eq>);
+          } else {
+            conditions.push(eq(col, value));
+          }
+        } else {
+          conditions.push(eq(col, value));
+        }
       }
     }
 
-    // Full-text search across string-like columns
+    // Full-text search across string-like columns (locale-aware for translatable fields)
     const searchTerm = filter.search as string | undefined;
     if (searchTerm) {
-      const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+      const searchCond = this.buildSearchCondition(schema, table, searchTerm, locale);
       if (searchCond) {
         conditions.push(searchCond);
       }
@@ -443,7 +468,6 @@ export class DrizzleDataProvider implements DataProvider {
     }
 
     const rows = await query;
-    const locale = (options as I18nQueryOptions | undefined)?.locale;
     return (rows as Array<Record<string, unknown>>).map((row) =>
       this.resolveTranslatableOutput(schema, row, locale),
     );
@@ -749,6 +773,9 @@ export class DrizzleDataProvider implements DataProvider {
       "limit",
       "search",
     ]);
+    const locale = (options as I18nQueryOptions | undefined)?.locale;
+    const schemaDef = this.entityDefinitions.get(schema);
+    const translatableFields = schemaDef ? getTranslatableFields(schemaDef) : new Set<string>();
     const conditions = [...this.buildBaseConditions(table, options)];
 
     if (filter) {
@@ -758,14 +785,23 @@ export class DrizzleDataProvider implements DataProvider {
 
         const col = columns[key] as PgColumn | undefined;
         if (col) {
-          conditions.push(eq(col, value));
+          if (translatableFields.has(key) && typeof value === "string") {
+            const filterLocale = locale ?? schemaDef?.i18n?.defaultLocale;
+            if (filterLocale) {
+              conditions.push(sql`(${col}->>${filterLocale}) = ${value}` as ReturnType<typeof eq>);
+            } else {
+              conditions.push(eq(col, value));
+            }
+          } else {
+            conditions.push(eq(col, value));
+          }
         }
       }
 
-      // Full-text search across string-like columns
+      // Full-text search across string-like columns (locale-aware for translatable fields)
       const searchTerm = filter.search as string | undefined;
       if (searchTerm) {
-        const searchCond = this.buildSearchCondition(schema, table, searchTerm);
+        const searchCond = this.buildSearchCondition(schema, table, searchTerm, locale);
         if (searchCond) {
           conditions.push(searchCond);
         }

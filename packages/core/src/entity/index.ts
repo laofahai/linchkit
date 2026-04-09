@@ -45,3 +45,8 @@ export {
   validateTranslatableEntity,
   wrapTranslatableValue,
 } from "./translatable";
+export {
+  generateExpressionIndex,
+  generateGinIndex,
+  generateTranslatableIndexes,
+} from "./translatable-index";
