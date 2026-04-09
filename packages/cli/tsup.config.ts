@@ -6,7 +6,7 @@ export default defineConfig({
     index: "src/index.ts",
   },
   format: ["esm"],
-  dts: true,
+  dts: false,
   clean: true,
   target: "es2022",
   banner: {
