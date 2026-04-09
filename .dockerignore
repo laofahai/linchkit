@@ -1,0 +1,41 @@
+# Dependencies (rebuilt in container)
+node_modules/
+.bun/
+
+# Build output (rebuilt in container)
+dist/
+
+# Version control
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Claude / AI tooling
+.claude/
+AGENTS.md
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.*
+
+# Test artifacts
+coverage/
+__snapshots__/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker (avoid recursive context)
+Dockerfile
+docker-compose.yml
