@@ -99,7 +99,7 @@ export class AIActionAuditStore {
 
     // Trim oldest half when at capacity
     if (this.entries.length >= this.maxEntries) {
-      this.entries.splice(0, this.entries.length >> 1);
+      this.entries.splice(0, Math.max(1, this.entries.length >> 1));
     }
 
     this.entries.push(entry);
