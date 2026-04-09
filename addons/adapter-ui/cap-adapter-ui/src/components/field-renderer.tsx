@@ -84,8 +84,11 @@ export function FieldInput({
   dirty,
   required,
 }: FieldInputProps) {
-  // Masked values: show click-to-unlock input allowing user to replace the value
+  // Masked values: in readonly mode show placeholder, otherwise show click-to-unlock input
   if (isMaskedValue(value)) {
+    if (readonly) {
+      return <span className="text-muted-foreground italic">••••••••</span>;
+    }
     return (
       <MaskedFieldInput
         maskedValue={String(value)}

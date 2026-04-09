@@ -684,7 +684,7 @@ async function seedPermissionGroups(
           name: group.name,
           label: group.label,
           tenantId: null,  // project-level seed
-          permissions: group.permissions,
+          grant: group.grant,
           constraints: group.constraints,
           source: 'seed',
         })
