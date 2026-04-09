@@ -127,16 +127,35 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Build query fields from view
+  // Build relation field name set for detecting object-type GraphQL fields
+  const childRelations = childBundle?.relations;
+  const relationFieldNames = useMemo(() => {
+    if (!childRelations || !childSchema) return new Set<string>();
+    const names = new Set<string>();
+    for (const rel of childRelations) {
+      if (rel.from === childSchema.name) names.add(rel.fromName);
+      if (rel.to === childSchema.name) names.add(rel.toName);
+    }
+    return names;
+  }, [childRelations, childSchema]);
+
+  // Build query fields from view — relation fields get { id name } subfield selections
   const queryFields = useMemo(() => {
     if (!listView) return ["id"];
     const fields = new Set<string>(["id"]);
     for (const f of listView.fields) {
       if (f.field.includes(".")) continue;
-      fields.add(f.field);
+      const isRelation =
+        relationFieldNames.has(f.field) ||
+        (!childSchema?.fields[f.field] && !SYSTEM_FIELDS.has(f.field));
+      if (isRelation) {
+        fields.add(`${f.field} { id name }`);
+      } else {
+        fields.add(f.field);
+      }
     }
     return Array.from(fields);
-  }, [listView]);
+  }, [listView, relationFieldNames, childSchema]);
 
   // Stable ref for query fields
   const queryFieldsRef = useRef(queryFields);

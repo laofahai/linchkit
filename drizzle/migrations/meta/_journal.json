@@ -8,6 +8,13 @@
       "when": 1775376040980,
       "tag": "0000_melted_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775733762343,
+      "tag": "0001_greedy_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

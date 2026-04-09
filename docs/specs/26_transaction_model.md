@@ -1,10 +1,10 @@
 # 事务模型设计规范
 
 > Tracking milestones:
-> - `M5: Production Readiness`
+> - `M5: Platform Maturity & AI Evolution`
 >
 > Related issues:
-> - No dedicated open issue is currently tracked for this spec.
+> - GitHub Issue `#123` — Transaction model
 >
 > Execution source of truth: GitHub milestones and issues.
 

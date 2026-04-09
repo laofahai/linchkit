@@ -286,12 +286,17 @@ export function EntityFormPage() {
   // Sync form mode when navigating between create/edit via URL changes
   useEffect(() => setFormMode(isCreate ? "create" : "view"), [isCreate]);
 
+  // Stabilize actions via ref to prevent infinite effect re-runs
+  // (useFormActions returns a new object reference on each render)
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
   // Data loading effects
   useEffect(() => {
     if (!bundleLoading && bundle) {
       if (isCreate && cloneId) {
         setLoading(true);
-        actions.fetchCloneSource(cloneId, formView).then((cloned) => {
+        actionsRef.current.fetchCloneSource(cloneId, formView).then((cloned) => {
           if (cloned) setRecord(cloned);
           setLoading(false);
         });
@@ -312,24 +317,14 @@ export function EntityFormPage() {
         fetchRecord().then(() => {
           // Fetch state transitions after record loads (non-blocking)
           if (!isCreate && params.id) {
-            actions.fetchStateTransitions(params.id).then(setStateTransitions);
+            actionsRef.current.fetchStateTransitions(params.id).then(setStateTransitions);
           }
         });
       }
     } else if (!bundleLoading && !bundle) {
       setLoading(false);
     }
-  }, [
-    fetchRecord,
-    bundleLoading,
-    bundle,
-    isCreate,
-    cloneId,
-    parentId,
-    formView,
-    params.id,
-    actions,
-  ]);
+  }, [fetchRecord, bundleLoading, bundle, isCreate, cloneId, parentId, formView, params.id]);
 
   // Update breadcrumb title with the record's display name
   useEffect(() => {

@@ -445,8 +445,11 @@ export function generateGraphQLInputType(
           continue;
         }
 
+        // Sensitive fields are masked on read and stripped on write by the client,
+        // so they must be optional in input types even if required in the entity definition.
+        const isRequired = field.required && !field.sensitive;
         fields[fieldName] = {
-          type: field.required ? new GraphQLNonNull(graphqlType) : graphqlType,
+          type: isRequired ? new GraphQLNonNull(graphqlType) : graphqlType,
           description: field.description ?? field.label,
         };
       }
