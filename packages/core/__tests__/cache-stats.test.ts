@@ -238,8 +238,9 @@ describe("createCacheHealthCheck()", () => {
     const result = check() as HealthCheckResult;
 
     expect(result.status).toBe("healthy");
-    // Probe key should be cleaned up
-    expect(cm.get("__custom_probe__")).toBeUndefined();
+    // Probe keys use unique suffix and are cleaned up — no leftover keys with the prefix
+    const stats = cm.getStats();
+    expect(stats.totalEntries).toBe(0);
   });
 
   test("reports durationMs >= 0", () => {

@@ -161,17 +161,25 @@ export class CacheManager {
     const totalMisses = l2?.misses ?? l1.misses;
     const totalRequests = totalHits + totalMisses;
 
-    const avgEntryBytes = options?.avgEntrySizeBytes ?? 256;
+    const rawAvg = options?.avgEntrySizeBytes ?? 256;
+    const avgEntryBytes = Number.isFinite(rawAvg) && rawAvg > 0 ? rawAvg : 256;
 
     const namespaces = this.collectNamespaceBreakdown();
+    const totalEntries = l1.size + (l2?.size ?? 0);
+
+    // Account for L2 entries not visible in L1 namespace scan
+    const namespacedEntries = Object.values(namespaces).reduce((sum, count) => sum + count, 0);
+    if (namespacedEntries < totalEntries) {
+      namespaces._unattributed = totalEntries - namespacedEntries;
+    }
 
     return {
-      totalEntries: l1.size + (l2?.size ?? 0),
+      totalEntries,
       hits: totalHits,
       misses: totalMisses,
       hitRate: totalRequests === 0 ? 0 : totalHits / totalRequests,
       evictions: l1.evictions + (l2?.evictions ?? 0),
-      estimatedMemoryBytes: (l1.size + (l2?.size ?? 0)) * avgEntryBytes,
+      estimatedMemoryBytes: totalEntries * avgEntryBytes,
       namespaces,
       l1,
       l2,

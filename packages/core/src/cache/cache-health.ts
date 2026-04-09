@@ -35,12 +35,16 @@ export function createCacheHealthCheck(
   options?: CacheHealthCheckOptions,
 ): HealthCheckFn {
   const minHitRate = options?.minHitRate ?? 0;
-  const probeKey = options?.probeKey ?? "__health_probe__";
+  const probeKeyPrefix = options?.probeKey ?? "__health_probe__";
 
   return (): HealthCheckResult => {
     const start = Date.now();
 
-    // Operational check: set + get a probe value
+    // Snapshot stats BEFORE probe to avoid contaminating hit-rate signal
+    const stats = cacheManager.getStats();
+
+    // Operational check: set + get a unique probe value
+    const probeKey = `${probeKeyPrefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
     const probeValue = `probe_${Date.now()}`;
     try {
       cacheManager.set(probeKey, probeValue, { ttl: 5000 });
@@ -66,8 +70,7 @@ export function createCacheHealthCheck(
       cacheManager.delete(probeKey);
     }
 
-    // Stats-based checks
-    const stats = cacheManager.getStats();
+    // Stats-based checks (using pre-probe snapshot)
     const totalRequests = stats.hits + stats.misses;
 
     // Hit rate check (only meaningful after some traffic)
