@@ -82,16 +82,12 @@ export interface AIActionAuditQueryOptions {
 export class AIActionAuditStore {
   private readonly entries: AIActionAuditEntry[] = [];
   private readonly maxEntries: number;
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in record()
-  private entryCounter = 0;
-
   constructor(maxEntries = 50_000) {
     this.maxEntries = maxEntries;
   }
 
   /** Record a new AI action audit entry. Returns a frozen entry. */
   record(params: Omit<AIActionAuditEntry, "id" | "timestamp">): AIActionAuditEntry {
-    this.entryCounter += 1;
     const entry: AIActionAuditEntry = Object.freeze({
       id: crypto.randomUUID(),
       timestamp: new Date(),
