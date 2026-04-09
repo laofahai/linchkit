@@ -116,6 +116,13 @@ describe("CommandLayer action metrics", () => {
 
     expect(result.success).toBe(false);
     // Action not found returns early before pipeline runs, no action metrics recorded
+    expect(
+      metrics.getCounter("action.executions", { action: "nonexistent_action", status: "blocked" }),
+    ).toBe(0);
+    expect(
+      metrics.getCounter("action.executions", { action: "nonexistent_action", status: "error" }),
+    ).toBe(0);
+    expect(metrics.getHistogramValues("action.duration_ms")).toHaveLength(0);
   });
 
   it("accumulates metrics across multiple executions", async () => {
