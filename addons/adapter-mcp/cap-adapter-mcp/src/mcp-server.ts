@@ -291,9 +291,27 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     );
   }
 
+  // Shared tool policy checker — delegates to clientRegistry.isToolAllowed
+  const checkToolPolicy = (toolName: string, category: string) => {
+    if (sessionToolPolicy && clientRegistry) {
+      if (!clientRegistry.isToolAllowed(toolName, sessionToolPolicy, category)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ error: "Tool not allowed by client policy" }),
+            },
+          ],
+          isError: true as const,
+        };
+      }
+    }
+    return undefined;
+  };
+
   // Register proposal tools if proposal engine is available
   if (proposalEngine) {
-    registerProposalTools(server, proposalEngine);
+    registerProposalTools(server, proposalEngine, { sessionActor, checkToolPolicy });
     allToolNames.push(
       { name: "create_proposal", category: "proposals" },
       { name: "get_proposal_status", category: "proposals" },
@@ -303,7 +321,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
 
   // Register execution log tools if execution logger is available
   if (executionLogger) {
-    registerExecutionLogTools(server, executionLogger);
+    registerExecutionLogTools(server, executionLogger, { tenantId, checkToolPolicy });
     allToolNames.push(
       { name: "get_execution_log", category: "observability" },
       { name: "get_recent_executions", category: "observability" },

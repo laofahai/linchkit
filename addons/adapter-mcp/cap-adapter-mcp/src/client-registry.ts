@@ -44,6 +44,11 @@ const TOOL_CATEGORIES: Record<string, string> = {
   mcp_toggle_client: "management",
   mcp_rotate_secret: "management",
   mcp_usage_stats: "management",
+  create_proposal: "proposals",
+  get_proposal_status: "proposals",
+  list_proposals: "proposals",
+  get_execution_log: "observability",
+  get_recent_executions: "observability",
 };
 
 /** Get the category for a tool name; unknown tools are "actions" */

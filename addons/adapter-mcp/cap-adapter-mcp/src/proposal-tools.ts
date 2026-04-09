@@ -6,9 +6,11 @@
  * AI never auto-approves structural changes (Spec 60, Section 4.1).
  */
 
+import type { Actor } from "@linchkit/core";
 import type { ProposalEngine } from "@linchkit/core/server";
 import type {
   ChangeType,
+  ProposalAuthor,
   ProposalChangeOperation,
   ProposalChangeTarget,
   ProposalStatus,
@@ -16,6 +18,23 @@ import type {
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { toMcpShape } from "./zod-compat";
+
+/** Error result returned when a tool is blocked by policy */
+interface ToolBlockedResult {
+  [key: string]: unknown;
+  content: Array<{ type: "text"; text: string }>;
+  isError: true;
+}
+
+export interface ProposalToolsOptions {
+  /** Session actor to use as proposal author. Falls back to default MCP AI agent. */
+  sessionActor?: Actor;
+  /**
+   * Tool policy checker. Returns an error result if the tool is not allowed,
+   * or undefined if the tool is permitted.
+   */
+  checkToolPolicy?: (toolName: string, category: string) => ToolBlockedResult | undefined;
+}
 
 /**
  * Register proposal management tools on the MCP server.
@@ -25,7 +44,11 @@ import { toMcpShape } from "./zod-compat";
  * - get_proposal_status: Get proposal details by ID
  * - list_proposals: List proposals with optional filters
  */
-export function registerProposalTools(server: McpServer, proposalEngine: ProposalEngine): void {
+export function registerProposalTools(
+  server: McpServer,
+  proposalEngine: ProposalEngine,
+  options?: ProposalToolsOptions,
+): void {
   // ── create_proposal ───────────────────────────────────
   const createProposalShape = {
     title: z.string().describe("Short title for the proposal"),
@@ -44,6 +67,10 @@ export function registerProposalTools(server: McpServer, proposalEngine: Proposa
             .enum(["create", "update", "delete"])
             .describe("What operation is being performed"),
           name: z.string().describe("Name of the definition being changed"),
+          definition: z
+            .record(z.string(), z.unknown())
+            .describe("The definition object (for create/update operations)")
+            .optional(),
           diff: z.string().describe("Human-readable diff description").optional(),
         }),
       )
@@ -65,17 +92,35 @@ export function registerProposalTools(server: McpServer, proposalEngine: Proposa
         target: ProposalChangeTarget;
         operation: ProposalChangeOperation;
         name: string;
+        definition?: Record<string, unknown>;
         diff?: string;
       }>;
     }) => {
+      // Defense-in-depth: verify tool is allowed for current session
+      const blocked = options?.checkToolPolicy?.("create_proposal", "proposals");
+      if (blocked) return blocked;
+
       try {
+        // Derive author from session actor if available, otherwise use default
+        const actor = options?.sessionActor;
+        const author: ProposalAuthor = actor
+          ? { type: actor.type as "human" | "ai", id: actor.id, name: actor.name ?? actor.id }
+          : { type: "ai", id: "mcp-agent", name: "MCP AI Agent" };
+
         const proposal = proposalEngine.createProposal({
           title: args.title,
           description: args.description,
-          author: { type: "ai", id: "mcp-agent", name: "MCP AI Agent" },
+          author,
           capability: args.capability,
           changeType: args.changeType,
-          changes: args.changes,
+          changes: args.changes.map((c) => ({
+            target: c.target,
+            operation: c.operation,
+            name: c.name,
+            // Pass definition as ChangeDefinition if provided (cast — MCP input is untyped JSON)
+            definition: c.definition as import("@linchkit/core/types").ChangeDefinition | undefined,
+            diff: c.diff,
+          })),
         });
 
         return {
@@ -125,6 +170,10 @@ export function registerProposalTools(server: McpServer, proposalEngine: Proposa
     "Get the current status and full details of a proposal by ID",
     toMcpShape(getProposalStatusShape),
     async (args: { proposalId: string }) => {
+      // Defense-in-depth: verify tool is allowed for current session
+      const blocked2 = options?.checkToolPolicy?.("get_proposal_status", "proposals");
+      if (blocked2) return blocked2;
+
       try {
         const proposal = proposalEngine.getProposal(args.proposalId);
 
@@ -185,30 +234,48 @@ export function registerProposalTools(server: McpServer, proposalEngine: Proposa
     "List proposals, optionally filtered by status and/or capability",
     toMcpShape(listProposalsShape),
     async (args: { status?: ProposalStatus; capability?: string }) => {
-      const proposals = proposalEngine.listProposals({
-        status: args.status,
-        capability: args.capability,
-      });
+      // Defense-in-depth: verify tool is allowed for current session
+      const blocked3 = options?.checkToolPolicy?.("list_proposals", "proposals");
+      if (blocked3) return blocked3;
 
-      const result = proposals.map((p) => ({
-        id: p.id,
-        title: p.title,
-        status: p.status,
-        capability: p.capability,
-        changeType: p.changeType,
-        changesCount: p.changes.length,
-        createdAt: p.createdAt.toISOString(),
-        updatedAt: p.updatedAt.toISOString(),
-      }));
+      try {
+        const proposals = proposalEngine.listProposals({
+          status: args.status,
+          capability: args.capability,
+        });
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+        const result = proposals.map((p) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status,
+          capability: p.capability,
+          changeType: p.changeType,
+          changesCount: p.changes.length,
+          createdAt: p.createdAt.toISOString(),
+          updatedAt: p.updatedAt.toISOString(),
+        }));
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
     },
   );
 }
