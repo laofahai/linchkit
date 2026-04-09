@@ -24,6 +24,12 @@ export function createTenantNamespace(
   namespace: string,
   tenantId: string,
 ): NamespacedCache {
+  if (namespace.includes(":")) {
+    throw new Error(`Cache namespace must not contain ':' delimiter, got "${namespace}"`);
+  }
+  if (tenantId.includes(":")) {
+    throw new Error(`Tenant ID must not contain ':' delimiter, got "${tenantId}"`);
+  }
   const tenantNs = `${namespace}:${tenantId}`;
   return manager.namespace(tenantNs);
 }

@@ -237,6 +237,12 @@ export class CacheManager {
    * Convenience wrapper around `namespace()`.
    */
   tenantNamespace(ns: string, tenantId: string): NamespacedCache {
+    if (ns.includes(":")) {
+      throw new Error(`Cache namespace must not contain ':' delimiter, got "${ns}"`);
+    }
+    if (tenantId.includes(":")) {
+      throw new Error(`Tenant ID must not contain ':' delimiter, got "${tenantId}"`);
+    }
     return this.namespace(`${ns}:${tenantId}`);
   }
 
