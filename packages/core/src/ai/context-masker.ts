@@ -150,18 +150,14 @@ export function maskContext(text: string, config?: ContextMaskerConfig): Masking
   let maskCount = 0;
 
   for (const rule of rules) {
-    // Create a fresh regex to reset lastIndex
-    const regex = new RegExp(rule.pattern.source, rule.pattern.flags);
-    const matches = masked.match(regex);
-
-    if (matches) {
-      // Replace each unique match with a mask token
-      for (const match of new Set(matches)) {
-        const token = session.mask(match, rule.category);
-        masked = masked.split(match).join(token);
-        maskCount++;
-      }
-    }
+    const regex = new RegExp(
+      rule.pattern.source,
+      `${rule.pattern.flags}${rule.pattern.flags.includes("g") ? "" : "g"}`,
+    );
+    masked = masked.replace(regex, (match) => {
+      maskCount++;
+      return session.mask(match, rule.category);
+    });
   }
 
   return { masked, maskCount, session };
@@ -206,15 +202,14 @@ export function maskRecord(
     if (typeof value === "string") {
       let fieldMasked = value;
       for (const rule of rules) {
-        const regex = new RegExp(rule.pattern.source, rule.pattern.flags);
-        const matches = fieldMasked.match(regex);
-        if (matches) {
-          for (const match of new Set(matches)) {
-            const token = session.mask(match, rule.category);
-            fieldMasked = fieldMasked.split(match).join(token);
-            maskCount++;
-          }
-        }
+        const regex = new RegExp(
+          rule.pattern.source,
+          `${rule.pattern.flags}${rule.pattern.flags.includes("g") ? "" : "g"}`,
+        );
+        fieldMasked = fieldMasked.replace(regex, (match) => {
+          maskCount++;
+          return session.mask(match, rule.category);
+        });
       }
       masked[key] = fieldMasked;
     } else {

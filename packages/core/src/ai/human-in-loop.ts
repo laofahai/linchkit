@@ -147,17 +147,16 @@ export function requiresHumanApproval(
 ): HumanInLoopResult {
   const policies = options?.policies ?? [];
   const defaultThreshold = options?.defaultThreshold ?? 0.8;
+  const riskCategory = classifyActionRisk(action, context, options?.customHighRiskPatterns);
 
   // Non-AI actions don't need AI-specific approval
   if (!context.isAIInitiated) {
     return {
       requiresApproval: false,
       reason: "Action is human-initiated; no AI approval gate needed.",
-      riskCategory: classifyActionRisk(action, context, options?.customHighRiskPatterns),
+      riskCategory,
     };
   }
-
-  const riskCategory = classifyActionRisk(action, context, options?.customHighRiskPatterns);
 
   // Critical and high-risk: always require approval
   if (riskCategory === "critical") {

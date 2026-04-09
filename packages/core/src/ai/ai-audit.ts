@@ -597,7 +597,7 @@ export class AIActionAuditStore {
   record(params: Omit<AIActionAuditEntry, "id" | "timestamp">): AIActionAuditEntry {
     this.entryCounter += 1;
     const entry: AIActionAuditEntry = {
-      id: `ai-action-audit-${Date.now()}-${this.entryCounter}`,
+      id: crypto.randomUUID(),
       timestamp: new Date(),
       ...params,
     };
