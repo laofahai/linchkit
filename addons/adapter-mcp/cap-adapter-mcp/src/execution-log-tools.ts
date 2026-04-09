@@ -109,6 +109,7 @@ export function registerExecutionLogTools(
       .optional(),
     limit: z
       .number()
+      .int()
       .describe("Maximum number of entries to return (default 20, max 100)")
       .optional(),
   };

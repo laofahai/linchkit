@@ -27,8 +27,8 @@ interface ToolBlockedResult {
 }
 
 export interface ProposalToolsOptions {
-  /** Session actor to use as proposal author. Falls back to default MCP AI agent. */
-  sessionActor?: Actor;
+  /** Session actor getter — called at invocation time to reflect auth changes. */
+  getSessionActor?: () => Actor | undefined;
   /**
    * Tool policy checker. Returns an error result if the tool is not allowed,
    * or undefined if the tool is permitted.
@@ -102,7 +102,7 @@ export function registerProposalTools(
 
       try {
         // Derive author from session actor if available, otherwise use default
-        const actor = options?.sessionActor;
+        const actor = options?.getSessionActor?.();
         const author: ProposalAuthor = actor
           ? { type: actor.type as "human" | "ai", id: actor.id, name: actor.name ?? actor.id }
           : { type: "ai", id: "mcp-agent", name: "MCP AI Agent" };

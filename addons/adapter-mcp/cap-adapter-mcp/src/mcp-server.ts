@@ -311,7 +311,10 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
 
   // Register proposal tools if proposal engine is available
   if (proposalEngine) {
-    registerProposalTools(server, proposalEngine, { sessionActor, checkToolPolicy });
+    registerProposalTools(server, proposalEngine, {
+      getSessionActor: () => sessionActor,
+      checkToolPolicy,
+    });
     allToolNames.push(
       { name: "create_proposal", category: "proposals" },
       { name: "get_proposal_status", category: "proposals" },
