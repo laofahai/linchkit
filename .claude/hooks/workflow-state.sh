@@ -8,7 +8,7 @@ _wf_file() {
   branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-')
   # Include project path hash to avoid collisions between repos with same branch name
   project_id=$(printf "%s" "$(git rev-parse --show-toplevel 2>/dev/null)" | cksum | cut -d' ' -f1)
-  echo "${TMPDIR:-/tmp/}linchkit-wf-${project_id}-${branch}"
+  echo "${TMPDIR:-/tmp}/linchkit-wf-${project_id}-${branch}"
 }
 
 wf_has() {

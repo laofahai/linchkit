@@ -102,7 +102,7 @@ Before creating a PR, request cross-model review for a second opinion.
    - Decide: **fix**, **reject** (with reason), or **defer** (low priority).
    Present the evaluation table to the user before proceeding.
 5. **Fix confirmed issues**: Apply fixes, re-run quality gates if code changed.
-6. **Mark complete**: `echo "cross_model_review=$(date +%s)" >> $TMPDIR/linchkit-wf-<branch-slug>`
+6. **Mark complete**: `./.claude/hooks/post-quality-gate.sh cross_model_review`
    This is required — `gh pr create` is blocked by hook until this marker exists.
 
 ## Step 6: PR & Review

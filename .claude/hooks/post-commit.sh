@@ -12,6 +12,5 @@ fi
 # Reset only quality gate markers (not cross_model_review)
 WF=$(_wf_file)
 if [ -f "$WF" ]; then
-  sed -i.bak '/^check_passed=/d;/^typecheck_passed=/d;/^tests_passed=/d' "$WF"
-  rm -f "${WF}.bak"
+  grep -vE '^(check_passed|typecheck_passed|tests_passed)=' "$WF" > "$WF.tmp" && mv "$WF.tmp" "$WF"
 fi
