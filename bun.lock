@@ -273,7 +273,7 @@
       "name": "@linchkit/cli",
       "version": "0.1.0",
       "bin": {
-        "linch": "dist/index.js",
+        "linch": "src/index.ts",
       },
       "dependencies": {
         "@linchkit/cap-flow-restate": "workspace:*",

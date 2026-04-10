@@ -12,7 +12,7 @@
     "lint": "bunx @biomejs/biome lint .",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
-    "build": "bun run --filter '*' build",
+    "build": "bun run --filter '@linchkit/core' build && bun run --filter '@linchkit/devtools' build && bun run --filter '@linchkit/cli' --filter '@linchkit/cap-adapter-ui' build",
     "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui' dev",
     "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
     "dev:ui": "bun run --filter @linchkit/cap-adapter-ui dev",
