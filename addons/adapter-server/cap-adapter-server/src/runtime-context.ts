@@ -12,7 +12,6 @@ import type {
   ActionDefinition,
   ActionExecutor,
   AIService,
-  AIServiceConfig,
   CommandLayer,
   DataProvider,
   EntityDefinition,
@@ -25,7 +24,6 @@ import type {
 } from "@linchkit/core";
 import {
   createActionExecutor,
-  createAIService,
   createCommandLayer,
   createInterfaceRegistry,
   createNoopAIService,
@@ -58,8 +56,8 @@ export interface RuntimeContextOptions {
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
-  /** AI service configuration (optional — system works without it) */
-  ai?: AIServiceConfig;
+  /** Pre-constructed AI service (optional — defaults to noop). Use createAIService() from @linchkit/cap-ai-provider to build one. */
+  ai?: AIService;
   /** External data provider (e.g. DrizzleDataProvider). Falls back to InMemoryStore if not set. */
   dataProvider?: DataProvider;
   /** Event bus — PersistentEventBus when DB is available, plain EventBus otherwise */
@@ -106,8 +104,8 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   const firstState = options?.states?.[0];
   const stateMachine = firstState ? createStateMachine(firstState) : undefined;
 
-  // Build AI service (optional — noop if not configured)
-  const ai = options?.ai ? createAIService(options.ai) : createNoopAIService();
+  // Use provided AI service or fall back to noop
+  const ai = options?.ai ?? createNoopAIService();
 
   const executor = createActionExecutor({
     dataProvider,

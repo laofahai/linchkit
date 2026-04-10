@@ -161,6 +161,13 @@ const allActions: ActionDefinition[] = [...crudActions, ...capContributions.acti
 
 // ── Initialize runtime context ──────────────────────────
 
+// Build AI service from config (requires @linchkit/cap-ai-provider when AI is configured)
+let aiService: import("@linchkit/core").AIService | undefined;
+if (config.ai) {
+  const { createAIService } = await import("@linchkit/cap-ai-provider");
+  aiService = createAIService(config.ai);
+}
+
 // Build capability name set for ctx.hasCapability() weak dependency checks
 const capabilityNames = new Set((config.capabilities ?? []).map((c) => c.name));
 
@@ -170,7 +177,7 @@ const runtime = createRuntimeContext({
   states: capContributions.states,
   views: capContributions.views,
   middlewares: capContributions.middlewares,
-  ai: config.ai,
+  ai: aiService,
   capabilityNames,
 });
 
