@@ -92,10 +92,9 @@ Naming conventions:
 | date | Date only | min, max |
 | datetime | Date and time | min, max |
 | enum | Fixed set of values | options (required) |
-| ref | Reference to another entity | entity, required |
-| has_many | One-to-many relation | entity |
-| many_to_many | Many-to-many relation | entity |
 | json | Arbitrary JSON | — |
+
+> **Relationships** between entities are defined using \`defineRelation()\`, not field types. See Spec 46/61.
 
 ## System Fields (DO NOT define — auto-managed)
 id, tenant_id, created_at, updated_at, created_by, updated_by, _version
