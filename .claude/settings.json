@@ -32,6 +32,7 @@
       "Bash(git push origin *)",
       "Bash(git worktree *)",
       "Bash(git rev-parse *)",
+      "Bash(git remote prune *)",
       "Bash(git branch -m *)",
       "Bash(which *)",
       "Bash(gh pr view *)",
