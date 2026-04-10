@@ -62,7 +62,7 @@ export interface MyEngine {
 }
 
 export interface MyEngineOptions {
-  eventBus: EventBus;
+  signalBus: SignalBus;
   store: Store;
   // ... dependencies injected via options
 }
@@ -71,7 +71,7 @@ export interface MyEngineOptions {
 ```ts
 // engines/my-engine.ts
 export function createMyEngine(options: MyEngineOptions): MyEngine {
-  const { eventBus, store } = options;
+  const { signalBus, store } = options;
   // ... implementation
   return { process, dispose };
 }
@@ -81,7 +81,7 @@ export function createMyEngine(options: MyEngineOptions): MyEngine {
 
 | Integration | How |
 |-------------|-----|
-| **EventBus** | `eventBus.emit()` / `eventBus.on()` — engines never call each other directly |
+| **SignalBus** | `signalBus.emit()` / `signalBus.on()` — engines never call each other directly |
 | **Store** | Inject via options, use for persistence |
 | **CommandLayer** | If engine affects action execution, register as middleware |
 | **Config** | Use `defineConfigSchema()` for engine configuration |
