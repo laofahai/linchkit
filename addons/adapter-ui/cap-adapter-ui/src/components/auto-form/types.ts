@@ -45,7 +45,7 @@ export interface EnrichedSubmitData {
   values: Record<string, unknown>;
   /** Virtual ref records that need to be created first (field name -> virtual record) */
   virtualRefs: Record<string, VirtualRecord>;
-  /** Child record commands for has_many fields (field name -> commands) */
+  /** Child record commands for one_to_many relations (field name -> commands) */
   childCommands: Record<string, ChildCommand[]>;
 }
 

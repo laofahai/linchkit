@@ -62,9 +62,6 @@ describe("mapFieldType", () => {
   test("returns null for non-filterable types", () => {
     expect(mapFieldType("json")).toBeNull();
     expect(mapFieldType("computed")).toBeNull();
-    expect(mapFieldType("ref")).toBeNull();
-    expect(mapFieldType("has_many")).toBeNull();
-    expect(mapFieldType("many_to_many")).toBeNull();
     expect(mapFieldType("unknown")).toBeNull();
   });
 });

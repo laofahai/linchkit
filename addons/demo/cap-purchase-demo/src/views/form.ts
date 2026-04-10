@@ -5,7 +5,7 @@
  * - Layout with groups, notebooks, and pages
  * - Derived fields displayed as readonly
  * - State-dependent action visibility
- * - has_many child records in notebook tab
+ * - one_to_many child records in notebook tab
  */
 
 import type { ViewDefinition } from "@linchkit/core";

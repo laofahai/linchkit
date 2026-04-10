@@ -1,5 +1,5 @@
 /**
- * Shared utilities for relationship widgets (ref, has_many, many_to_many).
+ * Shared utilities for relationship widgets (many_to_one, one_to_one, one_to_many, many_to_many).
  */
 
 export interface RelatedRecord {
