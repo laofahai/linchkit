@@ -9,6 +9,7 @@ import type { CollectedDefinitions } from "../commands/startup/collect-capabilit
 import { serializeFields, serializeRelation } from "./helpers";
 import { z } from "./schema";
 
+// Raw shape for registerTool inputSchema.
 const nameInputSchema = { name: z.string().describe("Entity or action name") };
 
 /** Register all discovery tools on the MCP server. */
