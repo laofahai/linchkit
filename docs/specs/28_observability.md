@@ -218,7 +218,7 @@ Retention periods configurable per tenant.
 
 ## 6. System Health Check
 
-```
+```json
 GET /api/health
 
 {
@@ -253,7 +253,7 @@ System admin UI built-in Dashboard:
 
 Observability data feeds the AI Evolution System (Spec 55):
 
-```
+```text
 Metrics + Events + Execution Logs + Client Logs
     ↓
 AI Analysis (via Restate Flow)
