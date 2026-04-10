@@ -631,7 +631,7 @@ CREATE TABLE _linchkit.permission_groups (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  UNIQUE (tenant_id, name)
+  UNIQUE NULLS NOT DISTINCT (tenant_id, name)
 );
 
 CREATE INDEX idx_perm_groups_tenant ON _linchkit.permission_groups (tenant_id, name);
@@ -645,7 +645,7 @@ On boot, `cap-permission` syncs code definitions to DB:
 ```typescript
 // Insert only if not exists — never overwrite DB changes
 await db.insert(permissionGroupsTable)
-  .values({ id: name, name, label, tenantId: null, grant, source: 'seed' })
+  .values({ id: crypto.randomUUID(), name, label, tenantId: null, grant, source: 'seed' })
   .onConflictDoNothing();
 ```
 
@@ -694,7 +694,7 @@ All group-based permission logic goes through `definePermissionGroup()` → DB �
 
 Current bug: without cap-permission, Action Engine's `checkPermissions()` still runs and denies everything.
 
-Fix: when permission slot is empty, **skip all permission checks** (as documented in §7.8). Requires removing Action Engine's independent check.
+Fix: when permission slot is empty, **skip group-based permission checks** (as documented in §7.8). `permissions.actorTypes` validation remains enforced in CommandLayer regardless. Requires removing Action Engine's independent group check.
 
 Related: GitHub Issue #125
 

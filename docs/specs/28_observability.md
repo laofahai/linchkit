@@ -270,7 +270,7 @@ Proposal
 ### M0 ✅
 - Basic health check endpoint
 - Action execution count and duration (Postgres)
-- Structured logging (JSON format, trace context)
+- Structured logging (JSON format, trace context) — `source` field enforcement pending
 - Metrics collection (InMemoryMetricsCollector)
 - Alert engine (rising-edge detection, multi-channel)
 
