@@ -277,7 +277,7 @@ Proposal
 ### M1
 - Complete Metrics collection
 - System Dashboard
-- trace_id across full call chain
+- traceId across full call chain
 - **Structured logging format enforcement**
 - **Client log ingestion endpoint (`/api/logs`)**
 - **React Error Boundary auto-capture**
