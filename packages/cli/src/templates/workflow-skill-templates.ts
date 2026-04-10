@@ -18,8 +18,10 @@ function readSkillFile(slug: string): string | null {
   try {
     const skillPath = resolve(import.meta.dir, "../../../../.claude/skills", slug, "SKILL.md");
     return readFileSync(skillPath, "utf-8");
-  } catch {
-    return null;
+  } catch (error) {
+    const e = error as NodeJS.ErrnoException;
+    if (e.code === "ENOENT") return null;
+    throw error;
   }
 }
 
