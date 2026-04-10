@@ -1,0 +1,76 @@
+name: Review Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review-threads:
+    name: Review Threads
+    # Run on PR events, review events, or "/check-reviews" comment on a PR
+    if: >
+      github.event_name == 'pull_request' ||
+      github.event_name == 'pull_request_review' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/check-reviews'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check review threads
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { repository } = await github.graphql(`
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        isResolved
+                        comments(first: 1) {
+                          nodes {
+                            body
+                            author { login }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              number: ${{ steps.pr.outputs.number }}
+            });
+
+            const threads = repository.pullRequest.reviewThreads.nodes;
+            const unresolved = threads.filter(t => !t.isResolved);
+            const total = threads.length;
+
+            if (unresolved.length > 0) {
+              console.log(`\n❌ ${unresolved.length}/${total} review thread(s) unresolved:\n`);
+              for (const t of unresolved) {
+                const c = t.comments.nodes[0];
+                const snippet = c.body.substring(0, 100).replace(/\n/g, ' ');
+                console.log(`  - [${c.author.login}] ${snippet}...`);
+              }
+              core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
+            } else if (total === 0) {
+              console.log('✅ No review threads — gate passes.');
+            } else {
+              console.log(`✅ All ${total} review thread(s) resolved.`);
+            }
