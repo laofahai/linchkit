@@ -141,8 +141,8 @@ function checkFieldLocks(opts: {
     }
 
     // 2. Lock condition check
-    const lockCondition = field.lockWhen ?? opts.entity.lockAllWhen;
-    if (lockCondition && !opts.entity.lockAllowFields?.includes(fieldName)) {
+    const lockCondition = field.lockWhen ?? (opts.entity.lockAllowFields?.includes(fieldName) ? undefined : opts.entity.lockAllWhen);
+    if (lockCondition) {
       if (matchesLockCondition(opts.existingRecord, lockCondition)) {
         violations.push({
           field: fieldName,
@@ -161,9 +161,9 @@ function checkFieldLocks(opts: {
 **Error type:**
 
 ```typescript
-// New error code in errors.ts
-FIELD_LOCKED = 'FIELD_LOCKED'
-FIELD_IMMUTABLE = 'FIELD_IMMUTABLE'
+// New error codes in errors.ts (following lowercase domain.category.specific format)
+FIELD_LOCKED = 'validation.field.locked'
+FIELD_IMMUTABLE = 'validation.field.immutable'
 ```
 
 **Return format** — same as validation errors, with field-level detail:
@@ -172,7 +172,7 @@ FIELD_IMMUTABLE = 'FIELD_IMMUTABLE'
 {
   "status": "failed",
   "error": {
-    "code": "FIELD_LOCKED",
+    "code": "validation.field.locked",
     "message": "Cannot modify locked fields",
     "details": [
       { "field": "amount", "type": "locked", "message": "Field 'amount' is locked in state 'submitted'" }
@@ -290,7 +290,7 @@ Bulk update must check locks per-record (each record may be in a different state
 {
   "results": [
     { "id": "r1", "status": "succeeded" },
-    { "id": "r2", "status": "failed", "error": { "code": "FIELD_LOCKED" } }
+    { "id": "r2", "status": "failed", "error": { "code": "validation.field.locked" } }
   ]
 }
 ```
@@ -302,6 +302,8 @@ Current `readonly: true` means "field cannot be modified after creation" — thi
 1. Keep `readonly` for backward compatibility (alias to `immutable` in engine)
 2. Deprecate `readonly` on fields in favor of `immutable` (clearer semantics)
 3. `readonly` in **view definitions** remains (UI-only display hint, no engine enforcement)
+
+> **Deprecation notice:** Field-level `readonly: true` is deprecated. Use `immutable: true` for new schemas. The engine treats `readonly` as an alias of `immutable`, but `readonly` will be removed in a future major version. In view definitions, `readonly` remains valid as a UI-only hint (no engine enforcement).
 
 ## 9. Test Strategy
 

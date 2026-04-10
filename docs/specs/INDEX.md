@@ -197,14 +197,15 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 48 |
+| Done | 49 |
 | Partial | 10 |
 | Draft | 8 |
-| **Total** | **66** unique specs |
+| **Total** | **67** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-04-09 | Added spec 63 (Field Immutability & Locking); expanded spec 10 (Permission Groups), spec 28 (Observability); updated statuses for spec 45, 51, 54 |
 | 2026-04-09 | Added spec 62 (AI Proposal Data Migration) |
 | 2026-04-08 | Full audit: aligned all statuses with codebase reality; added specs 59 & 60 |

@@ -65,6 +65,8 @@ Actor: 张三 (human)
 3. **Category for UI grouping** — Admin UI groups permission groups by category
 4. **Implies for inheritance** — Manager implies User (like Odoo `implied_ids`)
 
+> **Status: Planned (M5)** — The `grant`, `category`, `implies` fields and `permissionGroup()` builder shown below are the planned API. The current implementation uses `definePermissionGroup()` with a 3-level `permissions: Record<capability, Record<entity, SchemaPermissions>>` structure. Examples below show the target design.
+
 #### Object Style (direct, AI-friendly, matches DB)
 
 ```typescript
@@ -101,6 +103,8 @@ export const purchaseManager = definePermissionGroup({
 
 **Note:** `grant` replaces the old `permissions` key. Old structure was `permissions[capability][entity]` — 3 levels of nesting. New `grant` maps entity names directly — capability resolution is automatic.
 
+> **Migration note:** Legacy examples elsewhere in this spec still use the `permissions[capability][entity]` structure. The planned API uses `grant` (see above). Both are documented for reference during migration.
+
 #### Chain Style (IDE-guided, semantic, discoverable)
 
 ```typescript
@@ -128,7 +132,7 @@ Both produce the same JSONB-serializable `PermissionGroupDefinition`.
 |--------|-----------|
 | `allowActions('a', 'b')` | `{ a: true, b: true }` |
 | `denyActions('a')` | `{ a: false }` |
-| `ownRecords(field?)` | `{ read: { condition: { field, op: 'eq', value: '$actor.id' } }, write: same }` |
+| `ownRecords(field = 'created_by')` | `{ read: { condition: { field, op: 'eq', value: '$actor.id' } }, write: same }` |
 | `readAll()` | `{ read: 'all' }` |
 | `fullAccess()` | `{ read: 'all', write: 'all' }` |
 | `noAccess()` | `{ read: 'none', write: 'none' }` |
@@ -641,7 +645,7 @@ On boot, `cap-permission` syncs code definitions to DB:
 ```typescript
 // Insert only if not exists — never overwrite DB changes
 await db.insert(permissionGroupsTable)
-  .values({ name, label, tenantId: null, grant, source: 'seed' })
+  .values({ id: name, name, label, tenantId: null, grant, source: 'seed' })
   .onConflictDoNothing();
 ```
 
@@ -718,7 +722,7 @@ Related: GitHub Issue #125
 
 ### M3 (M6/M7)
 - Drizzle RLS (pgPolicy)
-- AI rate limiting enforcement
+- AI rate-limiting enforcement
 - "What can I do" diagnostic view
 - "Simulate user" admin tool
 - Permission audit trail
