@@ -127,6 +127,14 @@ linch agents-md       # Generate AGENTS.md for downstream projects
 - God objects beyond ~300 lines
 - `node`, `npx`, `npm` — always use `bun`, `bunx`
 
+## Git Workflow
+
+- **Never commit directly to `main`.** The main worktree stays on `main` as a dispatch hub.
+- Single task: create a feature branch before making changes.
+- Parallel tasks: use `git worktree add` + separate terminal Claude Code sessions.
+- Branch naming: `fix/`, `feat/`, `refactor/`, `docs/` prefixes.
+- Pre-commit hook enforces this — commits to `main` will be rejected.
+
 ## Gemini CLI Collaboration
 
 When the user says "与Gemini商讨" or similar:
