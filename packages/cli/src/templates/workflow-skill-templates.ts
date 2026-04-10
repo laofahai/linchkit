@@ -155,6 +155,10 @@ Before creating a PR, request cross-model review for a second opinion.
 1. Update \`docs/specs/INDEX.md\` if spec status changed
 2. Add changeset if npm-published code changed: \`bunx changeset\`
 3. Close related issues: \`gh issue close <number>\`
+4. Clean up after merge:
+   - Delete remote branch: \`git push origin --delete <branch>\`
+   - Remove worktree (if used): \`git worktree remove <path>\`
+   - Prune stale remote refs: \`git remote prune origin\`
 
 ---
 
