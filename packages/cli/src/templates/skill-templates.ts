@@ -2,6 +2,8 @@
  * LinchKit skill file definitions for AI tool configuration
  */
 
+import { engineDevSkillContent, workflowSkillContent } from "./workflow-skill-templates.js";
+
 /** A single skill file definition */
 export interface SkillDefinition {
   /** Used as directory name for Claude Code (.claude/skills/<slug>/SKILL.md) */
@@ -14,6 +16,16 @@ export interface SkillDefinition {
 /** Returns the set of LinchKit skill files for AI tool configuration */
 export function linchkitSkills(): SkillDefinition[] {
   return [
+    {
+      slug: "linch-workflow",
+      filename: "workflow.md",
+      content: workflowSkillContent(),
+    },
+    {
+      slug: "linch-engine-dev",
+      filename: "engine-dev.md",
+      content: engineDevSkillContent(),
+    },
     {
       slug: "linch-capability-dev",
       filename: "capability-dev.md",
@@ -561,3 +573,6 @@ Before adding to core, ask: "Without this, is a zero-capability LinchKit still A
 - \`index.ts\` only re-exports, no implementation logic
 `;
 }
+
+// workflowSkillContent and engineDevSkillContent imported from ./workflow-skill-templates.ts
+// (kept separate to stay under 500-line limit)
