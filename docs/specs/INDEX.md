@@ -208,6 +208,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-04-09 | Expanded spec 10 (Permission Groups planned API), spec 28 (Observability PII/trace fixes), added spec 63 content (Field Immutability & Locking) |
 | 2026-04-09 | Added specs 64 (Entity Onchange), 65 (Execution Context); updated spec 45 (AutomationEngine removed, Watcher remains) |
 | 2026-04-09 | Added spec 62 (AI Proposal Data Migration) |
 | 2026-04-08 | Full audit: aligned all statuses with codebase reality; added specs 59 & 60 |
