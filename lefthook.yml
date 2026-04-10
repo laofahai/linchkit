@@ -1,9 +1,12 @@
 pre-commit:
   parallel: true
   commands:
+    protect-main:
+      run: '[ "$(git rev-parse --abbrev-ref HEAD)" != "main" ] || (echo "ERROR: Direct commits to main are forbidden. Create a feature branch first." && exit 1)'
     biome-check:
-      run: bunx @biomejs/biome check --staged
+      run: bunx @biomejs/biome check --staged --no-errors-on-unmatched
     typecheck:
+      glob: "**/*.{ts,tsx}"
       run: bun run typecheck
 
 commit-msg:
