@@ -4,7 +4,7 @@
 > - `M5: Platform Maturity & AI Evolution`
 >
 > Related issues:
-> - No dedicated open issue is currently tracked for this spec.
+> - GitHub Issue `#126` — Field immutability & locking enforcement
 >
 > Execution source of truth: GitHub milestones and issues.
 
@@ -141,8 +141,8 @@ function checkFieldLocks(opts: {
     }
 
     // 2. Lock condition check
-    const lockCondition = field.lockWhen ?? opts.entity.lockAllWhen;
-    if (lockCondition && !opts.entity.lockAllowFields?.includes(fieldName)) {
+    const lockCondition = field.lockWhen ?? (opts.entity.lockAllowFields?.includes(fieldName) ? undefined : opts.entity.lockAllWhen);
+    if (lockCondition) {
       if (matchesLockCondition(opts.existingRecord, lockCondition)) {
         violations.push({
           field: fieldName,
@@ -161,9 +161,9 @@ function checkFieldLocks(opts: {
 **Error type:**
 
 ```typescript
-// New error code in errors.ts
-FIELD_LOCKED = 'FIELD_LOCKED'
-FIELD_IMMUTABLE = 'FIELD_IMMUTABLE'
+// New error codes in errors.ts (following lowercase domain.category.specific format)
+FIELD_LOCKED = 'validation.field.locked'
+FIELD_IMMUTABLE = 'validation.field.immutable'
 ```
 
 **Return format** — same as validation errors, with field-level detail:
@@ -172,7 +172,7 @@ FIELD_IMMUTABLE = 'FIELD_IMMUTABLE'
 {
   "status": "failed",
   "error": {
-    "code": "FIELD_LOCKED",
+    "code": "validation.field.locked",
     "message": "Cannot modify locked fields",
     "details": [
       { "field": "amount", "type": "locked", "message": "Field 'amount' is locked in state 'submitted'" }
@@ -198,30 +198,23 @@ Advanced features that are NOT needed by every project:
 **cap-lock extends core's lock check** via a hook/slot mechanism:
 
 ```typescript
-// cap-lock overrides the default lock check behavior
 defineCapability({
   name: 'lock',
   hooks: {
     'field-lock-check': async (violations, context) => {
-      // Apply shadow mode: log but don't block
       if (shadowMode) {
         await logViolations(violations);
-        return [];  // Clear violations
+        return [];
       }
-
-      // Apply bypass groups
       if (context.actor.groups.some(g => bypassGroups.includes(g))) {
         await logBypass(violations, context.actor);
         return [];
       }
-
-      // Apply tolerance period
       const age = Date.now() - context.record.created_at;
       if (age < toleranceMs) {
         return [];
       }
-
-      return violations;  // Enforce normally
+      return violations;
     }
   }
 })
@@ -234,7 +227,6 @@ defineCapability({
 The auto-form already respects `readonly` on fields. Lock state adds a **computed readonly**:
 
 ```typescript
-// For each field in auto-form:
 const isLocked = useMemo(() => {
   if (field.immutable && existingValue != null) return true;
   if (field.lockWhen && matchesLockCondition(record, field.lockWhen)) return true;
@@ -243,13 +235,12 @@ const isLocked = useMemo(() => {
   return false;
 }, [record, field]);
 
-// Render field as readonly when locked
 <FormField readonly={field.readonly || isLocked} />
 ```
 
 ### 5.2 cap-lock UI Extensions
 
-- Lock icon (🔒) on locked fields with tooltip: "Locked because state is 'submitted'"
+- Lock icon on locked fields with tooltip: "Locked because state is 'submitted'"
 - Confirmation dialog for SOFT_LOCK fields
 - "Unlock" button for bypass-group users (with audit trail)
 
@@ -271,7 +262,7 @@ type FieldMeta {
 
 ### 7.1 State Machine
 
-Lock conditions reference state values. When a state transition occurs, the locked field set changes automatically. No explicit "lock" action needed.
+Lock conditions reference state values. When a state transition occurs, the locked field set changes automatically.
 
 ```
 draft → submitted:  amount, supplier become locked
@@ -299,7 +290,7 @@ Bulk update must check locks per-record (each record may be in a different state
 {
   "results": [
     { "id": "r1", "status": "succeeded" },
-    { "id": "r2", "status": "failed", "error": { "code": "FIELD_LOCKED", ... } }
+    { "id": "r2", "status": "failed", "error": { "code": "validation.field.locked" } }
   ]
 }
 ```
@@ -311,6 +302,8 @@ Current `readonly: true` means "field cannot be modified after creation" — thi
 1. Keep `readonly` for backward compatibility (alias to `immutable` in engine)
 2. Deprecate `readonly` on fields in favor of `immutable` (clearer semantics)
 3. `readonly` in **view definitions** remains (UI-only display hint, no engine enforcement)
+
+> **Deprecation notice:** Field-level `readonly: true` is deprecated. Use `immutable: true` for new schemas. The engine treats `readonly` as an alias of `immutable`, but `readonly` will be removed in a future major version. In view definitions, `readonly` remains valid as a UI-only hint (no engine enforcement).
 
 ## 9. Test Strategy
 

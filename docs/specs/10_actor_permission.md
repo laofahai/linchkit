@@ -61,44 +61,17 @@ Actor: 张三 (human)
 #### API Design Principles
 
 1. **Object-style for storage** — definitions must serialize to JSONB (DB is truth)
-2. **Helpers for DX** — reduce nesting with convenience functions
+2. **Chain-style for discovery** — IDE-guided builder with `.build()` producing same objects
 3. **Category for UI grouping** — Admin UI groups permission groups by category
 4. **Implies for inheritance** — Manager implies User (like Odoo `implied_ids`)
 
-#### Full Object Style (verbose but complete)
+> **Status: Planned (M5)** — The `grant`, `category`, `implies` fields and `permissionGroup()` builder shown below are the planned API. The current implementation uses `definePermissionGroup()` with a 3-level `permissions: Record<capability, Record<entity, SchemaPermissions>>` structure. Examples below show the target design.
+
+#### Object Style (direct, AI-friendly, matches DB)
 
 ```typescript
-import { definePermissionGroup } from '@linchkit/core'
+import { definePermissionGroup, allowActions, ownRecords, readAll } from '@linchkit/core'
 
-export const purchaseApprover = definePermissionGroup({
-  name: 'purchase_approver',
-  label: '采购审批员',
-  category: 'purchase_management',     // Admin UI groups by this
-  implies: ['purchase_user'],           // Inherits all purchase_user permissions
-
-  grant: {
-    purchase_request: {
-      actions: {
-        approve_request: true,
-        reject_request: true,
-      },
-      data: { read: 'all' },
-    },
-  },
-})
-```
-
-**Note:** `grant` replaces the old `permissions` key. Old structure was `permissions[capability][entity]` — 3 levels of nesting. New `grant` maps entity names directly — capability resolution is automatic (the system knows which capability owns which entity).
-
-#### Helper Style (recommended for common patterns)
-
-```typescript
-import {
-  definePermissionGroup,
-  allowActions, ownRecords, readAll, fullAccess,
-} from '@linchkit/core'
-
-// Purchase user — can create, submit, and see own records
 export const purchaseUser = definePermissionGroup({
   name: 'purchase_user',
   label: '采购用户',
@@ -113,7 +86,6 @@ export const purchaseUser = definePermissionGroup({
   },
 })
 
-// Purchase manager — can approve/reject + see all records
 export const purchaseManager = definePermissionGroup({
   name: 'purchase_manager',
   label: '采购管理员',
@@ -129,34 +101,49 @@ export const purchaseManager = definePermissionGroup({
 })
 ```
 
+**Note:** `grant` replaces the old `permissions` key. Old structure was `permissions[capability][entity]` — 3 levels of nesting. New `grant` maps entity names directly — capability resolution is automatic.
+
+> **Migration note:** Legacy examples elsewhere in this spec still use the `permissions[capability][entity]` structure. The planned API uses `grant` (see above). Both are documented for reference during migration.
+
+#### Chain Style (IDE-guided, semantic, discoverable)
+
+```typescript
+import { permissionGroup } from '@linchkit/core'
+
+export const purchaseManager = permissionGroup('purchase_manager')
+  .label('采购管理员')
+  .category('purchase_management')
+  .implies('purchase_user')
+  .on('purchase_request')
+    .allow('approve_request', 'reject_request')
+    .readAll()
+  .build()
+// → produces the same PermissionGroupDefinition plain object
+```
+
+**Object-style = "fill-in-the-blank"** — you need to know the type structure.
+**Chain-style = "multiple-choice"** — each step tells you what's next.
+
+Both will produce the same JSONB-serializable `PermissionGroupDefinition`.
+
 #### Helper Functions Reference
 
-| Helper | Expands to | Usage |
-|--------|-----------|-------|
-| `allowActions('a', 'b')` | `{ a: true, b: true }` | Action permission shorthand |
-| `denyActions('a')` | `{ a: false }` | Explicit deny shorthand |
-| `ownRecords(field?)` | `{ read: { condition: { field, op: 'eq', value: '$actor.id' } }, write: same }` | Own-record access (default field: `created_by`) |
-| `readAll()` | `{ read: 'all' }` | Unrestricted read |
-| `fullAccess()` | `{ read: 'all', write: 'all' }` | Unrestricted read + write |
-| `noAccess()` | `{ read: 'none', write: 'none' }` | Explicit deny data access |
-
-Helpers return plain objects — they are syntactic sugar, not special types. The result serializes to JSONB identically.
+| Helper | Expands to |
+|--------|-----------|
+| `allowActions('a', 'b')` | `{ a: true, b: true }` |
+| `denyActions('a')` | `{ a: false }` |
+| `ownRecords(field = 'created_by')` | `{ read: { condition: { field, operator: 'eq', value: '$actor.id' } }, write: same }` |
+| `readAll()` | `{ read: 'all' }` |
+| `fullAccess()` | `{ read: 'all', write: 'all' }` |
+| `noAccess()` | `{ read: 'none', write: 'none' }` |
 
 #### Implies Resolution
 
-When the engine resolves permissions for an actor in group `purchase_manager`:
-
 ```
-purchase_manager
-  → implies: purchase_user
-    → implies: base_user
-      → (no further implies)
-
+purchase_manager → implies: purchase_user → implies: base_user
 Merge order: base_user → purchase_user → purchase_manager
 Strategy: explicit-deny-wins (same as §7.1)
 ```
-
-Later groups in the chain **extend** earlier ones. A deny in any group wins over all allows.
 
 #### Category in Admin UI
 
@@ -166,11 +153,8 @@ Later groups in the chain **extend** earlier ones. A deny in any group wins over
 │  ☑ purchase_manager   采购管理员           │
 ├─ 库存管理 (inventory_management) ─────────┤
 │  ☐ inventory_user     库存用户             │
-│  ☐ inventory_manager  库存管理员           │
 └────────────────────────────────────────────┘
 ```
-
-Categories are typically the capability name. The Admin UI groups permission groups by category for visual organization.
 
 ### 2.2 权限层次
 
@@ -620,26 +604,13 @@ cap-auth 和 cap-permission 是**推荐安装**的 Capability，不是框架运�
 **Database is the single source of truth for permissions.** Code provides seed definitions only.
 
 ```
-┌──────────────────────────────────────────────────┐
-│  Code (definePermissionGroup)                     │
-│  Seed data — loaded into DB on first boot         │
-│  → "This capability needs these base groups"      │
-│  → Immutable at runtime (code = deployment)       │
-└──────────────────────────────────────────────────┘
-         ↓ seed (insert if not exists)
-┌──────────────────────────────────────────────────┐
-│  DB: _linchkit.permission_groups (tenant_id=NULL) │
-│  Project-level definitions                        │
-│  → Admin can modify via UI at runtime             │
-│  → Overrides code seeds once modified             │
-└──────────────────────────────────────────────────┘
-         ↓ override
-┌──────────────────────────────────────────────────┐
-│  DB: _linchkit.permission_groups (tenant_id=X)    │
-│  Tenant-level overrides                           │
-│  → Per-tenant customization                       │
-│  → Merges with project-level (deny wins)          │
-└──────────────────────────────────────────────────┘
+Code (definePermissionGroup)        → Seed data, loaded into DB on first boot
+    ↓ seed (insert if not exists)
+DB: _linchkit.permission_groups     → Project-level, Admin can modify at runtime
+  (tenant_id=NULL)
+    ↓ override
+DB: _linchkit.permission_groups     → Tenant-level overrides
+  (tenant_id=X)
 ```
 
 ### 8.2 Database Schema
@@ -660,7 +631,7 @@ CREATE TABLE _linchkit.permission_groups (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  UNIQUE (tenant_id, name)  -- One definition per group name per tenant
+  UNIQUE NULLS NOT DISTINCT (tenant_id, name)
 );
 
 CREATE INDEX idx_perm_groups_tenant ON _linchkit.permission_groups (tenant_id, name);
@@ -669,123 +640,63 @@ CREATE INDEX idx_perm_groups_category ON _linchkit.permission_groups (category);
 
 ### 8.3 Seed Mechanism
 
-On application boot, `cap-permission` scans all registered capabilities for `definePermissionGroup()` definitions and syncs them to DB:
+On boot, `cap-permission` syncs code definitions to DB:
 
 ```typescript
-async function seedPermissionGroups(
-  capabilities: CapabilityDefinition[],
-  db: DrizzleInstance,
-): Promise<void> {
-  for (const cap of capabilities) {
-    for (const group of cap.permissionGroups ?? []) {
-      // Insert only if not exists — never overwrite DB changes
-      await db.insert(permissionGroupsTable)
-        .values({
-          name: group.name,
-          label: group.label,
-          tenantId: null,  // project-level seed
-          grant: group.grant,
-          constraints: group.constraints,
-          source: 'seed',
-        })
-        .onConflictDoNothing();  // Respect existing DB definitions
-    }
-  }
-}
+// Insert only if not exists — never overwrite DB changes
+await db.insert(permissionGroupsTable)
+  .values({ id: crypto.randomUUID(), name, label, tenantId: null, grant, source: 'seed' })
+  .onConflictDoNothing();
 ```
 
-**Key rule:** `onConflictDoNothing` — once a group exists in DB (regardless of source), code seeds never overwrite it. The DB version is authoritative.
+**Key rule:** `onConflictDoNothing` — once a group exists in DB, code seeds never overwrite it.
 
-### 8.4 Runtime Loading
-
-`PermissionRegistry` loads from DB at startup and caches (with TTL invalidation):
-
-```typescript
-// cap-permission boot sequence:
-// 1. Seed code definitions → DB (insert if not exists)
-// 2. Load all groups from DB → PermissionRegistry (in-memory cache)
-// 3. Register cache invalidation on permission_groups table changes
-```
-
-### 8.5 Admin UI Operations
-
-cap-permission provides these actions for runtime permission management:
+### 8.4 Admin UI Operations
 
 | Action | Description |
 |--------|-------------|
 | `create_permission_group` | Create new group (source='manual') |
 | `update_permission_group` | Modify group permissions |
-| `delete_permission_group` | Remove group (source='manual' only; cannot delete 'seed' groups) |
-| `clone_permission_group` | Duplicate a group as starting point |
-| `create_tenant_override` | Create tenant-specific override for a project-level group |
+| `delete_permission_group` | Remove group (source='manual' only; cannot delete 'seed') |
+| `clone_permission_group` | Duplicate as starting point |
+| `create_tenant_override` | Tenant-specific override for a project-level group |
 | `assign_user_group` | Add user to a permission group |
 | `remove_user_group` | Remove user from a permission group |
-| `simulate_permissions` | "What can user X do?" diagnostic view |
+| `simulate_permissions` | "What can user X do?" diagnostic |
 
-### 8.6 Merge Order
+### 8.5 Merge Order
 
-When resolving permissions for an actor in tenant T:
-
-1. Load project-level groups (tenant_id=NULL) the actor belongs to
-2. Load tenant-level overrides (tenant_id=T) for those same group names
-3. Merge: tenant override replaces project-level for the same group name
+For actor in tenant T:
+1. Load project-level groups (tenant_id=NULL)
+2. Load tenant-level overrides (tenant_id=T) for same group names
+3. Tenant override replaces project-level for the same group name
 4. Cross-group merge: explicit-deny-wins (unchanged from §7.1)
 
 ## 9. Deprecation: Action-Level permissions.groups
 
 ### 9.1 Problem
 
-`defineAction({ permissions: { groups: ["admin"] } })` creates a **second permission check** inside Action Engine that conflicts with the PermissionRegistry-based RBAC.
+`defineAction({ permissions: { groups: ["admin"] } })` creates a **second permission check** inside Action Engine that conflicts with PermissionRegistry-based RBAC.
 
-Two separate checks run:
+Two checks run on every action:
 1. CommandLayer permission slot → full RBAC via PermissionRegistry
-2. Action Engine → simple string match via `checkPermissions()` in action-helpers.ts
+2. Action Engine `checkPermissions()` → simple string match
 
-These can conflict: PermissionGroup may allow an action, but the Action definition's `groups` list blocks it (or vice versa).
+These can conflict. PermissionGroup may allow, but Action's `groups` list blocks (or vice versa).
 
 ### 9.2 Resolution
 
-**Deprecate `permissions.groups` on ActionDefinition.** Keep only `permissions.actorTypes` (restrict by human/ai/system).
+**Deprecate `permissions.groups` on ActionDefinition.** Keep only `permissions.actorTypes`.
 
 All group-based permission logic goes through `definePermissionGroup()` → DB → PermissionRegistry → CommandLayer.
 
-```typescript
-// BEFORE (deprecated):
-defineAction({
-  name: 'approve_request',
-  permissions: { groups: ["admin", "manager"] },  // ← REMOVE
-})
+### 9.3 No-Capability Behavior Fix
 
-// AFTER:
-defineAction({
-  name: 'approve_request',
-  permissions: { actorTypes: ["human"] },  // Keep: only humans can approve
-})
+Current bug: without cap-permission, Action Engine's `checkPermissions()` still runs and denies everything.
 
-// Permission defined separately:
-definePermissionGroup({
-  name: 'purchase_approver',
-  permissions: {
-    purchase_management: {
-      purchase_request: {
-        actions: { approve_request: true },
-      }
-    }
-  }
-})
-```
+Fix: when permission slot is empty, **skip group-based permission checks** (as documented in §7.8). `permissions.actorTypes` validation remains enforced in CommandLayer regardless. Requires removing Action Engine's independent group check.
 
-### 9.3 Migration Path
-
-1. Phase 1: Log warnings when `permissions.groups` is used (runtime deprecation notice)
-2. Phase 2: Remove `checkPermissions()` from Action Engine; remove `groups` from `ActionPermissions` type
-3. Phase 3: Update all demo/test code to use `definePermissionGroup()` instead
-
-### 9.4 No-Capability Behavior Fix
-
-Current bug: without cap-permission, Action Engine's `checkPermissions()` still runs and denies everything (default deny with empty groups).
-
-Fix: when permission slot is empty, **skip all permission checks** (as documented in §7.8). This requires removing the Action Engine's independent check.
+Related: GitHub Issue #125
 
 ## 10. Milestone Mapping
 
@@ -800,18 +711,18 @@ Fix: when permission slot is empty, **skip all permission checks** (as documente
 - AI permission constraints
 
 ### M2 (current — M5: Platform Maturity)
-- **Permission storage in DB** (§8) — migrate from code-only to DB-as-truth
-- **Seed mechanism** — code definitions auto-sync to DB on boot
-- **Deprecate action.permissions.groups** (§9) — unify to PermissionRegistry
-- **Fix no-capability behavior** — skip all checks when cap-permission absent
-- Field-level permission enforcement in data providers
-- Admin UI for permission group management
+- **Permission storage in DB** (§8)
+- **Seed mechanism** (§8.3)
+- **Deprecate action.permissions.groups** (§9) — #125
+- **grant + category + implies** (§2.1) — #142
+- **Fix no-capability behavior** (§9.3)
+- Field-level permission enforcement
+- Admin UI for permission management
 - Tenant-level permission overrides
-- CASL.js frontend integration
 
 ### M3 (M6/M7)
 - Drizzle RLS (pgPolicy)
-- AI rate limiting enforcement
+- AI rate-limiting enforcement
 - "What can I do" diagnostic view
 - "Simulate user" admin tool
 - Permission audit trail
