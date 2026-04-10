@@ -124,7 +124,7 @@ export const purchaseManager = permissionGroup('purchase_manager')
 **Object-style = "fill-in-the-blank"** — you need to know the type structure.
 **Chain-style = "multiple-choice"** — each step tells you what's next.
 
-Both produce the same JSONB-serializable `PermissionGroupDefinition`.
+Both will produce the same JSONB-serializable `PermissionGroupDefinition`.
 
 #### Helper Functions Reference
 

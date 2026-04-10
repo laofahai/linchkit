@@ -129,7 +129,7 @@ Sampling is configurable per tenant and per capability.
 
 ### 3.4 Log Shipping
 
-```
+```text
 Server (Bun) → stdout (JSON) → Collector (Vector/Fluentd) → Storage (Loki/ES/Postgres)
 Browser (React) → POST batch → /api/logs endpoint → Same pipeline
 ```
@@ -186,7 +186,7 @@ Reported via `/api/logs` batch endpoint, tagged with `source: "client"` and `cat
 
 ### 4.4 Frontend-Backend Trace Correlation
 
-```
+```text
 Browser request
   → X-Trace-Id header (server-issued canonical ID)
   → Server logs with same traceId
