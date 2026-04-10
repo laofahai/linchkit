@@ -26,7 +26,7 @@ LinchKit's 9 first-class building blocks.
 | [07](./07_event.md) | Event | `defineEvent()` — domain events, naming conventions, payload definition | M0 | Done |
 | [08](./08_event_handler_and_queue.md) | EventHandler & Queue | `defineEventHandler()` — sync/async, retry, dead letter, ordering guarantee | M0 | Done |
 | [46](./46_link_type.md) | Relation Type | `defineRelation()` — relations as first-class citizens, FK/junction tables, bidirectional nav | M2 | Done |
-| [61](./61_semantic_relation_unification.md) | Semantic Relation Unification | Unify ref/has_many/defineRelation into semantic defineRelation with fromName/toName | M3 | Partial |
+| [61](./61_semantic_relation_unification.md) | Semantic Relation Unification | Unify ref/has_many/defineRelation into semantic defineRelation with fromName/toName | M3 | Done |
 | [47](./47_schema_interface.md) | Entity Interface | InterfaceRegistry + `implements` — reusable field contracts, compliance checks | M2 | Done |
 | [48](./48_derived_properties.md) | Derived Properties | `derived` config for computed fields, evaluated at query time | M2 | Done |
 | [49](./49_schema_inheritance.md) | Entity Inheritance | Single-parent `extends`, field/Action/Rule/State inheritance chain | M2 | Done |
@@ -136,7 +136,7 @@ Capability definition, extension, composition, and distribution.
 | [29](./29_methodology_and_sop.md) | Methodology & SOP | Development methodology, Capability dev SOP, release process | M0 | Done |
 | [37](./37_documentation_governance.md) | Documentation Governance | Documentation standards, review process, versioned lifecycle | M1 | Draft |
 | [38](./38_release_compatibility.md) | Release Compatibility | Semantic versioning rules, migration guides, breaking change strategy | M1 | Partial |
-| [56](./56_core_slimming.md) | Core Slimming | Three-party audit consensus: ~17 files safe to extract, life-system engines stay in core, interface+impl split | M3 | Draft |
+| [56](./56_core_slimming.md) | Core Slimming | Three-party audit consensus: ~17 files safe to extract, life-system engines stay in core, interface+impl split | M3 | Partial |
 
 ## Deployment & Migration
 
@@ -199,15 +199,16 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 48 |
+| Done | 49 |
 | Partial | 11 |
-| Draft | 10 |
+| Draft | 9 |
 | **Total** | **69** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Spec 61 → Done (old field type refs cleaned); Spec 56 → Partial (Phase 1 AI exports removed from core) |
 | 2026-04-09 | Expanded spec 10 (Permission Groups planned API), spec 28 (Observability PII/trace fixes), added spec 63 content (Field Immutability & Locking) |
 | 2026-04-09 | Added specs 64 (Entity Onchange), 65 (Execution Context); updated spec 45 (AutomationEngine removed, Watcher remains) |
 | 2026-04-09 | Added spec 62 (AI Proposal Data Migration) |
