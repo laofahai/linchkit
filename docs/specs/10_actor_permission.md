@@ -132,7 +132,7 @@ Both will produce the same JSONB-serializable `PermissionGroupDefinition`.
 |--------|-----------|
 | `allowActions('a', 'b')` | `{ a: true, b: true }` |
 | `denyActions('a')` | `{ a: false }` |
-| `ownRecords(field = 'created_by')` | `{ read: { condition: { field, op: 'eq', value: '$actor.id' } }, write: same }` |
+| `ownRecords(field = 'created_by')` | `{ read: { condition: { field, operator: 'eq', value: '$actor.id' } }, write: same }` |
 | `readAll()` | `{ read: 'all' }` |
 | `fullAccess()` | `{ read: 'all', write: 'all' }` |
 | `noAccess()` | `{ read: 'none', write: 'none' }` |
