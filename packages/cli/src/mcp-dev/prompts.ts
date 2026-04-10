@@ -7,8 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
 import { z } from "./schema";
 
-// Raw shapes for registerPrompt argsSchema. Callback params must be
-// explicitly typed to prevent TS2589 from zod v3 deep type inference.
+// Raw shapes for registerPrompt argsSchema.
 const nameSchema = { name: z.string().describe("Name parameter") };
 const entitySchema = { entity: z.string().describe("Target entity name") };
 const fromToSchema = {
