@@ -30,7 +30,7 @@ Core engines always have specs. Read the spec FIRST:
 
 All core engines follow the same pattern. Read an existing engine to understand:
 
-```
+```text
 packages/core/src/
 ├── engines/
 │   ├── action-engine.ts       # ActionEngine — createActionEngine()
@@ -93,14 +93,15 @@ Core engine tests go in `packages/core/src/__tests__/`:
 
 ```ts
 import { describe, expect, test } from "bun:test";
-import { createMyEngine } from "../engines/my-engine";
-import { createInMemoryStore, createEventBus } from "../test-helpers";
+import { createMyEngine } from "../../engines/my-engine";
+import { createSignalBus } from "../../life-system/signal-bus";
+import { InMemoryMemoryStore } from "../../life-system/in-memory-memory-store";
 
 describe("MyEngine", () => {
   test("processes input correctly", async () => {
-    const eventBus = createEventBus();
-    const store = createInMemoryStore();
-    const engine = createMyEngine({ eventBus, store });
+    const signalBus = createSignalBus();
+    const store = new InMemoryMemoryStore();
+    const engine = createMyEngine({ signalBus, store });
 
     const result = await engine.process({ ... });
     expect(result).toEqual({ ... });

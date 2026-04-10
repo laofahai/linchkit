@@ -24,9 +24,10 @@ Read the user's request and classify:
 
 ## Step 2: Orient
 
-1. Read the related spec (`docs/specs/INDEX.md` → find spec → read it)
-2. If working from a GitHub issue: `gh issue view <number>`
-3. If touching existing code: Use Serena MCP (`get_symbols_overview`, `find_symbol`) for token-efficient code reading. Fall back to `Read` for non-code files only.
+1. **Check existing issues first** — `gh issue list --state open --limit 100` — look for duplicates, related issues, and blocking dependencies before creating new issues or starting work. Add "Blocked by #xxx" or "Related: #xxx" to issue bodies when relationships exist.
+2. Read the related spec (`docs/specs/INDEX.md` → find spec → read it)
+3. If working from a GitHub issue: `gh issue view <number>`
+4. If touching existing code: Use Serena MCP (`get_symbols_overview`, `find_symbol`) for token-efficient code reading. Fall back to `Read` for non-code files only.
 
 ## Step 3: Design First
 
@@ -94,7 +95,7 @@ When multiple independent issues can run simultaneously:
 ## MCP Tools Quick Reference
 
 **LinchKit MCP** (for entity/action/capability work):
-```
+```text
 ToolSearch("mcp__linchkit") → load tools
 list_entities / get_entity / list_actions / get_rules / get_state_machine
 scaffold_capability / scaffold_action / scaffold_rule
@@ -102,7 +103,7 @@ query (GraphQL)
 ```
 
 **Serena MCP** (for token-efficient code reading):
-```
+```text
 get_symbols_overview — file structure (~90% fewer tokens than Read)
 find_symbol with include_body=true — read specific function/class
 find_referencing_symbols — find usages
