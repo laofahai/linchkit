@@ -81,10 +81,11 @@ Spec format: see existing specs in `docs/specs/` for the pattern.
 ### Phase 3: Implement
 
 1. **Data structures first** — Design types and interfaces before writing logic
-2. **Follow relevant Skills** — Use `/linch-*` skills for guided development
-3. **Write tests alongside code** — Not after. Use `/test` skill.
-4. **Keep files under 500 lines** — Split by responsibility
-5. **Unrelated issues** — If you discover pre-existing bugs, lint errors, or tech debt unrelated to the current task: **do not fix them in the same PR**. Create a GitHub issue (`gh issue create`) to track them, then continue with the current task.
+2. **MUST invoke relevant Skills BEFORE writing code** — Use `Skill` tool to load `/linch-*` skills. Match by domain: entity work → `/linch-entity-design`, action work → `/linch-action-design`, new capability → `/linch-capability-dev`, etc. Skills contain checklists and constraints that prevent design mistakes. Skipping skills leads to rework.
+3. **MUST use LinchKit MCP tools for discovery** — Before exploring code with Read/Grep, use `ToolSearch` to load `mcp__linchkit__*` tools, then call `list_entities`, `get_entity`, `list_actions` etc. These provide structured metadata far more efficient than file scanning. See "LinchKit MCP — Development Tools" section below.
+4. **Write tests alongside code** — Not after. Use `/test` skill.
+5. **Keep files under 500 lines** — Split by responsibility
+6. **Unrelated issues** — If you discover pre-existing bugs, lint errors, or tech debt unrelated to the current task: **do not fix them in the same PR**. Create a GitHub issue (`gh issue create`) to track them, then continue with the current task.
 
 ### Phase 4: Verify
 
@@ -120,6 +121,8 @@ bun test              # Full test suite (3870+ tests)
 When multiple independent issues can be worked on simultaneously:
 
 1. **Subagents only write code** — Dispatch with `isolation: "worktree"`. Instruct agents to do file changes only, NOT `git commit/push` or `gh pr create`.
+1a. **Orchestrator invokes Skills first** — Skills can only run in the main agent. Before dispatching subagents, invoke the relevant `/linch-*` skill and include the skill's checklist/constraints in the subagent prompt. This ensures subagents follow design rules even without direct Skill access.
+1b. **Subagents MUST use MCP tools** — Include in the subagent prompt: "Use `ToolSearch('mcp__linchkit')` to load LinchKit MCP tools, then use `list_entities`, `get_entity` etc. for discovery instead of file scanning."
 2. **Worktree starts from `origin/HEAD` (main)** — Agents always work on a fresh branch from main. Do NOT instruct agents to `git checkout` another branch — they should make changes directly in their worktree.
 3. **Orchestrator handles git** — After agents complete, the orchestrator creates a feat branch, copies files from worktree via `cp`, commits, pushes, and creates PRs.
 4. **Bash `cd` persists** — Working directory carries over between Bash calls. Always use `cd /absolute/path && git ...` in a single Bash call. Never assume you're in the main repo.
@@ -251,6 +254,20 @@ bun run db:studio                        # Drizzle Studio GUI
 Full specs in `docs/specs/` (66 files). Read `docs/specs/INDEX.md` to locate relevant specs.
 
 **Rule**: If you are making changes that touch a spec'd area, read the spec first.
+
+## LinchKit MCP — Development Tools (MANDATORY)
+
+When implementing features, use LinchKit MCP tools instead of manual file exploration:
+
+1. Load tools first: `ToolSearch("mcp__linchkit")`
+2. **Discovery** — `list_entities`, `get_entity`, `list_actions`, `get_state_machine`, `get_rules` — structured metadata, no file scanning needed
+3. **Validation** — `validate_entity`, `validate_action` — check definitions before running full `linch validate`
+4. **Scaffolding** — `scaffold_capability`, `scaffold_action`, `scaffold_rule` — generate correct templates
+5. **Querying** — `query` — run GraphQL queries against running dev server
+
+**When to use:** Any task involving entities, actions, rules, relations, or state machines. The MCP tools provide the same information as reading source files but in structured form, saving tokens and reducing errors.
+
+**When NOT to use:** Reading non-code files (specs, docs), git operations, or when MCP server is not running.
 
 ## Serena MCP — Token-Efficient Code Navigation
 
