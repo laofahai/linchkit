@@ -6,7 +6,7 @@ pre-commit:
     biome-check:
       run: bunx @biomejs/biome check --staged --no-errors-on-unmatched
     typecheck:
-      glob: "*.{ts,tsx}"
+      glob: "**/*.{ts,tsx}"
       run: bun run typecheck
 
 commit-msg:
