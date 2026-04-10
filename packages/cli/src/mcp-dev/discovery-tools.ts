@@ -9,8 +9,6 @@ import type { CollectedDefinitions } from "../commands/startup/collect-capabilit
 import { serializeFields, serializeRelation } from "./helpers";
 import { z } from "./schema";
 
-// Raw shape for registerTool inputSchema. Callback params must be
-// explicitly typed to prevent TS2589 from zod v3 deep type inference.
 const nameInputSchema = { name: z.string().describe("Entity or action name") };
 
 /** Register all discovery tools on the MCP server. */
