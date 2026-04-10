@@ -208,7 +208,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
-| 2026-04-10 | Audit fix: Spec 44 Done→Partial (issue #136 SSE event push still open); Spec 45 milestone M3→M5, Spec 61 milestone M3→M5 (match GitHub issue milestones); Stats updated (Done 49→48, Partial 11→12) |
+| 2026-04-10 | Audit fix: Spec 44 Done→Partial (issue #136 SSE event push still open); Spec 45 milestone M3→M5 (issue #150), Spec 61 milestone M3→M5 (issue #87); Stats updated (Done 49→48, Partial 11→12) |
 | 2026-04-10 | Spec 61 → Done (old field type refs cleaned); Spec 56 → Partial (Phase 1 AI exports removed from core) |
 | 2026-04-09 | Expanded spec 10 (Permission Groups planned API), spec 28 (Observability PII/trace fixes), added spec 63 content (Field Immutability & Locking) |
 | 2026-04-09 | Added specs 64 (Entity Onchange), 65 (Execution Context); updated spec 45 (AutomationEngine removed, Watcher remains) |
