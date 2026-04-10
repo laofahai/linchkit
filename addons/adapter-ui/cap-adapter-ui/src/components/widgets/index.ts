@@ -118,7 +118,7 @@ export function registerDefaultWidgets() {
   // ── Relation widgets — resolved by cardinality from RelationRegistry (Spec 61) ──
   // IDs that share the same display/input components are registered in a loop.
 
-  // Legacy widget ID aliases — kept for backward compatibility with existing view definitions
+  // Single-reference widgets: many_to_one, one_to_one with legacy "ref" alias for backward compatibility
   for (const id of ["many_to_one", "one_to_one", "ref"] as const) {
     widgetRegistry.register({
       definition: { id, fieldTypes: "string", modes: ["display", "input"], isDefault: false },
