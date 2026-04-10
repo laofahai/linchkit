@@ -26,7 +26,7 @@ LinchKit's 9 first-class building blocks.
 | [07](./07_event.md) | Event | `defineEvent()` — domain events, naming conventions, payload definition | M0 | Done |
 | [08](./08_event_handler_and_queue.md) | EventHandler & Queue | `defineEventHandler()` — sync/async, retry, dead letter, ordering guarantee | M0 | Done |
 | [46](./46_link_type.md) | Relation Type | `defineRelation()` — relations as first-class citizens, FK/junction tables, bidirectional nav | M2 | Done |
-| [61](./61_semantic_relation_unification.md) | Semantic Relation Unification | Unify ref/has_many/defineRelation into semantic defineRelation with fromName/toName | M3 | Done |
+| [61](./61_semantic_relation_unification.md) | Semantic Relation Unification | Unify ref/has_many/defineRelation into semantic defineRelation with fromName/toName | M5 | Done |
 | [47](./47_schema_interface.md) | Entity Interface | InterfaceRegistry + `implements` — reusable field contracts, compliance checks | M2 | Done |
 | [48](./48_derived_properties.md) | Derived Properties | `derived` config for computed fields, evaluated at query time | M2 | Done |
 | [49](./49_schema_inheritance.md) | Entity Inheritance | Single-parent `extends`, field/Action/Rule/State inheritance chain | M2 | Done |
@@ -55,7 +55,7 @@ How the meta-model executes at runtime.
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
 | [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Draft |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
-| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M3 | Partial |
+| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M5 | Partial |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
 
 ## Capability System
@@ -107,7 +107,7 @@ Capability definition, extension, composition, and distribution.
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
 | [13](./13_view_and_ui.md) | Views & UI | `defineView()` — AutoList, AutoForm, Widget registry, SearchBar, state colors | M0 | Done |
-| [44](./44_realtime_subscription.md) | Realtime Subscription | GraphQL SSE subscriptions, PersistentEventBus integration, per-entity change streams | M2 | Done |
+| [44](./44_realtime_subscription.md) | Realtime Subscription | GraphQL SSE subscriptions, PersistentEventBus integration, per-entity change streams | M2/M5 | Partial |
 | [53](./53_chatter_and_collaboration.md) | Unified Record Timeline | Chatter — field audit + execution log + comments + AI conversation unified timeline (Capability) | M3 | Done |
 | [54](./54_advanced_ui_features.md) | Advanced UI Features | Kanban, calendar, timeline views, drag-and-drop, dashboard builder | M2+ | Partial |
 
@@ -199,8 +199,8 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 49 |
-| Partial | 11 |
+| Done | 48 |
+| Partial | 12 |
 | Draft | 9 |
 | **Total** | **69** unique specs |
 
@@ -208,6 +208,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Audit fix: Spec 44 Done→Partial (issue #136 SSE event push still open); Spec 45 milestone M3→M5, Spec 61 milestone M3→M5 (match GitHub issue milestones); Stats updated (Done 49→48, Partial 11→12) |
 | 2026-04-10 | Spec 61 → Done (old field type refs cleaned); Spec 56 → Partial (Phase 1 AI exports removed from core) |
 | 2026-04-09 | Expanded spec 10 (Permission Groups planned API), spec 28 (Observability PII/trace fixes), added spec 63 content (Field Immutability & Locking) |
 | 2026-04-09 | Added specs 64 (Entity Onchange), 65 (Execution Context); updated spec 45 (AutomationEngine removed, Watcher remains) |
