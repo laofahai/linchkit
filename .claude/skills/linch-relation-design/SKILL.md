@@ -17,17 +17,18 @@ description: "Relation design: cardinality types, defineRelation pattern, cascad
 ```ts
 defineRelation({
   name: 'order_customer',
-  source: 'order',
-  target: 'customer',
+  from: 'order',
+  to: 'customer',
   cardinality: 'many_to_one',
-  sourceField: 'customer_id',
-  cascade: { onDelete: 'restrict' },
+  fromName: 'customer',
+  toName: 'orders',
+  cascade: 'none',
 })
 ```
 
 ## Cascade Rules
 | Rule | Description |
 |------|-------------|
-| `restrict` | Prevent deletion if related records exist (default) |
-| `cascade` | Delete related records |
-| `set_null` | Set foreign key to null |
+| `none` | Do not cascade deletes or nullification |
+| `delete` | Delete related records |
+| `nullify` | Set the relation to null when supported |

@@ -20,8 +20,8 @@ description: "Entity design rules: naming, field types, system fields, inheritan
 | `date` | — |
 | `datetime` | — |
 | `enum` | `options`: [{ value, label }] |
-| `ref` | `target`: entity name |
 | `json` | `schema`: Zod schema |
+| `state` | state machine-backed field |
 
 ## System Fields (DO NOT define — auto-managed)
 `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
