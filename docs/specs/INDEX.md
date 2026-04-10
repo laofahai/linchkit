@@ -55,7 +55,7 @@ How the meta-model executes at runtime.
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
 | [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Draft |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
-| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed, merged into EventHandler. | M3 | Partial |
+| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M3 | Partial |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
 
 ## Capability System
