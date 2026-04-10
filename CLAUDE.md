@@ -133,6 +133,20 @@ After merging:
 1. **Update `docs/specs/INDEX.md`** — If a spec's implementation status changed
 2. **Add changeset** — If npm-published code changed: `bunx changeset`
 3. **Close related GitHub issues** — `gh issue close <number>`
+4. **Clean up local branches** — Delete the merged feature branch: `git branch -d <branch>`
+5. **Clean up worktrees** — If subagents were used, remove worktrees and their branches:
+   ```bash
+   git worktree remove .claude/worktrees/<agent-id>
+   git branch -D worktree-agent-<id>
+   ```
+6. **Prune remote tracking** — `git remote prune origin` to clean stale remote refs
+
+### Hygiene Rules
+
+- **Never leave worktrees after task completion** — Remove worktrees as soon as files are copied and committed. Do not accumulate across sessions.
+- **Never leave local branches after PR merge** — Delete immediately in Phase 6.
+- **Session start cleanup** — If stale worktrees or branches exist from prior sessions, clean them before starting new work.
+- **New issues must have a priority label** — Use P0-P3 from the issue template.
 
 ---
 

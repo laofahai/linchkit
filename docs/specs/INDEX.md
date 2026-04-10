@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 67 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 69 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -30,6 +30,7 @@ LinchKit's 9 first-class building blocks.
 | [47](./47_schema_interface.md) | Entity Interface | InterfaceRegistry + `implements` — reusable field contracts, compliance checks | M2 | Done |
 | [48](./48_derived_properties.md) | Derived Properties | `derived` config for computed fields, evaluated at query time | M2 | Done |
 | [49](./49_schema_inheritance.md) | Entity Inheritance | Single-parent `extends`, field/Action/Rule/State inheritance chain | M2 | Done |
+| [64](./64_entity_onchange.md) | Entity Onchange | Server-side form computation — interactive pre-save field updates via `onchange` hooks on Entity | M5 | Draft |
 
 ## Meta-Model — Life System
 
@@ -52,8 +53,9 @@ How the meta-model executes at runtime.
 | [26](./26_transaction_model.md) | Transaction Model | Action-level transactions, Flow-level Saga pattern, compensation | M1 | Partial |
 | [32](./32_state_machine_implementation.md) | State Machine Impl | Transition validation, guard evaluation, auto-transitions, history records | M0 | Done |
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
+| [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Draft |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
-| [45](./45_reactive_automation.md) | Reactive Automation | AutomationEngine + TriggerBinding — event/fieldChange/stateChange/schedule/flowCompleted triggers | M3 | Done |
+| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M3 | Partial |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
 
 ## Capability System
@@ -176,8 +178,8 @@ Capability definition, extension, composition, and distribution.
 | What you want to do | Specs to read |
 |---------------------|---------------|
 | Develop a new Capability | 01, 20, 42, 39, 04, 57 |
-| Entity/field changes | 03, 46, 47, 48, 49, 59 |
-| Rules & automation | 05, 23, 40, 45 |
+| Entity/field changes | 03, 46, 47, 48, 49, 59, 64 |
+| Rules & automation | 05, 23, 40, 45, 65 |
 | API/GraphQL changes | 16, 44 |
 | UI component development | 13, 54 |
 | AI features | 36, 15, 22, 27, 52, 60 |
@@ -197,14 +199,15 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 49 |
-| Partial | 10 |
-| Draft | 7 |
-| **Total** | **66** unique specs |
+| Done | 48 |
+| Partial | 11 |
+| Draft | 10 |
+| **Total** | **69** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-04-09 | Added specs 64 (Entity Onchange), 65 (Execution Context); updated spec 45 (AutomationEngine removed, Watcher remains) |
 | 2026-04-09 | Added spec 62 (AI Proposal Data Migration) |
 | 2026-04-08 | Full audit: aligned all statuses with codebase reality; added specs 59 & 60 |
