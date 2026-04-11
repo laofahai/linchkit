@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
+import { consoleLogger } from "../observability/console-logger";
 import type { EntityDefinition, FieldDefinition } from "../types/entity";
 import type { RelationDefinition } from "../types/relation";
 import { generateDrizzleTable, generateRelationColumns } from "./entity-to-drizzle";
@@ -280,7 +281,7 @@ function serializeColumn(col: {
   } else {
     const builder = SQL_TYPE_MAP[sqlType];
     if (!builder) {
-      console.warn(
+      consoleLogger.warn(
         `[generate-drizzle-schema] Unknown SQL type "${sqlType}" for column "${col.name}", falling back to text`,
       );
     }
