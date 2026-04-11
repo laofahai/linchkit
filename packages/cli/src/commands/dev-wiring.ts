@@ -208,7 +208,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // ── AI Audit Logger — always created (lightweight, no external deps) ──
   const aiAuditLogger = new AIAuditLogger({
     onAuditEntry: (entry) => {
-      consoleLogger.info(
+      consoleLogger.debug(
         `AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
       );
     },

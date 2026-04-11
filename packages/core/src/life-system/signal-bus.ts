@@ -50,7 +50,10 @@ export function createSignalBus(options: SignalBusOptions = {}): SignalBus {
   const onError =
     options.onError ??
     ((sensor, err) => {
-      consoleLogger.error(`[SignalBus] sensor "${sensor}" failed: ${err}`);
+      consoleLogger.error(`[SignalBus] sensor "${sensor}" failed`, {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
     });
 
   async function emit(signal: SensorSignal): Promise<void> {
