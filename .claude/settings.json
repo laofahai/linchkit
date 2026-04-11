@@ -22,7 +22,6 @@
       "Bash(git commit *)",
       "Bash(git stash*)",
       "Bash(git pull*)",
-      "Bash(git checkout -b *)",
       "Bash(git checkout main*)",
       "Bash(git checkout feat/*)",
       "Bash(git checkout fix/*)",
@@ -30,6 +29,11 @@
       "Bash(git checkout refactor/*)",
       "Bash(git push -u origin *)",
       "Bash(git push origin *)",
+      "Bash(git worktree *)",
+      "Bash(git rev-parse *)",
+      "Bash(git remote prune *)",
+      "Bash(git branch -m *)",
+      "Bash(which *)",
       "Bash(gh pr view *)",
       "Bash(gh pr create *)",
       "Bash(gh pr merge *)",
@@ -39,6 +43,7 @@
       "Bash(gh issue comment *)",
       "Bash(gh issue close *)",
       "Bash(gh issue create *)",
+      "Bash(gh issue view *)",
       "Bash(gh api repos/*)",
       "Bash(gh api graphql *)",
       "Read(**)",
@@ -50,11 +55,15 @@
       "Bash(git clean *)",
       "Bash(git checkout -- *)",
       "Bash(git checkout .*)",
+      "Bash(git checkout -b *)",
       "Bash(git push --force*)",
       "Bash(git push * --force*)",
       "Bash(git rebase *)",
       "Bash(git branch -D *)",
       "Bash(git branch -d *)",
+      "Bash(npx *)",
+      "Bash(npm *)",
+      "Bash(node *)",
       "Bash(gh repo delete*)",
       "Bash(gh pr merge * --admin*)",
       "Bash(gh pr merge --admin*)",
@@ -63,14 +72,100 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git checkout -b *)",
+            "command": "echo 'BLOCKED: Use git worktree add instead of git checkout -b.' >&2; exit 2",
+            "timeout": 5,
+            "statusMessage": "Checking branch safety..."
+          },
+          {
+            "type": "command",
+            "if": "Bash(npx *)",
+            "command": "echo 'BLOCKED: Use bunx instead of npx.' >&2; exit 2",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(npm *)",
+            "command": "echo 'BLOCKED: Use bun instead of npm.' >&2; exit 2",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(node *)",
+            "command": "echo 'BLOCKED: Use bun instead of node.' >&2; exit 2",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-commit.sh",
+            "timeout": 5,
+            "statusMessage": "Checking quality gates..."
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-pr.sh",
+            "timeout": 5,
+            "statusMessage": "Checking cross-model review..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); LINES=$(echo \"$INPUT\" | jq -r '.tool_input.content // \"\"' 2>/dev/null | wc -l | tr -d ' '); if [ \"${LINES:-0}\" -gt 500 ]; then echo \"BLOCKED: File would be $LINES lines (limit: 500). Split by responsibility.\" >&2; exit 2; fi",
+            "timeout": 10,
+            "statusMessage": "Checking file size..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(bun run check*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh check_passed",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(bun run typecheck*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh typecheck_passed",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(bun test)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh tests_passed",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "if": "Bash(git commit*)",
-            "command": "if git rev-parse HEAD~1 >/dev/null 2>&1 && git diff HEAD~1 --name-only | grep -qE '^(packages|addons)/'; then echo 'npm-published code changed. Run bunx changeset if this needs a version bump.'; fi",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-commit.sh",
             "statusMessage": "Checking changeset need..."
           }
         ]
@@ -82,6 +177,12 @@
             "type": "command",
             "command": "bunx @biomejs/biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true",
             "statusMessage": "Auto-formatting..."
+          },
+          {
+            "type": "command",
+            "command": "LINES=$(wc -l < \"$CLAUDE_FILE_PATH\" 2>/dev/null | tr -d ' '); if [ \"${LINES:-0}\" -gt 500 ]; then echo \"WARNING: $CLAUDE_FILE_PATH is now $LINES lines (limit: 500). Consider splitting.\"; fi",
+            "timeout": 5,
+            "statusMessage": "Checking file size..."
           }
         ]
       }
@@ -92,7 +193,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Reminder: If you changed spec implementation status, update docs/specs/INDEX.md before ending.'"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-check.sh"
           }
         ]
       }

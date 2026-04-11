@@ -35,22 +35,19 @@ If a spec exists for the area you're touching → read the spec first. Specs: `d
 | Flow Engine | Restate (`@restatedev/restate-sdk` v1.11.1) — durable execution |
 | Testing | bun test |
 
-## Constraints (MUST follow)
+## Constraints
 
-- Use `bunx` never `npx`. E.g. `bunx shadcn@latest add ...`
 - Registry mirror: `registry.npmmirror.com` (see `.bunfig.toml`)
 - Comments and docs: **English**
 - Function signatures: Use `{}` options object when > 3 parameters
-- Pre-commit (lefthook): `biome check --staged` + `tsc --noEmit`
-- Commit message: **Conventional Commits**
 - drizzle-kit: Use `bun ./node_modules/.bin/drizzle-kit` (NOT `bunx drizzle-kit` — EPIPE bug on macOS)
 - Database DDL: **Never hand-write CREATE TABLE / ALTER TABLE** — always delegate to drizzle-kit
 - No hardcoded secrets, no `eval()`, no `new Function()`, no `any` type
 - Sanitize all user inputs; parameterized queries only
 - System fields are server-managed, never client-settable
 - All API endpoints go through CommandLayer (permission slot never skipped)
-- Files must not exceed 500 lines — split when approaching the limit
 - Verify third-party API usage with context7 before calling — training data may be stale
+- New dependencies require explicit approval
 
 ## Repository Structure
 
@@ -73,7 +70,7 @@ addons/ (capabilities — OCA model):
   demo/                — Purchase demo (private)
 ```
 
-**Module boundaries:** `core` never imports from other packages. `ui` never imports from `server`. No circular deps. Dependency flows: Capability → Core.
+**Module boundaries:** `core` never imports from other packages. `ui` never imports from `server`. No circular deps.
 
 **Core boundary:** "Without this, is a zero-capability LinchKit still AI-Native?" Yes → capability. No → core.
 
@@ -114,26 +111,13 @@ linch agents-md       # Generate AGENTS.md for downstream projects
 
 - **Entity naming:** snake_case, singular nouns
 - **Action naming:** verb_noun (`submit_request`, `approve_order`)
-- **Comments/docs:** English
-- **Commits:** Conventional Commits
 - **System fields** (auto-managed): `id`, `tenant_id`, `created_at`, `updated_at`, `created_by`, `updated_by`, `_version`
-
-## Patterns to Avoid
-
-- Wrapper/utility files for one-time operations
-- Backwards-compatibility shims — just change the code
-- Premature abstraction (3 similar lines > 1 abstraction)
-- New dependencies without explicit approval
-- God objects beyond ~300 lines
-- `node`, `npx`, `npm` — always use `bun`, `bunx`
 
 ## Git Workflow
 
-- **Never commit directly to `main`.** The main worktree stays on `main` as a dispatch hub.
-- Single task: create a feature branch before making changes.
-- Parallel tasks: use `git worktree add` + separate terminal Claude Code sessions.
+- Main worktree stays on `main` as dispatch hub. Use `git worktree add` for tasks.
 - Branch naming: `fix/`, `feat/`, `refactor/`, `docs/`, `chore/` prefixes.
-- Pre-commit hook enforces this — commits to `main` will be rejected.
+- Hooks enforce: no commits to `main`, no `git checkout -b` on main, no `npx`/`npm`/`node`.
 
 ## Gemini CLI Collaboration
 

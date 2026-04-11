@@ -37,6 +37,16 @@ description: "Master workflow router — invoke FIRST for every development task
 
 **Invoke this skill BEFORE any development work.** It determines the correct approach based on task type.
 
+## Step 0: Environment Check
+
+Before doing anything else, verify your working environment:
+
+1. **Check current branch**: \`git rev-parse --abbrev-ref HEAD\`
+   - If \`main\` → STOP. Use \`git worktree add .claude/worktrees/<name> -b <branch>\` to create a worktree, then work there.
+   - If a feature branch → proceed.
+2. **Validate branch prefix**: Must start with \`feat/\`, \`fix/\`, \`refactor/\`, \`docs/\`, or \`chore/\`. Warn if invalid.
+3. **Never use \`git checkout -b\`** — use \`git worktree add\` to create isolated work environments.
+
 ## Step 1: Classify the Task
 
 Read the user's request and classify:
@@ -49,8 +59,10 @@ Read the user's request and classify:
 | **UI development** | View, form, component, widget | \`/linch-view-design\` | YES — \`get_entity\` for field info |
 | **Refactoring** | Rename, extract, reorganize | \`/linch-architecture\` | MAYBE |
 | **Docs / specs** | Write spec, update docs | None | NO |
+| **Infra / tooling** | Hooks, CI, build, config | None | NO |
+| **Cross-category** | Touches multiple areas | Load all relevant sub-skills | MAYBE |
 
-**After classifying:** Invoke the relevant sub-skill(s) using the \`Skill\` tool. Then proceed to Step 2.
+**After classifying:** Invoke the relevant sub-skill(s) using the \`Skill\` tool. For cross-category tasks, load multiple sub-skills and note which files belong to which concern. Then proceed to Step 2.
 
 ## Step 2: Orient
 
@@ -68,18 +80,73 @@ Read the user's request and classify:
 
 ## Step 4: Verify
 
-All four quality gates MUST pass before committing:
+Quality gates MUST pass before committing.
+Hooks track progress in a per-branch state file (via \`.claude/hooks/workflow-state.sh\`).
+\`git commit\` is blocked until check/typecheck/test all pass. \`linch validate\` is manual.
 
 \`\`\`bash
-linch validate        # Meta-model validation
-bun run check         # Biome lint + format
-bun run typecheck     # TypeScript strict check
-bun test              # Full test suite
+linch validate        # Meta-model validation (manual — run when touching definitions)
+bun run check         # Biome lint + format (hook-tracked)
+bun run typecheck     # TypeScript strict check (hook-tracked)
+bun test              # Full test suite (hook-tracked, must be exact \`bun test\` not filtered)
 \`\`\`
 
-## Step 5: PR & Review
+## Step 5: Cross-Model Review
 
-1. Create branch — \`feat/xxx\`, \`fix/xxx\`, \`refactor/xxx\`
+Before creating a PR, request cross-model review for a second opinion.
+**Must ask user for approval before invoking external tools.**
+
+1. **Detect available tools** — check all known AI CLI tools:
+   \`\`\`bash
+   for cmd in codex gemini claude aider llm mods sgpt ollama fabric goose avante trae; do
+     which "$cmd" 2>/dev/null && echo "FOUND: $cmd"
+   done
+   \`\`\`
+   Known tools and their non-interactive modes:
+
+   | Tool | Backend | Non-interactive mode |
+   |------|---------|---------------------|
+   | codex | OpenAI | \`codex review --uncommitted\` / \`codex exec "<prompt>"\` |
+   | gemini | Google | \`gemini -p "<prompt>"\` or heredoc |
+   | claude | Anthropic | \`claude -p "<prompt>"\` or heredoc |
+   | aider | Multi-backend | \`aider --message "<prompt>"\` |
+   | llm | Multi-backend (incl. OpenRouter) | \`llm "<prompt>"\` or stdin |
+   | mods | Multi-backend (incl. OpenRouter) | stdin: \`echo "<prompt>" \\| mods\` |
+   | sgpt | OpenAI | \`sgpt "<prompt>"\` |
+   | ollama | Local models | \`ollama run <model> "<prompt>"\` |
+   | fabric | Multi-backend | \`fabric -p "<prompt>"\` |
+   | goose | Multi-backend | \`goose run "<prompt>"\` |
+
+   If a tool is found but not in this list, check \`<tool> --help\` for its non-interactive flag.
+2. **Ask user**: "The following review tools are available: [list]. May I run cross-model review?" — proceed only with approval.
+3. **Run reviews** — use heredoc to pass prompts safely (diffs contain special chars like \`$\`, backticks):
+   \`\`\`bash
+   # Codex has built-in review
+   codex review --uncommitted
+   # Other tools: use heredoc with tool-specific flag (see table above)
+   # Example for gemini/claude (-p flag):
+   gemini -p <<'EOF'
+   Review the following changes: ...
+   <diff>
+   EOF
+   # Example for tools that read stdin (llm, mods):
+   llm <<'EOF'
+   Review the following changes: ...
+   <diff>
+   EOF
+   \`\`\`
+4. **Second evaluation** — do NOT blindly accept all findings. For each issue:
+   - Verify against documentation/source code — is the claim correct?
+   - Assess severity — is this a real bug or a style preference?
+   - Decide: **fix**, **reject** (with reason), or **defer** (low priority).
+   Present the evaluation table to the user before proceeding.
+5. **Fix confirmed issues**: Apply fixes, re-run quality gates if code changed.
+6. **Mark complete**: \`./.claude/hooks/post-quality-gate.sh cross_model_review\`
+   This is required — \`gh pr create\` is blocked by hook until this marker exists.
+
+## Step 6: PR & Review
+
+1. Verify you're on the correct feature branch (not \`main\`)
 2. Push and create PR — \`gh pr create\`
 3. Wait for CI
 4. Read ALL review comments (CodeRabbit, Gemini, human)
@@ -92,14 +159,15 @@ bun test              # Full test suite
 - NEVER dismiss review threads — reply + resolve
 - ALWAYS read ALL comments BEFORE merge attempt
 
-## Step 6: Close
+## Step 7: Close
 
 1. Update \`docs/specs/INDEX.md\` if spec status changed
 2. Add changeset if npm-published code changed: \`bunx changeset\`
 3. Close related issues: \`gh issue close <number>\`
-4. Delete merged branch: \`git branch -d <branch>\`
-5. Clean worktrees if used: \`git worktree remove ...\`
-6. Prune remote: \`git remote prune origin\`
+4. Clean up after merge:
+   - Delete remote branch: \`git push origin --delete <branch>\`
+   - Remove worktree (if used): \`git worktree remove <path>\`
+   - Prune stale remote refs: \`git remote prune origin\`
 
 ---
 
