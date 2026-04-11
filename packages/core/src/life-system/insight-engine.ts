@@ -84,8 +84,9 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
   function enforceRetentionLimit(): void {
     while (promotedInsights.length > maxInsights) {
       const evicted = promotedInsights.shift();
-      // Remove key so the pattern can re-alert if it recurs
-      if (evicted) {
+      // Drift patterns may re-alert after eviction. Structural issues
+      // should stay deduped until structuralToInsights() sees them resolved.
+      if (evicted?.type === "anomaly") {
         const evictedKey = findKeyForInsight(evicted);
         if (evictedKey) promotedKeys.delete(evictedKey);
       }
