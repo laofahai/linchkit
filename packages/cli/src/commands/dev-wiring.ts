@@ -33,6 +33,7 @@ import {
   AIBoundary,
   CacheManager,
   checkConnection,
+  consoleLogger,
   createActionExecutor,
   createApprovalEngine,
   createApprovalVerifier,
@@ -131,13 +132,13 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   const executionLogger = dbInstance
     ? new DrizzleExecutionLogger(dbInstance)
     : new InMemoryExecutionLogger();
-  console.log(`[linch] Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`);
+  consoleLogger.info(`Using ${dbInstance ? "DrizzleExecutionLogger" : "InMemoryExecutionLogger"}`);
 
   // Create approval store — Drizzle-backed when DB is available
   const approvalStore = dbInstance
     ? new DrizzleApprovalStore(dbInstance)
     : new InMemoryApprovalStore();
-  console.log(`[linch] Using ${dbInstance ? "DrizzleApprovalStore" : "InMemoryApprovalStore"}`);
+  consoleLogger.info(`Using ${dbInstance ? "DrizzleApprovalStore" : "InMemoryApprovalStore"}`);
 
   // Create transaction manager when DB is available (Transactional Outbox pattern)
   const transactionManager =
@@ -145,7 +146,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       ? new DrizzleTransactionManager(dbInstance, input.dataProvider as DrizzleDataProvider)
       : undefined;
   if (transactionManager) {
-    console.log("[linch] Using DrizzleTransactionManager (Transactional Outbox)");
+    consoleLogger.info("Using DrizzleTransactionManager (Transactional Outbox)");
   }
 
   // Create event bus — use PersistentEventBus when database is available
@@ -178,8 +179,8 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     commandLayer.use(mw);
   }
   if (middlewares.length > 0) {
-    console.log(
-      `[linch] Registered ${middlewares.length} middleware(s) on CommandLayer: ${middlewares.map((m) => `${m.name}[${m.slot}]`).join(", ")}`,
+    consoleLogger.info(
+      `Registered ${middlewares.length} middleware(s) on CommandLayer: ${middlewares.map((m) => `${m.name}[${m.slot}]`).join(", ")}`,
     );
   }
 
@@ -191,9 +192,9 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       registry: eventHandlerRegistry,
     });
     outboxWorker.start();
-    console.log("[linch] Using PersistentEventBus + OutboxWorker (events persisted to database)");
+    consoleLogger.info("Using PersistentEventBus + OutboxWorker (events persisted to database)");
   } else {
-    console.log("[linch] Using in-memory EventBus");
+    consoleLogger.info("Using in-memory EventBus");
   }
 
   // Create approval engine — wired with event bus and command layer for re-execution
@@ -207,17 +208,17 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // ── AI Audit Logger — always created (lightweight, no external deps) ──
   const aiAuditLogger = new AIAuditLogger({
     onAuditEntry: (entry) => {
-      console.log(
-        `[linch] AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
+      consoleLogger.info(
+        `AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
       );
     },
   });
-  console.log("[linch] AIAuditLogger created");
+  consoleLogger.info("AIAuditLogger created");
 
   // ── AI Service — create from config or use noop ──
   const aiService = config.ai ? createAIService(config.ai) : createNoopAIService();
   if (config.ai) {
-    console.log(`[linch] AIService created (provider: ${config.ai.defaultProvider})`);
+    consoleLogger.info(`AIService created (provider: ${config.ai.defaultProvider})`);
   }
 
   // ── AI Boundary — wraps AI service with default safety policy ──
@@ -246,12 +247,12 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       });
     },
     onBudgetAlert: (tenantId, budget, threshold) => {
-      console.warn(
-        `[linch] AI budget alert: tenant=${tenantId ?? "global"} threshold=${threshold} costToday=$${budget.costToday.toFixed(2)}`,
+      consoleLogger.warn(
+        `AI budget alert: tenant=${tenantId ?? "global"} threshold=${threshold} costToday=$${budget.costToday.toFixed(2)}`,
       );
     },
   });
-  console.log("[linch] AIBoundary created with default policy");
+  consoleLogger.info("AIBoundary created with default policy");
 
   // Create FlowRegistry and collect flows from capabilities
   const flowRegistry = createFlowRegistry();
@@ -265,7 +266,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     }
   }
   if (flowCount > 0) {
-    console.log(`[linch] Registered ${flowCount} flow(s)`);
+    consoleLogger.info(`Registered ${flowCount} flow(s)`);
   }
 
   // Wire flow engine — dual-mode: Restate (durable) or Sync (fallback)
@@ -300,7 +301,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       const healthy = await checkRestateHealth(restateConfig.adminUrl);
 
       if (healthy) {
-        console.log("[linch] Restate server detected — using durable flow execution");
+        consoleLogger.info("Restate server detected — using durable flow execution");
 
         const compiledServices: unknown[] = [];
         for (const flow of flowRegistry.getAll()) {
@@ -311,11 +312,11 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
         try {
           restateEndpoint = await setupRestateEndpoint(restateConfig, compiledServices);
           const port = restateConfig.servicePort ?? 9080;
-          console.log(`[linch] Restate service endpoint listening on :${port}`);
+          consoleLogger.info(`Restate service endpoint listening on :${port}`);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[linch] Failed to start Restate endpoint: ${msg}`);
-          console.warn("[linch] Falling back to sync flow engine");
+          consoleLogger.warn(`Failed to start Restate endpoint: ${msg}`);
+          consoleLogger.warn("Falling back to sync flow engine");
         }
 
         if (restateEndpoint) {
@@ -330,16 +331,14 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
           }
         }
       } else {
-        console.log(
-          "[linch] Restate server not reachable — using sync flow engine (no durability)",
-        );
+        consoleLogger.info("Restate server not reachable — using sync flow engine (no durability)");
         flowEngine = createSyncFlowEngine(flowStepContext);
         for (const flow of flowRegistry.getAll()) {
           flowEngine.registerFlow(flow);
         }
       }
     } else {
-      console.log("[linch] No Restate config — using sync flow engine");
+      consoleLogger.info("No Restate config — using sync flow engine");
       flowEngine = createSyncFlowEngine(flowStepContext);
       for (const flow of flowRegistry.getAll()) {
         flowEngine.registerFlow(flow);
@@ -359,7 +358,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     0,
   );
   if (derivedFieldCount > 0) {
-    console.log(`[linch] DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
+    consoleLogger.info(`DerivedPropertyEngine registered ${derivedFieldCount} derived field(s)`);
   }
 
   // Build OntologyRegistry — unified semantic facade over all registries
@@ -374,7 +373,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     handlers: eventHandlerRegistry,
     interfaces: interfaceRegistry,
   });
-  console.log(`[linch] OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
+  consoleLogger.info(`OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
 
   // ── Health check registry ──
   const healthCheckRegistry = new HealthCheckRegistry();
@@ -403,7 +402,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     eventBus,
     defaultTtl: environment.isDevelopment ? 30_000 : 300_000, // 30s dev, 5min prod
   });
-  console.log("[linch] CacheManager created (event-driven invalidation enabled)");
+  consoleLogger.info("CacheManager created (event-driven invalidation enabled)");
 
   healthCheckRegistry.register(
     "cache",
@@ -412,8 +411,8 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       return { hits: s.l1.hits, misses: s.l1.misses, size: s.l1.size };
     }),
   );
-  console.log(
-    `[linch] HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
+  consoleLogger.info(
+    `HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
   );
 
   const transportCtx: TransportContext = {

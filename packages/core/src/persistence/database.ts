@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { consoleLogger } from "../observability/console-logger";
 import type { DatabaseConfig } from "../types/database";
 
 export type { DatabaseConfig };
@@ -58,6 +59,9 @@ export function createDatabase(config: DatabaseConfig): PostgresJsDatabase {
       debug: config.debug ?? false,
       connect_timeout: Math.ceil(connectTimeout / 1000),
       idle_timeout: Math.ceil(idleTimeout / 1000),
+      onnotice: (notice) => {
+        consoleLogger.debug(`PG ${notice.severity}: ${notice.message}`);
+      },
     });
   } catch (err) {
     const info = safeConnectionInfo(config.url);

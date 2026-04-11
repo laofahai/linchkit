@@ -20,6 +20,7 @@ interface EnvironmentInfo {
 
 import {
   ActionRegistry,
+  consoleLogger,
   createInterfaceRegistry,
   createRelationRegistry,
   createTenantIsolationMiddleware,
@@ -63,8 +64,8 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     interfaceRegistry.register(iface);
   }
   if (interfaces.length > 0) {
-    console.log(
-      `[linch] Registered ${interfaces.length} interface(s): ${interfaces.map((i) => i.name).join(", ")}`,
+    consoleLogger.info(
+      `Registered ${interfaces.length} interface(s): ${interfaces.map((i) => i.name).join(", ")}`,
     );
   }
 
@@ -81,7 +82,7 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     relationRegistry.register(relation);
   }
   if (links.length > 0) {
-    console.log(`[linch] Registered ${links.length} relation(s)`);
+    consoleLogger.info(`Registered ${links.length} relation(s)`);
   }
 
   // Build ActionRegistry
@@ -105,8 +106,8 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
   }
   const registeredGroups = permissionRegistry.getAll();
   if (registeredGroups.length > 0) {
-    console.log(
-      `[linch] Registered ${registeredGroups.length} permission group(s): ${registeredGroups.map((g) => g.name).join(", ")}`,
+    consoleLogger.info(
+      `Registered ${registeredGroups.length} permission group(s): ${registeredGroups.map((g) => g.name).join(", ")}`,
     );
   }
 
@@ -132,10 +133,10 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
           order: 50,
         };
         middlewares.push(permMw);
-        console.log("[linch] Auto-wired permission middleware from discovered permission groups");
+        consoleLogger.info("Auto-wired permission middleware from discovered permission groups");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[linch] Failed to auto-wire permission middleware: ${msg}`);
+        consoleLogger.warn(`Failed to auto-wire permission middleware: ${msg}`);
       }
     }
   }
@@ -145,8 +146,8 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     requireTenant: !environment.isDevelopment,
   });
   middlewares.push(tenantMiddleware);
-  console.log(
-    `[linch] Tenant isolation middleware registered (requireTenant=${!environment.isDevelopment})`,
+  consoleLogger.info(
+    `Tenant isolation middleware registered (requireTenant=${!environment.isDevelopment})`,
   );
 
   return {
@@ -232,7 +233,7 @@ export async function wireAuthProvider(input: AuthWiringInput): Promise<void> {
           }
         }
       }
-      console.log(`[linch] Auth provider "${authProviderExt.name}" wired into cap-auth`);
+      consoleLogger.info(`Auth provider "${authProviderExt.name}" wired into cap-auth`);
 
       // Seed admin user if the provider supports it
       if (authProviderExt.seedAdmin) {
@@ -240,11 +241,11 @@ export async function wireAuthProvider(input: AuthWiringInput): Promise<void> {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[linch] Failed to wire auth provider "${authProviderExt.name}": ${msg}`);
+      consoleLogger.warn(`Failed to wire auth provider "${authProviderExt.name}": ${msg}`);
     }
   } else if (authProviderExt && !dbInstance) {
-    console.log(
-      `[linch] Auth provider "${authProviderExt.name}" registered but no database — skipping wiring`,
+    consoleLogger.info(
+      `Auth provider "${authProviderExt.name}" registered but no database — skipping wiring`,
     );
   }
 }

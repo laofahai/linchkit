@@ -14,7 +14,7 @@ export interface PinoLoggerOptions {
   name?: string;
   /** Minimum log level (default: LOG_LEVEL env or "info") */
   level?: string;
-  /** Enable pretty printing (default: false, requires pino-pretty installed) */
+  /** Enable pretty printing (default: auto-detect TTY + non-production) */
   pretty?: boolean;
   /** Static fields to include in every log entry */
   defaultContext?: Record<string, unknown>;
@@ -27,24 +27,31 @@ export interface PinoLoggerOptions {
  * from the current trace context (if any).
  */
 export function createPinoLogger(options: PinoLoggerOptions = {}): Logger {
+  // Auto-detect: pretty when TTY + non-production, unless explicitly set
+  const autoPretty = process.stdout.isTTY === true && process.env.NODE_ENV !== "production";
+
   const {
     name,
     level = process.env.LOG_LEVEL ?? "info",
-    pretty = false,
+    pretty = autoPretty,
     defaultContext = {},
   } = options;
 
-  // Only use pino-pretty transport when explicitly enabled and available
+  // Use pino-pretty transport when enabled and available
   let transportConfig: pino.TransportSingleOptions | undefined;
   if (pretty) {
     try {
       require.resolve("pino-pretty");
       transportConfig = {
         target: "pino-pretty",
-        options: { colorize: true, ignore: "pid,hostname" },
+        options: {
+          colorize: true,
+          ignore: "pid,hostname",
+          translateTime: "HH:MM:ss",
+        },
       };
     } catch {
-      // pino-pretty not installed, skip pretty transport
+      // pino-pretty not installed, fall back to JSON
     }
   }
 
