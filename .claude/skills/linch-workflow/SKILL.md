@@ -92,8 +92,14 @@ Before creating a PR, request cross-model review for a second opinion.
    ```bash
    # Codex has built-in review
    codex review --uncommitted
-   # Other tools: heredoc (single-quoted EOF prevents variable expansion)
-   <tool> -p <<'EOF'
+   # Other tools: use heredoc with tool-specific flag (see table above)
+   # Example for gemini/claude (-p flag):
+   gemini -p <<'EOF'
+   Review the following changes: ...
+   <diff>
+   EOF
+   # Example for tools that read stdin (llm, mods):
+   llm <<'EOF'
    Review the following changes: ...
    <diff>
    EOF

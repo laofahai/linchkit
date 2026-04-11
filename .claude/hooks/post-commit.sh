@@ -12,5 +12,6 @@ fi
 # Reset only quality gate markers (not cross_model_review)
 WF=$(_wf_file)
 if [ -f "$WF" ]; then
-  grep -vE '^(check_passed|typecheck_passed|tests_passed)=' "$WF" > "$WF.tmp" && mv "$WF.tmp" "$WF"
+  grep -vE '^(check_passed|typecheck_passed|tests_passed)=' "$WF" > "$WF.tmp" || true
+  mv "$WF.tmp" "$WF"
 fi
