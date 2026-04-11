@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { AIRateLimiter } from "../src/ai/ai-rate-limiter";
 
 describe("AIRateLimiter", () => {
@@ -52,8 +52,8 @@ describe("AIRateLimiter", () => {
     const result = limiter.check(identity);
     expect(result.allowed).toBe(false);
     expect(result.retryAfterMs).toBeDefined();
-    expect(result.retryAfterMs!).toBeGreaterThan(0);
-    expect(result.retryAfterMs!).toBeLessThanOrEqual(10_000);
+    expect(result.retryAfterMs).toBeGreaterThan(0);
+    expect(result.retryAfterMs).toBeLessThanOrEqual(10_000);
   });
 
   // ── Per-user isolation ────────────────────────────────
@@ -183,8 +183,8 @@ describe("AIRateLimiter", () => {
     expect(stats.requestsPerWindow[0].count).toBe(2);
     expect(stats.requestsPerWindow[0].limit).toBe(10);
     expect(stats.tokensPerHour).toBeDefined();
-    expect(stats.tokensPerHour!.used).toBe(300);
-    expect(stats.tokensPerHour!.limit).toBe(5000);
+    expect(stats.tokensPerHour?.used).toBe(300);
+    expect(stats.tokensPerHour?.limit).toBe(5000);
   });
 
   // ── Reset ─────────────────────────────────────────────
