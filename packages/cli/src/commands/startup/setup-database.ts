@@ -14,6 +14,7 @@ import { databaseConfig } from "@linchkit/core";
 import {
   buildTableColumns,
   closeDatabase,
+  consoleLogger,
   createDatabase,
   DrizzleDataProvider,
   generateDrizzleSchemaFile,
@@ -45,7 +46,7 @@ export async function setupDatabase(opts: {
   const dbConf = databaseConfig.from({ config: registry });
 
   if (!dbConf.url) {
-    console.log("[linch] Using InMemoryStore (no DATABASE_URL configured)");
+    consoleLogger.info("Using InMemoryStore (no DATABASE_URL configured)");
     return {
       dataProvider: new InMemoryStore(),
       usingDatabase: false,
@@ -54,7 +55,7 @@ export async function setupDatabase(opts: {
   }
 
   try {
-    console.log("[linch] Connecting to PostgreSQL...");
+    consoleLogger.info("Connecting to PostgreSQL...");
     const dbInstance = createDatabase({
       url: dbConf.url,
       poolSize: dbConf.poolSize,
@@ -63,19 +64,19 @@ export async function setupDatabase(opts: {
 
     // Generate schema barrel file (still needed for drizzle-kit generate/studio)
     const schemaFile = generateDrizzleSchemaFile(schemas, undefined, undefined, links);
-    console.log(`[linch] Generated Drizzle schema: ${schemaFile}`);
+    consoleLogger.info(`Generated Drizzle schema: ${schemaFile}`);
 
     // Apply any pending migrations
-    console.log("[linch] Applying database migrations...");
+    consoleLogger.info("Applying database migrations...");
     try {
       await runMigrations(dbInstance);
-      console.log("[linch] Migrations applied successfully");
+      consoleLogger.info("Migrations applied successfully");
     } catch (migrationErr) {
       const migrationMsg =
         migrationErr instanceof Error ? migrationErr.message : String(migrationErr);
       if (migrationMsg.includes("No migrations found") || migrationMsg.includes("no such file")) {
-        console.log(
-          "[linch] No migrations found — run 'bun run db:generate' to create initial migration",
+        consoleLogger.info(
+          "No migrations found — run 'bun run db:generate' to create initial migration",
         );
       } else {
         throw migrationErr;
@@ -136,7 +137,7 @@ export async function setupDatabase(opts: {
     }
 
     const dataProvider = new DrizzleDataProvider(dbInstance, tableRegistry);
-    console.log("[linch] Using PostgreSQL data provider");
+    consoleLogger.info("Using PostgreSQL data provider");
 
     return {
       dataProvider,
@@ -145,10 +146,12 @@ export async function setupDatabase(opts: {
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[linch] Failed to connect to PostgreSQL: ${msg}`);
+    consoleLogger.error(`Failed to connect to PostgreSQL: ${msg}`, {
+      error: err instanceof Error ? err.stack : undefined,
+    });
     // Clean up the database connection pool before falling back
     await closeDatabase();
-    console.log("[linch] Falling back to InMemoryStore");
+    consoleLogger.info("Falling back to InMemoryStore");
 
     return {
       dataProvider: new InMemoryStore(),

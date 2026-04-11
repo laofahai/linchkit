@@ -11,7 +11,12 @@
 
 import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
 import { ConfigRegistry, initI18n } from "@linchkit/core";
-import { closeDatabase, detectEnvironment, GracefulShutdownManager } from "@linchkit/core/server";
+import {
+  closeDatabase,
+  consoleLogger,
+  detectEnvironment,
+  GracefulShutdownManager,
+} from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
 import { loadConfig } from "../utils/load-config";
@@ -54,29 +59,31 @@ export const devCommand = defineCommand({
           process.env[key] = value;
         }
       }
-      console.log("[linch] Loaded .env file");
+      consoleLogger.info("Loaded .env file");
     }
 
     // ── Environment detection ──
     const environment = detectEnvironment();
-    console.log(
-      `[linch] Environment: ${environment.name} (verbose=${environment.features.verboseLogging}, strictValidation=${environment.features.strictValidation})`,
+    consoleLogger.info(
+      `Environment: ${environment.name} (verbose=${environment.features.verboseLogging}, strictValidation=${environment.features.strictValidation})`,
     );
 
-    console.log("[linch] Loading configuration...");
+    consoleLogger.info("Loading configuration...");
 
     // Load project config
     let config: LinchKitConfig = {};
     try {
       const result = await loadConfig();
       config = result.config;
-      console.log(`[linch] Config loaded from ${result.configPath}`);
+      consoleLogger.info(`Config loaded from ${result.configPath}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.startsWith("Config file not found:")) {
-        console.log("[linch] No config found, using defaults.");
+        consoleLogger.info("No config found, using defaults.");
       } else {
-        console.error("[linch] Failed to load config:", msg);
+        consoleLogger.error(`Failed to load config: ${msg}`, {
+          error: err instanceof Error ? err.stack : undefined,
+        });
         process.exit(1);
       }
     }
@@ -88,18 +95,20 @@ export const devCommand = defineCommand({
     let registry: ConfigRegistry;
     try {
       registry = ConfigRegistry.create(config, capabilities);
-      console.log(`[linch] ConfigRegistry created (namespaces: ${registry.keys().join(", ")})`);
+      consoleLogger.info(`ConfigRegistry created (namespaces: ${registry.keys().join(", ")})`);
     } catch (err) {
       // ConfigRegistry.create collects all validation errors and throws once
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[linch] Configuration validation failed:\n\n${msg}`);
+      consoleLogger.error(`Configuration validation failed:\n\n${msg}`, {
+        error: err instanceof Error ? err.stack : undefined,
+      });
       process.exit(1);
     }
 
     // Generate capability stylesheet if UI adapter is present
     const generatedStylesheet = generateCapabilityStylesheet(capabilities);
     if (generatedStylesheet?.updated) {
-      console.log(`[linch] Generated capability stylesheet: ${generatedStylesheet.path}`);
+      consoleLogger.info(`Generated capability stylesheet: ${generatedStylesheet.path}`);
     }
 
     // ── Initialize i18n before collecting (registerTranslations needs it) ──
@@ -109,11 +118,11 @@ export const devCommand = defineCommand({
     const collected = collectCapabilityDefinitions(capabilities);
     const { entities, actions, views, states, links, rules, middlewares, transports } = collected;
 
-    console.log(
-      `[linch] Loaded ${capabilities.length} capabilities, ${entities.length} schemas, ${actions.length} actions`,
+    consoleLogger.info(
+      `Loaded ${capabilities.length} capabilities, ${entities.length} schemas, ${actions.length} actions`,
     );
-    console.log(
-      `[linch] Found ${transports.length} transport(s): ${transports.map((t) => t.name).join(", ") || "none"}`,
+    consoleLogger.info(
+      `Found ${transports.length} transport(s): ${transports.map((t) => t.name).join(", ") || "none"}`,
     );
 
     // ── Build registries (schema, action, link, interface, permission) + middleware wiring ──
@@ -185,20 +194,22 @@ export const devCommand = defineCommand({
 
     for (const transport of transports) {
       try {
-        console.log(`[linch] Starting transport: ${transport.label ?? transport.name}...`);
+        consoleLogger.info(`Starting transport: ${transport.label ?? transport.name}...`);
         const lifecycle = await transport.factory(transportCtx);
         await lifecycle.start();
         lifecycles.push(lifecycle);
-        console.log(`[linch] Transport ${transport.name} started.`);
+        consoleLogger.info(`Transport ${transport.name} started.`);
       } catch (err) {
         const error = err as Error;
-        console.error(`[linch] Failed to start transport "${transport.name}":`, error.message);
+        consoleLogger.error(`Failed to start transport "${transport.name}": ${error.message}`, {
+          error: error.stack,
+        });
       }
     }
 
     if (lifecycles.length === 0) {
-      console.log(
-        "[linch] Warning: No transports started. Install adapter capabilities (e.g. @linchkit/cap-adapter-server).",
+      consoleLogger.warn(
+        "No transports started. Install adapter capabilities (e.g. @linchkit/cap-adapter-server).",
       );
     }
 
@@ -235,7 +246,7 @@ export const devCommand = defineCommand({
 
     shutdownManager.bindSignals();
 
-    console.log("");
-    console.log("[linch] Dev server ready. Press Ctrl+C to stop.");
+    process.stdout.write("\n");
+    consoleLogger.info("Dev server ready. Press Ctrl+C to stop.");
   },
 });

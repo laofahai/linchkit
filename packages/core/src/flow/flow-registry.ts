@@ -5,6 +5,7 @@
  * Follows the same pattern as EntityRegistry.
  */
 
+import { consoleLogger } from "../observability/console-logger";
 import type { ConditionFlowStep, FlowDefinition, FlowStep, ParallelFlowStep } from "../types/flow";
 import type { FlowRegistry as IFlowRegistry } from "./types";
 
@@ -18,7 +19,7 @@ export class FlowRegistryImpl implements IFlowRegistry {
     validateFlow(flow);
 
     if (this.flows.has(flow.name)) {
-      console.warn(`[FlowRegistry] Flow "${flow.name}" is already registered — overwriting.`);
+      consoleLogger.warn(`[FlowRegistry] Flow "${flow.name}" is already registered — overwriting.`);
     }
 
     this.flows.set(flow.name, flow);

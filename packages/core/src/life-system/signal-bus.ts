@@ -6,12 +6,13 @@
  * layered on top via a MemoryStore capability.
  */
 
+import { consoleLogger } from "../observability/console-logger";
 import type { Sensor, SensorContext, SensorSignal } from "../types/life-system";
 
 export type SignalHandler = (signal: SensorSignal) => void | Promise<void>;
 
 export interface SignalBusOptions {
-  /** Called when a sensor throws during detect(). Defaults to console.error. */
+  /** Called when a sensor throws during detect(). Defaults to consoleLogger.error. */
   onError?: (sensor: string, error: unknown) => void;
 }
 
@@ -49,7 +50,10 @@ export function createSignalBus(options: SignalBusOptions = {}): SignalBus {
   const onError =
     options.onError ??
     ((sensor, err) => {
-      console.error(`[SignalBus] sensor "${sensor}" failed:`, err);
+      consoleLogger.error(`[SignalBus] sensor "${sensor}" failed`, {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
     });
 
   async function emit(signal: SensorSignal): Promise<void> {

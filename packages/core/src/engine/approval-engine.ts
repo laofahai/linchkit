@@ -10,6 +10,7 @@
  */
 
 import type { EventBus } from "../event/event-bus";
+import { consoleLogger } from "../observability/console-logger";
 import type { ActionResult, Actor } from "../types/action";
 import type {
   ApprovalAssignee,
@@ -424,7 +425,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         typeof result.data === "object" && result.data !== null
           ? (result.data as Record<string, unknown>).error?.toString()
           : String(result.data);
-      console.warn(
+      consoleLogger.warn(
         `[ApprovalEngine] Re-execution failed for approval "${input.approvalId}": ${errorMessage}`,
       );
       await store.update(input.approvalId, {

@@ -11,6 +11,7 @@
  * - Parallel steps run sequentially (with a warning)
  */
 
+import { consoleLogger } from "../observability/console-logger";
 import type { Actor, ActorType } from "../types/action";
 import type { EventBusLike } from "../types/event";
 import type {
@@ -396,7 +397,7 @@ export function createSyncFlowEngine(
 
       case "parallel": {
         const parallelStep = step as ParallelFlowStep;
-        console.warn(
+        consoleLogger.warn(
           `[SyncFlowEngine] Parallel step "${step.id}" — running ${parallelStep.steps.length} sub-steps sequentially (Restate required for true parallelism)`,
         );
 
@@ -552,7 +553,7 @@ export function createSyncFlowEngine(
         await processOnCompleteChains(instance, options.flowRegistry, engine);
       } catch (chainErr) {
         // Don't fail the parent flow if chaining fails
-        console.warn(
+        consoleLogger.warn(
           `[SyncFlowEngine] onComplete chain failed for flow "${instance.flowName}": ${chainErr instanceof Error ? chainErr.message : String(chainErr)}`,
         );
       }
