@@ -768,6 +768,185 @@ describe("SubscriptionManager", () => {
     });
   });
 
+  // ── Replay buffer (Last-Event-ID) ─────────────────────────
+
+  describe("replay buffer", () => {
+    test("stores recent events in replay buffer", async () => {
+      const mock = createMockConnection();
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: ["task"] },
+        push: mock.push,
+        close: mock.close,
+      });
+
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-2" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(manager.replayBufferSize).toBe(2);
+    });
+
+    test("replayFrom returns events after the given ID", async () => {
+      // Emit events that go into the replay buffer
+      const mock1 = createMockConnection();
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: ["task"] },
+        push: mock1.push,
+        close: mock1.close,
+      });
+
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-2" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-3" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      // mock1 received all 3 events
+      expect(mock1.events.length).toBe(3);
+
+      // Now simulate a reconnect: new connection, replay from event ID "1" (first event)
+      const mock2 = createMockConnection();
+      const connId2 = manager.addConnection({
+        userId: "user-2",
+        actor: { type: "user", id: "user-2", groups: [] },
+        filter: { entities: ["task"] },
+        push: mock2.push,
+        close: mock2.close,
+      });
+
+      expect(connId2).not.toBeNull();
+      // Replay from event "1" — should get events 2 and 3
+      const replayed = manager.replayFrom("1", connId2 as string);
+      expect(replayed).toBe(2);
+      expect(mock2.events.length).toBe(2);
+    });
+
+    test("replayFrom respects connection entity filter", async () => {
+      const mock1 = createMockConnection();
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: [] }, // subscribe to all
+        push: mock1.push,
+        close: mock1.close,
+      });
+
+      // Emit events for different entities
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
+      await bus.emit(makeEventRecord({ entity: "order", recordId: "order-1" }));
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-2" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(manager.replayBufferSize).toBe(3);
+
+      // New connection only subscribes to "task"
+      const mock2 = createMockConnection();
+      const connId2 = manager.addConnection({
+        userId: "user-2",
+        actor: { type: "user", id: "user-2", groups: [] },
+        filter: { entities: ["task"] },
+        push: mock2.push,
+        close: mock2.close,
+      });
+
+      // Replay from event "1" — should only get task events (events 2=order skipped, 3=task)
+      const replayed = manager.replayFrom("1", connId2 as string);
+      expect(replayed).toBe(1); // Only task-2 (event "3"), order-1 (event "2") is filtered out
+      expect(mock2.events.length).toBe(1);
+      expect(mock2.events[0]?.entity).toBe("task");
+    });
+
+    test("ring buffer evicts oldest events when full", async () => {
+      // Create a manager with a small replay buffer
+      const smallManager = new SubscriptionManager(bus, {
+        heartbeatInterval: 0,
+        idleTimeout: 0,
+        maxConnectionsPerUser: 3,
+        maxBufferSize: 100,
+        maxReplayBufferSize: 3,
+      });
+      smallManager.start();
+
+      const mock = createMockConnection();
+      smallManager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: [] },
+        push: mock.push,
+        close: mock.close,
+      });
+
+      // Emit 5 events into a buffer of size 3
+      for (let i = 0; i < 5; i++) {
+        await bus.emit(makeEventRecord({ entity: "task", recordId: `task-${i}` }));
+      }
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Buffer should only contain the last 3 events
+      expect(smallManager.replayBufferSize).toBe(3);
+
+      // Reconnect and replay from a very old event ID ("1") — should replay all 3 buffered events
+      // Since event "1" was evicted, replayFrom falls back to replaying everything
+      const mock2 = createMockConnection();
+      const connId2 = smallManager.addConnection({
+        userId: "user-2",
+        actor: { type: "user", id: "user-2", groups: [] },
+        filter: { entities: [] },
+        push: mock2.push,
+        close: mock2.close,
+      });
+
+      const replayed = smallManager.replayFrom("1", connId2 as string);
+      expect(replayed).toBe(3); // All buffered events replayed since "1" was evicted
+
+      smallManager.stop();
+    });
+
+    test("stop() clears the replay buffer", async () => {
+      const mock = createMockConnection();
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: [] },
+        push: mock.push,
+        close: mock.close,
+      });
+
+      await bus.emit(makeEventRecord({ entity: "task" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(manager.replayBufferSize).toBeGreaterThan(0);
+
+      manager.stop();
+      expect(manager.replayBufferSize).toBe(0);
+    });
+
+    test("replayFrom returns 0 for unknown connection ID", () => {
+      const replayed = manager.replayFrom("1", "nonexistent-conn");
+      expect(replayed).toBe(0);
+    });
+
+    test("events include eventId field after dispatch", async () => {
+      const mock = createMockConnection();
+      manager.addConnection({
+        userId: "user-1",
+        actor: { type: "user", id: "user-1", groups: [] },
+        filter: { entities: [] },
+        push: mock.push,
+        close: mock.close,
+      });
+
+      await bus.emit(makeEventRecord({ entity: "task", recordId: "task-1" }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mock.events.length).toBe(1);
+      expect(mock.events[0]?.eventId).toBeDefined();
+      expect(typeof mock.events[0]?.eventId).toBe("string");
+    });
+  });
+
   // ── Dead connection close ──────────────────────────────────
 
   describe("dead connection cleanup", () => {
