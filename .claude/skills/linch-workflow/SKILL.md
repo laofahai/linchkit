@@ -73,6 +73,7 @@ Before creating a PR, request cross-model review for a second opinion.
    done
    ```
    Known tools and their non-interactive modes:
+
    | Tool | Backend | Non-interactive mode |
    |------|---------|---------------------|
    | codex | OpenAI | `codex review --uncommitted` / `codex exec "<prompt>"` |
