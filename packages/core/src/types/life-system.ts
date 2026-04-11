@@ -183,3 +183,90 @@ export interface AwarenessEngine {
   structuralCheck(): StructuralIssue[];
   ingestSignal(signal: SensorSignal): void;
 }
+
+// ── Insight layer (Spec 55 §6) ─────────────────────────────
+
+/** Insight types as defined in Spec 55 §6.2 */
+export type InsightType = "anomaly" | "friction" | "pattern" | "structural" | "positive";
+
+/** Causality annotation — distinguishes fact types (Spec 55 §6.1) */
+export type InsightCausality = "causal" | "correlational" | "structural";
+
+/** Impact level for prioritization */
+export type InsightImpact = "low" | "medium" | "high";
+
+/** Evidence pack attached to every Insight (Spec 55 §6.1) */
+export interface InsightEvidence {
+  signals: SensorSignal[];
+  baseline?: Baseline;
+  context: Record<string, unknown>;
+  counterExamples?: unknown[];
+}
+
+/**
+ * Insight — a fact with evidence, discovered by the system (Spec 55 §6).
+ *
+ * Insights are NOT suggestions. They are evidence-backed observations
+ * that emerge from Awareness. AI is not needed to generate them.
+ */
+export interface Insight {
+  id: string;
+  type: InsightType;
+  confidence: number;
+  impact: InsightImpact;
+  evidence: InsightEvidence;
+  /** Human-readable summary of the finding */
+  summary: string;
+  causality: InsightCausality;
+  /** Entity this insight relates to */
+  entity: string;
+  /** When this insight was generated */
+  createdAt: Date;
+}
+
+/**
+ * Promotion config — controls when signal candidates become Insights (Spec 55 §6.3).
+ * "structural" insights skip promotion (one occurrence is enough).
+ */
+export interface InsightPromotionConfig {
+  /** Minimum occurrences of the same pattern before promotion. Default: 3 */
+  minOccurrences: number;
+  /** Pattern must appear across at least N distinct contexts. Default: 2 */
+  minDistinctContexts: number;
+  /** Time window for counting occurrences (ms). Default: 30 days */
+  timeWindowMs: number;
+  /** Minimum confidence for promotion. Default: 0.7 */
+  minConfidence: number;
+}
+
+/**
+ * InsightEngine — generates Insights from Awareness + Memory data (Spec 55 §6).
+ */
+export interface InsightEngine {
+  /** Generate insights from current awareness state */
+  generateInsights(): Promise<Insight[]>;
+  /** Record a drift event as an insight candidate */
+  recordDriftCandidate(signal: SensorSignal, deviation: number): void;
+  /** Get all promoted insights */
+  getInsights(): Insight[];
+}
+
+// ── Evolution Cycle (Spec 55 §2.2) ────────────────────────
+
+/** Result of a single evolution cycle run. */
+export interface EvolutionCycleResult {
+  signalsCollected: number;
+  driftsDetected: number;
+  newInsights: Insight[];
+  totalInsights: number;
+}
+
+/**
+ * EvolutionCycle — end-to-end orchestrator for Sense → Memory → Awareness → Insight.
+ */
+export interface EvolutionCycle {
+  /** Execute one full cycle: collect → ingest → detect drift → generate insights */
+  runCycle(ctx?: SensorContext): Promise<EvolutionCycleResult>;
+  readonly insightEngine: InsightEngine;
+  readonly awarenessEngine: AwarenessEngine;
+}
