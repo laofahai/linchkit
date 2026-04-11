@@ -106,9 +106,9 @@ Before creating a PR, request cross-model review for a second opinion.
 
    | Tool | Backend | Non-interactive mode |
    |------|---------|---------------------|
-   | codex | OpenAI | \`codex review --uncommitted\` / \`codex exec "<prompt>"\` |
-   | gemini | Google | \`gemini -p "<prompt>"\` or heredoc |
-   | claude | Anthropic | \`claude -p "<prompt>"\` or heredoc |
+   | codex | OpenAI | \`codex review --commit HEAD~1..HEAD\` |
+   | gemini | Google | \`stdin \\| gemini --prompt "<prompt>"\` |
+   | claude | Anthropic | \`stdin \\| claude -p "<prompt>"\` |
    | aider | Multi-backend | \`aider --message "<prompt>"\` |
    | llm | Multi-backend (incl. OpenRouter) | \`llm "<prompt>"\` or stdin |
    | mods | Multi-backend (incl. OpenRouter) | stdin: \`echo "<prompt>" \\| mods\` |
@@ -119,21 +119,15 @@ Before creating a PR, request cross-model review for a second opinion.
 
    If a tool is found but not in this list, check \`<tool> --help\` for its non-interactive flag.
 2. **Ask user**: "The following review tools are available: [list]. May I run cross-model review?" — proceed only with approval.
-3. **Run reviews** — use heredoc to pass prompts safely (diffs contain special chars like \`$\`, backticks):
+3. **Run reviews** — pipe diff via stdin (diffs contain special chars like \`$\`, backticks):
    \`\`\`bash
    # Codex has built-in review
-   codex review --uncommitted
-   # Other tools: use heredoc with tool-specific flag (see table above)
-   # Example for gemini/claude (-p flag):
-   gemini -p <<'EOF'
-   Review the following changes: ...
-   <diff>
-   EOF
-   # Example for tools that read stdin (llm, mods):
-   llm <<'EOF'
-   Review the following changes: ...
-   <diff>
-   EOF
+   codex review --commit HEAD~1..HEAD
+   # Gemini/Claude — pipe diff to stdin, prompt via flag
+   git diff HEAD~1 HEAD | gemini --prompt "Review these changes for correctness, edge cases, and import hygiene."
+   git diff HEAD~1 HEAD | claude -p "Review these changes for correctness, edge cases, and import hygiene."
+   # Tools that read stdin directly (llm, mods)
+   git diff HEAD~1 HEAD | llm "Review these changes for correctness."
    \`\`\`
 4. **Second evaluation** — do NOT blindly accept all findings. For each issue:
    - Verify against documentation/source code — is the claim correct?
