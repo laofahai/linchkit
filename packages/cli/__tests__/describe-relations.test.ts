@@ -6,7 +6,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { defineRelation, type RelationDefinition } from "@linchkit/core";
+import { defineRelation } from "@linchkit/core";
 import {
   buildRelationsOverview,
   printRelationsOverview,

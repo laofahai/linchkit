@@ -83,7 +83,7 @@ export function registerExecutionLogTools(
             },
           ],
         };
-      } catch (err) {
+      } catch (_err) {
         return {
           content: [
             {
@@ -153,7 +153,7 @@ export function registerExecutionLogTools(
             },
           ],
         };
-      } catch (err) {
+      } catch (_err) {
         return {
           content: [
             {

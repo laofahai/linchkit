@@ -241,6 +241,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
       t,
       // biome-ignore lint/correctness/useExhaustiveDependencies: prepareMutationInput only depends on schema which is stable
       prepareMutationInput,
+      relationFkColumns.has,
     ],
   );
 

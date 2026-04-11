@@ -140,7 +140,7 @@ describe("round-trip mask/unmask", () => {
     const { masked, session } = maskContext(original);
 
     // Simulate AI response that references the masked token
-    const aiResponse = `I will contact ${masked.match(/\[MASKED_EMAIL_\d+\]/)![0]} regarding the order.`;
+    const aiResponse = `I will contact ${masked.match(/\[MASKED_EMAIL_\d+\]/)?.[0]} regarding the order.`;
 
     const unmasked = unmaskContext(aiResponse, session);
     expect(unmasked).toContain("john@example.com");
