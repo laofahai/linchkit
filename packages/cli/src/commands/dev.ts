@@ -81,7 +81,9 @@ export const devCommand = defineCommand({
       if (msg.startsWith("Config file not found:")) {
         consoleLogger.info("No config found, using defaults.");
       } else {
-        consoleLogger.error(`Failed to load config: ${msg}`);
+        consoleLogger.error(`Failed to load config: ${msg}`, {
+          error: err instanceof Error ? err.stack : undefined,
+        });
         process.exit(1);
       }
     }
@@ -97,7 +99,9 @@ export const devCommand = defineCommand({
     } catch (err) {
       // ConfigRegistry.create collects all validation errors and throws once
       const msg = err instanceof Error ? err.message : String(err);
-      consoleLogger.error(`Configuration validation failed:\n\n${msg}`);
+      consoleLogger.error(`Configuration validation failed:\n\n${msg}`, {
+        error: err instanceof Error ? err.stack : undefined,
+      });
       process.exit(1);
     }
 
@@ -197,7 +201,9 @@ export const devCommand = defineCommand({
         consoleLogger.info(`Transport ${transport.name} started.`);
       } catch (err) {
         const error = err as Error;
-        consoleLogger.error(`Failed to start transport "${transport.name}": ${error.message}`);
+        consoleLogger.error(`Failed to start transport "${transport.name}": ${error.message}`, {
+          error: error.stack,
+        });
       }
     }
 
@@ -240,7 +246,7 @@ export const devCommand = defineCommand({
 
     shutdownManager.bindSignals();
 
-    consoleLogger.info("");
+    process.stdout.write("\n");
     consoleLogger.info("Dev server ready. Press Ctrl+C to stop.");
   },
 });

@@ -28,7 +28,7 @@ export interface PinoLoggerOptions {
  */
 export function createPinoLogger(options: PinoLoggerOptions = {}): Logger {
   // Auto-detect: pretty when TTY + non-production, unless explicitly set
-  const autoPretty = process.stdout.isTTY === true && process.env.NODE_ENV !== "production";
+  const autoPretty = process.stdout?.isTTY === true && process.env.NODE_ENV !== "production";
 
   const {
     name,

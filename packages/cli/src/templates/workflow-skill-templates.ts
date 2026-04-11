@@ -106,7 +106,7 @@ Before creating a PR, request cross-model review for a second opinion.
 
    | Tool | Backend | Non-interactive mode |
    |------|---------|---------------------|
-   | codex | OpenAI | \`codex review --commit HEAD~1..HEAD\` |
+   | codex | OpenAI | \`codex review --commit main..HEAD\` |
    | gemini | Google | \`stdin \\| gemini --prompt "<prompt>"\` |
    | claude | Anthropic | \`stdin \\| claude -p "<prompt>"\` |
    | aider | Multi-backend | \`aider --message "<prompt>"\` |
@@ -122,12 +122,12 @@ Before creating a PR, request cross-model review for a second opinion.
 3. **Run reviews** — pipe diff via stdin (diffs contain special chars like \`$\`, backticks):
    \`\`\`bash
    # Codex has built-in review
-   codex review --commit HEAD~1..HEAD
+   codex review --commit main..HEAD
    # Gemini/Claude — pipe diff to stdin, prompt via flag
-   git diff HEAD~1 HEAD | gemini --prompt "Review these changes for correctness, edge cases, and import hygiene."
-   git diff HEAD~1 HEAD | claude -p "Review these changes for correctness, edge cases, and import hygiene."
+   git diff main..HEAD | gemini --prompt "Review these changes for correctness, edge cases, and import hygiene."
+   git diff main..HEAD | claude -p "Review these changes for correctness, edge cases, and import hygiene."
    # Tools that read stdin directly (llm, mods)
-   git diff HEAD~1 HEAD | llm "Review these changes for correctness."
+   git diff main..HEAD | llm "Review these changes for correctness."
    \`\`\`
 4. **Second evaluation** — do NOT blindly accept all findings. For each issue:
    - Verify against documentation/source code — is the claim correct?

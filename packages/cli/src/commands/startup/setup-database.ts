@@ -146,7 +146,9 @@ export async function setupDatabase(opts: {
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    consoleLogger.error(`Failed to connect to PostgreSQL: ${msg}`);
+    consoleLogger.error(`Failed to connect to PostgreSQL: ${msg}`, {
+      error: err instanceof Error ? err.stack : undefined,
+    });
     // Clean up the database connection pool before falling back
     await closeDatabase();
     consoleLogger.info("Falling back to InMemoryStore");

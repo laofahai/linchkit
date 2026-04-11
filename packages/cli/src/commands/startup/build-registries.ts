@@ -136,7 +136,9 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
         consoleLogger.info("Auto-wired permission middleware from discovered permission groups");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        consoleLogger.warn(`Failed to auto-wire permission middleware: ${msg}`);
+        consoleLogger.warn(`Failed to auto-wire permission middleware: ${msg}`, {
+          error: err instanceof Error ? err.stack : undefined,
+        });
       }
     }
   }
