@@ -6,4 +6,4 @@ wf_show
 echo "## Current Branch"
 git rev-parse --abbrev-ref HEAD 2>/dev/null
 echo "## Uncommitted Changes"
-git diff --stat 2>/dev/null
+git status --short 2>/dev/null

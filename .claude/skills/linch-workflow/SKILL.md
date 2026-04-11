@@ -50,14 +50,15 @@ Read the user's request and classify:
 
 ## Step 4: Verify
 
-All four quality gates MUST pass before committing.
-Hooks track progress in `$TMPDIR/linchkit-wf-<branch-slug>` — `git commit` is blocked until check/typecheck/test all pass.
+Quality gates MUST pass before committing.
+Hooks track progress in a per-branch state file (via `.claude/hooks/workflow-state.sh`).
+`git commit` is blocked until check/typecheck/test all pass. `linch validate` is manual.
 
 ```bash
-linch validate        # Meta-model validation
-bun run check         # Biome lint + format (auto-tracked by hook)
-bun run typecheck     # TypeScript strict check (auto-tracked by hook)
-bun test              # Full test suite (auto-tracked by hook)
+linch validate        # Meta-model validation (manual — run when touching definitions)
+bun run check         # Biome lint + format (hook-tracked)
+bun run typecheck     # TypeScript strict check (hook-tracked)
+bun test              # Full test suite (hook-tracked, must be exact `bun test` not filtered)
 ```
 
 ## Step 5: Cross-Model Review
@@ -84,6 +85,7 @@ Before creating a PR, request cross-model review for a second opinion.
    | ollama | Local models | `ollama run <model> "<prompt>"` |
    | fabric | Multi-backend | `fabric -p "<prompt>"` |
    | goose | Multi-backend | `goose run "<prompt>"` |
+
    If a tool is found but not in this list, check `<tool> --help` for its non-interactive flag.
 2. **Ask user**: "The following review tools are available: [list]. May I run cross-model review?" — proceed only with approval.
 3. **Run reviews** — use heredoc to pass prompts safely (diffs contain special chars like `$`, backticks):

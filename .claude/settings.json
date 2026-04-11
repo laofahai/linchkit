@@ -15,7 +15,6 @@
       "Bash(mkdir *)",
       "Bash(cp *)",
       "Bash(wc *)",
-      "Bash(for *)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
@@ -159,7 +158,7 @@
           },
           {
             "type": "command",
-            "if": "Bash(bun test*)",
+            "if": "Bash(bun test)",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh tests_passed",
             "timeout": 5
           },

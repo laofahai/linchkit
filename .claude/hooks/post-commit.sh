@@ -3,9 +3,9 @@
 # Preserves cross_model_review marker so gh pr create is not blocked after fixup commits.
 source "$(dirname "$0")/workflow-state.sh"
 
-# Check if npm-published code changed
+# Check if npm-published code changed (commit-scoped, not work-tree)
 if git rev-parse HEAD~1 >/dev/null 2>&1 \
-  && git diff HEAD~1 --name-only | grep -qE '^(packages|addons)/'; then
+  && git diff-tree --no-commit-id --name-only -r HEAD | grep -qE '^(packages|addons)/'; then
   echo "npm-published code changed. Run bunx changeset if this needs a version bump."
 fi
 

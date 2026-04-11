@@ -2,11 +2,10 @@
 # Stop hook — remind about remaining workflow steps if work is uncommitted.
 source "$(dirname "$0")/workflow-state.sh"
 
-# Check for uncommitted changes
-CHANGES=$(git diff --stat 2>/dev/null)
-STAGED=$(git diff --cached --stat 2>/dev/null)
+# Check for any local changes including untracked files
+CHANGES=$(git status --porcelain --untracked-files=normal 2>/dev/null)
 
-if [ -z "$CHANGES" ] && [ -z "$STAGED" ]; then
+if [ -z "$CHANGES" ]; then
   # No changes — just remind about spec status
   echo "Reminder: If you changed spec implementation status, update docs/specs/INDEX.md."
   exit 0
