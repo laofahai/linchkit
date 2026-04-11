@@ -251,9 +251,94 @@ describe("InsightEngine", () => {
     });
   });
 
+  describe("metric separation", () => {
+    test("tracks different metrics as separate candidates", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: { minOccurrences: 1, minDistinctContexts: 1, minConfidence: 0.5 },
+      });
+
+      // Same entity+sensor, different metrics
+      engine.recordDriftCandidate(
+        makeSignal({ context: { entity: "order", metric: "count", tenantId: "t1" } }),
+        0.5,
+      );
+      engine.recordDriftCandidate(
+        makeSignal({ context: { entity: "order", metric: "latency", tenantId: "t1" } }),
+        0.8,
+      );
+
+      const insights = await engine.generateInsights();
+      const anomalies = insights.filter((i) => i.type === "anomaly");
+      expect(anomalies).toHaveLength(2);
+    });
+  });
+
+  describe("single-tenant context distinction", () => {
+    test("uses source for context in single-tenant mode", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: { minOccurrences: 2, minDistinctContexts: 2, minConfidence: 0.5 },
+      });
+
+      // No tenantId, but different sources → distinct contexts
+      engine.recordDriftCandidate(makeSignal({ source: "api", context: { entity: "order" } }), 0.5);
+      engine.recordDriftCandidate(
+        makeSignal({ source: "graphql", context: { entity: "order" } }),
+        0.6,
+      );
+
+      const insights = await engine.generateInsights();
+      expect(insights.filter((i) => i.type === "anomaly")).toHaveLength(1);
+    });
+  });
+
+  describe("maxDeviation recomputation", () => {
+    test("recomputes maxDeviation after pruning expired high-deviation signal", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: {
+          minOccurrences: 2,
+          minDistinctContexts: 1,
+          minConfidence: 0.5,
+          timeWindowMs: 1000,
+        },
+      });
+
+      // Old signal with HIGH deviation (will be pruned)
+      engine.recordDriftCandidate(
+        makeSignal({
+          timestamp: new Date(Date.now() - 5000),
+          deviation: 0.9,
+          context: { entity: "order", tenantId: "t1" },
+        }),
+        0.9,
+      );
+      // Two recent signals with LOW deviation
+      engine.recordDriftCandidate(
+        makeSignal({ deviation: 0.2, context: { entity: "order", tenantId: "t1" } }),
+        0.2,
+      );
+      engine.recordDriftCandidate(
+        makeSignal({ deviation: 0.3, context: { entity: "order", tenantId: "t1" } }),
+        0.3,
+      );
+
+      const insights = await engine.generateInsights();
+      const anomaly = insights.find((i) => i.type === "anomaly");
+      // Impact should be "low" (deviation 0.3) not "high" (pruned 0.9)
+      expect(anomaly?.impact).toBe("low");
+    });
+  });
+
   describe("retention limit", () => {
     test("evicts oldest insights when over maxRetainedInsights", async () => {
-      // Create 3 entities without views → 3 structural insights
       const ontology = makeOntology({
         A: { views: [], actions: [] },
         B: { views: [], actions: [] },
@@ -262,12 +347,59 @@ describe("InsightEngine", () => {
       const awareness = createAwarenessEngine({ ontology });
       const engine = createInsightEngine({
         awareness,
-        maxRetainedInsights: 2, // Only keep 2
+        maxRetainedInsights: 2,
       });
 
       await engine.generateInsights();
       const all = engine.getInsights();
-      expect(all).toHaveLength(2); // Oldest evicted
+      expect(all).toHaveLength(2);
+    });
+
+    test("clamps negative maxRetainedInsights to 1", async () => {
+      const ontology = makeOntology({ A: { views: [], actions: [] } });
+      const awareness = createAwarenessEngine({ ontology });
+      // Should not infinite loop with negative value
+      const engine = createInsightEngine({
+        awareness,
+        maxRetainedInsights: -1,
+      });
+      await engine.generateInsights();
+      expect(engine.getInsights()).toHaveLength(1);
+    });
+
+    test("evicted insights can be re-generated when pattern recurs", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        maxRetainedInsights: 1,
+        promotion: { minOccurrences: 1, minDistinctContexts: 1, minConfidence: 0.5 },
+      });
+
+      // First drift → promoted, fills the 1 slot
+      engine.recordDriftCandidate(
+        makeSignal({ context: { entity: "order", metric: "count", tenantId: "t1" } }),
+        0.5,
+      );
+      await engine.generateInsights();
+      expect(engine.getInsights()).toHaveLength(1);
+
+      // Second drift → promoted, evicts first (and clears its key)
+      engine.recordDriftCandidate(
+        makeSignal({ context: { entity: "product", metric: "count", tenantId: "t1" } }),
+        0.6,
+      );
+      await engine.generateInsights();
+      expect(engine.getInsights()).toHaveLength(1);
+
+      // Re-record first pattern → should be re-generated since key was cleared
+      engine.recordDriftCandidate(
+        makeSignal({ context: { entity: "order", metric: "count", tenantId: "t1" } }),
+        0.5,
+      );
+      const third = await engine.generateInsights();
+      const reGenerated = third.filter((i) => i.type === "anomaly" && i.entity === "order");
+      expect(reGenerated).toHaveLength(1);
     });
   });
 
