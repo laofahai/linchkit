@@ -9,7 +9,7 @@ import type { EntityDefinition } from "@linchkit/core/types";
 import { toast } from "@linchkit/ui-kit/components";
 import type { NavigateOptions } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { EnrichedSubmitData } from "../components/auto-form/types";
 import type { StateTransitionInfo } from "../components/status-bar";
 import type { ResolvedEntityBundle } from "../hooks/use-entity-bundle";
@@ -67,17 +67,20 @@ export function useFormActions(opts: UseFormActionsOptions) {
 
   // Build set of auto-generated FK column names from relations (e.g., "department_id")
   // These may not be in schema.fields but are valid mutation input fields.
-  const relationFkColumns = new Set<string>();
-  if (bundle?.relations && entityName) {
-    for (const rel of bundle.relations) {
-      if (
-        rel.from === entityName &&
-        (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one")
-      ) {
-        relationFkColumns.add(`${rel.fromName}_id`);
+  const relationFkColumns = useMemo(() => {
+    const fkSet = new Set<string>();
+    if (bundle?.relations && entityName) {
+      for (const rel of bundle.relations) {
+        if (
+          rel.from === entityName &&
+          (rel.cardinality === "many_to_one" || rel.cardinality === "one_to_one")
+        ) {
+          fkSet.add(`${rel.fromName}_id`);
+        }
       }
     }
-  }
+    return fkSet;
+  }, [bundle?.relations, entityName]);
 
   /** Prepare mutation input by stripping non-input fields. FK fields (string type) are passed through directly. */
   function prepareMutationInput(data: Record<string, unknown>): Record<string, unknown> {
@@ -239,9 +242,9 @@ export function useFormActions(opts: UseFormActionsOptions) {
       navigate,
       fetchRecord,
       t,
-      // biome-ignore lint/correctness/useExhaustiveDependencies: prepareMutationInput only depends on schema which is stable
+      // biome-ignore lint/correctness/useExhaustiveDependencies: prepareMutationInput depends on schema and relationFkColumns
       prepareMutationInput,
-      relationFkColumns.has,
+      relationFkColumns,
     ],
   );
 
