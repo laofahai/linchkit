@@ -114,7 +114,20 @@ export function createEvolutionRuntime(opts: EvolutionRuntimeOptions): Evolution
     insightPromotion: opts.insightPromotion,
   });
 
+  // Register sensors, guarding against duplicate names. SignalBus stores sensors
+  // in a Map keyed by name, so registering two with the same name would silently
+  // overwrite the first. Duplicates almost always indicate a capability
+  // misconfiguration (e.g. two capabilities shipping sensors with clashing
+  // names) and we want that to fail fast with a clear error.
+  const registered = new Set<string>();
   for (const sensor of opts.sensors) {
+    if (registered.has(sensor.name)) {
+      throw new Error(
+        `Duplicate sensor name "${sensor.name}" in createEvolutionRuntime opts.sensors. ` +
+          `Sensor names must be unique across all capabilities.`,
+      );
+    }
+    registered.add(sensor.name);
     signalBus.registerSensor(sensor);
   }
 

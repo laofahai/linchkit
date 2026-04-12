@@ -48,7 +48,8 @@ export const purchaseRejectionPattern = defineSensor({
   async detect(ctx: SensorContext): Promise<SensorSignal | null> {
     if (!ctx.query) return null;
 
-    const windowStart = new Date(ctx.timestamp.getTime() - WINDOW_MS);
+    const windowEnd = ctx.timestamp;
+    const windowStart = new Date(windowEnd.getTime() - WINDOW_MS);
 
     // DataProvider.query treats `filter` as a key-equality map
     // (see DataProvider in packages/core/src/engine/action-engine.ts).
@@ -68,12 +69,16 @@ export const purchaseRejectionPattern = defineSensor({
     // not a legitimate rejection event. Excluding (rather than including) is
     // the conservative choice: we under-report rather than spike the signal
     // and trigger a false positive insight.
+    //
+    // Also exclude future timestamps (> ctx.timestamp). A completed_at after
+    // the cycle's reference time indicates clock skew or data corruption, not
+    // a legitimate event in the window we are measuring.
     const recentRejections = records.filter((record) => {
       const raw = record.completed_at;
       if (raw == null) return false;
       const ts = raw instanceof Date ? raw : new Date(raw);
       if (Number.isNaN(ts.getTime())) return false;
-      return ts.getTime() >= windowStart.getTime();
+      return ts.getTime() >= windowStart.getTime() && ts.getTime() <= windowEnd.getTime();
     });
 
     const value = recentRejections.length;

@@ -124,6 +124,25 @@ describe("purchaseRejectionPattern sensor", () => {
     expect(signal?.value).toBe(1);
   });
 
+  test("EXCLUDES records with future timestamps (clock skew / corruption guard)", async () => {
+    // completed_at after ctx.timestamp indicates data corruption or clock skew.
+    // Those records should not count toward the window.
+    const now = new Date("2026-04-11T00:00:00.000Z");
+    const inWindow = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 1d ago
+    const inFuture = new Date(now.getTime() + 60_000); // 1min in the future
+
+    const { ctx } = makeContext({
+      timestamp: now,
+      rows: [
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inWindow },
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inFuture },
+      ],
+    });
+
+    const signal = await purchaseRejectionPattern.detect(ctx);
+    expect(signal?.value).toBe(1);
+  });
+
   test("produces a fully-populated SensorSignal", async () => {
     const now = new Date("2026-04-11T00:00:00.000Z");
     const { ctx } = makeContext({

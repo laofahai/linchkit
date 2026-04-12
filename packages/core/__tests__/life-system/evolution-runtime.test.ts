@@ -137,4 +137,22 @@ describe("createEvolutionRuntime", () => {
     const result = await runtime.evolutionCycle.runCycle();
     expect(result.signalsCollected).toBe(0);
   });
+
+  test("throws on duplicate sensor names", () => {
+    // Two sensors with the same name silently overwrite each other on SignalBus
+    // (Map keyed by name). Duplicates indicate a capability misconfiguration
+    // and should fail fast.
+    const a = defineSensor({
+      name: "dup_sensor",
+      source: "event_bus",
+      detect: async () => null,
+    });
+    const b = defineSensor({
+      name: "dup_sensor",
+      source: "api",
+      detect: async () => null,
+    });
+
+    expect(() => createEvolutionRuntime({ sensors: [a, b] })).toThrow(/Duplicate sensor name/);
+  });
 });
