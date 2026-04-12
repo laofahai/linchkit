@@ -1,0 +1,140 @@
+/**
+ * Integration test for createEvolutionRuntime — proves the wiring chain:
+ *
+ *   capability.extensions.sensors → createEvolutionRuntime
+ *     → signalBus.registerSensor → runCycle → sensor.detect
+ *
+ * Without this test the `sensors` field on a CapabilityDefinition is silently
+ * dead config: the Codex review caught exactly that defect on the first MVP.
+ */
+
+import { describe, expect, test } from "bun:test";
+import {
+  type CapabilityDefinition,
+  createEvolutionRuntime,
+  defineSensor,
+  type SensorContext,
+  type SensorSignal,
+} from "../../src";
+
+describe("createEvolutionRuntime", () => {
+  test("registers sensors from capability and runCycle collects signals", async () => {
+    // Build a trivial sensor that returns a fixed signal whenever ctx.query
+    // returns rows. We deliberately consult ctx.query so we can verify the
+    // runtime wires the runtime-level `query` default into SensorContext.
+    const sensor = defineSensor({
+      name: "trivial_sensor",
+      source: "event_bus",
+      entity: "execution_log",
+      detect: async (ctx: SensorContext): Promise<SensorSignal | null> => {
+        if (!ctx.query) return null;
+        const rows = await ctx.query<{ action_name: string }>("execution_log", {
+          action_name: "reject_purchase_request",
+          status: "succeeded",
+        });
+        return {
+          sensor: "trivial_sensor",
+          source: "event_bus",
+          timestamp: ctx.timestamp,
+          value: rows.length,
+          baseline: 0,
+          deviation: 0,
+          confidence: 0.9,
+          context: { entity: "execution_log", metric: "rejection_count" },
+        };
+      },
+    });
+
+    // Pretend a capability declared this sensor in its extensions.
+    const cap: CapabilityDefinition = {
+      name: "test-cap",
+      label: "Test Cap",
+      type: "standard",
+      category: "system",
+      version: "0.0.0",
+      extensions: { sensors: [sensor] },
+    };
+
+    // Capture every query call so we can verify the sensor actually invoked it.
+    const queryCalls: Array<{ schema: string; filter?: Record<string, unknown> }> = [];
+    const queryRows = [
+      { action_name: "reject_purchase_request", status: "succeeded" },
+      { action_name: "reject_purchase_request", status: "succeeded" },
+      { action_name: "reject_purchase_request", status: "succeeded" },
+    ];
+
+    const runtime = createEvolutionRuntime({
+      sensors: cap.extensions?.sensors ?? [],
+      query: async <T>(schema: string, filter?: Record<string, unknown>) => {
+        queryCalls.push({ schema, filter });
+        return queryRows as T[];
+      },
+    });
+
+    // Wiring assertion #1: SignalBus knows about the sensor.
+    expect(runtime.signalBus.listSensors()).toContain("trivial_sensor");
+
+    // Wiring assertion #2: runCycle propagates ctx (and our default query)
+    // into sensors and aggregates the resulting signals.
+    const result = await runtime.evolutionCycle.runCycle({ timestamp: new Date() });
+    expect(result.signalsCollected).toBeGreaterThanOrEqual(1);
+
+    // Wiring assertion #3: the runtime-level `query` was actually used.
+    expect(queryCalls).toHaveLength(1);
+    expect(queryCalls[0]?.schema).toBe("execution_log");
+    expect(queryCalls[0]?.filter).toEqual({
+      action_name: "reject_purchase_request",
+      status: "succeeded",
+    });
+  });
+
+  test("caller-supplied ctx.query overrides the runtime default", async () => {
+    let runtimeQueryCalls = 0;
+    let callerQueryCalls = 0;
+
+    const sensor = defineSensor({
+      name: "override_sensor",
+      source: "event_bus",
+      detect: async (ctx: SensorContext): Promise<SensorSignal | null> => {
+        if (!ctx.query) return null;
+        await ctx.query("execution_log");
+        return {
+          sensor: "override_sensor",
+          source: "event_bus",
+          timestamp: ctx.timestamp,
+          value: 1,
+          baseline: 0,
+          deviation: 0,
+          confidence: 0.5,
+          context: {},
+        };
+      },
+    });
+
+    const runtime = createEvolutionRuntime({
+      sensors: [sensor],
+      query: async () => {
+        runtimeQueryCalls++;
+        return [];
+      },
+    });
+
+    await runtime.evolutionCycle.runCycle({
+      timestamp: new Date(),
+      query: async () => {
+        callerQueryCalls++;
+        return [];
+      },
+    });
+
+    expect(callerQueryCalls).toBe(1);
+    expect(runtimeQueryCalls).toBe(0);
+  });
+
+  test("works with zero sensors", async () => {
+    const runtime = createEvolutionRuntime({ sensors: [] });
+    expect(runtime.signalBus.listSensors()).toEqual([]);
+    const result = await runtime.evolutionCycle.runCycle();
+    expect(result.signalsCollected).toBe(0);
+  });
+});

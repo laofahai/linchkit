@@ -14,6 +14,7 @@ import type {
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
+  Sensor,
   StateDefinition,
   TransportAdapterDefinition,
   ViewDefinition,
@@ -33,6 +34,8 @@ export interface CollectedDefinitions {
   transports: TransportAdapterDefinition[];
   graphqlExtensions: GraphQLExtensionRegistration[];
   commands: CliCommand[];
+  /** Sensors collected from `cap.extensions.sensors` for the Sense layer (Spec 55 §3.3). */
+  sensors: Sensor[];
 }
 
 /**
@@ -55,6 +58,7 @@ export function collectCapabilityDefinitions(
   const transports: TransportAdapterDefinition[] = [];
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
+  const sensors: Sensor[] = [];
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
@@ -80,6 +84,7 @@ export function collectCapabilityDefinitions(
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
     }
     if (cap.extensions?.commands) commands.push(...cap.extensions.commands);
+    if (cap.extensions?.sensors) sensors.push(...cap.extensions.sensors);
 
     // Register i18n translation resources from the capability
     if (cap.extensions?.i18n) {
@@ -102,5 +107,6 @@ export function collectCapabilityDefinitions(
     transports,
     graphqlExtensions,
     commands,
+    sensors,
   };
 }

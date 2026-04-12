@@ -1,10 +1,20 @@
 /**
  * purchase_rejection_pattern Sensor — Spec 55 §3.3 (Evolution Path A, Task 1)
  *
- * Observes the rate of rejected purchase requests over a rolling time window
- * and emits a SensorSignal whose `value` is the count of rejections in window.
+ * Counts rejection EVENTS over a rolling 30-day window and emits a SensorSignal
+ * whose `value` is the number of `reject_purchase_request` action invocations
+ * in that window.
  *
- * Memory layer is responsible for computing the baseline / deviation across
+ * Why event-based rather than current-state-based:
+ *   A purchase_request that was rejected and then resubmitted has
+ *   `status="pending"` again — the rejection moment is no longer visible in
+ *   the current row state. Counting `purchase_request.status="rejected"`
+ *   therefore systematically undercounts the friction signal we care about.
+ *   Querying `execution_log` for `action_name="reject_purchase_request"` /
+ *   `status="succeeded"` captures every rejection event, regardless of what
+ *   the request looks like today.
+ *
+ * Memory layer is responsible for computing baseline / deviation across
  * cycles; this sensor only reports the raw observation plus a confidence
  * estimate scaled with sample size.
  */
@@ -15,17 +25,19 @@ import { defineSensor } from "@linchkit/core";
 /** Rolling window for rejection counting (30 days). */
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Minimum rejected-record count above which we treat the signal as high-confidence. */
+/** Minimum rejected-event count above which we treat the signal as high-confidence. */
 const HIGH_CONFIDENCE_THRESHOLD = 3;
 
 /** Confidence values (0–1). */
 const CONFIDENCE_LOW = 0.5;
 const CONFIDENCE_HIGH = 0.8;
 
-/** Subset of purchase_request fields the sensor needs. */
-interface RejectedRecord {
+/** Subset of execution_log fields the sensor needs.
+ *  See addons/adapter-server/cap-adapter-server/src/system-schemas.ts:20-103. */
+interface ExecutionLogRecord {
+  action_name?: string;
   status?: string;
-  updated_at?: Date | string | null;
+  completed_at?: Date | string | null;
 }
 
 export const purchaseRejectionPattern = defineSensor({
@@ -40,21 +52,31 @@ export const purchaseRejectionPattern = defineSensor({
 
     // DataProvider.query treats `filter` as a key-equality map
     // (see DataProvider in packages/core/src/engine/action-engine.ts).
-    // We post-filter on `updated_at` because a date-range predicate is
+    // We post-filter on `completed_at` because a date-range predicate is
     // not part of the simple equality filter contract.
-    const rejected = await ctx.query<RejectedRecord>("purchase_request", {
-      status: "rejected",
+    //
+    // Querying the action invocation log captures every rejection event,
+    // even when the underlying purchase_request was later resubmitted and
+    // is no longer in `status="rejected"`.
+    const records = await ctx.query<ExecutionLogRecord>("execution_log", {
+      action_name: "reject_purchase_request",
+      status: "succeeded",
     });
 
-    const recentRejected = rejected.filter((record) => {
-      const raw = record.updated_at;
-      if (raw == null) return true; // include records with no timestamp (treat as recent)
+    // Exclude records with null/missing/invalid completed_at. A successful
+    // execution must have a completed_at; a missing one is data corruption,
+    // not a legitimate rejection event. Excluding (rather than including) is
+    // the conservative choice: we under-report rather than spike the signal
+    // and trigger a false positive insight.
+    const recentRejections = records.filter((record) => {
+      const raw = record.completed_at;
+      if (raw == null) return false;
       const ts = raw instanceof Date ? raw : new Date(raw);
-      if (Number.isNaN(ts.getTime())) return true;
+      if (Number.isNaN(ts.getTime())) return false;
       return ts.getTime() >= windowStart.getTime();
     });
 
-    const value = recentRejected.length;
+    const value = recentRejections.length;
 
     return {
       sensor: "purchase_rejection_pattern",

@@ -1,8 +1,9 @@
 /**
  * Tests for purchase_rejection_pattern Sensor.
  *
- * The sensor counts rejected purchase_request records within a 30-day window
- * and emits a SensorSignal. It returns null when no query helper is provided.
+ * The sensor counts succeeded `reject_purchase_request` execution_log records
+ * within a 30-day window and emits a SensorSignal. It returns null when no
+ * query helper is provided.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -50,7 +51,7 @@ describe("purchaseRejectionPattern sensor", () => {
     expect(signal).toBeNull();
   });
 
-  test("emits zero-value signal when no rejected records exist", async () => {
+  test("queries execution_log with action_name + status filter", async () => {
     const { ctx, calls } = makeContext({ rows: [] });
     const signal = await purchaseRejectionPattern.detect(ctx);
 
@@ -61,11 +62,14 @@ describe("purchaseRejectionPattern sensor", () => {
     expect(signal?.source).toBe("event_bus");
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.schema).toBe("purchase_request");
-    expect(calls[0]?.filter).toEqual({ status: "rejected" });
+    expect(calls[0]?.schema).toBe("execution_log");
+    expect(calls[0]?.filter).toEqual({
+      action_name: "reject_purchase_request",
+      status: "succeeded",
+    });
   });
 
-  test("counts rejected records within the 30-day window", async () => {
+  test("counts rejection events within the 30-day window", async () => {
     const now = new Date("2026-04-11T00:00:00.000Z");
     const inWindow = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000); // 5d ago
     const outOfWindow = new Date(now.getTime() - (WINDOW_MS + 60_000)); // > window
@@ -73,11 +77,11 @@ describe("purchaseRejectionPattern sensor", () => {
     const { ctx } = makeContext({
       timestamp: now,
       rows: [
-        { status: "rejected", updated_at: inWindow },
-        { status: "rejected", updated_at: inWindow },
-        { status: "rejected", updated_at: inWindow },
-        { status: "rejected", updated_at: inWindow },
-        { status: "rejected", updated_at: outOfWindow }, // excluded
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inWindow },
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inWindow },
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inWindow },
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: inWindow },
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: outOfWindow }, // excluded
       ],
     });
 
@@ -88,22 +92,36 @@ describe("purchaseRejectionPattern sensor", () => {
     expect(signal?.confidence).toBeCloseTo(0.8);
   });
 
-  test("accepts ISO-string timestamps and includes records with missing/invalid timestamps", async () => {
+  test("accepts ISO-string timestamps and EXCLUDES records with missing/invalid timestamps", async () => {
+    // A successful execution must have a completed_at. Missing/invalid is
+    // treated as data corruption — under-count rather than over-count.
     const now = new Date("2026-04-11T00:00:00.000Z");
     const inWindowIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
     const { ctx } = makeContext({
       timestamp: now,
       rows: [
-        { status: "rejected", updated_at: inWindowIso }, // ISO string within window
-        { status: "rejected", updated_at: null }, // counted (no timestamp)
-        { status: "rejected" }, // counted (no field)
-        { status: "rejected", updated_at: "not-a-date" }, // counted (invalid)
+        // ISO string within window — counted
+        {
+          action_name: "reject_purchase_request",
+          status: "succeeded",
+          completed_at: inWindowIso,
+        },
+        // null timestamp — excluded
+        { action_name: "reject_purchase_request", status: "succeeded", completed_at: null },
+        // missing field — excluded
+        { action_name: "reject_purchase_request", status: "succeeded" },
+        // invalid date string — excluded
+        {
+          action_name: "reject_purchase_request",
+          status: "succeeded",
+          completed_at: "not-a-date",
+        },
       ],
     });
 
     const signal = await purchaseRejectionPattern.detect(ctx);
-    expect(signal?.value).toBe(4);
+    expect(signal?.value).toBe(1);
   });
 
   test("produces a fully-populated SensorSignal", async () => {
@@ -111,7 +129,7 @@ describe("purchaseRejectionPattern sensor", () => {
     const { ctx } = makeContext({
       timestamp: now,
       tenantId: "tenant-1",
-      rows: [{ status: "rejected", updated_at: now }],
+      rows: [{ action_name: "reject_purchase_request", status: "succeeded", completed_at: now }],
     });
 
     const signal = await purchaseRejectionPattern.detect(ctx);

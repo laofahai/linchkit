@@ -379,6 +379,8 @@ export {
 
 export type {
   AwarenessEngineOptions,
+  EvolutionRuntime,
+  EvolutionRuntimeOptions,
   SensorDefinitionConfig,
   SignalBus,
   SignalBusOptions,
@@ -387,6 +389,7 @@ export type {
 export {
   createAttentionBudget,
   createAwarenessEngine,
+  createEvolutionRuntime,
   createSignalBus,
   createUsageImportanceGraph,
   defineSensor,

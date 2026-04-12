@@ -250,13 +250,15 @@ export {
   type SupportedLanguage,
 } from "./i18n";
 export type {
+  EvolutionRuntime,
+  EvolutionRuntimeOptions,
   SensorDefinitionConfig,
   SignalBus,
   SignalBusOptions,
   SignalHandler,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55)
-export { createSignalBus, defineSensor } from "./life-system";
+export { createEvolutionRuntime, createSignalBus, defineSensor } from "./life-system";
 export type {
   AlertCondition,
   AlertEffect,
