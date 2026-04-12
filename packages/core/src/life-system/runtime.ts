@@ -141,9 +141,13 @@ export function createEvolutionRuntime(opts: EvolutionRuntimeOptions): Evolution
       return innerCycle.awarenessEngine;
     },
     runCycle(ctx?: SensorContext) {
+      // Spread the caller-supplied ctx so any future SensorContext fields
+      // (trace IDs, user metadata, etc.) flow through automatically. Then
+      // override timestamp with a default and query with the runtime default
+      // iff the caller didn't supply its own.
       const merged: SensorContext = {
+        ...(ctx ?? { timestamp: new Date() }),
         timestamp: ctx?.timestamp ?? new Date(),
-        tenantId: ctx?.tenantId,
         query: ctx?.query ?? opts.query,
       };
       return innerCycle.runCycle(merged);
