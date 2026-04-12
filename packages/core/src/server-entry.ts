@@ -389,6 +389,7 @@ export type {
 export {
   createAttentionBudget,
   createAwarenessEngine,
+  createDispatchQuery,
   createEvolutionRuntime,
   createSignalBus,
   createUsageImportanceGraph,
