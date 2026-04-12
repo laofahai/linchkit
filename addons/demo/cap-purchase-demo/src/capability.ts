@@ -28,6 +28,7 @@ import i18nZhCN from "./i18n/zh-CN.json";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./relations";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
+import { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";
 import { purchaseRequestFormView } from "./views/form";
@@ -57,6 +58,7 @@ export const capPurchaseDemo = defineCapability({
       en: i18nEn,
       "zh-CN": i18nZhCN,
     },
+    sensors: [purchaseRejectionPattern],
     permissionGroups: [
       {
         name: "purchase_user",
