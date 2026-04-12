@@ -22,11 +22,17 @@ import type {
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
+  Sensor,
   StateDefinition,
   TransportContext,
   ViewDefinition,
 } from "@linchkit/core";
-import { type ConfigRegistry, createDerivedPropertyEngine } from "@linchkit/core";
+import {
+  type ConfigRegistry,
+  createDerivedPropertyEngine,
+  createDispatchQuery,
+  createEvolutionRuntime,
+} from "@linchkit/core";
 import {
   type ActionRegistry,
   AIAuditLogger,
@@ -90,6 +96,9 @@ export interface WireDevEnginesInput {
   middlewares: MiddlewareRegistration[];
   capabilities: CapabilityDefinition[];
 
+  /** Sensors collected from cap.extensions.sensors (Spec 55 §3.3) */
+  sensors: Sensor[];
+
   // Database state (may be undefined if no DB)
   dbInstance?: ReturnType<typeof import("@linchkit/core/server").createDatabase>;
   dataProvider: DataProvider;
@@ -124,6 +133,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     rules,
     middlewares,
     capabilities,
+    sensors,
     dbInstance,
     dataProvider,
   } = input;
@@ -415,6 +425,18 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     `HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
   );
 
+  // ── Evolution runtime (Spec 55) — register capability sensors on SignalBus ──
+  // Dispatch query routes `execution_log` → ExecutionLogger and other schemas
+  // → DataProvider. Without this split, sensors reading execution_log would
+  // silently see zero rows in both PostgreSQL and in-memory dev modes.
+  const evolutionRuntime = createEvolutionRuntime({
+    sensors,
+    query: createDispatchQuery({ dataProvider, executionLogger }),
+  });
+  consoleLogger.info(
+    `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered`,
+  );
+
   const transportCtx: TransportContext = {
     commandLayer,
     executor,
@@ -444,6 +466,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     aiAuditLogger,
     aiService,
     aiConfig: config.ai,
+    evolutionRuntime,
   };
 
   return {

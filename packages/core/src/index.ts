@@ -258,7 +258,12 @@ export type {
   SignalHandler,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55)
-export { createEvolutionRuntime, createSignalBus, defineSensor } from "./life-system";
+export {
+  createDispatchQuery,
+  createEvolutionRuntime,
+  createSignalBus,
+  defineSensor,
+} from "./life-system";
 export type {
   AlertCondition,
   AlertEffect,

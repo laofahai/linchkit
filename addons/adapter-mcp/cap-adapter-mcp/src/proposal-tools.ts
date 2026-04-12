@@ -43,6 +43,7 @@ export interface ProposalToolsOptions {
  * - create_proposal: Create a new proposal in draft status
  * - get_proposal_status: Get proposal details by ID
  * - list_proposals: List proposals with optional filters
+ * - approve_proposal: Approve a validated proposal (validated → approved)
  */
 export function registerProposalTools(
   server: McpServer,
@@ -273,6 +274,73 @@ export function registerProposalTools(
               type: "text" as const,
               text: JSON.stringify({
                 error: "Operation failed",
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── approve_proposal ──────────────────────────────────
+  const approveProposalShape = {
+    proposalId: z.string().describe("Proposal ID to approve"),
+    reviewer: z
+      .string()
+      .describe("Reviewer identifier (defaults to the current MCP session actor when omitted)")
+      .optional(),
+  };
+
+  server.tool(
+    "approve_proposal",
+    "Approve a validated proposal (validated → approved). " +
+      "Approval is the precondition for commit/deploy and never auto-applies the change. " +
+      "Reviewer defaults to the current MCP session actor when not supplied.",
+    toMcpShape(approveProposalShape),
+    async (args: { proposalId: string; reviewer?: string }) => {
+      // Defense-in-depth: verify tool is allowed for current session
+      const blocked4 = options?.checkToolPolicy?.("approve_proposal", "proposals");
+      if (blocked4) return blocked4;
+
+      try {
+        // Derive reviewer: explicit arg wins, fall back to session actor.
+        const sessionActor = options?.getSessionActor?.();
+        const approverType = sessionActor?.type === "human" ? "human" : "ai";
+        const approverId = args.reviewer ?? sessionActor?.id ?? "mcp-agent";
+
+        const approved = proposalEngine.approveProposal({
+          proposalId: args.proposalId,
+          approvedBy: { type: approverType, id: approverId },
+        });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  id: approved.id,
+                  title: approved.title,
+                  status: approved.status,
+                  capability: approved.capability,
+                  approvedBy: approved.approvedBy,
+                  approvedAt: approved.approvedAt?.toISOString(),
+                  updatedAt: approved.updatedAt.toISOString(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                error: err instanceof Error ? err.message : "Failed to approve proposal",
               }),
             },
           ],

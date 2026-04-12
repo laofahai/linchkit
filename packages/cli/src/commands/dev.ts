@@ -9,13 +9,8 @@
  * transport factories through the capability contract.
  */
 
-import type {
-  CapabilityDefinition,
-  LinchKitConfig,
-  SensorContext,
-  TransportLifecycle,
-} from "@linchkit/core";
-import { ConfigRegistry, createEvolutionRuntime, initI18n } from "@linchkit/core";
+import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
+import { ConfigRegistry, initI18n } from "@linchkit/core";
 import {
   closeDatabase,
   consoleLogger,
@@ -159,28 +154,6 @@ export const devCommand = defineCommand({
       links,
     });
 
-    // ── Evolution runtime (Spec 55) — register capability sensors on SignalBus ──
-    // Sensors are collected from extensions.sensors and registered here so that
-    // any caller of evolutionRuntime.evolutionCycle.runCycle() can see them.
-    // A periodic driver is intentionally NOT started here — triggering is left
-    // to explicit callers (MCP tools, admin UI, scheduled jobs).
-    // Adapt DataProvider.query (concrete row type) to SensorContext.query (generic T).
-    // The cast is sound because callers (sensors) choose T to match their expected shape.
-    const evolutionQuery: SensorContext["query"] = async <T>(
-      schema: string,
-      filter?: Record<string, unknown>,
-    ) => {
-      const rows = await devDataProvider.query(schema, filter ?? {});
-      return rows as T[];
-    };
-    const evolutionRuntime = createEvolutionRuntime({
-      sensors: collected.sensors,
-      query: evolutionQuery,
-    });
-    consoleLogger.info(
-      `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered`,
-    );
-
     // ── Auth provider wiring ──
     await wireAuthProvider({
       capabilities,
@@ -211,6 +184,7 @@ export const devCommand = defineCommand({
       rules,
       middlewares,
       capabilities,
+      sensors: collected.sensors,
       dbInstance,
       dataProvider: devDataProvider,
       usingDatabase,

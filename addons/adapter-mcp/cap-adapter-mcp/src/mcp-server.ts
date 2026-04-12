@@ -24,12 +24,13 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import type { ProposalEngine } from "@linchkit/core/server";
-import type { ExecutionLogger } from "@linchkit/core/types";
+import type { ExecutionLogger, InsightEngine } from "@linchkit/core/types";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { McpClientRegistry } from "./client-registry";
 import { registerExecutionLogTools } from "./execution-log-tools";
 import { fieldsToJsonSchema } from "./field-to-json-schema";
+import { registerInsightTools } from "./insight-tools";
 import { registerManagementTools } from "./management-tools";
 import { registerProposalTools } from "./proposal-tools";
 import { registerScaffoldTools } from "./scaffold-tools";
@@ -81,6 +82,12 @@ export interface McpAdapterOptions {
    * When provided, registers get_execution_log, get_recent_executions tools.
    */
   executionLogger?: ExecutionLogger;
+  /**
+   * InsightEngine from the Spec 55 life-system runtime.
+   * When provided, registers list_insights tool so MCP clients can read
+   * promoted insights (anomalies, friction, patterns, structural, positive).
+   */
+  insightEngine?: InsightEngine;
 }
 
 /**
@@ -131,6 +138,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     clientRegistry,
     proposalEngine,
     executionLogger,
+    insightEngine,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -319,6 +327,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
       { name: "create_proposal", category: "proposals" },
       { name: "get_proposal_status", category: "proposals" },
       { name: "list_proposals", category: "proposals" },
+      { name: "approve_proposal", category: "proposals" },
     );
   }
 
@@ -329,6 +338,12 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
       { name: "get_execution_log", category: "observability" },
       { name: "get_recent_executions", category: "observability" },
     );
+  }
+
+  // Register insight tools if InsightEngine is available
+  if (insightEngine) {
+    registerInsightTools(server, insightEngine, { checkToolPolicy });
+    allToolNames.push({ name: "list_insights", category: "insight" });
   }
 
   // Register resources

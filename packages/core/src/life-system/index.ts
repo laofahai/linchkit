@@ -11,6 +11,8 @@ export type { AwarenessEngineOptions } from "./awareness-engine";
 export { createAwarenessEngine } from "./awareness-engine";
 export type { SensorDefinitionConfig } from "./define-sensor";
 export { defineSensor } from "./define-sensor";
+export type { CreateDispatchQueryOptions } from "./dispatch-query";
+export { createDispatchQuery } from "./dispatch-query";
 export type { EvolutionCycleOptions } from "./evolution-cycle";
 export { createEvolutionCycle } from "./evolution-cycle";
 export { InMemoryMemoryStore } from "./in-memory-memory-store";
