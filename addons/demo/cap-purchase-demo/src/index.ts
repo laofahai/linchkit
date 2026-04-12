@@ -22,6 +22,7 @@ export { purchaseApprovalFlow } from "./flows/purchase-approval";
 export { auditableInterface } from "./interfaces/auditable";
 export { requestToDepartment, requestToItems } from "./relations";
 export { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
+export { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 export { purchaseRequestState } from "./states/purchase-request";
 export { purchaseRequestFormView } from "./views/form";
 export { purchaseRequestListView } from "./views/list";

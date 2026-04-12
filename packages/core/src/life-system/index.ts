@@ -18,6 +18,8 @@ export type { InsightEngineOptions } from "./insight-engine";
 export { createInsightEngine } from "./insight-engine";
 export type { MemoryEngineOptions } from "./memory-engine";
 export { MemoryEngine } from "./memory-engine";
+export type { EvolutionRuntime, EvolutionRuntimeOptions } from "./runtime";
+export { createEvolutionRuntime } from "./runtime";
 export type { SignalBus, SignalBusOptions, SignalHandler } from "./signal-bus";
 export { createSignalBus } from "./signal-bus";
 export { createUsageImportanceGraph } from "./usage-graph";
