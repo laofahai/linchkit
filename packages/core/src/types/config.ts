@@ -86,4 +86,6 @@ export interface SubscriptionConfig {
   idleTimeout?: number;
   /** Maximum buffered events per connection before dropping (default: 100) */
   maxBufferSize?: number;
+  /** Maximum events stored in the replay buffer for Last-Event-ID reconnection (default: 500) */
+  maxReplayBufferSize?: number;
 }

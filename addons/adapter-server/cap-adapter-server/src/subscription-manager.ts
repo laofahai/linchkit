@@ -37,6 +37,9 @@ export interface SubscriptionEvent {
   actor: { id: string; type: string };
   timestamp: string;
   executionId?: string;
+
+  /** Monotonic event ID for Last-Event-ID replay (set by SubscriptionManager) */
+  eventId?: string;
 }
 
 // ── Subscription filter ──────────────────────────────────────
@@ -74,6 +77,7 @@ const DEFAULT_CONFIG: Required<SubscriptionConfig> = {
   heartbeatInterval: 30_000,
   idleTimeout: 300_000,
   maxBufferSize: 100,
+  maxReplayBufferSize: 500,
 };
 
 // ── Event type mapping ───────────────────────────────────────
@@ -112,6 +116,9 @@ export class SubscriptionManager {
   private idleCheckTimer: ReturnType<typeof setInterval> | null = null;
   private eventBusUnsubscribers: Array<() => void> = [];
   private eventIdCounter = 0;
+
+  /** Ring buffer of recent events for Last-Event-ID replay on reconnection */
+  private recentEvents: Array<{ id: string; event: SubscriptionEvent }> = [];
 
   /** Optional callback to check if an actor can read a given schema */
   private canReadEntity?: (actor: Actor, entityName: string) => boolean;
@@ -161,6 +168,9 @@ export class SubscriptionManager {
       conn.close();
     }
     this.connections.clear();
+
+    // Clear replay buffer
+    this.recentEvents = [];
   }
 
   /**
@@ -286,6 +296,11 @@ export class SubscriptionManager {
       }
     }
 
+    // Assign event ID directly and store in replay buffer
+    const eventId = this.nextEventId();
+    subEvent.eventId = eventId;
+    this.storeInReplayBuffer(eventId, subEvent);
+
     // Dispatch to all matching connections
     for (const conn of this.connections.values()) {
       if (this.matchesConnection(conn, subEvent)) {
@@ -344,6 +359,59 @@ export class SubscriptionManager {
       conn.close();
       this.connections.delete(conn.id);
     }
+  }
+
+  // ── Replay buffer ───────────────────────────────────────
+
+  /** Store an event in the ring buffer, evicting oldest when full */
+  private storeInReplayBuffer(id: string, event: SubscriptionEvent): void {
+    if (this.config.maxReplayBufferSize <= 0) return;
+    if (this.recentEvents.length >= this.config.maxReplayBufferSize) {
+      this.recentEvents.shift();
+    }
+    this.recentEvents.push({ id, event });
+  }
+
+  /**
+   * Replay buffered events to a connection starting after lastEventId.
+   *
+   * Only events that match the connection's filter are replayed.
+   * Returns the number of events replayed.
+   */
+  replayFrom(lastEventId: string, connectionId: string): number {
+    const conn = this.connections.get(connectionId);
+    if (!conn) return 0;
+
+    // Find the index of the last event the client received
+    const lastIdx = this.recentEvents.findIndex((e) => e.id === lastEventId);
+    if (lastIdx === -1) {
+      // lastEventId not found in buffer — it may have been evicted.
+      // Replay everything in the buffer that matches the connection's filter.
+      let count = 0;
+      for (const entry of this.recentEvents) {
+        if (this.matchesConnection(conn, entry.event)) {
+          this.pushToConnection(conn, entry.event);
+          count++;
+        }
+      }
+      return count;
+    }
+
+    // Replay events after lastIdx
+    let count = 0;
+    const eventsToReplay = this.recentEvents.slice(lastIdx + 1);
+    for (const entry of eventsToReplay) {
+      if (this.matchesConnection(conn, entry.event)) {
+        this.pushToConnection(conn, entry.event);
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /** Get the current replay buffer size (for testing/diagnostics) */
+  get replayBufferSize(): number {
+    return this.recentEvents.length;
   }
 
   // ── Heartbeat ─────────────────────────────────────────────

@@ -295,6 +295,8 @@ export function useEntitySubscription(
 
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Track last received event ID for reconnection replay */
+  const lastEventIdRef = useRef<string | null>(null);
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -322,6 +324,11 @@ export function useEntitySubscription(
         const params = new URLSearchParams();
         if (entitiesKey) params.set("entities", entitiesKey);
         if (idsKey) params.set("ids", idsKey);
+
+        // Send last event ID for reconnection replay
+        if (lastEventIdRef.current) {
+          params.set("lastEventId", lastEventIdRef.current);
+        }
 
         const url = `/api/subscribe?${params.toString()}`;
 
@@ -362,16 +369,24 @@ export function useEntitySubscription(
           buffer = lines.pop() ?? "";
 
           let currentEventType = "";
+          let currentEventId = "";
           let eventData = "";
 
           for (const line of lines) {
-            if (line.startsWith("event: ")) {
+            if (line.startsWith("id: ")) {
+              currentEventId = line.slice(4).trim();
+            } else if (line.startsWith("event: ")) {
               currentEventType = line.slice(7).trim();
             } else if (line.startsWith("data: ")) {
               eventData += line.slice(6);
             } else if (line.startsWith(":")) {
+              // SSE comment (e.g. keepalive) — ignore
             } else if (line === "" && eventData) {
-              // End of event
+              // End of event — track last event ID for reconnection
+              if (currentEventId) {
+                lastEventIdRef.current = currentEventId;
+              }
+
               try {
                 const parsed = JSON.parse(eventData);
 
@@ -390,6 +405,7 @@ export function useEntitySubscription(
               }
               eventData = "";
               currentEventType = "";
+              currentEventId = "";
             }
           }
         }

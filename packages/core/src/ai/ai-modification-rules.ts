@@ -107,7 +107,7 @@ export class AIModificationRuleRegistry {
 
     // Try field-specific match first
     if (field) {
-      const fieldRule = entityRules.find((r) => r.fields !== undefined && r.fields.includes(field));
+      const fieldRule = entityRules.find((r) => r.fields?.includes(field));
       if (fieldRule) {
         return this.evaluateRule(fieldRule, level);
       }

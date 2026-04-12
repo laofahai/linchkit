@@ -68,6 +68,12 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
     const filter = parseSubscriptionQuery(query as Record<string, string | undefined>);
     filter.tenantId = tenantId;
 
+    // Check for Last-Event-ID: from header (standard SSE) or query param (fetch-based clients)
+    const lastEventId =
+      request.headers.get("last-event-id") ??
+      (query as Record<string, string | undefined>).lastEventId ??
+      null;
+
     // Set up SSE response via ReadableStream
     let connectionId: string | null = null;
 
@@ -77,8 +83,9 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
 
         const push = (event: SubscriptionEvent | null): boolean => {
           try {
-            const eventId = subManager.nextEventId();
-            const text = formatSSEEvent(event, event ? eventId : undefined);
+            // Use the eventId stamped by SubscriptionManager on the event
+            const eventId = event?.eventId;
+            const text = formatSSEEvent(event, eventId);
             controller.enqueue(encoder.encode(text));
             return true;
           } catch {
@@ -118,6 +125,11 @@ export function mountSubscriptionRoutes(app: Elysia, options: ServerOptions): vo
         controller.enqueue(
           encoder.encode(`event: connected\ndata: ${JSON.stringify({ connectionId })}\n\n`),
         );
+
+        // Replay missed events if client sent Last-Event-ID
+        if (lastEventId && connectionId) {
+          subManager.replayFrom(lastEventId, connectionId);
+        }
       },
       cancel() {
         if (connectionId) {

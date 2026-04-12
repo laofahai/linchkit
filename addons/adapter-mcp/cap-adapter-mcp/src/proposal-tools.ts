@@ -147,7 +147,7 @@ export function registerProposalTools(
             },
           ],
         };
-      } catch (err) {
+      } catch (_err) {
         return {
           content: [
             {
@@ -207,7 +207,7 @@ export function registerProposalTools(
             },
           ],
         };
-      } catch (err) {
+      } catch (_err) {
         return {
           content: [
             {
@@ -266,7 +266,7 @@ export function registerProposalTools(
             },
           ],
         };
-      } catch (err) {
+      } catch (_err) {
         return {
           content: [
             {
