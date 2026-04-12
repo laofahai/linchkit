@@ -296,14 +296,15 @@ export class SubscriptionManager {
       }
     }
 
-    // Assign event ID and store in replay buffer
+    // Assign event ID directly and store in replay buffer
     const eventId = this.nextEventId();
+    subEvent.eventId = eventId;
     this.storeInReplayBuffer(eventId, subEvent);
 
     // Dispatch to all matching connections
     for (const conn of this.connections.values()) {
       if (this.matchesConnection(conn, subEvent)) {
-        this.pushToConnection(conn, subEvent, eventId);
+        this.pushToConnection(conn, subEvent);
       }
     }
   }
@@ -336,13 +337,8 @@ export class SubscriptionManager {
   }
 
   /** Push an event to a connection, handling backpressure */
-  private pushToConnection(conn: SSEConnection, event: SubscriptionEvent, eventId?: string): void {
+  private pushToConnection(conn: SSEConnection, event: SubscriptionEvent): void {
     conn.lastActivity = Date.now();
-
-    // Stamp event ID for SSE formatting if provided
-    if (eventId) {
-      event = { ...event, eventId };
-    }
 
     // Backpressure: drop if buffer is full
     if (conn.buffer.length >= this.config.maxBufferSize) {
@@ -369,6 +365,7 @@ export class SubscriptionManager {
 
   /** Store an event in the ring buffer, evicting oldest when full */
   private storeInReplayBuffer(id: string, event: SubscriptionEvent): void {
+    if (this.config.maxReplayBufferSize <= 0) return;
     if (this.recentEvents.length >= this.config.maxReplayBufferSize) {
       this.recentEvents.shift();
     }
@@ -393,7 +390,7 @@ export class SubscriptionManager {
       let count = 0;
       for (const entry of this.recentEvents) {
         if (this.matchesConnection(conn, entry.event)) {
-          this.pushToConnection(conn, entry.event, entry.id);
+          this.pushToConnection(conn, entry.event);
           count++;
         }
       }
@@ -405,7 +402,7 @@ export class SubscriptionManager {
     const eventsToReplay = this.recentEvents.slice(lastIdx + 1);
     for (const entry of eventsToReplay) {
       if (this.matchesConnection(conn, entry.event)) {
-        this.pushToConnection(conn, entry.event, entry.id);
+        this.pushToConnection(conn, entry.event);
         count++;
       }
     }
