@@ -18,15 +18,22 @@ import type {
   CapabilityDefinition,
   DataProvider,
   EntityDefinition,
+  ExecutionLogFindOptions,
   LinchKitConfig,
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
+  Sensor,
+  SensorContext,
   StateDefinition,
   TransportContext,
   ViewDefinition,
 } from "@linchkit/core";
-import { type ConfigRegistry, createDerivedPropertyEngine } from "@linchkit/core";
+import {
+  type ConfigRegistry,
+  createDerivedPropertyEngine,
+  createEvolutionRuntime,
+} from "@linchkit/core";
 import {
   type ActionRegistry,
   AIAuditLogger,
@@ -90,6 +97,9 @@ export interface WireDevEnginesInput {
   middlewares: MiddlewareRegistration[];
   capabilities: CapabilityDefinition[];
 
+  /** Sensors collected from cap.extensions.sensors (Spec 55 §3.3) */
+  sensors: Sensor[];
+
   // Database state (may be undefined if no DB)
   dbInstance?: ReturnType<typeof import("@linchkit/core/server").createDatabase>;
   dataProvider: DataProvider;
@@ -124,6 +134,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     rules,
     middlewares,
     capabilities,
+    sensors,
     dbInstance,
     dataProvider,
   } = input;
@@ -415,6 +426,39 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     `HealthCheckRegistry: ${healthCheckRegistry.list().length} check(s) registered (${healthCheckRegistry.list().join(", ")})`,
   );
 
+  // ── Evolution runtime (Spec 55) — register capability sensors on SignalBus ──
+  // Sensors observe runtime data via SensorContext.query. We dispatch by
+  // schema name so that `execution_log` queries reach ExecutionLogger
+  // (the right backing store) while regular entity queries go through the
+  // DataProvider. Without this routing, sensors that look at execution_log
+  // would silently see zero rows in both PostgreSQL and in-memory modes.
+  const dispatchQuery: SensorContext["query"] = async <T>(
+    schemaName: string,
+    filter?: Record<string, unknown>,
+  ): Promise<T[]> => {
+    if (schemaName === "execution_log") {
+      const actionName = typeof filter?.action_name === "string" ? filter.action_name : undefined;
+      const entityName = typeof filter?.entity_name === "string" ? filter.entity_name : undefined;
+      const statusVal = typeof filter?.status === "string" ? filter.status : undefined;
+      const result = await executionLogger.findMany({
+        action: actionName,
+        entity: entityName,
+        status: statusVal as ExecutionLogFindOptions["status"],
+        pageSize: 1000,
+      });
+      return result.items as T[];
+    }
+    const rows = await dataProvider.query(schemaName, filter ?? {});
+    return rows as T[];
+  };
+  const evolutionRuntime = createEvolutionRuntime({
+    sensors,
+    query: dispatchQuery,
+  });
+  consoleLogger.info(
+    `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered`,
+  );
+
   const transportCtx: TransportContext = {
     commandLayer,
     executor,
@@ -444,6 +488,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     aiAuditLogger,
     aiService,
     aiConfig: config.ai,
+    evolutionRuntime,
   };
 
   return {

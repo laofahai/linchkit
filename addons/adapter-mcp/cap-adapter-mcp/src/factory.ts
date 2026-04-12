@@ -81,6 +81,10 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         bearerToken,
         tenantId,
         graphqlEndpoint,
+        executionLogger: ctx.executionLogger,
+        // EvolutionRuntime is optional on TransportContext; when present we
+        // expose its InsightEngine so MCP clients can call list_insights.
+        insightEngine: ctx.evolutionRuntime?.insightEngine,
       });
 
       if (transportMode === "stdio") {
@@ -125,6 +129,8 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         bearerToken,
         tenantId,
         graphqlEndpoint,
+        executionLogger: ctx.executionLogger,
+        insightEngine: ctx.evolutionRuntime?.insightEngine,
       };
 
       const {

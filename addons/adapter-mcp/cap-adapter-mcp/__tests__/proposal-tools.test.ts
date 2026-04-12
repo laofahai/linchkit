@@ -63,11 +63,12 @@ describe("registerProposalTools", () => {
     registerProposalTools(server, proposalEngine);
   });
 
-  test("registers three proposal tools", () => {
+  test("registers four proposal tools", () => {
     const tools = getTools(server);
     expect(tools.create_proposal).toBeDefined();
     expect(tools.get_proposal_status).toBeDefined();
     expect(tools.list_proposals).toBeDefined();
+    expect(tools.approve_proposal).toBeDefined();
   });
 
   test("create_proposal creates a proposal in draft status", async () => {
@@ -265,6 +266,130 @@ describe("registerProposalTools", () => {
     const proposal = proposalEngine.getProposal(proposalId);
     expect(proposal.author.type).toBe("ai");
     expect(proposal.author.id).toBe("mcp-agent");
+  });
+
+  // ── approve_proposal tests ──────────────────────────
+
+  test("approve_proposal moves a validated proposal to approved", async () => {
+    const tools = getTools(server);
+
+    // Create a draft proposal with a valid event definition (validation passes
+    // for events that just need a name).
+    const createResult = await tools.create_proposal?.handler(
+      {
+        title: "Approve me",
+        description: "Will be approved",
+        capability: "approval_test",
+        changeType: "patch",
+        changes: [
+          {
+            target: "event",
+            operation: "create",
+            name: "thing_created",
+            definition: { name: "thing_created", category: "domain" },
+          },
+        ],
+      },
+      {},
+    );
+    const created = parseToolResult(createResult) as Record<string, unknown>;
+    const proposalId = created.id as string;
+
+    // Move draft → validated via the engine directly (validation is a separate step
+    // not exposed as an MCP tool here)
+    proposalEngine.submitProposal({ proposalId });
+    expect(proposalEngine.getProposal(proposalId).status).toBe("validated");
+
+    // Approve via MCP tool
+    const approveResult = await tools.approve_proposal?.handler(
+      { proposalId, reviewer: "alice" },
+      {},
+    );
+
+    const approved = parseToolResult(approveResult) as Record<string, unknown>;
+    expect(approveResult.isError).toBeUndefined();
+    expect(approved.id).toBe(proposalId);
+    expect(approved.status).toBe("approved");
+    expect(approved.approvedBy).toEqual({ type: "ai", id: "alice" });
+    expect(approved.approvedAt).toBeDefined();
+  });
+
+  test("approve_proposal returns error for unknown ID", async () => {
+    const tools = getTools(server);
+
+    const result = await tools.approve_proposal?.handler(
+      { proposalId: "missing-id", reviewer: "bob" },
+      {},
+    );
+
+    expect(result.isError).toBe(true);
+    const parsed = parseToolResult(result) as Record<string, unknown>;
+    expect(parsed.error).toContain("not found");
+  });
+
+  test("approve_proposal returns error when proposal is not validated", async () => {
+    const tools = getTools(server);
+
+    // Create draft (status = "draft", not "validated")
+    const createResult = await tools.create_proposal?.handler(
+      {
+        title: "Still draft",
+        description: "Not yet submitted",
+        capability: "approval_test",
+        changeType: "patch",
+        changes: [{ target: "entity", operation: "create", name: "thing2" }],
+      },
+      {},
+    );
+    const created = parseToolResult(createResult) as Record<string, unknown>;
+    const proposalId = created.id as string;
+
+    const result = await tools.approve_proposal?.handler({ proposalId, reviewer: "carol" }, {});
+
+    expect(result.isError).toBe(true);
+    const parsed = parseToolResult(result) as Record<string, unknown>;
+    expect(parsed.error).toContain("validated");
+  });
+
+  test("approve_proposal falls back to session actor when reviewer is omitted", async () => {
+    const localServer = new McpServer({ name: "approve-test", version: "1.0.0" });
+    const localEngine = createProposalEngine();
+    registerProposalTools(localServer, localEngine, {
+      getSessionActor: () => ({
+        type: "human",
+        id: "session-user-42",
+        name: "Session User",
+      }),
+    });
+
+    const localTools = getTools(localServer);
+    const createResult = await localTools.create_proposal?.handler(
+      {
+        title: "Session approval",
+        description: "Approved by session actor",
+        capability: "approval_test",
+        changeType: "patch",
+        changes: [
+          {
+            target: "event",
+            operation: "create",
+            name: "thing3_created",
+            definition: { name: "thing3_created", category: "domain" },
+          },
+        ],
+      },
+      {},
+    );
+    const created = parseToolResult(createResult) as Record<string, unknown>;
+    const proposalId = created.id as string;
+    localEngine.submitProposal({ proposalId });
+    expect(localEngine.getProposal(proposalId).status).toBe("validated");
+
+    const approveResult = await localTools.approve_proposal?.handler({ proposalId }, {});
+
+    const approved = parseToolResult(approveResult) as Record<string, unknown>;
+    expect(approveResult.isError).toBeUndefined();
+    expect(approved.approvedBy).toEqual({ type: "human", id: "session-user-42" });
   });
 });
 

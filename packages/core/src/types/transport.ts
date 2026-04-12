@@ -21,6 +21,7 @@ import type { EntityRegistry } from "../entity/entity-registry";
 import type { RelationRegistry } from "../entity/relation-registry";
 import type { EventBus } from "../event/event-bus";
 import type { FlowEngine, FlowRegistry } from "../flow/types";
+import type { EvolutionRuntime } from "../life-system/runtime";
 import type { OntologyRegistry } from "../ontology";
 import type { ActionDefinition } from "./action";
 import type { AIService, AIServiceConfig } from "./ai";
@@ -81,6 +82,14 @@ export interface TransportContext {
   aiService?: AIService;
   /** AI service config — raw config for resolving language models directly */
   aiConfig?: AIServiceConfig;
+  /**
+   * Evolution runtime — Spec 55 life-system pipeline (Sense→Memory→Awareness→Insight).
+   * Transports (MCP, HTTP) use this to trigger evolution cycles, list insights,
+   * and manage proposals. Constructed by the CLI dev wiring after the
+   * execution logger so its query helper can route execution_log lookups
+   * to the right backend (Drizzle or in-memory).
+   */
+  evolutionRuntime?: EvolutionRuntime;
 }
 
 /** Lifecycle handle returned by transport factory */
