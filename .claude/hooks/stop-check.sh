@@ -11,33 +11,25 @@ if [ -z "$CHANGES" ]; then
   exit 0
 fi
 
-# There are uncommitted changes — show remaining workflow steps
+# gate_row <marker> <label> — print one line, flagging stale gates.
+gate_row() {
+  local marker="$1" label="$2"
+  if wf_fresh "$marker"; then
+    echo "  ✓ $label"
+  elif wf_has "$marker"; then
+    echo "  ⚠ $label    (stale — source changed since it ran)"
+  else
+    echo "  □ $label    (not done)"
+  fi
+}
+
 echo "⚠ Uncommitted changes detected. Remaining workflow steps:"
 echo ""
 
-if ! wf_has check_passed; then
-  echo "  □ bun run check        (not done)"
-else
-  echo "  ✓ bun run check"
-fi
-
-if ! wf_has typecheck_passed; then
-  echo "  □ bun run typecheck    (not done)"
-else
-  echo "  ✓ bun run typecheck"
-fi
-
-if ! wf_has tests_passed; then
-  echo "  □ bun test             (not done)"
-else
-  echo "  ✓ bun test"
-fi
-
-if ! wf_has cross_model_review; then
-  echo "  □ Cross-model review   (not done)"
-else
-  echo "  ✓ Cross-model review"
-fi
+gate_row check_passed     "bun run check       "
+gate_row typecheck_passed "bun run typecheck   "
+gate_row tests_passed     "bun test            "
+gate_row cross_model_review "Cross-model review "
 
 echo "  □ git commit"
 echo "  □ gh pr create"

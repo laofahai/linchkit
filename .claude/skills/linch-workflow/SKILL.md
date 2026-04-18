@@ -52,13 +52,13 @@ Read the user's request and classify:
 
 Quality gates MUST pass before committing.
 Hooks track progress in a per-branch state file (via `.claude/hooks/workflow-state.sh`).
-`git commit` is blocked until check/typecheck/test all pass. `linch validate` is manual.
+`git commit` is blocked until check/typecheck/test are **fresh**. A gate is fresh when it ran AND no tracked source file under `packages/`, `addons/`, `apps/`, `scripts/`, or `.claude/` has been modified since. Follow-up commits on unchanged code don't need re-runs; commits after an edit do.
 
 ```bash
 linch validate        # Meta-model validation (manual — run when touching definitions)
-bun run check         # Biome lint + format (hook-tracked)
-bun run typecheck     # TypeScript strict check (hook-tracked)
-bun test              # Full test suite (hook-tracked, must be exact `bun test` not filtered)
+bun run check         # Biome lint + format (hook-tracked, fresh-gated)
+bun run typecheck     # TypeScript strict check (hook-tracked, fresh-gated)
+bun test              # Full test suite (hook-tracked, fresh-gated — must be exact `bun test`, not filtered)
 ```
 
 ## Step 5: Cross-Model Review
@@ -108,6 +108,27 @@ Before creating a PR, request cross-model review for a second opinion.
 6. **Mark complete**: `./.claude/hooks/post-quality-gate.sh cross_model_review`
    This is required — `gh pr create` is blocked by hook until this marker exists.
 
+### Harness deny list vs workflow escape hatches
+
+The Claude Code harness denies several git/gh commands for safety. Hitting a deny is **not** "workflow says stop" — it's a safety rail that permits explicit user authorization. When you need one of these:
+
+| Needed action | Denied by harness | Escape |
+|---|---|---|
+| ⚠️ `git push --force-with-lease <branch>` (after rebase) | yes | user `! <command>` |
+| ⚠️ `git push --force <branch>` | yes | user `! <command>` |
+| `git rebase --onto <new-base> <old-base>` | yes | user `! <command>` |
+| `git reset --hard <ref>` | yes | user `! <command>` |
+| `gh pr merge --admin` (ruleset blocking) | yes | user `! <command>` |
+| `gh pr merge --auto` | yes | user `! <command>` |
+
+When you need an escape:
+1. State the concrete goal (what & why)
+2. Show the exact command — single-line, never buried inside a multi-command chain
+3. Name the branch explicitly (never `git push --force` without a target; never on `main`)
+4. Ask the user to run it via `! <command>` in the prompt
+
+Any command containing `force` — including `--force-with-lease` — gets its own dedicated line with a ⚠️ marker. Do not slip it into a pipe or `&&` chain.
+
 ## Step 6: PR & Review
 
 1. Verify you're on the correct feature branch (not `main`)
@@ -115,13 +136,47 @@ Before creating a PR, request cross-model review for a second opinion.
 3. Wait for CI
 4. Read ALL review comments (CodeRabbit, Gemini, human)
 5. Fix every comment, reply explaining what changed, then resolve thread (NEVER dismiss)
-6. Merge only when: APPROVED + CI green
+6. Merge only when: APPROVED + CI green + **`mergeStateStatus` ≠ BLOCKED**
+
+**Merge readiness check (before attempting merge):**
+
+`reviewDecision: APPROVED` and all CI checks green are necessary but **not sufficient** on a protected branch with rulesets. Before `gh pr merge`, inspect:
+
+```bash
+gh pr view <num> --json reviewDecision,mergeStateStatus,statusCheckRollup
+```
+
+If `mergeStateStatus == "BLOCKED"` an uncleared rule is in play. Investigate both the classic protection and rulesets:
+
+```bash
+gh api repos/{owner}/{repo}/branches/main/protection
+gh api repos/{owner}/{repo}/rules/branches/main
+```
+
+Present the specific blocker to the user (e.g. "required Copilot review missing", "required check `lint` hasn't started", "ruleset X requires an approving review from CODEOWNERS") and propose a concrete path: trigger the missing reviewer, wait for check, ask user to `! gh pr merge --admin`, etc. Never guess the merge will succeed if `BLOCKED`.
 
 **PR merge rules (no exceptions):**
-- NEVER `--admin` or `--auto` — blocked = not ready
+- NEVER `--admin` or `--auto` yourself — they are denied by the harness. If truly needed, route via user `!` with explicit justification.
 - NEVER merge with CHANGES_REQUESTED — wait for re-approval
 - NEVER dismiss review threads — reply + resolve
 - ALWAYS read ALL comments BEFORE merge attempt
+- NEVER force-push to `main`; warn immediately if requested
+
+### Stacked PRs + squash-merge aftermath
+
+When PR_parent is squash-merged, PR_child stuck on the parent branch becomes `CONFLICTING` — the rebase base no longer matches any commit in `main`.
+
+**Prefer serial merges:** land A, then open B from `main`. Stack only when genuinely blocked.
+
+If stacked and parent just squash-merged:
+1. Fetch: `git fetch origin main`
+2. Rebase child onto new main, dropping parent commits:
+   ```
+   git rebase --onto origin/main <old-parent-tip> <child-branch>
+   ```
+3. ⚠️ `git push --force-with-lease origin <child-branch>` — harness denies; route via user `!`.
+
+Never cherry-pick parent's commits into the child PR as a workaround — it creates duplicate history once the parent merges.
 
 ## Step 7: Close
 
