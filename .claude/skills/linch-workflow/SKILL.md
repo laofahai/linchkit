@@ -52,7 +52,12 @@ Read the user's request and classify:
 
 Quality gates MUST pass before committing.
 Hooks track progress in a per-branch state file (via `.claude/hooks/workflow-state.sh`).
-`git commit` is blocked until check/typecheck/test are **fresh**. A gate is fresh when it ran AND no tracked source file under `packages/`, `addons/`, `apps/`, `scripts/`, or `.claude/` has been modified since. Follow-up commits on unchanged code don't need re-runs; commits after an edit do.
+`git commit` is blocked until check/typecheck/test are **fresh**. A gate is fresh when it ran AND none of the following changed since:
+- any tracked source file under `packages/`, `addons/`, `apps/`, `scripts/`, or `.claude/` was modified
+- the tracked file set changed (any `git add` / `git rm` / rename)
+- a repo-root config affecting the gates changed — `package.json`, `bun.lock`, `tsconfig.json` / `tsconfig.base.json`, `biome.json`, `turbo.json`, `drizzle.config.ts`, `lefthook.yml`, or the bun config files
+
+Follow-up commits on unchanged code don't need re-runs; commits after any of the above do.
 
 ```bash
 linch validate        # Meta-model validation (manual — run when touching definitions)
@@ -171,7 +176,7 @@ When PR_parent is squash-merged, PR_child stuck on the parent branch becomes `CO
 If stacked and parent just squash-merged:
 1. Fetch: `git fetch origin main`
 2. Rebase child onto new main, dropping parent commits:
-   ```
+   ```bash
    git rebase --onto origin/main <old-parent-tip> <child-branch>
    ```
 3. ⚠️ `git push --force-with-lease origin <child-branch>` — harness denies; route via user `!`.

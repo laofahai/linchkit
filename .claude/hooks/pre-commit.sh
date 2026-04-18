@@ -11,6 +11,13 @@
 # This correctly covers wrapped forms like `cd /repo && git commit -m x` or
 # `git add . && git commit -m y` (required by the workflow) while still
 # rejecting `git commit` inside a quoted argument.
+#
+# Known limitation: a quoted body that itself contains a separator + `git
+# commit` (e.g. `gh issue create --body 'run ; git commit later'`) will still
+# match, because the regex doesn't track shell quoting state. Fully
+# quote-aware parsing in pure bash regex is impractical; this hook is a
+# guardrail and `git commit` inside an issue-body argument is a narrow edge
+# case. Re-run the skipped gates if you hit it.
 
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
@@ -22,14 +29,15 @@ fi
 source "$(dirname "$0")/workflow-state.sh"
 
 MISSING=""
-wf_fresh check_passed     || MISSING="$MISSING bun-run-check"
-wf_fresh typecheck_passed || MISSING="$MISSING bun-run-typecheck"
-wf_fresh tests_passed     || MISSING="$MISSING bun-test"
+wf_fresh check_passed     || MISSING="$MISSING"$'\n  - bun run check'
+wf_fresh typecheck_passed || MISSING="$MISSING"$'\n  - bun run typecheck'
+wf_fresh tests_passed     || MISSING="$MISSING"$'\n  - bun test'
 
 if [ -n "$MISSING" ]; then
-  echo "BLOCKED: Quality gates not passed or stale:$MISSING" >&2
+  printf 'BLOCKED: Quality gates not passed or stale:%s\n' "$MISSING" >&2
   echo "Run the listed commands before committing." >&2
-  echo "(A gate becomes stale when tracked source files change or the repo-root" >&2
-  echo " config — tsconfig.json / biome.json / package.json / bun.lock — changes.)" >&2
+  echo "(A gate becomes stale when tracked source files change, the tracked" >&2
+  echo " file set changes (git add/rm/mv), or a repo-root config file changes" >&2
+  echo " — tsconfig.json / biome.json / package.json / bun.lock / etc.)" >&2
   exit 2
 fi

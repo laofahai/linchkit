@@ -14,6 +14,22 @@ ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
 HOOKS="$ROOT/.claude/hooks"
+
+# Isolate test state — point TMPDIR at a scratch dir so wf_reset / wf_mark
+# don't clobber the developer's real workflow markers. Also track temp files
+# created during the test so a trap can clean them up on any exit path.
+SMOKE_TMP=$(mktemp -d)
+export TMPDIR="$SMOKE_TMP"
+TMP_VICTIM=""
+cleanup() {
+  rm -rf "$SMOKE_TMP"
+  if [ -n "$TMP_VICTIM" ]; then
+    git reset -q -- "$TMP_VICTIM" 2>/dev/null || true
+    rm -f "$TMP_VICTIM"
+  fi
+}
+trap cleanup EXIT INT TERM
+
 # shellcheck source=../workflow-state.sh
 source "$HOOKS/workflow-state.sh"
 
@@ -133,9 +149,9 @@ touch -t "$(date -r "$(_wf_file).check_passed.ref" +%Y%m%d%H%M.%S)" tsconfig.jso
 # Use docs/ (outside the mtime-watched roots) so only the tracked-hash check
 # fires — and sleep 1s to guarantee file mtime < ref mtime on fast runs.
 wf_reset
-tmp_victim="docs/_v_smoke.txt"
-echo "bye" > "$tmp_victim"
-git add "$tmp_victim" 2>/dev/null
+TMP_VICTIM="docs/_v_smoke.txt"
+echo "bye" > "$TMP_VICTIM"
+git add "$TMP_VICTIM" 2>/dev/null
 sleep 1
 wf_mark check_passed
 wf_mark typecheck_passed
@@ -143,8 +159,9 @@ wf_mark tests_passed
 unset rc
 out=$(make_input "git commit -m msg" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
 check "baseline with staged file → exit 0" "[ \"$rc\" = 0 ]"
-git rm -qf "$tmp_victim" 2>/dev/null
-rm -f "$tmp_victim"
+git rm -qf "$TMP_VICTIM" 2>/dev/null
+rm -f "$TMP_VICTIM"
+TMP_VICTIM=""  # already cleaned; unset so trap doesn't retry
 unset rc
 out=$(make_input "git commit -m msg" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
 check "tracked-file removal stales gate → exit 2" "[ \"$rc\" = 2 ]"
