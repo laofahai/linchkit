@@ -11,7 +11,7 @@
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
 
-if ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|])[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'; then
+if ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|])[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:];&|]|$)'; then
   exit 0
 fi
 

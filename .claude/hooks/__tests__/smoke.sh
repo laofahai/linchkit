@@ -42,7 +42,14 @@ wf_reset
 wf_mark check_passed
 check "mark sets wf_has" "wf_has check_passed"
 check "ref file created" "[ -f \"$WF.check_passed.ref\" ]"
+check "files snapshot created" "[ -f \"$WF.check_passed.files\" ]"
 check "fresh right after mark" "wf_fresh check_passed"
+
+# Gemini review: wf_mark must dedupe — calling it twice yields exactly one entry.
+wf_mark check_passed
+wf_mark check_passed
+entries=$(grep -c "^check_passed=" "$WF" 2>/dev/null || echo 0)
+check "wf_mark dedupes entries" "[ \"$entries\" = 1 ]"
 
 sleep 1
 touch .claude/hooks/workflow-state.sh
@@ -81,6 +88,15 @@ check "wrapped cd-then-commit → exit 2" "[ \"$rc\" = 2 ]"
 unset rc
 out=$(make_input "git add . && git commit -m msg" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
 check "wrapped add-then-commit → exit 2" "[ \"$rc\" = 2 ]"
+
+# Gemini review: trailing shell separators must match too.
+unset rc
+out=$(make_input "git commit;make test" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
+check "commit-then-semicolon → exit 2" "[ \"$rc\" = 2 ]"
+
+unset rc
+out=$(make_input "git commit&&echo done" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
+check "commit-then-&& → exit 2" "[ \"$rc\" = 2 ]"
 
 unset rc
 wf_mark check_passed
@@ -152,6 +168,15 @@ check "no review marker → exit 2" "[ \"$rc\" = 2 ]"
 unset rc
 out=$(make_input "cd /tmp && gh pr create --title x" | "$HOOKS/pre-pr.sh" 2>&1) || rc=$? ; rc=${rc:-0}
 check "wrapped cd-then-gh-pr-create → exit 2" "[ \"$rc\" = 2 ]"
+
+# Gemini review: trailing shell separators must match too.
+unset rc
+out=$(make_input "gh pr create;echo done" | "$HOOKS/pre-pr.sh" 2>&1) || rc=$? ; rc=${rc:-0}
+check "gh-pr-create-then-semicolon → exit 2" "[ \"$rc\" = 2 ]"
+
+unset rc
+out=$(make_input "gh pr create&&echo ok" | "$HOOKS/pre-pr.sh" 2>&1) || rc=$? ; rc=${rc:-0}
+check "gh-pr-create-then-&& → exit 2" "[ \"$rc\" = 2 ]"
 
 unset rc
 wf_mark cross_model_review

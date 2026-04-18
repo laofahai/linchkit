@@ -1,7 +1,7 @@
 #!/bin/bash
 # Workflow state helper — shared by all workflow hooks.
 # State file: $TMPDIR/linchkit-wf-<project-id>-<branch-slug>
-# Each line: key=timestamp
+# Each line: key=timestamp (each marker appears at most once — wf_mark dedupes)
 # Freshness refs:
 #   <state-file>.<key>.ref   — touch'ed when the marker is set
 #   <state-file>.<key>.files — checksum of `git ls-files` at mark time
@@ -31,9 +31,18 @@ _wf_tracked_hash() {
 wf_mark() {
   # Record a workflow step as done AND snapshot the current state so wf_fresh
   # can detect any edits, additions, or deletions made after the marker was set.
-  echo "$1=$(date +%s)" >> "$(_wf_file)"
-  touch "$(_wf_file).$1.ref" 2>/dev/null || true
-  _wf_tracked_hash > "$(_wf_file).$1.files" 2>/dev/null || true
+  # Dedupe: remove any prior entry for this marker before appending. Without
+  # this, the state file grows unbounded across successive marks (post-commit
+  # no longer resets).
+  local wf
+  wf=$(_wf_file)
+  if [ -f "$wf" ]; then
+    grep -v "^$1=" "$wf" > "$wf.tmp" 2>/dev/null || true
+    mv "$wf.tmp" "$wf" 2>/dev/null || true
+  fi
+  echo "$1=$(date +%s)" >> "$wf"
+  touch "$wf.$1.ref" 2>/dev/null || true
+  _wf_tracked_hash > "$wf.$1.files" 2>/dev/null || true
 }
 
 wf_reset() {
@@ -61,16 +70,16 @@ wf_reset() {
 wf_fresh() {
   local marker="$1"
   wf_has "$marker" || return 1
-  local ref snap
-  ref="$(_wf_file).${marker}.ref"
+  local ref snap wf
+  wf=$(_wf_file)
+  ref="$wf.${marker}.ref"
   [ -f "$ref" ] || return 0
-  snap="$(_wf_file).${marker}.files"
+  snap="$wf.${marker}.files"
 
   # (a) Tracked file set unchanged? Catches git rm / git add / rename.
   if [ -f "$snap" ]; then
-    local current
+    local current previous
     current=$(_wf_tracked_hash)
-    local previous
     previous=$(cat "$snap" 2>/dev/null)
     [ "$current" = "$previous" ] || return 1
   fi
@@ -78,29 +87,25 @@ wf_fresh() {
   local root
   root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
 
-  # Source directories that affect check/typecheck/test.
-  local roots=""
+  # Source directories and root-level config files that affect gates.
+  # Array-based so paths with spaces work correctly.
+  local paths=()
   for dir in packages addons apps scripts .claude; do
-    [ -d "$root/$dir" ] && roots="$roots $root/$dir"
+    [ -d "$root/$dir" ] && paths+=("$root/$dir")
   done
-
-  # Root-level config files that affect check/typecheck/test. Only include if
-  # the file actually exists — find errors on missing paths.
-  local root_files=""
   for f in \
     package.json bun.lock bunfig.toml .bunfig.toml \
     tsconfig.json tsconfig.base.json \
     biome.json turbo.json drizzle.config.ts lefthook.yml; do
-    [ -f "$root/$f" ] && root_files="$root_files $root/$f"
+    [ -f "$root/$f" ] && paths+=("$root/$f")
   done
 
-  [ -z "$roots" ] && [ -z "$root_files" ] && return 0
+  [ ${#paths[@]} -eq 0 ] && return 0
 
   # (b) mtime comparison. -prune excludes heavy dirs; -path prune for nested
   # worktrees so other branches' edits don't invalidate this branch's gates.
-  # shellcheck disable=SC2086
   local newer
-  newer=$(find $roots $root_files \
+  newer=$(find "${paths[@]}" \
     \( -name node_modules -o -name dist -o -name .bun -o -name .turbo -o -name .next \) -prune \
     -o -path "$root/.claude/worktrees" -prune \
     -o -type f -newer "$ref" -print 2>/dev/null | head -1)
