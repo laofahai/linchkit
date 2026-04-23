@@ -1,8 +1,11 @@
 /**
  * mark_all_read action
  *
- * Marks every unread notification owned by the given recipient as read.
- * Idempotent: running against a recipient with no unread rows is a no-op.
+ * Marks every unread notification for the CURRENT actor as read. The recipient
+ * is derived from `ctx.actor.id` — callers cannot mass-mark another user's
+ * notifications. Privileged actors (system/worker/ai) may pass an explicit
+ * `recipient_id` to operate on someone else's queue (used by housekeeping).
+ * Idempotent: running with no unread rows is a no-op.
  */
 
 import { defineAction } from "@linchkit/core";
@@ -11,12 +14,12 @@ export const markAllReadAction = defineAction({
   name: "mark_all_read",
   entity: "notification",
   label: "Mark All Notifications Read",
-  description: "Mark every unread notification for the given recipient as read",
+  description: "Mark every unread notification for the current actor as read",
   input: {
     recipient_id: {
       type: "string",
-      label: "Recipient",
-      required: true,
+      label: "Recipient (privileged only)",
+      description: "Optional — only honored when the caller is system/worker/ai",
     },
   },
   policy: {
@@ -26,9 +29,19 @@ export const markAllReadAction = defineAction({
   },
   exposure: { http: true, ui: true, cli: true, mcp: true },
   async handler(ctx) {
-    const recipientId = ctx.input.recipient_id;
-    if (typeof recipientId !== "string" || !recipientId.trim()) {
-      throw new Error("recipient_id is required");
+    const actorType = ctx.actor.type;
+    const isPrivilegedActor = actorType === "system" || actorType === "worker" || actorType === "ai";
+    const explicitRecipient = ctx.input.recipient_id;
+
+    let recipientId: string;
+    if (isPrivilegedActor && typeof explicitRecipient === "string" && explicitRecipient.trim()) {
+      recipientId = explicitRecipient.trim();
+    } else {
+      // Anyone else is locked to their own queue; explicit recipient_id is ignored.
+      if (!ctx.actor.id) {
+        throw new Error("An authenticated actor is required");
+      }
+      recipientId = ctx.actor.id;
     }
 
     const unread = await ctx.query("notification", {

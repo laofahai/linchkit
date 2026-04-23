@@ -34,6 +34,15 @@ export const markNotificationReadAction = defineAction({
 
     const record = await ctx.get("notification", notificationId);
 
+    // Ownership guard — a notification may only be marked read by its recipient.
+    // System/worker/ai actors are allowed to mark any record (used by housekeeping
+    // flows); human actors must match record.recipient_id.
+    const actorType = ctx.actor.type;
+    const isPrivilegedActor = actorType === "system" || actorType === "worker" || actorType === "ai";
+    if (!isPrivilegedActor && record.recipient_id !== ctx.actor.id) {
+      throw new Error("Notification does not belong to the current actor");
+    }
+
     // Already read — return current record without a pointless write.
     if (record.read_at != null) {
       return record;

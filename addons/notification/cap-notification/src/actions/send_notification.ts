@@ -95,8 +95,23 @@ export const sendNotificationAction = defineAction({
     transaction: true,
     idempotent: false,
   },
+  // send_notification is a system-side dispatch primitive. It is declared with
+  // the HTTP/UI/CLI/MCP exposures so system actors and AI agents can invoke it
+  // over any transport, but the handler hard-gates human callers so business
+  // users cannot spoof notifications to arbitrary recipients. Trigger this
+  // action from a Rule, EventHandler, or another privileged action.
   exposure: { http: true, ui: true, cli: true, mcp: true },
+  permissions: { actorTypes: ["system", "worker", "ai", "timer"] },
   async handler(ctx): Promise<NotificationDispatchResult> {
+    // Defensive check — `permissions.actorTypes` is a hint in some code paths,
+    // so also enforce in-handler to guarantee no human actor can dispatch.
+    const actorType = ctx.actor.type;
+    if (actorType !== "system" && actorType !== "worker" && actorType !== "ai" && actorType !== "timer") {
+      throw new Error(
+        "send_notification is a system dispatch primitive — invoke it from a Rule, EventHandler, or another privileged action",
+      );
+    }
+
     const recipientId = ctx.input.recipient_id;
     const message = ctx.input.message;
     const rawChannel = ctx.input.channel ?? "in_app";
