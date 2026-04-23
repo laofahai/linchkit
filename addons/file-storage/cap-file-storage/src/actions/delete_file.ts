@@ -51,9 +51,13 @@ export const deleteFileAction = defineAction({
       );
     }
 
-    // Delete payload first, then metadata. Adapter delete is idempotent.
-    await adapter.delete(record.path as string);
+    // Delete metadata first, then the payload. If adapter.delete fails the
+    // record is already gone — the leftover blob is a harmless orphan that
+    // a storage GC can reclaim. The reverse order (blob first, row second)
+    // can leave an orphan row pointing at a missing blob, which breaks
+    // download_file for every future request.
     await ctx.delete("file", id);
+    await adapter.delete(record.path as string);
 
     ctx.emit("file.deleted", {
       file_id: id,

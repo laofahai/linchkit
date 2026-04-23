@@ -12,16 +12,14 @@
  *   id, name, mime, size, data_base64
  */
 
+import { Buffer } from "node:buffer";
 import { defineAction } from "@linchkit/core";
 import { getStorageAdapter } from "../storage-registry";
 
 function encodeBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i] as number);
-  }
-  // Bun/Node both ship globalThis.btoa.
-  return btoa(binary);
+  // Native base64 encoding — O(n) single-pass vs. the prior character-by-character
+  // `btoa(String.fromCharCode(...))` loop (slow + allocates the intermediate string).
+  return Buffer.from(bytes).toString("base64");
 }
 
 export const downloadFileAction = defineAction({

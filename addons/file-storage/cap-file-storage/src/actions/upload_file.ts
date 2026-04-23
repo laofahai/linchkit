@@ -14,22 +14,22 @@
  * enables cross-tenant blob overwrites and collision attacks.
  */
 
+import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { defineAction } from "@linchkit/core";
 import { getStorageAdapter } from "../storage-registry";
 
 function decodeBase64(input: string): Uint8Array {
-  // Reject whitespace/newlines and non-base64 chars explicitly — atob is lenient.
+  // Reject whitespace/newlines and non-base64 chars up front — native
+  // `Buffer.from` is lenient and silently drops garbage, which would make
+  // checksum/size numbers diverge from what the caller sent.
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(input)) {
     throw new Error("data_base64 must be valid base64 without whitespace");
   }
-  // Bun/Node both ship globalThis.atob.
-  const binary = atob(input);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    out[i] = binary.charCodeAt(i);
-  }
-  return out;
+  // Native base64 decode — O(n) vs. the prior `atob` + per-char loop.
+  // The `new Uint8Array(buf)` wrap promotes the Node Buffer (a Uint8Array
+  // subclass, but usually backed by a shared pool) to a standalone array.
+  return new Uint8Array(Buffer.from(input, "base64"));
 }
 
 export const uploadFileAction = defineAction({

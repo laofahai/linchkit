@@ -80,8 +80,12 @@ export class LocalStorageAdapter implements StorageAdapter {
   async read(path: string): Promise<Uint8Array> {
     const abs = resolveSafe(this.#rootDir, path);
     const buf = await readFile(abs);
-    // Copy underlying buffer slice into a fresh Uint8Array for a stable view
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    // `readFile` returns a Buffer backed by Node's shared allocation pool
+    // (`buf.buffer` can be larger than this file). Construct a fresh
+    // Uint8Array from the Buffer directly — this copies the bytes and
+    // detaches the result from the pool, preventing callers from reading
+    // neighbor data or having their view invalidated later.
+    return new Uint8Array(buf);
   }
 
   async delete(path: string): Promise<void> {
