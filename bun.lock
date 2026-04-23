@@ -258,6 +258,17 @@
         "drizzle-orm": "*",
       },
     },
+    "addons/notification/cap-notification": {
+      "name": "@linchkit/cap-notification",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
     "addons/permission/cap-permission": {
       "name": "@linchkit/cap-permission",
       "version": "1.0.0",
@@ -619,6 +630,8 @@
     "@linchkit/cap-mcp-ui": ["@linchkit/cap-mcp-ui@workspace:addons/adapter-mcp/cap-mcp-ui"],
 
     "@linchkit/cap-migration": ["@linchkit/cap-migration@workspace:addons/migration/cap-migration"],
+
+    "@linchkit/cap-notification": ["@linchkit/cap-notification@workspace:addons/notification/cap-notification"],
 
     "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:addons/permission/cap-permission"],
 
