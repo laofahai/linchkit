@@ -22,6 +22,7 @@ import { canTransition, getAvailableActions } from "./state-machine";
 export { ActionRegistry } from "./action-registry";
 
 import {
+  checkActorType,
   generateExecutionId,
   isExposed,
   resolveFieldExpression,
@@ -294,9 +295,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Step 2: Exposure check
     // Granular flag allows CommandLayer to skip the check it has already handled.
-    // Note: skipPermissionCheck is accepted for backwards compatibility but is a
-    // no-op — group-based authorization now lives exclusively in cap-permission
-    // via the CommandLayer "permission" slot (issue #125).
+    //
+    // Note: `skipPermissionCheck` only suppresses GROUP enforcement. Group
+    // authorization lives exclusively in cap-permission via the CommandLayer
+    // "permission" slot (issue #125). Actor-type enforcement (Spec 10 §5) is
+    // still applied below on every execution path so callers that bypass the
+    // pipeline (GraphQL, internal execute) still honor actor-type gating.
     const skipExposure = execOptions?.skipExposureCheck ?? false;
 
     // Exposure check — default channel to "internal" so the check always runs
@@ -332,8 +336,31 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    // Step 3: Input validation
-    // (Permission enforcement happens in the CommandLayer "permission" slot.)
+    // Step 3: Actor-type check — Spec 10 authorization field declared on the
+    // action itself. Group enforcement moved to the CommandLayer "permission"
+    // slot (cap-permission) in #125, but actor-type filtering must hold on
+    // every entry point, including GraphQL and direct executor callers.
+    const actorTypeError = checkActorType(action, actor);
+    if (actorTypeError) {
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: action.entity,
+        actor,
+        input,
+        status: "blocked",
+        error: { message: actorTypeError },
+        startedAt,
+      });
+      return {
+        success: false,
+        data: { error: actorTypeError } as T,
+        executionId,
+      };
+    }
+
+    // Step 4: Input validation
+    // (Group-level authorization happens in the CommandLayer "permission" slot.)
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];

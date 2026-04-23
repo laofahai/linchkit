@@ -15,10 +15,14 @@ import type {
 import type { ExecutionChannel } from "./action-engine";
 
 // NOTE: Group-based permission enforcement lives exclusively in cap-permission
-// via the CommandLayer "permission" slot. Action Engine no longer performs any
-// group check — see Spec 10 §7.8 (open-by-default when no cap-permission).
-// Actor-type filtering (permissions.actorTypes) is a UI/exposure hint, not
-// an authorization decision, and is handled by consumers (e.g. GraphQL build).
+// via the CommandLayer "permission" slot — the executor no longer performs any
+// group check (Spec 10 §7.8: open-by-default when cap-permission is absent).
+//
+// Actor-type filtering (`permissions.actorTypes`) is a different concern: it's
+// a first-order authorization gate declared on the action itself (e.g. a
+// system-only dispatch primitive, an AI-only tool). Spec 10 requires it to be
+// enforced on every execution path, so the executor keeps this check. See
+// `checkActorType` below.
 
 /**
  * Resolve a `$`-prefixed expression in declarative `setFields`.
@@ -59,6 +63,25 @@ export function generateExecutionId(): string {
 }
 
 /** Check if the action is exposed for the given channel */
+/**
+ * Enforce `permissions.actorTypes` — the only authorization field still owned
+ * by the Action Engine after issue #125. Returns an error string (for logging
+ * + response) or `null` when the actor type is allowed.
+ *
+ * Group-based checks live in the CommandLayer "permission" slot; this one
+ * stays here because it's declared on the action itself and must hold for
+ * every entry point (REST, GraphQL, MCP, internal execute), not just the
+ * pipeline-aware callers.
+ */
+export function checkActorType(action: ActionDefinition, actor: Actor): string | null {
+  const allowed = action.permissions?.actorTypes;
+  if (!allowed || allowed.length === 0) return null;
+  if (!allowed.includes(actor.type)) {
+    return `Actor type "${actor.type}" is not allowed for action "${action.name}"`;
+  }
+  return null;
+}
+
 export function isExposed(
   exposure: ActionExposure | "all" | undefined,
   channel: ExecutionChannel,

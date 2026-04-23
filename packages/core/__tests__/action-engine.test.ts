@@ -282,17 +282,34 @@ describe("ActionExecutor", () => {
     expect(result.success).toBe(false);
   });
 
-  it("executor does not enforce action.permissions (pipeline-owned per #125)", async () => {
-    // Issue #125: Action Engine no longer runs any permission check. Even an
-    // actor whose type/groups would have previously been rejected now passes
-    // through the executor unchanged. Permission enforcement is the
-    // responsibility of a permission-slot pipeline middleware.
+  it("executor enforces action.permissions.actorTypes (Spec 10)", async () => {
+    // Issue #125 moved GROUP authorization to the CommandLayer permission slot,
+    // but Spec 10 still requires actor-type filtering to hold on every path —
+    // so an action declared with `actorTypes: ["human"]` rejects an AI actor
+    // even through a raw executor.execute() call that bypasses the pipeline.
     const dataProvider = createMemoryDataProvider();
     const executor = createActionExecutor({ dataProvider });
     executor.registry.register(restrictedAction);
 
     const aiActor: Actor = { type: "ai", id: "bot-1", groups: [] };
     const result = await executor.execute("approve_order", {}, aiActor);
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).error).toMatch(/actor type/i);
+  });
+
+  it("executor no longer enforces action.permissions.groups (pipeline-owned per #125)", async () => {
+    // Group authorization belongs to cap-permission via the CommandLayer
+    // permission slot. The executor does not check groups, so an actor whose
+    // type is allowed but who lacks any "required" group still executes.
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider });
+    executor.registry.register(restrictedAction);
+
+    // restrictedAction only declares actorTypes: ["human"] after #125; a human
+    // actor with zero groups must succeed (group checks are pipeline-only).
+    const humanWithoutGroups: Actor = { type: "human", id: "user-1", groups: [] };
+    const result = await executor.execute("approve_order", {}, humanWithoutGroups);
 
     expect(result.success).toBe(true);
     expect((result.data as Record<string, unknown>).approved).toBe(true);
