@@ -417,10 +417,17 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       // Non-action dispatch: set a synthetic success result so downstream code
       // knows the pipeline completed without error. The caller is responsible
       // for producing the actual response payload (e.g. onchange updates).
+      // Include the resolved tenantId / locale (read from the final ctx after
+      // middleware runs) so downstream handlers like the onchange REST route
+      // can propagate them without having to re-derive from the request.
       pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
         c.result = {
           success: true,
-          data: { skipped: true },
+          data: {
+            skipped: true,
+            tenantId: c.tenantId,
+            locale: c.locale,
+          },
           executionId: generatePipelineId(),
         };
       });

@@ -118,16 +118,22 @@ export function mountOnchangeRoutes(
     // Now run the evaluator. The CommandLayer has already authorized this
     // request; the evaluator only handles pure computation + permission-scoped
     // lookups via the DataProvider.
+    //
+    // The synthetic success result from `skipActionSlots` carries the resolved
+    // `tenantId` / `locale` read from the command context after the tenant +
+    // auth middlewares ran, so downstream handlers pick up whatever the
+    // pipeline decided rather than whatever the caller initially sent.
+    const resolvedContext =
+      commandResult.data && typeof commandResult.data === "object"
+        ? (commandResult.data as { tenantId?: string; locale?: string })
+        : undefined;
     try {
       const result = await onchangeEvaluator.evaluate({
         entityName,
         changedField,
         values,
         actor,
-        tenantId:
-          commandResult.data && typeof commandResult.data === "object"
-            ? (commandResult.data as { tenantId?: string }).tenantId
-            : undefined,
+        tenantId: resolvedContext?.tenantId,
       });
       return {
         updates: result.updates,

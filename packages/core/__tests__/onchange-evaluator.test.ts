@@ -604,4 +604,233 @@ describe("createOnchangeEvaluator — checkReadPermission", () => {
     const denials = result.warnings.filter((w) => w.includes('Access to "product" denied'));
     expect(denials.length).toBe(1);
   });
+
+  // E2-2 regression: warnings from `checkReadPermission` must dedup across
+  // chained hooks, not just within a single hook invocation.
+  test("collapses repeated denials across chained hooks into a single warning", async () => {
+    const entity: EntityDefinition = {
+      name: "chain",
+      fields: {
+        a: { type: "string" },
+        b: { type: "string" },
+        c: { type: "string" },
+      },
+      onchange: {
+        // Hook A triggers and produces `b`, which then triggers hook B.
+        // Both hooks try to lookup on `product` and both are denied.
+        a: {
+          updates: ["b"],
+          compute: async (ctx) => {
+            await ctx.lookup("product", "x", "price");
+            return { b: "from-a" };
+          },
+        },
+        b: {
+          updates: ["c"],
+          compute: async (ctx) => {
+            await ctx.lookup("product", "y", "price");
+            return { c: "from-b" };
+          },
+        },
+      },
+    };
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: registerEntity(entity),
+      dataProvider: createStubDataProvider({
+        records: { product: { x: { id: "x", price: 1 } } },
+      }),
+      checkReadPermission: () => false,
+    });
+
+    const result = await evaluator.evaluate({
+      entityName: "chain",
+      changedField: "a",
+      values: { a: "v" },
+      actor: ACTOR,
+    });
+    expect(result.updates).toEqual({ b: "from-a", c: "from-b" });
+    const denials = result.warnings.filter((w) => w.includes('Access to "product" denied'));
+    expect(denials.length).toBe(1);
+  });
+});
+
+// E2-3 regression: lookup / query must never throw from the hook author's
+// perspective, but errors swallowed silently are dangerous. Surface them as
+// structured warnings instead.
+describe("createOnchangeEvaluator — lookup/query error surfacing", () => {
+  /** Stub provider whose get/query always throw the same error. */
+  function createFailingDataProvider(message: string): DataProvider {
+    return {
+      async get() {
+        throw new Error(message);
+      },
+      async query() {
+        throw new Error(message);
+      },
+      async create() {
+        throw new Error("not used");
+      },
+      async update() {
+        throw new Error("not used");
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async count() {
+        throw new Error("not used");
+      },
+    };
+  }
+
+  test("DataProvider error surfaces as a warning but hook still completes", async () => {
+    const entity: EntityDefinition = {
+      name: "line",
+      fields: {
+        product_id: { type: "string" },
+        unit_price: { type: "number" },
+        status: { type: "string" },
+      },
+      onchange: {
+        product_id: {
+          updates: ["unit_price", "status"],
+          compute: async (ctx) => {
+            // lookup fails, but the hook continues and still returns a value
+            // for `status`, proving the rejection did not propagate as a throw.
+            const price = await ctx.lookup("product", ctx.value as string, "price");
+            return {
+              unit_price: price,
+              status: "ok",
+            };
+          },
+        },
+      },
+    };
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: registerEntity(entity),
+      dataProvider: createFailingDataProvider("DB connection reset"),
+    });
+
+    const result = await evaluator.evaluate({
+      entityName: "line",
+      changedField: "product_id",
+      values: { product_id: "p1" },
+      actor: ACTOR,
+    });
+    expect(result.updates.status).toBe("ok");
+    expect(result.updates.unit_price).toBeUndefined();
+    const lookupWarnings = result.warnings.filter((w) => w.includes('Lookup on "product" failed'));
+    expect(lookupWarnings.length).toBe(1);
+    expect(lookupWarnings[0]).toContain("DB connection reset");
+  });
+
+  test("query error surfaces as a warning and returns []", async () => {
+    const entity: EntityDefinition = {
+      name: "line",
+      fields: {
+        product_id: { type: "string" },
+        unit_price: { type: "number" },
+      },
+      onchange: {
+        product_id: {
+          updates: ["unit_price"],
+          compute: async (ctx) => {
+            const list = await ctx.query("product", { kind: "widget" });
+            return { unit_price: list.length };
+          },
+        },
+      },
+    };
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: registerEntity(entity),
+      dataProvider: createFailingDataProvider("timeout"),
+    });
+
+    const result = await evaluator.evaluate({
+      entityName: "line",
+      changedField: "product_id",
+      values: { product_id: "p1" },
+      actor: ACTOR,
+    });
+    expect(result.updates.unit_price).toBe(0);
+    const queryWarnings = result.warnings.filter((w) => w.includes('Query on "product" failed'));
+    expect(queryWarnings.length).toBe(1);
+    expect(queryWarnings[0]).toContain("timeout");
+  });
+
+  test("permission denial stays as a permission-warning (not a lookup-warning)", async () => {
+    const entity: EntityDefinition = {
+      name: "line",
+      fields: {
+        product_id: { type: "string" },
+        unit_price: { type: "number" },
+      },
+      onchange: {
+        product_id: {
+          updates: ["unit_price"],
+          compute: async (ctx) => ({
+            unit_price: await ctx.lookup("product", ctx.value as string, "price"),
+          }),
+        },
+      },
+    };
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: registerEntity(entity),
+      dataProvider: createStubDataProvider({
+        records: { product: { p1: { id: "p1", price: 42 } } },
+      }),
+      checkReadPermission: () => false,
+    });
+
+    const result = await evaluator.evaluate({
+      entityName: "line",
+      changedField: "product_id",
+      values: { product_id: "p1" },
+      actor: ACTOR,
+    });
+    // Permission path is taken (not the try/catch fallback) — so we see the
+    // access-denied warning and NOT a lookup-failed warning.
+    expect(result.warnings.some((w) => w.includes('Access to "product" denied'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('Lookup on "product" failed'))).toBe(false);
+  });
+
+  test("collapses repeated identical lookup errors across chained hooks", async () => {
+    const entity: EntityDefinition = {
+      name: "chain",
+      fields: {
+        a: { type: "string" },
+        b: { type: "string" },
+        c: { type: "string" },
+      },
+      onchange: {
+        a: {
+          updates: ["b"],
+          compute: async (ctx) => {
+            await ctx.lookup("product", "x", "price");
+            return { b: "next" };
+          },
+        },
+        b: {
+          updates: ["c"],
+          compute: async (ctx) => {
+            await ctx.lookup("product", "y", "price");
+            return { c: "done" };
+          },
+        },
+      },
+    };
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: registerEntity(entity),
+      dataProvider: createFailingDataProvider("DB connection reset"),
+    });
+
+    const result = await evaluator.evaluate({
+      entityName: "chain",
+      changedField: "a",
+      values: { a: "start" },
+      actor: ACTOR,
+    });
+    expect(result.updates).toEqual({ b: "next", c: "done" });
+    const lookupWarnings = result.warnings.filter((w) => w.includes('Lookup on "product" failed'));
+    expect(lookupWarnings.length).toBe(1);
+  });
 });

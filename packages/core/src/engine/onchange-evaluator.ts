@@ -190,6 +190,32 @@ function filterByAllowlist(
 }
 
 /**
+ * Deduping warning sink used across a single `evaluate()` call. Callers supply
+ * a dedup `key` plus the warning `message`; the first emission per key is
+ * pushed into the backing array, subsequent emissions with the same key are
+ * dropped. Used to collapse identical permission / lookup / query warnings
+ * that would otherwise repeat across chained hooks.
+ */
+interface DedupedWarningSink {
+  /** Push `message` unless `key` was already pushed during this call. */
+  push(key: string, message: string): void;
+  /** Raw warning array for evaluator-owned (non-deduped) warnings. */
+  readonly warnings: string[];
+}
+
+function createDedupedWarningSink(backing: string[]): DedupedWarningSink {
+  const seen = new Set<string>();
+  return {
+    push(key, message) {
+      if (seen.has(key)) return;
+      seen.add(key);
+      backing.push(message);
+    },
+    warnings: backing,
+  };
+}
+
+/**
  * Build the context object passed to `hook.compute`. The context exposes only
  * read-level helpers; it MUST NOT leak any DataProvider write methods.
  *
@@ -197,6 +223,10 @@ function filterByAllowlist(
  * caller whether the current actor may read the target entity. On denial the
  * data-provider call is skipped and a structured warning is pushed into
  * `warningSink`, which the evaluator merges into the final result.
+ *
+ * `warningSink` must be a shared `DedupedWarningSink` for the whole
+ * `evaluate()` call so that identical permission denials / lookup failures
+ * emitted by chained hooks collapse into a single warning (Spec 64 §9.1).
  */
 function buildContext(options: {
   changedField: string;
@@ -205,12 +235,11 @@ function buildContext(options: {
   tenantId: string | undefined;
   dataProvider: DataProvider;
   checkReadPermission?: OnchangeReadPermissionCheck;
-  warningSink: string[];
+  warningSink: DedupedWarningSink;
 }): OnchangeContext {
   const { changedField, values, actor, tenantId, dataProvider, checkReadPermission, warningSink } =
     options;
   const queryOptions: DataQueryOptions = tenantId ? { tenantId } : {};
-  const deniedEntities = new Set<string>();
 
   async function ensureReadable(entity: string): Promise<boolean> {
     if (!checkReadPermission) return true;
@@ -219,18 +248,18 @@ function buildContext(options: {
       if (!allowed) {
         // Collapse repeated denials of the same entity into a single warning
         // so chained hooks don't spam the UI with identical messages.
-        if (!deniedEntities.has(entity)) {
-          deniedEntities.add(entity);
-          warningSink.push(`Access to "${entity}" denied for current actor`);
-        }
+        warningSink.push(
+          `permission-denied:${entity}`,
+          `Access to "${entity}" denied for current actor`,
+        );
       }
       return allowed;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (!deniedEntities.has(entity)) {
-        deniedEntities.add(entity);
-        warningSink.push(`Read-permission check for "${entity}" failed: ${message}`);
-      }
+      warningSink.push(
+        `permission-check-failed:${entity}`,
+        `Read-permission check for "${entity}" failed: ${message}`,
+      );
       return false;
     }
   }
@@ -247,8 +276,17 @@ function buildContext(options: {
         const record = await dataProvider.get(entity, id, queryOptions);
         if (!record) return undefined;
         return record[field];
-      } catch {
-        // Permission denied / record missing — return undefined per Spec 64 §9.1
+      } catch (err) {
+        // Spec 64 §9.1 — `lookup` must never throw from the hook author's
+        // perspective. But silently swallowing DB / tenant / timeout errors is
+        // dangerous, so surface them as a structured warning. Dedup by
+        // (entity, message) so repeated identical failures across chained
+        // hooks collapse into a single warning.
+        const message = err instanceof Error ? err.message : String(err);
+        warningSink.push(
+          `lookup-failed:${entity}:${message}`,
+          `Lookup on "${entity}" failed: ${message}`,
+        );
         return undefined;
       }
     },
@@ -256,7 +294,13 @@ function buildContext(options: {
       if (!(await ensureReadable(entity))) return [];
       try {
         return await dataProvider.query(entity, filter, queryOptions);
-      } catch {
+      } catch (err) {
+        // Same contract as `lookup`: never throw, but emit a deduped warning.
+        const message = err instanceof Error ? err.message : String(err);
+        warningSink.push(
+          `query-failed:${entity}:${message}`,
+          `Query on "${entity}" failed: ${message}`,
+        );
         return [];
       }
     },
@@ -317,6 +361,10 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
     const mergedValues: Record<string, unknown> = { ...values };
     const accumulated: Record<string, unknown> = {};
     const warnings: string[] = [];
+    // Single deduping sink shared across every hook in this evaluate() call.
+    // Permission denials and lookup/query failures dedup by entity + message
+    // so chained hooks collapse repeated warnings into one.
+    const warningSink = createDedupedWarningSink(warnings);
     const visited = new Set<string>();
     const queue: string[] = [changedField];
     let evaluations = 0;
@@ -346,7 +394,7 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
           tenantId,
           dataProvider,
           checkReadPermission,
-          warningSink: warnings,
+          warningSink,
         });
 
         let result: OnchangeResult;
