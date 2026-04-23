@@ -106,7 +106,12 @@ export const sendNotificationAction = defineAction({
     // Defensive check — `permissions.actorTypes` is a hint in some code paths,
     // so also enforce in-handler to guarantee no human actor can dispatch.
     const actorType = ctx.actor.type;
-    if (actorType !== "system" && actorType !== "worker" && actorType !== "ai" && actorType !== "timer") {
+    if (
+      actorType !== "system" &&
+      actorType !== "worker" &&
+      actorType !== "ai" &&
+      actorType !== "timer"
+    ) {
       throw new Error(
         "send_notification is a system dispatch primitive — invoke it from a Rule, EventHandler, or another privileged action",
       );

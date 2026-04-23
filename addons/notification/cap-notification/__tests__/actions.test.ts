@@ -152,10 +152,7 @@ describe("send_notification", () => {
     await expect(
       callHandler(
         sendNotificationAction,
-        store.ctx(
-          { recipient_id: "user-1", message: "hi", channel: "sms" },
-          { type: "system" },
-        ),
+        store.ctx({ recipient_id: "user-1", message: "hi", channel: "sms" }, { type: "system" }),
       ),
     ).rejects.toThrow(/channel/i);
   });
@@ -243,9 +240,9 @@ describe("mark_all_read", () => {
     const result = (await callHandler(
       markAllReadAction,
       store.ctx({ recipient_id: "user-2" }, { id: "user-1", type: "human" }),
-    )) as { updated: number; recipient_id: string };
+    )) as { updated: number; recipient_id: string; hasMore: boolean };
 
-    expect(result).toEqual({ updated: 2, recipient_id: "user-1" });
+    expect(result).toEqual({ updated: 2, recipient_id: "user-1", hasMore: false });
     expect((store.rows.get("n-1") as Row).read_at).toBeTypeOf("string");
     expect((store.rows.get("n-2") as Row).read_at).toBeTypeOf("string");
     expect((store.rows.get("n-3") as Row).read_at).toBeNull(); // protected
@@ -253,7 +250,7 @@ describe("mark_all_read", () => {
     expect(store.emitted).toContainEqual(
       expect.objectContaining({
         type: "notification.all_read",
-        payload: expect.objectContaining({ updated: 2 }),
+        payload: expect.objectContaining({ updated: 2, has_more: false }),
       }),
     );
   });
@@ -265,9 +262,9 @@ describe("mark_all_read", () => {
     const result = (await callHandler(
       markAllReadAction,
       store.ctx({ recipient_id: "user-2" }, { id: "housekeeper", type: "system" }),
-    )) as { updated: number; recipient_id: string };
+    )) as { updated: number; recipient_id: string; hasMore: boolean };
 
-    expect(result).toEqual({ updated: 1, recipient_id: "user-2" });
+    expect(result).toEqual({ updated: 1, recipient_id: "user-2", hasMore: false });
     expect((store.rows.get("n-2") as Row).read_at).toBeNull();
   });
 
