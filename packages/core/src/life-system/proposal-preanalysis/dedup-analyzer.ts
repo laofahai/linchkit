@@ -19,18 +19,34 @@
 import type { ProposalChange, ProposalDefinition } from "../../types/proposal";
 import type { DedupResult, PendingProposalStore, PreAnalyzer } from "./types";
 
-/** Stable stringify — sorts object keys so logically-equal payloads hash identically. */
+/**
+ * Stable stringify — produces a canonical JSON string so logically-equal
+ * payloads hash identically. Delegates to `JSON.stringify` with a replacer so
+ * we inherit its handling of `undefined` (omitted from objects, becomes `null`
+ * inside arrays) instead of rolling our own and diverging.
+ *
+ * - Plain objects: entries sorted by key. Entries whose value is `undefined`
+ *   are dropped (matches JSON.stringify, avoids spurious "key":undefined in
+ *   manual template-string paths).
+ * - Arrays: natural order preserved. `[undefined]` and `[]` serialize
+ *   differently because the replacer returns `null` for undefined inside
+ *   arrays (JSON.stringify default behavior).
+ * - `Date` instances: emitted as ISO-8601 strings so two different timestamps
+ *   never collide to the same "{}" the way the previous impl did.
+ */
 function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
-  }
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
-  const parts = keys.map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`);
-  return `{${parts.join(",")}}`;
+  const replacer = (_key: string, v: unknown): unknown => {
+    if (v instanceof Date) return v.toISOString();
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      const entries = Object.entries(v as Record<string, unknown>).filter(
+        ([, val]) => val !== undefined,
+      );
+      entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      return Object.fromEntries(entries);
+    }
+    return v;
+  };
+  return JSON.stringify(value, replacer);
 }
 
 /** FNV-1a 32-bit hash, rendered as 8-char lowercase hex. */

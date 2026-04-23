@@ -6,8 +6,9 @@
  *
  *   - Analyzer failures are captured into the envelope (status === "error");
  *     the remaining analyzers still run. One bad analyzer must never nuke the pipeline.
- *   - Each stage may appear at most once. If two analyzers share a stage the first
- *     wins and the second is recorded as "skipped" so the situation is visible.
+ *   - Each stage may appear at most once. If two analyzers share a stage the
+ *     first wins and subsequent ones are silently skipped — the result object
+ *     is keyed by stage, so a second envelope would destroy the first's data.
  *   - Analyzers run sequentially. The stages are cheap; ordering keeps test output
  *     deterministic and makes debugging easier than Promise.all interleaving.
  */
