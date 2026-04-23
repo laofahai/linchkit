@@ -100,7 +100,10 @@ describe("createImpactAnalyzer", () => {
         {
           target: "state",
           operation: "create",
-          name: "order",
+          // State-machine name, NOT the entity name; the entity lives on
+          // StateDefinition.entity (see Spec 07).
+          name: "order_lifecycle",
+          definition: { name: "order_lifecycle", entity: "order" } as never,
           diff: "add state machine",
         },
       ],
@@ -128,7 +131,8 @@ describe("createImpactAnalyzer", () => {
         {
           target: "state",
           operation: "create",
-          name: "purchase_request",
+          name: "purchase_request_status",
+          definition: { name: "purchase_request_status", entity: "purchase_request" } as never,
           diff: "add state machine",
         },
       ],
@@ -138,6 +142,29 @@ describe("createImpactAnalyzer", () => {
 
     expect(result.probedEntities).toEqual(["purchase_request"]);
     expect(provider.calls.filter((c) => c.kind === "count")).toHaveLength(1);
+  });
+
+  test("creating a brand-new entity produces zero first-order impact", async () => {
+    const provider = makeProvider({});
+    const analyzer = createImpactAnalyzer({ dataProvider: provider });
+    const proposal = makeProposal({
+      changes: [
+        {
+          target: "entity",
+          operation: "create",
+          name: "new_shiny_entity",
+          diff: "add new entity",
+        },
+      ],
+    });
+
+    const result = await analyzer.analyze(proposal);
+
+    // No pre-existing rows to probe — must not call the DataProvider.
+    expect(result.affectedRecordCount).toBe(0);
+    expect(result.probedEntities).toHaveLength(0);
+    expect(result.reason).toBe("not-a-data-change");
+    expect(provider.calls).toHaveLength(0);
   });
 
   test("returns zero with reason when a data-target change has no resolvable entity", async () => {

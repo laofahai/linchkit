@@ -118,17 +118,25 @@ describe("createPreAnalysisPipeline", () => {
     expect(result.stages.impact?.error?.message).toBe("db offline");
   });
 
-  test("skips duplicate-stage analyzers with a visible envelope", async () => {
+  test("preserves the first analyzer's result when a duplicate stage is queued", async () => {
     const a = createDedupAnalyzer({ store: emptyStore() });
-    const b = createDedupAnalyzer({ store: emptyStore() });
+    // Second dedup analyzer would explode if it ran — proves duplicates are
+    // short-circuited without being invoked AND without overwriting the first.
+    const b = {
+      stage: "dedup" as const,
+      name: "explodes",
+      analyze: async () => {
+        throw new Error("second dedup analyzer must not run");
+      },
+    };
     const pipeline = createPreAnalysisPipeline({ analyzers: [a, b] });
 
     const result = await pipeline.analyze(makeProposal());
 
-    // First wins; the second overwrites the envelope with a skip marker.
-    expect(result.stages.dedup?.status).toBe("skipped");
-    expect(result.stages.dedup?.error?.code).toBe("duplicate_stage");
-    expect(result.allStagesSucceeded).toBe(false);
+    // First analyzer's real envelope must survive — the second is skipped silently.
+    expect(result.stages.dedup?.status).toBe("ok");
+    expect(result.stages.dedup?.error).toBeUndefined();
+    expect(result.allStagesSucceeded).toBe(true);
   });
 
   test("records durations and an analyzedAt timestamp from injected clocks", async () => {

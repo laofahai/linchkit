@@ -35,16 +35,29 @@ const DATA_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set<ProposalChangeTa
   "overlay",
 ]);
 
-function isDataChange(change: ProposalChange): boolean {
-  return DATA_TARGETS.has(change.target);
+/**
+ * A data-target change is impactable only when it can affect pre-existing rows.
+ * Creating a brand-new entity has no prior rows, so it produces zero first-order
+ * impact even though the target is `entity` — skip it here to avoid probing a
+ * table that does not exist yet.
+ */
+function isImpactableChange(change: ProposalChange): boolean {
+  if (!DATA_TARGETS.has(change.target)) return false;
+  if (change.target === "entity" && change.operation === "create") return false;
+  return true;
 }
 
 /** Resolve the entity name a data-target change operates on. */
 function resolveEntityName(change: ProposalChange): string | null {
-  if (change.target === "entity" || change.target === "state") {
-    // For entity changes, `name` is the entity name; for state changes, `name`
-    // conventionally matches the entity whose state machine is being defined.
+  if (change.target === "entity") {
+    // Entity changes — `name` IS the entity name.
     return change.name || null;
+  }
+  if (change.target === "state") {
+    // State machines belong to the entity named in StateDefinition.entity; the
+    // state-machine `name` (e.g. "purchase_request_status") is NOT the table.
+    const def = change.definition as { entity?: string } | undefined;
+    return def?.entity ?? null;
   }
   if (change.target === "overlay") {
     // OverlayChangeDefinition carries an entityName field; fall back to `name`.
@@ -70,7 +83,7 @@ export function createImpactAnalyzer(
     stage: "impact",
     name: "default-impact-analyzer",
     async analyze(proposal: ProposalDefinition): Promise<ImpactResult> {
-      const dataChanges = proposal.changes.filter(isDataChange);
+      const dataChanges = proposal.changes.filter(isImpactableChange);
 
       if (dataChanges.length === 0) {
         return {

@@ -78,17 +78,10 @@ export function createPreAnalysisPipeline(
         const stageStart = nowMs();
 
         if (seenStages.has(analyzer.stage)) {
-          // Duplicate stage — record a skipped envelope so it's visible.
-          const envelope: PreAnalysisStageResult<unknown> = {
-            stage: analyzer.stage,
-            status: "skipped",
-            error: {
-              code: "duplicate_stage",
-              message: `Stage "${analyzer.stage}" already handled by a previous analyzer`,
-            },
-            durationMs: 0,
-          };
-          attachStage(stages, envelope);
+          // Duplicate stage — the first analyzer for this stage already ran and
+          // its envelope is stored on `stages[stage]`. Preserve it; do NOT
+          // overwrite with a skipped envelope (that would throw away real
+          // dedup/impact data downstream consumers rely on).
           continue;
         }
         seenStages.add(analyzer.stage);
