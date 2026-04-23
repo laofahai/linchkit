@@ -216,23 +216,10 @@ export function buildGraphQLSchema(
     ctx: GraphQLContext,
     extraOptions?: { includeDeleted?: boolean },
   ): Promise<ActionResult<T>> => {
-    // `includeDeleted` (used by restore_*) isn't yet surfaced on
-    // `CommandExecuteOptions`, so when it's required we fall back to the raw
-    // executor. TODO: promote includeDeleted into CommandExecuteOptions so
-    // restore flows also benefit from the permission slot.
-    if (extraOptions?.includeDeleted) {
-      if (!executor) {
-        throw new Error(
-          "restore action requires options.executor until CommandLayer exposes includeDeleted",
-        );
-      }
-      return executor.execute(name, input, ctx.actor, {
-        channel: "http",
-        tenantId: ctx.tenantId,
-        locale: ctx.locale,
-        includeDeleted: true,
-      }) as Promise<ActionResult<T>>;
-    }
+    // Prefer CommandLayer so cap-permission and other slot middleware
+    // protect every GraphQL mutation, including restore_* flows. The
+    // CommandExecuteOptions surface carries `includeDeleted` now, so these
+    // actions no longer need a raw-executor escape hatch.
     if (commandLayer) {
       return (await commandLayer.execute({
         command: name,
@@ -241,6 +228,7 @@ export function buildGraphQLSchema(
         channel: "http",
         tenantId: ctx.tenantId,
         locale: ctx.locale,
+        includeDeleted: extraOptions?.includeDeleted,
       })) as ActionResult<T>;
     }
     if (!executor) {
@@ -250,6 +238,7 @@ export function buildGraphQLSchema(
       channel: "http",
       tenantId: ctx.tenantId,
       locale: ctx.locale,
+      includeDeleted: extraOptions?.includeDeleted,
     }) as Promise<ActionResult<T>>;
   };
 
