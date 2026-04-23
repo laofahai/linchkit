@@ -74,7 +74,12 @@ export interface ExecuteOptions {
   channel?: ExecutionChannel;
   /** Skip exposure check (already handled by CommandLayer built-in exposure slot) */
   skipExposureCheck?: boolean;
-  /** Skip permission check (already handled by CommandLayer permission middleware) */
+  /**
+   * @deprecated Group authorization no longer runs inside the Action Engine
+   * (issue #125). The executor ignores this flag; permissions are enforced
+   * exclusively by the CommandLayer "permission" slot. Retained for source
+   * compatibility with older CommandLayer middleware that still sets it.
+   */
   skipPermissionCheck?: boolean;
   /** Tenant ID resolved by CommandLayer */
   tenantId?: string;
@@ -293,14 +298,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 2: Exposure check
+    // Step 2: Exposure check.
     // Granular flag allows CommandLayer to skip the check it has already handled.
     //
-    // Note: `skipPermissionCheck` only suppresses GROUP enforcement. Group
+    // Note: `skipPermissionCheck` is a no-op on the executor after #125 — group
     // authorization lives exclusively in cap-permission via the CommandLayer
-    // "permission" slot (issue #125). Actor-type enforcement (Spec 10 §5) is
-    // still applied below on every execution path so callers that bypass the
-    // pipeline (GraphQL, internal execute) still honor actor-type gating.
+    // "permission" slot. Actor-type enforcement (Spec 10 §5) is applied in
+    // Step 3 below and runs on every execution path (REST, GraphQL, MCP,
+    // direct internal execute) so actor-type gating can't be bypassed.
     const skipExposure = execOptions?.skipExposureCheck ?? false;
 
     // Exposure check — default channel to "internal" so the check always runs
@@ -359,8 +364,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 4: Input validation
-    // (Group-level authorization happens in the CommandLayer "permission" slot.)
+    // Step 4: Input validation.
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
@@ -462,7 +466,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       },
     };
 
-    // Step 4: Pre-validation
+    // Step 5: Pre-validation
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
       const firstError = preValidation.errors?.[0];
@@ -496,7 +500,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 5: State transition check
+    // Step 6: State transition check
     let stateTransitionRecord: { from: string; to: string } | undefined;
 
     if (action.stateTransition && stateMachine) {

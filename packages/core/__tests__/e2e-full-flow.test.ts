@@ -616,7 +616,9 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
 
       expect(approveResult.success).toBe(false);
       const data = approveResult.data as Record<string, unknown>;
-      expect((data.error as string) || "").toContain("groups");
+      // Assert on the machine-readable code set by the permission middleware,
+      // not a substring of the human-facing message (which may change wording).
+      expect(data.code).toBe("PERMISSION.DENIED");
     });
 
     test("2e. Reject transitions submitted → rejected", async () => {

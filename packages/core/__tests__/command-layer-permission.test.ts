@@ -187,7 +187,8 @@ describe("Command Layer + Permission Engine Integration", () => {
   test("no permission middleware + unrestricted action = allow", async () => {
     const { layer } = createTestSetup();
 
-    // create_item has no permissions defined — passes executor's built-in check
+    // create_item is unrestricted and no permission-slot middleware is installed,
+    // so the pipeline is open by default (issue #125 — Spec 10 §7.8).
     const result = await layer.execute({
       command: "create_item",
       input: { name: "test" },

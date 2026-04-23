@@ -9,7 +9,9 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  ActionResult,
   Actor,
+  CommandLayer,
   DataProvider,
   DataQueryOptions,
   DerivedPropertyEngine,
@@ -143,8 +145,21 @@ const ActionResultType = new GraphQLObjectType({
 // ── Schema builder options ──────────────────────────────────
 
 export interface BuildGraphQLSchemaOptions {
-  /** Action executor for wiring mutations */
+  /**
+   * Action executor for wiring mutations. When `commandLayer` is also
+   * provided, the resolvers prefer the pipeline so cap-permission and other
+   * CommandLayer slots protect GraphQL mutations the same way they protect
+   * REST (issue #125). Raw `executor` is retained as a fallback for test
+   * setups that don't build a CommandLayer.
+   */
   executor?: ActionExecutor;
+  /**
+   * CommandLayer pipeline. When present, GraphQL mutation resolvers route
+   * through `commandLayer.execute(...)` instead of calling `executor.execute`
+   * directly — this is the supported production path (cap-permission and
+   * other slot middleware only run on the pipeline).
+   */
+  commandLayer?: CommandLayer;
   /** Data provider for query resolvers (get, query, count) */
   dataProvider?: DataProvider;
   /** Custom actions to generate typed mutations for (beyond auto-generated CRUD) */
@@ -186,7 +201,60 @@ export function buildGraphQLSchema(
   options?: BuildGraphQLSchemaOptions,
 ): GraphQLSchema {
   const executor = options?.executor;
+  const commandLayer = options?.commandLayer;
   const dataProvider = options?.dataProvider;
+
+  /**
+   * Dispatch a named action through the production pipeline when available,
+   * falling back to the raw executor for test setups that don't supply a
+   * CommandLayer. Preferring commandLayer means cap-permission and any other
+   * permission-slot middleware actually protect GraphQL mutations (issue #125).
+   */
+  const dispatchAction = async <T = unknown>(
+    name: string,
+    input: Record<string, unknown>,
+    ctx: GraphQLContext,
+    extraOptions?: { includeDeleted?: boolean },
+  ): Promise<ActionResult<T>> => {
+    // `includeDeleted` (used by restore_*) isn't yet surfaced on
+    // `CommandExecuteOptions`, so when it's required we fall back to the raw
+    // executor. TODO: promote includeDeleted into CommandExecuteOptions so
+    // restore flows also benefit from the permission slot.
+    if (extraOptions?.includeDeleted) {
+      if (!executor) {
+        throw new Error(
+          "restore action requires options.executor until CommandLayer exposes includeDeleted",
+        );
+      }
+      return executor.execute(name, input, ctx.actor, {
+        channel: "http",
+        tenantId: ctx.tenantId,
+        locale: ctx.locale,
+        includeDeleted: true,
+      }) as Promise<ActionResult<T>>;
+    }
+    if (commandLayer) {
+      return (await commandLayer.execute({
+        command: name,
+        input,
+        actor: ctx.actor,
+        channel: "http",
+        tenantId: ctx.tenantId,
+        locale: ctx.locale,
+      })) as ActionResult<T>;
+    }
+    if (!executor) {
+      throw new Error("GraphQL mutation requires either options.commandLayer or options.executor");
+    }
+    return executor.execute(name, input, ctx.actor, {
+      channel: "http",
+      tenantId: ctx.tenantId,
+      locale: ctx.locale,
+    }) as Promise<ActionResult<T>>;
+  };
+
+  /** True when at least one execution path is available — guards mutation resolvers. */
+  const hasDispatcher = Boolean(commandLayer) || Boolean(executor);
   const relations = options?.relations ?? [];
   const eventBus = options?.eventBus;
   const permissionGroups = options?.permissionGroups ?? [];
@@ -517,20 +585,11 @@ export function buildGraphQLSchema(
       args: {
         input: { type: new GraphQLNonNull(inputType) },
       },
-      resolve: executor
+      resolve: hasDispatcher
         ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
             const normalizedInput = normalizeTranslatableRow(args.input, entity, locale);
-            const result = await executor.execute(
-              `create_${entityName}`,
-              normalizedInput,
-              ctx.actor,
-              {
-                channel: "http",
-                tenantId: ctx.tenantId,
-                locale,
-              },
-            );
+            const result = await dispatchAction(`create_${entityName}`, normalizedInput, ctx);
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
@@ -557,7 +616,7 @@ export function buildGraphQLSchema(
           description: "Expected record version for optimistic locking",
         },
       },
-      resolve: executor
+      resolve: hasDispatcher
         ? async (
             _root: unknown,
             args: { id: string; input: Record<string, unknown>; _version?: number },
@@ -578,11 +637,7 @@ export function buildGraphQLSchema(
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
             }
-            const result = await executor.execute(`update_${entityName}`, input, ctx.actor, {
-              channel: "http",
-              tenantId: ctx.tenantId,
-              locale,
-            });
+            const result = await dispatchAction(`update_${entityName}`, input, ctx);
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               const errorMessage = (errData?.error as string) ?? "Update action failed";
@@ -622,14 +677,9 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: executor
+      resolve: hasDispatcher
         ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
-            const result = await executor.execute(
-              `delete_${entityName}`,
-              { id: args.id },
-              ctx.actor,
-              { channel: "http", tenantId: ctx.tenantId, locale: ctx.locale },
-            );
+            const result = await dispatchAction(`delete_${entityName}`, { id: args.id }, ctx);
             if (result.success) invalidateEntityCache(entityName);
             return result.success;
           }
@@ -642,15 +692,12 @@ export function buildGraphQLSchema(
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: executor
+      resolve: hasDispatcher
         ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            const result = await executor.execute(
-              `restore_${entityName}`,
-              { id: args.id },
-              ctx.actor,
-              { channel: "http", tenantId: ctx.tenantId, locale, includeDeleted: true },
-            );
+            const result = await dispatchAction(`restore_${entityName}`, { id: args.id }, ctx, {
+              includeDeleted: true,
+            });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new GraphQLError(
@@ -774,11 +821,7 @@ export function buildGraphQLSchema(
                   id: args.id,
                   [stateFieldName]: args.to,
                 };
-                const result = await executor.execute(`update_${entityName}`, input, ctx.actor, {
-                  channel: "http",
-                  tenantId: ctx.tenantId,
-                  locale: ctx.locale,
-                });
+                const result = await dispatchAction(`update_${entityName}`, input, ctx);
                 if (!result.success) {
                   const errData = result.data as Record<string, unknown> | undefined;
                   throw new GraphQLError((errData?.error as string) ?? `State transition failed`);
@@ -823,7 +866,7 @@ export function buildGraphQLSchema(
       type: returnType,
       description: action.description ?? action.label,
       args,
-      resolve: executor
+      resolve: hasDispatcher
         ? async (
             _root: unknown,
             resolverArgs: { id: string; input?: Record<string, unknown> },
@@ -835,11 +878,7 @@ export function buildGraphQLSchema(
               ...resolverArgs.input,
               id: resolverArgs.id,
             };
-            const result = await executor.execute(actionName, input, ctx.actor, {
-              channel: "http",
-              tenantId: ctx.tenantId,
-              locale,
-            });
+            const result = await dispatchAction(actionName, input, ctx);
             if (returnsSchemaType) {
               if (!result.success) {
                 const errData = result.data as Record<string, unknown> | undefined;
@@ -897,14 +936,10 @@ export function buildGraphQLSchema(
         description: "JSON-encoded input object",
       },
     },
-    resolve: executor
+    resolve: hasDispatcher
       ? async (_root: unknown, args: { name: string; input: string }, ctx: GraphQLContext) => {
           const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
-          const result = await executor.execute(args.name, input, ctx.actor, {
-            channel: "http",
-            tenantId: ctx.tenantId,
-            locale: ctx.locale,
-          });
+          const result = await dispatchAction(args.name, input, ctx);
           const errors = !result.success
             ? [
                 {

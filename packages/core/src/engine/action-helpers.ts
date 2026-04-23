@@ -62,7 +62,6 @@ export function generateExecutionId(): string {
   return `exec_${crypto.randomUUID()}`;
 }
 
-/** Check if the action is exposed for the given channel */
 /**
  * Enforce `permissions.actorTypes` — the only authorization field still owned
  * by the Action Engine after issue #125. Returns an error string (for logging
@@ -82,6 +81,7 @@ export function checkActorType(action: ActionDefinition, actor: Actor): string |
   return null;
 }
 
+/** Check if the action is exposed for the given channel */
 export function isExposed(
   exposure: ActionExposure | "all" | undefined,
   channel: ExecutionChannel,
