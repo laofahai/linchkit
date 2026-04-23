@@ -198,6 +198,19 @@ describe("POST /api/entities/:name/onchange", () => {
     expect(body.success).toBe(false);
   });
 
+  test("404 when changedField exists on entity but has no onchange hook", async () => {
+    // `description` is defined on purchase_line but no hook is registered
+    // against it. Spec 64 §4.1 mandates this returns 404 (not an empty 200).
+    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+      changedField: "description",
+      values: { description: "x" },
+    });
+    expect(status).toBe(404);
+    expect(body.success).toBe(false);
+    const err = body.error as Record<string, unknown>;
+    expect(err.message as string).toContain("no onchange hook");
+  });
+
   test("403 when permission middleware denies the request", async () => {
     const { status, body } = await postOnchange(denyPort, "purchase_line", {
       changedField: "product_id",
@@ -218,5 +231,39 @@ describe("POST /api/entities/:name/onchange", () => {
     expect(body).toHaveProperty("warnings");
     expect(typeof body.updates).toBe("object");
     expect(Array.isArray(body.warnings)).toBe(true);
+  });
+});
+
+describe("onchange evaluator wiring via runtime context", () => {
+  // Smoke-test: construct the evaluator the same way dev.ts / capability.ts do
+  // — from runtime `entityRegistry` + `dataProvider`. A stock install that
+  // forgets to pass `onchangeEvaluator` should still wire correctly when this
+  // code path is used.
+  test("createOnchangeEvaluator can be built from a shared runtime registry + data provider", async () => {
+    const { createRuntimeContext } = await import("../src/runtime-context");
+    const runtime = createRuntimeContext({
+      entities: [lineEntity, plainEntity],
+    });
+    // Seed the same product fixture into the shared store
+    if (runtime.dataProvider instanceof InMemoryStore) {
+      await runtime.dataProvider.create("product", {
+        id: "p2",
+        price: 7,
+        description: "Gadget",
+      });
+    }
+    const evaluator = createOnchangeEvaluator({
+      entityRegistry: runtime.entityRegistry,
+      dataProvider: runtime.dataProvider,
+    });
+    const result = await evaluator.evaluate({
+      entityName: "purchase_line",
+      changedField: "product_id",
+      values: { product_id: "p2", quantity: 3 },
+      actor: { type: "human", id: "u1", groups: ["user"] },
+    });
+    expect(result.updates.unit_price).toBe(7);
+    expect(result.updates.description).toBe("Gadget");
+    expect(result.updates.subtotal).toBe(21);
   });
 });

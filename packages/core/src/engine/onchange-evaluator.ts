@@ -33,6 +33,21 @@ export const DEFAULT_COMPUTE_TIMEOUT_MS = 2000;
 /** Structured result returned by the evaluator. */
 export type OnchangeEvaluationResult = Required<OnchangeResult>;
 
+/**
+ * Callback evaluated before each `lookup` / `query` to decide whether the
+ * current actor can read from the target entity. Returning `false` drops the
+ * call and appends a structured warning to the evaluation result.
+ *
+ * The callback is intentionally minimal — it takes only the fields the
+ * evaluator knows about. Full permission engines can capture additional state
+ * in a closure when they construct the callback.
+ */
+export type OnchangeReadPermissionCheck = (args: {
+  actor: Actor;
+  tenantId: string | undefined;
+  entity: string;
+}) => Promise<boolean> | boolean;
+
 /** Options for creating an onchange evaluator. */
 export interface OnchangeEvaluatorOptions {
   entityRegistry: EntityRegistry;
@@ -41,6 +56,16 @@ export interface OnchangeEvaluatorOptions {
   defaultTimeoutMs?: number;
   /** Override the default max chain depth (primarily for tests). */
   maxChainDepth?: number;
+  /**
+   * Optional read-permission check applied inside `lookup`/`query`. When the
+   * check returns false, the data-provider call is skipped, the field is left
+   * unset, and a structured warning is appended to the result.
+   *
+   * When omitted, ALL reads are allowed. The REST route is responsible for
+   * logging a structured warning at startup so operators know permission
+   * enforcement is not active (Spec 64 §4.3 — permission layer responsibility).
+   */
+  checkReadPermission?: OnchangeReadPermissionCheck;
 }
 
 /** Public evaluator interface. */
@@ -167,6 +192,11 @@ function filterByAllowlist(
 /**
  * Build the context object passed to `hook.compute`. The context exposes only
  * read-level helpers; it MUST NOT leak any DataProvider write methods.
+ *
+ * When `checkReadPermission` is supplied, each `lookup`/`query` first asks the
+ * caller whether the current actor may read the target entity. On denial the
+ * data-provider call is skipped and a structured warning is pushed into
+ * `warningSink`, which the evaluator merges into the final result.
  */
 function buildContext(options: {
   changedField: string;
@@ -174,9 +204,37 @@ function buildContext(options: {
   actor: Actor;
   tenantId: string | undefined;
   dataProvider: DataProvider;
+  checkReadPermission?: OnchangeReadPermissionCheck;
+  warningSink: string[];
 }): OnchangeContext {
-  const { changedField, values, actor, tenantId, dataProvider } = options;
+  const { changedField, values, actor, tenantId, dataProvider, checkReadPermission, warningSink } =
+    options;
   const queryOptions: DataQueryOptions = tenantId ? { tenantId } : {};
+  const deniedEntities = new Set<string>();
+
+  async function ensureReadable(entity: string): Promise<boolean> {
+    if (!checkReadPermission) return true;
+    try {
+      const allowed = await checkReadPermission({ actor, tenantId, entity });
+      if (!allowed) {
+        // Collapse repeated denials of the same entity into a single warning
+        // so chained hooks don't spam the UI with identical messages.
+        if (!deniedEntities.has(entity)) {
+          deniedEntities.add(entity);
+          warningSink.push(`Access to "${entity}" denied for current actor`);
+        }
+      }
+      return allowed;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!deniedEntities.has(entity)) {
+        deniedEntities.add(entity);
+        warningSink.push(`Read-permission check for "${entity}" failed: ${message}`);
+      }
+      return false;
+    }
+  }
+
   return {
     changedField,
     value: values[changedField],
@@ -184,6 +242,7 @@ function buildContext(options: {
     actor,
     tenantId,
     async lookup(entity, id, field) {
+      if (!(await ensureReadable(entity))) return undefined;
       try {
         const record = await dataProvider.get(entity, id, queryOptions);
         if (!record) return undefined;
@@ -194,6 +253,7 @@ function buildContext(options: {
       }
     },
     async query(entity, filter) {
+      if (!(await ensureReadable(entity))) return [];
       try {
         return await dataProvider.query(entity, filter, queryOptions);
       } catch {
@@ -218,6 +278,7 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
     dataProvider,
     defaultTimeoutMs = DEFAULT_COMPUTE_TIMEOUT_MS,
     maxChainDepth = MAX_CHAIN_DEPTH,
+    checkReadPermission,
   } = options;
 
   async function evaluate(args: OnchangeEvaluateArgs): Promise<OnchangeEvaluationResult> {
@@ -241,6 +302,17 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
     }
 
     const hookIndex = indexHooks(entity);
+
+    // Spec 64 §4.1 — 404 case: entity has an onchange map but nothing registered
+    // for the triggering field. Surface as a typed error so the REST layer can
+    // distinguish this from a successful "no-op" and return the correct status.
+    if (!hookIndex.has(changedField)) {
+      throw new OnchangeEvaluatorError(
+        `Entity "${entityName}" has no onchange hook for field "${changedField}"`,
+        "NO_HOOK_FOR_FIELD",
+      );
+    }
+
     // Start with a mutable copy so chained hooks can observe prior updates.
     const mergedValues: Record<string, unknown> = { ...values };
     const accumulated: Record<string, unknown> = {};
@@ -273,6 +345,8 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
           actor,
           tenantId,
           dataProvider,
+          checkReadPermission,
+          warningSink: warnings,
         });
 
         let result: OnchangeResult;
@@ -312,12 +386,16 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
  * bad input (unknown entity / field, no onchange map, etc.). The REST route
  * maps each `code` to an HTTP status.
  */
+/** Discriminator for all structured evaluator errors. */
+export type OnchangeEvaluatorErrorCode =
+  | "ENTITY_NOT_FOUND"
+  | "ENTITY_HAS_NO_ONCHANGE"
+  | "FIELD_UNKNOWN"
+  | "NO_HOOK_FOR_FIELD";
+
 export class OnchangeEvaluatorError extends Error {
-  readonly code: "ENTITY_NOT_FOUND" | "ENTITY_HAS_NO_ONCHANGE" | "FIELD_UNKNOWN";
-  constructor(
-    message: string,
-    code: "ENTITY_NOT_FOUND" | "ENTITY_HAS_NO_ONCHANGE" | "FIELD_UNKNOWN",
-  ) {
+  readonly code: OnchangeEvaluatorErrorCode;
+  constructor(message: string, code: OnchangeEvaluatorErrorCode) {
     super(message);
     this.name = "OnchangeEvaluatorError";
     this.code = code;

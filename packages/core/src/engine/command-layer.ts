@@ -158,18 +158,34 @@ export interface CommandExecuteOptions {
   traceId?: string;
   /**
    * Non-action dispatch mode (Spec 64 §4.3). When true, the pipeline:
-   * - RUNS pre, auth, exposure (no-op when no action), permission, tenant slots
-   * - SKIPS pre-action and post-action slots
+   * - RUNS pre, auth, permission, tenant slots
+   * - SKIPS exposure (no action to expose), pre-action and post-action slots
    * - SKIPS action execution (returns a synthetic success result with `data.skipped = true`)
    *
-   * This is used by endpoints that need to pass through the CommandLayer for
+   * Post-action is deliberately skipped: notification, cache-invalidation and
+   * event-fan-out middlewares run after write side effects — a non-action
+   * dispatch has no writes so firing them would be semantically wrong.
+   *
+   * Used by endpoints that need to pass through the CommandLayer for
    * auth/permission/tenant enforcement WITHOUT executing a write action —
    * currently the entity onchange endpoint (interactive form computation).
    *
-   * The caller must still supply a synthetic `command` name (e.g. `"entity_onchange"`)
-   * because the pipeline identifies dispatches by command name for metrics and tracing.
-   * Permission checks in this mode should be scoped to the target entity (via `meta`),
-   * not to an action.
+   * ### `meta.onchange` contract (for permission middleware)
+   *
+   * Callers MUST populate `meta.onchange = { entity, changedField }` so the
+   * permission slot can perform an entity-level READ check instead of looking
+   * up an action. The synthetic command name is typically
+   * `"<entityName>.onchange"` and is intended for metrics/tracing only —
+   * permission middleware should NOT match on `ctx.action` or on the command
+   * name when `meta.onchange` is present.
+   *
+   * Example (permission middleware):
+   * ```ts
+   * if (ctx.meta.onchange) {
+   *   const { entity } = ctx.meta.onchange as { entity: string };
+   *   assertCanRead(ctx.actor, entity);
+   * }
+   * ```
    */
   skipActionSlots?: boolean;
 }
@@ -470,8 +486,14 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       };
     }
 
-    // Run post-action middlewares individually to track critical failures
-    const postMiddlewares = getSlotMiddlewares("post-action");
+    // Run post-action middlewares individually to track critical failures.
+    // Non-action dispatches (`skipActionSlots = true`, e.g. onchange) must NOT
+    // trigger post-action side effects — cache invalidation, event fan-out and
+    // notifications are only correct after a real write. Honor the same
+    // `skippedSlots` set the pre/post pipeline uses to stay consistent.
+    const postMiddlewares = skippedSlots.has("post-action")
+      ? []
+      : getSlotMiddlewares("post-action");
     if (postMiddlewares.length > 0) {
       for (const mw of postMiddlewares) {
         try {

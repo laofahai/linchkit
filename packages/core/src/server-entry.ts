@@ -64,7 +64,9 @@ export {
   type OnchangeEvaluationResult,
   type OnchangeEvaluator,
   OnchangeEvaluatorError,
+  type OnchangeEvaluatorErrorCode,
   type OnchangeEvaluatorOptions,
+  type OnchangeReadPermissionCheck,
 } from "./engine/onchange-evaluator";
 export {
   checkActionPermission,
