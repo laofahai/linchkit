@@ -56,21 +56,28 @@ export {
   PipelineError,
   type SlotName,
 } from "./engine/command-layer";
-
+export {
+  createOnchangeEvaluator,
+  DEFAULT_COMPUTE_TIMEOUT_MS,
+  MAX_CHAIN_DEPTH,
+  type OnchangeEvaluateArgs,
+  type OnchangeEvaluationResult,
+  type OnchangeEvaluator,
+  OnchangeEvaluatorError,
+  type OnchangeEvaluatorOptions,
+} from "./engine/onchange-evaluator";
 export {
   checkActionPermission,
   PermissionRegistry,
   resolveConditionVariables,
   resolveDataAccess,
 } from "./engine/permission-engine";
-
 export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
   ProposalEngine,
 } from "./engine/proposal-engine";
-
 export {
   createProposalGenerator,
   ProposalGenerationError,

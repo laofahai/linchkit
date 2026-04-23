@@ -11,6 +11,12 @@
  * Action execution is placed inside the compose chain so that any middleware not calling
  * next() will block the action from running.
  *
+ * Non-action dispatches (`CommandExecuteOptions.skipActionSlots = true`): used by the
+ * entity onchange endpoint (Spec 64 §4.3). The pipeline runs pre / auth / permission /
+ * tenant but skips exposure / pre-action / post-action and does not invoke the
+ * ActionExecutor; a synthetic success result is returned so downstream code can
+ * produce the actual response payload.
+ *
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
 
@@ -150,6 +156,22 @@ export interface CommandExecuteOptions {
   skipRules?: string[];
   /** External trace ID — when provided, the pipeline reuses this instead of generating a new one */
   traceId?: string;
+  /**
+   * Non-action dispatch mode (Spec 64 §4.3). When true, the pipeline:
+   * - RUNS pre, auth, exposure (no-op when no action), permission, tenant slots
+   * - SKIPS pre-action and post-action slots
+   * - SKIPS action execution (returns a synthetic success result with `data.skipped = true`)
+   *
+   * This is used by endpoints that need to pass through the CommandLayer for
+   * auth/permission/tenant enforcement WITHOUT executing a write action —
+   * currently the entity onchange endpoint (interactive form computation).
+   *
+   * The caller must still supply a synthetic `command` name (e.g. `"entity_onchange"`)
+   * because the pipeline identifies dispatches by command name for metrics and tracing.
+   * Permission checks in this mode should be scoped to the target entity (via `meta`),
+   * not to an action.
+   */
+  skipActionSlots?: boolean;
 }
 
 /**
@@ -252,16 +274,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       traceId: trace?.traceId,
     };
 
-    // Resolve action definition for exposure check
-    const action = executor.registry.get(ctx.command);
-    if (!action) {
-      return {
-        success: false,
-        data: { error: `Action "${ctx.command}" not found` },
-        executionId: generatePipelineId(),
-      };
+    const skipActionSlots = execOptions.skipActionSlots === true;
+
+    // Resolve action definition for exposure check (only when an action will run)
+    let action: ActionDefinition | undefined;
+    if (!skipActionSlots) {
+      action = executor.registry.get(ctx.command);
+      if (!action) {
+        return {
+          success: false,
+          data: { error: `Action "${ctx.command}" not found` },
+          executionId: generatePipelineId(),
+        };
+      }
+      ctx.action = action;
     }
-    ctx.action = action;
 
     // Determine if permission middleware is registered (#1 — fail-closed)
     const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
@@ -291,6 +318,14 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     const skippedSlots: Set<SlotName> = isApprovalReExecution
       ? new Set(["auth", "exposure", "permission"])
       : new Set();
+    // Non-action dispatch: skip exposure + pre-action + post-action slots.
+    // The exposure slot has nothing to check (no action); pre/post-action hooks
+    // only apply to write actions. Auth / permission / tenant still run.
+    if (skipActionSlots) {
+      skippedSlots.add("exposure");
+      skippedSlots.add("pre-action");
+      skippedSlots.add("post-action");
+    }
 
     // Build the pipeline: collect handlers from each slot in order
     const pipeline: Array<(ctx: CommandContext, next: () => Promise<void>) => Promise<void>> = [];
@@ -302,15 +337,18 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       }
 
       if (slot === "exposure") {
-        // Built-in exposure check
-        pipeline.push(async (c, next) => {
-          if (!checkExposure(action, c.channel)) {
-            throw new ExposureError(
-              `Action "${c.command}" is not exposed for channel "${c.channel}"`,
-            );
-          }
-          await next();
-        });
+        // Built-in exposure check — only applicable when an action is resolved.
+        if (action) {
+          const resolvedAction = action;
+          pipeline.push(async (c, next) => {
+            if (!checkExposure(resolvedAction, c.channel)) {
+              throw new ExposureError(
+                `Action "${c.command}" is not exposed for channel "${c.channel}"`,
+              );
+            }
+            await next();
+          });
+        }
       } else if (slot === "post-action") {
         // Handled separately after action execution
       } else {
@@ -340,23 +378,37 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // If any middleware does not call next(), the action will NOT run.
     // Use `action.name` (resolved before pipeline) instead of `c.command` to prevent
     // middleware from swapping the command after exposure/permission checks ran.
-    pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
-      try {
-        const result = await executor.execute(action.name, c.input, c.actor, {
-          ...executorOptions,
-          tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
-          locale: c.locale, // Use latest locale (middleware may have set it)
-        });
-        c.result = result;
-      } catch (_err) {
-        // Executor should return ActionResult, but guard against unexpected throws (#4)
+    if (action && !skipActionSlots) {
+      const resolvedAction = action;
+      pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
+        try {
+          const result = await executor.execute(resolvedAction.name, c.input, c.actor, {
+            ...executorOptions,
+            tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
+            locale: c.locale, // Use latest locale (middleware may have set it)
+          });
+          c.result = result;
+        } catch (_err) {
+          // Executor should return ActionResult, but guard against unexpected throws (#4)
+          c.result = {
+            success: false,
+            data: { error: "Action execution failed" },
+            executionId: generatePipelineId(),
+          };
+        }
+      });
+    } else {
+      // Non-action dispatch: set a synthetic success result so downstream code
+      // knows the pipeline completed without error. The caller is responsible
+      // for producing the actual response payload (e.g. onchange updates).
+      pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
         c.result = {
-          success: false,
-          data: { error: "Action execution failed" },
+          success: true,
+          data: { skipped: true },
           executionId: generatePipelineId(),
         };
-      }
-    });
+      });
+    }
 
     // Execute the full pipeline (pre → auth → exposure → permission → tenant → pre-action → action)
     try {
