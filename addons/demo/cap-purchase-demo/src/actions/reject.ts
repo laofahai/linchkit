@@ -12,7 +12,6 @@ export const rejectAction: ActionDefinition = {
   input: {
     reason: { type: "text", label: "Rejection Reason", required: true },
   },
-  permissions: { groups: ["admin", "manager"] },
   policy: { mode: "sync", transaction: true },
   exposure: "all",
   stateTransition: { from: "pending", to: "rejected" },

@@ -111,13 +111,30 @@ describe("Command Layer: Integration", () => {
     });
   });
 
-  describe("Granular permission skip", () => {
-    test("executor skips permission when pipeline has permission middleware", async () => {
+  describe("Permission is pipeline-owned", () => {
+    // Unified permission model (#125): the Action Engine no longer performs
+    // any permission check. Permission enforcement is owned by the pipeline
+    // (permission-slot middleware, typically provided by a permission
+    // capability such as cap-permission). Without a permission middleware,
+    // all actions pass the permission stage.
+
+    test("action executes when no permission middleware is registered", async () => {
       const { layer } = createTestSetup();
 
-      // admin_action requires group "admin"
-      // Anonymous actor has no groups
-      // Pipeline permission middleware intentionally passes
+      // admin_action used to be rejected by the executor's built-in check.
+      // Under the new model, the pipeline is the sole authority, so the
+      // action proceeds when no permission middleware is wired.
+      const result = await layer.execute({
+        command: "admin_action",
+        input: {},
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    test("permission middleware can allow requests", async () => {
+      const { layer } = createTestSetup();
+
       layer.use({
         name: "lenient_perm",
         slot: "permission",
@@ -131,29 +148,12 @@ describe("Command Layer: Integration", () => {
         input: {},
       });
 
-      // Permission middleware is registered, so executor trusts the pipeline's decision
       expect(result.success).toBe(true);
-    });
-
-    test("executor runs its own permission check when no permission middleware registered", async () => {
-      const { layer } = createTestSetup();
-
-      // No permission middleware — executor's built-in check should reject
-      // admin_action requires groups: ["admin"], anonymous has none
-      const result = await layer.execute({
-        command: "admin_action",
-        input: {},
-      });
-
-      expect(result.success).toBe(false);
-      const data = result.data as Record<string, unknown>;
-      expect(data.error as string).toContain("required groups");
     });
 
     test("action without permission restrictions works without permission middleware", async () => {
       const { layer } = createTestSetup();
 
-      // create_item has no permissions defined — should work fine
       const result = await layer.execute({
         command: "create_item",
         input: { name: "test" },

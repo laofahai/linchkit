@@ -14,6 +14,12 @@ import type {
 } from "../types/action";
 import type { ExecutionChannel } from "./action-engine";
 
+// NOTE: Group-based permission enforcement lives exclusively in cap-permission
+// via the CommandLayer "permission" slot. Action Engine no longer performs any
+// group check — see Spec 10 §7.8 (open-by-default when no cap-permission).
+// Actor-type filtering (permissions.actorTypes) is a UI/exposure hint, not
+// an authorization decision, and is handled by consumers (e.g. GraphQL build).
+
 /**
  * Resolve a `$`-prefixed expression in declarative `setFields`.
  *
@@ -73,31 +79,6 @@ export function isExposed(
   const key = mapping[channel];
   // If not explicitly set, default to true
   return exposure[key] !== false;
-}
-
-/** Check if the actor has permission to execute the action */
-export function checkPermissions(action: ActionDefinition, actor: Actor): string | null {
-  const perms = action.permissions;
-  if (!perms) {
-    return null; // No restrictions
-  }
-
-  // Check actor type
-  if (perms.actorTypes && perms.actorTypes.length > 0) {
-    if (!perms.actorTypes.includes(actor.type)) {
-      return `Actor type "${actor.type}" is not allowed for action "${action.name}"`;
-    }
-  }
-
-  // Check permission groups
-  if (perms.groups && perms.groups.length > 0) {
-    const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
-    if (!hasGroup) {
-      return `Actor does not belong to any of the required groups: ${perms.groups.join(", ")}`;
-    }
-  }
-
-  return null;
 }
 
 /** Validate required input fields */

@@ -9,7 +9,6 @@ export const approveAction: ActionDefinition = {
   entity: "purchase_request",
   label: "t:entities.purchase_request.actions.approve",
   description: "Approve a pending purchase request",
-  permissions: { groups: ["admin", "manager"] },
   policy: { mode: "sync", transaction: true },
   exposure: "all",
   stateTransition: { from: "pending", to: "approved" },

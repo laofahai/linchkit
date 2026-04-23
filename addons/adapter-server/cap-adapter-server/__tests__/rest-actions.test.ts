@@ -9,8 +9,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
+  createCommandLayer,
   InMemoryExecutionLogger,
   InMemoryStore,
+  PipelineError,
 } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -48,15 +50,16 @@ const throwAction: ActionDefinition = {
   },
 };
 
-/** An action restricted to the "manager" role */
+/**
+ * An action restricted to the "manager" role.
+ * Issue #125: permission enforcement moved to a pipeline-slot middleware;
+ * the action itself carries no permission metadata.
+ */
 const restrictedAction: ActionDefinition = {
   name: "do_restricted",
   entity: "item",
   label: "Restricted",
   policy: { mode: "sync", transaction: false },
-  permissions: {
-    groups: ["manager"],
-  },
   handler: async () => ({ ok: true }),
 };
 
@@ -175,8 +178,28 @@ describe("REST action endpoint — status codes", () => {
     });
     restrictedExecutor.registry.register(restrictedAction);
 
+    // In-test permission middleware: requires "manager" group for do_restricted.
+    const restrictedCommandLayer = createCommandLayer({ executor: restrictedExecutor });
+    restrictedCommandLayer.use({
+      name: "test_permission_check",
+      slot: "permission",
+      handler: async (ctx, next) => {
+        if (ctx.command === "do_restricted") {
+          const hasGroup = ctx.actor.groups.includes("manager");
+          if (!hasGroup) {
+            throw new PipelineError(
+              "Actor does not belong to any of the required groups: manager",
+              "PERMISSION.DENIED",
+            );
+          }
+        }
+        await next();
+      },
+    });
+
     const restrictedApp = createServer(restrictedGraphqlSchema, {
       executor: restrictedExecutor,
+      commandLayer: restrictedCommandLayer,
       resolveRequestActor: () => ({
         type: "human" as const,
         id: "unprivileged_user",

@@ -29,9 +29,6 @@ export const revokeUserAction = defineAction({
     idempotent: true,
   },
   exposure: { http: true, ui: true, cli: true, mcp: false },
-  permissions: {
-    groups: ["system_admin"],
-  },
   async handler(ctx) {
     const userId = ctx.input.user_id as string;
     const groupName = ctx.input.group_name as string;

@@ -719,16 +719,6 @@ export function buildGraphQLSchema(
                         reason: `Actor type "${actor.type}" is not allowed`,
                       };
                     }
-                    if (perms.groups?.length) {
-                      const hasGroup = actor.groups.some((g) => perms.groups?.includes(g));
-                      if (!hasGroup) {
-                        return {
-                          ...tr,
-                          allowed: false,
-                          reason: `Requires group: ${perms.groups.join(", ")}`,
-                        };
-                      }
-                    }
                   }
                   return { ...tr, allowed: true, reason: null };
                 });

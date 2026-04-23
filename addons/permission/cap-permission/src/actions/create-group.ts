@@ -42,9 +42,6 @@ export const createGroupAction = defineAction({
     idempotent: false,
   },
   exposure: { http: true, ui: true, cli: true, mcp: false },
-  permissions: {
-    groups: ["system_admin"],
-  },
   async handler(ctx) {
     const name = ctx.input.name as string;
     const label = ctx.input.label as string;

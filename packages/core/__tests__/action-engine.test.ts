@@ -46,12 +46,16 @@ const declarativeAction: ActionDefinition = {
   policy: { mode: "sync", transaction: true },
 };
 
+// NOTE (issue #125): Permission enforcement was removed from ActionExecutor
+// and is now pipeline-owned (see command-layer-permission.test.ts and
+// cap-permission). We keep a reference action with `actorTypes` only so the
+// field continues to round-trip through the registry for UI hints, but the
+// executor itself performs no permission check.
 const restrictedAction: ActionDefinition = {
   name: "approve_order",
   entity: "order",
   label: "Approve Order",
   permissions: {
-    groups: ["manager", "admin"],
     actorTypes: ["human"],
   },
   policy: { mode: "sync", transaction: true },
@@ -278,32 +282,20 @@ describe("ActionExecutor", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects unauthorized actor type", async () => {
+  it("executor does not enforce action.permissions (pipeline-owned per #125)", async () => {
+    // Issue #125: Action Engine no longer runs any permission check. Even an
+    // actor whose type/groups would have previously been rejected now passes
+    // through the executor unchanged. Permission enforcement is the
+    // responsibility of a permission-slot pipeline middleware.
     const dataProvider = createMemoryDataProvider();
     const executor = createActionExecutor({ dataProvider });
     executor.registry.register(restrictedAction);
 
-    const aiActor: Actor = { type: "ai", id: "bot-1", groups: ["admin"] };
+    const aiActor: Actor = { type: "ai", id: "bot-1", groups: [] };
     const result = await executor.execute("approve_order", {}, aiActor);
 
-    expect(result.success).toBe(false);
-    expect((result.data as Record<string, unknown>).error).toContain(
-      'Actor type "ai" is not allowed',
-    );
-  });
-
-  it("rejects unauthorized role", async () => {
-    const dataProvider = createMemoryDataProvider();
-    const executor = createActionExecutor({ dataProvider });
-    executor.registry.register(restrictedAction);
-
-    const viewerActor: Actor = { type: "human", id: "user-2", groups: ["viewer"] };
-    const result = await executor.execute("approve_order", {}, viewerActor);
-
-    expect(result.success).toBe(false);
-    expect((result.data as Record<string, unknown>).error).toContain(
-      "does not belong to any of the required groups",
-    );
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).approved).toBe(true);
   });
 
   it("rejects missing required input", async () => {

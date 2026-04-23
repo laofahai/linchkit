@@ -42,7 +42,7 @@ export interface ActionDoc {
   output: FieldDoc[];
   stateTransition?: { from: string | string[]; to: string };
   exposure: ActionExposure;
-  permissions?: { groups?: string[]; actorTypes?: string[] };
+  permissions?: { actorTypes?: string[] };
   policy: { mode: string; transaction: boolean; idempotent?: boolean };
 }
 
@@ -128,9 +128,7 @@ export function actionToDoc(action: ActionDefinition): ActionDoc {
     output: outputFields,
     stateTransition: action.stateTransition,
     exposure,
-    permissions: action.permissions
-      ? { groups: action.permissions.groups, actorTypes: action.permissions.actorTypes }
-      : undefined,
+    permissions: action.permissions ? { actorTypes: action.permissions.actorTypes } : undefined,
     policy: {
       mode: action.policy.mode,
       transaction: action.policy.transaction,

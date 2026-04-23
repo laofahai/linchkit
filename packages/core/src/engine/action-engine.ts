@@ -22,7 +22,6 @@ import { canTransition, getAvailableActions } from "./state-machine";
 export { ActionRegistry } from "./action-registry";
 
 import {
-  checkPermissions,
   generateExecutionId,
   isExposed,
   resolveFieldExpression,
@@ -293,12 +292,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 2 & 3: Exposure + Permission checks
-    // Granular flags allow CommandLayer to skip only the checks it has handled
+    // Step 2: Exposure check
+    // Granular flag allows CommandLayer to skip the check it has already handled.
+    // Note: skipPermissionCheck is accepted for backwards compatibility but is a
+    // no-op — group-based authorization now lives exclusively in cap-permission
+    // via the CommandLayer "permission" slot (issue #125).
     const skipExposure = execOptions?.skipExposureCheck ?? false;
-    const skipPermission = execOptions?.skipPermissionCheck ?? false;
 
-    // Step 2: Exposure check — default channel to "internal" so the check always runs
+    // Exposure check — default channel to "internal" so the check always runs
     const channel: ExecutionChannel = execOptions?.channel ?? "internal";
     if (!skipExposure) {
       if (!isExposed(action.exposure, channel)) {
@@ -331,29 +332,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    // Step 3: Permission check
-    if (!skipPermission) {
-      const permError = checkPermissions(action, actor);
-      if (permError) {
-        await logExecution({
-          id: executionId,
-          action: actionName,
-          entity: action.entity,
-          actor,
-          input,
-          status: "blocked",
-          error: { message: permError },
-          startedAt,
-        });
-        return {
-          success: false,
-          data: { error: permError } as T,
-          executionId,
-        };
-      }
-    }
-
-    // Step 4: Input validation
+    // Step 3: Input validation
+    // (Permission enforcement happens in the CommandLayer "permission" slot.)
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
@@ -455,7 +435,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       },
     };
 
-    // Step 5: Pre-validation
+    // Step 4: Pre-validation
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
       const firstError = preValidation.errors?.[0];
@@ -489,7 +469,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 6: State transition check
+    // Step 5: State transition check
     let stateTransitionRecord: { from: string; to: string } | undefined;
 
     if (action.stateTransition && stateMachine) {
