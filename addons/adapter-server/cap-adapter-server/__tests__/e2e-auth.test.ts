@@ -13,8 +13,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { ActionDefinition, Actor, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
+  createCommandLayer,
   InMemoryExecutionLogger,
   InMemoryStore,
+  PipelineError,
 } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -42,33 +44,38 @@ const publicAction: ActionDefinition = {
   handler: async () => ({ status: "ok" }),
 };
 
-/** An action restricted to the "manager" group */
+/** An action restricted to the "manager" group (enforced by pipeline, not action) */
 const managerAction: ActionDefinition = {
   name: "approve_order",
   entity: "order",
   label: "Approve Order",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
-  permissions: {
-    groups: ["manager"],
-  },
   handler: async (ctx) => {
     const id = ctx.input.id as string;
     return { approved: true, orderId: id };
   },
 };
 
-/** An action restricted to the "admin" group */
+/** An action restricted to the "admin" group (enforced by pipeline, not action) */
 const adminAction: ActionDefinition = {
   name: "delete_all_orders",
   entity: "order",
   label: "Delete All Orders",
   policy: { mode: "sync", transaction: false },
   exposure: "all",
-  permissions: {
-    groups: ["admin"],
-  },
   handler: async () => ({ deleted: true }),
+};
+
+/**
+ * Issue #125: permission enforcement moved from ActionExecutor to a
+ * pipeline-slot middleware. This in-test allowlist maps action name to
+ * required groups (any-of) — a minimal stand-in for the permission
+ * capability that production apps would plug in.
+ */
+const REQUIRED_GROUPS_BY_ACTION: Record<string, string[]> = {
+  approve_order: ["manager"],
+  delete_all_orders: ["admin"],
 };
 
 /** An action that is internal only (not exposed over HTTP) */
@@ -113,9 +120,32 @@ beforeAll(() => {
     executionLogger,
   });
 
+  // Wire a CommandLayer with a permission middleware that reads the
+  // in-test allowlist (REQUIRED_GROUPS_BY_ACTION). This replaces the
+  // ActionExecutor's previous built-in permission check (removed in #125).
+  const commandLayer = createCommandLayer({ executor });
+  commandLayer.use({
+    name: "test_permission_check",
+    slot: "permission",
+    handler: async (ctx, next) => {
+      const required = REQUIRED_GROUPS_BY_ACTION[ctx.command];
+      if (required && required.length > 0) {
+        const hasGroup = ctx.actor.groups.some((g) => required.includes(g));
+        if (!hasGroup) {
+          throw new PipelineError(
+            `Actor does not belong to any of the required groups: ${required.join(", ")}`,
+            "PERMISSION.DENIED",
+          );
+        }
+      }
+      await next();
+    },
+  });
+
   // Configure server with actor resolver that simulates auth
   app = createServer(graphqlSchema, {
     executor,
+    commandLayer,
     executionLogger,
     dataProvider: store,
     resolveRequestActor: async (request: Request): Promise<Actor | undefined> => {

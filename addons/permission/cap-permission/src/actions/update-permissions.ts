@@ -35,9 +35,6 @@ export const updatePermissionsAction = defineAction({
     idempotent: false,
   },
   exposure: { http: true, ui: true, cli: true, mcp: false },
-  permissions: {
-    groups: ["system_admin"],
-  },
   async handler(ctx) {
     const groupName = ctx.input.group_name as string;
     const permissions = ctx.input.permissions as Record<string, unknown>;

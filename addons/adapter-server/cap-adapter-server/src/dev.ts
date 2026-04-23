@@ -195,6 +195,7 @@ const customActions = capContributions.actions;
 
 const graphqlSchema = buildGraphQLSchema(allEntities, {
   executor: runtime.executor,
+  commandLayer: runtime.commandLayer,
   dataProvider: runtime.dataProvider,
   actions: customActions,
   relations: capContributions.relations,

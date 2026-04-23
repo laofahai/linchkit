@@ -144,6 +144,13 @@ describe("Command Layer: Core Pipeline", () => {
   });
 
   describe("Permission slot", () => {
+    // Test-scoped allowlist map: action name -> required groups (any-of).
+    // This simulates a permission capability that maintains its own policy
+    // store instead of reading from action.permissions.groups.
+    const requiredGroups: Record<string, string[]> = {
+      admin_action: ["admin"],
+    };
+
     test("permission middleware blocks unauthorized requests", async () => {
       const { layer } = createTestSetup();
 
@@ -151,9 +158,9 @@ describe("Command Layer: Core Pipeline", () => {
         name: "perm_check",
         slot: "permission",
         handler: async (ctx, next) => {
-          const action = ctx.action;
-          if (action?.permissions?.groups) {
-            const hasGroup = ctx.actor.groups.some((g) => action.permissions?.groups?.includes(g));
+          const groups = requiredGroups[ctx.command];
+          if (groups && groups.length > 0) {
+            const hasGroup = ctx.actor.groups.some((g) => groups.includes(g));
             if (!hasGroup) {
               throw new PipelineError("Insufficient permissions", "PERMISSION.DENIED");
             }
@@ -188,9 +195,9 @@ describe("Command Layer: Core Pipeline", () => {
         name: "perm_check",
         slot: "permission",
         handler: async (ctx, next) => {
-          const action = ctx.action;
-          if (action?.permissions?.groups) {
-            const hasGroup = ctx.actor.groups.some((g) => action.permissions?.groups?.includes(g));
+          const groups = requiredGroups[ctx.command];
+          if (groups && groups.length > 0) {
+            const hasGroup = ctx.actor.groups.some((g) => groups.includes(g));
             if (!hasGroup) {
               throw new PipelineError("Insufficient permissions", "PERMISSION.DENIED");
             }

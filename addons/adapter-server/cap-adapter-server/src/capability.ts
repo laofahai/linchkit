@@ -81,6 +81,7 @@ export const capAdapterServer = defineCapability({
           // Build GraphQL schema — uses composite data provider for all schemas
           const graphqlSchema = buildGraphQLSchema(allSchemas, {
             executor: ctx.executor,
+            commandLayer: ctx.commandLayer,
             dataProvider: systemDataProvider ?? ctx.dataProvider,
             relations: ctx.links,
             eventBus: ctx.eventBus,

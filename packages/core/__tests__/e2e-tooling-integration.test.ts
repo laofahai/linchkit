@@ -131,7 +131,6 @@ const approveAction: ActionDefinition = {
   input: {
     timesheet_id: { type: "string", required: true, label: "Timesheet ID" },
   },
-  permissions: { groups: ["manager"] },
   handler: async () => ({}),
 };
 

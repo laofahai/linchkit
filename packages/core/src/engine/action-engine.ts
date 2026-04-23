@@ -22,7 +22,7 @@ import { canTransition, getAvailableActions } from "./state-machine";
 export { ActionRegistry } from "./action-registry";
 
 import {
-  checkPermissions,
+  checkActorType,
   generateExecutionId,
   isExposed,
   resolveFieldExpression,
@@ -74,7 +74,12 @@ export interface ExecuteOptions {
   channel?: ExecutionChannel;
   /** Skip exposure check (already handled by CommandLayer built-in exposure slot) */
   skipExposureCheck?: boolean;
-  /** Skip permission check (already handled by CommandLayer permission middleware) */
+  /**
+   * @deprecated Group authorization no longer runs inside the Action Engine
+   * (issue #125). The executor ignores this flag; permissions are enforced
+   * exclusively by the CommandLayer "permission" slot. Retained for source
+   * compatibility with older CommandLayer middleware that still sets it.
+   */
   skipPermissionCheck?: boolean;
   /** Tenant ID resolved by CommandLayer */
   tenantId?: string;
@@ -293,12 +298,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Step 2 & 3: Exposure + Permission checks
-    // Granular flags allow CommandLayer to skip only the checks it has handled
+    // Step 2: Exposure check.
+    // Granular flag allows CommandLayer to skip the check it has already handled.
+    //
+    // Note: `skipPermissionCheck` is a no-op on the executor after #125 — group
+    // authorization lives exclusively in cap-permission via the CommandLayer
+    // "permission" slot. Actor-type enforcement (Spec 10 §5) is applied in
+    // Step 3 below and runs on every execution path (REST, GraphQL, MCP,
+    // direct internal execute) so actor-type gating can't be bypassed.
     const skipExposure = execOptions?.skipExposureCheck ?? false;
-    const skipPermission = execOptions?.skipPermissionCheck ?? false;
 
-    // Step 2: Exposure check — default channel to "internal" so the check always runs
+    // Exposure check — default channel to "internal" so the check always runs
     const channel: ExecutionChannel = execOptions?.channel ?? "internal";
     if (!skipExposure) {
       if (!isExposed(action.exposure, channel)) {
@@ -331,29 +341,30 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    // Step 3: Permission check
-    if (!skipPermission) {
-      const permError = checkPermissions(action, actor);
-      if (permError) {
-        await logExecution({
-          id: executionId,
-          action: actionName,
-          entity: action.entity,
-          actor,
-          input,
-          status: "blocked",
-          error: { message: permError },
-          startedAt,
-        });
-        return {
-          success: false,
-          data: { error: permError } as T,
-          executionId,
-        };
-      }
+    // Step 3: Actor-type check — Spec 10 authorization field declared on the
+    // action itself. Group enforcement moved to the CommandLayer "permission"
+    // slot (cap-permission) in #125, but actor-type filtering must hold on
+    // every entry point, including GraphQL and direct executor callers.
+    const actorTypeError = checkActorType(action, actor);
+    if (actorTypeError) {
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: action.entity,
+        actor,
+        input,
+        status: "blocked",
+        error: { message: actorTypeError },
+        startedAt,
+      });
+      return {
+        success: false,
+        data: { error: actorTypeError } as T,
+        executionId,
+      };
     }
 
-    // Step 4: Input validation
+    // Step 4: Input validation.
     const inputValidation = validateInput(action, input);
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];

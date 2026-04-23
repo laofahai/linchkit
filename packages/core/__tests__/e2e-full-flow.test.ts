@@ -35,6 +35,7 @@ import {
   evaluateRules,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
+  PipelineError,
 } from "@linchkit/core/server";
 
 // ── Schema ───────────────────────────────────────────────
@@ -289,7 +290,6 @@ const approveExpenseAction: ActionDefinition = {
   name: "approve_expense",
   entity: "expense_report",
   label: "Approve Expense Report",
-  permissions: { groups: ["manager", "admin"] },
   stateTransition: { from: "submitted", to: "approved" },
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -317,7 +317,6 @@ const rejectExpenseAction: ActionDefinition = {
   name: "reject_expense",
   entity: "expense_report",
   label: "Reject Expense Report",
-  permissions: { groups: ["manager", "admin"] },
   stateTransition: { from: "submitted", to: "rejected" },
   policy: { mode: "sync", transaction: false },
   exposure: "all",
@@ -411,6 +410,31 @@ beforeAll(() => {
     executor,
     verifyApproval: async (approvalId: string) => {
       return verifyApproval(approvalId);
+    },
+  });
+
+  // Simulated permission capability: in-test allowlist keyed by action name.
+  // Replaces the previous ActionEngine-embedded permission check that read
+  // action.permissions.groups — now permissions belong to a capability.
+  const requiredGroupsByAction: Record<string, string[]> = {
+    approve_expense: ["manager", "admin"],
+    reject_expense: ["manager", "admin"],
+  };
+  layer.use({
+    name: "test_permission_check",
+    slot: "permission",
+    handler: async (ctx, next) => {
+      const required = requiredGroupsByAction[ctx.command];
+      if (required && required.length > 0) {
+        const hasGroup = ctx.actor.groups.some((g) => required.includes(g));
+        if (!hasGroup) {
+          throw new PipelineError(
+            `Requires one of groups: ${required.join(", ")}`,
+            "PERMISSION.DENIED",
+          );
+        }
+      }
+      await next();
     },
   });
 
@@ -592,7 +616,9 @@ describe("E2E: Full LinchKit Runtime Flow", () => {
 
       expect(approveResult.success).toBe(false);
       const data = approveResult.data as Record<string, unknown>;
-      expect((data.error as string) || "").toContain("groups");
+      // Assert on the machine-readable code set by the permission middleware,
+      // not a substring of the human-facing message (which may change wording).
+      expect(data.code).toBe("PERMISSION.DENIED");
     });
 
     test("2e. Reject transitions submitted → rejected", async () => {

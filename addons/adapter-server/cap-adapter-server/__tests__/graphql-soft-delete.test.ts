@@ -8,7 +8,12 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
-import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
+import {
+  createActionExecutor,
+  createCommandLayer,
+  InMemoryStore,
+  PipelineError,
+} from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -234,5 +239,144 @@ describe("GraphQL soft delete", () => {
     `);
     expect(result.errors).toBeUndefined();
     expect((result.data.restoreSoftDelItem as Record<string, unknown>).title).toBe("Active");
+  });
+});
+
+// ── Permission slot coverage for restore (PR #187) ──────────────────────────
+
+/**
+ * Regression test: the GraphQL `restore_*` mutation must flow through the
+ * CommandLayer's permission slot with `includeDeleted=true` forwarded via
+ * `CommandExecuteOptions`, rather than bypassing the pipeline through the
+ * raw executor. See PR #187.
+ */
+describe("GraphQL restore goes through CommandLayer permission slot", () => {
+  const RESTORE_PORT = 3992;
+  let pipelineStore: InMemoryStore;
+  let pipelineApp: ReturnType<typeof createServer>;
+  /** Records of each permission middleware invocation on this pipeline. */
+  const permissionCalls: Array<{ command: string; includeDeletedOnInput: unknown }> = [];
+  /** When true, the permission middleware denies `restore_*` commands. */
+  let denyRestore = false;
+
+  beforeAll(() => {
+    pipelineStore = new InMemoryStore();
+    const executor = createActionExecutor({ dataProvider: pipelineStore });
+    for (const action of generateCrudActions(schema)) {
+      executor.registry.register(action);
+    }
+
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "record_permission_calls",
+      slot: "permission",
+      handler: async (ctx, next) => {
+        permissionCalls.push({
+          command: ctx.command,
+          includeDeletedOnInput: (ctx.input as Record<string, unknown>).includeDeleted,
+        });
+        if (denyRestore && ctx.command.startsWith("restore_")) {
+          throw new PipelineError(
+            "restore denied by test permission middleware",
+            "PERMISSION.DENIED",
+          );
+        }
+        await next();
+      },
+    });
+
+    const graphqlSchema = buildGraphQLSchema([schema], {
+      executor,
+      commandLayer,
+      dataProvider: pipelineStore,
+    });
+
+    pipelineApp = createServer(graphqlSchema, {
+      executor,
+      commandLayer,
+      dataProvider: pipelineStore,
+    });
+    pipelineApp.listen(RESTORE_PORT);
+  });
+
+  afterAll(() => {
+    pipelineApp.stop();
+  });
+
+  beforeEach(() => {
+    pipelineStore.clear();
+    permissionCalls.length = 0;
+    denyRestore = false;
+  });
+
+  async function gqlPipeline(query: string) {
+    const res = await fetch(`http://localhost:${RESTORE_PORT}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
+  }
+
+  test("restore mutation invokes the permission slot and forwards includeDeleted", async () => {
+    await pipelineStore.create(SCHEMA_NAME, {
+      id: "pipeline_restore",
+      title: "Pipeline Restore",
+      quantity: 3,
+    });
+    await pipelineStore.delete(SCHEMA_NAME, "pipeline_restore");
+
+    const result = await gqlPipeline(`
+      mutation {
+        restoreSoftDelItem(id: "pipeline_restore") {
+          id
+          title
+        }
+      }
+    `);
+    expect(result.errors).toBeUndefined();
+    const restored = result.data.restoreSoftDelItem as Record<string, unknown>;
+    expect(restored.id).toBe("pipeline_restore");
+    expect(restored.title).toBe("Pipeline Restore");
+
+    // Permission slot was invoked for the restore action.
+    const restoreCall = permissionCalls.find((c) => c.command === "restore_soft_del_item");
+    expect(restoreCall).toBeDefined();
+
+    // The deleted row is only reachable when the executor sees includeDeleted=true;
+    // a successful restore therefore proves the flag was forwarded through
+    // CommandExecuteOptions rather than dropped at the pipeline boundary.
+    const raw = await pipelineStore.get(SCHEMA_NAME, "pipeline_restore");
+    expect(raw).toBeDefined();
+    expect(raw.deleted_at).toBeNull();
+  });
+
+  test("permission slot can deny restore, blocking the executor entirely", async () => {
+    await pipelineStore.create(SCHEMA_NAME, {
+      id: "denied_restore",
+      title: "Denied Restore",
+      quantity: 2,
+    });
+    await pipelineStore.delete(SCHEMA_NAME, "denied_restore");
+
+    denyRestore = true;
+
+    const result = await gqlPipeline(`
+      mutation {
+        restoreSoftDelItem(id: "denied_restore") {
+          id
+        }
+      }
+    `);
+    // Either the response carries a GraphQL error or a null payload with the
+    // denial propagated via the ActionResult — in both shapes the raw record
+    // must remain soft-deleted.
+    const payload = result.data?.restoreSoftDelItem ?? null;
+    expect(payload === null || (result.errors && result.errors.length > 0)).toBe(true);
+
+    const raw = await pipelineStore.get(SCHEMA_NAME, "denied_restore", { includeDeleted: true });
+    expect(raw).toBeDefined();
+    expect(raw.deleted_at).toBeDefined();
+    expect(raw.deleted_at).not.toBeNull();
   });
 });

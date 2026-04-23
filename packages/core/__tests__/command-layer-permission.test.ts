@@ -169,25 +169,26 @@ describe("Command Layer + Permission Engine Integration", () => {
     expect(result.success).toBe(true);
   });
 
-  test("no permission middleware = executor built-in check still runs (fail-closed)", async () => {
+  test("no permission middleware = pipeline is open (per issue #125)", async () => {
     const { layer } = createTestSetup();
 
-    // No permission middleware registered — executor's built-in permission check runs
-    // admin_action requires groups: ["admin"], anonymous has none → rejected
+    // Issue #125 unified the permission model: the Action Engine no longer
+    // performs any check. Without a permission-slot middleware, the pipeline
+    // has no gate and the action executes. Apps that want access control
+    // must plug in a permission capability (e.g. cap-permission).
     const result = await layer.execute({
       command: "admin_action",
       input: {},
     });
 
-    expect(result.success).toBe(false);
-    const data = result.data as Record<string, unknown>;
-    expect(data.error as string).toContain("required groups");
+    expect(result.success).toBe(true);
   });
 
   test("no permission middleware + unrestricted action = allow", async () => {
     const { layer } = createTestSetup();
 
-    // create_item has no permissions defined — passes executor's built-in check
+    // create_item is unrestricted and no permission-slot middleware is installed,
+    // so the pipeline is open by default (issue #125 — Spec 10 §7.8).
     const result = await layer.execute({
       command: "create_item",
       input: { name: "test" },

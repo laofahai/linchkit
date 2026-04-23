@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-  checkPermissions,
   generateExecutionId,
   isExposed,
   resolveFieldExpression,
@@ -119,59 +118,6 @@ describe("isExposed", () => {
     for (const ch of channels) {
       expect(isExposed("all", ch)).toBe(true);
     }
-  });
-});
-
-// ── checkPermissions ──────────────────────────────────────
-
-describe("checkPermissions", () => {
-  it("returns null when no permissions defined", () => {
-    const action = makeAction({ permissions: undefined });
-    expect(checkPermissions(action, defaultActor)).toBeNull();
-  });
-
-  it("returns null when actor type is in allowedTypes", () => {
-    const action = makeAction({
-      permissions: { actorTypes: ["human", "ai"] },
-    });
-    expect(checkPermissions(action, defaultActor)).toBeNull();
-  });
-
-  it("returns error message when actor type is not allowed", () => {
-    const action = makeAction({
-      permissions: { actorTypes: ["ai"] },
-    });
-    const result = checkPermissions(action, defaultActor);
-    expect(result).toContain("human");
-  });
-
-  it("returns null when actor belongs to required group", () => {
-    const action = makeAction({
-      permissions: { groups: ["manager"] },
-    });
-    expect(checkPermissions(action, defaultActor)).toBeNull();
-  });
-
-  it("returns error message when actor lacks required group", () => {
-    const action = makeAction({
-      permissions: { groups: ["admin"] },
-    });
-    const result = checkPermissions(action, defaultActor);
-    expect(result).toContain("admin");
-  });
-
-  it("returns null when actor is in at least one required group", () => {
-    const action = makeAction({
-      permissions: { groups: ["admin", "employee"] },
-    });
-    expect(checkPermissions(action, defaultActor)).toBeNull();
-  });
-
-  it("returns null for empty actorTypes list (no restriction)", () => {
-    const action = makeAction({
-      permissions: { actorTypes: [] },
-    });
-    expect(checkPermissions(action, defaultActor)).toBeNull();
   });
 });
 
