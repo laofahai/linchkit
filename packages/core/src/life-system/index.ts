@@ -20,6 +20,30 @@ export type { InsightEngineOptions } from "./insight-engine";
 export { createInsightEngine } from "./insight-engine";
 export type { MemoryEngineOptions } from "./memory-engine";
 export { MemoryEngine } from "./memory-engine";
+// Proposal pre-analysis pipeline (Spec 55 §7.3 — dedup + impact)
+export type {
+  BacktestResult,
+  ConflictFinding,
+  ConflictResult,
+  CreateDedupAnalyzerOptions,
+  CreateImpactAnalyzerOptions,
+  CreatePreAnalysisPipelineOptions,
+  DedupResult,
+  ImpactDataProvider,
+  ImpactResult,
+  PendingProposalStore,
+  PreAnalysisPipeline,
+  PreAnalysisStage,
+  PreAnalysisStageResult,
+  PreAnalysisStatus,
+  PreAnalyzer,
+  ProposalPreAnalysisResult,
+} from "./proposal-preanalysis";
+export {
+  createDedupAnalyzer,
+  createImpactAnalyzer,
+  createPreAnalysisPipeline,
+} from "./proposal-preanalysis";
 export type { EvolutionRuntime, EvolutionRuntimeOptions } from "./runtime";
 export { createEvolutionRuntime } from "./runtime";
 export type { SignalBus, SignalBusOptions, SignalHandler } from "./signal-bus";
