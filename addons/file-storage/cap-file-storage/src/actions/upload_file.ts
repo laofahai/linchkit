@@ -6,10 +6,12 @@
  *   name        — original filename (required, non-empty)
  *   mime        — MIME type (required, non-empty)
  *   data_base64 — payload encoded as base64 (required, non-empty)
- *   path        — optional relative path hint; when omitted, a random key
- *                 under the current tenant prefix is generated
  *
  * Output: the created `file` record (with adapter-computed size + checksum).
+ *
+ * Storage key is ALWAYS generated server-side under the current tenant prefix.
+ * Client-supplied path hints are not accepted — allowing callers to pick keys
+ * enables cross-tenant blob overwrites and collision attacks.
  */
 
 import { randomUUID } from "node:crypto";
@@ -52,11 +54,6 @@ export const uploadFileAction = defineAction({
       required: true,
       description: "File bytes encoded as base64 (no whitespace)",
     },
-    path: {
-      type: "string",
-      label: "Storage Path Hint",
-      description: "Optional relative path for the adapter. A safe key is generated when omitted.",
-    },
   },
   policy: {
     mode: "sync",
@@ -68,8 +65,6 @@ export const uploadFileAction = defineAction({
     const name = String(ctx.input.name ?? "").trim();
     const mime = String(ctx.input.mime ?? "").trim();
     const dataBase64 = String(ctx.input.data_base64 ?? "");
-    const pathHint =
-      typeof ctx.input.path === "string" && ctx.input.path.length > 0 ? ctx.input.path : undefined;
 
     if (!name) {
       throw new Error("File name is required");
@@ -83,22 +78,37 @@ export const uploadFileAction = defineAction({
 
     const data = decodeBase64(dataBase64);
 
-    // Build a safe default relative path. The adapter re-validates it.
+    // Generate a safe server-side key scoped by tenant. Not accepting caller
+    // input here prevents cross-tenant overwrites and guessing attacks.
     const tenantPrefix = ctx.tenantId ? `${ctx.tenantId}/` : "";
-    const relPath = pathHint ?? `${tenantPrefix}${randomUUID()}`;
+    const relPath = `${tenantPrefix}${randomUUID()}`;
 
     const adapter = getStorageAdapter();
     const written = await adapter.write({ path: relPath, data, mime });
 
-    const record = await ctx.create("file", {
-      name,
-      size: written.size,
-      mime,
-      path: written.path,
-      adapter: adapter.name,
-      checksum: written.checksum ?? "",
-      uploaded_by: ctx.actor.id,
-    });
+    // Compensate: if the metadata write fails (transaction rollback, validation,
+    // uniqueness, etc.), we must remove the blob we just persisted — otherwise
+    // the backend accumulates orphaned payloads with no entity row pointing to
+    // them.
+    let record: Record<string, unknown>;
+    try {
+      record = await ctx.create("file", {
+        name,
+        size: written.size,
+        mime,
+        path: written.path,
+        adapter: adapter.name,
+        checksum: written.checksum ?? "",
+        uploaded_by: ctx.actor.id,
+      });
+    } catch (err) {
+      try {
+        await adapter.delete(written.path);
+      } catch {
+        // Best-effort compensation; surface the original error either way.
+      }
+      throw err;
+    }
 
     ctx.emit("file.uploaded", {
       file_id: record.id,

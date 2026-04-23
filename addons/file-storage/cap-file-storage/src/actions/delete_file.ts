@@ -32,12 +32,15 @@ export const deleteFileAction = defineAction({
       throw new Error("File id is required");
     }
 
-    let record: Record<string, unknown> | undefined;
-    try {
-      record = await ctx.get("file", id);
-    } catch {
-      // Idempotent: record already gone — nothing to delete.
-      return { deleted: false, id };
+    // Idempotency: use `query` rather than `get` so a missing record is a
+    // zero-length array instead of an exception. Transient errors
+    // (DB unavailable, tenant-isolation reject, permission error, etc.) still
+    // throw, which is what we want — callers must not see `deleted: false`
+    // for a real failure.
+    const rows = await ctx.query("file", { id });
+    const [record] = rows;
+    if (!record) {
+      return { deleted: false, id, reason: "not-found" };
     }
 
     const adapter = getStorageAdapter();
