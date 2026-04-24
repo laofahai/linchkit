@@ -75,9 +75,10 @@ describe("CommandLayer — ExecutionMeta integration", () => {
 
     // _channel is set by the framework from ctx.channel.
     expect(capturedCtx?.meta.get<string>("_channel")).toBe("http");
-    // _execution_id comes from the pipeline-assigned traceId when present
-    // (or is absent). Either way, not "spoofed_exec".
-    expect(capturedCtx?.meta.get<string>("_execution_id")).not.toBe("spoofed_exec");
+    // _execution_id is the ROOT execution record id (Spec 65 §4.4) — the
+    // ActionEngine fills it from the action's executionId. Never from
+    // external input.
+    expect(capturedCtx?.meta.get<string>("_execution_id")).toBe(capturedCtx?.executionId);
     // Legitimate user keys still pass through.
     expect(capturedCtx?.meta.get<string>("source_view")).toBe("legit");
   });

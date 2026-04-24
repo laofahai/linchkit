@@ -109,13 +109,15 @@ export interface ExecuteOptions {
   /**
    * Execution metadata propagated through the execution chain (Spec 65).
    *
-   * Normally set by the CommandLayer from `CommandExecuteOptions.meta` +
-   * framework system keys, and by the ActionEngine itself on nested
-   * `ctx.execute` calls. When absent (direct internal executor calls), the
-   * ActionEngine synthesizes a default meta containing only system keys so
-   * `ctx.meta` is always populated.
+   * Accepts either a pre-built `ExecutionMeta` (how the CommandLayer and the
+   * ActionEngine itself pass meta across nested calls) OR a plain record of
+   * raw key-value pairs (the natural call shape from direct-executor tests
+   * and internal callers). Plain records are normalized with
+   * `createExecutionMeta` at ingestion. Without this normalization, passing
+   * `{ meta: { source_view: "queue" } }` would break `ctx.meta.get(...)` at
+   * runtime with "x is not a function".
    */
-  meta?: ExecutionMeta;
+  meta?: ExecutionMeta | Record<string, unknown>;
 }
 
 // ── ActionExecutor ──────────────────────────────────────────
@@ -189,6 +191,43 @@ export interface ActionExecutorOptions {
   eventBus?: EventBus;
   /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
   capabilityNames?: ReadonlySet<string>;
+}
+
+/**
+ * Duck-type check: does `value` look like an {@link ExecutionMeta}? The
+ * public ExecuteOptions.meta accepts either a pre-built ExecutionMeta (how
+ * the CommandLayer + nested ctx.execute pass it) or a plain record (natural
+ * external call shape). We detect the former by the presence of the typed
+ * accessor methods rather than an `instanceof` check so third-party
+ * implementations (e.g., future Phase 2 subclasses) still work.
+ */
+function isExecutionMeta(value: unknown): value is ExecutionMeta {
+  if (value === null || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.get === "function" &&
+    typeof candidate.has === "function" &&
+    typeof candidate.require === "function" &&
+    typeof candidate.toJSON === "function"
+  );
+}
+
+/**
+ * Extend an incoming ExecutionMeta with system defaults ONLY for keys the
+ * parent has not already set. Prevents a child execution from clobbering
+ * root-level `_execution_id`, while still backfilling it when a parent meta
+ * happens to arrive without one.
+ */
+function fillMissingSystemKeys(
+  meta: ExecutionMeta,
+  systemDefaults: Record<string, unknown>,
+): ExecutionMeta {
+  const missing: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(systemDefaults)) {
+    if (!meta.has(k)) missing[k] = v;
+  }
+  if (Object.keys(missing).length === 0) return meta;
+  return extendExecutionMeta(meta, {}, missing);
 }
 
 /**
@@ -439,20 +478,34 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
-    // Resolve execution meta: CommandLayer-provided meta takes precedence.
-    // When absent (direct internal executor calls), synthesize a default meta
-    // with only system keys so `ctx.meta` is always populated (Spec 65 §2.2).
-    // Size-limit validation has already happened at construction time in the
-    // CommandLayer for external paths — this synthesized meta is tiny.
-    const resolvedMeta: ExecutionMeta =
-      execOptions?.meta ??
-      createExecutionMeta({
-        systemKeys: {
-          _channel: channel,
-          _execution_id: executionId,
-          _depth: currentDepth,
-        },
-      });
+    // Resolve execution meta. `execOptions.meta` is typed as
+    // `ExecutionMeta | Record<string, unknown>` so direct-executor callers can
+    // pass a plain record (e.g., `executor.execute(..., { meta: { foo: 1 } })`)
+    // without constructing an ExecutionMeta themselves — the natural call
+    // shape. Internally we always normalize to an ExecutionMeta before
+    // exposing on ctx.meta.
+    //
+    // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
+    // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
+    // its assignment: set from `executionId` at the root (depth == 0) when
+    // not already carried from a parent (which uses extendExecutionMeta to
+    // preserve the parent's root id through the chain).
+    const rootSystemDefaults: Record<string, unknown> = {
+      _channel: channel,
+      _execution_id: executionId,
+      _depth: currentDepth,
+    };
+    const providedMeta = execOptions?.meta;
+    const resolvedMeta: ExecutionMeta = !providedMeta
+      ? createExecutionMeta({ systemKeys: rootSystemDefaults })
+      : isExecutionMeta(providedMeta)
+        ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
+        : // Plain record — wrap through createExecutionMeta so _-prefixed
+          // keys get stripped, non-serializable values filtered, size enforced.
+          createExecutionMeta({
+            raw: providedMeta as Record<string, unknown>,
+            systemKeys: rootSystemDefaults,
+          });
 
     const ctx: ActionContext = {
       input,
@@ -491,8 +544,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           });
         } catch (err) {
           if (err instanceof MetaSizeError) {
-            const failedId = generateExecutionId();
-            childExecutionIds.push(failedId);
+            // The child never ran — no execution log entry exists for this
+            // rejection. Do NOT push a fake id onto childExecutionIds: that
+            // would break `ExecutionLogger.getById()` lookups from the parent
+            // log, since no record is ever written under it.
             return { error: err.message, code: err.code };
           }
           throw err;

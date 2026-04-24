@@ -229,8 +229,10 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
   });
 
   test("_execution_id stays the same across the chain", async () => {
-    // When the CommandLayer sets `_execution_id` from the traceId, all nested
-    // calls inherit the same root id because `extend` preserves parent keys.
+    // Spec 65 §4.4: `_execution_id` is the ROOT execution record id (not a
+    // tracing context). The ActionEngine stamps it from the root action's
+    // `executionId` at depth 0; `extend` preserves that same value through
+    // nested ctx.execute calls, so every level sees the root's id.
     const captures: Capture[] = [];
     const dp = createTestDataProvider();
     const executor = createActionExecutor({ dataProvider: dp });
@@ -286,17 +288,21 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     executor.registry.register(leaf);
 
     const layer = createCommandLayer({ executor });
-    // Force a traceId so the CommandLayer stamps `_execution_id` from it.
     await layer.execute({
       command: "root_x",
       input: {},
       meta: {},
       actor: defaultActor,
-      traceId: "root_trace_abc",
     });
 
     const ids = captures.map((c) => c.meta._execution_id);
-    expect(ids).toEqual(["root_trace_abc", "root_trace_abc", "root_trace_abc"]);
+    const rootExecutionId = captures[0].executionId;
+    // All three levels carry the root action's executionId.
+    expect(ids).toEqual([rootExecutionId, rootExecutionId, rootExecutionId]);
+    // And each call still had its own per-action executionId distinct from
+    // the preserved root id (except for the root itself).
+    expect(captures[1].executionId).not.toBe(rootExecutionId);
+    expect(captures[2].executionId).not.toBe(rootExecutionId);
   });
 
   test("direct executor call (no CommandLayer) synthesizes meta with system keys", async () => {
@@ -466,5 +472,129 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect("nested_date" in childMetaJson).toBe(false);
     expect("cb" in childMetaJson).toBe(false);
     expect(childMetaJson.ok_flag).toBe(true);
+  });
+
+  // Codex round-3 follow-up: ExecuteOptions.meta accepts a plain record
+  // (natural shape for direct-executor callers). Engine normalizes internally.
+  test("direct executor with plain record meta normalizes to ExecutionMeta", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let captured: { meta: Record<string, unknown>; hasGet: boolean } | undefined;
+    executor.registry.register({
+      name: "plain_meta_consumer",
+      entity: "item",
+      label: "Plain Meta Consumer",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = {
+          meta: ctx.meta.toJSON(),
+          hasGet: typeof ctx.meta.get === "function",
+        };
+        return { ok: true };
+      },
+    });
+
+    // Pass a plain Record<string, unknown> (no createExecutionMeta).
+    await executor.execute("plain_meta_consumer", {}, defaultActor, {
+      meta: { source_view: "queue", bulk: true } as Record<string, unknown>,
+    });
+
+    expect(captured?.hasGet).toBe(true);
+    expect(captured?.meta.source_view).toBe("queue");
+    expect(captured?.meta.bulk).toBe(true);
+    // System keys still set by the engine.
+    expect(captured?.meta._channel).toBe("internal");
+    expect(typeof captured?.meta._execution_id).toBe("string");
+    expect(captured?.meta._depth).toBe(0);
+  });
+
+  test("direct executor with plain record meta strips _-prefixed external keys", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let captured: Record<string, unknown> = {};
+    executor.registry.register({
+      name: "plain_stripped",
+      entity: "item",
+      label: "Plain Stripped",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    await executor.execute("plain_stripped", {}, defaultActor, {
+      meta: {
+        _channel: "spoofed",
+        _execution_id: "hacked",
+        source_view: "legit",
+      } as Record<string, unknown>,
+    });
+
+    // Plain-record path goes through createExecutionMeta's _-prefix strip.
+    expect(captured._channel).toBe("internal");
+    expect(captured._execution_id).not.toBe("hacked");
+    expect(captured.source_view).toBe("legit");
+  });
+
+  // Codex round-3 P3: don't record a fake child execution id when meta size
+  // rejects the child before any log entry is written.
+  test("child meta size rejection does NOT register a phantom execution id", async () => {
+    const dp = createTestDataProvider();
+    // Simple in-memory executionLogger to observe childExecutionIds persistence.
+    const logEntries: Array<{ id: string }> = [];
+    const executor = createActionExecutor({
+      dataProvider: dp,
+      executionLogger: {
+        log: async (e) => {
+          logEntries.push({ id: e.id });
+        },
+        getById: async (id) => logEntries.find((x) => x.id === id) as never,
+      },
+    });
+
+    let parentResult: unknown;
+    executor.registry.register({
+      name: "child",
+      entity: "item",
+      label: "Child",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async () => ({ ok: true }),
+    });
+
+    executor.registry.register({
+      name: "parent_oversize_child",
+      entity: "item",
+      label: "Parent",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        parentResult = await ctx.execute(
+          "child",
+          {},
+          { meta: { huge: "x".repeat(DEFAULT_META_MAX_BYTES + 100) } },
+        );
+        return { ok: true };
+      },
+    });
+
+    await executor.execute("parent_oversize_child", {}, defaultActor);
+
+    // The child meta was rejected — one log entry exists (the parent).
+    expect(logEntries.length).toBe(1);
+    // The logged id is the parent's id, which is resolvable.
+    const parentLogId = logEntries[0].id;
+    const found = await executor.registry.get("parent_oversize_child");
+    expect(found).toBeDefined();
+    // And the failed "child" return data is META.SIZE_EXCEEDED, shaped for
+    // the parent handler to pattern-match on.
+    expect((parentResult as Record<string, unknown>).code).toBe("META.SIZE_EXCEEDED");
+    // parentLogId referenced as a sanity anchor.
+    expect(typeof parentLogId).toBe("string");
   });
 });

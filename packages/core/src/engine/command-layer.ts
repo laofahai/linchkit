@@ -454,23 +454,25 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         // mutates `c.meta` for pipeline-internal state still feeds the final
         // handler-visible meta (Spec 65 §8.3).
         //
-        // `_execution_id` source: prefer the pipeline-assigned traceId when
-        // present so distributed traces share one root id. When no traceId
-        // was propagated, omit `_execution_id` here — the ActionEngine will
-        // not synthesize one either for CommandLayer-owned paths, and the
-        // actual per-action `executionId` remains on `ctx.executionId`.
+        // `_execution_id` is intentionally NOT set here. Spec 65 §4.4 defines
+        // it as the ROOT execution record id (keyed against ExecutionLogger),
+        // not a tracing context. The ActionEngine owns executionId generation
+        // and fills the system key at root entry; nested calls preserve it
+        // via extendExecutionMeta. Setting it from traceId would collapse
+        // multiple executions under a single upstream trace onto the same
+        // "execution id" and break ExecutionLogger.getById() lookups.
+        //
         // TODO(spec-65 Phase 2): The execution-log writer should record
         // `meta.toJSON()` alongside the existing ExecutionLogEntry fields.
         let meta: ReturnType<typeof createExecutionMeta>;
         try {
-          const systemKeys: Record<string, unknown> = {
-            _channel: c.channel,
-            _depth: 0,
-          };
-          if (c.traceId) {
-            systemKeys._execution_id = c.traceId;
-          }
-          meta = createExecutionMeta({ raw: c.meta, systemKeys });
+          meta = createExecutionMeta({
+            raw: c.meta,
+            systemKeys: {
+              _channel: c.channel,
+              _depth: 0,
+            },
+          });
         } catch (err) {
           if (err instanceof MetaSizeError) {
             // Meta is invalid → the action never runs. Post-action hooks
