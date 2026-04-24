@@ -148,6 +148,29 @@ function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
 
 const capContributions = extractCapabilities(config.capabilities);
 
+// Dev-only allow-all permission middleware. The CommandLayer now hard-fails
+// when the `permission` slot is empty (even with `skipActionSlots: true`) to
+// prevent accidental production deploys without RBAC. `dev.ts` does not wire
+// cap-permission, so inject a stub at `order: 999` that simply calls `next()`.
+// Any real permission middleware registered by a capability will run first
+// (lower order) and take precedence.
+const hasPermissionMiddleware = capContributions.middlewares.some(
+  (mw: MiddlewareRegistration) => mw.slot === "permission",
+);
+if (!hasPermissionMiddleware) {
+  capContributions.middlewares.push({
+    name: "dev:allow_all_permission",
+    slot: "permission",
+    order: 999,
+    handler: async (_ctx, next) => {
+      await next();
+    },
+  });
+  consoleLogger.warn(
+    "[permission] no permission middleware registered — dev server is running with an allow-all stub. Register cap-permission (or an equivalent) before deploying to production.",
+  );
+}
+
 // ── Merge capability entities and actions ────────────────
 
 const allEntities = capContributions.entities;

@@ -3,8 +3,11 @@
  *
  * All entry points (HTTP / MCP / CLI / UI) go through the same pipeline.
  * Capabilities fill slots by registering middlewares (e.g. cap-auth fills "auth").
- * Unfilled slots are automatically skipped — except permission: when no permission
- * middleware is registered, the executor's built-in permission check still runs (fail-closed).
+ * Unfilled slots are automatically skipped — except permission: for normal
+ * action dispatch, if no permission middleware is registered, the executor's
+ * built-in permission check still runs (fail-closed). For non-action dispatch
+ * (`skipActionSlots: true`), the executor is never invoked, so an empty
+ * permission slot is rejected explicitly with `PERMISSION.MIDDLEWARE_MISSING`.
  *
  * Pipeline order: pre → auth → exposure → permission → tenant → pre-action → [action] → post-action
  *
@@ -15,7 +18,9 @@
  * entity onchange endpoint (Spec 64 §4.3). The pipeline runs pre / auth / permission /
  * tenant but skips exposure / pre-action / post-action and does not invoke the
  * ActionExecutor; a synthetic success result is returned so downstream code can
- * produce the actual response payload.
+ * produce the actual response payload. Requires a registered permission middleware
+ * (see guard above). Cannot be combined with `approvalId` — the combination would
+ * silently drop auth+permission and is rejected with `COMMAND.INVALID_OPTIONS`.
  *
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
@@ -313,8 +318,44 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       ctx.action = action;
     }
 
-    // Determine if permission middleware is registered (#1 — fail-closed)
-    const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
+    // Determine if permission middleware is registered (#1 — fail-closed).
+    // Use `.some()` rather than `getSlotMiddlewares().length > 0` to avoid
+    // filtering+sorting the middleware array on every request.
+    const hasPermissionMiddleware = middlewares.some((m) => m.slot === "permission");
+
+    // Fail-closed guard: non-action dispatch (`skipActionSlots`) bypasses the
+    // ActionExecutor entirely, so the executor's built-in permission check —
+    // documented at the top of this file as the fallback when no permission
+    // middleware is registered — never fires. Without a registered permission
+    // middleware, an onchange-style request would run with zero authorization.
+    // Reject the request explicitly instead of silently running unguarded.
+    if (skipActionSlots && !hasPermissionMiddleware) {
+      return {
+        success: false,
+        data: {
+          error:
+            "Non-action dispatch (skipActionSlots) requires a permission middleware — built-in executor fallback does not apply.",
+          code: "PERMISSION.MIDDLEWARE_MISSING",
+        },
+        executionId: generatePipelineId(),
+      };
+    }
+
+    // Reject the `approvalId` + `skipActionSlots` combination. Approval
+    // re-execution skips {auth, exposure, permission}; non-action dispatch
+    // skips {exposure, pre-action, post-action}. Combined, auth AND permission
+    // would silently drop — contradicting the `skipActionSlots` contract that
+    // auth/permission/tenant still run. No legitimate flow needs this pair.
+    if (execOptions.approvalId && skipActionSlots) {
+      return {
+        success: false,
+        data: {
+          error: "approvalId is not supported with skipActionSlots.",
+          code: "COMMAND.INVALID_OPTIONS",
+        },
+        executionId: generatePipelineId(),
+      };
+    }
 
     // Approval re-execution: skip auth, exposure, permission slots ONLY when
     // a verifyApproval callback is configured AND it confirms the approvalId is valid.
