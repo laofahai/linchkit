@@ -10,7 +10,14 @@
  * - Strict `updates` allowlist: fields returned outside the hook's declared
  *   `updates` list are silently dropped with a structured warning.
  * - Per-hook timeout: default 2 s (Spec 64 §9.4); on timeout the hook is skipped
- *   with a warning and the chain continues.
+ *   with a warning, late-arriving updates from the background hook promise are
+ *   dropped via a `timedOut` guard (Finding 3), and the chain continues.
+ * - Sanitized warning surface: raw internal errors (SQL text, stack fragments,
+ *   lookup internals) are NEVER echoed into the client-visible warnings array.
+ *   They are logged through the runtime `Logger` at `warn` level (Finding 4).
+ * - Defensive cloning: `ctx.values` and `lookup`/`query` results are cloned at
+ *   the evaluator/hook boundary so a misbehaving hook cannot mutate another
+ *   hook's view or the shared accumulator (Finding 5).
  * - Pure read-only context: `lookup` and `query` delegate to the caller-provided
  *   DataProvider — tenant scope + permissions are preserved by the caller.
  *
@@ -19,10 +26,25 @@
  */
 
 import type { EntityRegistry } from "../entity/entity-registry";
+import { consoleLogger } from "../observability/console-logger";
 import type { Actor } from "../types/action";
-import type { EntityDefinition } from "../types/entity";
-import type { OnchangeContext, OnchangeDefinition, OnchangeResult } from "../types/onchange";
-import type { DataProvider, DataQueryOptions } from "./action-engine";
+import type { Logger } from "../types/logger";
+import type { OnchangeResult } from "../types/onchange";
+import type { DataProvider } from "./action-engine";
+import {
+  buildContext,
+  createDedupedWarningSink,
+  createRevocableWarningSink,
+  filterByAllowlist,
+  indexHooks,
+  type OnchangeReadPermissionCheck,
+  runHookWithTimeout,
+  type TimedHookOutcome,
+} from "./onchange-evaluator-internals";
+
+// Re-export the public permission-check type so consumers keep their existing
+// `import { OnchangeReadPermissionCheck } from "@linchkit/core/server"` paths.
+export type { OnchangeReadPermissionCheck } from "./onchange-evaluator-internals";
 
 /** Maximum number of hook evaluations per onchange call (Spec 64 §5.2). */
 export const MAX_CHAIN_DEPTH = 5;
@@ -32,21 +54,6 @@ export const DEFAULT_COMPUTE_TIMEOUT_MS = 2000;
 
 /** Structured result returned by the evaluator. */
 export type OnchangeEvaluationResult = Required<OnchangeResult>;
-
-/**
- * Callback evaluated before each `lookup` / `query` to decide whether the
- * current actor can read from the target entity. Returning `false` drops the
- * call and appends a structured warning to the evaluation result.
- *
- * The callback is intentionally minimal — it takes only the fields the
- * evaluator knows about. Full permission engines can capture additional state
- * in a closure when they construct the callback.
- */
-export type OnchangeReadPermissionCheck = (args: {
-  actor: Actor;
-  tenantId: string | undefined;
-  entity: string;
-}) => Promise<boolean> | boolean;
 
 /** Options for creating an onchange evaluator. */
 export interface OnchangeEvaluatorOptions {
@@ -66,6 +73,13 @@ export interface OnchangeEvaluatorOptions {
    * enforcement is not active (Spec 64 §4.3 — permission layer responsibility).
    */
   checkReadPermission?: OnchangeReadPermissionCheck;
+  /**
+   * Structured logger for diagnostic output. Raw internal errors (SQL text,
+   * stack fragments, etc.) are logged here at `warn` level so operators can
+   * debug, while the user-facing `warnings` array contains only sanitized
+   * messages. Defaults to the package console logger.
+   */
+  logger?: Logger;
 }
 
 /** Public evaluator interface. */
@@ -80,231 +94,6 @@ export interface OnchangeEvaluateArgs {
   values: Record<string, unknown>;
   actor: Actor;
   tenantId?: string;
-}
-
-// ── Internal helpers ─────────────────────────────────────────
-
-/** Split a comma-key like `"a , b"` into `["a", "b"]`. */
-function parseTriggerKey(key: string): string[] {
-  return key
-    .split(",")
-    .map((k) => k.trim())
-    .filter((k) => k.length > 0);
-}
-
-/**
- * Build a map from trigger field → OnchangeDefinition[] for a given entity.
- * When multiple comma-keys include the same field, all matching hooks fire.
- */
-function indexHooks(entity: EntityDefinition): Map<string, OnchangeDefinition[]> {
-  const index = new Map<string, OnchangeDefinition[]>();
-  const onchange = entity.onchange;
-  if (!onchange) return index;
-  for (const [key, def] of Object.entries(onchange)) {
-    for (const field of parseTriggerKey(key)) {
-      const list = index.get(field) ?? [];
-      list.push(def);
-      index.set(field, list);
-    }
-  }
-  return index;
-}
-
-/** Normalize a hook return value into a full OnchangeResult. */
-function normalizeHookReturn(raw: OnchangeResult | Record<string, unknown>): OnchangeResult {
-  if (
-    raw !== null &&
-    typeof raw === "object" &&
-    "updates" in raw &&
-    typeof (raw as OnchangeResult).updates === "object"
-  ) {
-    const full = raw as OnchangeResult;
-    return {
-      updates: full.updates ?? {},
-      warnings: Array.isArray(full.warnings) ? full.warnings : [],
-    };
-  }
-  return { updates: raw as Record<string, unknown>, warnings: [] };
-}
-
-/**
- * Run the hook with a deadline. When the hook does not settle before the
- * deadline, resolve with an empty update set plus a timeout warning.
- */
-async function runHookWithTimeout(
-  hook: OnchangeDefinition,
-  ctx: OnchangeContext,
-  timeoutMs: number,
-): Promise<OnchangeResult> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<OnchangeResult>((resolve) => {
-    timer = setTimeout(() => {
-      resolve({
-        updates: {},
-        warnings: [
-          `Onchange hook for "${ctx.changedField}" exceeded ${timeoutMs} ms timeout and was skipped`,
-        ],
-      });
-    }, timeoutMs);
-  });
-
-  const hookPromise = (async () => {
-    const raw = await hook.compute(ctx);
-    return normalizeHookReturn(raw);
-  })();
-
-  try {
-    return await Promise.race([hookPromise, timeoutPromise]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
-/**
- * Apply the hook's declared `updates` allowlist to the returned record. Any
- * field not in the allowlist is dropped; a structured warning is emitted when
- * fields are dropped so UIs / logs can surface the discrepancy.
- */
-function filterByAllowlist(
-  hook: OnchangeDefinition,
-  result: OnchangeResult,
-  triggerField: string,
-): OnchangeResult {
-  const allowed = new Set(hook.updates);
-  const filtered: Record<string, unknown> = {};
-  const dropped: string[] = [];
-  for (const [field, value] of Object.entries(result.updates ?? {})) {
-    if (allowed.has(field)) {
-      filtered[field] = value;
-    } else {
-      dropped.push(field);
-    }
-  }
-  const warnings = [...(result.warnings ?? [])];
-  if (dropped.length > 0) {
-    warnings.push(
-      `Onchange hook for "${triggerField}" returned fields outside its updates allowlist and they were dropped: ${dropped.join(", ")}`,
-    );
-  }
-  return { updates: filtered, warnings };
-}
-
-/**
- * Deduping warning sink used across a single `evaluate()` call. Callers supply
- * a dedup `key` plus the warning `message`; the first emission per key is
- * pushed into the backing array, subsequent emissions with the same key are
- * dropped. Used to collapse identical permission / lookup / query warnings
- * that would otherwise repeat across chained hooks.
- */
-interface DedupedWarningSink {
-  /** Push `message` unless `key` was already pushed during this call. */
-  push(key: string, message: string): void;
-  /** Raw warning array for evaluator-owned (non-deduped) warnings. */
-  readonly warnings: string[];
-}
-
-function createDedupedWarningSink(backing: string[]): DedupedWarningSink {
-  const seen = new Set<string>();
-  return {
-    push(key, message) {
-      if (seen.has(key)) return;
-      seen.add(key);
-      backing.push(message);
-    },
-    warnings: backing,
-  };
-}
-
-/**
- * Build the context object passed to `hook.compute`. The context exposes only
- * read-level helpers; it MUST NOT leak any DataProvider write methods.
- *
- * When `checkReadPermission` is supplied, each `lookup`/`query` first asks the
- * caller whether the current actor may read the target entity. On denial the
- * data-provider call is skipped and a structured warning is pushed into
- * `warningSink`, which the evaluator merges into the final result.
- *
- * `warningSink` must be a shared `DedupedWarningSink` for the whole
- * `evaluate()` call so that identical permission denials / lookup failures
- * emitted by chained hooks collapse into a single warning (Spec 64 §9.1).
- */
-function buildContext(options: {
-  changedField: string;
-  values: Record<string, unknown>;
-  actor: Actor;
-  tenantId: string | undefined;
-  dataProvider: DataProvider;
-  checkReadPermission?: OnchangeReadPermissionCheck;
-  warningSink: DedupedWarningSink;
-}): OnchangeContext {
-  const { changedField, values, actor, tenantId, dataProvider, checkReadPermission, warningSink } =
-    options;
-  const queryOptions: DataQueryOptions = tenantId ? { tenantId } : {};
-
-  async function ensureReadable(entity: string): Promise<boolean> {
-    if (!checkReadPermission) return true;
-    try {
-      const allowed = await checkReadPermission({ actor, tenantId, entity });
-      if (!allowed) {
-        // Collapse repeated denials of the same entity into a single warning
-        // so chained hooks don't spam the UI with identical messages.
-        warningSink.push(
-          `permission-denied:${entity}`,
-          `Access to "${entity}" denied for current actor`,
-        );
-      }
-      return allowed;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      warningSink.push(
-        `permission-check-failed:${entity}`,
-        `Read-permission check for "${entity}" failed: ${message}`,
-      );
-      return false;
-    }
-  }
-
-  return {
-    changedField,
-    value: values[changedField],
-    values,
-    actor,
-    tenantId,
-    async lookup(entity, id, field) {
-      if (!(await ensureReadable(entity))) return undefined;
-      try {
-        const record = await dataProvider.get(entity, id, queryOptions);
-        if (!record) return undefined;
-        return record[field];
-      } catch (err) {
-        // Spec 64 §9.1 — `lookup` must never throw from the hook author's
-        // perspective. But silently swallowing DB / tenant / timeout errors is
-        // dangerous, so surface them as a structured warning. Dedup by
-        // (entity, message) so repeated identical failures across chained
-        // hooks collapse into a single warning.
-        const message = err instanceof Error ? err.message : String(err);
-        warningSink.push(
-          `lookup-failed:${entity}:${message}`,
-          `Lookup on "${entity}" failed: ${message}`,
-        );
-        return undefined;
-      }
-    },
-    async query(entity, filter) {
-      if (!(await ensureReadable(entity))) return [];
-      try {
-        return await dataProvider.query(entity, filter, queryOptions);
-      } catch (err) {
-        // Same contract as `lookup`: never throw, but emit a deduped warning.
-        const message = err instanceof Error ? err.message : String(err);
-        warningSink.push(
-          `query-failed:${entity}:${message}`,
-          `Query on "${entity}" failed: ${message}`,
-        );
-        return [];
-      }
-    },
-  };
 }
 
 // ── Factory ─────────────────────────────────────────────────
@@ -323,6 +112,7 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
     defaultTimeoutMs = DEFAULT_COMPUTE_TIMEOUT_MS,
     maxChainDepth = MAX_CHAIN_DEPTH,
     checkReadPermission,
+    logger = consoleLogger,
   } = options;
 
   async function evaluate(args: OnchangeEvaluateArgs): Promise<OnchangeEvaluationResult> {
@@ -387,6 +177,18 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
         }
         evaluations++;
 
+        // Finding 3 (late-warning guard) — each hook gets its own revocable
+        // wrapper around the shared deduped sink. The sink is only "live" for
+        // the synchronous span of the hook's execution: `revoke()` runs
+        // unconditionally after `runHookWithTimeout` returns (success,
+        // timeout, or throw). That way, even if a hook's `compute` starts a
+        // background promise that isn't awaited and later tries to push a
+        // warning via `ctx.lookup` / `ctx.query` / permission checks, the
+        // late push is dropped from the client-visible warnings array and
+        // rerouted to `Logger.warn`.
+        const hookName = `${entityName}.onchange[${field}]`;
+        const timeoutMs = hook.timeout ?? defaultTimeoutMs;
+        const revocable = createRevocableWarningSink(warningSink, logger, hookName);
         const ctx = buildContext({
           changedField: field,
           values: mergedValues,
@@ -394,20 +196,63 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
           tenantId,
           dataProvider,
           checkReadPermission,
-          warningSink,
+          warningSink: revocable.sink,
+          logger,
         });
 
-        let result: OnchangeResult;
+        let outcome: TimedHookOutcome;
         try {
-          const timeoutMs = hook.timeout ?? defaultTimeoutMs;
-          result = await runHookWithTimeout(hook, ctx, timeoutMs);
+          outcome = await runHookWithTimeout(hook, ctx, timeoutMs);
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          warnings.push(`Onchange hook for "${field}" threw an error and was skipped: ${message}`);
+          // Finding 4 — sanitize the user-facing message and log the real
+          // error detail through the runtime logger.
+          const rawMessage = err instanceof Error ? err.message : String(err);
+          logger.warn("onchange: hook threw", {
+            entity: entityName,
+            field,
+            actor: actor.id,
+            tenantId,
+            error: rawMessage,
+          });
+          warnings.push(`Onchange hook for "${field}" threw an error and was skipped`);
+          // Best-effort cleanup: if the hook threw synchronously after capturing
+          // ctx, also revoke its sink so any lingering async work cannot push
+          // late warnings through the closure.
+          revocable.revoke();
           continue;
         }
 
-        const filtered = filterByAllowlist(hook, result, field);
+        // Finding 3 — if the hook timed out, DROP its late-arriving result.
+        // Only the synthesized timeout warning survives; no updates, no
+        // hook-returned warnings, nothing that would mutate the shared
+        // accumulator or re-enter the BFS queue.
+        if (outcome.timedOut) {
+          // Revoke BEFORE continuing the BFS so any still-in-flight
+          // lookup/query/permission-check from the timed-out hook cannot push
+          // a late warning into the client-visible array.
+          revocable.revoke();
+          // Blocker 2 — operator observability. Log the timeout with full
+          // context so ops can diagnose runaway hooks. This complements the
+          // sanitized client-facing warning already emitted by
+          // `runHookWithTimeout`.
+          logger.warn("onchange: hook timed out", {
+            hook: hookName,
+            entity: entityName,
+            field,
+            actor: actor.id,
+            tenantId,
+            timeoutMs,
+          });
+          for (const w of outcome.result.warnings ?? []) warnings.push(w);
+          continue;
+        }
+
+        const filtered = filterByAllowlist(hook, outcome.result, field);
+        // Revoke the per-hook sink on the success path too: a hook's
+        // `compute` might have started an un-awaited background promise that
+        // later tries to push a warning. The synchronous portion is done, so
+        // any late push is by definition out of scope and must be dropped.
+        revocable.revoke();
         for (const w of filtered.warnings ?? []) warnings.push(w);
 
         for (const [updatedField, value] of Object.entries(filtered.updates)) {

@@ -18,7 +18,7 @@
  */
 
 import type { OnchangeEvaluator } from "@linchkit/core/server";
-import { OnchangeEvaluatorError } from "@linchkit/core/server";
+import { consoleLogger, OnchangeEvaluatorError } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
@@ -29,6 +29,21 @@ import {
   serverError,
   serviceUnavailable,
 } from "./shared";
+
+/**
+ * Canonical authorization-denied envelope (Non-blocker 4). All 401/403 paths
+ * through this endpoint return THE SAME payload so the response text cannot be
+ * used as a side channel to distinguish "entity exists but you can't access it"
+ * from "entity doesn't exist" or "auth token missing vs invalid". The specific
+ * middleware-supplied detail is logged via `Logger.warn` for operator debugging.
+ */
+const AUTHZ_DENIED_BODY = {
+  success: false as const,
+  error: {
+    code: "AUTHZ_DENIED",
+    message: "Access denied",
+  },
+} as const;
 
 /**
  * Build the synthetic command name for a given entity. Permission middleware
@@ -55,6 +70,80 @@ export function mountOnchangeRoutes(
     }
 
     const entityName = params.name;
+
+    // Finding 1 — run the permission slot BEFORE revealing anything about the
+    // shape of the entity or its onchange map. We must not leak "this entity
+    // exists but you can't use it" vs "this entity doesn't exist" to an
+    // unauthenticated probe, because the distinction would let callers
+    // enumerate which entities have onchange hooks.
+    //
+    // We dispatch through CommandLayer first with only the target entity in
+    // `meta.onchange` so permission middleware can decide. Existence /
+    // field-shape validation happens AFTER the permission slot passes.
+    const actor = await resolveActor(request, options.resolveRequestActor);
+    const headers: Record<string, string> = {};
+    for (const [key, value] of request.headers.entries()) {
+      headers[key] = value;
+    }
+    const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
+
+    // Best-effort extraction of `changedField` for permission-slot metadata.
+    // We do NOT validate the value yet — that happens after auth passes.
+    // `changedField` is forwarded to permission middleware so ABAC / RBAC
+    // rules can do field-level gating if they choose.
+    const payload = (body ?? {}) as Record<string, unknown>;
+    const rawChangedField = payload.changedField;
+    const changedFieldForMeta = typeof rawChangedField === "string" ? rawChangedField : "";
+
+    const commandResult = await commandLayer.execute({
+      command: buildOnchangeCommandName(entityName),
+      input: { entity: entityName, changedField: changedFieldForMeta },
+      actor,
+      channel: "http",
+      headers,
+      traceId: incomingTraceId,
+      meta: {
+        onchange: {
+          entity: entityName,
+          changedField: changedFieldForMeta,
+        },
+      },
+      skipActionSlots: true,
+    });
+
+    if (!commandResult.success) {
+      // Finding 1 — uniform auth/permission failure envelope. Do NOT branch on
+      // whether the entity exists; the caller must not learn more from a
+      // blocked response than "you're not authorized to use this endpoint".
+      const status = resolveStatusCode(commandResult);
+      set.status = status;
+      const errData = commandResult.data as Record<string, unknown> | undefined;
+      const middlewareMessage = (errData?.error as string) ?? "Onchange request blocked";
+      const middlewareCode = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
+
+      // Non-blocker 4 — canonicalize the 401/403 envelope so the middleware's
+      // entity-specific denial text cannot be used as a side channel to
+      // enumerate which entities exist or are onchange-enabled. Log the raw
+      // detail for operator debugging.
+      if (status === 401 || status === 403) {
+        consoleLogger.warn("onchange: authorization denied", {
+          entity: entityName,
+          changedField: changedFieldForMeta,
+          actor: actor.id,
+          status,
+          middlewareCode,
+          middlewareMessage,
+        });
+        return AUTHZ_DENIED_BODY;
+      }
+
+      return {
+        success: false,
+        error: { code: middlewareCode, message: middlewareMessage },
+      };
+    }
+
+    // ── Post-auth: safe to reveal entity / field shape ────────────────
     const entity = entityRegistry.get(entityName);
     if (!entity) {
       return notFound(set, `Entity "${entityName}" not found.`);
@@ -63,57 +152,36 @@ export function mountOnchangeRoutes(
       return notFound(set, `Entity "${entityName}" has no onchange definition.`);
     }
 
-    // Parse body
-    const payload = (body ?? {}) as Record<string, unknown>;
-    const changedField = payload.changedField;
-    const rawValues = payload.values;
-
-    if (typeof changedField !== "string" || changedField.length === 0) {
+    if (typeof rawChangedField !== "string" || rawChangedField.length === 0) {
       return badRequest(set, "Request body must include a non-empty string `changedField`.");
     }
-    if (!(changedField in entity.fields)) {
-      return badRequest(set, `Field "${changedField}" is not defined on entity "${entityName}".`);
+    if (!(rawChangedField in entity.fields)) {
+      return badRequest(
+        set,
+        `Field "${rawChangedField}" is not defined on entity "${entityName}".`,
+      );
     }
-    const values =
-      rawValues && typeof rawValues === "object" && !Array.isArray(rawValues)
-        ? (rawValues as Record<string, unknown>)
-        : {};
 
-    // Dispatch through CommandLayer with skipActionSlots. The synthetic command
-    // name exists only so metrics / tracing have a stable label.
-    const actor = await resolveActor(request, options.resolveRequestActor);
-    const headers: Record<string, string> = {};
-    for (const [key, value] of request.headers.entries()) {
-      headers[key] = value;
-    }
-    const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
-
-    const commandResult = await commandLayer.execute({
-      command: buildOnchangeCommandName(entityName),
-      input: { entity: entityName, changedField },
-      actor,
-      channel: "http",
-      headers,
-      traceId: incomingTraceId,
-      meta: {
-        onchange: {
-          entity: entityName,
-          changedField,
-        },
-      },
-      skipActionSlots: true,
-    });
-
-    if (!commandResult.success) {
-      set.status = resolveStatusCode(commandResult);
-      const errData = commandResult.data as Record<string, unknown> | undefined;
-      const message = (errData?.error as string) ?? "Onchange request blocked";
-      const code = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
+    // Finding 2 — reject malformed `values` explicitly. Arrays, strings,
+    // numbers, null, etc. previously coerced to `{}`, silently masking caller
+    // bugs. Only plain objects are valid.
+    const rawValues = payload.values;
+    let values: Record<string, unknown>;
+    if (rawValues === undefined) {
+      values = {};
+    } else if (typeof rawValues === "object" && rawValues !== null && !Array.isArray(rawValues)) {
+      values = rawValues as Record<string, unknown>;
+    } else {
+      set.status = 400;
       return {
         success: false,
-        error: { code, message },
+        error: {
+          code: "INVALID_REQUEST.MALFORMED_VALUES",
+          message: "`values` must be a plain object when provided.",
+        },
       };
     }
+    const changedField = rawChangedField;
 
     // Now run the evaluator. The CommandLayer has already authorized this
     // request; the evaluator only handles pure computation + permission-scoped
