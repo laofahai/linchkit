@@ -348,18 +348,18 @@ export function buildContext(options: {
     }
   }
 
+  // Finding 5 — clone `values` once and reuse the property read for `value`
+  // so a misbehaving hook cannot mutate actor.groups / permissions / other
+  // fields and poison subsequent hooks in the same cascade. `value` is
+  // typically a scalar but may be an object/array; `structuredClone` via
+  // `safeClone` handles both with an identity fallback for unsupported
+  // slots (functions, class instances). Cloning `values` once and reading
+  // the triggering field off the clone avoids a redundant deep clone.
+  const clonedValues = safeClone(values);
   return {
     changedField,
-    // Finding 5 — clone `value` and `actor` in addition to `values` so a
-    // misbehaving hook cannot mutate actor.groups / permissions / other
-    // fields and poison subsequent hooks in the same cascade. `value` is
-    // typically a scalar but may be an object/array; `structuredClone` via
-    // `safeClone` handles both with an identity fallback for unsupported
-    // slots (functions, class instances).
-    value: safeClone(values[changedField]),
-    // Finding 5 — expose a defensive clone so a misbehaving hook cannot
-    // mutate the shared evaluation state observed by subsequent hooks.
-    values: safeClone(values),
+    value: clonedValues[changedField],
+    values: clonedValues,
     actor: safeClone(actor),
     tenantId,
     async lookup(entity, id, field) {

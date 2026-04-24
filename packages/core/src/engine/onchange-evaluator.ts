@@ -178,11 +178,14 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
         evaluations++;
 
         // Finding 3 (late-warning guard) — each hook gets its own revocable
-        // wrapper around the shared deduped sink. If the hook times out we
-        // `revoke()` before resuming the BFS so any late `ctx.lookup()` /
-        // `ctx.query()` / permission-check warning emitted by the abandoned
-        // background promise is dropped from the client-visible warnings
-        // array and rerouted to `Logger.warn`.
+        // wrapper around the shared deduped sink. The sink is only "live" for
+        // the synchronous span of the hook's execution: `revoke()` runs
+        // unconditionally after `runHookWithTimeout` returns (success,
+        // timeout, or throw). That way, even if a hook's `compute` starts a
+        // background promise that isn't awaited and later tries to push a
+        // warning via `ctx.lookup` / `ctx.query` / permission checks, the
+        // late push is dropped from the client-visible warnings array and
+        // rerouted to `Logger.warn`.
         const hookName = `${entityName}.onchange[${field}]`;
         const timeoutMs = hook.timeout ?? defaultTimeoutMs;
         const revocable = createRevocableWarningSink(warningSink, logger, hookName);
@@ -245,6 +248,11 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
         }
 
         const filtered = filterByAllowlist(hook, outcome.result, field);
+        // Revoke the per-hook sink on the success path too: a hook's
+        // `compute` might have started an un-awaited background promise that
+        // later tries to push a warning. The synchronous portion is done, so
+        // any late push is by definition out of scope and must be dropped.
+        revocable.revoke();
         for (const w of filtered.warnings ?? []) warnings.push(w);
 
         for (const [updatedField, value] of Object.entries(filtered.updates)) {
