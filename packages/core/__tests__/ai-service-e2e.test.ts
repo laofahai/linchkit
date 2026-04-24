@@ -27,11 +27,32 @@ const config: AIServiceConfig = {
  * Return true if the error looks like a Volcengine subscription/auth/payment
  * failure that should cause the test to skip rather than fail.
  * Re-throws anything else so real bugs still surface.
+ *
+ * Volcengine returns phrases like:
+ *   "does not have a valid coding plan subscription"
+ *   "your subscription has expired"
+ *   HTTP 401/403 for invalid/expired keys
+ * Match those specifically — don't swallow generic errors like
+ * "insufficient context length".
  */
 function isSubscriptionError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /subscription|coding plan|unauthorized|401|403|payment|billing|quota|insufficient/i.test(
-    msg,
+  const messages: string[] = [];
+  let current: unknown = err;
+  // Walk up to 2 levels of `cause` chain.
+  for (let i = 0; i < 3 && current != null; i++) {
+    if (current instanceof Error) {
+      messages.push(current.message);
+      const code = (current as { code?: unknown }).code;
+      if (typeof code === "string") messages.push(code);
+      current = (current as { cause?: unknown }).cause;
+    } else {
+      messages.push(String(current));
+      break;
+    }
+  }
+  const haystack = messages.join(" | ");
+  return /subscription|coding plan|\b(unauthorized|forbidden)\b|\b40[13]\b|payment required|billing/i.test(
+    haystack,
   );
 }
 
@@ -47,7 +68,8 @@ describe.skipIf(!apiKey)("AI Service E2E — Volcengine", () => {
       });
     } catch (err) {
       if (isSubscriptionError(err)) {
-        console.warn("[e2e] skipped: Volcengine subscription/auth error:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("[e2e] skipped: Volcengine subscription/auth error:", msg);
         return;
       }
       throw err;
@@ -94,7 +116,8 @@ describe.skipIf(!apiKey)("AI Service E2E — Volcengine", () => {
       });
     } catch (err) {
       if (isSubscriptionError(err)) {
-        console.warn("[e2e] skipped: Volcengine subscription/auth error:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("[e2e] skipped: Volcengine subscription/auth error:", msg);
         return;
       }
       throw err;
