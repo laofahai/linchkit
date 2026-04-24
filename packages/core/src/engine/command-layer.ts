@@ -11,6 +11,12 @@
  * Action execution is placed inside the compose chain so that any middleware not calling
  * next() will block the action from running.
  *
+ * Non-action dispatches (`CommandExecuteOptions.skipActionSlots = true`): used by the
+ * entity onchange endpoint (Spec 64 §4.3). The pipeline runs pre / auth / permission /
+ * tenant but skips exposure / pre-action / post-action and does not invoke the
+ * ActionExecutor; a synthetic success result is returned so downstream code can
+ * produce the actual response payload.
+ *
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
 
@@ -157,6 +163,38 @@ export interface CommandExecuteOptions {
    * be authorized to read/restore the deleted row.
    */
   includeDeleted?: boolean;
+  /**
+   * Non-action dispatch mode (Spec 64 §4.3). When true, the pipeline:
+   * - RUNS pre, auth, permission, tenant slots
+   * - SKIPS exposure (no action to expose), pre-action and post-action slots
+   * - SKIPS action execution (returns a synthetic success result with `data.skipped = true`)
+   *
+   * Post-action is deliberately skipped: notification, cache-invalidation and
+   * event-fan-out middlewares run after write side effects — a non-action
+   * dispatch has no writes so firing them would be semantically wrong.
+   *
+   * Used by endpoints that need to pass through the CommandLayer for
+   * auth/permission/tenant enforcement WITHOUT executing a write action —
+   * currently the entity onchange endpoint (interactive form computation).
+   *
+   * ### `meta.onchange` contract (for permission middleware)
+   *
+   * Callers MUST populate `meta.onchange = { entity, changedField }` so the
+   * permission slot can perform an entity-level READ check instead of looking
+   * up an action. The synthetic command name is typically
+   * `"<entityName>.onchange"` and is intended for metrics/tracing only —
+   * permission middleware should NOT match on `ctx.action` or on the command
+   * name when `meta.onchange` is present.
+   *
+   * Example (permission middleware):
+   * ```ts
+   * if (ctx.meta.onchange) {
+   *   const { entity } = ctx.meta.onchange as { entity: string };
+   *   assertCanRead(ctx.actor, entity);
+   * }
+   * ```
+   */
+  skipActionSlots?: boolean;
 }
 
 /**
@@ -259,16 +297,21 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       traceId: trace?.traceId,
     };
 
-    // Resolve action definition for exposure check
-    const action = executor.registry.get(ctx.command);
-    if (!action) {
-      return {
-        success: false,
-        data: { error: `Action "${ctx.command}" not found` },
-        executionId: generatePipelineId(),
-      };
+    const skipActionSlots = execOptions.skipActionSlots === true;
+
+    // Resolve action definition for exposure check (only when an action will run)
+    let action: ActionDefinition | undefined;
+    if (!skipActionSlots) {
+      action = executor.registry.get(ctx.command);
+      if (!action) {
+        return {
+          success: false,
+          data: { error: `Action "${ctx.command}" not found` },
+          executionId: generatePipelineId(),
+        };
+      }
+      ctx.action = action;
     }
-    ctx.action = action;
 
     // Determine if permission middleware is registered (#1 — fail-closed)
     const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
@@ -298,6 +341,14 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     const skippedSlots: Set<SlotName> = isApprovalReExecution
       ? new Set(["auth", "exposure", "permission"])
       : new Set();
+    // Non-action dispatch: skip exposure + pre-action + post-action slots.
+    // The exposure slot has nothing to check (no action); pre/post-action hooks
+    // only apply to write actions. Auth / permission / tenant still run.
+    if (skipActionSlots) {
+      skippedSlots.add("exposure");
+      skippedSlots.add("pre-action");
+      skippedSlots.add("post-action");
+    }
 
     // Build the pipeline: collect handlers from each slot in order
     const pipeline: Array<(ctx: CommandContext, next: () => Promise<void>) => Promise<void>> = [];
@@ -309,15 +360,18 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       }
 
       if (slot === "exposure") {
-        // Built-in exposure check
-        pipeline.push(async (c, next) => {
-          if (!checkExposure(action, c.channel)) {
-            throw new ExposureError(
-              `Action "${c.command}" is not exposed for channel "${c.channel}"`,
-            );
-          }
-          await next();
-        });
+        // Built-in exposure check — only applicable when an action is resolved.
+        if (action) {
+          const resolvedAction = action;
+          pipeline.push(async (c, next) => {
+            if (!checkExposure(resolvedAction, c.channel)) {
+              throw new ExposureError(
+                `Action "${c.command}" is not exposed for channel "${c.channel}"`,
+              );
+            }
+            await next();
+          });
+        }
       } else if (slot === "post-action") {
         // Handled separately after action execution
       } else {
@@ -350,23 +404,44 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // If any middleware does not call next(), the action will NOT run.
     // Use `action.name` (resolved before pipeline) instead of `c.command` to prevent
     // middleware from swapping the command after exposure/permission checks ran.
-    pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
-      try {
-        const result = await executor.execute(action.name, c.input, c.actor, {
-          ...executorOptions,
-          tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
-          locale: c.locale, // Use latest locale (middleware may have set it)
-        });
-        c.result = result;
-      } catch (_err) {
-        // Executor should return ActionResult, but guard against unexpected throws (#4)
+    if (action && !skipActionSlots) {
+      const resolvedAction = action;
+      pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
+        try {
+          const result = await executor.execute(resolvedAction.name, c.input, c.actor, {
+            ...executorOptions,
+            tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
+            locale: c.locale, // Use latest locale (middleware may have set it)
+          });
+          c.result = result;
+        } catch (_err) {
+          // Executor should return ActionResult, but guard against unexpected throws (#4)
+          c.result = {
+            success: false,
+            data: { error: "Action execution failed" },
+            executionId: generatePipelineId(),
+          };
+        }
+      });
+    } else {
+      // Non-action dispatch: set a synthetic success result so downstream code
+      // knows the pipeline completed without error. The caller is responsible
+      // for producing the actual response payload (e.g. onchange updates).
+      // Include the resolved tenantId / locale (read from the final ctx after
+      // middleware runs) so downstream handlers like the onchange REST route
+      // can propagate them without having to re-derive from the request.
+      pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
         c.result = {
-          success: false,
-          data: { error: "Action execution failed" },
+          success: true,
+          data: {
+            skipped: true,
+            tenantId: c.tenantId,
+            locale: c.locale,
+          },
           executionId: generatePipelineId(),
         };
-      }
-    });
+      });
+    }
 
     // Execute the full pipeline (pre → auth → exposure → permission → tenant → pre-action → action)
     try {
@@ -428,8 +503,14 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       };
     }
 
-    // Run post-action middlewares individually to track critical failures
-    const postMiddlewares = getSlotMiddlewares("post-action");
+    // Run post-action middlewares individually to track critical failures.
+    // Non-action dispatches (`skipActionSlots = true`, e.g. onchange) must NOT
+    // trigger post-action side effects — cache invalidation, event fan-out and
+    // notifications are only correct after a real write. Honor the same
+    // `skippedSlots` set the pre/post pipeline uses to stay consistent.
+    const postMiddlewares = skippedSlots.has("post-action")
+      ? []
+      : getSlotMiddlewares("post-action");
     if (postMiddlewares.length > 0) {
       for (const mw of postMiddlewares) {
         try {

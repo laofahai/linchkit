@@ -44,6 +44,19 @@ export {
 } from "./command-layer";
 // Condition evaluator
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
+// Onchange evaluator (Spec 64)
+export {
+  createOnchangeEvaluator,
+  DEFAULT_COMPUTE_TIMEOUT_MS,
+  MAX_CHAIN_DEPTH,
+  type OnchangeEvaluateArgs,
+  type OnchangeEvaluationResult,
+  type OnchangeEvaluator,
+  OnchangeEvaluatorError,
+  type OnchangeEvaluatorErrorCode,
+  type OnchangeEvaluatorOptions,
+  type OnchangeReadPermissionCheck,
+} from "./onchange-evaluator";
 // Overlay proposal executor
 export {
   canAutoApproveOverlayChange,

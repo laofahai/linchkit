@@ -5,6 +5,8 @@
  * Define once, auto-generate Zod / Drizzle / TypeScript / GraphQL / JSON Schema.
  */
 
+import type { OnchangeDefinition } from "./onchange";
+
 // ── Field types ──────────────────────────────────────────
 
 export type FieldType =
@@ -277,6 +279,13 @@ export interface EntityDefinition<
   fieldExposure?: FieldExposureMap;
   /** AI behavior configuration for this entity (spec 52 §8.2) */
   ai?: EntityAIConfig;
+
+  /**
+   * Interactive form computation hooks (Spec 64).
+   * Keys are either a single field name or a comma-separated list of field names.
+   * A hook fires while the user is editing a form; it never runs on the write path.
+   */
+  onchange?: Record<string, OnchangeDefinition>;
 }
 
 // ── Schema extension and override ─────────────────────────────────

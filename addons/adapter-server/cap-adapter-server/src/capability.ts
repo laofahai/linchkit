@@ -6,6 +6,7 @@
 
 import type { CliCommandContext, TransportContext } from "@linchkit/core";
 import { defineCapability, serverConfig } from "@linchkit/core";
+import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
 
 export const capAdapterServer = defineCapability({
   name: "cap-adapter-server",
@@ -106,6 +107,26 @@ export const capAdapterServer = defineCapability({
           // Collect rule definitions from all capabilities for /api/rules endpoint
           const allRules = (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []);
 
+          // Construct the onchange evaluator (Spec 64). Use the same data
+          // provider chain that the rest of the server uses (system-wrapped
+          // when available) so lookups from onchange hooks honor internal
+          // schema handling and tenant isolation. No permission callback is
+          // wired here either — emit a single structured warning so operators
+          // understand entity-level read gating is not active until a
+          // permission capability wires a `checkReadPermission`.
+          const onchangeDataProvider = systemDataProvider ?? ctx.dataProvider;
+          const onchangeEvaluator = onchangeDataProvider
+            ? createOnchangeEvaluator({
+                entityRegistry: ctx.entityRegistry,
+                dataProvider: onchangeDataProvider,
+              })
+            : undefined;
+          if (onchangeEvaluator) {
+            consoleLogger.warn(
+              "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
+            );
+          }
+
           // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {
             port,
@@ -126,6 +147,7 @@ export const capAdapterServer = defineCapability({
             aiService: ctx.aiService,
             aiConfig: ctx.aiConfig,
             ontologyRegistry: ctx.ontologyRegistry,
+            onchangeEvaluator,
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
             // Never decode JWT directly — that bypasses signature verification.

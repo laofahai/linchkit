@@ -17,6 +17,7 @@ import type {
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
+import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
 import { loadConfig } from "./config-loader";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext } from "./runtime-context";
@@ -213,6 +214,19 @@ const graphqlSchema = buildGraphQLSchema(allEntities, {
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";
 
+// Construct the onchange evaluator (Spec 64). No permission capability is wired
+// into `dev.ts`, so reads from within onchange hooks are ALL ALLOWED by default.
+// Log a structured warning once at startup so operators know the evaluator has
+// no permission gate; a production install should inject a `checkReadPermission`
+// callback (e.g. from cap-permission) that consults the real RBAC graph.
+const onchangeEvaluator = createOnchangeEvaluator({
+  entityRegistry: runtime.entityRegistry,
+  dataProvider: runtime.dataProvider,
+});
+consoleLogger.warn(
+  "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
+);
+
 const server = createServer(graphqlSchema, {
   port,
   host,
@@ -227,6 +241,8 @@ const server = createServer(graphqlSchema, {
   linchKitConfig: config,
   states: capContributions.states,
   flows: [],
+  dataProvider: runtime.dataProvider,
+  onchangeEvaluator,
 });
 
 server.listen(port);

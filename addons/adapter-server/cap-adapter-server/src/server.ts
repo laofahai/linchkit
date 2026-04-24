@@ -35,6 +35,7 @@ import type {
   CacheManager,
   HealthCheckRegistry,
   InMemoryMetricsCollector,
+  OnchangeEvaluator,
 } from "@linchkit/core/server";
 import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/server";
 import { Elysia } from "elysia";
@@ -50,6 +51,7 @@ import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountEntityRoutes } from "./routes/entity-api";
 import { mountImportRoutes } from "./routes/import-api";
+import { mountOnchangeRoutes } from "./routes/onchange-api";
 import { mountOverlayRoutes } from "./routes/overlay-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
@@ -142,6 +144,11 @@ export interface ServerOptions {
   cacheManager?: CacheManager;
   /** Overlay registry — when provided, enables /api/overlays REST endpoints */
   overlayRegistry?: import("@linchkit/core/server").OverlayRegistry;
+  /**
+   * Onchange evaluator (Spec 64) — when provided, enables
+   * `POST /api/entities/:name/onchange` for interactive form computation.
+   */
+  onchangeEvaluator?: OnchangeEvaluator;
   /**
    * Callback to rebuild GraphQL schema after overlay changes.
    * Receives the current yoga instance and triggers schema replacement.
@@ -251,6 +258,7 @@ export function createServer(
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
   mountTranslationRoutes(app, opts);
+  mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
 
   // Mount overlay management endpoints when overlay registry is available
   if (options?.overlayRegistry) {
