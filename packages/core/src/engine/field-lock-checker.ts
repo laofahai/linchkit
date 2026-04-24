@@ -116,36 +116,38 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
 
     const existing = existingRecord[fieldName];
 
+    // Same-value re-writes are no-ops everywhere in this checker. A common
+    // UI pattern sends the full record on update — locked fields that are
+    // echoed back unchanged must not raise violations. Use strict equality
+    // for primitives, JSON round-trip equality for objects/arrays (fields
+    // are structured data — no functions / symbols).
+    const bothObjects = typeof existing === "object" || typeof newValue === "object";
+    const unchanged = bothObjects
+      ? JSON.stringify(existing) === JSON.stringify(newValue)
+      : existing === newValue;
+
     // 1. Immutable (or deprecated `readonly` alias) — only enforced once the
     //    field has a non-null existing value. First-write (existing == null)
     //    is always allowed, including the transition null -> value.
     const isImmutable = field.immutable === true || field.readonly === true;
-    if (isImmutable && existing != null) {
-      // Same-value re-writes are no-ops and must not raise a violation.
-      // Use strict equality for primitives and JSON round-trip equality for
-      // objects/arrays (fields are structured data — no functions / symbols).
-      const bothObjects = typeof existing === "object" || typeof newValue === "object";
-      const changed = bothObjects
-        ? JSON.stringify(existing) !== JSON.stringify(newValue)
-        : existing !== newValue;
-      if (changed) {
-        violations.push({
-          field: fieldName,
-          type: "immutable",
-          message: `Field "${fieldName}" is immutable and cannot be modified`,
-        });
-        // Don't also report this field as locked — immutable is more specific.
-        continue;
-      }
+    if (isImmutable && existing != null && !unchanged) {
+      violations.push({
+        field: fieldName,
+        type: "immutable",
+        message: `Field "${fieldName}" is immutable and cannot be modified`,
+      });
+      // Don't also report this field as locked — immutable is more specific.
+      continue;
     }
 
     // 2. Per-field `lockWhen` beats entity-level `lockAllWhen`.
     //    `lockAllowFields` exempts a field from `lockAllWhen` only — it does
     //    NOT bypass an explicit per-field `lockWhen` on the same field.
+    //    Same-value re-writes are not violations (same principle as immutable).
     const lockCondition: LockCondition | undefined =
       field.lockWhen ?? (lockAllowFields?.includes(fieldName) ? undefined : lockAllWhen);
 
-    if (lockCondition && matchesLockCondition(existingRecord, lockCondition)) {
+    if (lockCondition && !unchanged && matchesLockCondition(existingRecord, lockCondition)) {
       const statusMsg =
         typeof existingRecord.status === "string" ? ` in state "${existingRecord.status}"` : "";
       violations.push({

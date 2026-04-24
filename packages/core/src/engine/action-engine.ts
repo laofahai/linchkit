@@ -568,6 +568,42 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
+    // Fail-closed on lock check: if we couldn't read the record, we can't
+    // verify whether a locked field is actually being modified. A provider
+    // whose `get()` path fails while `update()` still succeeds (transient
+    // error, permission mismatch, read replica lag) would otherwise let
+    // immutable/locked writes through silently. Reject the request instead.
+    // State-transition actions already fail-closed on the same fetch error
+    // below via their own branch — this covers lock-only actions.
+    if (needsLockCheck && existingRecordFetchError) {
+      const errorMsg = `Cannot verify field locks: record "${recordId}" in entity "${action.entity}" could not be read`;
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: action.entity,
+        actor,
+        input,
+        status: "blocked",
+        error: { message: errorMsg, code: "validation.field.locked" },
+        startedAt,
+      });
+      return {
+        success: false,
+        data: {
+          error: errorMsg,
+          code: "validation.field.locked",
+          context: {
+            action: actionName,
+            entity: action.entity,
+            constraint: "lock_preflight",
+            suggestion:
+              "The target record could not be read before applying field-lock checks — ensure the record exists and is accessible.",
+          },
+        } as T,
+        executionId,
+      };
+    }
+
     if (needsLockCheck && resolvedEntity && existingRecord) {
       // Pre-compute the effective write set for lock checking.
       //

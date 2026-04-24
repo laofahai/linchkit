@@ -288,3 +288,183 @@ describe("Spec 63 — stateTransition status is exempt from lockAllWhen", () => 
     expect(record.status).toBe("submitted");
   });
 });
+
+// ── 6. Same-value re-writes on locked fields ─────────────────────────
+// Codex round-2 P1: full-record update flows commonly echo back all
+// fields. Locked fields sent with unchanged values must not trigger
+// violations — only actual modifications should.
+
+describe("Spec 63 — locked-field same-value re-writes are no-ops", () => {
+  it("lockWhen field re-sent with identical value does NOT violate", async () => {
+    const entity: EntityDefinition = {
+      name: "order",
+      label: "Order",
+      fields: {
+        amount: { type: "number", lockWhen: { state: "submitted" } },
+        notes: { type: "string" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("order", { id: "o-1", amount: 100, status: "submitted", notes: "" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "update_order",
+      entity: "order",
+      label: "Update Order",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        const { id: _id, ...rest } = ctx.input;
+        return ctx.update("order", ctx.input.id as string, rest);
+      },
+    } satisfies ActionDefinition);
+
+    // Full-record submit: amount unchanged, notes edited — should succeed.
+    const result = await executor.execute(
+      "update_order",
+      { id: "o-1", amount: 100, notes: "updated" },
+      actor,
+    );
+    expect(result.success).toBe(true);
+    const after = await dataProvider.get("order", "o-1");
+    expect(after.notes).toBe("updated");
+    expect(after.amount).toBe(100);
+  });
+
+  it("lockAllWhen + full record with unchanged values on locked fields succeeds", async () => {
+    const entity: EntityDefinition = {
+      name: "invoice",
+      label: "Invoice",
+      lockAllWhen: { state: "posted" },
+      lockAllowFields: ["notes"],
+      fields: {
+        amount: { type: "number" },
+        notes: { type: "string" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("invoice", { id: "i-1", amount: 500, status: "posted", notes: "" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "update_invoice",
+      entity: "invoice",
+      label: "Update Invoice",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        const { id: _id, ...rest } = ctx.input;
+        return ctx.update("invoice", ctx.input.id as string, rest);
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute(
+      "update_invoice",
+      { id: "i-1", amount: 500, notes: "adjusted" },
+      actor,
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("lockWhen field submitted with CHANGED value still violates", async () => {
+    const entity: EntityDefinition = {
+      name: "order",
+      label: "Order",
+      fields: {
+        amount: { type: "number", lockWhen: { state: "submitted" } },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("order", { id: "o-2", amount: 100, status: "submitted" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "update_order",
+      entity: "order",
+      label: "Update Order",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        const { id: _id, ...rest } = ctx.input;
+        return ctx.update("order", ctx.input.id as string, rest);
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("update_order", { id: "o-2", amount: 200 }, actor);
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("validation.field.locked");
+  });
+});
+
+// ── 7. Fail-closed on fetch error ─────────────────────────────────
+// Codex round-2 P2: a provider whose get() path throws (transient
+// error, read replica lag, etc.) must not silently skip lock checks.
+
+describe("Spec 63 — fail-closed when pre-lock record fetch errors", () => {
+  it("provider get() throw blocks the update with a lock_preflight error", async () => {
+    const entity: EntityDefinition = {
+      name: "order",
+      label: "Order",
+      fields: {
+        code: { type: "string", immutable: true },
+        notes: { type: "string" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+
+    // Minimal provider whose get() always throws, but update() would succeed.
+    const dataProvider = {
+      async get(): Promise<Record<string, unknown>> {
+        throw new Error("simulated read-replica outage");
+      },
+      async query() {
+        return [];
+      },
+      async create(_schema: string, data: Record<string, unknown>) {
+        return data;
+      },
+      async update(_schema: string, _id: string, data: Record<string, unknown>) {
+        return data;
+      },
+      async delete() {},
+      async count() {
+        return 0;
+      },
+    };
+
+    const executor = createActionExecutor({
+      dataProvider,
+      entityRegistry,
+    });
+    executor.registry.register({
+      name: "update_order_ff",
+      entity: "order",
+      label: "Update Order",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        const { id: _id, ...rest } = ctx.input;
+        return ctx.update("order", ctx.input.id as string, rest);
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute(
+      "update_order_ff",
+      { id: "o-missing", code: "NEW" },
+      actor,
+    );
+    expect(result.success).toBe(false);
+    const data = result.data as Record<string, unknown>;
+    expect(data.code).toBe("validation.field.locked");
+    const context = data.context as Record<string, unknown> | undefined;
+    expect(context?.constraint).toBe("lock_preflight");
+  });
+});
