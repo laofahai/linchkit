@@ -448,13 +448,32 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     if (action && !skipActionSlots) {
       const resolvedAction = action;
       pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
+        // Pass `c.meta` through as a plain record and let ActionEngine be the
+        // single source of truth for meta normalization (strip _-prefix,
+        // filter non-serializable, enforce 8 KB including `_execution_id`).
+        // Any middleware that mutated `c.meta` for pipeline-internal state
+        // still feeds the final handler-visible meta via this handoff —
+        // Spec 65 §8.3.
+        //
+        // TODO(spec-65 Phase 2): The execution-log writer should record
+        // `meta.toJSON()` alongside the existing ExecutionLogEntry fields.
         try {
           const result = await executor.execute(resolvedAction.name, c.input, c.actor, {
             ...executorOptions,
             tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
             locale: c.locale, // Use latest locale (middleware may have set it)
+            meta: c.meta,
           });
           c.result = result;
+          // ActionEngine rejected the meta (oversized after all system keys
+          // applied). The action handler never ran → post-action hooks
+          // (cache invalidation, event fan-out, notifications) are
+          // write-side semantics and MUST NOT fire. Mirror the
+          // `skipActionSlots` contract by skipping post-action here.
+          const code = (result.data as { code?: unknown } | undefined)?.code;
+          if (!result.success && code === "META.SIZE_EXCEEDED") {
+            skippedSlots.add("post-action");
+          }
         } catch (_err) {
           // Executor should return ActionResult, but guard against unexpected throws (#4)
           c.result = {

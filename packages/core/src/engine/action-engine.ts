@@ -15,6 +15,8 @@ import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import type { ExecutionMeta } from "../types/execution-meta";
+import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
@@ -104,6 +106,18 @@ export interface ExecuteOptions {
   _txDataProvider?: DataProvider;
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
+  /**
+   * Execution metadata propagated through the execution chain (Spec 65).
+   *
+   * Accepts either a pre-built `ExecutionMeta` (how the CommandLayer and the
+   * ActionEngine itself pass meta across nested calls) OR a plain record of
+   * raw key-value pairs (the natural call shape from direct-executor tests
+   * and internal callers). Plain records are normalized with
+   * `createExecutionMeta` at ingestion. Without this normalization, passing
+   * `{ meta: { source_view: "queue" } }` would break `ctx.meta.get(...)` at
+   * runtime with "x is not a function".
+   */
+  meta?: ExecutionMeta | Record<string, unknown>;
 }
 
 // ── ActionExecutor ──────────────────────────────────────────
@@ -177,6 +191,43 @@ export interface ActionExecutorOptions {
   eventBus?: EventBus;
   /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
   capabilityNames?: ReadonlySet<string>;
+}
+
+/**
+ * Duck-type check: does `value` look like an {@link ExecutionMeta}? The
+ * public ExecuteOptions.meta accepts either a pre-built ExecutionMeta (how
+ * the CommandLayer + nested ctx.execute pass it) or a plain record (natural
+ * external call shape). We detect the former by the presence of the typed
+ * accessor methods rather than an `instanceof` check so third-party
+ * implementations (e.g., future Phase 2 subclasses) still work.
+ */
+function isExecutionMeta(value: unknown): value is ExecutionMeta {
+  if (value === null || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.get === "function" &&
+    typeof candidate.has === "function" &&
+    typeof candidate.require === "function" &&
+    typeof candidate.toJSON === "function"
+  );
+}
+
+/**
+ * Extend an incoming ExecutionMeta with system defaults ONLY for keys the
+ * parent has not already set. Prevents a child execution from clobbering
+ * root-level `_execution_id`, while still backfilling it when a parent meta
+ * happens to arrive without one.
+ */
+function fillMissingSystemKeys(
+  meta: ExecutionMeta,
+  systemDefaults: Record<string, unknown>,
+): ExecutionMeta {
+  const missing: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(systemDefaults)) {
+    if (!meta.has(k)) missing[k] = v;
+  }
+  if (Object.keys(missing).length === 0) return meta;
+  return extendExecutionMeta(meta, {}, missing);
 }
 
 /**
@@ -258,6 +309,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 0b: Idempotency check
     // Scope key by action name + tenant to prevent cross-action/cross-tenant collisions.
     // Only apply at top level — child executions (depth > 0) do not inherit idempotency.
+    //
+    // TODO(spec-65 Phase 2): If an action's `ctx.meta` participates in
+    // decision-making (e.g., `dry_run`, `skip_notifications`), a second
+    // request reusing the same `idempotencyKey` with different meta will
+    // receive the first execution's cached output without re-running. Either
+    // hash the normalized meta into the key or reject changed meta for an
+    // existing key. Deferred here because it requires a product decision on
+    // idempotency semantics (observational meta vs behavior-affecting meta).
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
     const idempotencyKey = rawIdempotencyKey
       ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
@@ -427,6 +486,91 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
+    // Resolve execution meta. `execOptions.meta` is typed as
+    // `ExecutionMeta | Record<string, unknown>` so direct-executor callers can
+    // pass a plain record (e.g., `executor.execute(..., { meta: { foo: 1 } })`)
+    // without constructing an ExecutionMeta themselves — the natural call
+    // shape. Internally we always normalize to an ExecutionMeta before
+    // exposing on ctx.meta.
+    //
+    // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
+    // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
+    // its assignment.
+    //
+    // ### Root-vs-nested trust boundary (Gemini PR #201 review)
+    //
+    // At `currentDepth === 0` the provided meta comes from an **untrusted**
+    // external surface — a direct-executor call, a CommandLayer forward, a
+    // duck-typed ExecutionMeta, whatever. We always re-run through
+    // `createExecutionMeta` with the raw snapshot so:
+    //  1. `_`-prefixed keys are stripped (external callers cannot spoof
+    //     `_channel`, `_execution_id`, etc.).
+    //  2. Non-JSON-serializable values are filtered.
+    //  3. Framework-owned `rootSystemDefaults` always win.
+    //
+    // At `currentDepth > 0` the provided meta was built by the engine itself
+    // via `extendExecutionMeta` in `ctx.execute`, so it is framework-trusted;
+    // passing it through unchanged preserves the parent's `_execution_id`
+    // and other system keys across the chain.
+    const rootSystemDefaults: Record<string, unknown> = {
+      _channel: channel,
+      _execution_id: executionId,
+      _depth: currentDepth,
+    };
+    const providedMeta = execOptions?.meta;
+    // Meta construction can throw MetaSizeError (plain-record wrap + size
+    // enforcement, or an already-oversized ExecutionMeta reaching the limit
+    // after system keys are added). Direct-executor callers bypass the
+    // CommandLayer's catch, so without handling here the exception would
+    // escape as unhandled. Return a normal failed ActionResult and log it
+    // so callers see the same shape regardless of entry point.
+    let resolvedMeta: ExecutionMeta;
+    try {
+      if (!providedMeta) {
+        resolvedMeta = createExecutionMeta({ systemKeys: rootSystemDefaults });
+      } else if (currentDepth === 0) {
+        // Root entry — treat any provided meta as external input. Extract
+        // its raw snapshot (handles both ExecutionMeta and plain records)
+        // and push it through the untrusted-input factory.
+        const rawSnapshot = isExecutionMeta(providedMeta)
+          ? providedMeta.toJSON()
+          : (providedMeta as Record<string, unknown>);
+        resolvedMeta = createExecutionMeta({
+          raw: rawSnapshot,
+          systemKeys: rootSystemDefaults,
+        });
+      } else {
+        // Nested call — provided meta is framework-built via extend.
+        // Trust it, only filling system keys that somehow went missing
+        // (defensive — expected to be a no-op in practice).
+        resolvedMeta = isExecutionMeta(providedMeta)
+          ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
+          : createExecutionMeta({
+              raw: providedMeta as Record<string, unknown>,
+              systemKeys: rootSystemDefaults,
+            });
+      }
+    } catch (err) {
+      if (err instanceof MetaSizeError) {
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "failed",
+          error: { message: err.message, code: err.code },
+          startedAt,
+        });
+        return {
+          success: false,
+          data: { error: err.message, code: err.code } as T,
+          executionId,
+        };
+      }
+      throw err;
+    }
+
     const ctx: ActionContext = {
       input,
       actor,
@@ -437,17 +581,47 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       config: configRegistry ?? ConfigRegistry.empty(),
       executionId,
       timestamp: startedAt,
+      meta: resolvedMeta,
       get: (entity, id) => activeProvider.get(entity, id, queryOptions),
       query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
       create: (entity, data) => activeProvider.create(entity, data),
       update: (entity, id, data) => activeProvider.update(entity, id, data, queryOptions),
       delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
-      execute: async (childActionName, childInput) => {
+      execute: async (childActionName, childInput, childOpts) => {
+        // Extend parent meta for the child call: parent keys always win (§4.3),
+        // framework updates _depth and _source_action unconditionally (§4.4),
+        // and the root _execution_id is preserved across the chain.
+        // Using the standalone extendExecutionMeta helper keeps the public
+        // ExecutionMeta interface read-only from the handler's perspective —
+        // handlers can't accidentally mutate meta by calling `.extend(...)`
+        // on `ctx.meta`.
+        // `extend` enforces the same filter + size limit as root meta
+        // construction. If the merged child payload exceeds 8 KB, surface the
+        // error as a failed ActionResult rather than letting the exception
+        // bubble up and crash the parent handler — consistent with how other
+        // child failures flow back to the caller (ctx.execute returns result.data).
+        let childMeta: ExecutionMeta;
+        try {
+          childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
+            _depth: currentDepth + 1,
+            _source_action: actionName,
+          });
+        } catch (err) {
+          if (err instanceof MetaSizeError) {
+            // The child never ran — no execution log entry exists for this
+            // rejection. Do NOT push a fake id onto childExecutionIds: that
+            // would break `ExecutionLogger.getById()` lookups from the parent
+            // log, since no record is ever written under it.
+            return { error: err.message, code: err.code };
+          }
+          throw err;
+        }
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
           _depth: currentDepth + 1,
           _txDataProvider: activeProvider,
           _parentPendingEvents: pendingEvents,
+          meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
         return childResult.data;
