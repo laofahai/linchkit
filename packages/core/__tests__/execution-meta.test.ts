@@ -395,3 +395,58 @@ describe("ExecutionMeta read-only + shared-ref handling", () => {
     expect(meta.get<number[]>("list")?.length).toBe(3);
   });
 });
+
+// Codex round-5: invariants must hold for any `new ExecutionMetaImpl(...)`
+// instantiation, not only the factory — the class is publicly exported.
+describe("ExecutionMetaImpl constructor self-enforcement", () => {
+  test("constructor enforces 8 KB size limit directly", () => {
+    expect(() => new ExecutionMetaImpl({ big: "x".repeat(DEFAULT_META_MAX_BYTES + 1) })).toThrow(
+      MetaSizeError,
+    );
+  });
+
+  test("constructor filters non-JSON-serializable values", () => {
+    const meta = new ExecutionMetaImpl({
+      good: "keep",
+      fn: () => 1,
+      date: new Date(),
+      nan: Number.NaN,
+    });
+    expect(meta.get("good")).toBe("keep");
+    expect(meta.has("fn")).toBe(false);
+    expect(meta.has("date")).toBe(false);
+    expect(meta.has("nan")).toBe(false);
+  });
+
+  test("constructor honors custom maxBytes", () => {
+    expect(() => new ExecutionMetaImpl({ text: "x".repeat(100) }, 32)).toThrow(MetaSizeError);
+  });
+
+  // Non-finite numbers (NaN, Infinity, -Infinity) serialize to `null`, which
+  // would diverge from what handlers read in memory.
+  test("createExecutionMeta drops NaN and Infinity", () => {
+    const meta = createExecutionMeta({
+      raw: {
+        n: Number.NaN,
+        p: Number.POSITIVE_INFINITY,
+        neg: Number.NEGATIVE_INFINITY,
+        ok: 42,
+      },
+    });
+    expect(meta.has("n")).toBe(false);
+    expect(meta.has("p")).toBe(false);
+    expect(meta.has("neg")).toBe(false);
+    expect(meta.get("ok")).toBe(42);
+  });
+
+  test("nested NaN causes the whole key to be dropped", () => {
+    const meta = createExecutionMeta({
+      raw: {
+        bad: { inner: Number.NaN },
+        okay: { inner: 1 },
+      },
+    });
+    expect(meta.has("bad")).toBe(false);
+    expect(meta.get("okay")).toEqual({ inner: 1 });
+  });
+});

@@ -65,7 +65,12 @@ export interface ExecutionMeta {
 function isJsonSerializable(value: unknown, ancestors?: WeakSet<object>): boolean {
   if (value === null) return true;
   const t = typeof value;
-  if (t === "string" || t === "number" || t === "boolean") return true;
+  if (t === "string" || t === "boolean") return true;
+  // Reject non-finite numbers (NaN, Infinity, -Infinity) — JSON.stringify
+  // coerces them to `null`, so in-memory `ctx.meta.get("x") === NaN` would
+  // diverge from `meta.toJSON()` / the on-wire payload. Same principle as
+  // dropping Date / function values.
+  if (t === "number") return Number.isFinite(value);
   if (t === "function" || t === "symbol" || t === "undefined" || t === "bigint") return false;
   // object — arrays and plain objects only; walk recursively to catch
   // class instances / non-plain prototypes nested inside otherwise-plain
@@ -181,13 +186,24 @@ export class ExecutionMetaImpl implements ExecutionMeta {
   private readonly maxBytes: number;
 
   constructor(entries: Record<string, unknown>, maxBytes: number = DEFAULT_META_MAX_BYTES) {
+    // Self-enforcing invariants: the constructor itself filters non-JSON-
+    // serializable values AND asserts the size limit. This matters because
+    // ExecutionMetaImpl is a public export — any caller who does
+    // `new ExecutionMetaImpl(...)` directly (or crafts a custom
+    // ExecutionMeta that the engine normalizes via extend) must still get
+    // the same guarantees as the `createExecutionMeta` factory.
+    //
+    // System keys (`_`-prefixed) are NOT stripped here — that's the
+    // factory's job on external input. The constructor treats whatever it
+    // gets as already-merged and framework-trusted-for-system-keys.
+    const safe = filterSerializable(entries);
+    assertSizeLimit(safe, maxBytes);
     // Deep-clone + deep-freeze so the stored payload is fully detached from
     // caller-provided object graphs AND cannot be mutated through values
     // returned by `get` / `require` / `toJSON`. Spec 65 §4.2 — meta is
-    // read-only after construction. Silent freeze works in sloppy mode;
-    // strict-mode callers get a TypeError on mutation attempts, which is
-    // the desired surfacing behavior.
-    const frozen = cloneAndFreezeEntries(entries);
+    // read-only after construction. Strict-mode callers get a TypeError on
+    // mutation attempts, which is the desired surfacing behavior.
+    const frozen = cloneAndFreezeEntries(safe);
     this.data = new Map(Object.entries(frozen));
     this.maxBytes = maxBytes;
   }
@@ -237,19 +253,17 @@ export class ExecutionMetaImpl implements ExecutionMeta {
   ): ExecutionMetaImpl {
     const merged: Record<string, unknown> = { ...this.toJSON() };
     const strippedExtra = stripSystemKeys(extra);
-    const safeExtra = filterSerializable(strippedExtra);
-    for (const [k, v] of Object.entries(safeExtra)) {
-      // Parent always wins — child can only add new keys.
+    for (const [k, v] of Object.entries(strippedExtra)) {
+      // Parent always wins — child can only add new keys. The constructor
+      // will filter non-serializable values and size-check on the final
+      // payload, so we just propose keys here.
       if (!Object.hasOwn(merged, k)) {
         merged[k] = v;
       }
     }
     if (systemOverrides) {
-      // System overrides are framework-trusted but still filtered for
-      // serializability so a programmer error can't poison the chain.
-      Object.assign(merged, filterSerializable(systemOverrides));
+      Object.assign(merged, systemOverrides);
     }
-    assertSizeLimit(merged, this.maxBytes);
     return new ExecutionMetaImpl(merged, this.maxBytes);
   }
 }
@@ -301,16 +315,11 @@ export interface CreateExecutionMetaOptions {
 export function createExecutionMeta(options: CreateExecutionMetaOptions = {}): ExecutionMeta {
   const { raw = {}, systemKeys = {}, maxSizeBytes = DEFAULT_META_MAX_BYTES } = options;
 
-  const strippedRaw = stripSystemKeys(raw);
-  const safeRaw = filterSerializable(strippedRaw);
-  // System keys are framework-owned — trust them, but still filter non-
-  // serializable values so a bad `_` key (e.g., a class instance) can't poison
-  // the execution log downstream.
-  const safeSystemKeys = filterSerializable(systemKeys);
-
-  const merged: Record<string, unknown> = { ...safeRaw, ...safeSystemKeys };
-
-  assertSizeLimit(merged, maxSizeBytes);
+  // The factory's only unique responsibility is stripping `_`-prefixed keys
+  // from external `raw` (system-key namespace protection, §4.4). Serialization
+  // filtering and size-limit enforcement both live in the constructor —
+  // running them here too would just be duplicate work.
+  const merged: Record<string, unknown> = { ...stripSystemKeys(raw), ...systemKeys };
 
   return new ExecutionMetaImpl(merged, maxSizeBytes);
 }
