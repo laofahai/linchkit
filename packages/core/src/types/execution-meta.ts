@@ -162,12 +162,19 @@ function filterSerializable(input: Record<string, unknown>): Record<string, unkn
 }
 
 /**
+ * Module-level TextEncoder instance. UTF-8 encoder state is stateless, so one
+ * shared instance is safe across all calls and avoids per-size-check
+ * allocation in the hot path (Gemini PR #201 review).
+ */
+const META_ENCODER = new TextEncoder();
+
+/**
  * Enforce the serialized-size limit on an already-filtered meta payload.
  * Throws {@link MetaSizeError} when exceeded.
  */
 function assertSizeLimit(entries: Record<string, unknown>, maxBytes: number): void {
   const serialized = JSON.stringify(entries);
-  const sizeBytes = new TextEncoder().encode(serialized).length;
+  const sizeBytes = META_ENCODER.encode(serialized).length;
   if (sizeBytes > maxBytes) {
     throw new MetaSizeError(sizeBytes, maxBytes);
   }

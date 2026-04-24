@@ -495,9 +495,23 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     //
     // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
     // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
-    // its assignment: set from `executionId` at the root (depth == 0) when
-    // not already carried from a parent (which uses extendExecutionMeta to
-    // preserve the parent's root id through the chain).
+    // its assignment.
+    //
+    // ### Root-vs-nested trust boundary (Gemini PR #201 review)
+    //
+    // At `currentDepth === 0` the provided meta comes from an **untrusted**
+    // external surface — a direct-executor call, a CommandLayer forward, a
+    // duck-typed ExecutionMeta, whatever. We always re-run through
+    // `createExecutionMeta` with the raw snapshot so:
+    //  1. `_`-prefixed keys are stripped (external callers cannot spoof
+    //     `_channel`, `_execution_id`, etc.).
+    //  2. Non-JSON-serializable values are filtered.
+    //  3. Framework-owned `rootSystemDefaults` always win.
+    //
+    // At `currentDepth > 0` the provided meta was built by the engine itself
+    // via `extendExecutionMeta` in `ctx.execute`, so it is framework-trusted;
+    // passing it through unchanged preserves the parent's `_execution_id`
+    // and other system keys across the chain.
     const rootSystemDefaults: Record<string, unknown> = {
       _channel: channel,
       _execution_id: executionId,
@@ -512,16 +526,30 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so callers see the same shape regardless of entry point.
     let resolvedMeta: ExecutionMeta;
     try {
-      resolvedMeta = !providedMeta
-        ? createExecutionMeta({ systemKeys: rootSystemDefaults })
-        : isExecutionMeta(providedMeta)
+      if (!providedMeta) {
+        resolvedMeta = createExecutionMeta({ systemKeys: rootSystemDefaults });
+      } else if (currentDepth === 0) {
+        // Root entry — treat any provided meta as external input. Extract
+        // its raw snapshot (handles both ExecutionMeta and plain records)
+        // and push it through the untrusted-input factory.
+        const rawSnapshot = isExecutionMeta(providedMeta)
+          ? providedMeta.toJSON()
+          : (providedMeta as Record<string, unknown>);
+        resolvedMeta = createExecutionMeta({
+          raw: rawSnapshot,
+          systemKeys: rootSystemDefaults,
+        });
+      } else {
+        // Nested call — provided meta is framework-built via extend.
+        // Trust it, only filling system keys that somehow went missing
+        // (defensive — expected to be a no-op in practice).
+        resolvedMeta = isExecutionMeta(providedMeta)
           ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
-          : // Plain record — wrap through createExecutionMeta so _-prefixed
-            // keys get stripped, non-serializable values filtered, size enforced.
-            createExecutionMeta({
+          : createExecutionMeta({
               raw: providedMeta as Record<string, unknown>,
               systemKeys: rootSystemDefaults,
             });
+      }
     } catch (err) {
       if (err instanceof MetaSizeError) {
         await logExecution({

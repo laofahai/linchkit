@@ -337,10 +337,12 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect(captures[0].meta._execution_id).toBe(captures[0].executionId);
   });
 
-  test("caller-supplied ExecuteOptions.meta is honored by the engine", async () => {
-    // When ExecutionMeta is passed directly via ExecuteOptions.meta (e.g., a
-    // test or internal caller bypassing the CommandLayer), the engine uses it
-    // rather than synthesizing a fresh one.
+  test("caller-supplied ExecuteOptions.meta: user keys flow through, system keys re-stamped", async () => {
+    // When a pre-built ExecutionMeta reaches the root executor, user-space
+    // keys flow through unchanged, but system keys are always re-stamped
+    // by the framework at root (Gemini PR #201 review — system keys must
+    // not be spoofable by any entry point). Nested calls preserve system
+    // keys; that's covered separately.
     const captures: Capture[] = [];
     const dp = createTestDataProvider();
     const executor = createActionExecutor({ dataProvider: dp });
@@ -363,14 +365,22 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     executor.registry.register(action);
 
     const preset = createExecutionMeta({
-      raw: { flow: "custom" },
-      systemKeys: { _channel: "mcp", _depth: 0, _execution_id: "trace_z" },
+      raw: { flow: "custom", source_view: "queue" },
+      // Caller-attempted system keys — must be overridden by framework.
+      systemKeys: { _channel: "mcp", _depth: 99, _execution_id: "trace_z" },
     });
-    await executor.execute("preset", {}, defaultActor, { meta: preset });
+    const result = await executor.execute("preset", {}, defaultActor, { meta: preset });
 
+    // User-space keys preserved.
     expect(captures[0].meta.flow).toBe("custom");
-    expect(captures[0].meta._channel).toBe("mcp");
-    expect(captures[0].meta._execution_id).toBe("trace_z");
+    expect(captures[0].meta.source_view).toBe("queue");
+    // System keys re-stamped at root — `_channel` defaults to "internal"
+    // (no channel in ExecuteOptions), `_execution_id` is the real action id,
+    // `_depth` is 0.
+    expect(captures[0].meta._channel).toBe("internal");
+    expect(captures[0].meta._execution_id).toBe(result.executionId);
+    expect(captures[0].meta._execution_id).not.toBe("trace_z");
+    expect(captures[0].meta._depth).toBe(0);
   });
 
   // Codex follow-up: child ctx.execute must enforce the same size limit as
@@ -632,5 +642,92 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect((parentResult as Record<string, unknown>).code).toBe("META.SIZE_EXCEEDED");
     // parentLogId referenced as a sanity anchor.
     expect(typeof parentLogId).toBe("string");
+  });
+
+  // Gemini PR #201 review: system keys are framework-owned. Even if a caller
+  // crafts a pre-built ExecutionMeta (or duck-typed equivalent) with spoofed
+  // `_`-prefixed entries, the root executor must strip and re-stamp.
+  test("root: ExecutionMeta with spoofed system keys is re-normalized", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let captured: Record<string, unknown> = {};
+    executor.registry.register({
+      name: "spoofed_meta_consumer",
+      entity: "item",
+      label: "Spoof Consumer",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    const spoofed = createExecutionMeta({
+      // createExecutionMeta strips `_` from raw automatically, so craft
+      // the spoofed keys via systemKeys — this simulates any adversarial
+      // code that bypasses the factory's strip step.
+      systemKeys: {
+        _channel: "spoofed",
+        _execution_id: "fake_root_id",
+        _depth: 999,
+        legit_key: "preserved",
+      },
+    });
+    const result = await executor.execute("spoofed_meta_consumer", {}, defaultActor, {
+      meta: spoofed,
+    });
+
+    expect(result.success).toBe(true);
+    // System keys were re-stamped by the engine.
+    expect(captured._channel).toBe("internal");
+    expect(captured._execution_id).toBe(result.executionId);
+    expect(captured._execution_id).not.toBe("fake_root_id");
+    expect(captured._depth).toBe(0);
+    // Non-system keys still flow through untouched.
+    expect(captured.legit_key).toBe("preserved");
+  });
+
+  test("root: duck-typed ExecutionMeta with spoofed toJSON cannot bypass stripping", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let captured: Record<string, unknown> = {};
+    executor.registry.register({
+      name: "duck_typed_spoof",
+      entity: "item",
+      label: "Duck Typed",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    // Craft a duck-typed ExecutionMeta whose toJSON hands out spoofed system keys.
+    const spoofedDuck = {
+      get: () => undefined,
+      has: () => false,
+      require: () => {
+        throw new Error("never");
+      },
+      toJSON: () => ({ _channel: "mcp_bypass", _depth: 42, user_key: "x" }),
+    };
+
+    // Cast required because the interface requires generic methods.
+    const result = await executor.execute(
+      "duck_typed_spoof",
+      {},
+      defaultActor,
+      // biome-ignore lint/suspicious/noExplicitAny: test-only adversarial cast
+      { meta: spoofedDuck as any },
+    );
+
+    expect(result.success).toBe(true);
+    expect(captured._channel).toBe("internal");
+    expect(captured._depth).toBe(0);
+    expect(captured.user_key).toBe("x");
   });
 });
