@@ -3,8 +3,11 @@
  *
  * All entry points (HTTP / MCP / CLI / UI) go through the same pipeline.
  * Capabilities fill slots by registering middlewares (e.g. cap-auth fills "auth").
- * Unfilled slots are automatically skipped — except permission: when no permission
- * middleware is registered, the executor's built-in permission check still runs (fail-closed).
+ * Unfilled slots are automatically skipped — except permission: for normal
+ * action dispatch, if no permission middleware is registered, the executor's
+ * built-in permission check still runs (fail-closed). For non-action dispatch
+ * (`skipActionSlots: true`), the executor is never invoked, so an empty
+ * permission slot is rejected explicitly with `PERMISSION.MIDDLEWARE_MISSING`.
  *
  * Pipeline order: pre → auth → exposure → permission → tenant → pre-action → [action] → post-action
  *
@@ -15,7 +18,9 @@
  * entity onchange endpoint (Spec 64 §4.3). The pipeline runs pre / auth / permission /
  * tenant but skips exposure / pre-action / post-action and does not invoke the
  * ActionExecutor; a synthetic success result is returned so downstream code can
- * produce the actual response payload.
+ * produce the actual response payload. Requires a registered permission middleware
+ * (see guard above). Cannot be combined with `approvalId` — the combination would
+ * silently drop auth+permission and is rejected with `COMMAND.INVALID_OPTIONS`.
  *
  * See spec 16_command_layer_and_api.md §2.2 and 20_extension_mechanism.md §8.
  */
