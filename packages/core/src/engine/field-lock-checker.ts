@@ -41,6 +41,44 @@ export interface FieldLockViolation {
   message: string;
 }
 
+/**
+ * Structural equality for JSON-serializable values. Unlike a JSON.stringify
+ * round-trip, ignores object key order so `{a:1,b:2}` === `{b:2,a:1}`
+ * reorderings don't raise false "value changed" violations.
+ *
+ * Handles primitives, arrays, and plain objects. Field constraints do not
+ * allow Dates, Maps, class instances, or cyclic structures (see
+ * FieldDefinition types), so those cases need not be considered.
+ */
+function structuralEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  const ta = typeof a;
+  const tb = typeof b;
+  if (ta !== tb) return false;
+  if (ta !== "object") return false;
+  const aArr = Array.isArray(a);
+  const bArr = Array.isArray(b);
+  if (aArr !== bArr) return false;
+  if (aArr && bArr) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!structuralEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const aKeys = Object.keys(ao);
+  const bKeys = Object.keys(bo);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!Object.hasOwn(bo, k)) return false;
+    if (!structuralEqual(ao[k], bo[k])) return false;
+  }
+  return true;
+}
+
 export interface FieldLockCheckArgs {
   /**
    * Resolved field definitions — must include inherited, interface-injected,
@@ -118,13 +156,10 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
 
     // Same-value re-writes are no-ops everywhere in this checker. A common
     // UI pattern sends the full record on update — locked fields that are
-    // echoed back unchanged must not raise violations. Use strict equality
-    // for primitives, JSON round-trip equality for objects/arrays (fields
-    // are structured data — no functions / symbols).
-    const bothObjects = typeof existing === "object" || typeof newValue === "object";
-    const unchanged = bothObjects
-      ? JSON.stringify(existing) === JSON.stringify(newValue)
-      : existing === newValue;
+    // echoed back unchanged must not raise violations. Use structural
+    // equality so reordered object keys ({a:1,b:2} vs {b:2,a:1}) don't
+    // trigger false positives.
+    const unchanged = structuralEqual(existing, newValue);
 
     // 1. Immutable (or deprecated `readonly` alias) — only enforced once the
     //    field has a non-null existing value. First-write (existing == null)

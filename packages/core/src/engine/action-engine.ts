@@ -561,8 +561,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     let existingRecord: Record<string, unknown> | undefined;
     let existingRecordFetchError = false;
     if (recordId && (needsLockCheck || needsStateFetch)) {
+      // Read through the parent's transactional provider when this is a
+      // nested `ctx.execute` inside an open transaction. Otherwise a child
+      // action sees the pre-transaction snapshot — a parent that just wrote
+      // `status = "submitted"` would have the write invisible to the child,
+      // letting `lockWhen: { state: "submitted" }` slip past enforcement.
+      // Tenant wrapping matches: the parent's txProvider is already
+      // tenant-scoped, so don't re-wrap.
+      const parentTxProvider = execOptions?._txDataProvider;
+      const readProvider: DataProvider = parentTxProvider ?? baseProvider;
       try {
-        existingRecord = await baseProvider.get(action.entity, recordId, queryOptions);
+        existingRecord = await readProvider.get(action.entity, recordId, queryOptions);
       } catch {
         existingRecordFetchError = true;
       }
