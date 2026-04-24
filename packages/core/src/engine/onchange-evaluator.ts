@@ -34,6 +34,7 @@ import type { DataProvider } from "./action-engine";
 import {
   buildContext,
   createDedupedWarningSink,
+  createRevocableWarningSink,
   filterByAllowlist,
   indexHooks,
   type OnchangeReadPermissionCheck,
@@ -176,6 +177,15 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
         }
         evaluations++;
 
+        // Finding 3 (late-warning guard) — each hook gets its own revocable
+        // wrapper around the shared deduped sink. If the hook times out we
+        // `revoke()` before resuming the BFS so any late `ctx.lookup()` /
+        // `ctx.query()` / permission-check warning emitted by the abandoned
+        // background promise is dropped from the client-visible warnings
+        // array and rerouted to `Logger.warn`.
+        const hookName = `${entityName}.onchange[${field}]`;
+        const timeoutMs = hook.timeout ?? defaultTimeoutMs;
+        const revocable = createRevocableWarningSink(warningSink, logger, hookName);
         const ctx = buildContext({
           changedField: field,
           values: mergedValues,
@@ -183,13 +193,12 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
           tenantId,
           dataProvider,
           checkReadPermission,
-          warningSink,
+          warningSink: revocable.sink,
           logger,
         });
 
         let outcome: TimedHookOutcome;
         try {
-          const timeoutMs = hook.timeout ?? defaultTimeoutMs;
           outcome = await runHookWithTimeout(hook, ctx, timeoutMs);
         } catch (err) {
           // Finding 4 — sanitize the user-facing message and log the real
@@ -203,6 +212,10 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
             error: rawMessage,
           });
           warnings.push(`Onchange hook for "${field}" threw an error and was skipped`);
+          // Best-effort cleanup: if the hook threw synchronously after capturing
+          // ctx, also revoke its sink so any lingering async work cannot push
+          // late warnings through the closure.
+          revocable.revoke();
           continue;
         }
 
@@ -211,6 +224,22 @@ export function createOnchangeEvaluator(options: OnchangeEvaluatorOptions): Onch
         // hook-returned warnings, nothing that would mutate the shared
         // accumulator or re-enter the BFS queue.
         if (outcome.timedOut) {
+          // Revoke BEFORE continuing the BFS so any still-in-flight
+          // lookup/query/permission-check from the timed-out hook cannot push
+          // a late warning into the client-visible array.
+          revocable.revoke();
+          // Blocker 2 — operator observability. Log the timeout with full
+          // context so ops can diagnose runaway hooks. This complements the
+          // sanitized client-facing warning already emitted by
+          // `runHookWithTimeout`.
+          logger.warn("onchange: hook timed out", {
+            hook: hookName,
+            entity: entityName,
+            field,
+            actor: actor.id,
+            tenantId,
+            timeoutMs,
+          });
           for (const w of outcome.result.warnings ?? []) warnings.push(w);
           continue;
         }

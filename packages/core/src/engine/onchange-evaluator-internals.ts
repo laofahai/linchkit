@@ -123,6 +123,53 @@ export function createDedupedWarningSink(backing: string[]): DedupedWarningSink 
   };
 }
 
+// ── Revocable warning sink (timeout late-write safety) ──────
+
+/**
+ * One-shot "kill switch" around a `DedupedWarningSink`. Used to guard the
+ * inner sink once a hook has timed out — a timed-out hook may still be
+ * executing in the background and its captured `ctx` closures (`lookup`,
+ * `query`, permission check) hold a reference to the inner sink. After the
+ * timeout fires, the evaluator `revoke()`s this proxy so any late
+ * `warningSink.push(...)` from the abandoned hook is dropped from the
+ * client-visible warnings array and routed to `Logger.warn` instead. The
+ * server retains full observability of the late event while the client sees
+ * only the original timeout warning.
+ */
+export interface RevocableWarningSink {
+  sink: DedupedWarningSink;
+  revoke(): void;
+}
+
+export function createRevocableWarningSink(
+  inner: DedupedWarningSink,
+  logger: Logger,
+  hookName: string,
+): RevocableWarningSink {
+  let revoked = false;
+  return {
+    sink: {
+      push(key, message) {
+        if (revoked) {
+          logger.warn("onchange: suppressed late warning from timed-out hook", {
+            hook: hookName,
+            key,
+            warning: message,
+          });
+          return;
+        }
+        inner.push(key, message);
+      },
+      get warnings() {
+        return inner.warnings;
+      },
+    },
+    revoke() {
+      revoked = true;
+    },
+  };
+}
+
 // ── Timed hook execution (Finding 3) ────────────────────────
 
 /**
@@ -303,11 +350,17 @@ export function buildContext(options: {
 
   return {
     changedField,
-    value: values[changedField],
+    // Finding 5 — clone `value` and `actor` in addition to `values` so a
+    // misbehaving hook cannot mutate actor.groups / permissions / other
+    // fields and poison subsequent hooks in the same cascade. `value` is
+    // typically a scalar but may be an object/array; `structuredClone` via
+    // `safeClone` handles both with an identity fallback for unsupported
+    // slots (functions, class instances).
+    value: safeClone(values[changedField]),
     // Finding 5 — expose a defensive clone so a misbehaving hook cannot
     // mutate the shared evaluation state observed by subsequent hooks.
     values: safeClone(values),
-    actor,
+    actor: safeClone(actor),
     tenantId,
     async lookup(entity, id, field) {
       if (!(await ensureReadable(entity))) return undefined;

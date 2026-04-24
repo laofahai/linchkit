@@ -18,7 +18,7 @@
  */
 
 import type { OnchangeEvaluator } from "@linchkit/core/server";
-import { OnchangeEvaluatorError } from "@linchkit/core/server";
+import { consoleLogger, OnchangeEvaluatorError } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
@@ -29,6 +29,21 @@ import {
   serverError,
   serviceUnavailable,
 } from "./shared";
+
+/**
+ * Canonical authorization-denied envelope (Non-blocker 4). All 401/403 paths
+ * through this endpoint return THE SAME payload so the response text cannot be
+ * used as a side channel to distinguish "entity exists but you can't access it"
+ * from "entity doesn't exist" or "auth token missing vs invalid". The specific
+ * middleware-supplied detail is logged via `Logger.warn` for operator debugging.
+ */
+const AUTHZ_DENIED_BODY = {
+  success: false as const,
+  error: {
+    code: "AUTHZ_DENIED",
+    message: "Access denied",
+  },
+} as const;
 
 /**
  * Build the synthetic command name for a given entity. Permission middleware
@@ -100,13 +115,31 @@ export function mountOnchangeRoutes(
       // Finding 1 — uniform auth/permission failure envelope. Do NOT branch on
       // whether the entity exists; the caller must not learn more from a
       // blocked response than "you're not authorized to use this endpoint".
-      set.status = resolveStatusCode(commandResult);
+      const status = resolveStatusCode(commandResult);
+      set.status = status;
       const errData = commandResult.data as Record<string, unknown> | undefined;
-      const message = (errData?.error as string) ?? "Onchange request blocked";
-      const code = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
+      const middlewareMessage = (errData?.error as string) ?? "Onchange request blocked";
+      const middlewareCode = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
+
+      // Non-blocker 4 — canonicalize the 401/403 envelope so the middleware's
+      // entity-specific denial text cannot be used as a side channel to
+      // enumerate which entities exist or are onchange-enabled. Log the raw
+      // detail for operator debugging.
+      if (status === 401 || status === 403) {
+        consoleLogger.warn("onchange: authorization denied", {
+          entity: entityName,
+          changedField: changedFieldForMeta,
+          actor: actor.id,
+          status,
+          middlewareCode,
+          middlewareMessage,
+        });
+        return AUTHZ_DENIED_BODY;
+      }
+
       return {
         success: false,
-        error: { code, message },
+        error: { code: middlewareCode, message: middlewareMessage },
       };
     }
 

@@ -65,7 +65,12 @@ await store.create("product", { id: "p1", price: 29.99, description: "Widget" })
 
 // ── Servers ───────────────────────────────────────────────
 
-function buildServer(options: { permissionDeny?: boolean; withEvaluator?: boolean; port: number }) {
+function buildServer(options: {
+  permissionDeny?: boolean;
+  permissionDenyMessage?: string;
+  withEvaluator?: boolean;
+  port: number;
+}) {
   const entityRegistry = createEntityRegistry();
   entityRegistry.register(lineEntity);
   entityRegistry.register(plainEntity);
@@ -74,11 +79,12 @@ function buildServer(options: { permissionDeny?: boolean; withEvaluator?: boolea
   const commandLayer = createCommandLayer({ executor });
 
   if (options.permissionDeny) {
+    const message = options.permissionDenyMessage ?? "Actor lacks read permission on entity";
     commandLayer.use({
       name: "deny_all",
       slot: "permission",
       handler: async () => {
-        throw new PipelineError("Actor lacks read permission on entity", "authz.action.denied");
+        throw new PipelineError(message, "authz.action.denied");
       },
     });
   } else {
@@ -110,17 +116,28 @@ function buildServer(options: { permissionDeny?: boolean; withEvaluator?: boolea
 
 const happyPort = 4210;
 const denyPort = 4211;
+const leakyDenyPort = 4212;
 let happyApp: ReturnType<typeof buildServer>;
 let denyApp: ReturnType<typeof buildServer>;
+let leakyDenyApp: ReturnType<typeof buildServer>;
 
 beforeAll(() => {
   happyApp = buildServer({ port: happyPort, withEvaluator: true });
   denyApp = buildServer({ port: denyPort, withEvaluator: true, permissionDeny: true });
+  // A permission middleware that echoes an entity-specific denial string —
+  // exactly the kind of side-channel Non-blocker 4 canonicalizes away.
+  leakyDenyApp = buildServer({
+    port: leakyDenyPort,
+    withEvaluator: true,
+    permissionDeny: true,
+    permissionDenyMessage: "forbidden: entity admin_secret",
+  });
 });
 
 afterAll(() => {
   happyApp.stop();
   denyApp.stop();
+  leakyDenyApp.stop();
 });
 
 async function postOnchange(
@@ -231,8 +248,13 @@ describe("POST /api/entities/:name/onchange", () => {
     });
     expect(status).toBe(403);
     expect(body.success).toBe(false);
+    // Non-blocker 4 — 403 payload is the fixed canonical envelope, NOT the
+    // middleware-supplied "Actor lacks read permission on entity" text.
     const err = body.error as Record<string, unknown>;
-    expect(err.message as string).toContain("read permission");
+    expect(err.code).toBe("AUTHZ_DENIED");
+    expect(err.message).toBe("Access denied");
+    // Sanity: middleware detail does NOT leak.
+    expect(err.message as string).not.toContain("read permission");
   });
 
   test("response shape includes updates (record) and warnings (array)", async () => {
@@ -292,6 +314,50 @@ describe("POST /api/entities/:name/onchange — authorize before revealing exist
       values: "not an object",
     });
     expect(status).toBe(403);
+  });
+});
+
+// ── Non-blocker 4: canonical 403 envelope ─────────────────
+
+describe("POST /api/entities/:name/onchange — canonical 403 envelope (Non-blocker 4)", () => {
+  test("403 body is the fixed AUTHZ_DENIED envelope, middleware detail does not leak", async () => {
+    // `leakyDenyApp` uses a permission middleware whose denial message encodes
+    // entity-specific text ("forbidden: entity admin_secret"). Echoing that
+    // into the response body would let an attacker enumerate entities via
+    // varying error strings. The canonical envelope collapses every 403 into
+    // the same payload.
+    const { status, body } = await postOnchange(leakyDenyPort, "purchase_line", {
+      changedField: "product_id",
+      values: { product_id: "p1" },
+    });
+    expect(status).toBe(403);
+    expect(body.success).toBe(false);
+    const err = body.error as Record<string, unknown>;
+    expect(err.code).toBe("AUTHZ_DENIED");
+    expect(err.message).toBe("Access denied");
+
+    // Full payload sanity — no middleware text surfaces anywhere.
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("admin_secret");
+    expect(serialized).not.toContain("forbidden:");
+    expect(serialized).not.toContain("entity admin_secret");
+  });
+
+  test("403 envelope is identical across different entities (no side channel)", async () => {
+    // Probing two different entities must return byte-identical 403 bodies so
+    // no observable difference lets a caller distinguish one entity from
+    // another via the response text.
+    const a = await postOnchange(leakyDenyPort, "purchase_line", {
+      changedField: "product_id",
+      values: {},
+    });
+    const b = await postOnchange(leakyDenyPort, "ghost_entity_xyz", {
+      changedField: "anything",
+      values: {},
+    });
+    expect(a.status).toBe(403);
+    expect(b.status).toBe(403);
+    expect(a.body).toEqual(b.body);
   });
 });
 
