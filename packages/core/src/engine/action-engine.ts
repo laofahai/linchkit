@@ -555,6 +555,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         Object.values(resolvedFields).some(
           (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
         ));
+    // Distinguish update-semantics actions from creates. `input.id` alone is
+    // NOT a reliable signal — generated `create_<entity>` actions accept a
+    // caller-supplied primary key and forward it to `ctx.create(...)`, which
+    // would otherwise be misread as an update and blocked with a
+    // lock_preflight error before the row exists. Declarative update
+    // markers (`setFields` or `stateTransition`) are strong update signals;
+    // for handler-based actions the executor can't tell create from update
+    // statically, so we only preflight when the fetch actually finds a row.
+    const isDeclarativeUpdate =
+      (action.setFields !== undefined && Object.keys(action.setFields).length > 0) ||
+      action.stateTransition !== undefined;
     const needsLockCheck = !!recordId && !!resolvedEntity && hasLockMetadata;
     const needsStateFetch = !!recordId && !!action.stateTransition && !!stateMachine;
 
@@ -577,14 +588,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    // Fail-closed on lock check: if we couldn't read the record, we can't
-    // verify whether a locked field is actually being modified. A provider
-    // whose `get()` path fails while `update()` still succeeds (transient
-    // error, permission mismatch, read replica lag) would otherwise let
-    // immutable/locked writes through silently. Reject the request instead.
-    // State-transition actions already fail-closed on the same fetch error
-    // below via their own branch — this covers lock-only actions.
-    if (needsLockCheck && existingRecordFetchError) {
+    // Fail-closed on lock check — but only when we're sure the action is an
+    // update. For declarative-update actions (setFields / stateTransition)
+    // the record MUST exist; a failed fetch is a real problem. For handler-
+    // based actions without those markers the action may be a create
+    // supplying its own primary key — failing closed there would break
+    // import/sync flows. The declarative update branch (state transition)
+    // has its own fail-closed below for its not-found path.
+    if (needsLockCheck && existingRecordFetchError && isDeclarativeUpdate) {
       const errorMsg = `Cannot verify field locks: record "${recordId}" in entity "${action.entity}" could not be read`;
       await logExecution({
         id: executionId,

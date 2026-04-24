@@ -57,6 +57,19 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   const tb = typeof b;
   if (ta !== tb) return false;
   if (ta !== "object") return false;
+
+  // Date values: compare by millisecond timestamp. Without this, two Date
+  // instances with different timestamps would look "equal" (both have
+  // `Date.prototype` and no enumerable own keys), silently allowing
+  // immutable datetime updates like `2024-01-01 -> 2025-01-01`. Handles
+  // the case where one side is a Date and the other isn't (still not-equal).
+  const aDate = a instanceof Date;
+  const bDate = b instanceof Date;
+  if (aDate || bDate) {
+    if (!aDate || !bDate) return false;
+    return a.getTime() === b.getTime();
+  }
+
   const aArr = Array.isArray(a);
   const bArr = Array.isArray(b);
   if (aArr !== bArr) return false;
@@ -67,6 +80,17 @@ function structuralEqual(a: unknown, b: unknown): boolean {
     }
     return true;
   }
+
+  // Guard against other non-plain objects (Map, Set, class instances).
+  // Two different instances of a class with no enumerable own keys would
+  // otherwise compare as equal. For these, require reference identity
+  // (already checked at the top — so falling here means they're different).
+  const aProto = Object.getPrototypeOf(a);
+  const bProto = Object.getPrototypeOf(b);
+  const plainA = aProto === Object.prototype || aProto === null;
+  const plainB = bProto === Object.prototype || bProto === null;
+  if (!plainA || !plainB) return false;
+
   const ao = a as Record<string, unknown>;
   const bo = b as Record<string, unknown>;
   const aKeys = Object.keys(ao);

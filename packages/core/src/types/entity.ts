@@ -349,8 +349,21 @@ export interface EntityExtension {
   fields: Record<string, FieldDefinition>;
 }
 
+/**
+ * Overridable field properties — the subset of {@link BaseFieldDefinition}
+ * (excluding `type`, which must never change across an override) that
+ * overlays may modify. Covers legacy `FieldConstraints` (required/unique/
+ * min/max/format/pattern/default/immutable) plus the Spec 63 additions
+ * `readonly` and `lockWhen`, so tenant/capability overlays can tighten or
+ * add lock rules at runtime.
+ */
+export type FieldOverrideProps = Partial<FieldConstraints> & {
+  readonly?: boolean;
+  lockWhen?: LockCondition;
+};
+
 export interface EntityOverride {
-  fields: Record<string, Partial<FieldConstraints>>;
+  fields: Record<string, FieldOverrideProps>;
 }
 
 // ── System fields (automatically included in every Schema) ────────────────
