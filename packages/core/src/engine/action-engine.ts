@@ -309,6 +309,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 0b: Idempotency check
     // Scope key by action name + tenant to prevent cross-action/cross-tenant collisions.
     // Only apply at top level — child executions (depth > 0) do not inherit idempotency.
+    //
+    // TODO(spec-65 Phase 2): If an action's `ctx.meta` participates in
+    // decision-making (e.g., `dry_run`, `skip_notifications`), a second
+    // request reusing the same `idempotencyKey` with different meta will
+    // receive the first execution's cached output without re-running. Either
+    // hash the normalized meta into the key or reject changed meta for an
+    // existing key. Deferred here because it requires a product decision on
+    // idempotency semantics (observational meta vs behavior-affecting meta).
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
     const idempotencyKey = rawIdempotencyKey
       ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`

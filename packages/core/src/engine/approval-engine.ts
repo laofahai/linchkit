@@ -388,6 +388,13 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // Re-execute the original action.
     // Prefer CommandLayer (runs pre/tenant/pre-action/post-action, skips auth/exposure/permission).
     // Fall back to direct executor.execute() for backward compatibility.
+    //
+    // TODO(spec-65 Phase 2): Approval records do NOT persist the original
+    // `ctx.meta` — handlers relying on meta (e.g., `source_view`,
+    // `triggered_by`) see different context before and after approval.
+    // Needs an approval-store schema extension to carry meta through the
+    // suspend/resume boundary. Deferred here because it requires a
+    // storage-layer change.
     let result: ActionResult;
 
     if (commandLayer) {
