@@ -157,6 +157,13 @@ export interface CommandExecuteOptions {
   /** External trace ID — when provided, the pipeline reuses this instead of generating a new one */
   traceId?: string;
   /**
+   * Include soft-deleted records when the action reads the target row.
+   * Used by `restore_*` actions so they can locate the row before writing.
+   * Forwarded to the executor; the permission slot still runs — callers must
+   * be authorized to read/restore the deleted row.
+   */
+  includeDeleted?: boolean;
+  /**
    * Non-action dispatch mode (Spec 64 §4.3). When true, the pipeline:
    * - RUNS pre, auth, permission, tenant slots
    * - SKIPS exposure (no action to expose), pre-action and post-action slots
@@ -388,6 +395,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     }
     if (execOptions.skipRules) {
       executorOptions.skipRules = execOptions.skipRules;
+    }
+    if (execOptions.includeDeleted) {
+      executorOptions.includeDeleted = execOptions.includeDeleted;
     }
 
     // Action execution as the innermost handler in the compose chain (#2).

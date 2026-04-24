@@ -39,17 +39,6 @@ const failingAction: ActionDefinition = {
   },
 };
 
-const restrictedAction: ActionDefinition = {
-  name: "restricted_action",
-  entity: "order",
-  label: "Restricted",
-  permissions: {
-    groups: ["superadmin"],
-  },
-  policy: { mode: "sync", transaction: true },
-  handler: async () => ({ ok: true }),
-};
-
 const parentAction: ActionDefinition = {
   name: "parent_action",
   entity: "order",
@@ -248,24 +237,11 @@ describe("ActionExecutor with ExecutionLogger", () => {
     expect(entry.error?.message).toBe("Something went wrong");
   });
 
-  it("should log blocked actions (permission denied)", async () => {
-    const logger = new InMemoryExecutionLogger();
-    const executor = createActionExecutor({
-      dataProvider: createMockDataProvider(),
-      executionLogger: logger,
-    });
-
-    executor.registry.register(restrictedAction);
-    const lowPrivActor: Actor = { type: "human", id: "user-2", groups: ["viewer"] };
-    const result = await executor.execute("restricted_action", {}, lowPrivActor);
-
-    expect(result.success).toBe(false);
-    expect(logger.size).toBe(1);
-
-    const entry = logger.getAll()[0];
-    expect(entry.status).toBe("blocked");
-    expect(entry.error?.message).toContain("does not belong to any of the required groups");
-  });
+  // Removed: "should log blocked actions (permission denied)" — the Action
+  // Engine no longer performs permission checks (issue #125). Permission
+  // denial is now emitted by the CommandLayer pipeline as a PipelineError,
+  // which the execution logger records via its own path (covered by
+  // command-layer-permission.test.ts).
 
   it("should log when action is not found", async () => {
     const logger = new InMemoryExecutionLogger();

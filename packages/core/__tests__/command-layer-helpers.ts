@@ -94,7 +94,6 @@ export function createTestSetup(opts?: TestSetupOptions): {
     label: "Admin Action",
     policy: { mode: "sync", transaction: false },
     exposure: "all",
-    permissions: { groups: ["admin"] },
     handler: async () => {
       return { admin: true };
     },

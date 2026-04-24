@@ -186,9 +186,6 @@ export function renderActionDoc(action: ActionDoc): string {
 
   // Permissions
   if (action.permissions) {
-    if (action.permissions.groups?.length) {
-      lines.push(`- **Required groups:** ${action.permissions.groups.join(", ")}`);
-    }
     if (action.permissions.actorTypes?.length) {
       lines.push(`- **Actor types:** ${action.permissions.actorTypes.join(", ")}`);
     }

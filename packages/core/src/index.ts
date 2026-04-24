@@ -250,17 +250,36 @@ export {
   type SupportedLanguage,
 } from "./i18n";
 export type {
+  BacktestResult,
+  ConflictFinding,
+  ConflictResult,
+  CreateDedupAnalyzerOptions,
+  CreateImpactAnalyzerOptions,
+  CreatePreAnalysisPipelineOptions,
+  DedupResult,
   EvolutionRuntime,
   EvolutionRuntimeOptions,
+  ImpactDataProvider,
+  ImpactResult,
+  PendingProposalStore,
+  PreAnalysisPipeline,
+  PreAnalysisStage,
+  PreAnalysisStageResult,
+  PreAnalysisStatus,
+  PreAnalyzer,
+  ProposalPreAnalysisResult,
   SensorDefinitionConfig,
   SignalBus,
   SignalBusOptions,
   SignalHandler,
 } from "./life-system";
-// Life-system — Sense layer (Spec 55)
+// Life-system — Sense layer (Spec 55) + Proposal pre-analysis (Spec 55 §7.3)
 export {
+  createDedupAnalyzer,
   createDispatchQuery,
   createEvolutionRuntime,
+  createImpactAnalyzer,
+  createPreAnalysisPipeline,
   createSignalBus,
   defineSensor,
 } from "./life-system";

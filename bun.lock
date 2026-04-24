@@ -233,6 +233,17 @@
         "@linchkit/core": "workspace:*",
       },
     },
+    "addons/file-storage/cap-file-storage": {
+      "name": "@linchkit/cap-file-storage",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
     "addons/flow-restate/cap-flow-restate": {
       "name": "@linchkit/cap-flow-restate",
       "version": "1.0.0",
@@ -256,6 +267,17 @@
       "peerDependencies": {
         "@linchkit/core": "^0.2.0",
         "drizzle-orm": "*",
+      },
+    },
+    "addons/notification/cap-notification": {
+      "name": "@linchkit/cap-notification",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/permission/cap-permission": {
@@ -614,11 +636,15 @@
 
     "@linchkit/cap-chatter-ui": ["@linchkit/cap-chatter-ui@workspace:addons/chatter/cap-chatter-ui"],
 
+    "@linchkit/cap-file-storage": ["@linchkit/cap-file-storage@workspace:addons/file-storage/cap-file-storage"],
+
     "@linchkit/cap-flow-restate": ["@linchkit/cap-flow-restate@workspace:addons/flow-restate/cap-flow-restate"],
 
     "@linchkit/cap-mcp-ui": ["@linchkit/cap-mcp-ui@workspace:addons/adapter-mcp/cap-mcp-ui"],
 
     "@linchkit/cap-migration": ["@linchkit/cap-migration@workspace:addons/migration/cap-migration"],
+
+    "@linchkit/cap-notification": ["@linchkit/cap-notification@workspace:addons/notification/cap-notification"],
 
     "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:addons/permission/cap-permission"],
 

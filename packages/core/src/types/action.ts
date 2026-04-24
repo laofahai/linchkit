@@ -186,7 +186,6 @@ export interface IntentResolution {
 // ── Action permissions ─────────────────────────────────────
 
 export interface ActionPermissions {
-  groups?: string[];
   actorTypes?: ActorType[];
 }
 

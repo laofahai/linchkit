@@ -12,7 +12,6 @@ export const submitAction: ActionDefinition = {
   input: {
     notes: { type: "text", label: "t:entities.purchase_request.fields.notes" },
   },
-  permissions: { groups: ["admin", "manager", "user"] },
   policy: { mode: "sync", transaction: true },
   exposure: "all",
   stateTransition: { from: "draft", to: "pending" },

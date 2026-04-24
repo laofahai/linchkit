@@ -67,7 +67,7 @@ const submitAction: ActionDefinition = {
   policy: { mode: "sync", transaction: true },
   stateTransition: { from: "draft", to: "pending" },
   exposure: { http: true, mcp: true, ui: true },
-  permissions: { groups: ["purchaser"], actorTypes: ["human"] },
+  permissions: { actorTypes: ["human"] },
 };
 
 const approveAction: ActionDefinition = {
@@ -240,7 +240,6 @@ describe("actionToDoc", () => {
 
   test("preserves permissions", () => {
     const doc = actionToDoc(submitAction);
-    expect(doc.permissions?.groups).toEqual(["purchaser"]);
     expect(doc.permissions?.actorTypes).toEqual(["human"]);
   });
 
@@ -393,7 +392,6 @@ describe("renderActionDoc", () => {
     expect(md).toContain("**Input:**");
     expect(md).toContain("| title | string | yes |");
     expect(md).toContain("**Output:**");
-    expect(md).toContain("**Required groups:** purchaser");
   });
 });
 
