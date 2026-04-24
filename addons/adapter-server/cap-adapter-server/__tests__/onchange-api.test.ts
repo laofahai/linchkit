@@ -81,6 +81,16 @@ function buildServer(options: { permissionDeny?: boolean; withEvaluator?: boolea
         throw new PipelineError("Actor lacks read permission on entity", "authz.action.denied");
       },
     });
+  } else {
+    // Non-action dispatch (`skipActionSlots`) requires a permission middleware
+    // (fail-closed guard). Register a no-op allow-all stub for the happy path.
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
   }
 
   const evaluator = options.withEvaluator

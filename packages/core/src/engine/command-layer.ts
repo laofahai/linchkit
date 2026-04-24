@@ -316,6 +316,40 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // Determine if permission middleware is registered (#1 — fail-closed)
     const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
 
+    // Fail-closed guard: non-action dispatch (`skipActionSlots`) bypasses the
+    // ActionExecutor entirely, so the executor's built-in permission check —
+    // documented at the top of this file as the fallback when no permission
+    // middleware is registered — never fires. Without a registered permission
+    // middleware, an onchange-style request would run with zero authorization.
+    // Reject the request explicitly instead of silently running unguarded.
+    if (skipActionSlots && !hasPermissionMiddleware) {
+      return {
+        success: false,
+        data: {
+          error:
+            "Non-action dispatch (skipActionSlots) requires a permission middleware — built-in executor fallback does not apply.",
+          code: "PERMISSION.MIDDLEWARE_MISSING",
+        },
+        executionId: generatePipelineId(),
+      };
+    }
+
+    // Reject the `approvalId` + `skipActionSlots` combination. Approval
+    // re-execution skips {auth, exposure, permission}; non-action dispatch
+    // skips {exposure, pre-action, post-action}. Combined, auth AND permission
+    // would silently drop — contradicting the `skipActionSlots` contract that
+    // auth/permission/tenant still run. No legitimate flow needs this pair.
+    if (execOptions.approvalId && skipActionSlots) {
+      return {
+        success: false,
+        data: {
+          error: "approvalId is not supported with skipActionSlots.",
+          code: "COMMAND.INVALID_OPTIONS",
+        },
+        executionId: generatePipelineId(),
+      };
+    }
+
     // Approval re-execution: skip auth, exposure, permission slots ONLY when
     // a verifyApproval callback is configured AND it confirms the approvalId is valid.
     // Fail-closed: without verifyApproval, approvalId is ignored and all slots run.
