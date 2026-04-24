@@ -32,6 +32,7 @@ Thumbs.db
 # Claude local settings (user-specific)
 .claude/settings.local.json
 .claude/projects/
+.claude/scheduled_tasks.lock
 
 # Test
 coverage/
