@@ -31,7 +31,6 @@ import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
-import { createExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
 
@@ -449,56 +448,32 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     if (action && !skipActionSlots) {
       const resolvedAction = action;
       pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
-        // Build the typed ExecutionMeta from the raw pipeline dict.
-        // Constructed here (after middleware has run) so middleware that
-        // mutates `c.meta` for pipeline-internal state still feeds the final
-        // handler-visible meta (Spec 65 §8.3).
-        //
-        // `_execution_id` is intentionally NOT set here. Spec 65 §4.4 defines
-        // it as the ROOT execution record id (keyed against ExecutionLogger),
-        // not a tracing context. The ActionEngine owns executionId generation
-        // and fills the system key at root entry; nested calls preserve it
-        // via extendExecutionMeta. Setting it from traceId would collapse
-        // multiple executions under a single upstream trace onto the same
-        // "execution id" and break ExecutionLogger.getById() lookups.
+        // Pass `c.meta` through as a plain record and let ActionEngine be the
+        // single source of truth for meta normalization (strip _-prefix,
+        // filter non-serializable, enforce 8 KB including `_execution_id`).
+        // Any middleware that mutated `c.meta` for pipeline-internal state
+        // still feeds the final handler-visible meta via this handoff —
+        // Spec 65 §8.3.
         //
         // TODO(spec-65 Phase 2): The execution-log writer should record
         // `meta.toJSON()` alongside the existing ExecutionLogEntry fields.
-        let meta: ReturnType<typeof createExecutionMeta>;
-        try {
-          meta = createExecutionMeta({
-            raw: c.meta,
-            systemKeys: {
-              _channel: c.channel,
-              _depth: 0,
-            },
-          });
-        } catch (err) {
-          if (err instanceof MetaSizeError) {
-            // Meta is invalid → the action never runs. Post-action hooks
-            // (cache invalidation, event fan-out, notifications) are write-side
-            // semantics and MUST NOT fire when there were no writes. Add
-            // `post-action` to the skipped set so the loop below is a no-op,
-            // mirroring the skipActionSlots contract.
-            skippedSlots.add("post-action");
-            c.result = {
-              success: false,
-              data: { error: err.message, code: err.code },
-              executionId: generatePipelineId(),
-            };
-            return;
-          }
-          throw err;
-        }
-
         try {
           const result = await executor.execute(resolvedAction.name, c.input, c.actor, {
             ...executorOptions,
             tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
             locale: c.locale, // Use latest locale (middleware may have set it)
-            meta,
+            meta: c.meta,
           });
           c.result = result;
+          // ActionEngine rejected the meta (oversized after all system keys
+          // applied). The action handler never ran → post-action hooks
+          // (cache invalidation, event fan-out, notifications) are
+          // write-side semantics and MUST NOT fire. Mirror the
+          // `skipActionSlots` contract by skipping post-action here.
+          const code = (result.data as { code?: unknown } | undefined)?.code;
+          if (!result.success && code === "META.SIZE_EXCEEDED") {
+            skippedSlots.add("post-action");
+          }
         } catch (_err) {
           // Executor should return ActionResult, but guard against unexpected throws (#4)
           c.result = {

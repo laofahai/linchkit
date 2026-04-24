@@ -159,6 +159,37 @@ describe("CommandLayer — ExecutionMeta integration", () => {
     expect(postActionRan).toBe(false);
   });
 
+  // Codex round-6: near-limit meta where the CommandLayer's payload fits
+  // but adding `_execution_id` inside the ActionEngine tips it over. Must
+  // still suppress post-action — no action handler ever ran.
+  test("near-limit meta that ActionEngine rejects still suppresses post-action", async () => {
+    const { layer } = setup();
+    let postActionRan = false;
+    layer.use({
+      name: "cache_invalidate_edge",
+      slot: "post-action",
+      handler: async (_ctx, next) => {
+        postActionRan = true;
+        await next();
+      },
+    });
+
+    // Size calibration: the raw-object payload is just under 8 KB, but once
+    // the engine stamps `_channel`, `_depth`, and `_execution_id` onto it,
+    // the total exceeds the limit and only the engine's size check can
+    // catch it.
+    const nearLimit = "x".repeat(DEFAULT_META_MAX_BYTES - 20);
+    const result = await layer.execute({
+      command: "capture_meta",
+      input: {},
+      meta: { big: nearLimit },
+    });
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("META.SIZE_EXCEEDED");
+    expect(postActionRan).toBe(false);
+  });
+
   test("middleware that mutates ctx.meta feeds the handler-visible meta", async () => {
     // Existing CommandContext.meta middleware-internal contract (Spec 65 §8.3):
     // middleware may add keys before the action handler runs; those should
