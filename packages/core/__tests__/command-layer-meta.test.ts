@@ -132,6 +132,32 @@ describe("CommandLayer — ExecutionMeta integration", () => {
     expect(snapshot._channel).toBe("ui");
   });
 
+  // Codex follow-up: when meta construction rejects the request, post-action
+  // middleware MUST NOT fire — cache invalidation / notifications have
+  // write-side semantics and no write happened.
+  test("META.SIZE_EXCEEDED short-circuit suppresses post-action middleware", async () => {
+    const { layer } = setup();
+    let postActionRan = false;
+    layer.use({
+      name: "cache_invalidate",
+      slot: "post-action",
+      handler: async (_ctx, next) => {
+        postActionRan = true;
+        await next();
+      },
+    });
+
+    const result = await layer.execute({
+      command: "capture_meta",
+      input: {},
+      meta: { big: "x".repeat(DEFAULT_META_MAX_BYTES + 1024) },
+    });
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("META.SIZE_EXCEEDED");
+    expect(postActionRan).toBe(false);
+  });
+
   test("middleware that mutates ctx.meta feeds the handler-visible meta", async () => {
     // Existing CommandContext.meta middleware-internal contract (Spec 65 §8.3):
     // middleware may add keys before the action handler runs; those should

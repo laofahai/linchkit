@@ -52,27 +52,36 @@ export interface ExecutionMeta {
 
 /**
  * Check whether a value is safely JSON-serializable as a plain primitive /
- * array / object. Drops functions, class instances, Symbols, and circular
- * references (Spec 65 §10.4).
+ * array / plain object **all the way down**. Drops functions, class instances
+ * (Date / Map / user classes), Symbols, BigInts, and circular references
+ * (Spec 65 §10.4).
+ *
+ * Nested validation matters: a raw `{ when: new Date() }` will serialize via
+ * `JSON.stringify` (Date has its own toJSON), but the live Date instance
+ * remains on the in-memory object the handler reads via `ctx.meta.get(...)`.
+ * Rejecting the key outright keeps the handler-visible view consistent with
+ * `meta.toJSON()`.
  */
-function isJsonSerializable(value: unknown): boolean {
+function isJsonSerializable(value: unknown, seen?: WeakSet<object>): boolean {
   if (value === null) return true;
   const t = typeof value;
   if (t === "string" || t === "number" || t === "boolean") return true;
   if (t === "function" || t === "symbol" || t === "undefined" || t === "bigint") return false;
-  // object — arrays and plain objects only; try a JSON round-trip as a
-  // cheap guard against circular refs / class instances with custom
-  // toJSON that throw.
-  try {
-    JSON.stringify(value);
-  } catch {
-    return false;
+  // object — arrays and plain objects only; walk recursively to catch
+  // class instances / non-plain prototypes nested inside otherwise-plain
+  // containers.
+  const tracker = seen ?? new WeakSet<object>();
+  if (tracker.has(value as object)) return false; // circular
+  tracker.add(value as object);
+  if (Array.isArray(value)) {
+    return value.every((v) => isJsonSerializable(v, tracker));
   }
-  // Reject non-plain objects (class instances, Dates, Maps, etc.).
-  // Plain objects have Object.prototype or null prototype; arrays pass too.
-  if (Array.isArray(value)) return true;
   const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
+  if (proto !== Object.prototype && proto !== null) return false;
+  for (const v of Object.values(value as Record<string, unknown>)) {
+    if (!isJsonSerializable(v, tracker)) return false;
+  }
+  return true;
 }
 
 /** Strip `_`-prefixed keys from an input object (returns a shallow copy). */
@@ -95,6 +104,18 @@ function filterSerializable(input: Record<string, unknown>): Record<string, unkn
 }
 
 /**
+ * Enforce the serialized-size limit on an already-filtered meta payload.
+ * Throws {@link MetaSizeError} when exceeded.
+ */
+function assertSizeLimit(entries: Record<string, unknown>, maxBytes: number): void {
+  const serialized = JSON.stringify(entries);
+  const sizeBytes = new TextEncoder().encode(serialized).length;
+  if (sizeBytes > maxBytes) {
+    throw new MetaSizeError(sizeBytes, maxBytes);
+  }
+}
+
+/**
  * Internal implementation of {@link ExecutionMeta}.
  *
  * Framework code uses {@link extend} to build child meta on nested `ctx.execute`
@@ -103,9 +124,12 @@ function filterSerializable(input: Record<string, unknown>): Record<string, unkn
  */
 export class ExecutionMetaImpl implements ExecutionMeta {
   private readonly data: ReadonlyMap<string, unknown>;
+  /** Size limit carried through {@link extend} so nested calls enforce the same ceiling. */
+  private readonly maxBytes: number;
 
-  constructor(entries: Record<string, unknown>) {
+  constructor(entries: Record<string, unknown>, maxBytes: number = DEFAULT_META_MAX_BYTES) {
     this.data = new Map(Object.entries(entries));
+    this.maxBytes = maxBytes;
   }
 
   get<T = unknown>(key: string): T | undefined {
@@ -130,15 +154,22 @@ export class ExecutionMetaImpl implements ExecutionMeta {
   /**
    * Create a child meta by merging `extra` into the current entries.
    *
-   * Semantics (Spec 65 §4.3, §4.4):
+   * Semantics (Spec 65 §4.3, §4.4, §10):
    * - `_`-prefixed keys in `extra` are silently dropped (system-only namespace).
+   * - Non-JSON-serializable values in `extra` are dropped (same filter as
+   *   {@link createExecutionMeta}) — nested `ctx.execute` must not be a way
+   *   to smuggle Dates, class instances, or functions into meta.
    * - For remaining keys, parent wins — `extra` keys only add new entries.
    * - `systemOverrides` is applied unconditionally (framework-owned updates
    *   like `_depth`, `_source_action`).
+   * - The resulting serialized payload must stay under {@link maxBytes};
+   *   throws {@link MetaSizeError} otherwise. Inherits the parent's limit.
    *
    * Framework-only; not exposed on the {@link ExecutionMeta} interface so
    * handler code cannot accidentally extend meta (use `ctx.execute(..., { meta })`
    * instead).
+   *
+   * @throws {MetaSizeError} When the merged payload exceeds the size limit.
    */
   extend(
     extra: Record<string, unknown>,
@@ -146,16 +177,20 @@ export class ExecutionMetaImpl implements ExecutionMeta {
   ): ExecutionMetaImpl {
     const merged: Record<string, unknown> = { ...this.toJSON() };
     const strippedExtra = stripSystemKeys(extra);
-    for (const [k, v] of Object.entries(strippedExtra)) {
+    const safeExtra = filterSerializable(strippedExtra);
+    for (const [k, v] of Object.entries(safeExtra)) {
       // Parent always wins — child can only add new keys.
       if (!Object.hasOwn(merged, k)) {
         merged[k] = v;
       }
     }
     if (systemOverrides) {
-      Object.assign(merged, systemOverrides);
+      // System overrides are framework-trusted but still filtered for
+      // serializability so a programmer error can't poison the chain.
+      Object.assign(merged, filterSerializable(systemOverrides));
     }
-    return new ExecutionMetaImpl(merged);
+    assertSizeLimit(merged, this.maxBytes);
+    return new ExecutionMetaImpl(merged, this.maxBytes);
   }
 }
 
@@ -215,11 +250,7 @@ export function createExecutionMeta(options: CreateExecutionMetaOptions = {}): E
 
   const merged: Record<string, unknown> = { ...safeRaw, ...safeSystemKeys };
 
-  const serialized = JSON.stringify(merged);
-  const sizeBytes = new TextEncoder().encode(serialized).length;
-  if (sizeBytes > maxSizeBytes) {
-    throw new MetaSizeError(sizeBytes, maxSizeBytes);
-  }
+  assertSizeLimit(merged, maxSizeBytes);
 
-  return new ExecutionMetaImpl(merged);
+  return new ExecutionMetaImpl(merged, maxSizeBytes);
 }

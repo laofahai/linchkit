@@ -13,7 +13,7 @@ import { describe, expect, test } from "bun:test";
 import { createActionExecutor } from "../src/engine/action-engine";
 import { createCommandLayer } from "../src/engine/command-layer";
 import type { ActionContext, ActionDefinition, Actor } from "../src/types/action";
-import { createExecutionMeta } from "../src/types/execution-meta";
+import { createExecutionMeta, DEFAULT_META_MAX_BYTES } from "../src/types/execution-meta";
 import { createTestDataProvider } from "./command-layer-helpers";
 
 const defaultActor: Actor = {
@@ -365,5 +365,106 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect(captures[0].meta.flow).toBe("custom");
     expect(captures[0].meta._channel).toBe("mcp");
     expect(captures[0].meta._execution_id).toBe("trace_z");
+  });
+
+  // Codex follow-up: child ctx.execute must enforce the same size limit as
+  // root meta construction. If `extend` throws MetaSizeError, ctx.execute
+  // surfaces it as a failed child result rather than bubbling the exception
+  // up and crashing the parent handler.
+  test("child ctx.execute with over-limit meta returns a failed result, not throws", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let childRan = false;
+    let childReturn: unknown = null;
+
+    executor.registry.register({
+      name: "child",
+      entity: "item",
+      label: "Child",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async () => {
+        childRan = true;
+        return { ok: true };
+      },
+    });
+
+    executor.registry.register({
+      name: "parent_with_oversize_child_meta",
+      entity: "item",
+      label: "Parent",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        childReturn = await ctx.execute(
+          "child",
+          {},
+          { meta: { huge: "x".repeat(DEFAULT_META_MAX_BYTES + 100) } },
+        );
+        return { ok: true };
+      },
+    });
+
+    const result = await executor.execute("parent_with_oversize_child_meta", {}, defaultActor);
+
+    // Parent succeeds — its handler caught the failed child result and returned normally.
+    expect(result.success).toBe(true);
+    // Child never actually executed (size check failed before it could).
+    expect(childRan).toBe(false);
+    // ctx.execute returned the failed result's `data` — shaped like other
+    // action failures so handlers can pattern-match.
+    const childData = childReturn as Record<string, unknown>;
+    expect(childData.code).toBe("META.SIZE_EXCEEDED");
+  });
+
+  test("child ctx.execute drops non-serializable meta extras (mirrors root)", async () => {
+    // `extend` applies the same serializable filter as `createExecutionMeta`,
+    // so a child's attempt to stash a Date/function in meta is silently dropped
+    // rather than leaked to downstream handlers.
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    let childMetaJson: Record<string, unknown> = {};
+
+    executor.registry.register({
+      name: "child_capture",
+      entity: "item",
+      label: "Child Capture",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        childMetaJson = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    executor.registry.register({
+      name: "parent_dirty_meta",
+      entity: "item",
+      label: "Parent",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        await ctx.execute(
+          "child_capture",
+          {},
+          {
+            meta: {
+              nested_date: { when: new Date() }, // dropped (nested Date)
+              cb: () => 1, // dropped (function)
+              ok_flag: true, // kept
+            },
+          },
+        );
+        return { ok: true };
+      },
+    });
+
+    await executor.execute("parent_dirty_meta", {}, defaultActor);
+
+    expect("nested_date" in childMetaJson).toBe(false);
+    expect("cb" in childMetaJson).toBe(false);
+    expect(childMetaJson.ok_flag).toBe(true);
   });
 });

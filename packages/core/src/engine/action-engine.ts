@@ -16,7 +16,7 @@ import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
-import { createExecutionMeta, extendExecutionMeta } from "../types/execution-meta";
+import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
@@ -478,10 +478,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // ExecutionMeta interface read-only from the handler's perspective —
         // handlers can't accidentally mutate meta by calling `.extend(...)`
         // on `ctx.meta`.
-        const childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
-          _depth: currentDepth + 1,
-          _source_action: actionName,
-        });
+        // `extend` enforces the same filter + size limit as root meta
+        // construction. If the merged child payload exceeds 8 KB, surface the
+        // error as a failed ActionResult rather than letting the exception
+        // bubble up and crash the parent handler — consistent with how other
+        // child failures flow back to the caller (ctx.execute returns result.data).
+        let childMeta: ExecutionMeta;
+        try {
+          childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
+            _depth: currentDepth + 1,
+            _source_action: actionName,
+          });
+        } catch (err) {
+          if (err instanceof MetaSizeError) {
+            const failedId = generateExecutionId();
+            childExecutionIds.push(failedId);
+            return { error: err.message, code: err.code };
+          }
+          throw err;
+        }
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
           _depth: currentDepth + 1,

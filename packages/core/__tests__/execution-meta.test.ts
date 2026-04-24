@@ -245,4 +245,76 @@ describe("createExecutionMeta", () => {
     const meta = createExecutionMeta();
     expect(meta.toJSON()).toEqual({});
   });
+
+  // Codex follow-up: nested values must be recursively validated. A Date or
+  // function embedded inside an otherwise-plain object was previously passing
+  // the filter because JSON.stringify tolerated it — handlers then observed
+  // a live Date/function that diverged from `meta.toJSON()`.
+  test("recursively drops keys containing nested Date / class instance", () => {
+    const meta = createExecutionMeta({
+      raw: {
+        nestedDate: { when: new Date() },
+        nestedClass: { inst: new (class {})() },
+        nestedFn: { cb: () => 1 },
+        nestedOk: { a: { b: "c" } },
+      },
+    });
+    expect(meta.has("nestedDate")).toBe(false);
+    expect(meta.has("nestedClass")).toBe(false);
+    expect(meta.has("nestedFn")).toBe(false);
+    expect(meta.get("nestedOk")).toEqual({ a: { b: "c" } });
+  });
+
+  test("recursively drops arrays whose elements are non-serializable", () => {
+    const meta = createExecutionMeta({
+      raw: {
+        arrWithFn: [1, () => 2, 3],
+        arrClean: [1, 2, 3],
+      },
+    });
+    expect(meta.has("arrWithFn")).toBe(false);
+    expect(meta.get("arrClean")).toEqual([1, 2, 3]);
+  });
+});
+
+// Codex follow-up: extend() must apply the same filter + size limit so nested
+// ctx.execute meta cannot smuggle non-serializable values or exceed 8 KB.
+describe("ExecutionMetaImpl.extend safety", () => {
+  test("extend drops non-serializable extra keys", () => {
+    const parent = new ExecutionMetaImpl({ a: 1 });
+    const child = parent.extend({ bad: () => 1, date: new Date(), ok: "yes" });
+    expect(child.has("bad")).toBe(false);
+    expect(child.has("date")).toBe(false);
+    expect(child.get("ok")).toBe("yes");
+  });
+
+  test("extend drops extras whose nested values are non-serializable", () => {
+    const parent = new ExecutionMetaImpl({ a: 1 });
+    const child = parent.extend({ nested: { when: new Date() } });
+    expect(child.has("nested")).toBe(false);
+  });
+
+  test("extend enforces size limit inherited from parent", () => {
+    const parent = new ExecutionMetaImpl({ a: 1 });
+    expect(() => parent.extend({ huge: "x".repeat(DEFAULT_META_MAX_BYTES + 1) })).toThrow(
+      MetaSizeError,
+    );
+  });
+
+  test("extendExecutionMeta enforces size on non-ExecutionMetaImpl parent", () => {
+    const fakeParent = {
+      get: () => undefined,
+      require: () => undefined,
+      has: () => false,
+      toJSON: () => ({ a: 1 }),
+    };
+    expect(() =>
+      extendExecutionMeta(fakeParent, { huge: "x".repeat(DEFAULT_META_MAX_BYTES + 1) }),
+    ).toThrow(MetaSizeError);
+  });
+
+  test("custom size limit from constructor is honored by extend", () => {
+    const parent = new ExecutionMetaImpl({ a: 1 }, 64);
+    expect(() => parent.extend({ big: "x".repeat(200) })).toThrow(MetaSizeError);
+  });
 });

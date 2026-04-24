@@ -473,6 +473,12 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
           meta = createExecutionMeta({ raw: c.meta, systemKeys });
         } catch (err) {
           if (err instanceof MetaSizeError) {
+            // Meta is invalid → the action never runs. Post-action hooks
+            // (cache invalidation, event fan-out, notifications) are write-side
+            // semantics and MUST NOT fire when there were no writes. Add
+            // `post-action` to the skipped set so the loop below is a no-op,
+            // mirroring the skipActionSlots contract.
+            skippedSlots.add("post-action");
             c.result = {
               success: false,
               data: { error: err.message, code: err.code },
