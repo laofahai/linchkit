@@ -7,6 +7,7 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import type { EntityRegistry } from "../entity/entity-registry";
 import type { EventBus } from "../event/event-bus";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
@@ -18,6 +19,7 @@ import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log"
 import type { ExecutionMeta } from "../types/execution-meta";
 import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
+import { checkFieldLocks, type FieldLockViolation } from "./field-lock-checker";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
 
@@ -191,6 +193,13 @@ export interface ActionExecutorOptions {
   eventBus?: EventBus;
   /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
   capabilityNames?: ReadonlySet<string>;
+  /**
+   * EntityRegistry used by the field-lock checker (Spec 63 Phase 1). When
+   * omitted the lock check is skipped — immutable / lockWhen / lockAllWhen
+   * enforcement requires entity metadata. Tests that don't care about locking
+   * can omit this; production wiring (Runtime) always supplies it.
+   */
+  entityRegistry?: EntityRegistry;
 }
 
 /**
@@ -236,8 +245,9 @@ function fillMissingSystemKeys(
  * The executor follows the simplified M0b execution flow:
  * 1. Look up action definition
  * 2. Exposure check
- * 3. Permission check
+ * 3. Actor-type check
  * 4. Input validation
+ * 4b. Field-lock check (Spec 63 — immutable / lockWhen / lockAllWhen)
  * 5. Pre-validation (validate.required, validate.custom)
  * 6. State transition check
  * 7. Execute (declarative or handler)
@@ -256,6 +266,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     logger: injectedLogger,
     eventBus,
     capabilityNames = new Set<string>(),
+    entityRegistry,
   } = options;
 
   /** Silent noop logger — used when no logger is injected */
@@ -486,6 +497,90 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
+    // ── Step 4b: Field-lock check (Spec 63 Phase 1) ────────────────
+    //
+    // The checker needs the existing record, so we hoist the fetch here and
+    // reuse it below in Step 6 (state transition) to avoid double-fetch on
+    // real DBs. The fetch only runs when:
+    //   1. `input.id` is present (update-style call), AND
+    //   2. an entityRegistry was injected AND the entity has something
+    //      to enforce (immutable / lockWhen / lockAllWhen on any field),
+    //      OR the action declares a state transition (existing behavior).
+    //
+    // When only state-transition needs the record we still fetch so Step 6
+    // can consume it without a second round-trip.
+    const recordId = input.id as string | undefined;
+    const entityDef = entityRegistry?.get(action.entity);
+    const hasLockMetadata =
+      !!entityDef &&
+      (entityDef.lockAllWhen !== undefined ||
+        Object.values(entityDef.fields).some(
+          (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
+        ));
+    const needsLockCheck = !!recordId && !!entityDef && hasLockMetadata;
+    const needsStateFetch = !!recordId && !!action.stateTransition && !!stateMachine;
+
+    let existingRecord: Record<string, unknown> | undefined;
+    let existingRecordFetchError = false;
+    if (recordId && (needsLockCheck || needsStateFetch)) {
+      try {
+        existingRecord = await baseProvider.get(action.entity, recordId, queryOptions);
+      } catch {
+        existingRecordFetchError = true;
+      }
+    }
+
+    if (needsLockCheck && entityDef && existingRecord) {
+      const violations: FieldLockViolation[] = checkFieldLocks({
+        entity: entityDef,
+        existingRecord,
+        input,
+      });
+      if (violations.length > 0) {
+        const firstViolation = violations[0];
+        if (!firstViolation) {
+          // Defensive: violations.length > 0 so firstViolation is always defined,
+          // but TS narrows via length check which it doesn't do here.
+          throw new Error("Unreachable: violations non-empty but first is undefined");
+        }
+        const isImmutable = firstViolation.type === "immutable";
+        const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
+        const errorMsg = "Cannot modify locked fields";
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "blocked",
+          error: { message: errorMsg, code: errorCode },
+          startedAt,
+        });
+        return {
+          success: false,
+          data: {
+            error: errorMsg,
+            code: errorCode,
+            details: violations.map((v) => ({
+              field: v.field,
+              type: v.type,
+              message: v.message,
+            })),
+            context: {
+              action: actionName,
+              entity: action.entity,
+              field: firstViolation.field,
+              constraint: isImmutable ? "immutable" : "locked",
+              suggestion: isImmutable
+                ? `Field "${firstViolation.field}" cannot be changed after it is first set`
+                : `Field "${firstViolation.field}" is locked in the current state and cannot be modified`,
+            },
+          } as T,
+          executionId,
+        };
+      }
+    }
+
     // Resolve execution meta. `execOptions.meta` is typed as
     // `ExecutionMeta | Record<string, unknown>` so direct-executor callers can
     // pass a plain record (e.g., `executor.execute(..., { meta: { foo: 1 } })`)
@@ -682,15 +777,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         ? action.stateTransition.from
         : [action.stateTransition.from];
 
-      // Get current state from input or record
-      const recordId = input.id as string | undefined;
+      // Get current state from input or record. The record itself was already
+      // fetched above (Step 4b) when `input.id` was present; reuse it to
+      // avoid a second round-trip on real databases.
       let currentState: string | undefined;
 
       if (recordId) {
-        try {
-          const record = await baseProvider.get(action.entity, recordId, queryOptions);
-          currentState = record.status as string | undefined;
-        } catch {
+        if (existingRecordFetchError || !existingRecord) {
           // Record fetch failed — fail closed when state transition is required
           const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
           await logExecution({
@@ -709,6 +802,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             executionId,
           };
         }
+        currentState = existingRecord.status as string | undefined;
       }
 
       if (currentState !== undefined) {

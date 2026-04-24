@@ -1,0 +1,132 @@
+/**
+ * Field-lock enforcement (Spec 63 Phase 1).
+ *
+ * Runs on update actions and reports violations for:
+ *  1. `immutable: true` (and the deprecated `readonly: true` alias) — the
+ *     field cannot change once it has been set to a non-null value.
+ *  2. `lockWhen` (per-field) and `lockAllWhen` + `lockAllowFields`
+ *     (entity-wide) — conditional readonly based on the existing record's
+ *     state. Per-field `lockWhen` always wins; `lockAllowFields` exempts a
+ *     field from `lockAllWhen` only.
+ *
+ * Fields absent from the entity definition are ignored — other layers
+ * (input validation, write-time column filter) handle unknown fields.
+ */
+
+import type { EntityDefinition, LockCondition } from "../types/entity";
+
+export type FieldLockViolationType = "immutable" | "locked";
+
+export interface FieldLockViolation {
+  /** Field name that violated a lock rule */
+  field: string;
+  /** Which rule was violated */
+  type: FieldLockViolationType;
+  /** For `locked` violations: the lock condition that triggered the block */
+  condition?: LockCondition;
+  /** Human-readable violation message */
+  message: string;
+}
+
+export interface FieldLockCheckArgs {
+  entity: EntityDefinition;
+  existingRecord: Record<string, unknown>;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Evaluate a {@link LockCondition} against the existing record.
+ *
+ * Phase 1 covers only `state` (string | string[] | {not}). Lock conditions
+ * without `state` (e.g., future `domain`-only conditions) return `false` —
+ * the engine is forward-compatible: new fields without a Phase 1 handler
+ * act as no-ops rather than throwing.
+ */
+export function matchesLockCondition(
+  record: Record<string, unknown>,
+  condition: LockCondition,
+): boolean {
+  if (condition.state !== undefined) {
+    const status = record.status as string | undefined;
+    const spec = condition.state;
+    if (typeof spec === "string") {
+      return status === spec;
+    }
+    if (Array.isArray(spec)) {
+      return status !== undefined && spec.includes(status);
+    }
+    // { not: ... } — lock when status is none of the excluded values.
+    // `status === undefined` means "no status set" which we treat as
+    // NOT matching `not: x` (can't exclude what isn't there) to avoid
+    // false positives on records that don't use a status field at all.
+    const excluded = spec.not;
+    const excludedArr = typeof excluded === "string" ? [excluded] : excluded;
+    return status !== undefined && !excludedArr.includes(status);
+  }
+  // Phase 1: `domain` is reserved. Any condition lacking a `state` clause
+  // is treated as a no-op until Phase 2 implements domain evaluation.
+  return false;
+}
+
+/**
+ * Return all field-lock violations for the given update input.
+ *
+ * - Immutable is checked first; if a field both violates immutable AND
+ *   matches a lock condition, only the immutable violation is reported
+ *   (immutable is the more specific, permanent rule).
+ * - Fields missing from `entity.fields` are silently ignored.
+ */
+export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] {
+  const violations: FieldLockViolation[] = [];
+  const { entity, existingRecord, input } = args;
+
+  for (const [fieldName, newValue] of Object.entries(input)) {
+    const field = entity.fields[fieldName];
+    if (!field) continue;
+
+    const existing = existingRecord[fieldName];
+
+    // 1. Immutable (or deprecated `readonly` alias) — only enforced once the
+    //    field has a non-null existing value. First-write (existing == null)
+    //    is always allowed, including the transition null -> value.
+    const isImmutable = field.immutable === true || field.readonly === true;
+    if (isImmutable && existing != null) {
+      // Same-value re-writes are no-ops and must not raise a violation.
+      // Use strict equality for primitives and JSON round-trip equality for
+      // objects/arrays (fields are structured data — no functions / symbols).
+      const bothObjects = typeof existing === "object" || typeof newValue === "object";
+      const changed = bothObjects
+        ? JSON.stringify(existing) !== JSON.stringify(newValue)
+        : existing !== newValue;
+      if (changed) {
+        violations.push({
+          field: fieldName,
+          type: "immutable",
+          message: `Field "${fieldName}" is immutable and cannot be modified`,
+        });
+        // Don't also report this field as locked — immutable is more specific.
+        continue;
+      }
+    }
+
+    // 2. Per-field `lockWhen` beats entity-level `lockAllWhen`.
+    //    `lockAllowFields` exempts a field from `lockAllWhen` only — it does
+    //    NOT bypass an explicit per-field `lockWhen` on the same field.
+    const lockCondition: LockCondition | undefined =
+      field.lockWhen ??
+      (entity.lockAllowFields?.includes(fieldName) ? undefined : entity.lockAllWhen);
+
+    if (lockCondition && matchesLockCondition(existingRecord, lockCondition)) {
+      const statusMsg =
+        typeof existingRecord.status === "string" ? ` in state "${existingRecord.status}"` : "";
+      violations.push({
+        field: fieldName,
+        type: "locked",
+        condition: lockCondition,
+        message: `Field "${fieldName}" is locked${statusMsg}`,
+      });
+    }
+  }
+
+  return violations;
+}
