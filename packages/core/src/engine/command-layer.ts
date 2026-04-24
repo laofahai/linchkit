@@ -318,8 +318,10 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       ctx.action = action;
     }
 
-    // Determine if permission middleware is registered (#1 — fail-closed)
-    const hasPermissionMiddleware = getSlotMiddlewares("permission").length > 0;
+    // Determine if permission middleware is registered (#1 — fail-closed).
+    // Use `.some()` rather than `getSlotMiddlewares().length > 0` to avoid
+    // filtering+sorting the middleware array on every request.
+    const hasPermissionMiddleware = middlewares.some((m) => m.slot === "permission");
 
     // Fail-closed guard: non-action dispatch (`skipActionSlots`) bypasses the
     // ActionExecutor entirely, so the executor's built-in permission check —
