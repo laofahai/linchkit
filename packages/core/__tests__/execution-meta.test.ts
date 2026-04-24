@@ -318,3 +318,80 @@ describe("ExecutionMetaImpl.extend safety", () => {
     expect(() => parent.extend({ big: "x".repeat(200) })).toThrow(MetaSizeError);
   });
 });
+
+// Codex round-2 follow-up: shared subobject references must not be classified
+// as circular, and nested values must be detached from caller + read-only to handlers.
+describe("ExecutionMeta read-only + shared-ref handling", () => {
+  test("shared sibling subobjects are accepted (not mis-detected as circular)", () => {
+    const shared = { s: "y" };
+    const meta = createExecutionMeta({
+      raw: {
+        payload: { a: shared, b: shared },
+        items: [shared, shared, shared],
+      },
+    });
+    expect(meta.has("payload")).toBe(true);
+    expect(meta.has("items")).toBe(true);
+    const items = meta.get<unknown[]>("items");
+    expect(items?.length).toBe(3);
+  });
+
+  test("true circular reference still rejected", () => {
+    const cyclic: Record<string, unknown> = { a: 1 };
+    cyclic.self = cyclic;
+    const meta = createExecutionMeta({
+      raw: {
+        bad: cyclic,
+        good: "kept",
+      },
+    });
+    expect(meta.has("bad")).toBe(false);
+    expect(meta.get("good")).toBe("kept");
+  });
+
+  test("construction detaches from caller's object graph", () => {
+    const raw = { nested: { count: 1 } };
+    const meta = createExecutionMeta({ raw });
+    // Mutating the caller's original does NOT affect the stored meta.
+    (raw.nested as { count: number }).count = 999;
+    const stored = meta.get<{ count: number }>("nested");
+    expect(stored?.count).toBe(1);
+  });
+
+  test("values returned from get() are frozen — handler mutation is rejected", () => {
+    const meta = createExecutionMeta({ raw: { nested: { count: 1 } } });
+    const view = meta.get<{ count: number }>("nested");
+    expect(view).toBeDefined();
+    expect(Object.isFrozen(view)).toBe(true);
+    // Strict-mode throws on write to frozen property (ES modules = strict mode).
+    expect(() => {
+      if (view) view.count = 999;
+    }).toThrow();
+    expect(meta.get<{ count: number }>("nested")?.count).toBe(1);
+  });
+
+  test("values inside toJSON() snapshot are frozen at nested levels", () => {
+    const meta = createExecutionMeta({ raw: { nested: { a: 1 } } });
+    const snap = meta.toJSON();
+    // Top level of snapshot is a fresh Object (from Object.fromEntries) —
+    // mutable; the existing "toJSON returns a shallow copy" test documents this.
+    snap.extra = "ok"; // allowed
+    expect("extra" in snap).toBe(true);
+    // Nested values remain frozen — cannot mutate through the snapshot either.
+    const nestedInSnap = snap.nested as { a: number };
+    expect(Object.isFrozen(nestedInSnap)).toBe(true);
+    expect(() => {
+      nestedInSnap.a = 999;
+    }).toThrow();
+    // And the meta itself is unchanged.
+    expect(meta.get<{ a: number }>("nested")?.a).toBe(1);
+  });
+
+  test("arrays in meta are frozen — push / index assignment rejected", () => {
+    const meta = createExecutionMeta({ raw: { list: [1, 2, 3] } });
+    const list = meta.get<number[]>("list");
+    expect(Object.isFrozen(list)).toBe(true);
+    expect(() => list?.push(4)).toThrow();
+    expect(meta.get<number[]>("list")?.length).toBe(3);
+  });
+});

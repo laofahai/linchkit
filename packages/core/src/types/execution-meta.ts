@@ -62,7 +62,7 @@ export interface ExecutionMeta {
  * Rejecting the key outright keeps the handler-visible view consistent with
  * `meta.toJSON()`.
  */
-function isJsonSerializable(value: unknown, seen?: WeakSet<object>): boolean {
+function isJsonSerializable(value: unknown, ancestors?: WeakSet<object>): boolean {
   if (value === null) return true;
   const t = typeof value;
   if (t === "string" || t === "number" || t === "boolean") return true;
@@ -70,18 +70,71 @@ function isJsonSerializable(value: unknown, seen?: WeakSet<object>): boolean {
   // object — arrays and plain objects only; walk recursively to catch
   // class instances / non-plain prototypes nested inside otherwise-plain
   // containers.
-  const tracker = seen ?? new WeakSet<object>();
-  if (tracker.has(value as object)) return false; // circular
-  tracker.add(value as object);
+  //
+  // `ancestors` tracks the *current recursion path* (objects we are inside),
+  // not every object seen anywhere in the tree. Using a per-subtree visited
+  // set would mis-classify a legitimately shared reference — e.g.,
+  // `{ a: shared, b: shared }` — as circular. Add on descent, remove on
+  // ascent so sibling branches start with a clean path view.
+  const path = ancestors ?? new WeakSet<object>();
+  if (path.has(value as object)) return false; // true circular reference
   if (Array.isArray(value)) {
-    return value.every((v) => isJsonSerializable(v, tracker));
+    path.add(value as object);
+    try {
+      for (const v of value) {
+        if (!isJsonSerializable(v, path)) return false;
+      }
+    } finally {
+      path.delete(value as object);
+    }
+    return true;
   }
   const proto = Object.getPrototypeOf(value);
   if (proto !== Object.prototype && proto !== null) return false;
-  for (const v of Object.values(value as Record<string, unknown>)) {
-    if (!isJsonSerializable(v, tracker)) return false;
+  path.add(value as object);
+  try {
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      if (!isJsonSerializable(v, path)) return false;
+    }
+  } finally {
+    path.delete(value as object);
   }
   return true;
+}
+
+/**
+ * Recursively freeze an object graph. The graph is assumed to be acyclic and
+ * JSON-serializable (both already validated by {@link isJsonSerializable}
+ * before this runs), so a plain depth-first walk is sufficient — no visited
+ * tracking needed.
+ */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  Object.freeze(value);
+  if (Array.isArray(value)) {
+    for (const v of value) deepFreeze(v);
+  } else {
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+  }
+  return value;
+}
+
+/**
+ * Detach `entries` from the caller's object graph and freeze the clone so
+ * handlers can neither affect our internal state by mutating their original
+ * object nor mutate values retrieved via `ctx.meta.get(...)` / `toJSON()`.
+ *
+ * Uses `structuredClone` when available (Bun / Node ≥ 17); falls back to a
+ * JSON round-trip otherwise — safe because `filterSerializable` already
+ * guaranteed JSON-serializability.
+ */
+function cloneAndFreezeEntries(entries: Record<string, unknown>): Record<string, unknown> {
+  const clone =
+    typeof structuredClone === "function"
+      ? structuredClone(entries)
+      : (JSON.parse(JSON.stringify(entries)) as Record<string, unknown>);
+  deepFreeze(clone);
+  return clone;
 }
 
 /** Strip `_`-prefixed keys from an input object (returns a shallow copy). */
@@ -128,7 +181,14 @@ export class ExecutionMetaImpl implements ExecutionMeta {
   private readonly maxBytes: number;
 
   constructor(entries: Record<string, unknown>, maxBytes: number = DEFAULT_META_MAX_BYTES) {
-    this.data = new Map(Object.entries(entries));
+    // Deep-clone + deep-freeze so the stored payload is fully detached from
+    // caller-provided object graphs AND cannot be mutated through values
+    // returned by `get` / `require` / `toJSON`. Spec 65 §4.2 — meta is
+    // read-only after construction. Silent freeze works in sloppy mode;
+    // strict-mode callers get a TypeError on mutation attempts, which is
+    // the desired surfacing behavior.
+    const frozen = cloneAndFreezeEntries(entries);
+    this.data = new Map(Object.entries(frozen));
     this.maxBytes = maxBytes;
   }
 
