@@ -15,6 +15,7 @@ import { getCurrentTrace } from "../observability/trace-context";
 import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
+import type { FieldDefinition } from "../types/entity";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
 import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
@@ -503,21 +504,58 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // reuse it below in Step 6 (state transition) to avoid double-fetch on
     // real DBs. The fetch only runs when:
     //   1. `input.id` is present (update-style call), AND
-    //   2. an entityRegistry was injected AND the entity has something
-    //      to enforce (immutable / lockWhen / lockAllWhen on any field),
-    //      OR the action declares a state transition (existing behavior).
+    //   2. an entityRegistry was injected AND the resolved entity has
+    //      something to enforce (immutable / lockWhen / lockAllWhen on any
+    //      field, including inherited / interface-injected / overridden
+    //      fields), OR the action declares a state transition.
     //
     // When only state-transition needs the record we still fetch so Step 6
     // can consume it without a second round-trip.
+    //
+    // Why `resolve()` instead of `get()`:
+    //   - Child schemas inherit immutable/lockWhen from their parent.
+    //   - Interfaces inject fields with their own lock metadata.
+    //   - Tenant overlays (`applyOverride`) can tighten constraints
+    //     (e.g., flip a field to `immutable: true`).
+    // The raw `EntityDefinition.fields` sees none of the above; without
+    // `resolve()` those flows would silently bypass lock enforcement.
     const recordId = input.id as string | undefined;
-    const entityDef = entityRegistry?.get(action.entity);
+
+    // resolve() throws when the entity isn't registered — a missing entity is
+    // already surfaced by downstream layers (write will fail), so degrade
+    // gracefully here rather than fail-closing on a diagnostic error.
+    let resolvedEntity: ReturnType<EntityRegistry["resolve"]> | undefined;
+    if (entityRegistry) {
+      try {
+        resolvedEntity = entityRegistry.resolve(action.entity);
+      } catch (err) {
+        logger.warn(
+          `[field-lock] Cannot resolve entity "${action.entity}" — skipping lock check: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    // Build a flat FieldDefinition map for the checker. Walking
+    // `resolvedEntity.fields` captures inherited + interface + override fields.
+    const resolvedFields: Record<string, FieldDefinition> = {};
+    if (resolvedEntity) {
+      for (const [fname, rf] of Object.entries(resolvedEntity.fields)) {
+        resolvedFields[fname] = rf.definition;
+      }
+    }
+
+    const lockAllWhen = resolvedEntity?.source.lockAllWhen;
+    const lockAllowFields = resolvedEntity?.source.lockAllowFields;
+
     const hasLockMetadata =
-      !!entityDef &&
-      (entityDef.lockAllWhen !== undefined ||
-        Object.values(entityDef.fields).some(
+      !!resolvedEntity &&
+      (lockAllWhen !== undefined ||
+        Object.values(resolvedFields).some(
           (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
         ));
-    const needsLockCheck = !!recordId && !!entityDef && hasLockMetadata;
+    const needsLockCheck = !!recordId && !!resolvedEntity && hasLockMetadata;
     const needsStateFetch = !!recordId && !!action.stateTransition && !!stateMachine;
 
     let existingRecord: Record<string, unknown> | undefined;
@@ -530,11 +568,40 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    if (needsLockCheck && entityDef && existingRecord) {
+    if (needsLockCheck && resolvedEntity && existingRecord) {
+      // Pre-compute the effective write set for lock checking.
+      //
+      //   input (caller-provided)
+      //   + setFields resolved values (declarative writes — $-expressions
+      //     resolved to concrete values)
+      //   - id                        — never lock-checked (key field)
+      //   - status (when a state transition is active)
+      //
+      // The state-transition status write is authorized separately by the
+      // state-machine layer. Lock-checking it here would reject valid
+      // transitions out of any "locked" state (e.g., transitioning from
+      // `draft` when `lockAllWhen: { state: "draft" }` is declared).
+      //
+      // Handler-based actions (`action.handler`) write via `ctx.update(...)`
+      // with arbitrary data that can't be inspected pre-flight. Those writes
+      // are NOT lock-checked — see the checker's JSDoc.
+      const writesToCheck: Record<string, unknown> = { ...input };
+      delete writesToCheck.id;
+      if (action.setFields) {
+        for (const [key, value] of Object.entries(action.setFields)) {
+          writesToCheck[key] = resolveFieldExpression(value, input, actor);
+        }
+      }
+      if (action.stateTransition) {
+        delete writesToCheck.status;
+      }
+
       const violations: FieldLockViolation[] = checkFieldLocks({
-        entity: entityDef,
+        fields: resolvedFields,
+        lockAllWhen,
+        lockAllowFields,
         existingRecord,
-        input,
+        input: writesToCheck,
       });
       if (violations.length > 0) {
         const firstViolation = violations[0];

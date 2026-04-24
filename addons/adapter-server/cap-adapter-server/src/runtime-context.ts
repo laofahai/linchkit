@@ -113,6 +113,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     executionLogger,
     aiService: ai,
     capabilityNames: options?.capabilityNames,
+    entityRegistry,
   });
 
   // Register actions

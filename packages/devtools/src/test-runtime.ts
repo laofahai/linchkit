@@ -101,7 +101,7 @@ export function createTestRuntime(options?: TestRuntimeOptions): TestRuntime {
   const dataProvider = createInMemoryDataProvider();
   const entityRegistry = createEntityRegistry();
   const { bus: eventBus } = createEventBus();
-  const executor = createActionExecutor({ dataProvider });
+  const executor = createActionExecutor({ dataProvider, entityRegistry });
 
   // Register entities
   if (options?.entities) {

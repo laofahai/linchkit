@@ -9,11 +9,24 @@
  *     state. Per-field `lockWhen` always wins; `lockAllowFields` exempts a
  *     field from `lockAllWhen` only.
  *
- * Fields absent from the entity definition are ignored — other layers
+ * Fields absent from the supplied `fields` map are ignored — other layers
  * (input validation, write-time column filter) handle unknown fields.
+ *
+ * ### Pre-flight coverage
+ *
+ * The engine calls this checker in Step 4b with the _effective write set_
+ * it can predict from the action definition:
+ *  - Caller `input` (minus `id`)
+ *  - Resolved `action.setFields` values (after `$`-expression resolution)
+ *
+ * Fields written inside an `action.handler` via `ctx.update(...)` /
+ * `ctx.create(...)` are NOT visible pre-flight and therefore are NOT
+ * lock-checked. Declarative actions (those that rely on `setFields` and/or
+ * `stateTransition`) ARE fully covered. Handler-based actions are responsible
+ * for their own lock compliance (or should be migrated to declarative form).
  */
 
-import type { EntityDefinition, LockCondition } from "../types/entity";
+import type { FieldDefinition, LockCondition } from "../types/entity";
 
 export type FieldLockViolationType = "immutable" | "locked";
 
@@ -29,8 +42,25 @@ export interface FieldLockViolation {
 }
 
 export interface FieldLockCheckArgs {
-  entity: EntityDefinition;
+  /**
+   * Resolved field definitions — must include inherited, interface-injected,
+   * and overridden fields. Callers should normally pass the `.definition` of
+   * each {@link import("../types/entity").ResolvedField} so overlays and
+   * inherited immutable/lockWhen flags are honored.
+   */
+  fields: Record<string, FieldDefinition>;
+  /**
+   * Entity-level lock condition from `ResolvedEntity.source.lockAllWhen`.
+   * Not inherited by child entities (a deliberate Phase 1 scope decision).
+   */
+  lockAllWhen?: LockCondition;
+  /** Fields exempt from {@link lockAllWhen}. */
+  lockAllowFields?: string[];
   existingRecord: Record<string, unknown>;
+  /**
+   * Effective write set. The engine combines caller `input` with resolved
+   * `action.setFields` and omits state-transition `status` before calling.
+   */
   input: Record<string, unknown>;
 }
 
@@ -74,14 +104,14 @@ export function matchesLockCondition(
  * - Immutable is checked first; if a field both violates immutable AND
  *   matches a lock condition, only the immutable violation is reported
  *   (immutable is the more specific, permanent rule).
- * - Fields missing from `entity.fields` are silently ignored.
+ * - Fields missing from `args.fields` are silently ignored.
  */
 export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] {
   const violations: FieldLockViolation[] = [];
-  const { entity, existingRecord, input } = args;
+  const { fields, lockAllWhen, lockAllowFields, existingRecord, input } = args;
 
   for (const [fieldName, newValue] of Object.entries(input)) {
-    const field = entity.fields[fieldName];
+    const field = fields[fieldName];
     if (!field) continue;
 
     const existing = existingRecord[fieldName];
@@ -113,8 +143,7 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
     //    `lockAllowFields` exempts a field from `lockAllWhen` only — it does
     //    NOT bypass an explicit per-field `lockWhen` on the same field.
     const lockCondition: LockCondition | undefined =
-      field.lockWhen ??
-      (entity.lockAllowFields?.includes(fieldName) ? undefined : entity.lockAllWhen);
+      field.lockWhen ?? (lockAllowFields?.includes(fieldName) ? undefined : lockAllWhen);
 
     if (lockCondition && matchesLockCondition(existingRecord, lockCondition)) {
       const statusMsg =

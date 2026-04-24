@@ -175,6 +175,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     configRegistry: registry,
     eventBus,
     capabilityNames,
+    entityRegistry,
   });
   for (const action of actionRegistry.getAll()) {
     executor.registry.register(action);
