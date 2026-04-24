@@ -43,7 +43,7 @@ function isSubscriptionError(err: unknown): boolean {
     if (current instanceof Error) {
       messages.push(current.message);
       const code = (current as { code?: unknown }).code;
-      if (typeof code === "string") messages.push(code);
+      if (code != null) messages.push(String(code));
       current = (current as { cause?: unknown }).cause;
     } else {
       messages.push(String(current));
@@ -56,24 +56,34 @@ function isSubscriptionError(err: unknown): boolean {
   );
 }
 
+/**
+ * Run an AI completion and skip the test (by returning undefined) if the
+ * error is a Volcengine subscription/auth failure. Re-throws other errors.
+ */
+async function runWithSubscriptionSkip<T>(fn: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (isSubscriptionError(err)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[e2e] skipped: Volcengine subscription/auth error:", msg);
+      return undefined;
+    }
+    throw err;
+  }
+}
+
 describe.skipIf(!apiKey)("AI Service E2E — Volcengine", () => {
   const ai = createAIService(config);
 
   it("text completion returns a response", async () => {
-    let result: Awaited<ReturnType<typeof ai.complete>>;
-    try {
-      result = await ai.complete({
+    const result = await runWithSubscriptionSkip(() =>
+      ai.complete({
         messages: [{ role: "user", content: "Reply with exactly: hello" }],
         maxTokens: 50,
-      });
-    } catch (err) {
-      if (isSubscriptionError(err)) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn("[e2e] skipped: Volcengine subscription/auth error:", msg);
-        return;
-      }
-      throw err;
-    }
+      }),
+    );
+    if (!result) return;
 
     expect(result.content).toBeTruthy();
     expect(result.content.toLowerCase()).toContain("hello");
@@ -108,20 +118,13 @@ describe.skipIf(!apiKey)("AI Service E2E — Volcengine", () => {
   }, 30_000);
 
   it("respects maxTokens limit", async () => {
-    let result: Awaited<ReturnType<typeof ai.complete>>;
-    try {
-      result = await ai.complete({
+    const result = await runWithSubscriptionSkip(() =>
+      ai.complete({
         messages: [{ role: "user", content: "Count from 1 to 1000" }],
         maxTokens: 20,
-      });
-    } catch (err) {
-      if (isSubscriptionError(err)) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn("[e2e] skipped: Volcengine subscription/auth error:", msg);
-        return;
-      }
-      throw err;
-    }
+      }),
+    );
+    if (!result) return;
 
     // Should be truncated — output tokens near the limit
     expect(result.usage.outputTokens).toBeLessThanOrEqual(30);
