@@ -1,0 +1,369 @@
+/**
+ * ActionEngine — ExecutionMeta propagation through nested ctx.execute (Spec 65 Phase 1).
+ *
+ * Covers:
+ * - Parent's meta keys visible in child action.
+ * - Child's `options.meta` extensions visible to child, but parent keys win on collision.
+ * - `_depth` bumps: root=0, child=1, grandchild=2.
+ * - `_source_action` on the child equals the parent action's name.
+ * - `_execution_id` stays the same across the chain (root id preserved).
+ */
+
+import { describe, expect, test } from "bun:test";
+import { createActionExecutor } from "../src/engine/action-engine";
+import { createCommandLayer } from "../src/engine/command-layer";
+import type { ActionContext, ActionDefinition, Actor } from "../src/types/action";
+import { createExecutionMeta } from "../src/types/execution-meta";
+import { createTestDataProvider } from "./command-layer-helpers";
+
+const defaultActor: Actor = {
+  type: "human",
+  id: "user-1",
+  groups: ["admin"],
+};
+
+/** Captured snapshots from handler ctx — one per action invocation. */
+interface Capture {
+  action: string;
+  meta: Record<string, unknown>;
+  executionId: string;
+}
+
+describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
+  test("parent meta keys visible in child; parent wins on override attempt", async () => {
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const recordCapture = (ctx: ActionContext, name: string) => {
+      captures.push({
+        action: name,
+        meta: ctx.meta.toJSON(),
+        executionId: ctx.executionId,
+      });
+    };
+
+    const parent: ActionDefinition = {
+      name: "parent_action",
+      entity: "item",
+      label: "Parent",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        recordCapture(ctx, "parent_action");
+        // Child tries to override `bulk` (parent set to true) and also adds a new key.
+        await ctx.execute(
+          "child_action",
+          {},
+          {
+            meta: { bulk: false, validation_mode: "strict" },
+          },
+        );
+        return { ok: true };
+      },
+    };
+
+    const child: ActionDefinition = {
+      name: "child_action",
+      entity: "item",
+      label: "Child",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        recordCapture(ctx, "child_action");
+        return { child: true };
+      },
+    };
+
+    executor.registry.register(parent);
+    executor.registry.register(child);
+
+    const layer = createCommandLayer({ executor });
+    const result = await layer.execute({
+      command: "parent_action",
+      input: {},
+      meta: { bulk: true, source: "import" },
+      actor: defaultActor,
+      channel: "internal",
+    });
+
+    expect(result.success).toBe(true);
+    expect(captures.length).toBe(2);
+
+    const [parentCap, childCap] = captures;
+    // Parent sees its original meta.
+    expect(parentCap.meta.bulk).toBe(true);
+    expect(parentCap.meta.source).toBe("import");
+
+    // Child sees parent's keys — parent wins on override attempt.
+    expect(childCap.meta.bulk).toBe(true); // NOT false
+    expect(childCap.meta.source).toBe("import");
+    // Child gets a new key it added that didn't collide.
+    expect(childCap.meta.validation_mode).toBe("strict");
+  });
+
+  test("_depth bumps across nested calls: 0 -> 1 -> 2", async () => {
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const record = (ctx: ActionContext, name: string) => {
+      captures.push({
+        action: name,
+        meta: ctx.meta.toJSON(),
+        executionId: ctx.executionId,
+      });
+    };
+
+    const root: ActionDefinition = {
+      name: "root_action",
+      entity: "item",
+      label: "Root",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "root_action");
+        await ctx.execute("mid_action", {});
+        return { ok: true };
+      },
+    };
+
+    const mid: ActionDefinition = {
+      name: "mid_action",
+      entity: "item",
+      label: "Mid",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "mid_action");
+        await ctx.execute("leaf_action", {});
+        return { mid: true };
+      },
+    };
+
+    const leaf: ActionDefinition = {
+      name: "leaf_action",
+      entity: "item",
+      label: "Leaf",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "leaf_action");
+        return { leaf: true };
+      },
+    };
+
+    executor.registry.register(root);
+    executor.registry.register(mid);
+    executor.registry.register(leaf);
+
+    const layer = createCommandLayer({ executor });
+    await layer.execute({
+      command: "root_action",
+      input: {},
+      meta: {},
+      actor: defaultActor,
+      channel: "internal",
+    });
+
+    expect(captures.length).toBe(3);
+    const byAction = Object.fromEntries(captures.map((c) => [c.action, c]));
+
+    expect(byAction.root_action.meta._depth).toBe(0);
+    expect(byAction.mid_action.meta._depth).toBe(1);
+    expect(byAction.leaf_action.meta._depth).toBe(2);
+  });
+
+  test("_source_action on child equals the parent action name", async () => {
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const record = (ctx: ActionContext, name: string) => {
+      captures.push({
+        action: name,
+        meta: ctx.meta.toJSON(),
+        executionId: ctx.executionId,
+      });
+    };
+
+    const parent: ActionDefinition = {
+      name: "alpha",
+      entity: "item",
+      label: "Alpha",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "alpha");
+        await ctx.execute("beta", {});
+        return { ok: true };
+      },
+    };
+
+    const child: ActionDefinition = {
+      name: "beta",
+      entity: "item",
+      label: "Beta",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "beta");
+        return { beta: true };
+      },
+    };
+
+    executor.registry.register(parent);
+    executor.registry.register(child);
+
+    const layer = createCommandLayer({ executor });
+    await layer.execute({
+      command: "alpha",
+      input: {},
+      actor: defaultActor,
+    });
+
+    const byAction = Object.fromEntries(captures.map((c) => [c.action, c]));
+    // Root action has no _source_action.
+    expect(byAction.alpha.meta._source_action).toBeUndefined();
+    expect(byAction.beta.meta._source_action).toBe("alpha");
+  });
+
+  test("_execution_id stays the same across the chain", async () => {
+    // When the CommandLayer sets `_execution_id` from the traceId, all nested
+    // calls inherit the same root id because `extend` preserves parent keys.
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const record = (ctx: ActionContext, name: string) => {
+      captures.push({
+        action: name,
+        meta: ctx.meta.toJSON(),
+        executionId: ctx.executionId,
+      });
+    };
+
+    const root: ActionDefinition = {
+      name: "root_x",
+      entity: "item",
+      label: "Root X",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "root_x");
+        await ctx.execute("mid_x", {});
+        return { ok: true };
+      },
+    };
+
+    const mid: ActionDefinition = {
+      name: "mid_x",
+      entity: "item",
+      label: "Mid X",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "mid_x");
+        await ctx.execute("leaf_x", {});
+        return { ok: true };
+      },
+    };
+
+    const leaf: ActionDefinition = {
+      name: "leaf_x",
+      entity: "item",
+      label: "Leaf X",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        record(ctx, "leaf_x");
+        return { leaf: true };
+      },
+    };
+
+    executor.registry.register(root);
+    executor.registry.register(mid);
+    executor.registry.register(leaf);
+
+    const layer = createCommandLayer({ executor });
+    // Force a traceId so the CommandLayer stamps `_execution_id` from it.
+    await layer.execute({
+      command: "root_x",
+      input: {},
+      meta: {},
+      actor: defaultActor,
+      traceId: "root_trace_abc",
+    });
+
+    const ids = captures.map((c) => c.meta._execution_id);
+    expect(ids).toEqual(["root_trace_abc", "root_trace_abc", "root_trace_abc"]);
+  });
+
+  test("direct executor call (no CommandLayer) synthesizes meta with system keys", async () => {
+    // When the ActionEngine is invoked directly with no ExecuteOptions.meta,
+    // it must still expose a valid ctx.meta populated with system keys.
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const action: ActionDefinition = {
+      name: "lone",
+      entity: "item",
+      label: "Lone",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captures.push({
+          action: "lone",
+          meta: ctx.meta.toJSON(),
+          executionId: ctx.executionId,
+        });
+        return { ok: true };
+      },
+    };
+    executor.registry.register(action);
+
+    const result = await executor.execute("lone", {}, defaultActor);
+    expect(result.success).toBe(true);
+    expect(captures.length).toBe(1);
+    expect(captures[0].meta._channel).toBe("internal");
+    expect(captures[0].meta._depth).toBe(0);
+    expect(captures[0].meta._execution_id).toBe(captures[0].executionId);
+  });
+
+  test("caller-supplied ExecuteOptions.meta is honored by the engine", async () => {
+    // When ExecutionMeta is passed directly via ExecuteOptions.meta (e.g., a
+    // test or internal caller bypassing the CommandLayer), the engine uses it
+    // rather than synthesizing a fresh one.
+    const captures: Capture[] = [];
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+
+    const action: ActionDefinition = {
+      name: "preset",
+      entity: "item",
+      label: "Preset",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captures.push({
+          action: "preset",
+          meta: ctx.meta.toJSON(),
+          executionId: ctx.executionId,
+        });
+        return { ok: true };
+      },
+    };
+    executor.registry.register(action);
+
+    const preset = createExecutionMeta({
+      raw: { flow: "custom" },
+      systemKeys: { _channel: "mcp", _depth: 0, _execution_id: "trace_z" },
+    });
+    await executor.execute("preset", {}, defaultActor, { meta: preset });
+
+    expect(captures[0].meta.flow).toBe("custom");
+    expect(captures[0].meta._channel).toBe("mcp");
+    expect(captures[0].meta._execution_id).toBe("trace_z");
+  });
+});

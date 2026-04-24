@@ -27,6 +27,18 @@ export type * from "./error";
 export { ERROR_STATUS_MAP } from "./error";
 export type * from "./event";
 export type * from "./execution-log";
+export type {
+  CreateExecutionMetaOptions,
+  ExecutionMeta,
+} from "./execution-meta";
+// Non-type exports: MetaSizeError class, factory + helpers, constant
+export {
+  createExecutionMeta,
+  DEFAULT_META_MAX_BYTES,
+  ExecutionMetaImpl,
+  extendExecutionMeta,
+  MetaSizeError,
+} from "./execution-meta";
 export type * from "./flow";
 export type * from "./life-system";
 export type * from "./logger";

@@ -31,6 +31,7 @@ import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
+import { createExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
 
@@ -448,11 +449,46 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     if (action && !skipActionSlots) {
       const resolvedAction = action;
       pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
+        // Build the typed ExecutionMeta from the raw pipeline dict.
+        // Constructed here (after middleware has run) so middleware that
+        // mutates `c.meta` for pipeline-internal state still feeds the final
+        // handler-visible meta (Spec 65 §8.3).
+        //
+        // `_execution_id` source: prefer the pipeline-assigned traceId when
+        // present so distributed traces share one root id. When no traceId
+        // was propagated, omit `_execution_id` here — the ActionEngine will
+        // not synthesize one either for CommandLayer-owned paths, and the
+        // actual per-action `executionId` remains on `ctx.executionId`.
+        // TODO(spec-65 Phase 2): The execution-log writer should record
+        // `meta.toJSON()` alongside the existing ExecutionLogEntry fields.
+        let meta: ReturnType<typeof createExecutionMeta>;
+        try {
+          const systemKeys: Record<string, unknown> = {
+            _channel: c.channel,
+            _depth: 0,
+          };
+          if (c.traceId) {
+            systemKeys._execution_id = c.traceId;
+          }
+          meta = createExecutionMeta({ raw: c.meta, systemKeys });
+        } catch (err) {
+          if (err instanceof MetaSizeError) {
+            c.result = {
+              success: false,
+              data: { error: err.message, code: err.code },
+              executionId: generatePipelineId(),
+            };
+            return;
+          }
+          throw err;
+        }
+
         try {
           const result = await executor.execute(resolvedAction.name, c.input, c.actor, {
             ...executorOptions,
             tenantId: c.tenantId, // Use latest tenantId (tenant middleware may have set it)
             locale: c.locale, // Use latest locale (middleware may have set it)
+            meta,
           });
           c.result = result;
         } catch (_err) {

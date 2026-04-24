@@ -15,6 +15,8 @@ import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
+import type { ExecutionMeta } from "../types/execution-meta";
+import { createExecutionMeta, extendExecutionMeta } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
@@ -104,6 +106,16 @@ export interface ExecuteOptions {
   _txDataProvider?: DataProvider;
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
+  /**
+   * Execution metadata propagated through the execution chain (Spec 65).
+   *
+   * Normally set by the CommandLayer from `CommandExecuteOptions.meta` +
+   * framework system keys, and by the ActionEngine itself on nested
+   * `ctx.execute` calls. When absent (direct internal executor calls), the
+   * ActionEngine synthesizes a default meta containing only system keys so
+   * `ctx.meta` is always populated.
+   */
+  meta?: ExecutionMeta;
 }
 
 // ── ActionExecutor ──────────────────────────────────────────
@@ -427,6 +439,21 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
+    // Resolve execution meta: CommandLayer-provided meta takes precedence.
+    // When absent (direct internal executor calls), synthesize a default meta
+    // with only system keys so `ctx.meta` is always populated (Spec 65 §2.2).
+    // Size-limit validation has already happened at construction time in the
+    // CommandLayer for external paths — this synthesized meta is tiny.
+    const resolvedMeta: ExecutionMeta =
+      execOptions?.meta ??
+      createExecutionMeta({
+        systemKeys: {
+          _channel: channel,
+          _execution_id: executionId,
+          _depth: currentDepth,
+        },
+      });
+
     const ctx: ActionContext = {
       input,
       actor,
@@ -437,17 +464,30 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       config: configRegistry ?? ConfigRegistry.empty(),
       executionId,
       timestamp: startedAt,
+      meta: resolvedMeta,
       get: (entity, id) => activeProvider.get(entity, id, queryOptions),
       query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
       create: (entity, data) => activeProvider.create(entity, data),
       update: (entity, id, data) => activeProvider.update(entity, id, data, queryOptions),
       delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
-      execute: async (childActionName, childInput) => {
+      execute: async (childActionName, childInput, childOpts) => {
+        // Extend parent meta for the child call: parent keys always win (§4.3),
+        // framework updates _depth and _source_action unconditionally (§4.4),
+        // and the root _execution_id is preserved across the chain.
+        // Using the standalone extendExecutionMeta helper keeps the public
+        // ExecutionMeta interface read-only from the handler's perspective —
+        // handlers can't accidentally mutate meta by calling `.extend(...)`
+        // on `ctx.meta`.
+        const childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
+          _depth: currentDepth + 1,
+          _source_action: actionName,
+        });
         const childResult = await execute(childActionName, childInput, actor, {
           ...execOptions,
           _depth: currentDepth + 1,
           _txDataProvider: activeProvider,
           _parentPendingEvents: pendingEvents,
+          meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
         return childResult.data;

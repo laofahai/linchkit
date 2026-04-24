@@ -8,6 +8,7 @@
 import type { ConfigRegistry } from "../config/config-registry";
 import type { AIService } from "./ai";
 import type { FieldDefinition } from "./entity";
+import type { ExecutionMeta } from "./execution-meta";
 import type { Logger } from "./logger";
 
 // ── Actor types ──────────────────────────────────────
@@ -125,7 +126,11 @@ export interface ActionContext {
   delete(schema: string, id: string): Promise<void>;
 
   // Trigger other Actions
-  execute(actionName: string, input: Record<string, unknown>): Promise<unknown>;
+  execute(
+    actionName: string,
+    input: Record<string, unknown>,
+    options?: { meta?: Record<string, unknown> },
+  ): Promise<unknown>;
 
   // Emit custom events
   emit(eventType: string, payload: Record<string, unknown>): void;
@@ -135,6 +140,13 @@ export interface ActionContext {
 
   /** Check whether a capability is installed (weak dependency degradation) */
   hasCapability(name: string): boolean;
+
+  /**
+   * Execution metadata — arbitrary key-value context that propagates through
+   * the entire execution chain (Action -> EventHandler -> nested Actions).
+   * Read-only after construction (Spec 65 §4.2).
+   */
+  meta: ExecutionMeta;
 
   // Current execution info
   executionId: string;
