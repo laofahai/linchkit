@@ -55,32 +55,16 @@ export function mountOnchangeRoutes(
     }
 
     const entityName = params.name;
-    const entity = entityRegistry.get(entityName);
-    if (!entity) {
-      return notFound(set, `Entity "${entityName}" not found.`);
-    }
-    if (!entity.onchange || Object.keys(entity.onchange).length === 0) {
-      return notFound(set, `Entity "${entityName}" has no onchange definition.`);
-    }
 
-    // Parse body
-    const payload = (body ?? {}) as Record<string, unknown>;
-    const changedField = payload.changedField;
-    const rawValues = payload.values;
-
-    if (typeof changedField !== "string" || changedField.length === 0) {
-      return badRequest(set, "Request body must include a non-empty string `changedField`.");
-    }
-    if (!(changedField in entity.fields)) {
-      return badRequest(set, `Field "${changedField}" is not defined on entity "${entityName}".`);
-    }
-    const values =
-      rawValues && typeof rawValues === "object" && !Array.isArray(rawValues)
-        ? (rawValues as Record<string, unknown>)
-        : {};
-
-    // Dispatch through CommandLayer with skipActionSlots. The synthetic command
-    // name exists only so metrics / tracing have a stable label.
+    // Finding 1 — run the permission slot BEFORE revealing anything about the
+    // shape of the entity or its onchange map. We must not leak "this entity
+    // exists but you can't use it" vs "this entity doesn't exist" to an
+    // unauthenticated probe, because the distinction would let callers
+    // enumerate which entities have onchange hooks.
+    //
+    // We dispatch through CommandLayer first with only the target entity in
+    // `meta.onchange` so permission middleware can decide. Existence /
+    // field-shape validation happens AFTER the permission slot passes.
     const actor = await resolveActor(request, options.resolveRequestActor);
     const headers: Record<string, string> = {};
     for (const [key, value] of request.headers.entries()) {
@@ -88,9 +72,17 @@ export function mountOnchangeRoutes(
     }
     const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
 
+    // Best-effort extraction of `changedField` for permission-slot metadata.
+    // We do NOT validate the value yet — that happens after auth passes.
+    // `changedField` is forwarded to permission middleware so ABAC / RBAC
+    // rules can do field-level gating if they choose.
+    const payload = (body ?? {}) as Record<string, unknown>;
+    const rawChangedField = payload.changedField;
+    const changedFieldForMeta = typeof rawChangedField === "string" ? rawChangedField : "";
+
     const commandResult = await commandLayer.execute({
       command: buildOnchangeCommandName(entityName),
-      input: { entity: entityName, changedField },
+      input: { entity: entityName, changedField: changedFieldForMeta },
       actor,
       channel: "http",
       headers,
@@ -98,13 +90,16 @@ export function mountOnchangeRoutes(
       meta: {
         onchange: {
           entity: entityName,
-          changedField,
+          changedField: changedFieldForMeta,
         },
       },
       skipActionSlots: true,
     });
 
     if (!commandResult.success) {
+      // Finding 1 — uniform auth/permission failure envelope. Do NOT branch on
+      // whether the entity exists; the caller must not learn more from a
+      // blocked response than "you're not authorized to use this endpoint".
       set.status = resolveStatusCode(commandResult);
       const errData = commandResult.data as Record<string, unknown> | undefined;
       const message = (errData?.error as string) ?? "Onchange request blocked";
@@ -114,6 +109,46 @@ export function mountOnchangeRoutes(
         error: { code, message },
       };
     }
+
+    // ── Post-auth: safe to reveal entity / field shape ────────────────
+    const entity = entityRegistry.get(entityName);
+    if (!entity) {
+      return notFound(set, `Entity "${entityName}" not found.`);
+    }
+    if (!entity.onchange || Object.keys(entity.onchange).length === 0) {
+      return notFound(set, `Entity "${entityName}" has no onchange definition.`);
+    }
+
+    if (typeof rawChangedField !== "string" || rawChangedField.length === 0) {
+      return badRequest(set, "Request body must include a non-empty string `changedField`.");
+    }
+    if (!(rawChangedField in entity.fields)) {
+      return badRequest(
+        set,
+        `Field "${rawChangedField}" is not defined on entity "${entityName}".`,
+      );
+    }
+
+    // Finding 2 — reject malformed `values` explicitly. Arrays, strings,
+    // numbers, null, etc. previously coerced to `{}`, silently masking caller
+    // bugs. Only plain objects are valid.
+    const rawValues = payload.values;
+    let values: Record<string, unknown>;
+    if (rawValues === undefined) {
+      values = {};
+    } else if (typeof rawValues === "object" && rawValues !== null && !Array.isArray(rawValues)) {
+      values = rawValues as Record<string, unknown>;
+    } else {
+      set.status = 400;
+      return {
+        success: false,
+        error: {
+          code: "INVALID_REQUEST.MALFORMED_VALUES",
+          message: "`values` must be a plain object when provided.",
+        },
+      };
+    }
+    const changedField = rawChangedField;
 
     // Now run the evaluator. The CommandLayer has already authorized this
     // request; the evaluator only handles pure computation + permission-scoped
