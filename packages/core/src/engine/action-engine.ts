@@ -496,16 +496,44 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       _depth: currentDepth,
     };
     const providedMeta = execOptions?.meta;
-    const resolvedMeta: ExecutionMeta = !providedMeta
-      ? createExecutionMeta({ systemKeys: rootSystemDefaults })
-      : isExecutionMeta(providedMeta)
-        ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
-        : // Plain record — wrap through createExecutionMeta so _-prefixed
-          // keys get stripped, non-serializable values filtered, size enforced.
-          createExecutionMeta({
-            raw: providedMeta as Record<string, unknown>,
-            systemKeys: rootSystemDefaults,
-          });
+    // Meta construction can throw MetaSizeError (plain-record wrap + size
+    // enforcement, or an already-oversized ExecutionMeta reaching the limit
+    // after system keys are added). Direct-executor callers bypass the
+    // CommandLayer's catch, so without handling here the exception would
+    // escape as unhandled. Return a normal failed ActionResult and log it
+    // so callers see the same shape regardless of entry point.
+    let resolvedMeta: ExecutionMeta;
+    try {
+      resolvedMeta = !providedMeta
+        ? createExecutionMeta({ systemKeys: rootSystemDefaults })
+        : isExecutionMeta(providedMeta)
+          ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
+          : // Plain record — wrap through createExecutionMeta so _-prefixed
+            // keys get stripped, non-serializable values filtered, size enforced.
+            createExecutionMeta({
+              raw: providedMeta as Record<string, unknown>,
+              systemKeys: rootSystemDefaults,
+            });
+    } catch (err) {
+      if (err instanceof MetaSizeError) {
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "failed",
+          error: { message: err.message, code: err.code },
+          startedAt,
+        });
+        return {
+          success: false,
+          data: { error: err.message, code: err.code } as T,
+          executionId,
+        };
+      }
+      throw err;
+    }
 
     const ctx: ActionContext = {
       input,

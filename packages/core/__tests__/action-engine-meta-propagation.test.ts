@@ -541,6 +541,42 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect(captured.source_view).toBe("legit");
   });
 
+  // Codex round-4: direct-executor oversized meta returns a failed
+  // ActionResult (no unhandled throw) + logs the rejection.
+  test("direct executor with oversized plain meta returns failed ActionResult", async () => {
+    const dp = createTestDataProvider();
+    const logEntries: Array<{ id: string; status: string }> = [];
+    const executor = createActionExecutor({
+      dataProvider: dp,
+      executionLogger: {
+        log: async (e) => {
+          logEntries.push({ id: e.id, status: e.status });
+        },
+        getById: async () => null as never,
+      },
+    });
+
+    executor.registry.register({
+      name: "root_oversize",
+      entity: "item",
+      label: "Root Oversize",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async () => ({ ok: true }),
+    });
+
+    const result = await executor.execute("root_oversize", {}, defaultActor, {
+      meta: { big: "x".repeat(DEFAULT_META_MAX_BYTES + 100) } as Record<string, unknown>,
+    });
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("META.SIZE_EXCEEDED");
+    // Failure was logged (observability preserved).
+    expect(logEntries.length).toBe(1);
+    expect(logEntries[0].status).toBe("failed");
+    expect(logEntries[0].id).toBe(result.executionId);
+  });
+
   // Codex round-3 P3: don't record a fake child execution id when meta size
   // rejects the child before any log entry is written.
   test("child meta size rejection does NOT register a phantom execution id", async () => {
