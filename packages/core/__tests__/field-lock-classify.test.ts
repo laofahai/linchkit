@@ -293,6 +293,40 @@ describe("Spec 63 — handler-path ctx.update on status is exempt from lockAllWh
     expect(after.status).toBe("approved");
   });
 
+  it("declarative stateTransition still respects an explicit lockWhen on status", async () => {
+    // Round-10 fix: the declarative path was unconditionally stripping
+    // `status` from the lock check, bypassing schema-author per-field
+    // locks. Now status flows into checkFieldLocks; SYSTEM_FIELD_NAMES
+    // only exempts status from lockAllWhen, not from per-field lockWhen.
+    const entity: EntityDefinition = {
+      name: "doc_locked_status",
+      label: "Doc",
+      fields: {
+        // Schema author: "once posted, status itself is frozen — no
+        // further transitions allowed even via setFields/stateTransition".
+        status: { type: "string", lockWhen: { state: "posted" } },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("doc_locked_status", { id: "dls-1", status: "posted" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "decl_revert",
+      entity: "doc_locked_status",
+      label: "Revert",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      stateTransition: { from: "posted", to: "draft" },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("decl_revert", { id: "dls-1" }, actor);
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("validation.field.locked");
+  });
+
   it("explicit per-field lockWhen on status still applies", async () => {
     // An explicit lockWhen on `status` is intentional (e.g., "freeze the
     // status column once posted, no further transitions allowed"). The

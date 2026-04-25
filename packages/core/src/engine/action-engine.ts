@@ -720,8 +720,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       // Effective declarative write set:
       //
       //   resolved action.setFields values (after `$`-expression resolution)
-      //   - status (when a state transition is active — authorized by the
-      //     state-machine layer, not the lock check)
+      //   + the stateTransition target status (so an explicit per-field
+      //     `lockWhen` / `immutable` declared on `status` is still honored —
+      //     the SYSTEM_FIELD_NAMES exemption inside the checker only skips
+      //     `lockAllWhen` for status, not author-declared per-field locks).
       //
       // Note: caller `input` is NOT in the write set. Declarative actions
       // only persist values they wire into `setFields` (plus the
@@ -740,7 +742,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       }
       if (action.stateTransition) {
-        delete writesToCheck.status;
+        // Persist the status target so a schema-author's per-field
+        // `lockWhen` on status is respected. The lockAllWhen exemption is
+        // handled inside `checkFieldLocks` via SYSTEM_FIELD_NAMES.
+        writesToCheck.status = action.stateTransition.to;
       }
 
       const violations: FieldLockViolation[] = checkFieldLocks({
