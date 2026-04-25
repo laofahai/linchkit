@@ -32,7 +32,38 @@ export interface FieldConstraints {
   /** Regex pattern for string field validation */
   pattern?: string;
   default?: unknown;
+  /**
+   * Field cannot be modified once it has been set to a non-null value.
+   * Enforced by the Action Engine (Spec 63 §2.1):
+   *  - First write (create or first non-null assignment): allowed
+   *  - Writing the same value again: allowed (no-op)
+   *  - Writing a different value after it is set: blocked
+   *  - Writing `null` after it is set: blocked
+   */
   immutable?: boolean;
+}
+
+// ── Lock conditions (Spec 63) ───────────────────────────────────
+
+/**
+ * Condition that determines whether a field is currently locked (readonly).
+ * Spec 63 §3. Phase 1 supports state-based locking only; `domain` is reserved
+ * for future complex locking scenarios and is ignored by the engine for now.
+ */
+export interface LockCondition {
+  /**
+   * Lock when the existing record's `status` field matches.
+   *  - `"submitted"` — lock when status is exactly "submitted"
+   *  - `["submitted", "approved"]` — lock when status is any of these
+   *  - `{ not: "draft" }` — lock when status is anything except "draft"
+   *  - `{ not: ["draft", "rejected"] }` — lock when status is none of these
+   */
+  state?: string | string[] | { not: string | string[] };
+  /**
+   * Lock when a field-based domain expression matches. Reserved for Phase 2+;
+   * not evaluated by the Phase 1 engine.
+   */
+  domain?: Array<[string, string, unknown]>;
 }
 
 // ── Field masking configuration ──────────────────────────────────
@@ -55,8 +86,20 @@ export interface BaseFieldDefinition extends FieldConstraints {
   description?: string;
   sensitive?: boolean;
   secret?: boolean;
-  /** Field is read-only (cannot be modified after creation) */
+  /**
+   * @deprecated Use `immutable: true` instead. At the field level `readonly`
+   * is treated as an alias for `immutable` by the Action Engine (Spec 63 §8)
+   * and will be removed in a future major version. View-level `readonly`
+   * (in ViewDefinition) is NOT deprecated — it remains a UI-only display hint.
+   */
   readonly?: boolean;
+  /**
+   * Conditional readonly — field is locked (unchangeable) when the condition
+   * matches the existing record. Spec 63 §2.2. Evaluated on update actions
+   * before pre-validation. Overrides the entity-level `lockAllWhen` for this
+   * field.
+   */
+  lockWhen?: LockCondition;
   /** Data masking configuration. When set, field values are masked based on strategy unless actor has unmask permission. */
   masking?: MaskingConfig;
   /** Whether this field stores translatable content (i18n). When true, values are stored as JSONB { locale: value }. */
@@ -286,6 +329,18 @@ export interface EntityDefinition<
    * A hook fires while the user is editing a form; it never runs on the write path.
    */
   onchange?: Record<string, OnchangeDefinition>;
+
+  /**
+   * Entity-wide lock (Spec 63 §2.2 `__all__` shorthand). When the condition
+   * matches the existing record, ALL fields are locked except those listed
+   * in `lockAllowFields`. Per-field `lockWhen` takes precedence.
+   */
+  lockAllWhen?: LockCondition;
+  /**
+   * Fields exempt from `lockAllWhen`. Typical use: keep notes/tags/comments
+   * editable even when the record as a whole is locked.
+   */
+  lockAllowFields?: string[];
 }
 
 // ── Schema extension and override ─────────────────────────────────
@@ -294,8 +349,21 @@ export interface EntityExtension {
   fields: Record<string, FieldDefinition>;
 }
 
+/**
+ * Overridable field properties — the subset of {@link BaseFieldDefinition}
+ * (excluding `type`, which must never change across an override) that
+ * overlays may modify. Covers legacy `FieldConstraints` (required/unique/
+ * min/max/format/pattern/default/immutable) plus the Spec 63 additions
+ * `readonly` and `lockWhen`, so tenant/capability overlays can tighten or
+ * add lock rules at runtime.
+ */
+export type FieldOverrideProps = Partial<FieldConstraints> & {
+  readonly?: boolean;
+  lockWhen?: LockCondition;
+};
+
 export interface EntityOverride {
-  fields: Record<string, Partial<FieldConstraints>>;
+  fields: Record<string, FieldOverrideProps>;
 }
 
 // ── System fields (automatically included in every Schema) ────────────────

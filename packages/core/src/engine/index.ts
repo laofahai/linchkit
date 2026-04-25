@@ -44,6 +44,14 @@ export {
 } from "./command-layer";
 // Condition evaluator
 export { type ConditionContext, evaluateCondition, resolveField } from "./condition-evaluator";
+// Field-lock checker (Spec 63)
+export {
+  checkFieldLocks,
+  type FieldLockCheckArgs,
+  type FieldLockViolation,
+  type FieldLockViolationType,
+  matchesLockCondition,
+} from "./field-lock-checker";
 // Onchange evaluator (Spec 64)
 export {
   createOnchangeEvaluator,
