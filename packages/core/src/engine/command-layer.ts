@@ -487,14 +487,19 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       // Non-action dispatch: set a synthetic success result so downstream code
       // knows the pipeline completed without error. The caller is responsible
       // for producing the actual response payload (e.g. onchange updates).
-      // Include the resolved tenantId / locale (read from the final ctx after
-      // middleware runs) so downstream handlers like the onchange REST route
-      // can propagate them without having to re-derive from the request.
+      // Include the resolved actor / tenantId / locale (read from the final
+      // ctx after middleware runs) so downstream handlers like the onchange
+      // REST/GraphQL routes can propagate them without having to re-derive
+      // from the request — auth middleware that enriches/replaces the actor
+      // (role hydration, impersonation) MUST be honored here, otherwise
+      // OnchangeContext.actor would diverge from the pipeline-resolved
+      // identity. (Spec 64 §9.1 — onchange runs with caller's permissions.)
       pipeline.push(async (c: CommandContext, _next: () => Promise<void>) => {
         c.result = {
           success: true,
           data: {
             skipped: true,
+            actor: c.actor,
             tenantId: c.tenantId,
             locale: c.locale,
           },

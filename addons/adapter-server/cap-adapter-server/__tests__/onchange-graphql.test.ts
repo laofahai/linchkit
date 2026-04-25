@@ -414,6 +414,121 @@ describe("GraphQL `<entity>_onchange` non-auth pipeline failures", () => {
   });
 });
 
+// ── Codex Round-3 P2: post-auth actor reaches the evaluator ──
+
+describe("GraphQL `<entity>_onchange` post-auth actor propagation", () => {
+  test("auth middleware that enriches actor.groups is honored by evaluator", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(lineEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    // Auth middleware that hydrates the actor's roles (e.g. fetches DB
+    // groups). The evaluator must observe this enrichment, not the bare
+    // actor that arrived in the GraphQL context.
+    commandLayer.use({
+      name: "hydrate_groups",
+      slot: "auth",
+      handler: async (c, next) => {
+        c.actor = {
+          ...c.actor,
+          groups: [...(c.actor.groups ?? []), "hydrated-admin"],
+        };
+        await next();
+      },
+    });
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
+    let capturedActor: { id?: string; groups?: string[] } | undefined;
+    const spyEvaluator = {
+      evaluate: async (args: { actor: { id?: string; groups?: string[] } }) => {
+        capturedActor = args.actor;
+        return { updates: {}, warnings: [] };
+      },
+    };
+    const schema = buildGraphQLSchema([lineEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: spyEvaluator,
+    });
+    const port = 4317;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const result = await gql(port, ONCHANGE_MUTATION, {
+        field: "product_id",
+        values: JSON.stringify({ product_id: "pg1" }),
+      });
+      expect(result.errors).toBeUndefined();
+      expect(capturedActor?.groups).toContain("hydrated-admin");
+    } finally {
+      app.stop();
+    }
+  });
+});
+
+// ── Codex Round-3 P3: internalSchemas filter applies to onchange too ──
+
+describe("GraphQL `<entity>_onchange` internalSchemas filter", () => {
+  test("entity in internalSchemas does NOT get an auto-generated onchange mutation", async () => {
+    const internalEntity: EntityDefinition = {
+      name: "system_internal_gql",
+      fields: { trigger: { type: "string" }, result: { type: "string" } },
+      onchange: {
+        trigger: {
+          updates: ["result"],
+          compute: () => ({ result: "computed" }),
+        },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(internalEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
+    const evaluator = createOnchangeEvaluator({ entityRegistry, dataProvider: store });
+    const schema = buildGraphQLSchema([internalEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: evaluator,
+      internalSchemas: new Set(["system_internal_gql"]),
+    });
+    const port = 4318;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const introspection = await gql(
+        port,
+        /* GraphQL */ `
+          {
+            __type(name: "Mutation") {
+              fields {
+                name
+              }
+            }
+          }
+        `,
+      );
+      const fields = (
+        introspection.data?.__type as { fields: Array<{ name: string }> } | null
+      )?.fields.map((f) => f.name);
+      expect(fields).not.toContain("system_internal_gql_onchange");
+    } finally {
+      app.stop();
+    }
+  });
+});
+
 // ── Codex Round-2 P2: tenant scope cleared by middleware is honored ──
 
 describe("GraphQL `<entity>_onchange` tenant scope handling", () => {

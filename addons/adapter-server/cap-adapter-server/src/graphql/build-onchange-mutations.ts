@@ -20,7 +20,7 @@
  * obtain the object.
  */
 
-import type { CommandLayer, EntityDefinition } from "@linchkit/core";
+import type { Actor, CommandLayer, EntityDefinition } from "@linchkit/core";
 import type { OnchangeEvaluator } from "@linchkit/core/server";
 import { consoleLogger, OnchangeEvaluatorError } from "@linchkit/core/server";
 import {
@@ -56,6 +56,14 @@ export interface BuildOnchangeMutationsOptions {
   commandLayer?: CommandLayer;
   /** OnchangeEvaluator for the actual computation. */
   onchangeEvaluator?: OnchangeEvaluator;
+  /**
+   * Schema names that are internal (read-only) — onchange mutations are
+   * skipped for these, mirroring the CRUD generator's behavior. Without
+   * this filter, an internal schema that declares an `onchange` map would
+   * leak a public `<entity>_onchange` mutation even though the rest of
+   * its mutation surface is suppressed.
+   */
+  internalSchemas?: Set<string>;
 }
 
 /**
@@ -68,13 +76,17 @@ export function buildOnchangeMutationFields(
   entities: EntityDefinition[],
   options: BuildOnchangeMutationsOptions,
 ): Record<string, GraphQLFieldConfig<unknown, GraphQLContext>> {
-  const { commandLayer, onchangeEvaluator } = options;
+  const { commandLayer, onchangeEvaluator, internalSchemas } = options;
   if (!commandLayer || !onchangeEvaluator) return {};
 
   const fields: Record<string, GraphQLFieldConfig<unknown, GraphQLContext>> = {};
 
   for (const entity of entities) {
     if (!entity.onchange || Object.keys(entity.onchange).length === 0) continue;
+    // Codex Round-3 P3: respect the same read-only filter the CRUD
+    // generator uses, otherwise an internal/system schema with an
+    // onchange map would leak a public mutation.
+    if (internalSchemas?.has(entity.name)) continue;
 
     const entityName = entity.name;
     const fieldName = `${entityName}_onchange`;
@@ -181,23 +193,26 @@ export function buildOnchangeMutationFields(
         const values = parsed as Record<string, unknown>;
 
         // ── Run evaluator ───────────────────────────────────────
-        // Codex Round-2 P2: trust the middleware-resolved tenant verbatim.
-        // The synthetic skipActionSlots result populates `tenantId` from
-        // the final ctx after the tenant slot ran — this may be undefined
-        // by design (e.g. a system actor bypassing row-level scoping).
-        // Falling back to the original request tenant would re-introduce
-        // a scope the middleware just cleared, diverging from the REST
-        // path and potentially leaking cross-tenant data.
+        // Codex Round-2 P2 (tenant) + Round-3 P2 (actor): trust the
+        // middleware-resolved values verbatim. The synthetic
+        // skipActionSlots result carries the post-pipeline `actor` /
+        // `tenantId` / `locale` from the final ctx, so onchange runs
+        // under the identity the auth slot produced (role hydration,
+        // impersonation) and under whatever scope the tenant slot
+        // resolved (or cleared). Falling back to the request-context
+        // values would silently undo middleware decisions and could
+        // either leak cross-tenant data or run lookups under broader
+        // permissions than the pipeline intended.
         const resolvedContext =
           commandResult.data && typeof commandResult.data === "object"
-            ? (commandResult.data as { tenantId?: string; locale?: string })
+            ? (commandResult.data as { actor?: Actor; tenantId?: string; locale?: string })
             : undefined;
         try {
           const result = await onchangeEvaluator.evaluate({
             entityName,
             changedField: args.changedField,
             values,
-            actor: ctx.actor,
+            actor: resolvedContext?.actor ?? ctx.actor,
             tenantId: resolvedContext?.tenantId,
           });
           return {

@@ -970,9 +970,12 @@ export function buildGraphQLSchema(
   // Auto-generate `<entity>_onchange` mutations for entities with an
   // onchange map (Spec 64 §4.2). Skipped when CommandLayer or evaluator
   // is missing — keeps test setups that don't wire either from breaking.
+  // `internalSchemas` is passed through so internal/system schemas with an
+  // onchange map don't leak a public mutation (Codex Round-3 P3).
   const onchangeFields = buildOnchangeMutationFields(autoEntities, {
     commandLayer,
     onchangeEvaluator: options?.onchangeEvaluator,
+    internalSchemas,
   });
   Object.assign(mutationFields, onchangeFields);
 
