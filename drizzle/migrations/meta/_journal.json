@@ -15,6 +15,13 @@
       "when": 1775733762343,
       "tag": "0001_greedy_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777128126634,
+      "tag": "0002_loving_kang",
+      "breakpoints": true
     }
   ]
 }

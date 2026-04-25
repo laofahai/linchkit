@@ -54,6 +54,10 @@ export class DrizzleExecutionLogger {
       parentExecutionId: entry.parentExecutionId ?? null,
       idempotencyKey: entry.idempotencyKey ?? null,
       metadata: Object.keys(metadata).length > 0 ? metadata : null,
+      // Spec 65 §9 — ExecutionMeta snapshot. `entry.meta` is already a
+      // serializable record (from `ExecutionMeta.toJSON()`); Drizzle's jsonb
+      // column accepts the object directly and pg-driver handles serialization.
+      meta: entry.meta ?? null,
       startedAt: entry.startedAt,
       completedAt: entry.completedAt,
     });
@@ -185,6 +189,10 @@ function rowToEntry(row: ExecutionRow): ExecutionLogEntry {
     startedAt: row.startedAt,
     channel: row.channel ?? undefined,
     completedAt: row.completedAt ?? undefined,
+    // Spec 65 §9 — Drizzle returns jsonb columns as parsed JS objects, so we
+    // pass through directly. Returning `undefined` for null keeps round-trip
+    // shape parity with InMemoryExecutionLogger (which never sets meta to null).
+    meta: (row.meta as Record<string, unknown> | null) ?? undefined,
   };
 }
 

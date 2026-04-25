@@ -608,7 +608,10 @@ export function buildGraphQLSchema(
           ) => {
             const locale = ctx.locale;
             const normalizedInput = normalizeTranslatableRow(args.input, entity, locale);
-            const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
             const result = await dispatchAction(`create_${entityName}`, normalizedInput, ctx, {
               meta,
             });
@@ -668,7 +671,10 @@ export function buildGraphQLSchema(
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
             }
-            const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
             const result = await dispatchAction(`update_${entityName}`, input, ctx, { meta });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
@@ -715,7 +721,10 @@ export function buildGraphQLSchema(
       },
       resolve: hasDispatcher
         ? async (_root: unknown, args: { id: string; meta?: string }, ctx: GraphQLContext) => {
-            const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
             const result = await dispatchAction(`delete_${entityName}`, { id: args.id }, ctx, {
               meta,
             });
@@ -738,7 +747,10 @@ export function buildGraphQLSchema(
       resolve: hasDispatcher
         ? async (_root: unknown, args: { id: string; meta?: string }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
-            const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
             const result = await dispatchAction(`restore_${entityName}`, { id: args.id }, ctx, {
               includeDeleted: true,
               meta,
@@ -874,7 +886,10 @@ export function buildGraphQLSchema(
                   id: args.id,
                   [stateFieldName]: args.to,
                 };
-                const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+                const meta =
+                  args.meta !== undefined && args.meta !== null
+                    ? safeParseJSON(args.meta, "meta")
+                    : undefined;
                 const result = await dispatchAction(`update_${entityName}`, input, ctx, { meta });
                 if (!result.success) {
                   const errData = result.data as Record<string, unknown> | undefined;
@@ -937,7 +952,10 @@ export function buildGraphQLSchema(
               ...resolverArgs.input,
               id: resolverArgs.id,
             };
-            const meta = resolverArgs.meta ? safeParseJSON(resolverArgs.meta, "meta") : undefined;
+            const meta =
+              resolverArgs.meta !== undefined && resolverArgs.meta !== null
+                ? safeParseJSON(resolverArgs.meta, "meta")
+                : undefined;
             const result = await dispatchAction(actionName, input, ctx, { meta });
             if (returnsSchemaType) {
               if (!result.success) {
@@ -1007,7 +1025,10 @@ export function buildGraphQLSchema(
           ctx: GraphQLContext,
         ) => {
           const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
-          const meta = args.meta ? safeParseJSON(args.meta, "meta") : undefined;
+          const meta =
+            args.meta !== undefined && args.meta !== null
+              ? safeParseJSON(args.meta, "meta")
+              : undefined;
           const result = await dispatchAction(args.name, input, ctx, { meta });
           const errors = !result.success
             ? [

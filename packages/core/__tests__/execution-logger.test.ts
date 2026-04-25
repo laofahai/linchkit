@@ -399,3 +399,61 @@ describe("ExecutionLogger — meta snapshot recording (Spec 65 §9)", () => {
     expect(childEntry.meta?._source_action).toBe("parent_action");
   });
 });
+
+// ── Early-failure log entries stamp `entity` once action is resolved ──
+//
+// Once the executor has resolved the ActionDefinition, every subsequent
+// early-rejection path (exposure, actor-type, input validation, lock
+// preflight, state transition) must record the action's entity so admin
+// queries filtering by entity do not miss authorization-style rejections.
+
+describe("ExecutionLogger — early-failure entity stamping", () => {
+  it("stamps entity on input-validation failures", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(createOrderAction);
+    // Missing required `title` triggers input validation rejection.
+    const result = await executor.execute("create_order", {}, defaultActor);
+    expect(result.success).toBe(false);
+
+    const entry = logger.getAll()[0];
+    expect(entry).toBeDefined();
+    expect(entry.status).toBe("failed");
+    expect(entry.entity).toBe("order");
+    expect(entry.error?.message).toBe("Input validation failed");
+  });
+
+  it("stamps entity on exposure-blocked entries", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    // Action with http channel explicitly disabled — exposure check rejects
+    // when called via the http channel before the handler runs.
+    const internalOnlyAction: ActionDefinition = {
+      name: "internal_only",
+      entity: "order",
+      label: "Internal Only",
+      policy: { mode: "sync", transaction: false },
+      exposure: { http: false, mcp: false, cli: false, ui: false, internal: true },
+      handler: async () => ({ ok: true }),
+    };
+    executor.registry.register(internalOnlyAction);
+
+    const result = await executor.execute("internal_only", {}, defaultActor, {
+      channel: "http",
+    });
+    expect(result.success).toBe(false);
+
+    const entry = logger.getAll()[0];
+    expect(entry).toBeDefined();
+    expect(entry.status).toBe("blocked");
+    expect(entry.entity).toBe("order");
+  });
+});

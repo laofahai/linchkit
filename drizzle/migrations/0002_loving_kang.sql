@@ -1,0 +1,1 @@
+ALTER TABLE "_linchkit"."executions" ADD COLUMN "meta" jsonb;

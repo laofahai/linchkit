@@ -390,6 +390,65 @@ describe("GraphQL — meta argument (Spec 65 §3.2)", () => {
     expect(result.errors?.[0]?.message).toContain("must be a JSON object");
   });
 
+  // Cross-model review: empty string IS supplied and should flow into
+  // safeParseJSON, not be silently treated as no-meta. Spec contract: "if
+  // supplied, parse it." Empty string fails JSON.parse → GraphQL error,
+  // matching `"{not_json"` behavior.
+  test("empty-string meta arg → GraphQL invalid-JSON error (matches malformed JSON)", async () => {
+    const malformed = await gql(
+      `
+        mutation Run($name: String!, $input: String!, $meta: String) {
+          executeAction(name: $name, input: $input, meta: $meta) {
+            success
+          }
+        }
+      `,
+      {
+        name: "capture_meta",
+        input: JSON.stringify({}),
+        meta: "{not_json",
+      },
+    );
+    const empty = await gql(
+      `
+        mutation Run($name: String!, $input: String!, $meta: String) {
+          executeAction(name: $name, input: $input, meta: $meta) {
+            success
+          }
+        }
+      `,
+      {
+        name: "capture_meta",
+        input: JSON.stringify({}),
+        meta: "",
+      },
+    );
+
+    expect(malformed.errors).toBeDefined();
+    expect(empty.errors).toBeDefined();
+    expect(empty.errors?.[0]?.message).toBe(malformed.errors?.[0]?.message);
+    expect(empty.errors?.[0]?.message).toContain("invalid JSON");
+  });
+
+  test("empty-string meta arg on createTask mutation → GraphQL invalid-JSON error", async () => {
+    const result = await gql(
+      `
+        mutation Create($input: TaskInput!, $meta: String) {
+          createTask(input: $input, meta: $meta) {
+            id
+          }
+        }
+      `,
+      {
+        input: { title: "should fail before action runs" },
+        meta: "",
+      },
+    );
+
+    expect(result.errors).toBeDefined();
+    expect(result.errors?.[0]?.message).toContain("invalid JSON");
+  });
+
   test("_-prefixed keys in meta arg are stripped (system keys win)", async () => {
     clearCaptures();
     const result = await gql(
