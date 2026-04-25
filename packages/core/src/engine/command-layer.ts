@@ -726,6 +726,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     const strategy = options.input.strategy ?? "all_or_nothing";
     const items = options.input.actions;
     const parentExecutionId = generateExecutionId();
+    // Generate one shared trace ID per batch when the caller doesn't supply
+    // one, so all child executions correlate in observability tools.
+    const batchTraceId = options.traceId ?? generateExecutionId();
 
     // Input validation — same rules as executeBatch in batch-action-engine.
     if (!Array.isArray(items) || items.length === 0) {
@@ -782,7 +785,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         locale: options.locale,
         meta: itemMeta,
       };
-      if (options.traceId) opts.traceId = options.traceId;
+      opts.traceId = batchTraceId;
       if (tx) {
         opts._txDataProvider = tx.provider;
         opts._parentPendingEvents = tx.events;

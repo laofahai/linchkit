@@ -86,8 +86,8 @@ export interface ExecuteBatchOptions {
   locale?: string;
   /**
    * Caller-supplied meta. Merged into each child execution under the same
-   * key namespace. The framework adds `_batch.parentExecutionId` and
-   * `_batch.index` automatically.
+   * key namespace. The framework adds `batch.parentExecutionId` and
+   * `batch.index` automatically.
    */
   meta?: ExecutionMeta | Record<string, unknown>;
 }

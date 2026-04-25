@@ -263,6 +263,79 @@ describe("CommandLayer.executeBatch — actor and tenant propagation", () => {
   });
 });
 
+describe("CommandLayer.executeBatch — observability", () => {
+  it("shares one traceId across all items in the batch", async () => {
+    const provider = createSnapshotProvider();
+    const txManager = createFakeTxManager(provider);
+    const executor = createActionExecutor({
+      dataProvider: provider,
+      transactionManager: txManager,
+    });
+    executor.registry.register(createItem);
+
+    const seenTraceIds: Array<string | undefined> = [];
+    const layer = createCommandLayer({ executor });
+    layer.use({
+      name: "capture_trace",
+      slot: "permission",
+      handler: async (ctx, next) => {
+        seenTraceIds.push(ctx.traceId);
+        await next();
+      },
+    });
+
+    const result = await layer.executeBatch({
+      input: {
+        strategy: "partial",
+        actions: [
+          { name: "create_item", input: { title: "A" } },
+          { name: "create_item", input: { title: "B" } },
+          { name: "create_item", input: { title: "C" } },
+        ],
+      },
+      actor: adminActor,
+    });
+
+    expect(result.success).toBe(true);
+    expect(seenTraceIds.length).toBe(3);
+    const [first, ...rest] = seenTraceIds;
+    expect(first).toBeDefined();
+    for (const id of rest) expect(id).toBe(first);
+  });
+
+  it("uses the caller-supplied traceId when provided", async () => {
+    const provider = createSnapshotProvider();
+    const executor = createActionExecutor({ dataProvider: provider });
+    executor.registry.register(createItem);
+
+    const seenTraceIds: Array<string | undefined> = [];
+    const layer = createCommandLayer({ executor });
+    layer.use({
+      name: "capture_trace",
+      slot: "permission",
+      handler: async (ctx, next) => {
+        seenTraceIds.push(ctx.traceId);
+        await next();
+      },
+    });
+
+    const externalTrace = "ext-trace-xyz";
+    await layer.executeBatch({
+      input: {
+        strategy: "partial",
+        actions: [
+          { name: "create_item", input: { title: "A" } },
+          { name: "create_item", input: { title: "B" } },
+        ],
+      },
+      actor: adminActor,
+      traceId: externalTrace,
+    });
+
+    for (const id of seenTraceIds) expect(id).toBe(externalTrace);
+  });
+});
+
 describe("CommandLayer.executeBatch — input validation", () => {
   it("rejects empty actions array with structured failure", async () => {
     const { layer } = buildSetup();

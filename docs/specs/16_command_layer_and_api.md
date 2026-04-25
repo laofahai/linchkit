@@ -27,7 +27,7 @@ UI ───────┘         │
 interface CommandRegistry {
   // --- Action 执行 ---
   execute_action: (name: string, input: object) => ActionResult
-  batch_actions: (actions: Array<{ name: string, input: object }>) => ActionResult[]
+  batch_actions: (input: BatchActionsInput) => Promise<BatchActionsResult>
 
   // --- 数据查询 ---
   query: (graphql: string, variables?: object) => QueryResult

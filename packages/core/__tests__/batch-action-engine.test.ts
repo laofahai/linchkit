@@ -319,7 +319,7 @@ describe("executeBatch — input validation", () => {
 });
 
 describe("executeBatch — meta propagation", () => {
-  it("stamps _batch.parentExecutionId and _batch.index into each child meta", async () => {
+  it("stamps batch.parentExecutionId and batch.index into each child meta", async () => {
     const provider = createSnapshotProvider();
     const seenMetas: Array<{ parent?: unknown; index?: unknown }> = [];
 
