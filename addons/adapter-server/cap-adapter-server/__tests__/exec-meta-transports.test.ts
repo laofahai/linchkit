@@ -96,7 +96,7 @@ const graphqlSchema = buildGraphQLSchema([taskSchema], {
   actions: [captureMetaAction],
 });
 const app = createServer(graphqlSchema, { executor, commandLayer });
-const port = 4099;
+const port = 4032;
 
 beforeAll(() => {
   app.listen(port);
