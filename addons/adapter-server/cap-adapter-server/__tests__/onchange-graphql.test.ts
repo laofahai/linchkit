@@ -414,6 +414,72 @@ describe("GraphQL `<entity>_onchange` non-auth pipeline failures", () => {
   });
 });
 
+// ── Codex Round-2 P2: tenant scope cleared by middleware is honored ──
+
+describe("GraphQL `<entity>_onchange` tenant scope handling", () => {
+  test("when tenant middleware clears tenantId, evaluator is called with undefined (no fallback)", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(lineEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
+    // Tenant middleware that intentionally clears the request tenant —
+    // simulates a system actor bypass or admin escalation. The resolver
+    // MUST honor this and not silently re-inject the request tenant.
+    commandLayer.use({
+      name: "clear_tenant",
+      slot: "tenant",
+      handler: async (c, next) => {
+        c.tenantId = undefined;
+        await next();
+      },
+    });
+    // Spy evaluator: capture the tenantId argument passed to evaluate().
+    let capturedTenantId: string | undefined = "SENTINEL_NOT_CALLED";
+    const spyEvaluator = {
+      evaluate: async (args: { tenantId?: string }) => {
+        capturedTenantId = args.tenantId;
+        return { updates: {}, warnings: [] };
+      },
+    };
+    const schema = buildGraphQLSchema([lineEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: spyEvaluator,
+    });
+    const port = 4316;
+    const app = createServer(schema, {
+      executor,
+      commandLayer,
+      entityRegistry,
+      // Inject a non-null request tenantId so we'd notice fallback if it
+      // happened — the resolver receives ctx.tenantId="rt-incoming" yet
+      // must pass undefined through because middleware cleared it.
+      resolveRequestTenantId: () => "rt-incoming",
+    });
+    app.listen(port);
+    try {
+      const result = await gql(port, ONCHANGE_MUTATION, {
+        field: "product_id",
+        values: JSON.stringify({ product_id: "pg1" }),
+      });
+      expect(result.errors).toBeUndefined();
+      // Evaluator must have been called with undefined tenantId — not
+      // "rt-incoming". This proves the resolver respects the middleware's
+      // decision to clear scope.
+      expect(capturedTenantId).toBeUndefined();
+    } finally {
+      app.stop();
+    }
+  });
+});
+
 // ── Codex Round-1 P3: unknown evaluator errors do not leak details ──
 
 describe("GraphQL `<entity>_onchange` unexpected evaluator failures", () => {

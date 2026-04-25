@@ -181,6 +181,13 @@ export function buildOnchangeMutationFields(
         const values = parsed as Record<string, unknown>;
 
         // ── Run evaluator ───────────────────────────────────────
+        // Codex Round-2 P2: trust the middleware-resolved tenant verbatim.
+        // The synthetic skipActionSlots result populates `tenantId` from
+        // the final ctx after the tenant slot ran — this may be undefined
+        // by design (e.g. a system actor bypassing row-level scoping).
+        // Falling back to the original request tenant would re-introduce
+        // a scope the middleware just cleared, diverging from the REST
+        // path and potentially leaking cross-tenant data.
         const resolvedContext =
           commandResult.data && typeof commandResult.data === "object"
             ? (commandResult.data as { tenantId?: string; locale?: string })
@@ -191,7 +198,7 @@ export function buildOnchangeMutationFields(
             changedField: args.changedField,
             values,
             actor: ctx.actor,
-            tenantId: resolvedContext?.tenantId ?? ctx.tenantId,
+            tenantId: resolvedContext?.tenantId,
           });
           return {
             updates: JSON.stringify(result.updates),
