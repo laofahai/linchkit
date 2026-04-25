@@ -51,6 +51,18 @@ import {
 const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
 
 /**
+ * Sanitize an arbitrary identifier to a valid GraphQL field-name component
+ * by replacing any disallowed character with `_` and prefixing the result
+ * with `_` if it does not start with a letter or underscore. Preserves
+ * snake_case for entity names — used by call sites that build composite
+ * names like `<entity>_onchange` and want the entity portion intact.
+ */
+export function sanitizeGraphQLFieldName(name: string): string {
+  const replaced = name.replace(/[^_0-9A-Za-z]/g, "_");
+  return GRAPHQL_NAME_RE.test(replaced) ? replaced : `_${replaced}`;
+}
+
+/**
  * Convert a schema name to PascalCase with GraphQL name sanitization.
  * e.g. "purchase_request" -> "PurchaseRequest"
  */

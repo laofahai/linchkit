@@ -414,6 +414,109 @@ describe("GraphQL `<entity>_onchange` non-auth pipeline failures", () => {
   });
 });
 
+// ── Codex Round-4 P2: schema-build-time guards ─────────────
+
+describe("GraphQL `<entity>_onchange` schema build-time guards", () => {
+  test("entity name with `-` is sanitized — schema construction succeeds and field is queryable", async () => {
+    // Without sanitization, an entity name like `sales-order` would crash
+    // during schema construction because `-` is not a legal GraphQL field
+    // name character.
+    const dashEntity: EntityDefinition = {
+      name: "sales-order",
+      fields: { trigger: { type: "string" }, result: { type: "string" } },
+      onchange: {
+        trigger: {
+          updates: ["result"],
+          compute: () => ({ result: "ok" }),
+        },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(dashEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
+    const evaluator = createOnchangeEvaluator({ entityRegistry, dataProvider: store });
+    // This call MUST NOT throw. Pre-fix it would: GraphQL rejects
+    // `sales-order_onchange` as an invalid field name.
+    const schema = buildGraphQLSchema([dashEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: evaluator,
+    });
+    const port = 4319;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const introspection = await gql(
+        port,
+        /* GraphQL */ `
+          {
+            __type(name: "Mutation") {
+              fields {
+                name
+              }
+            }
+          }
+        `,
+      );
+      const fields = (
+        introspection.data?.__type as { fields: Array<{ name: string }> } | null
+      )?.fields.map((f) => f.name);
+      // Underscore is the canonical replacement for `-` per the sanitizer.
+      expect(fields).toContain("sales_order_onchange");
+    } finally {
+      app.stop();
+    }
+  });
+
+  test("schema omits onchange mutations when CommandLayer has no permission middleware", async () => {
+    // skipActionSlots fails at execute time without a permission middleware.
+    // Advertising the field in introspection would mean every call fails
+    // with PERMISSION.MIDDLEWARE_MISSING — better to omit it entirely.
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(lineEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    // Deliberately do NOT register a permission middleware.
+    const evaluator = createOnchangeEvaluator({ entityRegistry, dataProvider: store });
+    const schema = buildGraphQLSchema([lineEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: evaluator,
+    });
+    const port = 4320;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const introspection = await gql(
+        port,
+        /* GraphQL */ `
+          {
+            __type(name: "Mutation") {
+              fields {
+                name
+              }
+            }
+          }
+        `,
+      );
+      const fields = (
+        introspection.data?.__type as { fields: Array<{ name: string }> } | null
+      )?.fields.map((f) => f.name);
+      expect(fields).not.toContain("purchase_line_gql_onchange");
+    } finally {
+      app.stop();
+    }
+  });
+});
+
 // ── Codex Round-3 P2: post-auth actor reaches the evaluator ──
 
 describe("GraphQL `<entity>_onchange` post-auth actor propagation", () => {

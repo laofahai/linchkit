@@ -18,6 +18,18 @@
  * `executeAction` precedent, both the input `values` argument and the
  * `updates` output field are JSON-encoded strings. Clients `JSON.parse` to
  * obtain the object.
+ *
+ * Known limitation — schema introspection enumeration:
+ *   GraphQL introspection (`{ __type(name: "Mutation") { fields { name } } }`)
+ *   is enabled by default and will list every `<entity>_onchange` field
+ *   alongside CRUD mutations. The resolver-level AUTHZ_DENIED canonicalization
+ *   prevents enumeration through call responses, but introspection itself
+ *   remains a separate concern that applies to the entire GraphQL surface.
+ *   Operators who treat onchange-enabled entities as confidential should
+ *   disable introspection in production (graphql-yoga `landingPage: false`
+ *   + a schema policy plugin gating __schema/__type) or wire a
+ *   field-level introspection authorizer. This is an industry-standard
+ *   trade-off for public GraphQL endpoints, not specific to onchange.
  */
 
 import type { Actor, CommandLayer, EntityDefinition } from "@linchkit/core";
@@ -32,7 +44,7 @@ import {
   GraphQLString,
 } from "graphql";
 import { resolveStatusCode } from "../routes/shared";
-import type { GraphQLContext } from "./build-schema";
+import { type GraphQLContext, sanitizeGraphQLFieldName } from "./build-schema";
 
 const MAX_VALUES_LENGTH = 10_000;
 
@@ -79,6 +91,18 @@ export function buildOnchangeMutationFields(
   const { commandLayer, onchangeEvaluator, internalSchemas } = options;
   if (!commandLayer || !onchangeEvaluator) return {};
 
+  // Codex Round-4 P2: skipActionSlots fails fast at execute time when no
+  // permission middleware is registered (fail-closed guard in command-layer).
+  // If this server hasn't wired one yet, advertising `<entity>_onchange`
+  // mutations through the schema would mean introspection lists fields that
+  // can never succeed — every call would return PERMISSION.MIDDLEWARE_MISSING.
+  // Suppressing the field at schema build time keeps the public surface
+  // honest and avoids advertising an inert API.
+  const hasPermissionMiddleware = commandLayer
+    .getMiddlewares()
+    .some((m) => m.slot === "permission");
+  if (!hasPermissionMiddleware) return {};
+
   const fields: Record<string, GraphQLFieldConfig<unknown, GraphQLContext>> = {};
 
   for (const entity of entities) {
@@ -89,7 +113,11 @@ export function buildOnchangeMutationFields(
     if (internalSchemas?.has(entity.name)) continue;
 
     const entityName = entity.name;
-    const fieldName = `${entityName}_onchange`;
+    // Codex Round-4 P2: sanitize the entity name so non-GraphQL chars
+    // (e.g. `-` in `sales-order`) don't blow up schema construction.
+    // The resulting field is `<safe>_onchange` — snake_case is preserved
+    // for spec consistency and stays valid for any user-defined entity.
+    const fieldName = `${sanitizeGraphQLFieldName(entityName)}_onchange`;
 
     fields[fieldName] = {
       type: new GraphQLNonNull(OnchangeResponseType),
