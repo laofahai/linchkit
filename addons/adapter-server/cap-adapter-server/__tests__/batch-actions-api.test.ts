@@ -152,7 +152,7 @@ const app = createServer(graphqlSchema, {
   commandLayer,
   transactionManager: txManager,
 });
-const port = 4030;
+const port = 4031;
 
 const baseUrl = () => `http://localhost:${port}`;
 
