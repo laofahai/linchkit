@@ -3,13 +3,14 @@
  *
  * Covers:
  *  1. Date values compared by timestamp, not prototype shape.
- *  2. Handler-based create actions with caller-supplied `id` are NOT blocked
- *     by the lock preflight (they have no setFields / stateTransition marker
- *     so the executor can't assume an existing record).
- *  3. Declarative-update actions (setFields / stateTransition) still
- *     fail-closed when the target record can't be read.
- *  4. `applyOverride` can add lockWhen / readonly at runtime (EntityOverride
- *     type widened to FieldOverrideProps to accept Spec 63 keys).
+ *  2. Handler-based create actions with caller-supplied id are NOT
+ *     blocked by the lock preflight — they have no setFields /
+ *     stateTransition marker so the executor cannot assume an existing
+ *     record. Declarative-update actions still fail-closed.
+ *  3. applyOverride can add lockWhen / readonly at runtime.
+ *
+ * Handler-path tests (round 5: ctx.update wrapper, subset writes, cross-
+ * entity scoping, Date/string equivalence) live in field-lock-handler.test.ts.
  */
 
 import { describe, expect, it } from "bun:test";

@@ -20,7 +20,12 @@ import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log"
 import type { ExecutionMeta } from "../types/execution-meta";
 import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
-import { checkFieldLocks, type FieldLockViolation } from "./field-lock-checker";
+import {
+  checkFieldLocks,
+  type FieldLockViolation,
+  LockPreflightError,
+  LockViolationError,
+} from "./field-lock-checker";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
 
@@ -400,7 +405,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             error: errorMsg,
             context: {
               action: actionName,
-              entity: action.entity,
+              entity: action?.entity,
               constraint: "exposure",
               expected: `Action exposed for channel "${channel}"`,
               actual: `Not exposed for "${channel}"`,
@@ -456,7 +461,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           details: inputValidation.errors,
           context: {
             action: actionName,
-            entity: action.entity,
+            entity: action?.entity,
             field: firstError?.field,
             constraint: "input_validation",
             expected: firstError?.message,
@@ -498,19 +503,26 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
-    // ── Step 4b: Field-lock check (Spec 63 Phase 1) ────────────────
+    // ── Step 4b: Field-lock preflight for declarative updates ──────
     //
-    // The checker needs the existing record, so we hoist the fetch here and
-    // reuse it below in Step 6 (state transition) to avoid double-fetch on
-    // real DBs. The fetch only runs when:
-    //   1. `input.id` is present (update-style call), AND
-    //   2. an entityRegistry was injected AND the resolved entity has
-    //      something to enforce (immutable / lockWhen / lockAllWhen on any
-    //      field, including inherited / interface-injected / overridden
-    //      fields), OR the action declares a state transition.
+    // Lock enforcement fires from two places (Spec 63 Phase 1):
     //
-    // When only state-transition needs the record we still fetch so Step 6
-    // can consume it without a second round-trip.
+    //   1. Here (declarative-update path). When `action.setFields` or
+    //      `action.stateTransition` is declared, the executor writes
+    //      directly via `executor`'s Step 7 logic and never passes through
+    //      the `ctx.update` wrapper below. We pre-flight those writes here.
+    //
+    //   2. `ctx.update()` wrapper (handler path). Handler-based actions
+    //      compute their writes at runtime; the wrapper catches them at the
+    //      moment `ctx.update(entity, id, data)` is called. This covers
+    //      handler-computed writes that the caller's input doesn't reveal
+    //      (e.g., a handler that rewrites an immutable field with a
+    //      constant without the caller passing that field in).
+    //
+    // Both paths funnel through `checkFieldLocks`; they differ only in when
+    // and with what "writes" argument they invoke it. Step 4b owns the
+    // existingRecord fetch and reuses it in Step 6 below to avoid a double
+    // round-trip on real DBs.
     //
     // Why `resolve()` instead of `get()`:
     //   - Child schemas inherit immutable/lockWhen from their parent.
@@ -566,12 +578,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const isDeclarativeUpdate =
       (action.setFields !== undefined && Object.keys(action.setFields).length > 0) ||
       action.stateTransition !== undefined;
-    const needsLockCheck = !!recordId && !!resolvedEntity && hasLockMetadata;
+    // Step 4b's preflight only covers declarative writes. Handler-based
+    // actions get their lock check from the `ctx.update` wrapper built
+    // below, which inspects the exact write-time data. Running Step 4b for
+    // handler actions would (a) flag unused caller-input keys that the
+    // handler never persists (P2 gap from round 5) and (b) miss
+    // handler-computed writes that aren't in `input` at all (P1 gap).
+    const needsDeclarativeLockCheck =
+      !!recordId && !!resolvedEntity && hasLockMetadata && isDeclarativeUpdate;
     const needsStateFetch = !!recordId && !!action.stateTransition && !!stateMachine;
 
     let existingRecord: Record<string, unknown> | undefined;
     let existingRecordFetchError = false;
-    if (recordId && (needsLockCheck || needsStateFetch)) {
+    if (recordId && (needsDeclarativeLockCheck || needsStateFetch)) {
       // Read through the parent's transactional provider when this is a
       // nested `ctx.execute` inside an open transaction. Otherwise a child
       // action sees the pre-transaction snapshot — a parent that just wrote
@@ -588,19 +607,22 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
     }
 
-    // Fail-closed on lock check — but only when we're sure the action is an
-    // update. For declarative-update actions (setFields / stateTransition)
-    // the record MUST exist; a failed fetch is a real problem. For handler-
-    // based actions without those markers the action may be a create
-    // supplying its own primary key — failing closed there would break
-    // import/sync flows. The declarative update branch (state transition)
-    // has its own fail-closed below for its not-found path.
-    if (needsLockCheck && existingRecordFetchError && isDeclarativeUpdate) {
-      const errorMsg = `Cannot verify field locks: record "${recordId}" in entity "${action.entity}" could not be read`;
+    /**
+     * Build a failed ActionResult for a field-lock preflight failure. Used
+     * by both the declarative-update path (Step 4b) and the handler path
+     * (ctx.update wrapper, via Step 7's catch). `entityName` is passed
+     * explicitly because TS can't narrow `action` (which is `let`-typed
+     * across the broader executeInner scope) across this helper boundary.
+     */
+    async function buildLockPreflightResult(
+      failedRecordId: string,
+      entityName: string,
+    ): Promise<ActionResult<T>> {
+      const errorMsg = `Cannot verify field locks: record "${failedRecordId}" in entity "${entityName}" could not be read`;
       await logExecution({
         id: executionId,
         action: actionName,
-        entity: action.entity,
+        entity: entityName,
         actor,
         input,
         status: "blocked",
@@ -614,7 +636,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           code: "validation.field.locked",
           context: {
             action: actionName,
-            entity: action.entity,
+            entity: entityName,
             constraint: "lock_preflight",
             suggestion:
               "The target record could not be read before applying field-lock checks — ensure the record exists and is accessible.",
@@ -624,27 +646,89 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    if (needsLockCheck && resolvedEntity && existingRecord) {
-      // Pre-compute the effective write set for lock checking.
+    /**
+     * Build a failed ActionResult for a field-lock violation. Used by both
+     * the declarative path (Step 4b) and the handler path (ctx.update
+     * wrapper, via Step 7's catch). Keeps the shape identical so
+     * downstream consumers (CommandLayer, client error renderers) don't
+     * care which path raised the violation.
+     */
+    async function buildLockViolationResult(
+      violations: readonly FieldLockViolation[],
+      entityName: string,
+    ): Promise<ActionResult<T>> {
+      const firstViolation = violations[0];
+      if (!firstViolation) {
+        // Defensive: violations is non-empty by contract, but TS doesn't
+        // narrow a readonly array length check.
+        throw new Error("Unreachable: violations non-empty but first is undefined");
+      }
+      const isImmutable = firstViolation.type === "immutable";
+      const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
+      const errorMsg = "Cannot modify locked fields";
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: entityName,
+        actor,
+        input,
+        status: "blocked",
+        error: { message: errorMsg, code: errorCode },
+        startedAt,
+      });
+      return {
+        success: false,
+        data: {
+          error: errorMsg,
+          code: errorCode,
+          details: violations.map((v) => ({
+            field: v.field,
+            type: v.type,
+            message: v.message,
+          })),
+          context: {
+            action: actionName,
+            entity: entityName,
+            field: firstViolation.field,
+            constraint: isImmutable ? "immutable" : "locked",
+            suggestion: isImmutable
+              ? `Field "${firstViolation.field}" cannot be changed after it is first set`
+              : `Field "${firstViolation.field}" is locked in the current state and cannot be modified`,
+          },
+        } as T,
+        executionId,
+      };
+    }
+
+    // Fail-closed on the declarative preflight. The declarative path knows
+    // the record MUST exist (setFields/stateTransition target an existing
+    // row), so a read failure means we cannot verify locks and must block.
+    // Handler-based actions never reach here (see `needsDeclarativeLockCheck`);
+    // their fail-closed equivalent lives in the `ctx.update` wrapper.
+    if (needsDeclarativeLockCheck && existingRecordFetchError && recordId && action) {
+      return buildLockPreflightResult(recordId, action.entity);
+    }
+
+    if (needsDeclarativeLockCheck && resolvedEntity && existingRecord && action) {
+      // Effective declarative write set:
       //
-      //   input (caller-provided)
-      //   + setFields resolved values (declarative writes — $-expressions
-      //     resolved to concrete values)
-      //   - id                        — never lock-checked (key field)
-      //   - status (when a state transition is active)
+      //   resolved action.setFields values (after `$`-expression resolution)
+      //   - status (when a state transition is active — authorized by the
+      //     state-machine layer, not the lock check)
       //
-      // The state-transition status write is authorized separately by the
-      // state-machine layer. Lock-checking it here would reject valid
-      // transitions out of any "locked" state (e.g., transitioning from
-      // `draft` when `lockAllWhen: { state: "draft" }` is declared).
+      // Note: caller `input` is NOT in the write set. Declarative actions
+      // only persist values they wire into `setFields` (plus the
+      // stateTransition `status`); arbitrary input keys are discarded by
+      // Step 7's declarative path. Including them here would raise
+      // false-positive violations on read-only payload fields that the
+      // action ignores (round-5 P2 fix).
       //
-      // Handler-based actions (`action.handler`) write via `ctx.update(...)`
-      // with arbitrary data that can't be inspected pre-flight. Those writes
-      // are NOT lock-checked — see the checker's JSDoc.
-      const writesToCheck: Record<string, unknown> = { ...input };
-      delete writesToCheck.id;
+      // Handler-based writes are covered at `ctx.update()` invocation time
+      // by the wrapper below, so they never reach this block.
+      const writesToCheck: Record<string, unknown> = {};
       if (action.setFields) {
         for (const [key, value] of Object.entries(action.setFields)) {
+          if (key === "id") continue;
           writesToCheck[key] = resolveFieldExpression(value, input, actor);
         }
       }
@@ -660,47 +744,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input: writesToCheck,
       });
       if (violations.length > 0) {
-        const firstViolation = violations[0];
-        if (!firstViolation) {
-          // Defensive: violations.length > 0 so firstViolation is always defined,
-          // but TS narrows via length check which it doesn't do here.
-          throw new Error("Unreachable: violations non-empty but first is undefined");
-        }
-        const isImmutable = firstViolation.type === "immutable";
-        const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
-        const errorMsg = "Cannot modify locked fields";
-        await logExecution({
-          id: executionId,
-          action: actionName,
-          entity: action.entity,
-          actor,
-          input,
-          status: "blocked",
-          error: { message: errorMsg, code: errorCode },
-          startedAt,
-        });
-        return {
-          success: false,
-          data: {
-            error: errorMsg,
-            code: errorCode,
-            details: violations.map((v) => ({
-              field: v.field,
-              type: v.type,
-              message: v.message,
-            })),
-            context: {
-              action: actionName,
-              entity: action.entity,
-              field: firstViolation.field,
-              constraint: isImmutable ? "immutable" : "locked",
-              suggestion: isImmutable
-                ? `Field "${firstViolation.field}" cannot be changed after it is first set`
-                : `Field "${firstViolation.field}" is locked in the current state and cannot be modified`,
-            },
-          } as T,
-          executionId,
-        };
+        return buildLockViolationResult(violations, action.entity);
       }
     }
 
@@ -802,8 +846,50 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       meta: resolvedMeta,
       get: (entity, id) => activeProvider.get(entity, id, queryOptions),
       query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
+      // ctx.create skips lock enforcement: creates are by definition writing
+      // a new row, immutable only applies to existing non-null values, and
+      // lockWhen/lockAllWhen require a pre-existing record to evaluate.
       create: (entity, data) => activeProvider.create(entity, data),
-      update: (entity, id, data) => activeProvider.update(entity, id, data, queryOptions),
+      update: async (entity, id, data) => {
+        // Handler-path lock check (Spec 63 round-5 fix): applies ONLY when
+        // the handler writes to the same entity the current action targets
+        // AND that entity has lock metadata. Cross-entity writes are out of
+        // scope here — the target entity's own actions (including generic
+        // update_<entity>) carry lock checks for that entity. Running this
+        // action's resolvedFields against a different entity's row would
+        // check the wrong schema.
+        if (entity === action.entity && resolvedEntity && hasLockMetadata) {
+          // Fetch at write-time (not reusing the Step 4b snapshot) because
+          // the handler may have executed earlier writes that changed the
+          // very row now being updated — e.g., a handler that transitions
+          // status before writing fields must see the post-transition
+          // status when evaluating lockWhen.
+          let current: Record<string, unknown>;
+          try {
+            current = await activeProvider.get(entity, id, queryOptions);
+          } catch {
+            // Fail closed when the row can't be read — same stance as the
+            // declarative preflight's fetch-error path.
+            throw new LockPreflightError(entity, id);
+          }
+          const writesToCheck: Record<string, unknown> = { ...data };
+          delete writesToCheck.id;
+          const violations = checkFieldLocks({
+            fields: resolvedFields,
+            lockAllWhen,
+            lockAllowFields,
+            existingRecord: current,
+            input: writesToCheck,
+          });
+          if (violations.length > 0) {
+            throw new LockViolationError(violations, entity);
+          }
+        }
+        return activeProvider.update(entity, id, data, queryOptions);
+      },
+      // ctx.delete skips lock enforcement: Spec 63 regulates field writes,
+      // not row deletion. Delete authorization lives elsewhere (soft-delete
+      // rules, permission slot).
       delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
       execute: async (childActionName, childInput, childOpts) => {
         // Extend parent meta for the child call: parent keys always win (§4.3),
@@ -879,7 +965,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           details: preValidation.errors,
           context: {
             action: actionName,
-            entity: action.entity,
+            entity: action?.entity,
             constraint: "pre_validation",
             field: firstError?.field,
             expected: firstError?.message,
@@ -912,7 +998,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            entity: action.entity,
+            entity: action?.entity,
             actor,
             input,
             status: "failed",
@@ -935,7 +1021,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            entity: action.entity,
+            entity: action?.entity,
             actor,
             input,
             status: "blocked",
@@ -947,7 +1033,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             data: {
               error: errorMsg,
               context: {
-                entity: action.entity,
+                entity: action?.entity,
                 action: actionName,
                 field: "status",
                 constraint: "state_transition",
@@ -967,7 +1053,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           await logExecution({
             id: executionId,
             action: actionName,
-            entity: action.entity,
+            entity: action?.entity,
             actor,
             input,
             status: "blocked",
@@ -979,7 +1065,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             data: {
               error: errorMsg,
               context: {
-                entity: action.entity,
+                entity: action?.entity,
                 action: actionName,
                 field: "status",
                 constraint: "state_machine",
@@ -1101,7 +1187,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             category: "runtime",
             timestamp: new Date(),
             actor: { type: actor.type, id: actor.id },
-            entity: action.entity,
+            entity: action?.entity,
             action: actionName,
             executionId,
             tenantId: execOptions?.tenantId,
@@ -1149,6 +1235,42 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      // Field-lock violations raised from the ctx.update wrapper surface as
+      // these dedicated errors. Convert them to the standard failed
+      // ActionResult shape Step 4b produces so both the declarative and
+      // handler paths emit identical results to downstream consumers.
+      //
+      // Metrics: these are authorization-style blocks, not execution
+      // failures, but we still route them through the failed counter so
+      // operators can monitor lock-block rates. A future split could add a
+      // dedicated `blocked` status if the signal is worth separating.
+      if (err instanceof LockViolationError) {
+        const durationMs = Date.now() - startedAt.getTime();
+        metrics.increment("action.executed", {
+          action: actionName,
+          entity: action.entity ?? "",
+          status: "failed",
+        });
+        metrics.timing("action.duration_ms", durationMs, {
+          action: actionName,
+          entity: action.entity ?? "",
+        });
+        return buildLockViolationResult(err.violations, err.entity);
+      }
+      if (err instanceof LockPreflightError) {
+        const durationMs = Date.now() - startedAt.getTime();
+        metrics.increment("action.executed", {
+          action: actionName,
+          entity: action?.entity ?? err.entity,
+          status: "failed",
+        });
+        metrics.timing("action.duration_ms", durationMs, {
+          action: actionName,
+          entity: action?.entity ?? err.entity,
+        });
+        return buildLockPreflightResult(err.recordId, err.entity);
+      }
+
       const durationMs = Date.now() - startedAt.getTime();
       metrics.increment("action.executed", {
         action: actionName,
@@ -1183,7 +1305,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             category: "runtime",
             timestamp: new Date(),
             actor: { type: actor.type, id: actor.id },
-            entity: action.entity,
+            entity: action?.entity,
             action: actionName,
             executionId,
             tenantId: execOptions?.tenantId,

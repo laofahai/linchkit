@@ -12,18 +12,26 @@
  * Fields absent from the supplied `fields` map are ignored — other layers
  * (input validation, write-time column filter) handle unknown fields.
  *
- * ### Pre-flight coverage
+ * ### Where the checker fires
  *
- * The engine calls this checker in Step 4b with the _effective write set_
- * it can predict from the action definition:
- *  - Caller `input` (minus `id`)
- *  - Resolved `action.setFields` values (after `$`-expression resolution)
+ * The engine invokes this checker from two points:
  *
- * Fields written inside an `action.handler` via `ctx.update(...)` /
- * `ctx.create(...)` are NOT visible pre-flight and therefore are NOT
- * lock-checked. Declarative actions (those that rely on `setFields` and/or
- * `stateTransition`) ARE fully covered. Handler-based actions are responsible
- * for their own lock compliance (or should be migrated to declarative form).
+ *  1. **Step 4b (declarative-update path)** — when `action.setFields` or
+ *     `action.stateTransition` is declared. The executor knows the exact
+ *     write set statically (resolved setFields − status on transition) and
+ *     can pre-flight it before any handler runs.
+ *  2. **`ctx.update()` wrapper (handler path)** — handler-based actions call
+ *     `ctx.update(entity, id, data)` at some point during execution; the
+ *     wrapper inspects the exact data argument (what will hit the DB) and
+ *     runs the check against a fresh read of the current record. Checking
+ *     handler-internal writes at the moment of `ctx.update` means
+ *     handler-computed writes (e.g., `ctx.update(..., { code: "SPOOFED" })`)
+ *     are caught even when they aren't in the caller's input payload.
+ *
+ * Violations raised from the `ctx.update` wrapper throw
+ * {@link LockViolationError} / {@link LockPreflightError}; the executor's
+ * Step 7 catch recognizes them and converts to the same failed-ActionResult
+ * shape Step 4b produces.
  */
 
 import type { FieldDefinition, LockCondition } from "../types/entity";
@@ -42,33 +50,63 @@ export interface FieldLockViolation {
 }
 
 /**
+ * Attempt to coerce `v` to a millisecond timestamp. Only Dates and strings
+ * are eligible: Dates contribute `getTime()`; strings are passed to the
+ * `Date` constructor and accepted only when the result is a finite number
+ * (so `"banana"` → `NaN` → null, but `"1970-01-01T00:00:00Z"` → 0).
+ *
+ * Plain numbers are deliberately rejected — a bare `0` shouldn't silently
+ * become "epoch" when compared against a Date; such coercion would hide
+ * real mismatches.
+ */
+function toTimestamp(v: unknown): number | null {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "string") {
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
+}
+
+/**
  * Structural equality for JSON-serializable values. Unlike a JSON.stringify
  * round-trip, ignores object key order so `{a:1,b:2}` === `{b:2,a:1}`
  * reorderings don't raise false "value changed" violations.
  *
- * Handles primitives, arrays, and plain objects. Field constraints do not
- * allow Dates, Maps, class instances, or cyclic structures (see
- * FieldDefinition types), so those cases need not be considered.
+ * Handles primitives, arrays, plain objects, and Date instances. Also
+ * applies cross-type Date/ISO-string coercion: a stored Date and an
+ * incoming ISO-like string are compared by timestamp so a re-submitted
+ * datetime value doesn't trip immutable enforcement just because the
+ * transport serialized it to a string.
+ *
+ * Field constraints do not allow Maps, class instances, or cyclic
+ * structures (see FieldDefinition types), so those cases need not be
+ * considered.
  */
 function structuralEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return a === b;
+
+  // Cross-type Date/string coercion. Only triggers when at least one side
+  // is a Date — pure string-vs-string comparisons remain strict-eq (already
+  // handled above via `a === b`). The guard prevents `"2024"` from being
+  // silently equated to `"2024-01-01"` just because both parse to the same
+  // millisecond on a generous `Date` parser.
+  if (a instanceof Date || b instanceof Date) {
+    const at = toTimestamp(a);
+    const bt = toTimestamp(b);
+    // If either side fails to coerce (e.g., Date vs "banana" or
+    // Date vs { foo: 1 }), treat them as not-equal. We don't fall through
+    // to the later typeof branches — one side is definitively a Date, and
+    // arbitrary objects vs Dates are never structurally equal.
+    if (at === null || bt === null) return false;
+    return at === bt;
+  }
+
   const ta = typeof a;
   const tb = typeof b;
   if (ta !== tb) return false;
   if (ta !== "object") return false;
-
-  // Date values: compare by millisecond timestamp. Without this, two Date
-  // instances with different timestamps would look "equal" (both have
-  // `Date.prototype` and no enumerable own keys), silently allowing
-  // immutable datetime updates like `2024-01-01 -> 2025-01-01`. Handles
-  // the case where one side is a Date and the other isn't (still not-equal).
-  const aDate = a instanceof Date;
-  const bDate = b instanceof Date;
-  if (aDate || bDate) {
-    if (!aDate || !bDate) return false;
-    return a.getTime() === b.getTime();
-  }
 
   const aArr = Array.isArray(a);
   const bArr = Array.isArray(b);
@@ -219,4 +257,46 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
   }
 
   return violations;
+}
+
+/**
+ * Thrown from the `ctx.update()` wrapper when the executor detects a
+ * field-lock violation on a handler-initiated write. The executor's Step 7
+ * catch recognizes this class and converts it to a failed `ActionResult`
+ * with the same payload shape Step 4b produces for declarative updates.
+ *
+ * Carries the full violations array so the error result retains per-field
+ * detail identical to the declarative path.
+ */
+export class LockViolationError extends Error {
+  readonly violations: readonly FieldLockViolation[];
+  readonly entity: string;
+
+  constructor(violations: readonly FieldLockViolation[], entity: string) {
+    super("Field lock violation");
+    this.name = "LockViolationError";
+    this.violations = violations;
+    this.entity = entity;
+  }
+}
+
+/**
+ * Thrown from the `ctx.update()` wrapper when the record can't be read
+ * prior to applying the lock check. The wrapper fails closed (matching
+ * Step 4b's preflight behavior for declarative updates) rather than
+ * allowing a write to bypass the check because the existing state is
+ * unknown.
+ */
+export class LockPreflightError extends Error {
+  readonly entity: string;
+  readonly recordId: string;
+
+  constructor(entity: string, recordId: string) {
+    super(
+      `Cannot verify field locks: record "${recordId}" in entity "${entity}" could not be read`,
+    );
+    this.name = "LockPreflightError";
+    this.entity = entity;
+    this.recordId = recordId;
+  }
 }
