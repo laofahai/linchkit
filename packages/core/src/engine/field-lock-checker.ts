@@ -119,7 +119,7 @@ function toTimestamp(v: unknown): number | null {
  * structures (see FieldDefinition types), so those cases need not be
  * considered.
  */
-function structuralEqual(a: unknown, b: unknown): boolean {
+function structuralEqual(a: unknown, b: unknown, seen?: WeakSet<object>): boolean {
   if (a === b) return true;
   if (a == null || b == null) return a === b;
 
@@ -144,13 +144,30 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   if (ta !== tb) return false;
   if (ta !== "object") return false;
 
+  // Cycle protection (Gemini PR #203 review). FieldDefinition types reject
+  // cyclic structures at construction, but values arrive here from runtime
+  // sources (handlers, external APIs, untyped DB rows) where a cycle could
+  // slip through and turn the recursive walk into a stack overflow. Track
+  // the *current recursion path* via WeakSet — add on descent, remove on
+  // ascent — so legitimate shared references like `{ x: shared, y: shared }`
+  // still compare correctly while true cycles bail out as not-equal.
+  const path = seen ?? new WeakSet<object>();
+  if (path.has(a as object) || path.has(b as object)) return false;
+
   const aArr = Array.isArray(a);
   const bArr = Array.isArray(b);
   if (aArr !== bArr) return false;
   if (aArr && bArr) {
     if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!structuralEqual(a[i], b[i])) return false;
+    path.add(a as object);
+    path.add(b as object);
+    try {
+      for (let i = 0; i < a.length; i++) {
+        if (!structuralEqual(a[i], b[i], path)) return false;
+      }
+    } finally {
+      path.delete(a as object);
+      path.delete(b as object);
     }
     return true;
   }
@@ -170,9 +187,16 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   const aKeys = Object.keys(ao);
   const bKeys = Object.keys(bo);
   if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!Object.hasOwn(bo, k)) return false;
-    if (!structuralEqual(ao[k], bo[k])) return false;
+  path.add(a as object);
+  path.add(b as object);
+  try {
+    for (const k of aKeys) {
+      if (!Object.hasOwn(bo, k)) return false;
+      if (!structuralEqual(ao[k], bo[k], path)) return false;
+    }
+  } finally {
+    path.delete(a as object);
+    path.delete(b as object);
   }
   return true;
 }

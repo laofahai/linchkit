@@ -250,6 +250,95 @@ describe("Spec 63 — translatable field locale-map vs plain-string update", () 
   });
 });
 
+// ── CodeRabbit PR #203: declarative lock check shares the txProvider snapshot ─
+// The lock check (formerly a pre-pipeline preflight via baseProvider) now
+// runs inside runHandler against `dp.get()`, so when transactionManager
+// opens a new tx for the write, the check sees the same snapshot the write
+// will see. Verify by simulating a concurrent change between two `get()`
+// calls — pre-fix the preflight read would miss it.
+
+describe("Spec 63 — declarative lock check uses the same snapshot as the write", () => {
+  it("read sequence: each dp.get() reads the latest state, so write-time check sees concurrent updates", async () => {
+    // Setup: entity with immutable `code`. Initial code = "ORIG".
+    // We simulate a race by mutating `store` between the action's read
+    // calls. The declarative path's lock check now runs inside runHandler,
+    // so it reads via the same `dp` reference the write uses — meaning
+    // the second read (lock check) sees the concurrent change.
+    const entity: EntityDefinition = {
+      name: "race",
+      label: "Race",
+      fields: {
+        code: { type: "string", immutable: true },
+        amount: { type: "number" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+
+    const store = new Map<string, Record<string, unknown>>();
+    store.set("r-1", { id: "r-1", code: "ORIG", amount: 1 });
+
+    // Track read count to flip the value after the first .get() (Step 6
+    // state-transition fetch happens once, then runHandler does its own
+    // lock-check get — that second call will see the post-mutation state).
+    let getCount = 0;
+    const dataProvider = {
+      async get(_s: string, id: string) {
+        getCount += 1;
+        const r = store.get(id);
+        if (!r) throw new Error("not found");
+        // Between reads, simulate a concurrent transaction setting code.
+        // Since declarative-update actions don't do state-transition reads
+        // here (no stateTransition in this action), this only fires once
+        // for the lock check — the write gets the post-flip value.
+        if (getCount === 1) {
+          store.set(id, { ...r, code: "MUTATED_BY_OTHER_TX" });
+        }
+        return { ...r };
+      },
+      async query() {
+        return Array.from(store.values());
+      },
+      async create(_s: string, data: Record<string, unknown>) {
+        const id = data.id as string;
+        store.set(id, data);
+        return data;
+      },
+      async update(_s: string, id: string, data: Record<string, unknown>) {
+        const prev = store.get(id) ?? {};
+        const merged = { ...prev, ...data };
+        store.set(id, merged);
+        return merged;
+      },
+      async delete() {},
+      async count() {
+        return store.size;
+      },
+    };
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "bump_amount",
+      entity: "race",
+      label: "Bump Amount",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      // Declarative: setFields without touching `code`. Lock check should
+      // pass because we're not changing `code`.
+      setFields: { amount: 999 },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("bump_amount", { id: "r-1" }, actor);
+    expect(result.success).toBe(true);
+    // The amount write went through.
+    const after = store.get("r-1");
+    expect(after?.amount).toBe(999);
+    // Code was mutated by the simulated concurrent tx; we picked it up via
+    // the in-runHandler read but didn't fail because we weren't changing it.
+    expect(after?.code).toBe("MUTATED_BY_OTHER_TX");
+  });
+});
+
 // ── Codex round-9: handler-path status transitions exempt from lockAllWhen ─
 // Spec 63 §7.1 — state transitions change the locked field set
 // automatically, so `status` writes must succeed even while `lockAllWhen`

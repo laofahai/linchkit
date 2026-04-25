@@ -731,58 +731,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // Fail-closed on the declarative preflight. The declarative path knows
-    // the record MUST exist (setFields/stateTransition target an existing
-    // row), so a read failure means we cannot verify locks and must block.
-    // Handler-based actions never reach here (see `needsDeclarativeLockCheck`);
-    // their fail-closed equivalent lives in the `ctx.update` wrapper.
-    if (needsDeclarativeLockCheck && existingRecordFetchError && recordId && action) {
-      return buildLockPreflightResult(recordId, action.entity);
-    }
-
-    if (needsDeclarativeLockCheck && resolvedEntity && existingRecord && action) {
-      // Effective declarative write set:
-      //
-      //   resolved action.setFields values (after `$`-expression resolution)
-      //   + the stateTransition target status (so an explicit per-field
-      //     `lockWhen` / `immutable` declared on `status` is still honored —
-      //     the SYSTEM_FIELD_NAMES exemption inside the checker only skips
-      //     `lockAllWhen` for status, not author-declared per-field locks).
-      //
-      // Note: caller `input` is NOT in the write set. Declarative actions
-      // only persist values they wire into `setFields` (plus the
-      // stateTransition `status`); arbitrary input keys are discarded by
-      // Step 7's declarative path. Including them here would raise
-      // false-positive violations on read-only payload fields that the
-      // action ignores (round-5 P2 fix).
-      //
-      // Handler-based writes are covered at `ctx.update()` invocation time
-      // by the wrapper below, so they never reach this block.
-      const writesToCheck: Record<string, unknown> = {};
-      if (action.setFields) {
-        for (const [key, value] of Object.entries(action.setFields)) {
-          if (key === "id") continue;
-          writesToCheck[key] = resolveFieldExpression(value, input, actor);
-        }
-      }
-      if (action.stateTransition) {
-        // Persist the status target so a schema-author's per-field
-        // `lockWhen` on status is respected. The lockAllWhen exemption is
-        // handled inside `checkFieldLocks` via SYSTEM_FIELD_NAMES.
-        writesToCheck.status = action.stateTransition.to;
-      }
-
-      const violations: FieldLockViolation[] = checkFieldLocks({
-        fields: resolvedFields,
-        lockAllWhen,
-        lockAllowFields,
-        existingRecord,
-        input: writesToCheck,
-      });
-      if (violations.length > 0) {
-        return buildLockViolationResult(violations, action.entity);
-      }
-    }
+    // The declarative-update lock check (formerly Step 4b) was relocated
+    // INTO runHandler below. CodeRabbit PR #203 review: a Step 4b preflight
+    // reads from `baseProvider`, but Step 7 then opens a new transaction and
+    // writes via the txProvider — a concurrent transaction could mutate the
+    // row between the preflight and the write, bypassing enforcement. The
+    // authoritative declarative lock check now runs inside runHandler against
+    // the same `dp` reference the write uses (txProvider when transactional,
+    // baseProvider otherwise), so check and write share one snapshot. Step 4b
+    // retains only the existing-record fetch needed for Step 6 state
+    // transition gating.
 
     // Resolve execution meta. `execOptions.meta` is typed as
     // `ExecutionMeta | Record<string, unknown>` so direct-executor callers can
@@ -1154,9 +1112,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           resultData = await action.handler(ctx);
         } else {
           // Declarative action — no handler needed
-          const recordId = input.id as string | undefined;
+          const recordIdLocal = input.id as string | undefined;
 
-          if (recordId) {
+          if (recordIdLocal) {
             const updates: Record<string, unknown> = {};
 
             if (action.setFields) {
@@ -1170,7 +1128,36 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             }
 
             if (Object.keys(updates).length > 0) {
-              record = await dp.update(action.entity, recordId, updates, queryOptions);
+              // Field-lock check INSIDE the transaction so the read snapshot
+              // matches the write snapshot. CodeRabbit PR #203: doing this at
+              // the pre-pipeline preflight (formerly Step 4b) opens a TOCTOU
+              // gap when transactionManager is in play — a concurrent tx
+              // could change lock-critical fields between the preflight read
+              // and the write inside the new tx. Reading via `dp` here uses
+              // the txProvider when transactional, baseProvider otherwise,
+              // matching what the write itself sees.
+              if (resolvedEntity && hasLockMetadata && action) {
+                let txCurrent: Record<string, unknown>;
+                try {
+                  txCurrent = await dp.get(action.entity, recordIdLocal, queryOptions);
+                } catch {
+                  throw new LockPreflightError(action.entity, recordIdLocal);
+                }
+                const writesToCheck: Record<string, unknown> = { ...updates };
+                delete writesToCheck.id;
+                const violations = checkFieldLocks({
+                  fields: resolvedFields,
+                  lockAllWhen,
+                  lockAllowFields,
+                  existingRecord: txCurrent,
+                  input: writesToCheck,
+                });
+                if (violations.length > 0) {
+                  throw new LockViolationError(violations, action.entity);
+                }
+              }
+
+              record = await dp.update(action.entity, recordIdLocal, updates, queryOptions);
               resultData = record;
             }
           }
