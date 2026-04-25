@@ -31,6 +31,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
+import { resolveStatusCode } from "../routes/shared";
 import type { GraphQLContext } from "./build-schema";
 
 const MAX_VALUES_LENGTH = 10_000;
@@ -93,7 +94,71 @@ export function buildOnchangeMutationFields(
         args: { changedField: string; values: string },
         ctx: GraphQLContext,
       ) => {
-        // ── Parse & validate `values` JSON ────────────────────
+        // ── Run CommandLayer (auth/permission/tenant) FIRST ────────
+        // Codex Round-1 P3: keep the uniform-denial property — input
+        // validation runs AFTER auth so an unauthenticated probe cannot
+        // distinguish "endpoint exists, request shape rejected" from
+        // "endpoint denied". An attacker forging an oversized or malformed
+        // `values` arg must hit the same canonical AUTHZ_DENIED as a
+        // request that's well-formed but unauthorized.
+        const commandResult = await commandLayer.execute({
+          command: `${entityName}.onchange`,
+          input: { entity: entityName, changedField: args.changedField },
+          actor: ctx.actor,
+          // Existing GraphQL mutations route as "http" — keep that convention
+          // so per-channel exposure / metrics behave identically across REST
+          // and GraphQL onchange calls.
+          channel: "http",
+          tenantId: ctx.tenantId,
+          locale: ctx.locale,
+          meta: {
+            onchange: {
+              entity: entityName,
+              changedField: args.changedField,
+            },
+          },
+          skipActionSlots: true,
+        });
+
+        if (!commandResult.success) {
+          // Codex Round-1 P2: only canonicalize 401/403 to AUTHZ_DENIED.
+          // Other pipeline failures (rate_limit.exceeded → 429, fail-closed
+          // PERMISSION.MIDDLEWARE_MISSING → 500, etc.) carry meaningful
+          // semantics that GraphQL clients need to distinguish — collapsing
+          // every failure into 403 would mask retryable/operator-actionable
+          // states behind RBAC denials.
+          const errData = commandResult.data as Record<string, unknown> | undefined;
+          const middlewareCode = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
+          const middlewareMessage = (errData?.error as string) ?? "Onchange request blocked";
+          const status = resolveStatusCode(commandResult);
+
+          if (status === 401 || status === 403) {
+            consoleLogger.warn("onchange-graphql: authorization denied", {
+              entity: entityName,
+              changedField: args.changedField,
+              actor: ctx.actor.id,
+              middlewareCode,
+              middlewareMessage,
+            });
+            throw new GraphQLError("Access denied", {
+              extensions: { code: "AUTHZ_DENIED", http: { status: 403 } },
+            });
+          }
+
+          // Non-auth pipeline failure: surface the structured code/message so
+          // clients can branch on it (e.g. throttling → backoff). Operator
+          // detail is preserved here — auth gates already passed if we got a
+          // non-401/403 status, so leaking the code is safe.
+          throw new GraphQLError(middlewareMessage, {
+            extensions: { code: middlewareCode, http: { status } },
+          });
+        }
+
+        // ── Post-auth: validate `values` JSON ───────────────────
+        // Codex Round-1 P3: validation lives AFTER auth so that the
+        // "endpoint exists" signal can only be observed by authorized
+        // callers. Stable extension codes let clients distinguish bad
+        // input shape from an unrecognized field or evaluator failure.
         if (args.values.length > MAX_VALUES_LENGTH) {
           throw new GraphQLError(
             `Argument "values" exceeds maximum allowed length of ${MAX_VALUES_LENGTH} characters`,
@@ -115,46 +180,7 @@ export function buildOnchangeMutationFields(
         }
         const values = parsed as Record<string, unknown>;
 
-        // ── Run CommandLayer (auth/permission/tenant) BEFORE revealing entity shape ──
-        const commandResult = await commandLayer.execute({
-          command: `${entityName}.onchange`,
-          input: { entity: entityName, changedField: args.changedField },
-          actor: ctx.actor,
-          // Existing GraphQL mutations route as "http" — keep that convention
-          // so per-channel exposure / metrics behave identically across REST
-          // and GraphQL onchange calls.
-          channel: "http",
-          tenantId: ctx.tenantId,
-          locale: ctx.locale,
-          meta: {
-            onchange: {
-              entity: entityName,
-              changedField: args.changedField,
-            },
-          },
-          skipActionSlots: true,
-        });
-
-        if (!commandResult.success) {
-          // Canonicalize all auth failures (mirror REST AUTHZ_DENIED). Log the
-          // raw middleware detail for operator debugging — never echo it to
-          // the client where it would leak entity existence / hook presence.
-          const errData = commandResult.data as Record<string, unknown> | undefined;
-          const middlewareCode = (errData?.code as string) ?? "ONCHANGE.BLOCKED";
-          const middlewareMessage = (errData?.error as string) ?? "Onchange request blocked";
-          consoleLogger.warn("onchange-graphql: authorization denied", {
-            entity: entityName,
-            changedField: args.changedField,
-            actor: ctx.actor.id,
-            middlewareCode,
-            middlewareMessage,
-          });
-          throw new GraphQLError("Access denied", {
-            extensions: { code: "AUTHZ_DENIED", http: { status: 403 } },
-          });
-        }
-
-        // ── Post-auth: safe to surface evaluator-level errors ────────
+        // ── Run evaluator ───────────────────────────────────────
         const resolvedContext =
           commandResult.data && typeof commandResult.data === "object"
             ? (commandResult.data as { tenantId?: string; locale?: string })
@@ -179,10 +205,17 @@ export function buildOnchangeMutationFields(
               extensions: { code: `ONCHANGE.${err.code}` },
             });
           }
-          // Unknown failure — surface as generic GraphQL error without
-          // leaking implementation details.
-          const message = err instanceof Error ? err.message : "Onchange evaluation failed";
-          throw new GraphQLError(message, {
+          // Codex Round-1 P3: unknown failure — log full detail server-side
+          // and return a fixed message so SQL driver / upstream HTTP error
+          // strings can't leak through the client-visible GraphQL error.
+          consoleLogger.warn("onchange-graphql: unexpected evaluator failure", {
+            entity: entityName,
+            changedField: args.changedField,
+            actor: ctx.actor.id,
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+          });
+          throw new GraphQLError("Onchange evaluation failed", {
             extensions: { code: "ONCHANGE.EVALUATION_FAILED" },
           });
         }

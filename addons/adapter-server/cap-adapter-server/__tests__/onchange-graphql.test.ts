@@ -354,4 +354,111 @@ describe("GraphQL `<entity>_onchange` permission denial canonicalization", () =>
     expect(result.errors?.[0]?.message).not.toContain("admin_secret");
     expect(JSON.stringify(result.errors)).not.toContain("admin_secret");
   });
+
+  test("auth runs BEFORE values validation — denying side sees AUTHZ_DENIED, not MALFORMED_VALUES", async () => {
+    // Codex Round-1 P3 — uniform-denial property. An unauthorized caller
+    // sending malformed `values` must get the same canonical AUTHZ_DENIED
+    // response as a request with valid input shape; otherwise the caller
+    // could distinguish "endpoint exists, request rejected at validation"
+    // from "endpoint denied entirely" and enumerate which entities have
+    // onchange hooks.
+    const result = await gql(denyPort, ONCHANGE_MUTATION, {
+      field: "product_id",
+      values: "definitely not json",
+    });
+    expect(result.errors?.[0]?.extensions?.code).toBe("AUTHZ_DENIED");
+    expect(result.errors?.[0]?.extensions?.code).not.toBe("INVALID_REQUEST.MALFORMED_VALUES");
+  });
+});
+
+// ── Codex Round-1 P2: non-auth pipeline failures retain their semantics ──
+
+describe("GraphQL `<entity>_onchange` non-auth pipeline failures", () => {
+  test("rate_limit pipeline failure surfaces the original code, NOT canonical AUTHZ_DENIED", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(lineEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "rate_limit_throttle",
+      slot: "permission",
+      handler: async () => {
+        throw new PipelineError("Too many requests, retry later", "rate_limit.exceeded");
+      },
+    });
+    const evaluator = createOnchangeEvaluator({ entityRegistry, dataProvider: store });
+    const schema = buildGraphQLSchema([lineEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: evaluator,
+    });
+    const port = 4314;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const result = await gql(port, ONCHANGE_MUTATION, {
+        field: "product_id",
+        values: JSON.stringify({ product_id: "pg1" }),
+      });
+      // Must NOT collapse to AUTHZ_DENIED — clients need to recognize
+      // throttling so they can backoff/retry. The original error code
+      // is preserved verbatim in extensions.
+      expect(result.errors?.[0]?.extensions?.code).toBe("rate_limit.exceeded");
+      expect(result.errors?.[0]?.extensions?.code).not.toBe("AUTHZ_DENIED");
+      // The structured message reaches the client (auth gates already passed,
+      // so non-auth failure detail is safe to surface).
+      expect(result.errors?.[0]?.message).toBe("Too many requests, retry later");
+    } finally {
+      app.stop();
+    }
+  });
+});
+
+// ── Codex Round-1 P3: unknown evaluator errors do not leak details ──
+
+describe("GraphQL `<entity>_onchange` unexpected evaluator failures", () => {
+  test("non-OnchangeEvaluatorError from evaluator returns a fixed generic message", async () => {
+    // The OnchangeEvaluator normally catches hook failures internally and
+    // converts them to warnings — direct hook throws don't reach the
+    // resolver's catch block. To exercise the unknown-error path that
+    // Codex Round-1 P3 hardens, we wrap the evaluator with a stub that
+    // throws a non-OnchangeEvaluatorError directly. This proves the
+    // resolver swallows the message and never echoes it to the client.
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(lineEntity);
+    const executor = createActionExecutor({ dataProvider: store });
+    const commandLayer = createCommandLayer({ executor });
+    commandLayer.use({
+      name: "allow_all",
+      slot: "permission",
+      handler: async (_ctx, next) => {
+        await next();
+      },
+    });
+    // Stub evaluator that always throws a generic Error with secret detail.
+    const leakyEvaluator = {
+      evaluate: async () => {
+        throw new Error("SECRET_INTERNAL_DETAIL: connection to db-replica-3 timed out");
+      },
+    };
+    const schema = buildGraphQLSchema([lineEntity], {
+      executor,
+      commandLayer,
+      onchangeEvaluator: leakyEvaluator,
+    });
+    const port = 4315;
+    const app = createServer(schema, { executor, commandLayer, entityRegistry });
+    app.listen(port);
+    try {
+      const result = await gql(port, ONCHANGE_MUTATION, {
+        field: "product_id",
+        values: JSON.stringify({ product_id: "pg1" }),
+      });
+      expect(result.errors?.[0]?.extensions?.code).toBe("ONCHANGE.EVALUATION_FAILED");
+      expect(result.errors?.[0]?.message).toBe("Onchange evaluation failed");
+      expect(JSON.stringify(result)).not.toContain("SECRET_INTERNAL_DETAIL");
+    } finally {
+      app.stop();
+    }
+  });
 });
