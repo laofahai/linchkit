@@ -32,7 +32,7 @@
  *   trade-off for public GraphQL endpoints, not specific to onchange.
  */
 
-import type { Actor, CommandLayer, EntityDefinition } from "@linchkit/core";
+import type { CommandLayer, EntityDefinition } from "@linchkit/core";
 import type { OnchangeEvaluator } from "@linchkit/core/server";
 import { consoleLogger, OnchangeEvaluatorError } from "@linchkit/core/server";
 import {
@@ -43,7 +43,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from "graphql";
-import { resolveStatusCode } from "../routes/shared";
+import { extractSkipActionSlotsContext, resolveStatusCode } from "../routes/shared";
 import { type GraphQLContext, sanitizeGraphQLFieldName } from "./build-schema";
 
 const MAX_VALUES_LENGTH = 10_000;
@@ -231,10 +231,7 @@ export function buildOnchangeMutationFields(
         // values would silently undo middleware decisions and could
         // either leak cross-tenant data or run lookups under broader
         // permissions than the pipeline intended.
-        const resolvedContext =
-          commandResult.data && typeof commandResult.data === "object"
-            ? (commandResult.data as { actor?: Actor; tenantId?: string; locale?: string })
-            : undefined;
+        const resolvedContext = extractSkipActionSlotsContext(commandResult.data);
         try {
           const result = await onchangeEvaluator.evaluate({
             entityName,

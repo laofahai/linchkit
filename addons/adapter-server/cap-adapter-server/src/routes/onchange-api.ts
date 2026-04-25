@@ -23,6 +23,7 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
   badRequest,
+  extractSkipActionSlotsContext,
   notFound,
   resolveActor,
   resolveStatusCode,
@@ -194,14 +195,7 @@ export function mountOnchangeRoutes(
     // the actor (role hydration, impersonation) MUST be honored here, so we
     // prefer the post-pipeline actor over the actor we resolved from the
     // request before dispatch.
-    const resolvedContext =
-      commandResult.data && typeof commandResult.data === "object"
-        ? (commandResult.data as {
-            actor?: typeof actor;
-            tenantId?: string;
-            locale?: string;
-          })
-        : undefined;
+    const resolvedContext = extractSkipActionSlotsContext(commandResult.data);
     try {
       const result = await onchangeEvaluator.evaluate({
         entityName,
