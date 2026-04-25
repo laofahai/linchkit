@@ -34,7 +34,6 @@ export {
   type PendingEvent,
   type TransactionManager,
 } from "./engine/action-engine";
-
 export {
   type ApprovalEngine,
   type ApprovalEngineOptions,
@@ -43,8 +42,16 @@ export {
   createApprovalVerifier,
   InMemoryApprovalStore,
 } from "./engine/approval-engine";
+// Batch action engine (Spec 04 §8, Spec 16 §2.1)
+export {
+  BatchValidationError,
+  type ExecuteBatchOptions,
+  executeBatch,
+  MAX_BATCH_SIZE,
+} from "./engine/batch-action-engine";
 
 export {
+  type CommandBatchExecuteOptions,
   type CommandContext,
   type CommandExecuteOptions,
   type CommandLayer,

@@ -5,6 +5,7 @@
 export type * from "./action";
 export type * from "./ai";
 export type * from "./approval";
+export type * from "./batch";
 export type * from "./capability";
 export type {
   CapabilityMetadata,

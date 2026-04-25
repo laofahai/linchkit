@@ -1,20 +1,122 @@
 /**
  * REST action endpoint.
  *
- * - POST /api/actions/:name — execute an action via ActionExecutor or CommandLayer
+ * - POST /api/actions/batch — execute multiple actions via CommandLayer.executeBatch (Spec 16 §3.1)
+ * - POST /api/actions/:name — execute a single action via ActionExecutor or CommandLayer
+ *
+ * Route ordering matters: `/api/actions/batch` MUST be registered before
+ * `/api/actions/:name` so the parametric route does not capture "batch".
  */
 
-import type { ActionResult } from "@linchkit/core";
+import type {
+  ActionResult,
+  BatchActionsInput,
+  BatchActionsResult,
+  BatchTransactionStrategy,
+} from "@linchkit/core";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
-import { resolveActor, resolveRequestLocale, resolveStatusCode } from "./shared";
+import {
+  badRequest,
+  resolveActor,
+  resolveRequestLocale,
+  resolveStatusCode,
+  serverError,
+} from "./shared";
+
+/** Validate the JSON body shape for `POST /api/actions/batch`. */
+function parseBatchBody(
+  body: unknown,
+): { ok: true; input: BatchActionsInput } | { ok: false; reason: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, reason: "Request body must be a JSON object." };
+  }
+  const obj = body as Record<string, unknown>;
+  if (!Array.isArray(obj.actions)) {
+    return { ok: false, reason: "`actions` must be an array." };
+  }
+  for (let i = 0; i < obj.actions.length; i++) {
+    const item = obj.actions[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return { ok: false, reason: `actions[${i}] must be an object.` };
+    }
+    const it = item as Record<string, unknown>;
+    if (typeof it.name !== "string" || it.name.length === 0) {
+      return { ok: false, reason: `actions[${i}].name must be a non-empty string.` };
+    }
+    if (it.input !== undefined && (typeof it.input !== "object" || it.input === null)) {
+      return { ok: false, reason: `actions[${i}].input must be an object when present.` };
+    }
+  }
+  if (obj.strategy !== undefined) {
+    if (obj.strategy !== "all_or_nothing" && obj.strategy !== "partial") {
+      return {
+        ok: false,
+        reason: "`strategy` must be 'all_or_nothing' or 'partial'.",
+      };
+    }
+  }
+  const actions = obj.actions.map((raw) => {
+    const it = raw as Record<string, unknown>;
+    return {
+      name: it.name as string,
+      input: (it.input as Record<string, unknown>) ?? {},
+    };
+  });
+  const input: BatchActionsInput = { actions };
+  if (obj.strategy !== undefined) {
+    input.strategy = obj.strategy as BatchTransactionStrategy;
+  }
+  return { ok: true, input };
+}
 
 export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
   const executor = options.executor;
   const commandLayer = options.commandLayer;
+  const transactionManager = options.transactionManager;
   const resolveRequestActor = options.resolveRequestActor;
 
   app
+    // Batch endpoint — must be registered BEFORE the `/:name` route so the
+    // parametric matcher does not capture "batch". HTTP 200 is used for all
+    // structured results in v1, including partial failures (consider 207
+    // Multi-Status in a follow-up if downstream tooling benefits from it).
+    .post("/api/actions/batch", async ({ body, set, request }) => {
+      if (!commandLayer) {
+        return serverError(
+          set,
+          "Batch action endpoint requires a CommandLayer to enforce permissions.",
+        );
+      }
+
+      const parsed = parseBatchBody(body);
+      if (!parsed.ok) {
+        return badRequest(set, parsed.reason);
+      }
+
+      const locale = resolveRequestLocale(request);
+      const actor = await resolveActor(request, resolveRequestActor);
+      const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
+      const headers: Record<string, string> = {};
+      for (const [key, value] of request.headers.entries()) {
+        headers[key] = value;
+      }
+
+      const result: BatchActionsResult = await commandLayer.executeBatch({
+        input: parsed.input,
+        actor,
+        channel: "http",
+        locale,
+        headers,
+        traceId: incomingTraceId,
+        transactionManager,
+      });
+
+      // v1 returns 200 for any structurally valid request — clients inspect
+      // `success` and the per-item arrays. (Consider HTTP 207 Multi-Status
+      // for `partial` mode with mixed outcomes in a follow-up.)
+      return result;
+    })
     // REST action endpoint — executes via ActionExecutor
     // Body is unwrapped action input (Stripe-style, see spec 16 §2.4)
     .post("/api/actions/:name", async ({ params, body, set, request }) => {

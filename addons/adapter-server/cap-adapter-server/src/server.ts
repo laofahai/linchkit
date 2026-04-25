@@ -29,6 +29,7 @@ import type {
   RuntimeConfigRegistry,
   StateDefinition,
   SubscriptionConfig,
+  TransactionManager,
   ViewDefinition,
 } from "@linchkit/core";
 import type {
@@ -68,6 +69,12 @@ export interface ServerOptions {
   executor?: ActionExecutor;
   /** Command layer — if provided, REST actions go through the pipeline */
   commandLayer?: CommandLayer;
+  /**
+   * Transaction manager — required by `POST /api/actions/batch` for the
+   * `all_or_nothing` strategy. Without it, batch requests using
+   * `all_or_nothing` are rejected with a structured failure.
+   */
+  transactionManager?: TransactionManager;
   /** Execution logger for log query endpoints */
   executionLogger?: ExecutionLogger;
   /** Schema registry for metadata endpoints */

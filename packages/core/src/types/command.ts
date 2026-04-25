@@ -6,6 +6,7 @@
  */
 
 import type { ActionDefinition, ActionResult } from "./action";
+import type { BatchActionsInput, BatchActionsResult } from "./batch";
 import type { CapabilityDefinition } from "./capability";
 import type { EntityDefinition } from "./entity";
 import type { RuleDefinition } from "./rule";
@@ -34,9 +35,12 @@ export interface CommandResponse<T = unknown> {
 export interface CommandRegistry {
   // Action execution
   execute_action: (name: string, input: Record<string, unknown>) => Promise<ActionResult>;
-  batch_actions: (
-    actions: Array<{ name: string; input: Record<string, unknown> }>,
-  ) => Promise<ActionResult[]>;
+  /**
+   * Execute multiple actions in a single call (Spec 04 §8, Spec 16 §2.1).
+   * Each item runs through the full Command Layer pipeline; the strategy
+   * controls cross-item transactionality.
+   */
+  batch_actions: (input: BatchActionsInput) => Promise<BatchActionsResult>;
 
   // Data query
   query: (graphql: string, variables?: Record<string, unknown>) => Promise<unknown>;
