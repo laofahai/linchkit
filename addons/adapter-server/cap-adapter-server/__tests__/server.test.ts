@@ -81,7 +81,12 @@ describe("buildGraphQLSchema", () => {
     expect(sdl).toContain("task(");
     expect(sdl).toContain("id: ID!");
     expect(sdl).toContain("): TaskListResult!");
-    expect(sdl).toContain("createTask(input: TaskInput!): Task");
+    // createTask is multiline in SDL because the `meta` arg carries a
+    // description string (Spec 65 §3.2); verify key parts rather than the
+    // single-line shape.
+    expect(sdl).toContain("createTask(");
+    expect(sdl).toContain("input: TaskInput!");
+    expect(sdl).toContain("meta: String");
     // updateTask is multiline in SDL due to arg descriptions; verify key parts
     expect(sdl).toContain("updateTask(");
     expect(sdl).toContain("id: ID!");

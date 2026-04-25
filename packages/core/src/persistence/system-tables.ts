@@ -71,6 +71,8 @@ export const executionsTable = linchkitSchema.table(
     parentExecutionId: varchar("parent_execution_id", { length: 255 }),
     idempotencyKey: varchar("idempotency_key", { length: 255 }),
     metadata: jsonb("metadata"),
+    /** Spec 65 §9 — ExecutionMeta snapshot recorded for every execution log entry */
+    meta: jsonb("meta"),
     startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),

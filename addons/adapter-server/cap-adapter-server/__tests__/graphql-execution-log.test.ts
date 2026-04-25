@@ -355,6 +355,47 @@ describe("GraphQL executionLogList query", () => {
     const entry = logs.items[0];
     expect(entry.channel).toBe("graphql");
   });
+
+  // Spec 65 §9 — meta surfaces through the system entity layer so admin UIs
+  // can render the recorded ExecutionMeta snapshot. The serializeJsonFields
+  // step stringifies the object for the GraphQL String column.
+  test("exposes meta field as JSON-encoded string", async () => {
+    await seedLog({
+      meta: JSON.stringify({
+        source_view: "queue",
+        bulk: true,
+        _channel: "http",
+        _depth: 0,
+      }),
+    });
+
+    const result = await gql(`
+      query {
+        executionLogList {
+          items {
+            id
+            meta
+          }
+          total
+        }
+      }
+    `);
+
+    expect(result.errors).toBeUndefined();
+    const logs = result.data.executionLogList as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
+    expect(logs.total).toBe(1);
+    const entry = logs.items[0];
+    expect(entry.meta).toBeDefined();
+    expect(typeof entry.meta).toBe("string");
+    const parsedMeta = JSON.parse(entry.meta as string);
+    expect(parsedMeta.source_view).toBe("queue");
+    expect(parsedMeta.bulk).toBe(true);
+    expect(parsedMeta._channel).toBe("http");
+    expect(parsedMeta._depth).toBe(0);
+  });
 });
 
 describe("GraphQL executionLog single entry query", () => {

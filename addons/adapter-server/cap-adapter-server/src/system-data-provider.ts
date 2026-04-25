@@ -234,6 +234,10 @@ function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
           ? e.output
           : JSON.stringify(e.output)
         : null,
+    // Spec 65 §9 — surface ExecutionMeta snapshot through the system entity layer
+    // so /api/entities/execution_log and admin UIs can render meta. The
+    // serializeJsonFields step downstream will stringify the object for GraphQL.
+    meta: e.meta ?? null,
     started_at: e.startedAt instanceof Date ? e.startedAt.toISOString() : (e.startedAt ?? null),
     completed_at:
       e.completedAt instanceof Date ? e.completedAt.toISOString() : (e.completedAt ?? null),

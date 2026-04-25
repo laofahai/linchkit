@@ -70,6 +70,18 @@ export interface ExecutionLogEntry {
   // Transport channel (e.g. "rest", "graphql", "mcp")
   channel?: string;
 
+  /**
+   * Execution metadata snapshot recorded at the time of execution (Spec 65 §9).
+   *
+   * Mirrors the JSON-friendly shape from `ExecutionMeta.toJSON()` rather than
+   * holding the live `ExecutionMeta` instance — log entries are persisted and
+   * cross process / network boundaries, so they need a serializable view.
+   * System keys (`_channel`, `_execution_id`, `_depth`, `_source_action`,
+   * etc.) are included so audits can reconstruct caller intent without
+   * re-deriving from other fields.
+   */
+  meta?: Record<string, unknown>;
+
   // Data change snapshots for audit trail
   changes?: Array<{
     entity: string;

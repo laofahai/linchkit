@@ -234,7 +234,7 @@ export function buildGraphQLSchema(
     name: string,
     input: Record<string, unknown>,
     ctx: GraphQLContext,
-    extraOptions?: { includeDeleted?: boolean },
+    extraOptions?: { includeDeleted?: boolean; meta?: Record<string, unknown> },
   ): Promise<ActionResult<T>> => {
     // Prefer CommandLayer so cap-permission and other slot middleware
     // protect every GraphQL mutation, including restore_* flows. The
@@ -249,6 +249,7 @@ export function buildGraphQLSchema(
         tenantId: ctx.tenantId,
         locale: ctx.locale,
         includeDeleted: extraOptions?.includeDeleted,
+        meta: extraOptions?.meta,
       })) as ActionResult<T>;
     }
     if (!executor) {
@@ -259,6 +260,7 @@ export function buildGraphQLSchema(
       tenantId: ctx.tenantId,
       locale: ctx.locale,
       includeDeleted: extraOptions?.includeDeleted,
+      meta: extraOptions?.meta,
     }) as Promise<ActionResult<T>>;
   };
 
@@ -593,12 +595,26 @@ export function buildGraphQLSchema(
       type: objectType,
       args: {
         input: { type: new GraphQLNonNull(inputType) },
+        meta: {
+          type: GraphQLString,
+          description: "JSON-encoded execution meta (Spec 65 §3.2)",
+        },
       },
       resolve: hasDispatcher
-        ? async (_root: unknown, args: { input: Record<string, unknown> }, ctx: GraphQLContext) => {
+        ? async (
+            _root: unknown,
+            args: { input: Record<string, unknown>; meta?: string },
+            ctx: GraphQLContext,
+          ) => {
             const locale = ctx.locale;
             const normalizedInput = normalizeTranslatableRow(args.input, entity, locale);
-            const result = await dispatchAction(`create_${entityName}`, normalizedInput, ctx);
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
+            const result = await dispatchAction(`create_${entityName}`, normalizedInput, ctx, {
+              meta,
+            });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               throw new Error((errData?.error as string) ?? "Create action failed");
@@ -624,11 +640,20 @@ export function buildGraphQLSchema(
           type: GraphQLInt,
           description: "Expected record version for optimistic locking",
         },
+        meta: {
+          type: GraphQLString,
+          description: "JSON-encoded execution meta (Spec 65 §3.2)",
+        },
       },
       resolve: hasDispatcher
         ? async (
             _root: unknown,
-            args: { id: string; input: Record<string, unknown>; _version?: number },
+            args: {
+              id: string;
+              input: Record<string, unknown>;
+              _version?: number;
+              meta?: string;
+            },
             ctx: GraphQLContext,
           ) => {
             const locale = ctx.locale;
@@ -646,7 +671,11 @@ export function buildGraphQLSchema(
             if (args._version !== undefined && args._version !== null) {
               input._version = args._version;
             }
-            const result = await dispatchAction(`update_${entityName}`, input, ctx);
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
+            const result = await dispatchAction(`update_${entityName}`, input, ctx, { meta });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
               const errorMessage = (errData?.error as string) ?? "Update action failed";
@@ -685,10 +714,20 @@ export function buildGraphQLSchema(
       type: GraphQLBoolean,
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
+        meta: {
+          type: GraphQLString,
+          description: "JSON-encoded execution meta (Spec 65 §3.2)",
+        },
       },
       resolve: hasDispatcher
-        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
-            const result = await dispatchAction(`delete_${entityName}`, { id: args.id }, ctx);
+        ? async (_root: unknown, args: { id: string; meta?: string }, ctx: GraphQLContext) => {
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
+            const result = await dispatchAction(`delete_${entityName}`, { id: args.id }, ctx, {
+              meta,
+            });
             if (result.success) invalidateEntityCache(entityName);
             return result.success;
           }
@@ -700,12 +739,21 @@ export function buildGraphQLSchema(
       type: objectType,
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
+        meta: {
+          type: GraphQLString,
+          description: "JSON-encoded execution meta (Spec 65 §3.2)",
+        },
       },
       resolve: hasDispatcher
-        ? async (_root: unknown, args: { id: string }, ctx: GraphQLContext) => {
+        ? async (_root: unknown, args: { id: string; meta?: string }, ctx: GraphQLContext) => {
             const locale = ctx.locale;
+            const meta =
+              args.meta !== undefined && args.meta !== null
+                ? safeParseJSON(args.meta, "meta")
+                : undefined;
             const result = await dispatchAction(`restore_${entityName}`, { id: args.id }, ctx, {
               includeDeleted: true,
+              meta,
             });
             if (!result.success) {
               const errData = result.data as Record<string, unknown> | undefined;
@@ -793,10 +841,18 @@ export function buildGraphQLSchema(
         args: {
           id: { type: new GraphQLNonNull(GraphQLID) },
           to: { type: new GraphQLNonNull(GraphQLString) },
+          meta: {
+            type: GraphQLString,
+            description: "JSON-encoded execution meta (Spec 65 §3.2)",
+          },
         },
         resolve:
           executor && dataProvider
-            ? async (_root: unknown, args: { id: string; to: string }, ctx: GraphQLContext) => {
+            ? async (
+                _root: unknown,
+                args: { id: string; to: string; meta?: string },
+                ctx: GraphQLContext,
+              ) => {
                 const opts: DataQueryOptions = {
                   ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
                 };
@@ -830,7 +886,11 @@ export function buildGraphQLSchema(
                   id: args.id,
                   [stateFieldName]: args.to,
                 };
-                const result = await dispatchAction(`update_${entityName}`, input, ctx);
+                const meta =
+                  args.meta !== undefined && args.meta !== null
+                    ? safeParseJSON(args.meta, "meta")
+                    : undefined;
+                const result = await dispatchAction(`update_${entityName}`, input, ctx, { meta });
                 if (!result.success) {
                   const errData = result.data as Record<string, unknown> | undefined;
                   throw new GraphQLError((errData?.error as string) ?? `State transition failed`);
@@ -860,9 +920,14 @@ export function buildGraphQLSchema(
         : ActionResultType;
     const returnsSchemaType = returnType !== ActionResultType;
 
-    // Build args: always include id (ID!), optionally include typed input
+    // Build args: always include id (ID!), optionally include typed input,
+    // always include `meta` (Spec 65 §3.2 — JSON-encoded execution meta).
     const args: Record<string, unknown> = {
       id: { type: new GraphQLNonNull(GraphQLID) },
+      meta: {
+        type: GraphQLString,
+        description: "JSON-encoded execution meta (Spec 65 §3.2)",
+      },
     };
     if (actionInputType) {
       args.input = { type: new GraphQLNonNull(actionInputType) };
@@ -878,7 +943,7 @@ export function buildGraphQLSchema(
       resolve: hasDispatcher
         ? async (
             _root: unknown,
-            resolverArgs: { id: string; input?: Record<string, unknown> },
+            resolverArgs: { id: string; input?: Record<string, unknown>; meta?: string },
             ctx: GraphQLContext,
           ) => {
             const locale = ctx.locale;
@@ -887,7 +952,11 @@ export function buildGraphQLSchema(
               ...resolverArgs.input,
               id: resolverArgs.id,
             };
-            const result = await dispatchAction(actionName, input, ctx);
+            const meta =
+              resolverArgs.meta !== undefined && resolverArgs.meta !== null
+                ? safeParseJSON(resolverArgs.meta, "meta")
+                : undefined;
+            const result = await dispatchAction(actionName, input, ctx, { meta });
             if (returnsSchemaType) {
               if (!result.success) {
                 const errData = result.data as Record<string, unknown> | undefined;
@@ -944,11 +1013,23 @@ export function buildGraphQLSchema(
         type: new GraphQLNonNull(GraphQLString),
         description: "JSON-encoded input object",
       },
+      meta: {
+        type: GraphQLString,
+        description: "JSON-encoded execution meta (Spec 65 §3.2)",
+      },
     },
     resolve: hasDispatcher
-      ? async (_root: unknown, args: { name: string; input: string }, ctx: GraphQLContext) => {
+      ? async (
+          _root: unknown,
+          args: { name: string; input: string; meta?: string },
+          ctx: GraphQLContext,
+        ) => {
           const input = safeParseJSON(args.input, "input") as Record<string, unknown>;
-          const result = await dispatchAction(args.name, input, ctx);
+          const meta =
+            args.meta !== undefined && args.meta !== null
+              ? safeParseJSON(args.meta, "meta")
+              : undefined;
+          const result = await dispatchAction(args.name, input, ctx, { meta });
           const errors = !result.success
             ? [
                 {

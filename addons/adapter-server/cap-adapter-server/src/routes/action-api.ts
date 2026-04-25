@@ -18,6 +18,8 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
   badRequest,
+  isMetaHeaderFailure,
+  parseMetaHeader,
   resolveActor,
   resolveRequestLocale,
   resolveStatusCode,
@@ -122,6 +124,22 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
         return badRequest(set, parsed.reason);
       }
 
+      // Parse X-Linch-Meta once and apply to every batch item via
+      // CommandBatchExecuteOptions.meta. Phase 1's executeBatch merges this
+      // record with `batch.parentExecutionId` / `batch.index` per item.
+      const metaResult = parseMetaHeader(request);
+      if (isMetaHeaderFailure(metaResult)) {
+        set.status = 400;
+        return {
+          success: false as const,
+          error: {
+            code: `META.PARSE.${metaResult.code}`,
+            message: metaResult.message,
+          },
+        };
+      }
+      const meta = metaResult?.ok === true ? metaResult.meta : undefined;
+
       const locale = resolveRequestLocale(request);
       const actor = await resolveActor(request, resolveRequestActor);
       const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
@@ -138,6 +156,7 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
         headers,
         traceId: incomingTraceId,
         transactionManager,
+        meta,
       });
 
       // v1 returns 200 for any structurally valid request — clients inspect
@@ -170,6 +189,23 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       // Accept external trace ID for distributed tracing propagation
       const incomingTraceId = request.headers.get("x-trace-id") ?? undefined;
 
+      // Parse the optional X-Linch-Meta header (Spec 65 §3.1). Reject early
+      // with a 400 on a malformed payload so the action engine never sees a
+      // half-validated meta — its own size check still runs as a defense-in-
+      // depth guard against system-key spoofing and serialization issues.
+      const metaResult = parseMetaHeader(request);
+      if (isMetaHeaderFailure(metaResult)) {
+        set.status = 400;
+        return {
+          success: false as const,
+          error: {
+            code: `META.PARSE.${metaResult.code}`,
+            message: metaResult.message,
+          },
+        };
+      }
+      const meta = metaResult?.ok === true ? metaResult.meta : undefined;
+
       // Use CommandLayer pipeline when available, otherwise direct executor
       let result: ActionResult;
       if (commandLayer) {
@@ -186,6 +222,7 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
           locale,
           headers,
           traceId: incomingTraceId,
+          meta,
         });
       } else {
         if (!executor) {
@@ -202,6 +239,7 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
         result = await executor.execute(params.name, input, actor, {
           channel: "http",
           locale,
+          meta,
         });
       }
 

@@ -226,3 +226,108 @@ export async function resolveActor(
   if (!resolveRequestActor) return NO_AUTH_ACTOR;
   return (await resolveRequestActor(request)) ?? ANONYMOUS_ACTOR;
 }
+
+// ── X-Linch-Meta header parsing (Spec 65 §3.1) ────────────────────────
+
+/**
+ * Hard ceiling on `X-Linch-Meta` payload size at the transport boundary
+ * (Spec 65 §10.2). The action-engine enforces the same 8 KB limit on the
+ * fully-merged meta (raw + system keys) via `MetaSizeError`; matching the
+ * cap here prevents pathological 50 MB headers from doing JSON.parse work
+ * just to be rejected later.
+ */
+const META_HEADER_MAX_BYTES = 8192;
+
+/**
+ * Tagged failure shape returned by {@link parseMetaHeader} for a malformed
+ * `X-Linch-Meta` header. Routes inspect `code` to render a structured 400
+ * response.
+ */
+export interface MetaHeaderParseFailure {
+  ok: false;
+  /** Stable error code suffixed onto `META.PARSE.` for the response envelope. */
+  code: "OVERSIZE" | "INVALID_JSON" | "NOT_OBJECT";
+  message: string;
+}
+
+/**
+ * Parse the `X-Linch-Meta` HTTP header into a meta payload (Spec 65 §3.1).
+ *
+ * Returns:
+ * - `undefined` when the header is absent or empty (most common case).
+ * - `{ ok: true, meta }` with the parsed object when the header is valid.
+ * - `{ ok: false, code, message }` when the header violates one of:
+ *   - Size > 8 KB (rejected pre-parse to bound CPU)
+ *   - Body is not valid JSON
+ *   - Body is JSON but not a plain object (array / string / number / null)
+ *
+ * `_`-prefixed keys are NOT stripped here — that's `createExecutionMeta`'s
+ * job (Spec 65 §4.4). Returning the raw object keeps this helper transport-
+ * neutral; the action-engine remains the single source of truth for system-
+ * key namespace protection.
+ */
+export function parseMetaHeader(
+  request: Request,
+): { ok: true; meta: Record<string, unknown> } | MetaHeaderParseFailure | undefined {
+  const raw = request.headers.get("x-linch-meta");
+  // Treat absent / empty header as "no meta supplied". Note this differs
+  // from the GraphQL `meta: ""` contract (which IS an explicit empty
+  // value and gets rejected as invalid JSON): per HTTP convention an
+  // empty header value is indistinguishable from an absent header, and
+  // most clients cannot even emit a truly empty header. The asymmetry
+  // is deliberate.
+  if (!raw || raw.length === 0) return undefined;
+
+  // Pre-screen with a cheap string-length check before invoking
+  // TextEncoder, so a pathological multi-MB payload isn't allocated
+  // through the encoder just to be rejected. UTF-8 is at most 4 bytes
+  // per JS char, so any string longer than max*4 chars is guaranteed
+  // oversized regardless of encoding.
+  if (raw.length > META_HEADER_MAX_BYTES * 4) {
+    return {
+      ok: false,
+      code: "OVERSIZE",
+      message: `X-Linch-Meta header exceeds the limit of ${META_HEADER_MAX_BYTES} bytes`,
+    };
+  }
+
+  // Byte-length check (UTF-8 aware). Headers are typically ASCII but the
+  // spec doesn't forbid multi-byte content, so use TextEncoder for parity
+  // with the action-engine size enforcement.
+  const byteLength = new TextEncoder().encode(raw).length;
+  if (byteLength > META_HEADER_MAX_BYTES) {
+    return {
+      ok: false,
+      code: "OVERSIZE",
+      message: `X-Linch-Meta header is ${byteLength} bytes, exceeds the limit of ${META_HEADER_MAX_BYTES} bytes`,
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      code: "INVALID_JSON",
+      message: "X-Linch-Meta header is not valid JSON",
+    };
+  }
+
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {
+      ok: false,
+      code: "NOT_OBJECT",
+      message: "X-Linch-Meta header must be a JSON object",
+    };
+  }
+
+  return { ok: true, meta: parsed as Record<string, unknown> };
+}
+
+/** True when the `parseMetaHeader` result is a structured failure. */
+export function isMetaHeaderFailure(
+  result: ReturnType<typeof parseMetaHeader>,
+): result is MetaHeaderParseFailure {
+  return result !== undefined && result.ok === false;
+}

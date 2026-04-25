@@ -82,6 +82,10 @@ export const executionLogSchema: EntityDefinition = {
       type: "json",
       label: "t:entities.execution_log.fields.output",
     },
+    meta: {
+      type: "json",
+      label: "t:entities.execution_log.fields.meta",
+    },
     state_transition_from: {
       type: "string",
       label: "t:entities.execution_log.fields.state_transition_from",
