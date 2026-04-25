@@ -287,4 +287,34 @@ describe("CommandLayer.executeBatch — input validation", () => {
     expect(result.success).toBe(false);
     expect(result.failed[0]?.error.code).toBe("BATCH_TX_MANAGER_REQUIRED");
   });
+
+  it("uses factory-level transactionManager when per-call options omit it", async () => {
+    // Verify production wiring: createCommandLayer({ transactionManager })
+    // makes `all_or_nothing` work without callers having to plumb the TM
+    // through every executeBatch invocation.
+    const provider = createSnapshotProvider();
+    const txManager = createFakeTxManager(provider);
+    const executor = createActionExecutor({
+      dataProvider: provider,
+      transactionManager: txManager,
+    });
+    executor.registry.register(createItem);
+
+    const layer = createCommandLayer({ executor, transactionManager: txManager });
+    const result = await layer.executeBatch({
+      input: {
+        strategy: "all_or_nothing",
+        actions: [
+          { name: "create_item", input: { title: "a" } },
+          { name: "create_item", input: { title: "b" } },
+        ],
+      },
+      actor: adminActor,
+      // intentionally omit transactionManager — factory default should apply.
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.succeeded.length).toBe(2);
+    expect(provider.records.size).toBe(2);
+  });
 });

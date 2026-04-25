@@ -24,6 +24,29 @@ import {
   serverError,
 } from "./shared";
 
+/**
+ * In production mode, replace per-item `error.message` strings with a
+ * generic placeholder to avoid leaking internal details (driver errors,
+ * stack-trace fragments, etc.) over HTTP. Codes and field locators are
+ * preserved so clients can still differentiate validation vs. permission
+ * failures. `rolledBack` items are successes (no error message), so they
+ * are passed through untouched.
+ *
+ * Mirrors the single-action sanitization at the bottom of `mountActionRoutes`
+ * to keep dev-mode parity (full message visible) and prod-mode safety.
+ */
+function sanitizeBatchResult(result: BatchActionsResult): BatchActionsResult {
+  const isDevMode = process.env.NODE_ENV !== "production";
+  if (isDevMode) return result;
+  return {
+    ...result,
+    failed: result.failed.map((f) => ({
+      ...f,
+      error: { ...f.error, message: "Action execution failed" },
+    })),
+  };
+}
+
 /** Validate the JSON body shape for `POST /api/actions/batch`. */
 function parseBatchBody(
   body: unknown,
@@ -44,7 +67,12 @@ function parseBatchBody(
     if (typeof it.name !== "string" || it.name.length === 0) {
       return { ok: false, reason: `actions[${i}].name must be a non-empty string.` };
     }
-    if (it.input !== undefined && (typeof it.input !== "object" || it.input === null)) {
+    if (
+      it.input !== undefined &&
+      (typeof it.input !== "object" || it.input === null || Array.isArray(it.input))
+    ) {
+      // Reject arrays explicitly: `typeof [] === "object"` would otherwise
+      // pass through and get spread-cloned into `{0: ..., 1: ...}` downstream.
       return { ok: false, reason: `actions[${i}].input must be an object when present.` };
     }
   }
@@ -114,8 +142,10 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
 
       // v1 returns 200 for any structurally valid request — clients inspect
       // `success` and the per-item arrays. (Consider HTTP 207 Multi-Status
-      // for `partial` mode with mixed outcomes in a follow-up.)
-      return result;
+      // for `partial` mode with mixed outcomes in a follow-up.) In production
+      // we strip per-item error messages to prevent internal-detail leakage,
+      // matching the single-action route below.
+      return sanitizeBatchResult(result);
     })
     // REST action endpoint — executes via ActionExecutor
     // Body is unwrapped action input (Stripe-style, see spec 16 §2.4)

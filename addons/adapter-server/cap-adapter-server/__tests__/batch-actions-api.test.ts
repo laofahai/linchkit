@@ -214,6 +214,17 @@ describe("POST /api/actions/batch", () => {
     expect(body?.success).toBe(false);
   });
 
+  test("(c2) array-valued input → 400 (object spread would silently rewrite arrays)", async () => {
+    const { status, body } = await postJSON("/api/actions/batch", {
+      strategy: "partial",
+      actions: [{ name: "create_item", input: [] }],
+    });
+    expect(status).toBe(400);
+    expect(body?.success).toBe(false);
+    const message = (body?.error as { message?: string } | undefined)?.message ?? "";
+    expect(message).toContain("actions[0].input must be an object when present.");
+  });
+
   test("(d) unknown strategy → 400", async () => {
     const { status, body } = await postJSON("/api/actions/batch", {
       strategy: "fast",
@@ -251,6 +262,39 @@ describe("POST /api/actions/batch", () => {
     const rolledBack = body?.rolledBack as unknown[];
     expect(rolledBack.length).toBe(1);
     expect(provider.records.size).toBe(0);
+  });
+
+  test("(h) production mode sanitizes per-item error messages", async () => {
+    // The `fail_item` handler throws a recognizable internal message; in
+    // production mode we expect the per-item `error.message` to be replaced
+    // with the generic placeholder while `code` is preserved.
+    provider.records.clear();
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { status, body } = await postJSON("/api/actions/batch", {
+        strategy: "partial",
+        actions: [
+          { name: "create_item", input: { title: "ok" } },
+          { name: "fail_item", input: {} },
+        ],
+      });
+      expect(status).toBe(200);
+      expect(body?.success).toBe(false);
+      const failed = body?.failed as Array<{ error: { code: string; message: string } }>;
+      expect(failed.length).toBe(1);
+      expect(failed[0]?.error.message).toBe("Action execution failed");
+      // The internal message MUST NOT leak.
+      expect(failed[0]?.error.message).not.toContain("intentional failure");
+      // Codes are still informative.
+      expect(typeof failed[0]?.error.code).toBe("string");
+    } finally {
+      if (prevEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = prevEnv;
+      }
+    }
   });
 
   test("(g) /api/actions/batch is NOT captured by /api/actions/:name", async () => {

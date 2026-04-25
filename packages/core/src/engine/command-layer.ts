@@ -140,6 +140,14 @@ export interface CommandLayerOptions {
   verifyApproval?: (approvalId: string) => Promise<boolean>;
   /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
   metrics?: MetricsCollector;
+  /**
+   * Default transaction manager used by `executeBatch` when the strategy is
+   * `all_or_nothing` and the per-call options omit `transactionManager`. Wire
+   * this from the same instance you pass to `createActionExecutor` so REST /
+   * MCP / CLI callers all get transactional batch semantics for free. A
+   * per-call `options.transactionManager` still wins when supplied.
+   */
+  transactionManager?: TransactionManager;
 }
 
 export interface CommandLayer {
@@ -252,10 +260,10 @@ export interface CommandBatchExecuteOptions {
   /** Caller meta — merged with batch tracking keys per item. */
   meta?: Record<string, unknown>;
   /**
-   * Transaction manager used by `all_or_nothing`. Required when the input
-   * (or default) strategy is `all_or_nothing` and the executor itself does
-   * not provide one (the executor's tx manager is reachable through
-   * private state, so we accept it explicitly here for API clarity).
+   * Transaction manager used by `all_or_nothing`. When omitted, falls back
+   * to the `transactionManager` configured on `createCommandLayer`. If
+   * neither is provided and the strategy is `all_or_nothing`, the call
+   * returns a structured `BATCH_TX_MANAGER_REQUIRED` failure.
    */
   transactionManager?: TransactionManager;
   /** External trace ID — when provided, the pipeline reuses it. */
@@ -278,6 +286,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     logger = consoleLogger,
     verifyApproval,
     metrics = noopMetricsCollector,
+    transactionManager: defaultTransactionManager,
   } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
@@ -736,12 +745,13 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       );
     }
 
-    if (strategy === "all_or_nothing" && !options.transactionManager) {
+    const effectiveTxManager = options.transactionManager ?? defaultTransactionManager;
+    if (strategy === "all_or_nothing" && !effectiveTxManager) {
       return buildBatchValidationFailure(
         parentExecutionId,
         strategy,
         "BATCH_TX_MANAGER_REQUIRED",
-        "all_or_nothing strategy requires a TransactionManager.",
+        "all_or_nothing strategy requires a TransactionManager. Pass one via createCommandLayer's options.transactionManager or per-call options.transactionManager, or use strategy: 'partial'.",
       );
     }
 
@@ -815,7 +825,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     }
 
     // ── Strategy: all_or_nothing ──────────────────────────
-    const txManager = options.transactionManager as TransactionManager;
+    const txManager = effectiveTxManager as TransactionManager;
     const sharedPendingEvents: PendingEvent[] = [];
     const succeededInside: BatchSucceededItem[] = [];
 
