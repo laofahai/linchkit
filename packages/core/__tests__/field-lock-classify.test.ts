@@ -250,6 +250,84 @@ describe("Spec 63 — translatable field locale-map vs plain-string update", () 
   });
 });
 
+// ── Codex round-9: handler-path status transitions exempt from lockAllWhen ─
+// Spec 63 §7.1 — state transitions change the locked field set
+// automatically, so `status` writes must succeed even while `lockAllWhen`
+// matches. The declarative path already strips `status` from its
+// preflight; the handler `ctx.update` wrapper now mirrors that via the
+// SYSTEM_FIELD_NAMES exemption.
+
+describe("Spec 63 — handler-path ctx.update on status is exempt from lockAllWhen", () => {
+  it("handler that writes only status succeeds even when lockAllWhen matches", async () => {
+    const entity: EntityDefinition = {
+      name: "wf_lockall",
+      label: "Workflow",
+      lockAllWhen: { state: "submitted" },
+      fields: {
+        amount: { type: "number" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("wf_lockall", { id: "w-1", amount: 100, status: "submitted" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "approve_wf",
+      entity: "wf_lockall",
+      label: "Approve",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        // Handler-path state transition. Without the status exemption,
+        // lockAllWhen: { state: "submitted" } would refuse to let us
+        // leave the submitted state — making transitions impossible.
+        return ctx.update("wf_lockall", ctx.input.id as string, { status: "approved" });
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("approve_wf", { id: "w-1" }, actor);
+    expect(result.success).toBe(true);
+    const after = await dataProvider.get("wf_lockall", "w-1");
+    expect(after.status).toBe("approved");
+  });
+
+  it("explicit per-field lockWhen on status still applies", async () => {
+    // An explicit lockWhen on `status` is intentional (e.g., "freeze the
+    // status column once posted, no further transitions allowed"). The
+    // SYSTEM_FIELD_NAMES exemption is for lockAllWhen only.
+    const entity: EntityDefinition = {
+      name: "wf_explicit",
+      label: "Workflow",
+      fields: {
+        status: { type: "string", lockWhen: { state: "posted" } },
+        amount: { type: "number" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("wf_explicit", { id: "we-1", amount: 100, status: "posted" });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "force_status_change",
+      entity: "wf_explicit",
+      label: "Force Status",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        return ctx.update("wf_explicit", ctx.input.id as string, { status: "draft" });
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("force_status_change", { id: "we-1" }, actor);
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("validation.field.locked");
+  });
+});
+
 // ── Codex round-8: deleted_at exempt from lockAllWhen ─────────────
 // `deleted_at` is the soft-delete marker. EntityRegistry.resolve()
 // doesn't inject it as a regular field; generated `restore_*` actions

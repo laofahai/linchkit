@@ -61,6 +61,15 @@ const SYSTEM_FIELD_NAMES = new Set([
   // restore is a framework operation, not a user-driven write that
   // `lockAllWhen` should govern.
   "deleted_at",
+  // `status` is the state-machine column. Spec 63 §7.1 says state
+  // transitions change the locked field set automatically, so `status`
+  // itself MUST be writable while `lockAllWhen` matches — otherwise
+  // transitioning out of any locked state is impossible. The declarative
+  // path already strips `status` when `stateTransition` is declared; add
+  // it here so handler-path writes (`ctx.update(..., { status: "X" })`)
+  // get the same treatment. Per-field `lockWhen` declared explicitly on
+  // `status` still applies (intentional override).
+  "status",
 ]);
 
 export type FieldLockViolationType = "immutable" | "locked";
