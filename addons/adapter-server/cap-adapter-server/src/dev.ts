@@ -217,26 +217,6 @@ if (runtime.dataProvider instanceof InMemoryStore) {
 
 const customActions = capContributions.actions;
 
-const graphqlSchema = buildGraphQLSchema(allEntities, {
-  executor: runtime.executor,
-  commandLayer: runtime.commandLayer,
-  dataProvider: runtime.dataProvider,
-  actions: customActions,
-  relations: capContributions.relations,
-  stateDefinitions: capContributions.states,
-  extraQueryFields: capContributions.extraQueryFields as Record<
-    string,
-    import("graphql").GraphQLFieldConfig<unknown, unknown>
-  >,
-  extraMutationFields: capContributions.extraMutationFields as Record<
-    string,
-    import("graphql").GraphQLFieldConfig<unknown, unknown>
-  >,
-});
-
-const port = config.server?.port ?? 3001;
-const host = config.server?.host ?? "0.0.0.0";
-
 // Construct the onchange evaluator (Spec 64). No permission capability is wired
 // into `dev.ts`, so reads from within onchange hooks are ALL ALLOWED by default.
 // Log a structured warning once at startup so operators know the evaluator has
@@ -249,6 +229,27 @@ const onchangeEvaluator = createOnchangeEvaluator({
 consoleLogger.warn(
   "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
 );
+
+const graphqlSchema = buildGraphQLSchema(allEntities, {
+  executor: runtime.executor,
+  commandLayer: runtime.commandLayer,
+  dataProvider: runtime.dataProvider,
+  actions: customActions,
+  relations: capContributions.relations,
+  stateDefinitions: capContributions.states,
+  onchangeEvaluator,
+  extraQueryFields: capContributions.extraQueryFields as Record<
+    string,
+    import("graphql").GraphQLFieldConfig<unknown, unknown>
+  >,
+  extraMutationFields: capContributions.extraMutationFields as Record<
+    string,
+    import("graphql").GraphQLFieldConfig<unknown, unknown>
+  >,
+});
+
+const port = config.server?.port ?? 3001;
+const host = config.server?.host ?? "0.0.0.0";
 
 const server = createServer(graphqlSchema, {
   port,

@@ -79,6 +79,28 @@ export const capAdapterServer = defineCapability({
           // Collect permission groups for data masking in GraphQL resolvers
           const permGroups = ctx.permissionRegistry?.getAll() ?? [];
 
+          // Construct the onchange evaluator (Spec 64) BEFORE building the
+          // GraphQL schema so per-entity `<entity>_onchange` mutations can be
+          // auto-generated. Use the same data provider chain that the rest of
+          // the server uses (system-wrapped when available) so lookups from
+          // onchange hooks honor internal schema handling and tenant
+          // isolation. No permission callback is wired here either — emit a
+          // single structured warning so operators understand entity-level
+          // read gating is not active until a permission capability wires a
+          // `checkReadPermission`.
+          const onchangeDataProvider = systemDataProvider ?? ctx.dataProvider;
+          const onchangeEvaluator = onchangeDataProvider
+            ? createOnchangeEvaluator({
+                entityRegistry: ctx.entityRegistry,
+                dataProvider: onchangeDataProvider,
+              })
+            : undefined;
+          if (onchangeEvaluator) {
+            consoleLogger.warn(
+              "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
+            );
+          }
+
           // Build GraphQL schema — uses composite data provider for all schemas
           const graphqlSchema = buildGraphQLSchema(allSchemas, {
             executor: ctx.executor,
@@ -91,6 +113,7 @@ export const capAdapterServer = defineCapability({
             stateDefinitions: ctx.states ?? [],
             cacheManager: ctx.cacheManager,
             internalSchemas: INTERNAL_SCHEMA_NAMES,
+            onchangeEvaluator,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
@@ -106,26 +129,6 @@ export const capAdapterServer = defineCapability({
 
           // Collect rule definitions from all capabilities for /api/rules endpoint
           const allRules = (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []);
-
-          // Construct the onchange evaluator (Spec 64). Use the same data
-          // provider chain that the rest of the server uses (system-wrapped
-          // when available) so lookups from onchange hooks honor internal
-          // schema handling and tenant isolation. No permission callback is
-          // wired here either — emit a single structured warning so operators
-          // understand entity-level read gating is not active until a
-          // permission capability wires a `checkReadPermission`.
-          const onchangeDataProvider = systemDataProvider ?? ctx.dataProvider;
-          const onchangeEvaluator = onchangeDataProvider
-            ? createOnchangeEvaluator({
-                entityRegistry: ctx.entityRegistry,
-                dataProvider: onchangeDataProvider,
-              })
-            : undefined;
-          if (onchangeEvaluator) {
-            consoleLogger.warn(
-              "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
-            );
-          }
 
           // Use the shared runtime from CLI — no duplicate executor/commandLayer
           const app = createServer(graphqlSchema, {

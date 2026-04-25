@@ -23,7 +23,7 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
-import type { CacheManager, OverlayRegistry } from "@linchkit/core/server";
+import type { CacheManager, OnchangeEvaluator, OverlayRegistry } from "@linchkit/core/server";
 import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
 
 export { type GenerateCrudActionsOptions, generateCrudActions } from "./build-crud-actions";
@@ -40,6 +40,7 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
+import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import {
   generateActionInputType,
@@ -184,6 +185,13 @@ export interface BuildGraphQLSchemaOptions {
   extraMutationFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
   /** Overlay registry for dynamic runtime fields (Phase 3 — overlay fields in GraphQL) */
   overlayRegistry?: OverlayRegistry;
+  /**
+   * Onchange evaluator (Spec 64) — when provided alongside `commandLayer`,
+   * each entity that declares an `onchange` map gets an auto-generated
+   * `<entity>_onchange` mutation. Without both, the GraphQL surface omits
+   * the mutation entirely (mirrors REST 503 behavior of skipping the route).
+   */
+  onchangeEvaluator?: OnchangeEvaluator;
 }
 
 /**
@@ -958,6 +966,15 @@ export function buildGraphQLSchema(
           executionId: null,
         }),
   };
+
+  // Auto-generate `<entity>_onchange` mutations for entities with an
+  // onchange map (Spec 64 §4.2). Skipped when CommandLayer or evaluator
+  // is missing — keeps test setups that don't wire either from breaking.
+  const onchangeFields = buildOnchangeMutationFields(autoEntities, {
+    commandLayer,
+    onchangeEvaluator: options?.onchangeEvaluator,
+  });
+  Object.assign(mutationFields, onchangeFields);
 
   // Merge capability-contributed GraphQL fields (Spec 57 graphqlExtensions)
   if (options?.extraQueryFields) {
