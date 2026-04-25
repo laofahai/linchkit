@@ -23,6 +23,7 @@ import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import {
   badRequest,
+  extractSkipActionSlotsContext,
   notFound,
   resolveActor,
   resolveStatusCode,
@@ -188,19 +189,19 @@ export function mountOnchangeRoutes(
     // lookups via the DataProvider.
     //
     // The synthetic success result from `skipActionSlots` carries the resolved
-    // `tenantId` / `locale` read from the command context after the tenant +
-    // auth middlewares ran, so downstream handlers pick up whatever the
-    // pipeline decided rather than whatever the caller initially sent.
-    const resolvedContext =
-      commandResult.data && typeof commandResult.data === "object"
-        ? (commandResult.data as { tenantId?: string; locale?: string })
-        : undefined;
+    // `actor` / `tenantId` / `locale` read from the command context after the
+    // auth + tenant middlewares ran. Spec 64 §9.1 mandates that onchange runs
+    // with the caller's resolved permissions — auth middleware that enriches
+    // the actor (role hydration, impersonation) MUST be honored here, so we
+    // prefer the post-pipeline actor over the actor we resolved from the
+    // request before dispatch.
+    const resolvedContext = extractSkipActionSlotsContext(commandResult.data);
     try {
       const result = await onchangeEvaluator.evaluate({
         entityName,
         changedField,
         values,
-        actor,
+        actor: resolvedContext?.actor ?? actor,
         tenantId: resolvedContext?.tenantId,
       });
       return {

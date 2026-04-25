@@ -27,6 +27,38 @@ export const NO_AUTH_ACTOR: Actor = {
 };
 
 /**
+ * Shape of the synthetic data carried by a successful `skipActionSlots`
+ * CommandLayer result (non-action dispatch — Spec 64 onchange, etc.).
+ * The CommandLayer populates `actor`, `tenantId`, and `locale` from the
+ * final ctx after middleware has run, so callers see the post-pipeline
+ * identity / scope rather than whatever the request initially carried.
+ */
+export interface SkipActionSlotsResolvedContext {
+  actor?: Actor;
+  tenantId?: string;
+  locale?: string;
+}
+
+/**
+ * Defensively extract the post-middleware actor / tenantId / locale from a
+ * successful `skipActionSlots` result. Returns `undefined` if the data shape
+ * is unexpected — callers should fall back to their request-context values.
+ *
+ * Used by both the REST onchange route and the GraphQL `<entity>_onchange`
+ * resolver so that an auth middleware that enriches the actor (role
+ * hydration, impersonation) and/or a tenant middleware that clears scope
+ * are honored consistently across channels (Spec 64 §9.1).
+ */
+export function extractSkipActionSlotsContext(
+  data: unknown,
+): SkipActionSlotsResolvedContext | undefined {
+  if (data && typeof data === "object") {
+    return data as SkipActionSlotsResolvedContext;
+  }
+  return undefined;
+}
+
+/**
  * Map structured error codes to HTTP status codes.
  * Preferred over message-text matching when a code is available.
  */

@@ -23,7 +23,7 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
-import type { CacheManager, OverlayRegistry } from "@linchkit/core/server";
+import type { CacheManager, OnchangeEvaluator, OverlayRegistry } from "@linchkit/core/server";
 import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
 
 export { type GenerateCrudActionsOptions, generateCrudActions } from "./build-crud-actions";
@@ -40,6 +40,7 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
+import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import {
   generateActionInputType,
@@ -48,6 +49,18 @@ import {
 } from "./schema-to-graphql";
 
 const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
+
+/**
+ * Sanitize an arbitrary identifier to a valid GraphQL field-name component
+ * by replacing any disallowed character with `_` and prefixing the result
+ * with `_` if it does not start with a letter or underscore. Preserves
+ * snake_case for entity names — used by call sites that build composite
+ * names like `<entity>_onchange` and want the entity portion intact.
+ */
+export function sanitizeGraphQLFieldName(name: string): string {
+  const replaced = name.replace(/[^_0-9A-Za-z]/g, "_");
+  return GRAPHQL_NAME_RE.test(replaced) ? replaced : `_${replaced}`;
+}
 
 /**
  * Convert a schema name to PascalCase with GraphQL name sanitization.
@@ -184,6 +197,13 @@ export interface BuildGraphQLSchemaOptions {
   extraMutationFields?: Record<string, GraphQLFieldConfig<unknown, unknown>>;
   /** Overlay registry for dynamic runtime fields (Phase 3 — overlay fields in GraphQL) */
   overlayRegistry?: OverlayRegistry;
+  /**
+   * Onchange evaluator (Spec 64) — when provided alongside `commandLayer`,
+   * each entity that declares an `onchange` map gets an auto-generated
+   * `<entity>_onchange` mutation. Without both, the GraphQL surface omits
+   * the mutation entirely (mirrors REST 503 behavior of skipping the route).
+   */
+  onchangeEvaluator?: OnchangeEvaluator;
 }
 
 /**
@@ -958,6 +978,18 @@ export function buildGraphQLSchema(
           executionId: null,
         }),
   };
+
+  // Auto-generate `<entity>_onchange` mutations for entities with an
+  // onchange map (Spec 64 §4.2). Skipped when CommandLayer or evaluator
+  // is missing — keeps test setups that don't wire either from breaking.
+  // `internalSchemas` is passed through so internal/system schemas with an
+  // onchange map don't leak a public mutation (Codex Round-3 P3).
+  const onchangeFields = buildOnchangeMutationFields(autoEntities, {
+    commandLayer,
+    onchangeEvaluator: options?.onchangeEvaluator,
+    internalSchemas,
+  });
+  Object.assign(mutationFields, onchangeFields);
 
   // Merge capability-contributed GraphQL fields (Spec 57 graphqlExtensions)
   if (options?.extraQueryFields) {
