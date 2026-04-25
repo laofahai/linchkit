@@ -629,6 +629,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         error: { message: errorMsg, code: "validation.field.locked" },
         startedAt,
       });
+      // Metrics parity with Step 7's catch: declarative-path lock rejects
+      // must register in the same counters as handler-path ones.
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        entity: entityName,
+        status: "failed",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        entity: entityName,
+      });
       return {
         success: false,
         data: {
@@ -682,6 +694,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: errorMsg, code: errorCode },
         startedAt,
+      });
+      // Metrics parity with Step 7's catch: declarative-path lock rejects
+      // must register in the same counters as handler-path ones.
+      const durationMs = Date.now() - startedAt.getTime();
+      metrics.increment("action.executed", {
+        action: actionName,
+        entity: entityName,
+        status: "failed",
+      });
+      metrics.timing("action.duration_ms", durationMs, {
+        action: actionName,
+        entity: entityName,
       });
       return {
         success: false,
@@ -1271,31 +1295,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       // Metrics: these are authorization-style blocks, not execution
       // failures, but we still route them through the failed counter so
       // operators can monitor lock-block rates. A future split could add a
-      // dedicated `blocked` status if the signal is worth separating.
+      // dedicated `blocked` status if the signal is worth separating. The
+      // metric emit happens INSIDE the helpers so declarative-path
+      // rejections (which return through the helpers without entering this
+      // catch) get counted identically.
       if (err instanceof LockViolationError) {
-        const durationMs = Date.now() - startedAt.getTime();
-        metrics.increment("action.executed", {
-          action: actionName,
-          entity: action.entity ?? "",
-          status: "failed",
-        });
-        metrics.timing("action.duration_ms", durationMs, {
-          action: actionName,
-          entity: action.entity ?? "",
-        });
         return buildLockViolationResult(err.violations, err.entity);
       }
       if (err instanceof LockPreflightError) {
-        const durationMs = Date.now() - startedAt.getTime();
-        metrics.increment("action.executed", {
-          action: actionName,
-          entity: action?.entity ?? err.entity,
-          status: "failed",
-        });
-        metrics.timing("action.duration_ms", durationMs, {
-          action: actionName,
-          entity: action?.entity ?? err.entity,
-        });
         return buildLockPreflightResult(err.recordId, err.entity);
       }
 
