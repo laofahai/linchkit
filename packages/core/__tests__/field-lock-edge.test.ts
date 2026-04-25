@@ -216,6 +216,59 @@ describe("Spec 63 — structural equality on JSON / object fields", () => {
   });
 });
 
+// ── Codex round-7: system fields exempt from lockAllWhen ─────────
+// `_version` (optimistic-lock token) and other framework-managed fields
+// must reach the data layer's concurrency check, not get masked as
+// `validation.field.locked`. Explicit per-field lockWhen still wins.
+
+describe("Spec 63 — system fields exempt from lockAllWhen", () => {
+  it("re-submitting `_version` on a record locked by lockAllWhen does NOT trip the check", async () => {
+    const entity: EntityDefinition = {
+      name: "doc_lockall",
+      label: "Doc",
+      lockAllWhen: { state: "posted" },
+      lockAllowFields: ["notes"],
+      fields: {
+        amount: { type: "number" },
+        notes: { type: "string" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("doc_lockall", {
+      id: "d-1",
+      amount: 100,
+      notes: "",
+      status: "posted",
+      _version: 3,
+    });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "update_doc_lockall",
+      entity: "doc_lockall",
+      label: "Update Doc",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        const { id: _id, ...rest } = ctx.input;
+        return ctx.update("doc_lockall", ctx.input.id as string, rest);
+      },
+    } satisfies ActionDefinition);
+
+    // Caller sends both an allowed `notes` change AND the optimistic-lock
+    // token `_version`. Without the system-field exemption, _version would
+    // be flagged by lockAllWhen even though it's framework-managed.
+    const result = await executor.execute(
+      "update_doc_lockall",
+      { id: "d-1", _version: 3, notes: "edited" },
+      actor,
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
 // ── 3. Nested ctx.execute reads from parent's tx provider ─────────
 // Codex round-3 P1: when a parent action is inside a transaction and
 // calls ctx.execute(...), the child's lock-preflight fetch must use the

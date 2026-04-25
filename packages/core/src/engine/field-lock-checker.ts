@@ -36,6 +36,25 @@
 
 import type { FieldDefinition, LockCondition } from "../types/entity";
 
+/**
+ * Framework-managed system fields that `lockAllWhen` must not auto-cover.
+ * Mirrors `SystemFields` in `types/entity.ts`. `_version` in particular is
+ * the optimistic-lock token — masking it as `validation.field.locked` would
+ * hide real concurrency conflicts the data provider needs to surface.
+ *
+ * An explicit per-field `lockWhen` declared on a system field still applies
+ * (deliberate authorial intent overrides the auto-exemption).
+ */
+const SYSTEM_FIELD_NAMES = new Set([
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+]);
+
 export type FieldLockViolationType = "immutable" | "locked";
 
 export interface FieldLockViolation {
@@ -221,7 +240,29 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
     // echoed back unchanged must not raise violations. Use structural
     // equality so reordered object keys ({a:1,b:2} vs {b:2,a:1}) don't
     // trigger false positives.
-    const unchanged = structuralEqual(existing, newValue);
+    //
+    // Translatable-field normalization: providers that store i18n content
+    // as locale maps (e.g., `{ en: "Hello", zh: "你好" }`) return the raw
+    // map when no execution locale is supplied, while clients submit a
+    // plain string for the active locale. Treat the string as unchanged
+    // if any locale value in the existing map equals it — preserves the
+    // "echo back the form value" UX without leaking write semantics. If
+    // the caller sends a different string than every stored locale, we
+    // fall through to the structural check (which will report changed).
+    let unchanged: boolean;
+    if (
+      field.translatable === true &&
+      typeof newValue === "string" &&
+      existing != null &&
+      typeof existing === "object" &&
+      !Array.isArray(existing) &&
+      Object.getPrototypeOf(existing) === Object.prototype
+    ) {
+      const localeMap = existing as Record<string, unknown>;
+      unchanged = Object.values(localeMap).some((v) => v === newValue);
+    } else {
+      unchanged = structuralEqual(existing, newValue);
+    }
 
     // 1. Immutable (or deprecated `readonly` alias) — only enforced once the
     //    field has a non-null existing value. First-write (existing == null)
@@ -241,8 +282,17 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
     //    `lockAllowFields` exempts a field from `lockAllWhen` only — it does
     //    NOT bypass an explicit per-field `lockWhen` on the same field.
     //    Same-value re-writes are not violations (same principle as immutable).
+    //
+    //    System fields (id, tenant_id, created_at, updated_at, created_by,
+    //    updated_by, _version) are framework-managed and exempt from
+    //    `lockAllWhen` — `_version` in particular is the optimistic-lock
+    //    token and must reach the data provider's conflict check, not get
+    //    masked here. Per-field `lockWhen` declared explicitly on a system
+    //    field still wins (an explicit declaration is intentional).
+    const isSystemField = SYSTEM_FIELD_NAMES.has(fieldName);
     const lockCondition: LockCondition | undefined =
-      field.lockWhen ?? (lockAllowFields?.includes(fieldName) ? undefined : lockAllWhen);
+      field.lockWhen ??
+      (lockAllowFields?.includes(fieldName) || isSystemField ? undefined : lockAllWhen);
 
     if (lockCondition && !unchanged && matchesLockCondition(existingRecord, lockCondition)) {
       const statusMsg =
