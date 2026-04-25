@@ -373,6 +373,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Meta resolution itself failed — no `metaSnapshot` is available yet.
         // Record the system-default frame plus the rejected payload size as
         // diagnostic context so audit can reconstruct what was attempted.
+        // Mirror the early-failure metric pattern used by exposure / validation
+        // paths so monitoring dashboards see meta-size rejections.
+        const durationMs = Date.now() - startedAt.getTime();
+        metrics.increment("action.executed", {
+          action: actionName,
+          entity: "",
+          status: "failed",
+        });
+        metrics.timing("action.duration_ms", durationMs, {
+          action: actionName,
+          entity: "",
+        });
         await logExecution({
           id: executionId,
           action: actionName,

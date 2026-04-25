@@ -270,7 +270,26 @@ export function parseMetaHeader(
   request: Request,
 ): { ok: true; meta: Record<string, unknown> } | MetaHeaderParseFailure | undefined {
   const raw = request.headers.get("x-linch-meta");
+  // Treat absent / empty header as "no meta supplied". Note this differs
+  // from the GraphQL `meta: ""` contract (which IS an explicit empty
+  // value and gets rejected as invalid JSON): per HTTP convention an
+  // empty header value is indistinguishable from an absent header, and
+  // most clients cannot even emit a truly empty header. The asymmetry
+  // is deliberate.
   if (!raw || raw.length === 0) return undefined;
+
+  // Pre-screen with a cheap string-length check before invoking
+  // TextEncoder, so a pathological multi-MB payload isn't allocated
+  // through the encoder just to be rejected. UTF-8 is at most 4 bytes
+  // per JS char, so any string longer than max*4 chars is guaranteed
+  // oversized regardless of encoding.
+  if (raw.length > META_HEADER_MAX_BYTES * 4) {
+    return {
+      ok: false,
+      code: "OVERSIZE",
+      message: `X-Linch-Meta header exceeds the limit of ${META_HEADER_MAX_BYTES} bytes`,
+    };
+  }
 
   // Byte-length check (UTF-8 aware). Headers are typically ASCII but the
   // spec doesn't forbid multi-byte content, so use TextEncoder for parity

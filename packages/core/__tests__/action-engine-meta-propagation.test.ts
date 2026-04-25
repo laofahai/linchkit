@@ -12,6 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import { createActionExecutor } from "../src/engine/action-engine";
 import { createCommandLayer } from "../src/engine/command-layer";
+import { InMemoryMetricsCollector } from "../src/observability/metrics";
 import type { ActionContext, ActionDefinition, Actor } from "../src/types/action";
 import { createExecutionMeta, DEFAULT_META_MAX_BYTES } from "../src/types/execution-meta";
 import { createTestDataProvider } from "./command-layer-helpers";
@@ -585,6 +586,45 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect(logEntries.length).toBe(1);
     expect(logEntries[0].status).toBe("failed");
     expect(logEntries[0].id).toBe(result.executionId);
+  });
+
+  // Gemini Phase 2A review: MetaSizeError must increment action.executed{status:failed}
+  // and record duration so monitoring dashboards see meta-size rejections.
+  test("MetaSizeError path emits action.executed and action.duration_ms metrics", async () => {
+    const dp = createTestDataProvider();
+    const metrics = new InMemoryMetricsCollector();
+    const executor = createActionExecutor({ dataProvider: dp, metrics });
+
+    executor.registry.register({
+      name: "root_oversize_metrics",
+      entity: "item",
+      label: "Root Oversize Metrics",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async () => ({ ok: true }),
+    });
+
+    const result = await executor.execute("root_oversize_metrics", {}, defaultActor, {
+      meta: { big: "x".repeat(DEFAULT_META_MAX_BYTES + 100) } as Record<string, unknown>,
+    });
+    expect(result.success).toBe(false);
+
+    // Counter increment on failed
+    const failedCount = metrics.getCounter("action.executed", {
+      action: "root_oversize_metrics",
+      entity: "",
+      status: "failed",
+    });
+    expect(failedCount).toBe(1);
+    // Histogram entry recorded for duration
+    const snapshots = metrics.getMetrics();
+    const durationSnapshot = snapshots.find(
+      (s) =>
+        s.name === "action.duration_ms" &&
+        s.tags?.action === "root_oversize_metrics" &&
+        s.tags?.entity === "",
+    );
+    expect(durationSnapshot).toBeDefined();
   });
 
   // Codex round-3 P3: don't record a fake child execution id when meta size
