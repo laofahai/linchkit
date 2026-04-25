@@ -29,8 +29,16 @@ export {
   createApprovalVerifier,
   InMemoryApprovalStore,
 } from "./approval-engine";
+// Batch action engine (Spec 04 §8, Spec 16 §2.1)
+export {
+  BatchValidationError,
+  type ExecuteBatchOptions,
+  executeBatch,
+  MAX_BATCH_SIZE,
+} from "./batch-action-engine";
 // Command layer
 export {
+  type CommandBatchExecuteOptions,
   type CommandContext,
   type CommandExecuteOptions,
   type CommandLayer,

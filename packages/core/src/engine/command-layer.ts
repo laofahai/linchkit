@@ -31,8 +31,18 @@ import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
+import type { BatchActionsInput, BatchActionsResult, BatchSucceededItem } from "../types/batch";
 import type { Logger } from "../types/logger";
-import type { ActionExecutor, ExecuteOptions, ExecutionChannel } from "./action-engine";
+import type {
+  ActionExecutor,
+  DataProvider,
+  ExecuteOptions,
+  ExecutionChannel,
+  PendingEvent,
+  TransactionManager,
+} from "./action-engine";
+import { generateExecutionId } from "./action-helpers";
+import { MAX_BATCH_SIZE } from "./batch-action-engine";
 
 // ── Slot names (execution order) ────────────────────────────
 
@@ -130,6 +140,14 @@ export interface CommandLayerOptions {
   verifyApproval?: (approvalId: string) => Promise<boolean>;
   /** Metrics collector — optional, defaults to noopMetricsCollector (zero overhead) */
   metrics?: MetricsCollector;
+  /**
+   * Default transaction manager used by `executeBatch` when the strategy is
+   * `all_or_nothing` and the per-call options omit `transactionManager`. Wire
+   * this from the same instance you pass to `createActionExecutor` so REST /
+   * MCP / CLI callers all get transactional batch semantics for free. A
+   * per-call `options.transactionManager` still wins when supplied.
+   */
+  transactionManager?: TransactionManager;
 }
 
 export interface CommandLayer {
@@ -137,6 +155,13 @@ export interface CommandLayer {
   use(registration: MiddlewareRegistration): void;
   /** Execute the full pipeline for a command */
   execute(options: CommandExecuteOptions): Promise<ActionResult>;
+  /**
+   * Execute a batch of actions through the full pipeline (Spec 04 §8,
+   * Spec 16 §2.1). Each item runs the same pipeline as `execute()`; for
+   * `all_or_nothing` strategy a single shared DB transaction wraps all
+   * items so any failure rolls back every prior write.
+   */
+  executeBatch(options: CommandBatchExecuteOptions): Promise<BatchActionsResult>;
   /** Get all registered middlewares (for introspection) */
   getMiddlewares(): MiddlewareRegistration[];
 }
@@ -200,6 +225,49 @@ export interface CommandExecuteOptions {
    * ```
    */
   skipActionSlots?: boolean;
+  /**
+   * Internal: shared transactional data provider injected by
+   * `CommandLayer.executeBatch` when running the `all_or_nothing` strategy.
+   * Forwarded to the executor so every batch item participates in the
+   * outer transaction. Public callers MUST NOT set this — it is reserved
+   * for the batch pipeline.
+   */
+  _txDataProvider?: DataProvider;
+  /**
+   * Internal: shared pending-events array for the batch transaction.
+   * Forwarded to the executor so child events accumulate in the parent's
+   * outbox. See `_txDataProvider`.
+   */
+  _parentPendingEvents?: PendingEvent[];
+}
+
+// ── Batch execute options ───────────────────────────────────
+
+/** Options for {@link CommandLayer.executeBatch}. */
+export interface CommandBatchExecuteOptions {
+  /** Batch payload (`actions`, optional `strategy`). */
+  input: BatchActionsInput;
+  /** Channel — propagated to every item (default: `internal`). */
+  channel?: ExecutionChannel;
+  /** Caller actor — propagated to every item. */
+  actor?: Actor;
+  /** HTTP headers — propagated to every item (when channel is http). */
+  headers?: Record<string, string>;
+  /** Tenant ID — propagated to every item. */
+  tenantId?: string;
+  /** Locale — propagated to every item. */
+  locale?: string;
+  /** Caller meta — merged with batch tracking keys per item. */
+  meta?: Record<string, unknown>;
+  /**
+   * Transaction manager used by `all_or_nothing`. When omitted, falls back
+   * to the `transactionManager` configured on `createCommandLayer`. If
+   * neither is provided and the strategy is `all_or_nothing`, the call
+   * returns a structured `BATCH_TX_MANAGER_REQUIRED` failure.
+   */
+  transactionManager?: TransactionManager;
+  /** External trace ID — when provided, the pipeline reuses it. */
+  traceId?: string;
 }
 
 /**
@@ -218,6 +286,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     logger = consoleLogger,
     verifyApproval,
     metrics = noopMetricsCollector,
+    transactionManager: defaultTransactionManager,
   } = options;
   const middlewares: MiddlewareRegistration[] = [];
 
@@ -440,6 +509,16 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     if (execOptions.includeDeleted) {
       executorOptions.includeDeleted = execOptions.includeDeleted;
     }
+    // Internal batch plumbing: forward shared transaction context when set
+    // by `executeBatch`. Public callers do not set these (see
+    // CommandExecuteOptions docs); the pipeline still runs every slot for
+    // each item, so security guarantees match a single-action call.
+    if (execOptions._txDataProvider) {
+      executorOptions._txDataProvider = execOptions._txDataProvider;
+    }
+    if (execOptions._parentPendingEvents) {
+      executorOptions._parentPendingEvents = execOptions._parentPendingEvents;
+    }
 
     // Action execution as the innermost handler in the compose chain (#2).
     // If any middleware does not call next(), the action will NOT run.
@@ -621,7 +700,263 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     return ctx.result;
   }
 
-  return { use, execute, getMiddlewares };
+  /**
+   * Execute a batch of actions. v1 implementation chooses the simpler
+   * "execute()-per-item" fallback over a per-slot refactor:
+   *
+   *   - Each item runs the full pipeline (auth/exposure/permission/tenant/
+   *     pre-action/post-action) by reusing `executeInner` directly. This
+   *     means auth and tenant slots run once per item rather than once per
+   *     batch — acceptable trade-off for batch sizes ≤ MAX_BATCH_SIZE
+   *     (500), since the auth slot caches actor lookups and tenant slot
+   *     work is cheap.
+   *   - For `all_or_nothing`, we open one outer transaction and inject
+   *     `_txDataProvider` + `_parentPendingEvents` into each item's
+   *     pipeline. The executor's existing shared-tx seam (action-engine.ts
+   *     `parentTxProvider` branch) honors this and skips opening a nested
+   *     transaction.
+   *
+   * Trade-off justification: a slot-level refactor would split the pipeline
+   * into "once per batch" (auth/tenant) + "once per item" (exposure/
+   * permission/pre-action/post-action). That's a bigger refactor of
+   * existing code with no observable behavior difference at batch size
+   * ≤ 500. Defer until real benchmarks show auth/tenant overhead matters.
+   */
+  async function executeBatch(options: CommandBatchExecuteOptions): Promise<BatchActionsResult> {
+    const strategy = options.input.strategy ?? "all_or_nothing";
+    const items = options.input.actions;
+    const parentExecutionId = generateExecutionId();
+    // Generate one shared trace ID per batch when the caller doesn't supply
+    // one, so all child executions correlate in observability tools.
+    const batchTraceId = options.traceId ?? generateExecutionId();
+
+    // Input validation — same rules as executeBatch in batch-action-engine.
+    if (!Array.isArray(items) || items.length === 0) {
+      return buildBatchValidationFailure(
+        parentExecutionId,
+        strategy,
+        "BATCH_EMPTY",
+        "Batch must contain at least one action.",
+      );
+    }
+    if (items.length > MAX_BATCH_SIZE) {
+      return buildBatchValidationFailure(
+        parentExecutionId,
+        strategy,
+        "BATCH_TOO_LARGE",
+        `Batch size ${items.length} exceeds the maximum of ${MAX_BATCH_SIZE}.`,
+      );
+    }
+
+    const effectiveTxManager = options.transactionManager ?? defaultTransactionManager;
+    if (strategy === "all_or_nothing" && !effectiveTxManager) {
+      return buildBatchValidationFailure(
+        parentExecutionId,
+        strategy,
+        "BATCH_TX_MANAGER_REQUIRED",
+        "all_or_nothing strategy requires a TransactionManager. Pass one via createCommandLayer's options.transactionManager or per-call options.transactionManager, or use strategy: 'partial'.",
+      );
+    }
+
+    const baseChannel = options.channel ?? "internal";
+
+    // Build per-item options once — we vary only the per-item meta + tx fields.
+    const buildItemOptions = (
+      index: number,
+      item: { name: string; input: Record<string, unknown> },
+      tx?: { provider: DataProvider; events: PendingEvent[] },
+    ): CommandExecuteOptions => {
+      // Use non-underscore keys so the action engine's system-key strip
+      // (Spec 65 §4.4) doesn't drop batch tracking keys at root depth.
+      // Place batch keys AFTER caller meta so they overwrite — these are
+      // framework-owned and a caller must not be able to clobber them.
+      const itemMeta: Record<string, unknown> = {
+        ...(options.meta ?? {}),
+        "batch.parentExecutionId": parentExecutionId,
+        "batch.index": index,
+      };
+      const opts: CommandExecuteOptions = {
+        command: item.name,
+        input: item.input,
+        channel: baseChannel,
+        actor: options.actor,
+        headers: options.headers,
+        tenantId: options.tenantId,
+        locale: options.locale,
+        meta: itemMeta,
+      };
+      opts.traceId = batchTraceId;
+      if (tx) {
+        opts._txDataProvider = tx.provider;
+        opts._parentPendingEvents = tx.events;
+      }
+      return opts;
+    };
+
+    // ── Strategy: partial ─────────────────────────────────
+    if (strategy === "partial") {
+      const succeeded: BatchSucceededItem[] = [];
+      const failed: BatchActionsResult["failed"] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item) continue;
+        const result = await execute(buildItemOptions(i, item));
+        if (result.success) {
+          succeeded.push(toSucceededItem(i, result));
+        } else {
+          failed.push({
+            index: i,
+            executionId: result.executionId,
+            error: extractErrorFromActionResult(result),
+          });
+        }
+      }
+
+      return {
+        success: failed.length === 0,
+        parentExecutionId,
+        strategy: "partial",
+        succeeded,
+        failed,
+        summary: {
+          total: items.length,
+          succeeded: succeeded.length,
+          failed: failed.length,
+        },
+      };
+    }
+
+    // ── Strategy: all_or_nothing ──────────────────────────
+    const txManager = effectiveTxManager as TransactionManager;
+    const sharedPendingEvents: PendingEvent[] = [];
+    const succeededInside: BatchSucceededItem[] = [];
+
+    /** Sentinel error used to abort the outer transaction. */
+    class BatchAbort extends Error {
+      constructor(
+        public readonly index: number,
+        public readonly executionId: string | undefined,
+        public readonly errCode: string,
+        public readonly errMessage: string,
+      ) {
+        super(errMessage);
+      }
+    }
+
+    try {
+      await txManager.runInTransaction(async (txProvider: DataProvider) => {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (!item) continue;
+          const result = await execute(
+            buildItemOptions(i, item, {
+              provider: txProvider,
+              events: sharedPendingEvents,
+            }),
+          );
+          if (!result.success) {
+            const err = extractErrorFromActionResult(result);
+            throw new BatchAbort(i, result.executionId, err.code, err.message);
+          }
+          succeededInside.push(toSucceededItem(i, result));
+        }
+      }, sharedPendingEvents);
+    } catch (err) {
+      if (err instanceof BatchAbort) {
+        return {
+          success: false,
+          parentExecutionId,
+          strategy: "all_or_nothing",
+          succeeded: [],
+          failed: [
+            {
+              index: err.index,
+              executionId: err.executionId,
+              error: { code: err.errCode, message: err.errMessage },
+            },
+          ],
+          rolledBack: succeededInside,
+          summary: { total: items.length, succeeded: 0, failed: 1 },
+        };
+      }
+      // Unexpected DB / runtime error — surface as a structured failure.
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        parentExecutionId,
+        strategy: "all_or_nothing",
+        succeeded: [],
+        failed: [
+          {
+            index: succeededInside.length,
+            error: { code: "BATCH_TRANSACTION_FAILED", message },
+          },
+        ],
+        rolledBack: succeededInside,
+        summary: { total: items.length, succeeded: 0, failed: 1 },
+      };
+    }
+
+    return {
+      success: true,
+      parentExecutionId,
+      strategy: "all_or_nothing",
+      succeeded: succeededInside,
+      failed: [],
+      summary: {
+        total: items.length,
+        succeeded: succeededInside.length,
+        failed: 0,
+      },
+    };
+  }
+
+  return { use, execute, executeBatch, getMiddlewares };
+}
+
+// ── Batch helpers ───────────────────────────────────────────
+
+/** Map an `ActionResult.data` payload into a structured batch error. */
+function extractErrorFromActionResult(result: ActionResult): {
+  code: string;
+  message: string;
+  field?: string;
+} {
+  const data = result.data as Record<string, unknown> | undefined;
+  const message = (data?.error as string) ?? "Action execution failed";
+  const code = (data?.code as string) ?? "ACTION.EXECUTION.FAILED";
+  const ctx = data?.context as Record<string, unknown> | undefined;
+  const field = ctx?.field as string | undefined;
+  return field ? { code, message, field } : { code, message };
+}
+
+/** Build a {@link BatchSucceededItem} from a successful {@link ActionResult}. */
+function toSucceededItem(index: number, result: ActionResult): BatchSucceededItem {
+  const item: BatchSucceededItem = { index, executionId: result.executionId };
+  if (result.data !== undefined) item.data = result.data;
+  if (result.record !== undefined) item.record = result.record;
+  if (result.warnings !== undefined && result.warnings.length > 0) {
+    item.warnings = [...result.warnings];
+  }
+  return item;
+}
+
+/** Construct a structured failure result for batch input validation. */
+function buildBatchValidationFailure(
+  parentExecutionId: string,
+  strategy: "all_or_nothing" | "partial",
+  code: string,
+  message: string,
+): BatchActionsResult {
+  return {
+    success: false,
+    parentExecutionId,
+    strategy,
+    succeeded: [],
+    failed: [{ index: 0, error: { code, message } }],
+    summary: { total: 0, succeeded: 0, failed: 1 },
+  };
 }
 
 // ── Pipeline errors ─────────────────────────────────────────

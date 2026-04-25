@@ -183,6 +183,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   const commandLayer = createCommandLayer({
     executor,
     verifyApproval: createApprovalVerifier(approvalStore),
+    transactionManager,
   });
 
   // Register all collected middlewares on the command layer

@@ -20,6 +20,7 @@ import type {
   InterfaceDefinition,
   MiddlewareRegistration,
   StateDefinition,
+  TransactionManager,
   ViewDefinition,
 } from "@linchkit/core";
 import {
@@ -64,6 +65,13 @@ export interface RuntimeContextOptions {
   eventBus?: EventBus;
   /** Names of registered capabilities — enables ctx.hasCapability() for weak dependency checks */
   capabilityNames?: ReadonlySet<string>;
+  /**
+   * Transaction manager — wired into both the action executor and the
+   * CommandLayer so `executeBatch` with the default `all_or_nothing`
+   * strategy works without per-call plumbing. When omitted, batch callers
+   * must pass `strategy: "partial"` (or supply a per-call manager).
+   */
+  transactionManager?: TransactionManager;
 }
 
 /**
@@ -114,6 +122,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     aiService: ai,
     capabilityNames: options?.capabilityNames,
     entityRegistry,
+    transactionManager: options?.transactionManager,
   });
 
   // Register actions
@@ -123,8 +132,14 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     }
   }
 
-  // Build command layer
-  const commandLayer = createCommandLayer({ executor });
+  // Build command layer. The TM is plumbed through so `executeBatch` can run
+  // `all_or_nothing` without per-call wiring; without one, batch callers must
+  // use `strategy: "partial"` (the engine returns BATCH_TX_MANAGER_REQUIRED
+  // otherwise).
+  const commandLayer = createCommandLayer({
+    executor,
+    transactionManager: options?.transactionManager,
+  });
   if (options?.middlewares) {
     for (const mw of options.middlewares) {
       commandLayer.use(mw);

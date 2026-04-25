@@ -147,6 +147,7 @@ export type {
   CreateApprovalOptions,
 } from "./engine/approval-engine";
 export type {
+  CommandBatchExecuteOptions,
   CommandContext,
   CommandExecuteOptions,
   CommandLayer,
