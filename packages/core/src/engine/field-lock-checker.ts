@@ -53,6 +53,14 @@ const SYSTEM_FIELD_NAMES = new Set([
   "created_by",
   "updated_by",
   "_version",
+  // `deleted_at` is the soft-delete marker. EntityRegistry.resolve() doesn't
+  // inject it as a regular field, but generated `restore_*` actions write
+  // to it via `ctx.update(..., { deleted_at: null })`. Lock evaluation
+  // would otherwise either crash on the missing field map or apply
+  // `lockAllWhen` against a non-user field. Treat it as a system field —
+  // restore is a framework operation, not a user-driven write that
+  // `lockAllWhen` should govern.
+  "deleted_at",
 ]);
 
 export type FieldLockViolationType = "immutable" | "locked";
@@ -241,28 +249,18 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
     // equality so reordered object keys ({a:1,b:2} vs {b:2,a:1}) don't
     // trigger false positives.
     //
-    // Translatable-field normalization: providers that store i18n content
-    // as locale maps (e.g., `{ en: "Hello", zh: "你好" }`) return the raw
-    // map when no execution locale is supplied, while clients submit a
-    // plain string for the active locale. Treat the string as unchanged
-    // if any locale value in the existing map equals it — preserves the
-    // "echo back the form value" UX without leaking write semantics. If
-    // the caller sends a different string than every stored locale, we
-    // fall through to the structural check (which will report changed).
-    let unchanged: boolean;
-    if (
-      field.translatable === true &&
-      typeof newValue === "string" &&
-      existing != null &&
-      typeof existing === "object" &&
-      !Array.isArray(existing) &&
-      Object.getPrototypeOf(existing) === Object.prototype
-    ) {
-      const localeMap = existing as Record<string, unknown>;
-      unchanged = Object.values(localeMap).some((v) => v === newValue);
-    } else {
-      unchanged = structuralEqual(existing, newValue);
-    }
+    // TODO(spec-63 Phase 2): translatable fields stored as locale maps need
+    // locale-aware normalization. The earlier "any locale value matches"
+    // shortcut was over-permissive — a caller could change an immutable
+    // translatable field by submitting another locale's existing value
+    // (which then silently overwrites the active locale). Proper handling
+    // requires the active write locale, which Phase 1 doesn't propagate
+    // into the checker. Until then, plain-string vs locale-map mismatches
+    // fall through to structuralEqual (always different), so common UI
+    // round-trips on immutable translatable fields surface as violations.
+    // Document this as a known Phase 1 limitation; UI/clients should send
+    // the full locale map for translatable updates.
+    const unchanged = structuralEqual(existing, newValue);
 
     // 1. Immutable (or deprecated `readonly` alias) — only enforced once the
     //    field has a non-null existing value. First-write (existing == null)

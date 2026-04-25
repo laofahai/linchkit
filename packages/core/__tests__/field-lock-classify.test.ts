@@ -161,30 +161,31 @@ describe("Spec 63 — mixed immutable + locked violations classify deterministic
   });
 });
 
-// ── 6c. Translatable field same-value normalization ──────────────
-// Round-7 P2: providers that store i18n content as locale maps return
-// the raw `{ locale: value }` object when no execution locale is set,
-// while clients submit a plain string. Treat the string as unchanged
-// when it equals any locale value in the existing map.
+// ── 6c. Translatable field same-value normalization (Phase 2 work) ──
+// Round-7's "any-locale match = unchanged" was over-permissive: a caller
+// could change an immutable translatable field by submitting another
+// locale's existing value (which then silently overwrites the active
+// locale). Properly fixing this needs the active write locale to flow
+// into the checker. Until then (Phase 2), plain-string vs locale-map
+// mismatches fall through to structural equality and surface as
+// violations. Clients should submit the full locale map for translatable
+// updates.
 
-describe("Spec 63 — translatable field same-value normalization", () => {
-  it("immutable translatable field re-submitted as a string matching a locale value succeeds", async () => {
+describe("Spec 63 — translatable field locale-map vs plain-string update", () => {
+  it("plain-string update on immutable translatable map is rejected (Phase 1 limitation)", async () => {
     const entity: EntityDefinition = {
       name: "label_doc",
       label: "Label Doc",
       fields: {
         title: { type: "string", translatable: true, immutable: true },
-        notes: { type: "string" },
       },
     };
     const entityRegistry = createEntityRegistry();
     entityRegistry.register(entity);
     const dataProvider = createMemoryDataProvider();
-    // DB stores locale map (typical Drizzle layout for translatable JSONB).
     await dataProvider.create("label_doc", {
       id: "ld-1",
       title: { en: "Hello", zh: "你好" },
-      notes: "",
     });
 
     const executor = createActionExecutor({ dataProvider, entityRegistry });
@@ -200,21 +201,20 @@ describe("Spec 63 — translatable field same-value normalization", () => {
       },
     } satisfies ActionDefinition);
 
-    // Caller sends "Hello" — matches existing.en → unchanged.
-    const result = await executor.execute(
-      "update_label",
-      { id: "ld-1", title: "Hello", notes: "edited" },
-      actor,
-    );
-    expect(result.success).toBe(true);
+    // Caller sends "Hello" (matches existing.en) — but Phase 1 cannot
+    // normalize: structural map-vs-string is not equal.
+    const result = await executor.execute("update_label", { id: "ld-1", title: "Hello" }, actor);
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).code).toBe("validation.field.immutable");
   });
 
-  it("immutable translatable field with a NEW string value still blocks", async () => {
+  it("immutable translatable field with full locale-map round-trip succeeds", async () => {
     const entity: EntityDefinition = {
       name: "label_doc",
       label: "Label Doc",
       fields: {
         title: { type: "string", translatable: true, immutable: true },
+        notes: { type: "string" },
       },
     };
     const entityRegistry = createEntityRegistry();
@@ -223,6 +223,7 @@ describe("Spec 63 — translatable field same-value normalization", () => {
     await dataProvider.create("label_doc", {
       id: "ld-2",
       title: { en: "Hello", zh: "你好" },
+      notes: "",
     });
 
     const executor = createActionExecutor({ dataProvider, entityRegistry });
@@ -238,13 +239,56 @@ describe("Spec 63 — translatable field same-value normalization", () => {
       },
     } satisfies ActionDefinition);
 
-    // Caller sends "Greetings" — matches no existing locale value.
+    // Caller submits the full locale map unchanged — structural equality
+    // recognizes it as a no-op.
     const result = await executor.execute(
       "update_label_2",
-      { id: "ld-2", title: "Greetings" },
+      { id: "ld-2", title: { en: "Hello", zh: "你好" }, notes: "edited" },
       actor,
     );
-    expect(result.success).toBe(false);
-    expect((result.data as Record<string, unknown>).code).toBe("validation.field.immutable");
+    expect(result.success).toBe(true);
+  });
+});
+
+// ── Codex round-8: deleted_at exempt from lockAllWhen ─────────────
+// `deleted_at` is the soft-delete marker. EntityRegistry.resolve()
+// doesn't inject it as a regular field; generated `restore_*` actions
+// write it via ctx.update. Treating it as a system field keeps
+// restore working on records governed by lockAllWhen.
+
+describe("Spec 63 — deleted_at exempt from lockAllWhen", () => {
+  it("restore-style update (deleted_at: null) succeeds even when lockAllWhen matches", async () => {
+    const entity: EntityDefinition = {
+      name: "doc_softdel",
+      label: "Doc",
+      lockAllWhen: { state: "posted" },
+      fields: {
+        amount: { type: "number" },
+      },
+    };
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(entity);
+    const dataProvider = createMemoryDataProvider();
+    await dataProvider.create("doc_softdel", {
+      id: "ds-1",
+      amount: 100,
+      status: "posted",
+      deleted_at: new Date(),
+    });
+
+    const executor = createActionExecutor({ dataProvider, entityRegistry });
+    executor.registry.register({
+      name: "restore_doc",
+      entity: "doc_softdel",
+      label: "Restore Doc",
+      input: { id: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        return ctx.update("doc_softdel", ctx.input.id as string, { deleted_at: null });
+      },
+    } satisfies ActionDefinition);
+
+    const result = await executor.execute("restore_doc", { id: "ds-1" }, actor);
+    expect(result.success).toBe(true);
   });
 });
