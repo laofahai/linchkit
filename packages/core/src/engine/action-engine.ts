@@ -657,13 +657,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       violations: readonly FieldLockViolation[],
       entityName: string,
     ): Promise<ActionResult<T>> {
-      const firstViolation = violations[0];
-      if (!firstViolation) {
-        // Defensive: violations is non-empty by contract, but TS doesn't
-        // narrow a readonly array length check.
-        throw new Error("Unreachable: violations non-empty but first is undefined");
+      if (violations.length === 0) {
+        // Defensive: contract says non-empty.
+        throw new Error("Unreachable: buildLockViolationResult called with empty violations");
       }
-      const isImmutable = firstViolation.type === "immutable";
+      // Order-independent classification: when a request mutates BOTH an
+      // immutable field and a state-locked field, the top-level error code
+      // must not depend on caller input key order. Immutable is the more
+      // specific (permanent) rule, so it wins when present. The first
+      // immutable violation also determines the error context's `field`
+      // and `suggestion`. `details[]` keeps every violation in input order
+      // so clients can render per-field UI.
+      const immutableViolation = violations.find((v) => v.type === "immutable");
+      const primary = immutableViolation ?? (violations[0] as FieldLockViolation);
+      const isImmutable = primary.type === "immutable";
       const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
       const errorMsg = "Cannot modify locked fields";
       await logExecution({
@@ -689,11 +696,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           context: {
             action: actionName,
             entity: entityName,
-            field: firstViolation.field,
+            field: primary.field,
             constraint: isImmutable ? "immutable" : "locked",
             suggestion: isImmutable
-              ? `Field "${firstViolation.field}" cannot be changed after it is first set`
-              : `Field "${firstViolation.field}" is locked in the current state and cannot be modified`,
+              ? `Field "${primary.field}" cannot be changed after it is first set`
+              : `Field "${primary.field}" is locked in the current state and cannot be modified`,
           },
         } as T,
         executionId,
@@ -851,38 +858,54 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       // lockWhen/lockAllWhen require a pre-existing record to evaluate.
       create: (entity, data) => activeProvider.create(entity, data),
       update: async (entity, id, data) => {
-        // Handler-path lock check (Spec 63 round-5 fix): applies ONLY when
-        // the handler writes to the same entity the current action targets
-        // AND that entity has lock metadata. Cross-entity writes are out of
-        // scope here — the target entity's own actions (including generic
-        // update_<entity>) carry lock checks for that entity. Running this
-        // action's resolvedFields against a different entity's row would
-        // check the wrong schema.
-        if (entity === action.entity && resolvedEntity && hasLockMetadata) {
-          // Fetch at write-time (not reusing the Step 4b snapshot) because
-          // the handler may have executed earlier writes that changed the
-          // very row now being updated — e.g., a handler that transitions
-          // status before writing fields must see the post-transition
-          // status when evaluating lockWhen.
-          let current: Record<string, unknown>;
+        // Handler-path lock check (Spec 63 round-5/6). Resolves the target
+        // entity each time so handlers updating a related record (cross-
+        // entity write) get the target entity's own immutable / lockWhen /
+        // lockAllWhen rules — not the current action's. Skips silently when
+        // the entity isn't registered or has no lock metadata.
+        if (entityRegistry) {
+          let targetResolved: ReturnType<EntityRegistry["resolve"]> | undefined;
           try {
-            current = await activeProvider.get(entity, id, queryOptions);
+            targetResolved = entityRegistry.resolve(entity);
           } catch {
-            // Fail closed when the row can't be read — same stance as the
-            // declarative preflight's fetch-error path.
-            throw new LockPreflightError(entity, id);
+            targetResolved = undefined;
           }
-          const writesToCheck: Record<string, unknown> = { ...data };
-          delete writesToCheck.id;
-          const violations = checkFieldLocks({
-            fields: resolvedFields,
-            lockAllWhen,
-            lockAllowFields,
-            existingRecord: current,
-            input: writesToCheck,
-          });
-          if (violations.length > 0) {
-            throw new LockViolationError(violations, entity);
+          if (targetResolved) {
+            const targetFields: Record<string, FieldDefinition> = {};
+            for (const [fname, rf] of Object.entries(targetResolved.fields)) {
+              targetFields[fname] = rf.definition;
+            }
+            const targetLockAllWhen = targetResolved.source.lockAllWhen;
+            const targetLockAllowFields = targetResolved.source.lockAllowFields;
+            const targetHasLockMetadata =
+              targetLockAllWhen !== undefined ||
+              Object.values(targetFields).some(
+                (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
+              );
+            if (targetHasLockMetadata) {
+              // Fetch at write-time (not reusing any earlier snapshot) — the
+              // handler may have done other writes that changed this row.
+              let current: Record<string, unknown>;
+              try {
+                current = await activeProvider.get(entity, id, queryOptions);
+              } catch {
+                // Fail closed when the row can't be read — same stance as
+                // the declarative preflight's fetch-error path.
+                throw new LockPreflightError(entity, id);
+              }
+              const writesToCheck: Record<string, unknown> = { ...data };
+              delete writesToCheck.id;
+              const violations = checkFieldLocks({
+                fields: targetFields,
+                lockAllWhen: targetLockAllWhen,
+                lockAllowFields: targetLockAllowFields,
+                existingRecord: current,
+                input: writesToCheck,
+              });
+              if (violations.length > 0) {
+                throw new LockViolationError(violations, entity);
+              }
+            }
           }
         }
         return activeProvider.update(entity, id, data, queryOptions);
