@@ -301,9 +301,107 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
   ): Promise<ActionResult<T>> {
     const executionId = generateExecutionId();
     const startedAt = new Date();
+    const currentDepth = execOptions?._depth ?? 0;
+    // Default channel matches the value used by the rest of the executor —
+    // also used for stamping `_channel` into meta.
+    const channel: ExecutionChannel = execOptions?.channel ?? "internal";
+
+    // Resolve execution meta. Spec 65 §9: every execution log entry — success,
+    // validation failure, recursion-check rejection, etc. — records the meta
+    // snapshot for audit / debugging / analytics. Resolving meta UP FRONT (before
+    // the depth check, action lookup, and validation steps) lets every
+    // `logExecution(...)` call thread `meta: metaSnapshot` through without
+    // reaching for the not-yet-built ExecutionMeta. Resolution itself can fail
+    // with `MetaSizeError` (oversize plain record at root, or oversize parent
+    // meta arriving via a duck-typed implementation); we surface that as a
+    // failed ActionResult so direct-executor callers see the same shape as
+    // other failures regardless of entry point.
+    //
+    // ### Root-vs-nested trust boundary (Gemini PR #201 review)
+    //
+    // At `currentDepth === 0` the provided meta comes from an **untrusted**
+    // external surface — a direct-executor call, a CommandLayer forward, a
+    // duck-typed ExecutionMeta, whatever. We always re-run through
+    // `createExecutionMeta` with the raw snapshot so:
+    //  1. `_`-prefixed keys are stripped (external callers cannot spoof
+    //     `_channel`, `_execution_id`, etc.).
+    //  2. Non-JSON-serializable values are filtered.
+    //  3. Framework-owned `rootSystemDefaults` always win.
+    //
+    // At `currentDepth > 0` the provided meta was built by the engine itself
+    // via `extendExecutionMeta` in `ctx.execute`, so it is framework-trusted;
+    // passing it through unchanged preserves the parent's `_execution_id`
+    // and other system keys across the chain.
+    //
+    // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
+    // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
+    // its assignment.
+    const rootSystemDefaults: Record<string, unknown> = {
+      _channel: channel,
+      _execution_id: executionId,
+      _depth: currentDepth,
+    };
+    const providedMeta = execOptions?.meta;
+    let resolvedMeta: ExecutionMeta;
+    try {
+      if (!providedMeta) {
+        resolvedMeta = createExecutionMeta({ systemKeys: rootSystemDefaults });
+      } else if (currentDepth === 0) {
+        // Root entry — treat any provided meta as external input. Extract
+        // its raw snapshot (handles both ExecutionMeta and plain records)
+        // and push it through the untrusted-input factory.
+        const rawSnapshot = isExecutionMeta(providedMeta)
+          ? providedMeta.toJSON()
+          : (providedMeta as Record<string, unknown>);
+        resolvedMeta = createExecutionMeta({
+          raw: rawSnapshot,
+          systemKeys: rootSystemDefaults,
+        });
+      } else {
+        // Nested call — provided meta is framework-built via extend.
+        // Trust it, only filling system keys that somehow went missing
+        // (defensive — expected to be a no-op in practice).
+        resolvedMeta = isExecutionMeta(providedMeta)
+          ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
+          : createExecutionMeta({
+              raw: providedMeta as Record<string, unknown>,
+              systemKeys: rootSystemDefaults,
+            });
+      }
+    } catch (err) {
+      if (err instanceof MetaSizeError) {
+        // Meta resolution itself failed — no `metaSnapshot` is available yet.
+        // Record the system-default frame plus the rejected payload size as
+        // diagnostic context so audit can reconstruct what was attempted.
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          actor,
+          input,
+          status: "failed",
+          error: { message: err.message, code: err.code },
+          meta: {
+            ...rootSystemDefaults,
+            _meta_rejected: { sizeBytes: err.sizeBytes, maxBytes: err.maxBytes },
+          },
+          startedAt,
+        });
+        return {
+          success: false,
+          data: { error: err.message, code: err.code } as T,
+          executionId,
+        };
+      }
+      throw err;
+    }
+    /**
+     * Frozen JSON snapshot of the resolved meta. Recorded on every execution
+     * log entry per Spec 65 §9. Captured once (not per log call) — meta is
+     * immutable after construction, so reusing the snapshot is safe.
+     */
+    const metaSnapshot = resolvedMeta.toJSON();
 
     // Step 0: Recursion depth check
-    const currentDepth = execOptions?._depth ?? 0;
     if (currentDepth > MAX_CHILD_DEPTH) {
       await logExecution({
         id: executionId,
@@ -312,6 +410,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "failed",
         error: { message: `Maximum child action recursion depth (${MAX_CHILD_DEPTH}) exceeded` },
+        meta: metaSnapshot,
         startedAt,
       });
       return {
@@ -359,6 +458,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "failed",
         error: { message: `Action "${actionName}" not found` },
+        meta: metaSnapshot,
         startedAt,
       });
       return {
@@ -384,8 +484,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // direct internal execute) so actor-type gating can't be bypassed.
     const skipExposure = execOptions?.skipExposureCheck ?? false;
 
-    // Exposure check — default channel to "internal" so the check always runs
-    const channel: ExecutionChannel = execOptions?.channel ?? "internal";
+    // `channel` was hoisted above for early meta resolution — reuse here.
     if (!skipExposure) {
       if (!isExposed(action.exposure, channel)) {
         const errorMsg = `Action "${actionName}" is not exposed for channel "${channel}"`;
@@ -397,6 +496,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           input,
           status: "blocked",
           error: { message: errorMsg },
+          meta: metaSnapshot,
           startedAt,
         });
         return {
@@ -431,6 +531,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "blocked",
         error: { message: actorTypeError },
+        meta: metaSnapshot,
         startedAt,
       });
       return {
@@ -452,6 +553,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "failed",
         error: { message: "Input validation failed" },
+        meta: metaSnapshot,
         startedAt,
       });
       return {
@@ -627,6 +729,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "blocked",
         error: { message: errorMsg, code: "validation.field.locked" },
+        meta: metaSnapshot,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -693,6 +796,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "blocked",
         error: { message: errorMsg, code: errorCode },
+        meta: metaSnapshot,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -742,90 +846,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // retains only the existing-record fetch needed for Step 6 state
     // transition gating.
 
-    // Resolve execution meta. `execOptions.meta` is typed as
-    // `ExecutionMeta | Record<string, unknown>` so direct-executor callers can
-    // pass a plain record (e.g., `executor.execute(..., { meta: { foo: 1 } })`)
-    // without constructing an ExecutionMeta themselves — the natural call
-    // shape. Internally we always normalize to an ExecutionMeta before
-    // exposing on ctx.meta.
-    //
-    // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
-    // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
-    // its assignment.
-    //
-    // ### Root-vs-nested trust boundary (Gemini PR #201 review)
-    //
-    // At `currentDepth === 0` the provided meta comes from an **untrusted**
-    // external surface — a direct-executor call, a CommandLayer forward, a
-    // duck-typed ExecutionMeta, whatever. We always re-run through
-    // `createExecutionMeta` with the raw snapshot so:
-    //  1. `_`-prefixed keys are stripped (external callers cannot spoof
-    //     `_channel`, `_execution_id`, etc.).
-    //  2. Non-JSON-serializable values are filtered.
-    //  3. Framework-owned `rootSystemDefaults` always win.
-    //
-    // At `currentDepth > 0` the provided meta was built by the engine itself
-    // via `extendExecutionMeta` in `ctx.execute`, so it is framework-trusted;
-    // passing it through unchanged preserves the parent's `_execution_id`
-    // and other system keys across the chain.
-    const rootSystemDefaults: Record<string, unknown> = {
-      _channel: channel,
-      _execution_id: executionId,
-      _depth: currentDepth,
-    };
-    const providedMeta = execOptions?.meta;
-    // Meta construction can throw MetaSizeError (plain-record wrap + size
-    // enforcement, or an already-oversized ExecutionMeta reaching the limit
-    // after system keys are added). Direct-executor callers bypass the
-    // CommandLayer's catch, so without handling here the exception would
-    // escape as unhandled. Return a normal failed ActionResult and log it
-    // so callers see the same shape regardless of entry point.
-    let resolvedMeta: ExecutionMeta;
-    try {
-      if (!providedMeta) {
-        resolvedMeta = createExecutionMeta({ systemKeys: rootSystemDefaults });
-      } else if (currentDepth === 0) {
-        // Root entry — treat any provided meta as external input. Extract
-        // its raw snapshot (handles both ExecutionMeta and plain records)
-        // and push it through the untrusted-input factory.
-        const rawSnapshot = isExecutionMeta(providedMeta)
-          ? providedMeta.toJSON()
-          : (providedMeta as Record<string, unknown>);
-        resolvedMeta = createExecutionMeta({
-          raw: rawSnapshot,
-          systemKeys: rootSystemDefaults,
-        });
-      } else {
-        // Nested call — provided meta is framework-built via extend.
-        // Trust it, only filling system keys that somehow went missing
-        // (defensive — expected to be a no-op in practice).
-        resolvedMeta = isExecutionMeta(providedMeta)
-          ? fillMissingSystemKeys(providedMeta, rootSystemDefaults)
-          : createExecutionMeta({
-              raw: providedMeta as Record<string, unknown>,
-              systemKeys: rootSystemDefaults,
-            });
-      }
-    } catch (err) {
-      if (err instanceof MetaSizeError) {
-        await logExecution({
-          id: executionId,
-          action: actionName,
-          entity: action.entity,
-          actor,
-          input,
-          status: "failed",
-          error: { message: err.message, code: err.code },
-          startedAt,
-        });
-        return {
-          success: false,
-          data: { error: err.message, code: err.code } as T,
-          executionId,
-        };
-      }
-      throw err;
-    }
+    // Meta was resolved at the top of `execute(...)` so every early-failure
+    // log entry (depth check, action lookup, exposure, validation) records
+    // the meta snapshot. `resolvedMeta` and `metaSnapshot` are in scope here.
 
     const ctx: ActionContext = {
       input,
@@ -966,6 +989,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         input,
         status: "failed",
         error: { message: "Validation failed" },
+        meta: metaSnapshot,
         startedAt,
       });
       return {
@@ -1013,6 +1037,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             input,
             status: "failed",
             error: { message: errorMsg },
+            meta: metaSnapshot,
             startedAt,
           });
           return {
@@ -1036,6 +1061,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             input,
             status: "blocked",
             error: { message: errorMsg },
+            meta: metaSnapshot,
             startedAt,
           });
           return {
@@ -1068,6 +1094,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             input,
             status: "blocked",
             error: { message: errorMsg },
+            meta: metaSnapshot,
             startedAt,
           });
           return {
@@ -1214,6 +1241,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         stateTransition: stateTransitionRecord,
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         idempotencyKey,
+        meta: metaSnapshot,
         startedAt,
       });
 
@@ -1315,6 +1343,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         error: { message: err instanceof Error ? err.message : String(err) },
         stateTransition: stateTransitionRecord,
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
+        meta: metaSnapshot,
         startedAt,
       });
 

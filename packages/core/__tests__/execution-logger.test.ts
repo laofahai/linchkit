@@ -294,3 +294,108 @@ describe("ActionExecutor with ExecutionLogger", () => {
     expect(result.success).toBe(true);
   });
 });
+
+// ── Spec 65 §9 — Execution log records meta snapshot ──────
+
+describe("ExecutionLogger — meta snapshot recording (Spec 65 §9)", () => {
+  it("records caller-provided meta on a successful execution", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(createOrderAction);
+    await executor.execute("create_order", { title: "Bulk Order", amount: 100 }, defaultActor, {
+      meta: { bulk: true, source_view: "queue" },
+      channel: "http",
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.meta).toBeDefined();
+    expect(entry.meta?.bulk).toBe(true);
+    expect(entry.meta?.source_view).toBe("queue");
+    // System keys stamped by ActionEngine flow into the log too.
+    expect(entry.meta?._channel).toBe("http");
+    expect(entry.meta?._depth).toBe(0);
+    expect(entry.meta?._execution_id).toBe(entry.id);
+  });
+
+  it("records meta on a failed execution (handler throws)", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(failingAction);
+    await executor.execute("failing_action", {}, defaultActor, {
+      meta: { triggered_by: "scheduler" },
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.status).toBe("failed");
+    expect(entry.meta?.triggered_by).toBe("scheduler");
+  });
+
+  it("records meta when the action is not found", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    await executor.execute("missing_action", {}, defaultActor, {
+      meta: { source_view: "console" },
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.status).toBe("failed");
+    expect(entry.meta?.source_view).toBe("console");
+  });
+
+  it("strips _-prefixed external keys from logged meta (system keys win)", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(createOrderAction);
+    await executor.execute("create_order", { title: "x" }, defaultActor, {
+      meta: { _channel: "spoofed", _execution_id: "fake", source_view: "real" },
+      channel: "http",
+    });
+
+    const entry = logger.getAll()[0];
+    // External _channel attempt rejected; framework re-stamps from execOptions.channel.
+    expect(entry.meta?._channel).toBe("http");
+    expect(entry.meta?._execution_id).toBe(entry.id);
+    expect(entry.meta?.source_view).toBe("real");
+  });
+
+  it("propagates parent meta into child execution log entries", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(parentAction);
+    executor.registry.register(childAction);
+
+    await executor.execute("parent_action", {}, defaultActor, {
+      meta: { bulk: true },
+    });
+
+    const parentEntry = logger.getByAction("parent_action")[0];
+    const childEntry = logger.getByAction("child_action")[0];
+
+    expect(parentEntry.meta?.bulk).toBe(true);
+    // Child inherits parent's meta keys via extendExecutionMeta.
+    expect(childEntry.meta?.bulk).toBe(true);
+    // Child has its own _depth + _source_action.
+    expect(childEntry.meta?._depth).toBe(1);
+    expect(childEntry.meta?._source_action).toBe("parent_action");
+  });
+});
