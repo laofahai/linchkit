@@ -333,7 +333,12 @@ export function redactMetaForLog(
   const maskedSet = new Set<string>();
   for (const k of maskedKeys) maskedSet.add(k.toLowerCase());
 
-  const out: Record<string, unknown> = {};
+  // Use a null-prototype object so a meta payload containing a literal
+  // `__proto__` key (or `constructor` / `prototype`) cannot mutate the
+  // output's prototype chain via `out[key] = ...`. JSON.stringify and
+  // Object.entries treat null-prototype objects identically to plain
+  // objects, so log consumers see no behavioral difference.
+  const out: Record<string, unknown> = Object.create(null);
   for (const [key, value] of Object.entries(meta)) {
     out[key] = maskedSet.has(key.toLowerCase()) ? "***" : value;
   }

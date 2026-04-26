@@ -521,4 +521,30 @@ describe("redactMetaForLog", () => {
     const out = redactMetaForLog(nested, ["credentials"]);
     expect(out).toEqual({ credentials: "***", other: "o" });
   });
+
+  // Codex + Gemini Phase 2A maskedKeys review: out[key] = ... for key
+  // === "__proto__" mutates the destination's prototype on a plain
+  // object. Verify the helper's null-prototype output prevents both
+  // pollution and key loss.
+  test("preserves a literal __proto__ key without polluting the prototype", () => {
+    const input = JSON.parse('{"__proto__":{"polluted":true},"normal":"n"}') as Record<
+      string,
+      unknown
+    >;
+    const out = redactMetaForLog(input, ["password"]);
+    expect(out).toBeDefined();
+    // The literal __proto__ key survives as data, not a prototype mutation.
+    expect(Object.hasOwn(out as object, "__proto__")).toBe(true);
+    expect(Object.hasOwn(out as object, "normal")).toBe(true);
+    // Pollution check — Object.prototype is not modified.
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    // JSON.stringify still works on the null-prototype output.
+    expect(typeof JSON.stringify(out)).toBe("string");
+  });
+
+  test("preserves a literal constructor key when not in the masked list", () => {
+    const input = { constructor: "user-data", normal: "n" };
+    const out = redactMetaForLog(input, ["password"]);
+    expect((out as Record<string, unknown>).constructor).toBe("user-data");
+  });
 });
