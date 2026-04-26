@@ -16,4 +16,11 @@ export type { ConfigSchemaRef } from "./define-config-schema";
 export { defineConfigSchema } from "./define-config-schema";
 export type { ConfigValueHistoryEntry } from "./runtime-config-registry";
 export { ConfigValidationError, RuntimeConfigRegistry } from "./runtime-config-registry";
-export { databaseConfig, queueConfig, securityConfig, serverConfig } from "./system-schemas";
+export {
+  DEFAULT_EXECUTION_META_MASKED_KEYS,
+  databaseConfig,
+  executionConfig,
+  queueConfig,
+  securityConfig,
+  serverConfig,
+} from "./system-schemas";

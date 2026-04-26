@@ -168,4 +168,33 @@ describe("DrizzleExecutionLogger — meta jsonb column (Spec 65 §9)", () => {
     expect(retrieved).toBeDefined();
     expect(retrieved?.meta).toBeUndefined();
   });
+
+  // Spec 65 §10.3 regression: redaction is applied by the ActionEngine BEFORE
+  // the entry reaches the Drizzle logger, so masked values must persist as
+  // `"***"` and survive the JSONB hydration round-trip unchanged. This guards
+  // against any future logger-side serializer that might second-guess the
+  // value (e.g., re-write `"***"` to null).
+  test("masked '***' values survive write -> hydrate round-trip", async () => {
+    const { db } = createStubDb();
+    const logger = new DrizzleExecutionLogger(db);
+
+    const redactedMeta = {
+      // Already redacted by the engine — logger persists what it receives.
+      password: "***",
+      auth_token: "***",
+      // Plaintext non-sensitive fields untouched.
+      source_view: "queue",
+      _channel: "http",
+      _depth: 0,
+      _execution_id: "exec_redact_roundtrip",
+    };
+    await logger.log({ ...baseEntry, id: "exec_redact_roundtrip", meta: redactedMeta });
+
+    const retrieved = await logger.getById("exec_redact_roundtrip");
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.meta).toEqual(redactedMeta);
+    expect(retrieved?.meta?.password).toBe("***");
+    expect(retrieved?.meta?.auth_token).toBe("***");
+    expect(retrieved?.meta?.source_view).toBe("queue");
+  });
 });

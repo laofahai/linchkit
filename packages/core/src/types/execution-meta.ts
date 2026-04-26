@@ -298,6 +298,48 @@ export function extendExecutionMeta(
   return impl.extend(extra, systemOverrides);
 }
 
+/**
+ * Produce a redacted shallow copy of `meta` suitable for writing to an
+ * ExecutionLogger entry (Spec 65 §10.3).
+ *
+ * Behavior:
+ * - Returns `undefined` when `meta` is `undefined`.
+ * - Returns the input unchanged when `maskedKeys` is empty.
+ * - Top-level keys only — nested-path matching is out of scope for v1
+ *   (Spec 65 §10.3 — "keys", not "paths"). A nested `{ user: { password } }`
+ *   is preserved verbatim unless `user` itself is in `maskedKeys`.
+ * - Case-insensitive exact match (`"Password"` in input matches `"password"`
+ *   in `maskedKeys`).
+ * - System keys (`_`-prefixed) are preserved unchanged unless explicitly
+ *   listed in `maskedKeys`.
+ * - Replaces matched values with the literal string `"***"`.
+ * - Never mutates the input — always returns a new object on the masking path.
+ *
+ * Storage of the in-memory `ExecutionMeta` itself stays plaintext: this
+ * helper applies only at the moment a log entry is constructed, so handlers
+ * reading `ctx.meta.get("auth_token")` mid-execution still see the real value.
+ *
+ * @param meta - The execution-meta snapshot (typically from `ExecutionMeta.toJSON()`).
+ * @param maskedKeys - List of keys to redact, matched case-insensitively.
+ */
+export function redactMetaForLog(
+  meta: Record<string, unknown> | undefined,
+  maskedKeys: ReadonlyArray<string>,
+): Record<string, unknown> | undefined {
+  if (meta === undefined) return undefined;
+  if (maskedKeys.length === 0) return meta;
+
+  // Build a Set of lowercase masked keys for O(1) per-key lookup.
+  const maskedSet = new Set<string>();
+  for (const k of maskedKeys) maskedSet.add(k.toLowerCase());
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(meta)) {
+    out[key] = maskedSet.has(key.toLowerCase()) ? "***" : value;
+  }
+  return out;
+}
+
 export interface CreateExecutionMetaOptions {
   /** Caller-provided raw meta (external input). `_`-prefixed keys stripped. */
   raw?: Record<string, unknown>;

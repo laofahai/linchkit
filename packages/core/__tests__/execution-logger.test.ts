@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { ConfigRegistry } from "../src/config/config-registry";
 import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
 import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ActionDefinition, Actor } from "../src/types/action";
@@ -455,5 +456,181 @@ describe("ExecutionLogger — early-failure entity stamping", () => {
     expect(entry).toBeDefined();
     expect(entry.status).toBe("blocked");
     expect(entry.entity).toBe("order");
+  });
+});
+
+// ── Spec 65 §10.3 — Meta redaction at log boundary ─────────
+//
+// Sensitive meta keys configured via `system:execution.meta.maskedKeys` must
+// be replaced with `"***"` in persisted log entries. The in-memory
+// ExecutionMeta itself stays plaintext so handlers reading mid-execution
+// still see real values. Defaults apply when no config is wired.
+
+describe("ExecutionLogger — meta redaction (Spec 65 §10.3)", () => {
+  /**
+   * Action that asserts the in-memory ctx.meta view is NOT redacted, then
+   * returns the resolved value so callers can assert it from the outside.
+   */
+  const readMetaAction: ActionDefinition = {
+    name: "read_meta",
+    entity: "order",
+    label: "Read Meta",
+    policy: { mode: "sync", transaction: false },
+    handler: async (ctx) => {
+      // Spec 65 §10.3 — handler still sees real value mid-execution. Read
+      // both casings the call sites use so per-test assertions can pick the
+      // right one without forking the action definition.
+      return {
+        auth_token_in_handler: ctx.meta.get("auth_token"),
+        password_in_handler: ctx.meta.get("password"),
+        Password_in_handler: ctx.meta.get("Password"),
+      };
+    },
+  };
+
+  it("redacts default-listed keys (password/token/secret/api_key) in log entries", async () => {
+    const logger = new InMemoryExecutionLogger();
+    // No configRegistry provided — built-in defaults must still apply.
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(readMetaAction);
+    const result = await executor.execute("read_meta", {}, defaultActor, {
+      meta: {
+        auth_token: "real-token",
+        password: "hunter2",
+        secret: "shhh",
+        api_key: "k-123",
+        source_view: "queue",
+      },
+    });
+
+    expect(result.success).toBe(true);
+
+    const entry = logger.getAll()[0];
+    // `auth_token` is NOT in the default list — only literal "token" is.
+    // The default list intentionally errs on the side of fewer matches; users
+    // configure additional keys via system:execution.meta.maskedKeys.
+    expect(entry.meta?.auth_token).toBe("real-token");
+    expect(entry.meta?.password).toBe("***");
+    expect(entry.meta?.secret).toBe("***");
+    expect(entry.meta?.api_key).toBe("***");
+    // Non-matched keys preserved verbatim.
+    expect(entry.meta?.source_view).toBe("queue");
+    // Handler saw the real values mid-execution.
+    expect((result.data as Record<string, unknown>).password_in_handler).toBe("hunter2");
+  });
+
+  it("masks case-insensitively (Password matches default 'password')", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+
+    executor.registry.register(readMetaAction);
+    const result = await executor.execute("read_meta", {}, defaultActor, {
+      meta: { Password: "uppercase-secret" },
+    });
+
+    expect(result.success).toBe(true);
+    const entry = logger.getAll()[0];
+    expect(entry.meta?.Password).toBe("***");
+    // Handler still saw the original casing/value (uppercase key).
+    expect((result.data as Record<string, unknown>).Password_in_handler).toBe("uppercase-secret");
+  });
+
+  it("respects custom maskedKeys via configRegistry", async () => {
+    const logger = new InMemoryExecutionLogger();
+    // Configure a non-default list — only `auth_token` is masked.
+    const configRegistry = ConfigRegistry.create(
+      {
+        execution: {
+          meta: {
+            maskedKeys: ["auth_token"],
+          },
+        },
+      },
+      [],
+    );
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+      configRegistry,
+    });
+
+    executor.registry.register(readMetaAction);
+    await executor.execute("read_meta", {}, defaultActor, {
+      meta: {
+        auth_token: "should-mask",
+        // `password` is in defaults but NOT in this custom list — preserved.
+        password: "should-NOT-mask",
+      },
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.meta?.auth_token).toBe("***");
+    expect(entry.meta?.password).toBe("should-NOT-mask");
+  });
+
+  it("does not mask anything when configured maskedKeys is empty", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const configRegistry = ConfigRegistry.create(
+      {
+        execution: {
+          meta: {
+            maskedKeys: [],
+          },
+        },
+      },
+      [],
+    );
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+      configRegistry,
+    });
+
+    executor.registry.register(readMetaAction);
+    await executor.execute("read_meta", {}, defaultActor, {
+      meta: { password: "leak" },
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.meta?.password).toBe("leak");
+  });
+
+  it("preserves non-matching keys verbatim alongside masked keys", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const configRegistry = ConfigRegistry.create(
+      {
+        execution: {
+          meta: {
+            maskedKeys: ["password"],
+          },
+        },
+      },
+      [],
+    );
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+      configRegistry,
+    });
+
+    executor.registry.register(readMetaAction);
+    await executor.execute("read_meta", {}, defaultActor, {
+      meta: { password: "p", username: "alice", source_view: "queue" },
+      channel: "http",
+    });
+
+    const entry = logger.getAll()[0];
+    expect(entry.meta?.password).toBe("***");
+    expect(entry.meta?.username).toBe("alice");
+    expect(entry.meta?.source_view).toBe("queue");
+    // System keys flow through untouched.
+    expect(entry.meta?._channel).toBe("http");
   });
 });

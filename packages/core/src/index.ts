@@ -85,8 +85,10 @@ export type {
 export {
   ConfigRegistry,
   ConfigValidationError,
+  DEFAULT_EXECUTION_META_MASKED_KEYS,
   databaseConfig,
   defineConfigSchema,
+  executionConfig,
   InMemoryConfigStore,
   queueConfig,
   RuntimeConfigRegistry,
