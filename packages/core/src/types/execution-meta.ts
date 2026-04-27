@@ -330,8 +330,7 @@ export function redactMetaForLog(
   if (maskedKeys.length === 0) return meta;
 
   // Build a Set of lowercase masked keys for O(1) per-key lookup.
-  const maskedSet = new Set<string>();
-  for (const k of maskedKeys) maskedSet.add(k.toLowerCase());
+  const maskedSet = new Set(maskedKeys.map((k) => k.toLowerCase()));
 
   // Use a null-prototype object so a meta payload containing a literal
   // `__proto__` key (or `constructor` / `prototype`) cannot mutate the

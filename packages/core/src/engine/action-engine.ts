@@ -301,7 +301,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     if (!configRegistry?.has("system:execution")) {
       return DEFAULT_EXECUTION_META_MASKED_KEYS;
     }
-    const cfg = configRegistry.get<{ meta: { maskedKeys: string[] } }>("system:execution");
+    const cfg = configRegistry.get<{ meta: { maskedKeys: ReadonlyArray<string> } }>(
+      "system:execution",
+    );
     return cfg.meta.maskedKeys;
   })();
 
