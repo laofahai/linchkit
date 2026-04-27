@@ -368,7 +368,15 @@ describe("ApprovalEngine", () => {
       executionId: "exec-meta-redact",
       effect: { type: "require_approval", level: "manager" },
       triggerRules: ["amount_check"],
-      meta: { source_view: "queue", password: "supersecret", token: "abc123" },
+      // Cover every key in DEFAULT_EXECUTION_META_MASKED_KEYS so a future
+      // shrink of the default set is caught here, not silently regressed.
+      meta: {
+        source_view: "queue",
+        password: "supersecret",
+        token: "abc123",
+        secret: "shh",
+        api_key: "k-001",
+      },
     });
 
     const stored = store.getById(result.approvalId);
@@ -376,6 +384,8 @@ describe("ApprovalEngine", () => {
     expect(storedMeta?.source_view).toBe("queue");
     expect(storedMeta?.password).toBe("***");
     expect(storedMeta?.token).toBe("***");
+    expect(storedMeta?.secret).toBe("***");
+    expect(storedMeta?.api_key).toBe("***");
   });
 
   it("createRequest strips _-prefixed system keys before persisting (Spec 65 §4.4)", async () => {

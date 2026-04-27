@@ -286,18 +286,27 @@ describe("E2E: Approval workflow", () => {
         executionId: "exec-replay-meta",
         effect: { type: "require_approval", level: "manager" },
         triggerRules: ["require_manager_approval"],
-        meta: { source_view: "approval_queue", triggered_by: "manager" },
+        // Stale system keys from the suspended attempt must NOT leak into the
+        // replay — sanitizeMetaForPersist strips them on creation (Spec 65
+        // §4.4) so `_execution_id` here should never reach the executor.
+        meta: {
+          source_view: "approval_queue",
+          triggered_by: "manager",
+          _execution_id: "stale-suspended-exec",
+        },
       });
 
       const result = await approvalEngine.approve({ approvalId: pending.approvalId }, manager);
       expect(result.success).toBe(true);
 
       // The re-execution must observe the persisted meta. The engine forwards
-      // the original plain-record meta to executor.execute() unchanged.
+      // the sanitized plain-record meta to executor.execute() — user keys pass
+      // through, system `_`-prefixed keys are stripped at the persist boundary.
       expect(capturedMeta).toBeDefined();
       const meta = capturedMeta as Record<string, unknown>;
       expect(meta.source_view).toBe("approval_queue");
       expect(meta.triggered_by).toBe("manager");
+      expect(meta._execution_id).toBeUndefined();
     });
   });
 

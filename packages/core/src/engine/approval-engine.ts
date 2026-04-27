@@ -231,10 +231,13 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     if (!configRegistry?.has("system:execution")) {
       return DEFAULT_EXECUTION_META_MASKED_KEYS;
     }
-    const cfg = configRegistry.get<{ meta: { maskedKeys: ReadonlyArray<string> } }>(
+    const cfg = configRegistry.get<{ meta?: { maskedKeys?: ReadonlyArray<string> } }>(
       "system:execution",
     );
-    return cfg.meta.maskedKeys;
+    // Defensive — a registered `system:execution` entry that omits `meta` or
+    // `meta.maskedKeys` (a misconfigured override) shouldn't crash engine
+    // construction. Fall back to the built-in defaults instead.
+    return cfg?.meta?.maskedKeys ?? DEFAULT_EXECUTION_META_MASKED_KEYS;
   })();
 
   /**
