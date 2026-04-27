@@ -49,6 +49,7 @@ export class DrizzleApprovalStore {
       executionId: request.executionId ?? null,
       executionError: request.executionError ?? null,
       metadata,
+      meta: request.meta ?? null,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
     });
@@ -83,6 +84,7 @@ export class DrizzleApprovalStore {
     if (data.decisionNote !== undefined) updateValues.decisionNote = data.decisionNote;
     if (data.executionId !== undefined) updateValues.executionId = data.executionId;
     if (data.executionError !== undefined) updateValues.executionError = data.executionError;
+    if (data.meta !== undefined) updateValues.meta = data.meta;
 
     await this.db.update(approvalsTable).set(updateValues).where(eq(approvalsTable.id, id));
 
@@ -143,6 +145,7 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
     executionId: row.executionId ?? undefined,
     executionError: row.executionError ?? undefined,
     tenantId: row.tenantId ?? undefined,
+    meta: (row.meta as Record<string, unknown>) ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

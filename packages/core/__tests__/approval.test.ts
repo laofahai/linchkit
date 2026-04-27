@@ -327,6 +327,92 @@ describe("ApprovalEngine", () => {
     expect(stored?.triggerRules).toEqual(["amount_check"]);
   });
 
+  it("persists meta on createRequest (Spec 65 §14 M6)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: { source_view: "queue", bulk: true },
+    });
+
+    const stored = store.getById(result.approvalId);
+    expect(stored?.meta).toEqual({ source_view: "queue", bulk: true });
+    expect((stored?.meta as Record<string, unknown> | undefined)?.source_view).toBe("queue");
+  });
+
+  it("createRequest without meta leaves request.meta undefined (backwards compat)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    const stored = store.getById(result.approvalId);
+    expect(stored?.meta).toBeUndefined();
+  });
+
+  it("createRequest redacts well-known masked keys (Spec 65 §10.3)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-redact",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      // Cover every key in DEFAULT_EXECUTION_META_MASKED_KEYS so a future
+      // shrink of the default set is caught here, not silently regressed.
+      meta: {
+        source_view: "queue",
+        password: "supersecret",
+        token: "abc123",
+        secret: "shh",
+        api_key: "k-001",
+      },
+    });
+
+    const stored = store.getById(result.approvalId);
+    const storedMeta = stored?.meta as Record<string, unknown> | undefined;
+    expect(storedMeta?.source_view).toBe("queue");
+    expect(storedMeta?.password).toBe("***");
+    expect(storedMeta?.token).toBe("***");
+    expect(storedMeta?.secret).toBe("***");
+    expect(storedMeta?.api_key).toBe("***");
+  });
+
+  it("createRequest strips _-prefixed system keys before persisting (Spec 65 §4.4)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-strip",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: {
+        source_view: "queue",
+        _execution_id: "stale",
+        _channel: "rest",
+        _depth: 2,
+      },
+    });
+
+    const stored = store.getById(result.approvalId);
+    const storedMeta = stored?.meta as Record<string, unknown> | undefined;
+    expect(storedMeta?.source_view).toBe("queue");
+    expect(storedMeta?._execution_id).toBeUndefined();
+    expect(storedMeta?._channel).toBeUndefined();
+    expect(storedMeta?._depth).toBeUndefined();
+  });
+
   it("emits approval.requested event on creation", async () => {
     await engine.createRequest({
       action: "submit_request",

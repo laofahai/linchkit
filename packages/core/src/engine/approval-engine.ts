@@ -9,6 +9,8 @@
  * See spec 35_approval_mechanism.md for full details.
  */
 
+import type { ConfigRegistry } from "../config/config-registry";
+import { DEFAULT_EXECUTION_META_MASKED_KEYS } from "../config/system-schemas";
 import type { EventBus } from "../event/event-bus";
 import { consoleLogger } from "../observability/console-logger";
 import type { ActionResult, Actor } from "../types/action";
@@ -24,6 +26,7 @@ import type {
   RejectInput,
 } from "../types/approval";
 import type { EventRecord } from "../types/event";
+import { redactMetaForLog, stripSystemKeys } from "../types/execution-meta";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor } from "./action-engine";
 import type { CommandLayer } from "./command-layer";
@@ -154,6 +157,12 @@ export interface ApprovalEngineOptions {
    * When not provided, falls back to basic checks (allow-all if enforceAssignee is false).
    */
   permissionRegistry?: PermissionRegistry;
+  /**
+   * Config registry for resolving `system:execution.meta.maskedKeys`.
+   * When omitted, falls back to DEFAULT_EXECUTION_META_MASKED_KEYS so
+   * the redaction guarantee (Spec 65 §10.3) holds in tests too.
+   */
+  configRegistry?: ConfigRegistry;
 }
 
 export interface CreateApprovalOptions {
@@ -171,6 +180,12 @@ export interface CreateApprovalOptions {
   assignee?: ApprovalAssignee;
   expiresAt?: Date;
   timeoutPolicy?: ApprovalTimeoutPolicy;
+  /**
+   * Original ExecutionMeta captured at suspend.
+   * Persisted with the request so handlers see the same meta on rerun
+   * as on the original submission (Spec 65 §14 M6).
+   */
+  meta?: Record<string, unknown>;
 }
 
 export interface ApprovalEngine {
@@ -199,12 +214,51 @@ export interface ApprovalEngine {
  * Create an ApprovalEngine instance.
  */
 export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEngine {
-  const { store, eventBus, permissionRegistry } = options;
+  const { store, eventBus, permissionRegistry, configRegistry } = options;
   // Auto-enable assignee enforcement when permissionRegistry is provided,
   // unless explicitly set to false
   const enforceAssignee = options.enforceAssignee ?? permissionRegistry !== undefined;
   let executor = options.executor;
   const commandLayer = options.commandLayer;
+
+  /**
+   * Resolve the configured `system:execution.meta.maskedKeys` list once at
+   * engine-construction time, mirroring action-engine's resolution. Falls
+   * back to DEFAULT_EXECUTION_META_MASKED_KEYS when no ConfigRegistry was
+   * injected so the redaction guarantee (Spec 65 §10.3) holds in tests.
+   */
+  const maskedKeys: ReadonlyArray<string> = (() => {
+    if (!configRegistry?.has("system:execution")) {
+      return DEFAULT_EXECUTION_META_MASKED_KEYS;
+    }
+    const cfg = configRegistry.get<{ meta?: { maskedKeys?: ReadonlyArray<string> } }>(
+      "system:execution",
+    );
+    // Defensive — a registered `system:execution` entry that omits `meta` or
+    // `meta.maskedKeys` (a misconfigured override) shouldn't crash engine
+    // construction. Fall back to the built-in defaults instead.
+    return cfg?.meta?.maskedKeys ?? DEFAULT_EXECUTION_META_MASKED_KEYS;
+  })();
+
+  /**
+   * Sanitize caller-provided meta before persisting it on the ApprovalRequest:
+   *
+   * 1. Drop `_`-prefixed system keys — they belong to the *suspended* attempt
+   *    (e.g., `_execution_id`, `_channel`, `_depth` from the original
+   *    submission). On replay, CommandLayer middleware reads `c.meta` *before*
+   *    ActionEngine.createExecutionMeta re-stamps system keys, so leaving
+   *    these values in would feed stale correlation data to tenant /
+   *    pre-action / post-action middleware (Spec 65 §4.4).
+   * 2. Apply redaction so configured masked keys (e.g., "password", "token")
+   *    never live unredacted at rest (Spec 65 §10.3) — same redaction the
+   *    execution log applies before persisting.
+   */
+  function sanitizeMetaForPersist(
+    meta: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    if (meta === undefined) return undefined;
+    return redactMetaForLog(stripSystemKeys(meta), maskedKeys);
+  }
 
   // Fix #5: Counter scoped inside factory to avoid module-level shared state
   let approvalCounter = 0;
@@ -316,6 +370,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       timeoutPolicy: opts.timeoutPolicy ?? "none",
       originalExecutionId: opts.executionId,
       tenantId: opts.tenantId,
+      meta: sanitizeMetaForPersist(opts.meta),
       createdAt: now,
       updatedAt: now,
     };
@@ -389,12 +444,8 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // Prefer CommandLayer (runs pre/tenant/pre-action/post-action, skips auth/exposure/permission).
     // Fall back to direct executor.execute() for backward compatibility.
     //
-    // TODO(spec-65 Phase 2): Approval records do NOT persist the original
-    // `ctx.meta` — handlers relying on meta (e.g., `source_view`,
-    // `triggered_by`) see different context before and after approval.
-    // Needs an approval-store schema extension to carry meta through the
-    // suspend/resume boundary. Deferred here because it requires a
-    // storage-layer change.
+    // Spec 65 §14 M6: replay the original ExecutionMeta captured at suspend
+    // so handlers see the same meta on rerun as on the original submission.
     let result: ActionResult;
 
     if (commandLayer) {
@@ -406,6 +457,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         channel: "internal",
         approvalId: input.approvalId,
         skipRules: request.triggerRules,
+        meta: request.meta,
       });
     } else {
       // Backward-compatible fallback — direct executor call (deprecated path)
@@ -416,6 +468,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         tenantId: request.tenantId,
         skipRules: request.triggerRules,
         approvalId: input.approvalId,
+        meta: request.meta,
       });
     }
 

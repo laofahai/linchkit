@@ -22,6 +22,13 @@
       "when": 1777128126634,
       "tag": "0002_loving_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777280902455,
+      "tag": "0003_massive_otto_octavius",
+      "breakpoints": true
     }
   ]
 }
