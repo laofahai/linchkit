@@ -139,6 +139,8 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   executionId: varchar("execution_id", { length: 255 }),
   executionError: text("execution_error"),
   metadata: jsonb("metadata"),
+  /** Spec 65 §14 M6 — Original ExecutionMeta captured at suspend, replayed on approve(). */
+  meta: jsonb("meta"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

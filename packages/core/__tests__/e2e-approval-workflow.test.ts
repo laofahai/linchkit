@@ -13,7 +13,11 @@
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
-import { createActionExecutor } from "../src/engine/action-engine";
+import {
+  type ActionExecutor,
+  createActionExecutor,
+  type ExecuteOptions,
+} from "../src/engine/action-engine";
 import {
   createApprovalEngine,
   createApprovalVerifier,
@@ -247,6 +251,53 @@ describe("E2E: Approval workflow", () => {
 
       const approvedEvent = emittedEvents.find((e) => e.type === "approval.approved");
       expect(approvedEvent).toBeDefined();
+    });
+
+    it("approve replay carries meta to re-execution (Spec 65 §14 M6)", async () => {
+      // Build a fresh setup with a spy executor so we can capture the meta
+      // forwarded into the re-execution path.
+      const { bus: eventBus } = createEventBus();
+      const dp = createMemoryDataProvider();
+      const realExecutor = createActionExecutor({ dataProvider: dp });
+      realExecutor.registry.register(buildHighValueAction());
+
+      let capturedMeta: ExecuteOptions["meta"] | undefined;
+      const spyExecutor: ActionExecutor = {
+        registry: realExecutor.registry,
+        execute: async (actionName, input, actor, options) => {
+          capturedMeta = options?.meta;
+          return realExecutor.execute(actionName, input, actor, options);
+        },
+      };
+
+      const approvalStore = new InMemoryApprovalStore();
+      const approvalEngine = createApprovalEngine({
+        store: approvalStore,
+        eventBus,
+        enforceAssignee: false,
+        executor: spyExecutor,
+      });
+
+      const pending = await approvalEngine.createRequest({
+        action: "approve_purchase",
+        entity: "purchase",
+        input: { amount: 500, item: "monitor" },
+        actor: requestor,
+        executionId: "exec-replay-meta",
+        effect: { type: "require_approval", level: "manager" },
+        triggerRules: ["require_manager_approval"],
+        meta: { source_view: "approval_queue", triggered_by: "manager" },
+      });
+
+      const result = await approvalEngine.approve({ approvalId: pending.approvalId }, manager);
+      expect(result.success).toBe(true);
+
+      // The re-execution must observe the persisted meta. The engine forwards
+      // the original plain-record meta to executor.execute() unchanged.
+      expect(capturedMeta).toBeDefined();
+      const meta = capturedMeta as Record<string, unknown>;
+      expect(meta.source_view).toBe("approval_queue");
+      expect(meta.triggered_by).toBe("manager");
     });
   });
 

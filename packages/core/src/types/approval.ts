@@ -80,6 +80,9 @@ export interface ApprovalRequest {
   /** Tenant context */
   tenantId?: string;
 
+  /** Original ExecutionMeta captured at suspend, replayed on approve(). */
+  meta?: Record<string, unknown>;
+
   createdAt: Date;
   updatedAt: Date;
 }

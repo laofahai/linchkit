@@ -327,6 +327,38 @@ describe("ApprovalEngine", () => {
     expect(stored?.triggerRules).toEqual(["amount_check"]);
   });
 
+  it("persists meta on createRequest (Spec 65 §14 M6)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: { source_view: "queue", bulk: true },
+    });
+
+    const stored = store.getById(result.approvalId);
+    expect(stored?.meta).toEqual({ source_view: "queue", bulk: true });
+    expect((stored?.meta as Record<string, unknown> | undefined)?.source_view).toBe("queue");
+  });
+
+  it("createRequest without meta leaves request.meta undefined (backwards compat)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-2",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+    });
+
+    const stored = store.getById(result.approvalId);
+    expect(stored?.meta).toBeUndefined();
+  });
+
   it("emits approval.requested event on creation", async () => {
     await engine.createRequest({
       action: "submit_request",

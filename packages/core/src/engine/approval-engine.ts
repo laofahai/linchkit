@@ -171,6 +171,12 @@ export interface CreateApprovalOptions {
   assignee?: ApprovalAssignee;
   expiresAt?: Date;
   timeoutPolicy?: ApprovalTimeoutPolicy;
+  /**
+   * Original ExecutionMeta captured at suspend.
+   * Persisted with the request so handlers see the same meta on rerun
+   * as on the original submission (Spec 65 §14 M6).
+   */
+  meta?: Record<string, unknown>;
 }
 
 export interface ApprovalEngine {
@@ -316,6 +322,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       timeoutPolicy: opts.timeoutPolicy ?? "none",
       originalExecutionId: opts.executionId,
       tenantId: opts.tenantId,
+      meta: opts.meta,
       createdAt: now,
       updatedAt: now,
     };
@@ -389,12 +396,8 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // Prefer CommandLayer (runs pre/tenant/pre-action/post-action, skips auth/exposure/permission).
     // Fall back to direct executor.execute() for backward compatibility.
     //
-    // TODO(spec-65 Phase 2): Approval records do NOT persist the original
-    // `ctx.meta` — handlers relying on meta (e.g., `source_view`,
-    // `triggered_by`) see different context before and after approval.
-    // Needs an approval-store schema extension to carry meta through the
-    // suspend/resume boundary. Deferred here because it requires a
-    // storage-layer change.
+    // Spec 65 §14 M6: replay the original ExecutionMeta captured at suspend
+    // so handlers see the same meta on rerun as on the original submission.
     let result: ActionResult;
 
     if (commandLayer) {
@@ -406,6 +409,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         channel: "internal",
         approvalId: input.approvalId,
         skipRules: request.triggerRules,
+        meta: request.meta,
       });
     } else {
       // Backward-compatible fallback — direct executor call (deprecated path)
@@ -416,6 +420,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         tenantId: request.tenantId,
         skipRules: request.triggerRules,
         approvalId: input.approvalId,
+        meta: request.meta,
       });
     }
 
