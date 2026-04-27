@@ -14,6 +14,7 @@ import {
   ExecutionMetaImpl,
   extendExecutionMeta,
   MetaSizeError,
+  redactMetaForLog,
 } from "../src/types/execution-meta";
 
 describe("ExecutionMetaImpl", () => {
@@ -448,5 +449,102 @@ describe("ExecutionMetaImpl constructor self-enforcement", () => {
     });
     expect(meta.has("bad")).toBe(false);
     expect(meta.get("okay")).toEqual({ inner: 1 });
+  });
+});
+
+// Spec 65 §10.3 — redactMetaForLog: log-time masking of sensitive keys.
+// Document the v1 design choices (top-level only, case-insensitive exact match,
+// non-mutating).
+describe("redactMetaForLog", () => {
+  test("returns undefined when meta is undefined", () => {
+    expect(redactMetaForLog(undefined, ["password"])).toBeUndefined();
+  });
+
+  test("returns input unchanged when maskedKeys is empty", () => {
+    const input = { a: 1, password: "secret" };
+    expect(redactMetaForLog(input, [])).toBe(input);
+  });
+
+  test("masks exact case matches with '***'", () => {
+    const out = redactMetaForLog({ password: "hunter2", source: "queue" }, ["password"]);
+    expect(out).toEqual({ password: "***", source: "queue" });
+  });
+
+  test("matches case-insensitively (Password matches password)", () => {
+    const out = redactMetaForLog({ Password: "p", API_KEY: "k", normal: "n" }, [
+      "password",
+      "api_key",
+    ]);
+    expect(out).toEqual({ Password: "***", API_KEY: "***", normal: "n" });
+  });
+
+  test("non-matched keys are preserved verbatim", () => {
+    const out = redactMetaForLog({ password: "p", username: "alice", _channel: "http" }, [
+      "password",
+    ]);
+    expect(out).toEqual({ password: "***", username: "alice", _channel: "http" });
+  });
+
+  test("does not mutate the input object", () => {
+    const input = { password: "p", other: "o" };
+    const before = { ...input };
+    const out = redactMetaForLog(input, ["password"]);
+    expect(input).toEqual(before);
+    expect(out).not.toBe(input);
+  });
+
+  test("preserves _-prefixed system keys unchanged when not in maskedKeys", () => {
+    const out = redactMetaForLog({ _channel: "http", _execution_id: "exec_1", source: "queue" }, [
+      "password",
+    ]);
+    expect(out?._channel).toBe("http");
+    expect(out?._execution_id).toBe("exec_1");
+    expect(out?.source).toBe("queue");
+  });
+
+  test("masks _-prefixed keys when explicitly listed", () => {
+    // Defensive symmetry — the helper does not special-case system keys.
+    const out = redactMetaForLog({ _secret_token: "x" }, ["_secret_token"]);
+    expect(out).toEqual({ _secret_token: "***" });
+  });
+
+  test("does NOT recurse into nested objects (top-level only)", () => {
+    // Spec 65 §10.3 talks about "keys", not "paths". A nested
+    // `{ user: { password } }` is preserved unless `user` itself is masked.
+    const nested = { user: { password: "p" }, other: "o" };
+    const out = redactMetaForLog(nested, ["password"]);
+    expect(out).toEqual({ user: { password: "p" }, other: "o" });
+  });
+
+  test("masks the entire nested object when its top-level key matches", () => {
+    const nested = { credentials: { user: "a", password: "p" }, other: "o" };
+    const out = redactMetaForLog(nested, ["credentials"]);
+    expect(out).toEqual({ credentials: "***", other: "o" });
+  });
+
+  // Codex + Gemini Phase 2A maskedKeys review: out[key] = ... for key
+  // === "__proto__" mutates the destination's prototype on a plain
+  // object. Verify the helper's null-prototype output prevents both
+  // pollution and key loss.
+  test("preserves a literal __proto__ key without polluting the prototype", () => {
+    const input = JSON.parse('{"__proto__":{"polluted":true},"normal":"n"}') as Record<
+      string,
+      unknown
+    >;
+    const out = redactMetaForLog(input, ["password"]);
+    expect(out).toBeDefined();
+    // The literal __proto__ key survives as data, not a prototype mutation.
+    expect(Object.hasOwn(out as object, "__proto__")).toBe(true);
+    expect(Object.hasOwn(out as object, "normal")).toBe(true);
+    // Pollution check — Object.prototype is not modified.
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    // JSON.stringify still works on the null-prototype output.
+    expect(typeof JSON.stringify(out)).toBe("string");
+  });
+
+  test("preserves a literal constructor key when not in the masked list", () => {
+    const input = { constructor: "user-data", normal: "n" };
+    const out = redactMetaForLog(input, ["password"]);
+    expect((out as Record<string, unknown>).constructor).toBe("user-data");
   });
 });

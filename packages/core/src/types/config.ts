@@ -43,6 +43,20 @@ export interface LinchKitConfig {
     };
   };
 
+  /**
+   * Execution-context configuration (Spec 65).
+   *
+   * Currently only `meta.maskedKeys` is supported — top-level keys whose
+   * values are replaced with `"***"` when written to the execution log.
+   * In-memory `ctx.meta.get(...)` reads stay plaintext.
+   */
+  execution?: {
+    meta?: {
+      /** Top-level meta keys to redact in execution log entries (case-insensitive). */
+      maskedKeys?: string[];
+    };
+  };
+
   /** GitHub integration */
   github?: {
     repo?: string;

@@ -9,7 +9,13 @@ import { LinchKitError } from "../errors";
 import type { CapabilityDefinition } from "../types/capability";
 import type { LinchKitConfig } from "../types/config";
 import { resolveEnvVars } from "../utils/env";
-import { databaseConfig, queueConfig, securityConfig, serverConfig } from "./system-schemas";
+import {
+  databaseConfig,
+  executionConfig,
+  queueConfig,
+  securityConfig,
+  serverConfig,
+} from "./system-schemas";
 
 /** Deep-freeze an object recursively */
 function deepFreeze<T>(obj: T): Readonly<T> {
@@ -31,6 +37,7 @@ const SYSTEM_SCHEMAS = [
   { key: "database", ref: databaseConfig },
   { key: "queue", ref: queueConfig },
   { key: "security", ref: securityConfig },
+  { key: "execution", ref: executionConfig },
 ] as const;
 
 /** Format a single Zod error into human-readable lines */

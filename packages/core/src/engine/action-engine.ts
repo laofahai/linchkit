@@ -7,6 +7,7 @@
  */
 
 import { ConfigRegistry } from "../config/config-registry";
+import { DEFAULT_EXECUTION_META_MASKED_KEYS } from "../config/system-schemas";
 import type { EntityRegistry } from "../entity/entity-registry";
 import type { EventBus } from "../event/event-bus";
 import type { MetricsCollector } from "../observability/metrics";
@@ -18,7 +19,12 @@ import type { AIService } from "../types/ai";
 import type { FieldDefinition } from "../types/entity";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
-import { createExecutionMeta, extendExecutionMeta, MetaSizeError } from "../types/execution-meta";
+import {
+  createExecutionMeta,
+  extendExecutionMeta,
+  MetaSizeError,
+  redactMetaForLog,
+} from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import {
   checkFieldLocks,
@@ -280,14 +286,46 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
   const noopLogger: Logger = { debug: noopFn, info: noopFn, warn: noopFn, error: noopFn };
   const logger: Logger = injectedLogger ?? noopLogger;
 
-  /** Helper: build and log an execution entry */
+  /**
+   * Resolve the configured `system:execution.meta.maskedKeys` list once at
+   * executor-construction time. Falls back to the built-in default list when
+   * no ConfigRegistry was injected (test path) — the redaction guarantee
+   * (Spec 65 §10.3) must hold regardless of whether the runtime configured
+   * the namespace explicitly.
+   *
+   * Resolved at construction (not per-execute) because the registry is
+   * immutable after creation — re-reading on every call would just be lost
+   * work.
+   */
+  const maskedKeys: ReadonlyArray<string> = (() => {
+    if (!configRegistry?.has("system:execution")) {
+      return DEFAULT_EXECUTION_META_MASKED_KEYS;
+    }
+    const cfg = configRegistry.get<{ meta: { maskedKeys: ReadonlyArray<string> } }>(
+      "system:execution",
+    );
+    return cfg.meta.maskedKeys;
+  })();
+
+  /**
+   * Build and log an execution entry. Applies meta redaction (Spec 65 §10.3)
+   * at the log boundary so the persisted entry replaces configured sensitive
+   * keys with `"***"`. The in-memory `metaSnapshot` callers pass in remains
+   * plaintext — only the value handed to the logger is redacted.
+   */
   async function logExecution(
     entry: Omit<ExecutionLogEntry, "completedAt" | "duration"> & { startedAt: Date },
   ): Promise<void> {
     if (!executionLogger) return;
     const completedAt = new Date();
     const duration = completedAt.getTime() - entry.startedAt.getTime();
-    await executionLogger.log({ ...entry, completedAt, duration } as ExecutionLogEntry);
+    const redactedMeta = redactMetaForLog(entry.meta, maskedKeys);
+    await executionLogger.log({
+      ...entry,
+      meta: redactedMeta,
+      completedAt,
+      duration,
+    } as ExecutionLogEntry);
   }
 
   /** Maximum recursion depth for child action execution */

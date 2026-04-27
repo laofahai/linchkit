@@ -42,6 +42,7 @@ export {
   createExecutionMeta,
   DEFAULT_META_MAX_BYTES,
   MetaSizeError,
+  redactMetaForLog,
 } from "./execution-meta";
 export type * from "./flow";
 export type * from "./life-system";
