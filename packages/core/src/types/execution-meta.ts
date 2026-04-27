@@ -143,7 +143,7 @@ function cloneAndFreezeEntries(entries: Record<string, unknown>): Record<string,
 }
 
 /** Strip `_`-prefixed keys from an input object (returns a shallow copy). */
-function stripSystemKeys(input: Record<string, unknown>): Record<string, unknown> {
+export function stripSystemKeys(input: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input)) {
     if (k.startsWith("_")) continue;
