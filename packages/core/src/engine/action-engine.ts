@@ -46,6 +46,7 @@ import {
   validateInput,
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
+import { hashBehaviorAffectingMeta } from "./meta-keys";
 
 // ── DataProvider interface ──────────────────────────────────
 
@@ -476,16 +477,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Scope key by action name + tenant to prevent cross-action/cross-tenant collisions.
     // Only apply at top level — child executions (depth > 0) do not inherit idempotency.
     //
-    // TODO(spec-65 Phase 2): If an action's `ctx.meta` participates in
-    // decision-making (e.g., `dry_run`, `skip_notifications`), a second
-    // request reusing the same `idempotencyKey` with different meta will
-    // receive the first execution's cached output without re-running. Either
-    // hash the normalized meta into the key or reject changed meta for an
-    // existing key. Deferred here because it requires a product decision on
-    // idempotency semantics (observational meta vs behavior-affecting meta).
+    // Spec 65 §5: behavior-affecting meta (e.g. `dry_run`, `skip_notifications`,
+    // `bulk`, `default.*`) is folded into the cache key so two requests with
+    // the same idempotency key but different behavior-affecting meta are
+    // treated as different operations. Observational keys (locale, view, etc.)
+    // are intentionally excluded so they don't fragment the cache.
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
+    const metaHash = rawIdempotencyKey ? hashBehaviorAffectingMeta(metaSnapshot) : "";
     const idempotencyKey = rawIdempotencyKey
-      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
+      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}${
+          metaHash ? `::meta:${metaHash}` : ""
+        }`
       : undefined;
     if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
       const existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
