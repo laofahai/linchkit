@@ -165,6 +165,7 @@ export async function evaluateRules(
           target: ctx.target,
           context: ctx.context,
           actor: ctx.actor,
+          meta: ctx.meta,
           signal: controller?.signal,
         });
 

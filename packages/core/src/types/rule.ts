@@ -5,6 +5,8 @@
  * Rule = Trigger + Context (optional) + Condition + Effect
  */
 
+import type { ExecutionMeta } from "./execution-meta";
+
 // ── Comparison operators ──────────────────────────────────────
 
 export type ComparisonOperator =
@@ -53,6 +55,12 @@ export interface RuleConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
   actor: { type: string; id: string; groups: string[] };
+  /**
+   * Current execution meta (Spec 65 §6). Code-based conditions can branch
+   * on caller hints (`bulk`, `dry_run`, `_channel`, …) the same way
+   * declarative `meta.*` field paths can.
+   */
+  meta?: ExecutionMeta;
   /** AbortSignal propagated when a timeout is configured */
   signal?: AbortSignal;
 }

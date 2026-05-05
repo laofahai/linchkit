@@ -709,6 +709,87 @@ describe("meta.* field path resolution", () => {
     expect((await evaluateRules([rule], overThresholdInput)).triggered).toBe(false);
   });
 
+  it("flat meta keys with dots in the name (e.g. batch.parentExecutionId) resolve correctly", () => {
+    // Regression for codex P2: the framework emits flat keys whose names
+    // contain dots (`batch.parentExecutionId`, `batch.index` from
+    // batch-action-engine). A rule written against `meta.batch.parentExecutionId`
+    // must look up the joined key first and only fall back to nested
+    // POJO access if no flat key matches.
+    const meta = createExecutionMeta({
+      raw: { "batch.parentExecutionId": "exec_root", "batch.index": 3 },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(
+      evaluateCondition(
+        { field: "meta.batch.parentExecutionId", operator: "eq", value: "exec_root" },
+        ctx,
+      ),
+    ).toBe(true);
+    expect(evaluateCondition({ field: "meta.batch.index", operator: "eq", value: 3 }, ctx)).toBe(
+      true,
+    );
+  });
+
+  it("flat keys take precedence over POJO-nested interpretation", () => {
+    // Greedy match means the flat key wins. Two equally-named meta entries
+    // (one flat, one nested) shouldn't realistically coexist; assert which
+    // one is honored if they did.
+    const meta = createExecutionMeta({
+      raw: { "a.b": "flat-wins", a: { b: "nested-loses" } },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(evaluateCondition({ field: "meta.a.b", operator: "eq", value: "flat-wins" }, ctx)).toBe(
+      true,
+    );
+  });
+
+  it("code-based conditions receive ctx.meta", async () => {
+    // Regression for codex P2: code conditions used to receive only
+    // {target, context, actor, signal}, so they had no way to read
+    // ExecutionMeta. The condition callback signature now exposes meta.
+    const calls: Array<Record<string, unknown> | undefined> = [];
+    const rule: RuleDefinition = {
+      name: "code-cond-reads-meta",
+      label: "code-cond-reads-meta",
+      trigger: { action: "submit" },
+      condition: (cctx) => {
+        calls.push(cctx.meta?.toJSON());
+        return cctx.meta?.get("dry_run") === true;
+      },
+      effect: { type: "warn", message: "Dry-run requested" },
+    };
+
+    const dryInput: RuleEvalInput = {
+      target: { amount: 1 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { dry_run: true } }),
+    };
+    expect((await evaluateRules([rule], dryInput)).triggered).toBe(true);
+
+    const liveInput: RuleEvalInput = {
+      target: { amount: 1 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { dry_run: false } }),
+    };
+    expect((await evaluateRules([rule], liveInput)).triggered).toBe(false);
+
+    // Both runs received a meta value (not undefined) — confirms the
+    // engine wiring, not just a happy-path on the first call.
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toBeDefined();
+    expect(calls[1]).toBeDefined();
+  });
+
   it("rules without meta.* references are unaffected by missing meta input", async () => {
     const rule: RuleDefinition = {
       name: "warn-large",

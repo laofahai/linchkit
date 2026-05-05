@@ -79,21 +79,35 @@ function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): bool
 /**
  * Resolve a dot-separated field path against the context object.
  *
- * - `meta.<key>[.<nested>...]` — resolves against `ctx.meta` (Spec 65 §6).
- *   Missing meta or missing key returns `undefined` (no throw).
+ * - `meta.<rest>` — resolves against `ctx.meta` (Spec 65 §6). Tries the full
+ *   remaining path as a single ExecutionMeta key first (so flat dotted keys
+ *   like `batch.parentExecutionId` still resolve), then falls back to
+ *   progressively shorter prefixes with the unresolved suffix walked as
+ *   nested object access. Missing meta or missing key returns `undefined`
+ *   (no throw).
  * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`).
  */
 export function resolveField(path: string, ctx: ConditionContext): unknown {
   const parts = path.split(".");
 
   if (parts[0] === "meta" && parts.length > 1) {
-    const key = parts[1] as string;
-    let current: unknown = ctx.meta?.get(key);
-    for (let i = 2; i < parts.length; i++) {
-      if (current === null || current === undefined) return undefined;
-      current = (current as Record<string, unknown>)[parts[i] as string];
+    if (!ctx.meta) return undefined;
+    const restParts = parts.slice(1);
+    // Greedy match: try the longest joined key first so flat keys whose
+    // names contain dots (e.g. `batch.parentExecutionId`) win over the
+    // POJO-nesting interpretation. Fall back to shorter prefixes, walking
+    // the leftover segments as nested object access.
+    for (let prefixLen = restParts.length; prefixLen >= 1; prefixLen--) {
+      const candidateKey = restParts.slice(0, prefixLen).join(".");
+      if (!ctx.meta.has(candidateKey)) continue;
+      let current: unknown = ctx.meta.get(candidateKey);
+      for (let i = prefixLen; i < restParts.length; i++) {
+        if (current === null || current === undefined) return undefined;
+        current = (current as Record<string, unknown>)[restParts[i] as string];
+      }
+      return current;
     }
-    return current;
+    return undefined;
   }
 
   let current: unknown = ctx;
