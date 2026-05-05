@@ -21,7 +21,11 @@ if (typeof globalThis.localStorage === "undefined") {
 
 describe("tenant utilities", () => {
   beforeEach(() => {
-    store.clear();
+    // Use localStorage.clear() rather than the local `store` Map so cleanup
+    // is robust against another test file installing its own shim first
+    // (e.g. `onchange-api.test.ts`). The active shim might be backed by a
+    // different store; `localStorage.clear()` always hits the live one.
+    localStorage.clear();
   });
 
   describe("getActiveTenantId", () => {
