@@ -31,6 +31,7 @@ import { AlertCircle, Puzzle } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useEntityOnchange } from "../../hooks/use-entity-onchange";
 import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
@@ -70,6 +71,9 @@ export function AutoForm({
   overlayFields,
   relations,
   formId: customFormId,
+  onchangeDebounceMs,
+  onchangeFetcher,
+  onOnchangeWarnings,
 }: AutoFormProps) {
   const { t } = useTranslation();
   const formId = customFormId ?? "auto-form";
@@ -125,6 +129,10 @@ export function AutoForm({
   });
 
   const initialDataRef = useRef<Record<string, unknown>>({ ...formData });
+  // Tracks the latest form data synchronously — onchange triggers must read the
+  // value JUST written by handleChange before React commits the next render.
+  const formDataRef = useRef<Record<string, unknown>>(formData);
+  formDataRef.current = formData;
   const [dirtyFields, setDirtyFields] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
@@ -134,6 +142,27 @@ export function AutoForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isViewMode = mode === "view";
+
+  // ── Entity onchange (Spec 64) ──
+  // Server-driven interactive form computation. Fires after a debounced field
+  // change and merges returned `updates` into formData. Stale responses are
+  // dropped by the dispatcher so the user's latest edit always wins.
+  const onchange = useEntityOnchange({
+    entity: schema.name,
+    onchange: schema.onchange,
+    getValues: () => formDataRef.current,
+    applyUpdates: (updates) => {
+      setFormData((prev) => {
+        const next = { ...prev, ...updates };
+        formDataRef.current = next;
+        if (onValuesChange) queueMicrotask(() => onValuesChange(next));
+        return next;
+      });
+    },
+    onWarnings: onOnchangeWarnings ?? ((w) => console.warn("[AutoForm onchange]", ...w)),
+    debounceMs: onchangeDebounceMs,
+    fetcher: onchangeFetcher,
+  });
 
   // ── Record template state ──
   const [appliedTemplateId, setAppliedTemplateId] = useState<string | undefined>(undefined);
@@ -155,7 +184,7 @@ export function AutoForm({
   useEffect(() => {
     if (registerSetField) {
       registerSetField((fieldName: string, value: unknown) => {
-        handleChange(fieldName, value);
+        handleChange(fieldName, value, { programmatic: true });
       });
     }
     // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only re-register on mount
@@ -320,9 +349,10 @@ export function AutoForm({
 
   // ── Handlers ──
 
-  function handleChange(fieldName: string, value: unknown) {
+  function handleChange(fieldName: string, value: unknown, options?: { programmatic?: boolean }) {
     setFormData((prev) => {
       const next = { ...prev, [fieldName]: value };
+      formDataRef.current = next;
       // Notify parent of value changes (deferred to avoid setState-during-render)
       if (onValuesChange) {
         queueMicrotask(() => onValuesChange(next));
@@ -350,6 +380,11 @@ export function AutoForm({
         }
         return next;
       });
+    }
+
+    // Spec 64 §10: only USER-initiated changes fire onchange.
+    if (!options?.programmatic) {
+      onchange.trigger(fieldName);
     }
   }
 

@@ -30,6 +30,14 @@ export { capAdapterUiConfig } from "./config";
 // Hooks
 export { useBreadcrumb } from "./hooks/use-breadcrumb";
 export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcrumb-title";
+export type {
+  UseEntityOnchangeOptions,
+  UseEntityOnchangeReturn,
+} from "./hooks/use-entity-onchange";
+export {
+  DEFAULT_ONCHANGE_DEBOUNCE_MS,
+  useEntityOnchange,
+} from "./hooks/use-entity-onchange";
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
