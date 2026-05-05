@@ -25,6 +25,7 @@ import { describeCommand } from "./commands/describe";
 import { devCommand } from "./commands/dev";
 import { docsCommand } from "./commands/docs";
 import { doctorCommand } from "./commands/doctor";
+import { execCommand } from "./commands/exec";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
@@ -46,6 +47,7 @@ export const VERSION = "0.0.1";
 const RESERVED_NAMESPACES = new Set([
   "init",
   "dev",
+  "exec",
   "describe",
   "db",
   "create",
@@ -163,6 +165,7 @@ function buildCommandsManifest(
   const builtinDescriptions: Record<string, string> = {
     init: "Initialize a new LinchKit project",
     dev: "Start all LinchKit transports in development mode",
+    exec: "Run a registered Action with input and optional ExecutionMeta",
     describe: "Project introspection: overview, entity, action, or capability details",
     db: "Database management (generate, migrate, studio)",
     create: "Create a new capability scaffold",
@@ -215,6 +218,7 @@ async function run() {
   const builtinCommands = {
     init: initCommand,
     dev: devCommand,
+    exec: execCommand,
     describe: describeCommand,
     db: dbCommand,
     create: createCommand,

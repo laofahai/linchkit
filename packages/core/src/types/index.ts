@@ -43,6 +43,7 @@ export {
   DEFAULT_META_MAX_BYTES,
   MetaSizeError,
   redactMetaForLog,
+  stripSystemKeys,
 } from "./execution-meta";
 export type * from "./flow";
 export type * from "./life-system";
