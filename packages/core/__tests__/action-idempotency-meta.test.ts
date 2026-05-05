@@ -259,6 +259,33 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
     expect(state.calls).toBe(0); // handler did not run — legacy entry honored
   });
 
+  it("user-provided idempotencyKey containing `:m:` cannot collide with a hashed suffix", async () => {
+    // Regression for gemini security-high (PR #227 review): without
+    // escaping the rawKey, an attacker passing `K:m:<hash>` with empty
+    // meta would compute the same effective cache key as a victim's
+    // legitimate request `K + meta-that-hashes-to-<hash>`. The 32-bit
+    // hash is brute-forceable, so this would let one caller read or
+    // poison another's cached output. After percent-encoding `:` and
+    // `%` in the rawKey, the two effective keys are distinct.
+    const r1 = await executor.execute<{ calls: number }>("count_call", {}, defaultActor, {
+      idempotencyKey: "victim",
+      meta: { dry_run: true },
+    });
+    const attackerKey = `victim:m:${hashBehaviorAffectingMeta({ dry_run: true })}`;
+    const r2 = await executor.execute<{ calls: number }>("count_call", {}, defaultActor, {
+      idempotencyKey: attackerKey,
+      // No behavior-affecting meta — without the escape, this would have
+      // hit r1's cache.
+      meta: { lang: "zh" },
+    });
+    expect(r1.success).toBe(true);
+    expect(r2.success).toBe(true);
+    // Critical assertion: attacker did NOT get the victim's cached
+    // execution id, and the handler ran twice (no spurious cache hit).
+    expect(r2.executionId).not.toBe(r1.executionId);
+    expect(state.calls).toBe(2);
+  });
+
   it("rollout fallback: legacy bare-key entry with DIFFERENT meta is NOT honored", async () => {
     // Regression for CodeRabbit P1: the rollout fallback used to return ANY
     // bare-key entry it found. That's wrong — a legacy entry written under
@@ -290,11 +317,12 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
     expect(state.calls).toBe(1);
   });
 
-  it("idempotency key + meta hash exceeding 255 bytes fails fast before the handler runs", async () => {
+  it("idempotency key + meta hash exceeding 255 characters fails fast before the handler runs", async () => {
     // Construct a raw idempotency key long enough that the suffixed effective
-    // key exceeds the varchar(255) column. The check must fire BEFORE the
-    // handler runs so callers can't end up with a committed mutation + a
-    // persistence failure that would surface as a false negative.
+    // key exceeds the varchar(255) column (counted in codepoints, not UTF-16
+    // code units). The check must fire BEFORE the handler runs so callers
+    // can't end up with a committed mutation + a persistence failure that
+    // would surface as a false negative.
     const longRawKey = "x".repeat(255);
     const r = await executor.execute<{ error: string; code?: string }>(
       "count_call",

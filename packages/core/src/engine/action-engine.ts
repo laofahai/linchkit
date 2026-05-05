@@ -484,19 +484,32 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // are intentionally excluded so they don't fragment the cache.
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
     const metaHash = rawIdempotencyKey ? hashBehaviorAffectingMeta(metaSnapshot) : "";
-    const baseIdempotencyKey = rawIdempotencyKey
-      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
+    // Percent-encode `:` and `%` in the user-provided rawKey so a caller
+    // can't craft `K:m:<hash>` to collide with a separate request whose
+    // legitimate hashed suffix would be `:m:<hash>`. Without this, the
+    // 32-bit hash is brute-forceable in seconds (security-high; gemini PR
+    // review on #227). Encoding is reversible and cheap; pure-alphanumeric
+    // keys are unchanged, so existing users see no difference.
+    const safeRawKey = rawIdempotencyKey
+      ? rawIdempotencyKey.replaceAll("%", "%25").replaceAll(":", "%3A")
+      : undefined;
+    const baseIdempotencyKey = safeRawKey
+      ? `${actionName}:${execOptions?.tenantId ?? ""}:${safeRawKey}`
       : undefined;
     const idempotencyKey = baseIdempotencyKey
       ? metaHash
         ? `${baseIdempotencyKey}:m:${metaHash}`
         : baseIdempotencyKey
       : undefined;
-    // Guard the varchar(255) idempotency_key column. If the suffixed key would
-    // overflow, fail before the handler runs — otherwise persistence fails after
-    // the mutation already committed and the caller sees a false failure.
-    if (idempotencyKey && idempotencyKey.length > 255) {
-      const errMsg = `Idempotency key + meta hash exceeds 255 bytes (got ${idempotencyKey.length}). Shorten the caller-provided idempotency key.`;
+    // Guard the varchar(255) idempotency_key column. PostgreSQL's varchar
+    // counts codepoints, so use the spread/iterator codepoint count rather
+    // than `.length` (which counts UTF-16 code units and over-counts
+    // surrogate-pair emoji). Fail before the handler runs — otherwise
+    // persistence fails after the mutation already committed and the
+    // caller sees a false negative.
+    const idempotencyKeyCodepoints = idempotencyKey ? [...idempotencyKey].length : 0;
+    if (idempotencyKey && idempotencyKeyCodepoints > 255) {
+      const errMsg = `Idempotency key + meta hash exceeds 255 characters (got ${idempotencyKeyCodepoints}). Shorten the caller-provided idempotency key.`;
       await logExecution({
         id: executionId,
         action: actionName,

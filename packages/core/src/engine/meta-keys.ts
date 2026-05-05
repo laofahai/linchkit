@@ -8,7 +8,9 @@
  * idempotency key but different behavior-affecting meta are different
  * operations and must NOT short-circuit to the same cached result.
  *
- * This module is a pure utility — no engine or runtime imports.
+ * Pure utility module. The only runtime dep is `node:crypto` (Bun / Node
+ * stdlib) for the SHA-256 hash; no engine, registry, or DataProvider
+ * imports — keeps this safe to import from any layer.
  */
 
 import { createHash } from "node:crypto";
