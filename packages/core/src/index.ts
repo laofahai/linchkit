@@ -341,7 +341,11 @@ export {
   capabilityCategoryEnum,
   capabilityMetadataSchema,
   capabilityTypeEnum,
+  createExecutionMeta,
+  DEFAULT_META_MAX_BYTES,
   ERROR_STATUS_MAP,
+  MetaSizeError,
+  redactMetaForLog,
   validateCapabilityMetadata,
 } from "./types";
 export type { ErrorContext } from "./types/error";
