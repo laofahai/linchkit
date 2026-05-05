@@ -359,6 +359,11 @@ export interface BuildGraphQLSchemaOptions {
    * the CommandLayer's own default TM (set on `createCommandLayer`) is used;
    * if neither is available, `all_or_nothing` requests return a structured
    * `BATCH_TX_MANAGER_REQUIRED` failure — `partial` strategy still works.
+   *
+   * NOTE: If you also pass `transactionManager` to `createServer({...})`
+   * for the REST `/api/actions/batch` route, the GraphQL transport does
+   * NOT inherit it — the schema is built independently. Pass the same TM
+   * here, or set it on `createCommandLayer` so both transports pick it up.
    */
   transactionManager?: TransactionManager;
 }
@@ -1289,7 +1294,22 @@ export function buildGraphQLSchema(
             transactionManager: batchTransactionManager,
             meta,
           });
-          return serializeBatchResult(result);
+          // Mirror the REST handler's sanitization (`sanitizeBatchResult`
+          // in routes/action-api.ts): in production, replace per-item
+          // `error.message` strings with a generic placeholder so handler
+          // / driver exception text never leaks over the public GraphQL
+          // surface. Codes and field locators are preserved.
+          const sanitized: BatchActionsResult =
+            process.env.NODE_ENV === "production"
+              ? {
+                  ...result,
+                  failed: result.failed.map((f) => ({
+                    ...f,
+                    error: { ...f.error, message: "Action execution failed" },
+                  })),
+                }
+              : result;
+          return serializeBatchResult(sanitized);
         }
       : () => {
           throw new GraphQLError(

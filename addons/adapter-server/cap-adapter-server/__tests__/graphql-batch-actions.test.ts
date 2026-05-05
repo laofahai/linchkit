@@ -397,4 +397,44 @@ describe("GraphQL batch_actions mutation", () => {
     expect(batch.failed.length).toBe(1);
     expect(batch.failed[0]?.error.code).toBe("PERMISSION.DENIED");
   });
+
+  test("(h) production mode sanitizes per-item error.message but preserves error.code", async () => {
+    // Regression for codex P1: in production, raw handler / driver exception
+    // text must NOT leak through GraphQL `failed[*].error.message`. Codes
+    // and field locators stay intact so clients can still distinguish
+    // validation vs. permission failures. Mirrors the REST handler's
+    // `sanitizeBatchResult` in `routes/action-api.ts`.
+    provider.records.clear();
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const result = await gql(
+        `mutation Run($actions: [BatchActionInputItem!]!) {
+          batch_actions(actions: $actions, strategy: "partial") {
+            ${BATCH_SELECTION}
+          }
+        }`,
+        {
+          actions: [
+            { name: "create_item", input: JSON.stringify({ title: "ok" }) },
+            { name: "fail_item", input: JSON.stringify({}) },
+          ],
+        },
+      );
+      expect(result.errors).toBeUndefined();
+      const batch = result.data?.batch_actions;
+      expect(batch).toBeDefined();
+      if (!batch) return;
+      expect(batch.success).toBe(false);
+      expect(batch.failed.length).toBe(1);
+      // The fixture's failItem throws `new Error("intentional failure")`.
+      // Production mode must replace that text but keep the code intact.
+      expect(batch.failed[0]?.error.message).not.toContain("intentional failure");
+      expect(batch.failed[0]?.error.message).toBe("Action execution failed");
+      expect(typeof batch.failed[0]?.error.code).toBe("string");
+      expect((batch.failed[0]?.error.code as string).length).toBeGreaterThan(0);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
 });
