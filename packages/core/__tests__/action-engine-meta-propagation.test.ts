@@ -771,3 +771,102 @@ describe("ActionEngine — ExecutionMeta propagation via ctx.execute", () => {
     expect(captured.user_key).toBe("x");
   });
 });
+
+// ── Adapter-supplied system meta (Spec 65 §3.3, issue #217) ────────────
+
+describe("ActionEngine — systemMeta injection (Spec 65 §3.3)", () => {
+  test("ExecuteOptions.systemMeta merges adapter system keys into ctx.meta", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+    let captured: Record<string, unknown> = {};
+
+    executor.registry.register({
+      name: "noop",
+      entity: "x",
+      label: "noop",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    const result = await executor.execute("noop", {}, defaultActor, {
+      channel: "mcp",
+      systemMeta: { _mcp_client_id: "client-reg-001" },
+    });
+
+    expect(result.success).toBe(true);
+    // Adapter-supplied system key survives.
+    expect(captured._mcp_client_id).toBe("client-reg-001");
+    // Reserved framework keys still set by engine.
+    expect(captured._channel).toBe("mcp");
+    expect(captured._depth).toBe(0);
+    expect(typeof captured._execution_id).toBe("string");
+  });
+
+  test("systemMeta cannot override reserved framework keys", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+    let captured: Record<string, unknown> = {};
+
+    executor.registry.register({
+      name: "noop2",
+      entity: "x",
+      label: "noop2",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    const result = await executor.execute("noop2", {}, defaultActor, {
+      channel: "mcp",
+      systemMeta: {
+        _mcp_client_id: "client-X",
+        // Adversarial: try to override engine-owned keys.
+        _channel: "rest",
+        _execution_id: "spoofed",
+        _depth: 99,
+        _source_action: "spoofed",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(captured._mcp_client_id).toBe("client-X");
+    expect(captured._channel).toBe("mcp");
+    expect(captured._depth).toBe(0);
+    expect(captured._execution_id).not.toBe("spoofed");
+    expect(captured._source_action).toBeUndefined();
+  });
+
+  test("systemMeta entries without _ prefix are ignored", async () => {
+    const dp = createTestDataProvider();
+    const executor = createActionExecutor({ dataProvider: dp });
+    let captured: Record<string, unknown> = {};
+
+    executor.registry.register({
+      name: "noop3",
+      entity: "x",
+      label: "noop3",
+      policy: { mode: "sync", transaction: false },
+      exposure: "all",
+      handler: async (ctx) => {
+        captured = ctx.meta.toJSON();
+        return { ok: true };
+      },
+    });
+
+    const result = await executor.execute("noop3", {}, defaultActor, {
+      channel: "mcp",
+      systemMeta: { rogue: "value", _mcp_client_id: "ok" },
+    });
+
+    expect(result.success).toBe(true);
+    expect(captured._mcp_client_id).toBe("ok");
+    expect(captured.rogue).toBeUndefined();
+  });
+});

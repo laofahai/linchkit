@@ -177,6 +177,16 @@ export interface CommandExecuteOptions {
   locale?: string;
   meta?: Record<string, unknown>;
   /**
+   * Framework-trusted system meta keys (Spec 65 §3.3, §4.4).
+   *
+   * Set by transport adapters (e.g. MCP injects `_mcp_client_id` after
+   * authenticating the caller). Unlike `meta`, keys placed here bypass the
+   * external-input `_`-strip — they are merged into the engine's
+   * `rootSystemDefaults`. Reserved framework keys (`_channel`,
+   * `_execution_id`, `_depth`, `_source_action`) cannot be overridden.
+   */
+  systemMeta?: Record<string, unknown>;
+  /**
    * When set, this is an approval re-execution. The pipeline will:
    * - SKIP auth, exposure, permission slots (already checked on original submission)
    * - RUN pre, tenant, pre-action, post-action slots
@@ -508,6 +518,13 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     }
     if (execOptions.includeDeleted) {
       executorOptions.includeDeleted = execOptions.includeDeleted;
+    }
+    // Forward adapter-supplied system meta (Spec 65 §3.3) — e.g. MCP's
+    // `_mcp_client_id`. Pre-built ExecutionMeta is propagated unchanged here;
+    // ActionEngine merges these into `rootSystemDefaults` at depth 0 so they
+    // bypass the external-input strip applied to `meta`.
+    if (execOptions.systemMeta) {
+      executorOptions.systemMeta = execOptions.systemMeta;
     }
     // Internal batch plumbing: forward shared transaction context when set
     // by `executeBatch`. Public callers do not set these (see

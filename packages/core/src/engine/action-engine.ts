@@ -132,6 +132,20 @@ export interface ExecuteOptions {
    * runtime with "x is not a function".
    */
   meta?: ExecutionMeta | Record<string, unknown>;
+  /**
+   * Framework-trusted system meta keys (Spec 65 §3.3, §4.4).
+   *
+   * Adapters set channel-specific system keys here (e.g. MCP injects
+   * `_mcp_client_id` after authenticating the caller). Unlike `meta`, keys
+   * placed here BYPASS the `_`-prefix strip applied to external input — they
+   * are merged into `rootSystemDefaults` server-side. Values are still
+   * filtered to JSON-serializable primitives by the meta factory.
+   *
+   * Reserved framework keys (`_channel`, `_execution_id`, `_depth`,
+   * `_source_action`) cannot be overridden — the engine's own assignments
+   * always win.
+   */
+  systemMeta?: Record<string, unknown>;
 }
 
 // ── ActionExecutor ──────────────────────────────────────────
@@ -374,7 +388,31 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // `_execution_id` is the ROOT execution record id (Spec 65 §4.4 — keyed
     // against ExecutionLogger.getById), NOT a tracing id. ActionEngine owns
     // its assignment.
+    // Adapter-supplied system keys (Spec 65 §3.3) — e.g. `_mcp_client_id`
+    // injected by the MCP adapter after authenticating the caller. Reserved
+    // framework keys (`_channel`, `_execution_id`, `_depth`, `_source_action`)
+    // are filtered out so the engine's own assignments always win regardless
+    // of what the adapter supplied.
+    const RESERVED_FRAMEWORK_KEYS = new Set([
+      "_channel",
+      "_execution_id",
+      "_depth",
+      "_source_action",
+    ]);
+    const adapterSystemMeta: Record<string, unknown> = {};
+    const providedSystemMeta = execOptions?.systemMeta;
+    if (providedSystemMeta && currentDepth === 0) {
+      for (const [k, v] of Object.entries(providedSystemMeta)) {
+        // Only `_`-prefixed keys are system keys; ignore non-system entries
+        // so adapters can't accidentally use this channel for user data.
+        if (!k.startsWith("_")) continue;
+        if (RESERVED_FRAMEWORK_KEYS.has(k)) continue;
+        adapterSystemMeta[k] = v;
+      }
+    }
+
     const rootSystemDefaults: Record<string, unknown> = {
+      ...adapterSystemMeta,
       _channel: channel,
       _execution_id: executionId,
       _depth: currentDepth,

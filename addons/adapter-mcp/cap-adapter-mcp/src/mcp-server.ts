@@ -197,13 +197,19 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
   // For stdio transport, defaults to MCP_ACTOR.
   let sessionActor: Actor = MCP_ACTOR;
   let sessionToolPolicy: ToolPolicy | undefined;
+  // Authenticated client's registration ID, used to populate
+  // `_mcp_client_id` in execution meta (Spec 65 §3.3). Undefined when no
+  // client registry is configured (open access / simple bearer fallback) —
+  // we never invent a fake ID.
+  let sessionClientId: string | undefined;
 
   /**
    * Set the session actor and tool policy (called by SSE transport after auth).
    */
-  const setSessionAuth = (actor: Actor, toolPolicy?: ToolPolicy) => {
+  const setSessionAuth = (actor: Actor, toolPolicy?: ToolPolicy, clientId?: string) => {
     sessionActor = actor;
     sessionToolPolicy = toolPolicy;
+    sessionClientId = clientId;
   };
 
   // Collect all tool names for filtering
@@ -242,12 +248,26 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
           }
         }
 
+        // Spec 65 §3.3 — inject MCP-specific system meta. `_channel` is set
+        // by the engine from `channel: "mcp"`; only `_mcp_client_id` needs
+        // to flow via `systemMeta`. We omit it when no authenticated client
+        // is associated with the session (open access / simple bearer
+        // fallback) — the adapter never invents a fake ID.
+        // TODO(#217 follow-up): allow MCP clients to send custom meta
+        // through the tool invocation arguments — requires extending the
+        // MCP tool schema convention. Out of scope for this issue.
+        const systemMeta: Record<string, unknown> = {};
+        if (sessionClientId) {
+          systemMeta._mcp_client_id = sessionClientId;
+        }
+
         const result = await commandLayer.execute({
           command: tool.name,
           input: args as Record<string, unknown>,
           channel: "mcp",
           actor: sessionActor,
           tenantId,
+          ...(Object.keys(systemMeta).length > 0 ? { systemMeta } : {}),
         });
 
         return {
@@ -351,7 +371,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
 
   const result: McpAdapterResult & {
     /** Set per-session auth (used by SSE transport after authentication) */
-    setSessionAuth: (actor: Actor, toolPolicy?: ToolPolicy) => void;
+    setSessionAuth: (actor: Actor, toolPolicy?: ToolPolicy, clientId?: string) => void;
     /** All registered tool names with categories (for filtering) */
     allToolNames: Array<{ name: string; category?: string }>;
   } = {
