@@ -9,6 +9,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core/types";
 import type { AiFieldSuggestion } from "../../lib/api";
+import type { OnchangeFetcher } from "../../lib/onchange-dispatcher";
 import type { FieldOverlayRecord } from "../../lib/overlay-types";
 
 export type { RecordTemplate };
@@ -100,4 +101,19 @@ export interface AutoFormProps {
    * and child record commands by cardinality rather than field type (Spec 61).
    */
   relations?: RelationDefinition[];
+  /**
+   * Debounce window (ms) before posting an onchange request to the server.
+   * Defaults to 300 ms (Spec 64 §6.1). Set to 0 in tests to fire immediately.
+   */
+  onchangeDebounceMs?: number;
+  /**
+   * Optional onchange request fetcher override (test seam). When omitted the
+   * default `requestEntityOnchange` is used.
+   */
+  onchangeFetcher?: OnchangeFetcher;
+  /**
+   * Optional handler invoked with non-blocking warnings returned by an
+   * onchange call. Defaults to logging via `console.warn`.
+   */
+  onOnchangeWarnings?: (warnings: string[]) => void;
 }

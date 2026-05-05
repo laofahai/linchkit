@@ -469,6 +469,62 @@ export async function fetchSemanticRelations(): Promise<SemanticRelation[]> {
   return json.data ?? [];
 }
 
+// ── Entity onchange (Spec 64) ───────────────────────────
+
+/** Result returned by `POST /api/entities/:name/onchange`. */
+export interface EntityOnchangeResult {
+  /** Field values the UI should apply to the unsaved form state. */
+  updates: Record<string, unknown>;
+  /** Optional non-blocking warnings to surface alongside the form. */
+  warnings?: string[];
+}
+
+/**
+ * Call the per-entity onchange endpoint. Returns the suggested form updates the
+ * UI should apply on top of `values`. Throws on HTTP / shape errors so callers
+ * can isolate transport failures from application warnings.
+ *
+ * Pass an `AbortSignal` (or `signal: undefined` to skip) so the caller can
+ * cancel stale requests when the user keeps typing — Spec 64 §6.1 race
+ * protection.
+ */
+export async function requestEntityOnchange(params: {
+  entity: string;
+  changedField: string;
+  values: Record<string, unknown>;
+  signal?: AbortSignal;
+}): Promise<EntityOnchangeResult> {
+  const { entity, changedField, values, signal } = params;
+  const res = await fetch(`/api/entities/${encodeURIComponent(entity)}/onchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ changedField, values }),
+    signal,
+  });
+  handleUnauthorized(res);
+  if (!res.ok) {
+    let message = `Onchange request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body && typeof body === "object") {
+        const error = (body as { error?: { message?: string } }).error;
+        if (error?.message) message = error.message;
+      }
+    } catch {
+      // Body was not JSON — keep default message.
+    }
+    throw new Error(message);
+  }
+  const json = (await res.json()) as Partial<EntityOnchangeResult> | null;
+  return {
+    updates:
+      json && typeof json === "object" && json.updates && typeof json.updates === "object"
+        ? (json.updates as Record<string, unknown>)
+        : {},
+    warnings: Array.isArray(json?.warnings) ? json.warnings : undefined,
+  };
+}
+
 // ── REST Action execution ───────────────────────────────
 
 export interface ActionResult {

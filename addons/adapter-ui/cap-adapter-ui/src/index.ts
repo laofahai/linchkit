@@ -30,12 +30,25 @@ export { capAdapterUiConfig } from "./config";
 // Hooks
 export { useBreadcrumb } from "./hooks/use-breadcrumb";
 export { BreadcrumbTitleProvider, useBreadcrumbTitle } from "./hooks/use-breadcrumb-title";
+export type {
+  UseEntityOnchangeOptions,
+  UseEntityOnchangeReturn,
+} from "./hooks/use-entity-onchange";
+export {
+  DEFAULT_ONCHANGE_DEBOUNCE_MS,
+  useEntityOnchange,
+} from "./hooks/use-entity-onchange";
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
 export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
+export type { EntityOnchangeResult } from "./lib/api";
+export { requestEntityOnchange } from "./lib/api";
+// Onchange dispatcher (framework-agnostic primitives — useful for non-React hosts)
+export type { OnchangeFetcher } from "./lib/onchange-dispatcher";
+export { buildOnchangeIndex, OnchangeDispatcher } from "./lib/onchange-dispatcher";
 export type { AdminRouteRegistration } from "./lib/route-registry";
 // Admin route registry
 export { getAdminRoutes, registerAdminRoute } from "./lib/route-registry";
