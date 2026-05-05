@@ -181,8 +181,9 @@ const BatchActionInputItemType = new GraphQLInputObjectType({
       description: "Action name (verb_noun).",
     },
     input: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: "JSON-encoded action input object.",
+      type: GraphQLString,
+      description:
+        "JSON-encoded action input object. Optional — omit (or send null) to invoke an action that takes no input, matching the REST batch contract.",
     },
   },
 });
@@ -1255,7 +1256,7 @@ export function buildGraphQLSchema(
       ? async (
           _root: unknown,
           args: {
-            actions: Array<{ name: string; input: string }>;
+            actions: Array<{ name: string; input?: string | null }>;
             strategy?: string;
             meta?: string;
           },
@@ -1273,10 +1274,15 @@ export function buildGraphQLSchema(
           }
           // Decode each item's JSON input — reject any malformed item early
           // so a single bad payload doesn't poison the whole batch with an
-          // engine-level "invalid input" code.
+          // engine-level "invalid input" code. `input` is optional to mirror
+          // the REST contract (POST /api/actions/batch normalizes a missing
+          // input to `{}`); null / undefined here means "no input".
           const items: BatchActionItem[] = args.actions.map((raw, index) => ({
             name: raw.name,
-            input: safeParseJSON(raw.input, `actions[${index}].input`),
+            input:
+              raw.input !== undefined && raw.input !== null
+                ? safeParseJSON(raw.input, `actions[${index}].input`)
+                : {},
           }));
           const meta =
             args.meta !== undefined && args.meta !== null

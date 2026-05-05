@@ -168,10 +168,15 @@ const app = createServer(graphqlSchema, {
   resolveRequestActor: () => ({ type: "system", id: "anonymous", groups: [] }),
 });
 
-const port = 4046;
+// Use OS-assigned port (0 → auto) so the suite isn't flaky when a parallel
+// worker already owns a fixed port. Captured after `listen()` returns.
+let port = 0;
 
 beforeAll(() => {
-  app.listen(port);
+  app.listen(0);
+  const server = (app as unknown as { server?: { port?: number } }).server;
+  if (!server?.port) throw new Error("Test server failed to bind to a port");
+  port = server.port;
 });
 
 afterAll(() => {
@@ -396,6 +401,38 @@ describe("GraphQL batch_actions mutation", () => {
     expect(batch.succeeded.length).toBe(1);
     expect(batch.failed.length).toBe(1);
     expect(batch.failed[0]?.error.code).toBe("PERMISSION.DENIED");
+  });
+
+  test("(i) per-item `input` is optional, omitted defaults to {} (REST parity)", async () => {
+    // Regression for CodeRabbit major (PR #234 review): the REST batch
+    // endpoint normalizes `{ name }` (no input) to `{ name, input: {} }`.
+    // The GraphQL boundary previously required `input` as NonNull, which
+    // broke parity for actions that take no input. After this fix, omitting
+    // `input` works the same way.
+    provider.records.clear();
+    const result = await gql(
+      `mutation Run($actions: [BatchActionInputItem!]!) {
+        batch_actions(actions: $actions, strategy: "partial") {
+          ${BATCH_SELECTION}
+        }
+      }`,
+      // No `input` field — mirrors REST's `{ name }`-only shape.
+      {
+        actions: [
+          { name: "create_item", input: JSON.stringify({ title: "from-omitted" }) },
+          { name: "fail_item" },
+        ],
+      },
+    );
+    expect(result.errors).toBeUndefined();
+    const batch = result.data?.batch_actions;
+    expect(batch).toBeDefined();
+    if (!batch) return;
+    // create_item succeeded (it does require title); fail_item ran with `{}`
+    // input and threw (consistent with the REST contract).
+    expect(batch.succeeded.length).toBe(1);
+    expect(batch.failed.length).toBe(1);
+    expect(batch.failed[0]?.index).toBe(1);
   });
 
   test("(h) production mode sanitizes per-item error.message but preserves error.code", async () => {
