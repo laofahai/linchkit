@@ -523,6 +523,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           entityRegistry,
           ontologyRegistry: options.ontologyRegistry,
           actor,
+          allowActionExecution: false,
         });
 
         // Convert UIMessage[] (from @ai-sdk/react useChat) to ModelMessage[] (for streamText)
@@ -672,6 +673,7 @@ Rules:
 - Only match actions from the available list above.
 - Extract parameter values from the user message. Convert types appropriately (strings to numbers, etc.).
 - The user may write in any language (including Chinese like "创建采购请求"). Match intent regardless of input language.
+- For destructive actions such as delete/remove/cancel, require a specific target identifier or unambiguous record reference. If the user says "delete all", "remove all", or does not specify which record, set action to null and confidence to 0.
 - If you cannot determine a good match, set action to null and confidence to 0.
 - If some required fields are missing from the user message, list them in missingFields.
 - If confidence < 0.7, include up to 3 alternative interpretations in "alternatives".

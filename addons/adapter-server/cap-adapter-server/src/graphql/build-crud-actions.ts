@@ -12,6 +12,42 @@ import type {
 } from "@linchkit/core";
 import { createStateMachine, getAvailableTransitions } from "@linchkit/core/server";
 
+const SYSTEM_FIELD_NAMES = new Set([
+  "id",
+  "tenant_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "_version",
+]);
+
+function buildCreateInput(entity: EntityDefinition) {
+  return Object.fromEntries(
+    Object.entries(entity.fields).filter(
+      ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
+    ),
+  );
+}
+
+function buildUpdateInput(entity: EntityDefinition) {
+  return {
+    id: {
+      type: "string" as const,
+      required: true,
+      label: "ID",
+      format: "uuid" as const,
+    },
+    ...Object.fromEntries(
+      Object.entries(entity.fields)
+        .filter(
+          ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
+        )
+        .map(([fieldName, field]) => [fieldName, { ...field, required: false }]),
+    ),
+  };
+}
+
 /** Options for CRUD action generation */
 export interface GenerateCrudActionsOptions {
   /** Derived property engine for auto-computing store-strategy derived fields */
@@ -47,6 +83,7 @@ export function generateCrudActions(
     entity: name,
     label: `Create ${entity.label ?? name}`,
     description: `Create a new ${entity.label ?? name} record`,
+    input: buildCreateInput(entity),
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
@@ -97,6 +134,7 @@ export function generateCrudActions(
     entity: name,
     label: `Update ${entity.label ?? name}`,
     description: `Update an existing ${entity.label ?? name} record`,
+    input: buildUpdateInput(entity),
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
@@ -178,6 +216,14 @@ export function generateCrudActions(
     entity: name,
     label: `Delete ${entity.label ?? name}`,
     description: `Delete a ${entity.label ?? name} record`,
+    input: {
+      id: {
+        type: "string",
+        required: true,
+        label: "ID",
+        format: "uuid",
+      },
+    },
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {
@@ -214,6 +260,14 @@ export function generateCrudActions(
     entity: name,
     label: `Restore ${entity.label ?? name}`,
     description: `Restore a soft-deleted ${entity.label ?? name} record`,
+    input: {
+      id: {
+        type: "string",
+        required: true,
+        label: "ID",
+        format: "uuid",
+      },
+    },
     policy: { mode: "sync", transaction: true },
     exposure: "all",
     handler: async (ctx) => {

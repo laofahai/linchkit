@@ -157,6 +157,15 @@ describe("buildTools — tool registration", () => {
     expect(tools.executeAction).toBeUndefined();
   });
 
+  test("does NOT include executeAction when action execution is disabled", () => {
+    const mockCl = {
+      execute: async () => ({ success: true, data: {} }),
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: mock command layer for test
+    const tools = buildTools({ commandLayer: mockCl as any, allowActionExecution: false });
+    expect(tools.executeAction).toBeUndefined();
+  });
+
   test("includes describeEntity, listEntities, searchEntities with ontologyRegistry", () => {
     const ontology = createMockOntologyRegistry([productDescriptor]);
     const tools = buildTools({ ontologyRegistry: ontology });

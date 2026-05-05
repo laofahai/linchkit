@@ -114,12 +114,16 @@ describe("Purchase Request E2E Flow", () => {
   let createdId: string;
 
   test("create purchase request", async () => {
+    // requester_email is required on the entity (Spec 03 — required:true).
+    // Auto-CRUD action input now mirrors entity.fields, so the e2e payload
+    // must satisfy the same constraints REST/GraphQL clients hit in prod.
     const result = await executeActionReq("create_purchase_request", {
       title: "E2E Test Request",
       amount: 5000,
       priority: "high",
       department: "Engineering",
       requester: "e2e-tester",
+      requester_email: "e2e-tester@example.com",
     });
     expect(result.success).toBe(true);
     expect(result.data).toBeDefined();
