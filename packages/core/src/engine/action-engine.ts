@@ -158,6 +158,12 @@ export interface PendingEvent {
   sourceExecutionId?: string;
   /** Trace ID for restoring the trace chain in OutboxWorker */
   traceId?: string;
+  /**
+   * ExecutionMeta from the action that emitted this event (Spec 65 §7).
+   * Delivery-time only — NOT written to the events table by the
+   * Transactional Outbox (the persistence layer ignores this field).
+   */
+  meta?: ExecutionMeta;
 }
 
 /**
@@ -1023,6 +1029,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           sourceAction: actionName,
           sourceExecutionId: executionId,
           traceId: trace?.traceId,
+          // Capture this action's ExecutionMeta so the eventual handler
+          // sees the originating action's caller hints (Spec 65 §7).
+          meta: resolvedMeta,
         });
       },
     };
@@ -1314,6 +1323,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 ? (resultData as Record<string, unknown>)
                 : { result: resultData }),
             },
+            meta: resolvedMeta,
           });
         } catch {
           // Don't fail the action if event emission fails
@@ -1337,6 +1347,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 tenantId: pe.tenantId,
                 executionId: pe.sourceExecutionId ?? executionId,
                 payload: pe.payload,
+                // Use the originating action's meta when present; fall back
+                // to the flushing action's meta for legacy entries that
+                // predate the meta field.
+                meta: pe.meta ?? resolvedMeta,
               });
             } catch {
               // Non-blocking — don't fail the action if flush fails
@@ -1414,6 +1428,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               action: actionName,
               error: err instanceof Error ? err.message : String(err),
             },
+            meta: resolvedMeta,
           });
         } catch {
           // Don't fail the action if event emission fails

@@ -17,6 +17,7 @@ import { consoleLogger } from "../observability/console-logger";
 import { withTraceId } from "../observability/trace-context";
 import { eventsTable } from "../persistence/system-tables";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
+import { ExecutionMetaImpl } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 import { type EventHandlerRegistry, matchesFilter } from "./event-bus";
 
@@ -125,12 +126,14 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
   }
 
   /** Create a minimal handler context for re-execution.
-   *  emit is swallowed to prevent cascading retries. */
+   *  emit is swallowed to prevent cascading retries. ExecutionMeta is empty
+   *  since meta is not persisted on event rows (delivery-time only). */
   function createHandlerContext(): EventHandlerContext {
     return {
       emit: () => {
         // Swallow re-emissions from retry context to prevent cascading retries
       },
+      meta: new ExecutionMetaImpl({}),
     };
   }
 

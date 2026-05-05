@@ -11,6 +11,7 @@ import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import { withTrace } from "../observability/trace-context";
 import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
+import { type ExecutionMeta, ExecutionMetaImpl } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
 
 // ── Default priority ────────────────────────────────────────
@@ -164,7 +165,8 @@ export class EventBus {
       matched.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
 
       // Build handler context, propagating tenant scope to chained events
-      const ctx = this.createHandlerContext(event.tenantId);
+      // and the originating action's ExecutionMeta (Spec 65 §7).
+      const ctx = this.createHandlerContext(event.tenantId, event.meta);
 
       // Execute handlers
       for (const handler of matched) {
@@ -225,8 +227,13 @@ export class EventBus {
   }
 
   /** Create a minimal EventHandlerContext for handler execution.
-   *  Accepts optional tenantId to propagate tenant scope to chained events. */
-  protected createHandlerContext(tenantId?: string): EventHandlerContext {
+   *  Accepts optional tenantId to propagate tenant scope to chained events
+   *  and optional ExecutionMeta from the originating action (Spec 65 §7).
+   *  When no meta is supplied (system-emitted events), an empty
+   *  ExecutionMeta is constructed so `ctx.meta.get(...)` returns `undefined`
+   *  instead of throwing. */
+  protected createHandlerContext(tenantId?: string, meta?: ExecutionMeta): EventHandlerContext {
+    const handlerMeta: ExecutionMeta = meta ?? new ExecutionMetaImpl({});
     return {
       emit: (eventType: string, payload: Record<string, unknown>) => {
         const record: EventRecord = {
@@ -238,12 +245,16 @@ export class EventBus {
           executionId: crypto.randomUUID(),
           payload,
           tenantId,
+          // Propagate the parent handler's meta to chained events so the next
+          // handler in the chain still sees the originating action's caller hints.
+          meta: handlerMeta,
         };
         // Fire-and-forget re-emission
         this.emit(record).catch(() => {
           // Intentionally swallowed
         });
       },
+      meta: handlerMeta,
     };
   }
 }

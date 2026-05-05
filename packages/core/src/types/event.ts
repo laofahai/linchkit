@@ -5,6 +5,8 @@
  * Three event categories: Runtime Events, Change Events, Custom Events.
  */
 
+import type { ExecutionMeta } from "./execution-meta";
+
 // ── Event categories ────────────────────────────────────────
 
 export type EventCategory = "runtime" | "change" | "custom";
@@ -45,6 +47,13 @@ export interface EventRecord {
 
   payload: Record<string, unknown>;
   capabilityVersion?: string;
+
+  /**
+   * Execution metadata from the originating action (Spec 65 §7).
+   * Delivery-time only — NOT persisted to the events table. EventBus reads
+   * this to build the handler context's `ctx.meta`.
+   */
+  meta?: ExecutionMeta;
 }
 
 // ── EventHandler types ───────────────────────────────
@@ -73,6 +82,13 @@ export interface EventHandlerDefinition {
 
 export interface EventHandlerContext {
   emit(eventType: string, payload: Record<string, unknown>): void;
+  /**
+   * Execution metadata from the action that produced this event (Spec 65 §7).
+   * For events emitted outside an action context (e.g., system events),
+   * this is an empty `ExecutionMeta` so `ctx.meta.get(...)` returns
+   * `undefined` rather than throwing.
+   */
+  meta: ExecutionMeta;
 }
 
 // ── Subscription event (SSE push to client) ────────────────

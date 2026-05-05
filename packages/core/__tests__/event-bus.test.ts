@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { createEventBus } from "../src/event/event-bus";
 import type { EventHandlerDefinition, EventRecord } from "../src/types/event";
+import { ExecutionMetaImpl } from "../src/types/execution-meta";
 
 // ── Test helpers ────────────────────────────────────────────
 
@@ -367,6 +368,91 @@ describe("EventBus recursion guard", () => {
     // Second handler got a clean copy without the mutation
     expect(payloads[1].injected).toBeUndefined();
     expect(payloads[1].original).toBe(true);
+  });
+});
+
+// ── EventHandlerContext.meta tests (Spec 65 §7) ─────────────
+
+describe("EventHandlerContext.meta", () => {
+  it("handler receives ExecutionMeta from the event envelope", async () => {
+    const { registry, bus } = createEventBus();
+    const observed: { skip?: unknown; missing?: unknown }[] = [];
+
+    registry.register(
+      makeHandler({
+        name: "meta-reader",
+        listen: "action.succeeded",
+        handler: async (_event, ctx) => {
+          observed.push({
+            skip: ctx.meta.get<boolean>("skip_notifications"),
+            missing: ctx.meta.get("nope"),
+          });
+        },
+      }),
+    );
+
+    const event = makeEvent("action.succeeded");
+    event.meta = new ExecutionMetaImpl({ skip_notifications: true, source: "import" });
+    await bus.emit(event);
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0].skip).toBe(true);
+    expect(observed[0].missing).toBeUndefined();
+  });
+
+  it("handler receives empty ExecutionMeta when event envelope omits meta", async () => {
+    const { registry, bus } = createEventBus();
+    const observed: { snapshot: Record<string, unknown>; missing: unknown }[] = [];
+
+    registry.register(
+      makeHandler({
+        name: "meta-defaults",
+        listen: "system.event",
+        handler: async (_event, ctx) => {
+          observed.push({
+            snapshot: ctx.meta.toJSON(),
+            missing: ctx.meta.get("any_key"),
+          });
+        },
+      }),
+    );
+
+    await bus.emit(makeEvent("system.event"));
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0].snapshot).toEqual({});
+    expect(observed[0].missing).toBeUndefined();
+  });
+
+  it("ctx.emit re-emits propagate parent meta to chained handlers", async () => {
+    const { registry, bus } = createEventBus();
+    const childObserved: unknown[] = [];
+
+    registry.register(
+      makeHandler({
+        name: "chain-emitter",
+        listen: "parent.event",
+        handler: async (_event, ctx) => {
+          ctx.emit("child.event", {});
+        },
+      }),
+    );
+
+    registry.register(
+      makeHandler({
+        name: "chain-listener",
+        listen: "child.event",
+        handler: async (_event, ctx) => {
+          childObserved.push(ctx.meta.get("trace_origin"));
+        },
+      }),
+    );
+
+    const event = makeEvent("parent.event");
+    event.meta = new ExecutionMetaImpl({ trace_origin: "external-system" });
+    await bus.emit(event);
+
+    expect(childObserved).toEqual(["external-system"]);
   });
 });
 
