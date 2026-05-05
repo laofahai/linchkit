@@ -5,6 +5,7 @@
  * against a flat context object with support for nested field paths.
  */
 
+import type { ExecutionMeta } from "../types/execution-meta";
 import type {
   CompositeCondition,
   DeclarativeCondition,
@@ -16,6 +17,8 @@ export interface ConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
   actor: { type: string; id: string; groups: string[] };
+  /** Current execution meta — resolves `meta.*` field paths (Spec 65 §6). */
+  meta?: ExecutionMeta;
 }
 
 /**
@@ -75,16 +78,28 @@ function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): bool
 
 /**
  * Resolve a dot-separated field path against the context object.
- * E.g. "target.department.name" resolves ctx.target.department.name
+ *
+ * - `meta.<key>[.<nested>...]` — resolves against `ctx.meta` (Spec 65 §6).
+ *   Missing meta or missing key returns `undefined` (no throw).
+ * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`).
  */
 export function resolveField(path: string, ctx: ConditionContext): unknown {
   const parts = path.split(".");
-  let current: unknown = ctx;
 
+  if (parts[0] === "meta" && parts.length > 1) {
+    const key = parts[1] as string;
+    let current: unknown = ctx.meta?.get(key);
+    for (let i = 2; i < parts.length; i++) {
+      if (current === null || current === undefined) return undefined;
+      current = (current as Record<string, unknown>)[parts[i] as string];
+    }
+    return current;
+  }
+
+  let current: unknown = ctx;
   for (const part of parts) {
     if (current === null || current === undefined) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
-
   return current;
 }

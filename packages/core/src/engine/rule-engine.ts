@@ -10,6 +10,7 @@
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
 import type { ErrorContext } from "../types/error";
+import type { ExecutionMeta } from "../types/execution-meta";
 import type {
   BlockEffect,
   CodeCondition,
@@ -68,6 +69,8 @@ export interface RuleEvalInput {
   target: Record<string, unknown>;
   actor: { type: string; id: string; groups: string[] };
   context?: Record<string, unknown>;
+  /** Current execution meta — resolves `meta.*` field paths in conditions (Spec 65 §6). */
+  meta?: ExecutionMeta;
 }
 
 export interface RuleEvalOutput {
@@ -134,6 +137,7 @@ export async function evaluateRules(
     target: input.target,
     context: input.context ?? {},
     actor: input.actor,
+    meta: input.meta,
   };
 
   for (const rule of sorted) {
