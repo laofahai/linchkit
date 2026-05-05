@@ -46,6 +46,7 @@ import {
   validateInput,
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
+import { hashBehaviorAffectingMeta } from "./meta-keys";
 
 /** Framework-managed `_`-prefixed system meta keys. Adapters using the
  *  trusted `systemMeta` channel cannot override these — the engine's own
@@ -527,19 +528,73 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Scope key by action name + tenant to prevent cross-action/cross-tenant collisions.
     // Only apply at top level — child executions (depth > 0) do not inherit idempotency.
     //
-    // TODO(spec-65 Phase 2): If an action's `ctx.meta` participates in
-    // decision-making (e.g., `dry_run`, `skip_notifications`), a second
-    // request reusing the same `idempotencyKey` with different meta will
-    // receive the first execution's cached output without re-running. Either
-    // hash the normalized meta into the key or reject changed meta for an
-    // existing key. Deferred here because it requires a product decision on
-    // idempotency semantics (observational meta vs behavior-affecting meta).
+    // Spec 65 §5: behavior-affecting meta (e.g. `dry_run`, `skip_notifications`,
+    // `bulk`, `default.*`) is folded into the cache key so two requests with
+    // the same idempotency key but different behavior-affecting meta are
+    // treated as different operations. Observational keys (locale, view, etc.)
+    // are intentionally excluded so they don't fragment the cache.
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
-    const idempotencyKey = rawIdempotencyKey
-      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
+    const metaHash = rawIdempotencyKey ? hashBehaviorAffectingMeta(metaSnapshot) : "";
+    // Percent-encode `:` and `%` in the user-provided rawKey so a caller
+    // can't craft `K:m:<hash>` to collide with a separate request whose
+    // legitimate hashed suffix would be `:m:<hash>`. Without this, the
+    // 32-bit hash is brute-forceable in seconds (security-high; gemini PR
+    // review on #227). Encoding is reversible and cheap; pure-alphanumeric
+    // keys are unchanged, so existing users see no difference.
+    const safeRawKey = rawIdempotencyKey
+      ? rawIdempotencyKey.replaceAll("%", "%25").replaceAll(":", "%3A")
       : undefined;
+    const baseIdempotencyKey = safeRawKey
+      ? `${actionName}:${execOptions?.tenantId ?? ""}:${safeRawKey}`
+      : undefined;
+    const idempotencyKey = baseIdempotencyKey
+      ? metaHash
+        ? `${baseIdempotencyKey}:m:${metaHash}`
+        : baseIdempotencyKey
+      : undefined;
+    // Guard the varchar(255) idempotency_key column. PostgreSQL's varchar
+    // counts codepoints, so use the spread/iterator codepoint count rather
+    // than `.length` (which counts UTF-16 code units and over-counts
+    // surrogate-pair emoji). Fail before the handler runs — otherwise
+    // persistence fails after the mutation already committed and the
+    // caller sees a false negative.
+    const idempotencyKeyCodepoints = idempotencyKey ? [...idempotencyKey].length : 0;
+    if (idempotencyKey && idempotencyKeyCodepoints > 255) {
+      const errMsg = `Idempotency key + meta hash exceeds 255 characters (got ${idempotencyKeyCodepoints}). Shorten the caller-provided idempotency key.`;
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        actor,
+        input,
+        status: "failed",
+        error: { message: errMsg, code: "core.action.idempotency_key_too_long" },
+        meta: metaSnapshot,
+        startedAt,
+      });
+      return {
+        success: false,
+        data: { error: errMsg, code: "core.action.idempotency_key_too_long" } as T,
+        executionId,
+      };
+    }
     if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
-      const existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
+      let existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
+      // Rollout fallback: a meta-suffixed probe miss also looks up the legacy
+      // un-suffixed key so entries written before this change are honored
+      // during a deployment window. Guard against returning an unrelated
+      // legacy entry for a semantically-different retry by comparing the
+      // stored entry's behavior-affecting subset hash to the current one —
+      // only a match (or a true legacy entry with no recorded meta) wins.
+      if (!existing && metaHash && baseIdempotencyKey) {
+        const candidate = await executionLogger.getByIdempotencyKey(baseIdempotencyKey);
+        if (candidate) {
+          const storedMeta = candidate.meta as Record<string, unknown> | undefined;
+          const storedHash = hashBehaviorAffectingMeta(storedMeta);
+          if (storedHash === metaHash) {
+            existing = candidate;
+          }
+        }
+      }
       if (existing && existing.status === "succeeded") {
         return {
           success: true,
