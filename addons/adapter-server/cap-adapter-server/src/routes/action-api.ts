@@ -15,6 +15,7 @@ import type {
   BatchTransactionStrategy,
 } from "@linchkit/core";
 import type { Elysia } from "elysia";
+import { sanitizeBatchResult } from "../lib/sanitize-batch-result";
 import type { ServerOptions } from "../server";
 import {
   badRequest,
@@ -25,29 +26,6 @@ import {
   resolveStatusCode,
   serverError,
 } from "./shared";
-
-/**
- * In production mode, replace per-item `error.message` strings with a
- * generic placeholder to avoid leaking internal details (driver errors,
- * stack-trace fragments, etc.) over HTTP. Codes and field locators are
- * preserved so clients can still differentiate validation vs. permission
- * failures. `rolledBack` items are successes (no error message), so they
- * are passed through untouched.
- *
- * Mirrors the single-action sanitization at the bottom of `mountActionRoutes`
- * to keep dev-mode parity (full message visible) and prod-mode safety.
- */
-function sanitizeBatchResult(result: BatchActionsResult): BatchActionsResult {
-  const isDevMode = process.env.NODE_ENV !== "production";
-  if (isDevMode) return result;
-  return {
-    ...result,
-    failed: result.failed.map((f) => ({
-      ...f,
-      error: { ...f.error, message: "Action execution failed" },
-    })),
-  };
-}
 
 /** Validate the JSON body shape for `POST /api/actions/batch`. */
 function parseBatchBody(

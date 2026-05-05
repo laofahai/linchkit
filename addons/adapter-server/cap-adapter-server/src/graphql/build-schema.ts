@@ -46,6 +46,7 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from "graphql";
+import { sanitizeBatchResult } from "../lib/sanitize-batch-result";
 import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import {
@@ -1294,22 +1295,9 @@ export function buildGraphQLSchema(
             transactionManager: batchTransactionManager,
             meta,
           });
-          // Mirror the REST handler's sanitization (`sanitizeBatchResult`
-          // in routes/action-api.ts): in production, replace per-item
-          // `error.message` strings with a generic placeholder so handler
-          // / driver exception text never leaks over the public GraphQL
-          // surface. Codes and field locators are preserved.
-          const sanitized: BatchActionsResult =
-            process.env.NODE_ENV === "production"
-              ? {
-                  ...result,
-                  failed: result.failed.map((f) => ({
-                    ...f,
-                    error: { ...f.error, message: "Action execution failed" },
-                  })),
-                }
-              : result;
-          return serializeBatchResult(sanitized);
+          // Apply the same prod-mode sanitization the REST handler uses
+          // — see `lib/sanitize-batch-result.ts` for the contract.
+          return serializeBatchResult(sanitizeBatchResult(result));
         }
       : () => {
           throw new GraphQLError(
