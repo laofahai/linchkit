@@ -96,6 +96,23 @@ describe("meta-keys utility", () => {
     expect(a).toHaveLength(8);
   });
 
+  it("hashBehaviorAffectingMeta: built-in types (Date, URL, Map) keep their identity in the hash", () => {
+    // Regression for CodeRabbit P1: canonicalize used to convert all object
+    // values to a sorted POJO, which collapses Date/URL/Map/Set/class
+    // instances to {} and makes distinct payloads hash equal.
+    const a = hashBehaviorAffectingMeta({
+      "default.when": new Date("2026-01-01T00:00:00Z"),
+    });
+    const b = hashBehaviorAffectingMeta({
+      "default.when": new Date("2026-12-31T00:00:00Z"),
+    });
+    expect(a).not.toBe(b);
+
+    const u1 = hashBehaviorAffectingMeta({ "default.endpoint": new URL("https://a.example") });
+    const u2 = hashBehaviorAffectingMeta({ "default.endpoint": new URL("https://b.example") });
+    expect(u1).not.toBe(u2);
+  });
+
   it("hashBehaviorAffectingMeta: object-valued payloads canonicalize across property order", () => {
     // Object-valued behavior-affecting keys (e.g. nested `default.config`)
     // must hash the same regardless of property insertion order.
@@ -212,11 +229,12 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
     expect(r1.executionId).not.toBe(r2.executionId);
   });
 
-  it("rollout fallback: meta-suffixed miss falls back to legacy un-suffixed entry", async () => {
-    // Simulate an entry written before this change (no meta suffix in stored key).
-    // The new code probes the suffixed key first and, on miss, falls back to the
-    // bare key — so existing successful executions still short-circuit a retry
-    // that arrives with behavior-affecting meta after the deployment.
+  it("rollout fallback: meta-suffixed miss honors a legacy un-suffixed entry whose meta matches", async () => {
+    // Simulate an entry written before this change at the bare key, with the
+    // SAME behavior-affecting meta the retry will send. This is the rollout
+    // case the fallback exists for: a client retries the same operation
+    // across a deploy boundary, and we honor the original execution rather
+    // than re-running.
     const baseKey = "count_call::k-legacy";
     await logger.log({
       id: "exec-legacy",
@@ -225,7 +243,8 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
       input: {},
       output: { calls: 99 },
       status: "succeeded",
-      idempotencyKey: baseKey, // no `:m:<hash>` suffix — pre-rollout shape
+      idempotencyKey: baseKey, // pre-rollout shape (no `:m:<hash>` suffix)
+      meta: { dry_run: true }, // behavior-affecting subset matches the retry
       duration: 0,
       startedAt: new Date(),
     });
@@ -238,6 +257,37 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
     expect(r.success).toBe(true);
     expect(r.executionId).toBe("exec-legacy");
     expect(state.calls).toBe(0); // handler did not run — legacy entry honored
+  });
+
+  it("rollout fallback: legacy bare-key entry with DIFFERENT meta is NOT honored", async () => {
+    // Regression for CodeRabbit P1: the rollout fallback used to return ANY
+    // bare-key entry it found. That's wrong — a legacy entry written under
+    // empty meta would mask a semantically-different retry that arrives with
+    // dry_run/default.* set. The fallback must compare the stored entry's
+    // behavior-affecting subset to the current request's and only honor a
+    // match.
+    const baseKey = "count_call::k-different-meta";
+    await logger.log({
+      id: "exec-empty-meta",
+      action: "count_call",
+      actor: defaultActor,
+      input: {},
+      output: { calls: 99 },
+      status: "succeeded",
+      idempotencyKey: baseKey, // bare key (no `:m:<hash>` suffix)
+      meta: { lang: "zh" }, // observational only — behavior-affecting subset is empty
+      duration: 0,
+      startedAt: new Date(),
+    });
+
+    const r = await executor.execute<{ calls: number }>("count_call", {}, defaultActor, {
+      idempotencyKey: "k-different-meta",
+      meta: { dry_run: true }, // behavior-affecting — different operation
+    });
+
+    expect(r.success).toBe(true);
+    expect(r.executionId).not.toBe("exec-empty-meta"); // re-executed
+    expect(state.calls).toBe(1);
   });
 
   it("idempotency key + meta hash exceeding 255 bytes fails fast before the handler runs", async () => {

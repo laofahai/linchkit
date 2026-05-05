@@ -57,17 +57,31 @@ export function extractBehaviorAffectingMeta(
 }
 
 /**
+ * Returns true only for plain object literals (or `Object.create(null)`).
+ * Excludes class instances, Date, URL, Map, Set, etc. — those have
+ * meaningful internal state that JSON.stringify already serializes via
+ * `toJSON` / built-in handling, so we must not collapse them into a
+ * key-sorted POJO (which would drop identity-bearing data and cause
+ * distinct payloads to hash equal).
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
  * Recursively canonicalize a value so two semantically-equal inputs serialize
- * identically. Plain-object property order becomes alphabetical; arrays and
- * primitives pass through unchanged.
+ * identically. Plain-object property order becomes alphabetical; arrays
+ * recurse element-wise; everything else (Date, URL, Map, class instances,
+ * primitives) passes through to JSON.stringify untouched.
  */
 function canonicalize(value: unknown): unknown {
-  if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(canonicalize);
-  const obj = value as Record<string, unknown>;
+  if (!isPlainObject(value)) return value;
   const sorted: Record<string, unknown> = {};
-  for (const k of Object.keys(obj).sort()) {
-    sorted[k] = canonicalize(obj[k]);
+  for (const k of Object.keys(value).sort()) {
+    sorted[k] = canonicalize(value[k]);
   }
   return sorted;
 }

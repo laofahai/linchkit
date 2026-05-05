@@ -515,11 +515,21 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
     if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
       let existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
-      // Rollout fallback: a probe with a meta hash that misses also looks up
-      // the legacy un-suffixed key so entries written before this change are
-      // still honored during a deployment window.
+      // Rollout fallback: a meta-suffixed probe miss also looks up the legacy
+      // un-suffixed key so entries written before this change are honored
+      // during a deployment window. Guard against returning an unrelated
+      // legacy entry for a semantically-different retry by comparing the
+      // stored entry's behavior-affecting subset hash to the current one —
+      // only a match (or a true legacy entry with no recorded meta) wins.
       if (!existing && metaHash && baseIdempotencyKey) {
-        existing = await executionLogger.getByIdempotencyKey(baseIdempotencyKey);
+        const candidate = await executionLogger.getByIdempotencyKey(baseIdempotencyKey);
+        if (candidate) {
+          const storedMeta = candidate.meta as Record<string, unknown> | undefined;
+          const storedHash = hashBehaviorAffectingMeta(storedMeta);
+          if (storedHash === metaHash) {
+            existing = candidate;
+          }
+        }
       }
       if (existing && existing.status === "succeeded") {
         return {
