@@ -346,6 +346,7 @@ export {
   ERROR_STATUS_MAP,
   MetaSizeError,
   redactMetaForLog,
+  stripSystemKeys,
   validateCapabilityMetadata,
 } from "./types";
 export type { ErrorContext } from "./types/error";

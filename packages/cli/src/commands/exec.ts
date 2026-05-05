@@ -13,9 +13,9 @@
  *   2 — action execution returned failure (or threw)
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { ActionResult, Actor, CapabilityDefinition, LinchKitConfig } from "@linchkit/core";
-import { ConfigRegistry, DEFAULT_META_MAX_BYTES, initI18n } from "@linchkit/core";
+import { ConfigRegistry, DEFAULT_META_MAX_BYTES, initI18n, stripSystemKeys } from "@linchkit/core";
 import {
   type CommandLayer,
   consoleLogger,
@@ -37,21 +37,6 @@ import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
 import { setupDatabase } from "./startup/setup-database";
 
 // ── Helpers ─────────────────────────────────────────────────
-
-/**
- * Drop `_`-prefixed keys from a record. Spec 65 §4.4 — external CLI callers
- * cannot set system meta keys; the action engine also strips, but doing it
- * pre-flight keeps the 8 KB size check honest about what will be sent over
- * the wire.
- */
-function stripSystemKeys(input: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(input)) {
-    if (k.startsWith("_")) continue;
-    out[k] = v;
-  }
-  return out;
-}
 
 // ── Argument parsing helpers ────────────────────────────────
 
@@ -92,7 +77,6 @@ function readJsonFile(label: string, path: string): Record<string, unknown> {
  * Mirrors `linch dev` so exec sees the same DATABASE_URL / auth secrets.
  */
 async function loadEnvFile(): Promise<void> {
-  const { existsSync, readFileSync } = await import("node:fs");
   const envPath = `${process.cwd()}/.env`;
   if (!existsSync(envPath)) return;
   const content = readFileSync(envPath, "utf-8");
@@ -103,7 +87,12 @@ async function loadEnvFile(): Promise<void> {
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
     const value = trimmed.slice(eqIdx + 1).trim();
-    if (!process.env[key]) process.env[key] = value;
+    // Use `=== undefined` so explicitly-set empty values (`FOO=`) aren't
+    // overridden by the .env file. Also a minimal parser by design — it
+    // does NOT handle quoted values, inline comments, or `export` keyword.
+    // Real apps that need those features should use a `dotenv` runner;
+    // this loader exists to mirror `linch dev` for fast CLI invocations.
+    if (process.env[key] === undefined) process.env[key] = value;
   }
 }
 
@@ -163,53 +152,10 @@ async function bootstrapCommandLayer(): Promise<{
     links,
   });
 
-  await wireAuthProvider({
-    capabilities,
-    actionRegistry,
-    actions,
-    middlewares,
-    dataProvider,
-    registry,
-    usingDatabase: dbInstance !== undefined,
-    dbInstance,
-  });
-
-  const executionLogger = new InMemoryExecutionLogger();
-  const approvalStore = new InMemoryApprovalStore();
-  // Use PersistentEventBus + DrizzleTransactionManager when a real DB is wired
-  // so transactional actions roll back on handler failure (and pending events
-  // flush atomically with the commit). Falls back to in-memory wiring under
-  // InMemoryStore — same trade-off `linch dev` makes.
-  const { bus: eventBus } = dbInstance ? createPersistentEventBus(dbInstance) : createEventBus();
-  const transactionManager =
-    dbInstance && dataProvider instanceof DrizzleDataProvider
-      ? new DrizzleTransactionManager(dbInstance, dataProvider as DrizzleDataProvider)
-      : undefined;
-  const capabilityNames = new Set(capabilities.map((c) => c.name));
-
-  const executor = createActionExecutor({
-    dataProvider,
-    transactionManager,
-    executionLogger,
-    configRegistry: registry,
-    eventBus,
-    capabilityNames,
-    entityRegistry,
-    logger: consoleLogger,
-  });
-  for (const action of actionRegistry.getAll()) {
-    executor.registry.register(action);
-  }
-
-  const commandLayer = createCommandLayer({
-    executor,
-    verifyApproval: createApprovalVerifier(approvalStore),
-    transactionManager,
-  });
-  for (const mw of middlewares) {
-    commandLayer.use(mw);
-  }
-
+  // Define shutdown up-front so any failure between here and the return
+  // statement still cleans up the DB connection. Without this, an error
+  // in `wireAuthProvider`, executor wiring, or middleware registration
+  // would leak the pool until the process exits.
   const shutdown = async (): Promise<void> => {
     if (dbInstance) {
       const { closeDatabase } = await import("@linchkit/core/server");
@@ -217,7 +163,59 @@ async function bootstrapCommandLayer(): Promise<{
     }
   };
 
-  return { commandLayer, shutdown };
+  try {
+    await wireAuthProvider({
+      capabilities,
+      actionRegistry,
+      actions,
+      middlewares,
+      dataProvider,
+      registry,
+      usingDatabase: dbInstance !== undefined,
+      dbInstance,
+    });
+
+    const executionLogger = new InMemoryExecutionLogger();
+    const approvalStore = new InMemoryApprovalStore();
+    // Use PersistentEventBus + DrizzleTransactionManager when a real DB is wired
+    // so transactional actions roll back on handler failure (and pending events
+    // flush atomically with the commit). Falls back to in-memory wiring under
+    // InMemoryStore — same trade-off `linch dev` makes.
+    const { bus: eventBus } = dbInstance ? createPersistentEventBus(dbInstance) : createEventBus();
+    const transactionManager =
+      dbInstance && dataProvider instanceof DrizzleDataProvider
+        ? new DrizzleTransactionManager(dbInstance, dataProvider as DrizzleDataProvider)
+        : undefined;
+    const capabilityNames = new Set(capabilities.map((c) => c.name));
+
+    const executor = createActionExecutor({
+      dataProvider,
+      transactionManager,
+      executionLogger,
+      configRegistry: registry,
+      eventBus,
+      capabilityNames,
+      entityRegistry,
+      logger: consoleLogger,
+    });
+    for (const action of actionRegistry.getAll()) {
+      executor.registry.register(action);
+    }
+
+    const commandLayer = createCommandLayer({
+      executor,
+      verifyApproval: createApprovalVerifier(approvalStore),
+      transactionManager,
+    });
+    for (const mw of middlewares) {
+      commandLayer.use(mw);
+    }
+
+    return { commandLayer, shutdown };
+  } catch (err) {
+    await shutdown().catch(() => undefined);
+    throw err;
+  }
 }
 
 // ── Command definition ──────────────────────────────────────
