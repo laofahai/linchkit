@@ -96,10 +96,12 @@ export class OnchangeDispatcher {
     this.index = buildOnchangeIndex(onchange);
   }
 
-  /** Schedule an onchange call for the given field. No-op when no hook matches. */
+  /** Schedule an onchange call for the given field. No-op when no hook matches.
+   *  Note: warning-only hooks (`updates: []`) are dispatched too — the
+   *  decision is whether a hook exists for the trigger, NOT whether it
+   *  declares writable fields. */
   trigger(changedField: string): void {
-    const updates = this.index.get(changedField);
-    if (!updates || updates.length === 0) return;
+    if (!this.index.has(changedField)) return;
     this.pendingField = changedField;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     const ms = Math.max(0, this.options.debounceMs ?? DEFAULT_ONCHANGE_DEBOUNCE_MS);

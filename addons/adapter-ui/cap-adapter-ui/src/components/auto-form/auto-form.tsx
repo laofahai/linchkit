@@ -150,7 +150,30 @@ export function AutoForm({
   const onchange = useEntityOnchange({
     entity: schema.name,
     onchange: schema.onchange,
-    getValues: () => formDataRef.current,
+    // Translate relation semantic names (`department`) to their FK
+    // column (`department_id`) before sending — same normalization
+    // submit() does. Without it, the server endpoint sees unrecognized
+    // keys and the onchange definitions (which key on real columns)
+    // never match.
+    getValues: () => {
+      const raw = formDataRef.current;
+      let normalized: Record<string, unknown> | null = null;
+      for (const [semanticName, relInfo] of relationFieldMap) {
+        if (!(semanticName in raw)) continue;
+        if (relInfo.cardinality !== "many_to_one" && relInfo.cardinality !== "one_to_one") {
+          continue;
+        }
+        if (!normalized) normalized = { ...raw };
+        const val = raw[semanticName];
+        if (typeof val === "object" && val !== null && "id" in val) {
+          normalized[relInfo.fkColumn] = (val as Record<string, unknown>).id;
+        } else {
+          normalized[relInfo.fkColumn] = val ?? null;
+        }
+        delete normalized[semanticName];
+      }
+      return normalized ?? raw;
+    },
     applyUpdates: (updates) => {
       setFormData((prev) => {
         const next = { ...prev, ...updates };
@@ -158,6 +181,24 @@ export function AutoForm({
         if (onValuesChange) queueMicrotask(() => onValuesChange(next));
         return next;
       });
+      // Clear any stale client-side errors on fields the server just
+      // overwrote — without this, a previously-touched field that's now
+      // valid (e.g. `unit_price` auto-filled after `product_id` changed)
+      // would keep its old error and block submission.
+      const updatedKeys = Object.keys(updates);
+      if (updatedKeys.length > 0) {
+        setErrors((prev) => {
+          let mutated = false;
+          const next = { ...prev };
+          for (const k of updatedKeys) {
+            if (k in next) {
+              delete next[k];
+              mutated = true;
+            }
+          }
+          return mutated ? next : prev;
+        });
+      }
     },
     onWarnings: onOnchangeWarnings ?? ((w) => console.warn("[AutoForm onchange]", ...w)),
     debounceMs: onchangeDebounceMs,
@@ -383,8 +424,18 @@ export function AutoForm({
     }
 
     // Spec 64 §10: only USER-initiated changes fire onchange.
+    // Normalize relation semantic names (`department`) to their FK column
+    // (`department_id`) before dispatch — the server-side onchange
+    // endpoint operates on real entity columns, not the UI's semantic
+    // names. Same conversion happens to the values payload via
+    // `getValues` below.
     if (!options?.programmatic) {
-      onchange.trigger(fieldName);
+      const relInfo = relationFieldMap.get(fieldName);
+      const triggerField =
+        relInfo && (relInfo.cardinality === "many_to_one" || relInfo.cardinality === "one_to_one")
+          ? relInfo.fkColumn
+          : fieldName;
+      onchange.trigger(triggerField);
     }
   }
 

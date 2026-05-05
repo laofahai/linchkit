@@ -44,6 +44,11 @@ export { changeLanguage, default as i18n, languageNames, supportedLanguages } fr
 export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
+export type { EntityOnchangeResult } from "./lib/api";
+export { requestEntityOnchange } from "./lib/api";
+// Onchange dispatcher (framework-agnostic primitives — useful for non-React hosts)
+export type { OnchangeFetcher } from "./lib/onchange-dispatcher";
+export { buildOnchangeIndex, OnchangeDispatcher } from "./lib/onchange-dispatcher";
 export type { AdminRouteRegistration } from "./lib/route-registry";
 // Admin route registry
 export { getAdminRoutes, registerAdminRoute } from "./lib/route-registry";

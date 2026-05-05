@@ -90,6 +90,17 @@ describe("buildOnchangeIndex", () => {
   test("returns empty map when onchange is undefined", () => {
     expect(buildOnchangeIndex(undefined).size).toBe(0);
   });
+
+  test("warning-only hooks (`updates: []`) still index their trigger", () => {
+    // Regression for codex P2: a hook that only emits warnings has an
+    // empty `updates` array — the index must still register the trigger
+    // so the dispatcher fires the request and warnings reach the UI.
+    const idx = buildOnchangeIndex({
+      stock_check: { updates: [], compute: () => ({}) },
+    });
+    expect(idx.has("stock_check")).toBe(true);
+    expect(idx.get("stock_check")).toEqual([]);
+  });
 });
 
 describe("OnchangeDispatcher.trigger", () => {
@@ -99,6 +110,46 @@ describe("OnchangeDispatcher.trigger", () => {
     fx.dispatcher.trigger("description"); // no hook
     await new Promise((r) => setTimeout(r, 5));
     expect(fetcher).toHaveBeenCalledTimes(0);
+  });
+
+  test("warning-only hooks dispatch even with empty `updates`", async () => {
+    // Regression for codex P2: the previous gate was `updates.length === 0`,
+    // which silently dropped warning-only hooks (e.g. budget / stock checks).
+    const calls: string[] = [];
+    const fetcher: OnchangeFetcher = async ({ changedField }) => {
+      calls.push(changedField);
+      return { updates: {}, warnings: ["Stock low"] };
+    };
+    const values: Record<string, unknown> = {};
+    const dispatcher = new OnchangeDispatcher({
+      entity: "purchase_item",
+      onchange: { stock_check: { updates: [], compute: () => ({}) } },
+      getValues: () => values,
+      onUpdates: () => {
+        // Won't be called for empty updates.
+      },
+      onWarnings: () => {
+        // Captured below.
+      },
+      fetcher,
+      debounceMs: 0,
+    });
+    const warnings: string[][] = [];
+    // Re-create with a real onWarnings collector so the assertion can read it.
+    const fx = new OnchangeDispatcher({
+      entity: "purchase_item",
+      onchange: { stock_check: { updates: [], compute: () => ({}) } },
+      getValues: () => values,
+      onUpdates: () => {},
+      onWarnings: (w) => warnings.push(w),
+      fetcher,
+      debounceMs: 0,
+    });
+    fx.trigger("stock_check");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toEqual(["stock_check"]);
+    expect(warnings).toEqual([["Stock low"]]);
+    void dispatcher; // appease unused-binding lints; kept for readability above
   });
 
   test("debounce coalesces rapid calls into a single fetch with the LATEST field", async () => {
