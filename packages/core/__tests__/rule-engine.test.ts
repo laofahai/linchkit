@@ -790,6 +790,38 @@ describe("meta.* field path resolution", () => {
     expect(calls[1]).toBeDefined();
   });
 
+  it("dangerous path segments (__proto__, constructor, prototype) short-circuit to undefined", () => {
+    // Regression for gemini PR #233 security-medium: a malicious rule
+    // definition must not be able to walk through Object.prototype via
+    // `meta.foo.constructor.prototype.something`. resolveField returns
+    // undefined as soon as any segment is in DANGEROUS_PATH_SEGMENTS.
+    const meta = createExecutionMeta({
+      raw: { source: { channel: "rest", info: { name: "ok" } } },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    // meta-side traversal via constructor / prototype / __proto__ → undefined
+    expect(evaluateCondition({ field: "meta.source.constructor", operator: "is_null" }, ctx)).toBe(
+      true,
+    );
+    expect(evaluateCondition({ field: "meta.source.__proto__", operator: "is_null" }, ctx)).toBe(
+      true,
+    );
+    expect(
+      evaluateCondition({ field: "meta.source.constructor.prototype", operator: "is_null" }, ctx),
+    ).toBe(true);
+    // Non-meta side too
+    expect(evaluateCondition({ field: "target.constructor", operator: "is_null" }, ctx)).toBe(true);
+    // Sanity: legitimate nested path still works
+    expect(
+      evaluateCondition({ field: "meta.source.channel", operator: "eq", value: "rest" }, ctx),
+    ).toBe(true);
+  });
+
   it("rules without meta.* references are unaffected by missing meta input", async () => {
     const rule: RuleDefinition = {
       name: "warn-large",

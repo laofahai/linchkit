@@ -77,6 +77,15 @@ function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): bool
 }
 
 /**
+ * Path segments that could leak prototype internals if walked as plain
+ * property access — gemini PR review on #233 (security-medium). Any path
+ * that traverses through one of these returns `undefined` so a
+ * caller-controlled rule definition cannot probe `Object.prototype` or
+ * the constructor chain via `meta.foo.constructor.prototype...`.
+ */
+const DANGEROUS_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
  * Resolve a dot-separated field path against the context object.
  *
  * - `meta.<rest>` — resolves against `ctx.meta` (Spec 65 §6). Tries the full
@@ -86,6 +95,9 @@ function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): bool
  *   nested object access. Missing meta or missing key returns `undefined`
  *   (no throw).
  * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`).
+ *
+ * Dangerous segments (`__proto__`, `constructor`, `prototype`) short-circuit
+ * to `undefined` to prevent prototype-chain probing.
  */
 export function resolveField(path: string, ctx: ConditionContext): unknown {
   const parts = path.split(".");
@@ -93,17 +105,16 @@ export function resolveField(path: string, ctx: ConditionContext): unknown {
   if (parts[0] === "meta" && parts.length > 1) {
     if (!ctx.meta) return undefined;
     const restParts = parts.slice(1);
-    // Greedy match: try the longest joined key first so flat keys whose
-    // names contain dots (e.g. `batch.parentExecutionId`) win over the
-    // POJO-nesting interpretation. Fall back to shorter prefixes, walking
-    // the leftover segments as nested object access.
     for (let prefixLen = restParts.length; prefixLen >= 1; prefixLen--) {
       const candidateKey = restParts.slice(0, prefixLen).join(".");
       if (!ctx.meta.has(candidateKey)) continue;
       let current: unknown = ctx.meta.get(candidateKey);
       for (let i = prefixLen; i < restParts.length; i++) {
-        if (current === null || current === undefined) return undefined;
-        current = (current as Record<string, unknown>)[restParts[i] as string];
+        const part = restParts[i] as string;
+        if (current === null || current === undefined || DANGEROUS_PATH_SEGMENTS.has(part)) {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
       }
       return current;
     }
@@ -112,7 +123,9 @@ export function resolveField(path: string, ctx: ConditionContext): unknown {
 
   let current: unknown = ctx;
   for (const part of parts) {
-    if (current === null || current === undefined) return undefined;
+    if (current === null || current === undefined || DANGEROUS_PATH_SEGMENTS.has(part)) {
+      return undefined;
+    }
     current = (current as Record<string, unknown>)[part];
   }
   return current;
