@@ -20,13 +20,21 @@ const SYSTEM_FIELD_NAMES = new Set([
   "created_by",
   "updated_by",
   "_version",
+  // Soft-delete is server-managed: clients use delete_/restore_ actions, not direct writes.
+  "deleted_at",
 ]);
+
+function isDerivedField(field: EntityDefinition["fields"][string]): boolean {
+  const strategy = (field as { derived?: { strategy?: string } }).derived?.strategy;
+  return strategy === "store" || strategy === "compute";
+}
 
 function buildCreateInput(entity: EntityDefinition) {
   return Object.fromEntries(
     Object.entries(entity.fields)
       .filter(
-        ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
+        ([fieldName, field]) =>
+          !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed" && !isDerivedField(field),
       )
       .map(([fieldName, field]) => {
         // A field with `default` is auto-populated by the engine when
@@ -53,7 +61,10 @@ function buildUpdateInput(entity: EntityDefinition) {
     ...Object.fromEntries(
       Object.entries(entity.fields)
         .filter(
-          ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
+          ([fieldName, field]) =>
+            !SYSTEM_FIELD_NAMES.has(fieldName) &&
+            field.type !== "computed" &&
+            !isDerivedField(field),
         )
         .map(([fieldName, field]) => [fieldName, { ...field, required: false }]),
     ),

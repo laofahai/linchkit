@@ -728,6 +728,20 @@ Rules:
           return { success: true, data: null };
         }
 
+        // Code-level backstop for destructive intents: prompt-only rules can
+        // still be subverted by the model. Reject delete/remove/cancel
+        // proposals unless the user supplied an explicit target id (parsed
+        // input) or the page is already scoped to a single record (context).
+        const isDestructiveAction = /^(delete|remove|cancel)_/.test(matchedAction.name);
+        if (isDestructiveAction) {
+          const explicitId =
+            typeof parsed.input?.id === "string" && parsed.input.id.trim().length > 0;
+          const scopedRecord = typeof context?.recordId === "string" && context.recordId.length > 0;
+          if (!explicitId && !scopedRecord) {
+            return { success: true, data: null };
+          }
+        }
+
         return {
           success: true,
           data: {

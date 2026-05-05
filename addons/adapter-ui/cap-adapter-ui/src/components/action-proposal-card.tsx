@@ -80,7 +80,7 @@ function FieldEditor({
           <SelectContent>
             {schema.options.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label ?? opt.value}
+                {resolveTranslatableLabel(opt.label, opt.value, t)}
               </SelectItem>
             ))}
           </SelectContent>

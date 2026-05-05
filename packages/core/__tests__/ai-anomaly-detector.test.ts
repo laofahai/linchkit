@@ -197,26 +197,27 @@ describe("AnomalyDetector", () => {
     });
 
     it("detects off-hours activity when enabled", () => {
-      const hour = new Date().getHours();
-      // Set business hours to exclude current hour
-      const start = (hour + 2) % 24;
-      const end = (hour + 1) % 24;
-
+      // Pick businessHours that strictly exclude the current hour, regardless of
+      // the wall-clock value. The detector's off-hours predicate is
+      // `hour < start || hour >= end`, so start = currentHour+1 and end = 24
+      // always classify the current hour as off-hours without wrap-around.
+      // Previous arithmetic (#219) silently broke for hours where the
+      // intended range no longer wrapped.
+      const currentHour = new Date(NOW).getHours();
       const detector = new AnomalyDetector({
         windowSizeMs: 60_000,
         minEventsForDetection: 5,
         detectOffHours: true,
-        businessHoursStart: start,
-        businessHoursEnd: end === 0 ? 24 : end, // Ensure end > start for the test
+        businessHoursStart: currentHour + 1,
+        businessHoursEnd: 24,
       });
 
       for (let i = 0; i < 10; i++) {
         detector.recordEvent(event({ offsetMs: i * 10 }));
       }
 
-      const anomalies = detector.detect();
+      const anomalies = detector.detect({ now: new Date(NOW) });
       const offHours = anomalies.find((a) => a.type === "off_hours_activity");
-      // This depends on current time — if current hour is outside [start, end), it should detect
       expect(offHours).toBeDefined();
     });
   });

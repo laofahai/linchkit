@@ -14,6 +14,12 @@ const departmentSchema: EntityDefinition = {
       label: "Display Name",
       compute: (record) => record.name,
     },
+    deleted_at: { type: "datetime", label: "Deleted At" },
+    spent_total: {
+      type: "number",
+      label: "Spent Total",
+      derived: { strategy: "store", expression: "sum(items.amount)" },
+    } as EntityDefinition["fields"][string],
   },
 };
 
@@ -21,7 +27,7 @@ describe("generateCrudActions input schemas", () => {
   const actions = generateCrudActions(departmentSchema);
   const byName = Object.fromEntries(actions.map((action) => [action.name, action]));
 
-  test("create action exposes entity fields except computed/system fields", () => {
+  test("create action exposes entity fields except computed/system/derived fields", () => {
     const action = byName.create_department;
     expect(action).toBeDefined();
     expect(action.input?.name?.required).toBe(true);
@@ -29,6 +35,10 @@ describe("generateCrudActions input schemas", () => {
     expect(action.input?.budget_limit?.type).toBe("number");
     expect(action.input?.display_name).toBeUndefined();
     expect(action.input?.id).toBeUndefined();
+    // Soft-delete is server-managed and never client-settable.
+    expect(action.input?.deleted_at).toBeUndefined();
+    // Derived store-strategy fields are computed, not user-settable.
+    expect(action.input?.spent_total).toBeUndefined();
   });
 
   test("update action requires id and makes editable fields optional", () => {
@@ -38,6 +48,8 @@ describe("generateCrudActions input schemas", () => {
     expect(action.input?.name?.required).toBe(false);
     expect(action.input?.code?.required).toBe(false);
     expect(action.input?.display_name).toBeUndefined();
+    expect(action.input?.deleted_at).toBeUndefined();
+    expect(action.input?.spent_total).toBeUndefined();
   });
 
   test("delete and restore actions require an id", () => {

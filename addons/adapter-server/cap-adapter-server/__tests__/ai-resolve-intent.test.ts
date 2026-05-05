@@ -223,6 +223,126 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     }
   });
 
+  test("rejects destructive actions without an explicit target id", async () => {
+    const destructiveAction: ActionDefinition = {
+      name: "delete_purchase_request",
+      entity: "purchase_request",
+      label: "Delete Purchase Request",
+      description: "Delete a purchase request",
+      input: { id: { type: "string", required: true, label: "ID" } },
+      policy: "unrestricted",
+    };
+    const destructiveRegistry = new ActionRegistry();
+    destructiveRegistry.register(destructiveAction);
+
+    const destructiveAi: AIService = {
+      configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
+      complete: async () => ({
+        content: JSON.stringify({
+          action: "delete_purchase_request",
+          schema: "purchase_request",
+          input: {},
+          missingFields: ["id"],
+          confidence: 0.95,
+          explanation: "Delete request without explicit target.",
+        }),
+        usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
+        model: "test-model",
+        provider: "test",
+        duration: 150,
+      }),
+    };
+
+    const port = 31914;
+    const server4 = createServer(graphqlSchema, {
+      port,
+      aiService: destructiveAi,
+      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
+      executor: { registry: destructiveRegistry } as any,
+      entityRegistry,
+    });
+    server4.listen(port);
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "delete all purchase requests",
+          context: {},
+        }),
+      });
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      // Code-level guardrail must drop destructive proposals lacking a target.
+      expect(json.data).toBeNull();
+    } finally {
+      server4.stop?.();
+    }
+  });
+
+  test("allows destructive actions when context scopes a single record", async () => {
+    const destructiveAction: ActionDefinition = {
+      name: "delete_purchase_request",
+      entity: "purchase_request",
+      label: "Delete Purchase Request",
+      description: "Delete a purchase request",
+      input: { id: { type: "string", required: true, label: "ID" } },
+      policy: "unrestricted",
+    };
+    const destructiveRegistry = new ActionRegistry();
+    destructiveRegistry.register(destructiveAction);
+
+    const destructiveAi: AIService = {
+      configured: true,
+      defaultProvider: "mock",
+      providerNames: ["mock"],
+      complete: async () => ({
+        content: JSON.stringify({
+          action: "delete_purchase_request",
+          schema: "purchase_request",
+          input: { id: "rec-42" },
+          missingFields: [],
+          confidence: 0.95,
+          explanation: "Delete the scoped record.",
+        }),
+        usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
+        model: "test-model",
+        provider: "test",
+        duration: 150,
+      }),
+    };
+
+    const port = 31915;
+    const server5 = createServer(graphqlSchema, {
+      port,
+      aiService: destructiveAi,
+      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
+      executor: { registry: destructiveRegistry } as any,
+      entityRegistry,
+    });
+    server5.listen(port);
+
+    try {
+      const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "delete this one",
+          context: { recordId: "rec-42" },
+        }),
+      });
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data).not.toBeNull();
+      expect(json.data.action).toBe("delete_purchase_request");
+    } finally {
+      server5.stop?.();
+    }
+  });
+
   test("returns null when no executor registry is available", async () => {
     const server3Port = 31913;
     const server3 = createServer(graphqlSchema, {
