@@ -23,6 +23,9 @@ import {
   createApprovalVerifier,
   createCommandLayer,
   createEventBus,
+  createPersistentEventBus,
+  DrizzleDataProvider,
+  DrizzleTransactionManager,
   detectEnvironment,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
@@ -85,6 +88,26 @@ function readJsonFile(label: string, path: string): Record<string, unknown> {
 // ── Bootstrap helpers ───────────────────────────────────────
 
 /**
+ * Load `<cwd>/.env` into process.env without overriding values already set.
+ * Mirrors `linch dev` so exec sees the same DATABASE_URL / auth secrets.
+ */
+async function loadEnvFile(): Promise<void> {
+  const { existsSync, readFileSync } = await import("node:fs");
+  const envPath = `${process.cwd()}/.env`;
+  if (!existsSync(envPath)) return;
+  const content = readFileSync(envPath, "utf-8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
+
+/**
  * Build a minimal CommandLayer + executor in-process. Mirrors dev-wiring's
  * registries and middleware setup but skips transport/flow/AI/cache
  * machinery — exec only needs to dispatch one action and exit.
@@ -93,6 +116,10 @@ async function bootstrapCommandLayer(): Promise<{
   commandLayer: CommandLayer;
   shutdown: () => Promise<void>;
 }> {
+  // Load .env BEFORE reading config / database settings so DATABASE_URL and
+  // auth secrets aren't silently missing. Mirrors what `linch dev` does.
+  await loadEnvFile();
+
   // Suppress runtime logger output so the CLI's stdout stays clean for the
   // action result. CLI output (including errors) is emitted via console below.
   process.env.LOG_LEVEL ??= "silent";
@@ -149,11 +176,20 @@ async function bootstrapCommandLayer(): Promise<{
 
   const executionLogger = new InMemoryExecutionLogger();
   const approvalStore = new InMemoryApprovalStore();
-  const { bus: eventBus } = createEventBus();
+  // Use PersistentEventBus + DrizzleTransactionManager when a real DB is wired
+  // so transactional actions roll back on handler failure (and pending events
+  // flush atomically with the commit). Falls back to in-memory wiring under
+  // InMemoryStore — same trade-off `linch dev` makes.
+  const { bus: eventBus } = dbInstance ? createPersistentEventBus(dbInstance) : createEventBus();
+  const transactionManager =
+    dbInstance && dataProvider instanceof DrizzleDataProvider
+      ? new DrizzleTransactionManager(dbInstance, dataProvider as DrizzleDataProvider)
+      : undefined;
   const capabilityNames = new Set(capabilities.map((c) => c.name));
 
   const executor = createActionExecutor({
     dataProvider,
+    transactionManager,
     executionLogger,
     configRegistry: registry,
     eventBus,
@@ -168,6 +204,7 @@ async function bootstrapCommandLayer(): Promise<{
   const commandLayer = createCommandLayer({
     executor,
     verifyApproval: createApprovalVerifier(approvalStore),
+    transactionManager,
   });
   for (const mw of middlewares) {
     commandLayer.use(mw);
@@ -214,11 +251,20 @@ export const execCommand = defineCommand({
     },
     actor: {
       type: "string",
-      description: "Actor ID for the call (default: cli system actor)",
+      description: "Actor ID for the call (default: cli)",
+    },
+    "actor-type": {
+      type: "string",
+      description:
+        "Actor type — human (default), ai, system, worker, timer, external. " +
+        "system/worker bypass cap-permission and tenant isolation; opt in only when scripted.",
     },
     tenant: {
       type: "string",
-      description: "Tenant ID (optional)",
+      description:
+        "Tenant ID. Required when actor type is human/ai/external (the tenant " +
+        "isolation slot rejects requests without one). System/worker actor " +
+        "types bypass tenant resolution.",
     },
     json: {
       type: "boolean",
@@ -281,15 +327,29 @@ export const execCommand = defineCommand({
       }
     }
 
-    // 5. Build the actor. Default is a system actor scoped to "cli" so audit
-    // trails can distinguish CLI-driven calls from internal flow calls (which
-    // use id "flow-engine").
+    // 5. Build the actor. Default is a *human* actor scoped to "cli" so the
+    // permission and tenant-isolation slots run normally — opting into the
+    // bypass-prone system/worker types is explicit (`--actor-type system`).
+    // Audits can still distinguish CLI-originated calls via `meta._channel`,
+    // which is auto-stamped to "cli" by ActionEngine.
+    const ALLOWED_ACTOR_TYPES = new Set(["human", "ai", "system", "worker", "timer", "external"]);
+    const actorTypeArg = args["actor-type"] as string | undefined;
+    if (actorTypeArg !== undefined && !ALLOWED_ACTOR_TYPES.has(actorTypeArg)) {
+      console.error(
+        `Error: --actor-type must be one of ${Array.from(ALLOWED_ACTOR_TYPES).join(", ")}`,
+      );
+      process.exit(1);
+    }
+    const tenantId = args.tenant as string | undefined;
     const actor: Actor = {
-      type: "system",
+      type: (actorTypeArg as Actor["type"] | undefined) ?? "human",
       id: (args.actor as string | undefined) ?? "cli",
       groups: [],
+      // The default tenant resolver reads tenantId from actor.tenantId, not
+      // from CommandExecuteOptions.tenantId. Plumb the flag onto both so the
+      // tenant slot can resolve and the data layer scopes correctly.
+      tenantId,
     };
-    const tenantId = args.tenant as string | undefined;
 
     // 6. Bootstrap runtime + dispatch.
     let result: ActionResult;
@@ -300,7 +360,7 @@ export const execCommand = defineCommand({
       result = await boot.commandLayer.execute({
         command: actionName,
         input,
-        channel: "internal",
+        channel: "cli",
         actor,
         tenantId,
         meta,
