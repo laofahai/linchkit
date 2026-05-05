@@ -1124,3 +1124,129 @@ describe("createMcpAdapter — get_state_machine", () => {
     expect(tools.get_state_machine).toBeDefined();
   });
 });
+
+// ── ExecutionMeta injection (Spec 65 §3.3, issue #217) ─────────────────
+
+describe("createMcpAdapter — ExecutionMeta injection (Spec 65 §3.3)", () => {
+  test("does NOT inject _mcp_client_id when no session client is set", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    await tools.create_order?.handler({ customer_name: "Acme", amount: 1 }, {});
+
+    expect(commandLayer.execute).toHaveBeenCalledTimes(1);
+    const callArgs = (commandLayer.execute as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+
+    // Anonymous / open access — adapter must NOT invent a fake client id.
+    // systemMeta should either be omitted entirely or not include _mcp_client_id.
+    const systemMeta = callArgs.systemMeta as Record<string, unknown> | undefined;
+    if (systemMeta !== undefined) {
+      expect(systemMeta._mcp_client_id).toBeUndefined();
+    }
+  });
+
+  test("injects _mcp_client_id into systemMeta after session auth", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const adapter = (await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+    })) as Awaited<ReturnType<typeof createMcpAdapter>> & {
+      setSessionAuth: (
+        actor: { type: string; id: string; name: string; groups: string[] },
+        toolPolicy?: unknown,
+        clientId?: string,
+      ) => void;
+    };
+
+    // Simulate the SSE transport authenticating an MCP client and binding
+    // the session to its registration ID.
+    adapter.setSessionAuth(
+      { type: "ai", id: "actor-42", name: "Test Bot", groups: ["ai_agent"] },
+      undefined,
+      "client-reg-001",
+    );
+
+    const tools = getTools(adapter.server);
+    await tools.create_order?.handler({ customer_name: "Globex", amount: 5 }, {});
+
+    expect(commandLayer.execute).toHaveBeenCalledTimes(1);
+    const callArgs = (commandLayer.execute as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+
+    expect(callArgs.channel).toBe("mcp");
+    const systemMeta = callArgs.systemMeta as Record<string, unknown>;
+    expect(systemMeta).toBeDefined();
+    expect(systemMeta._mcp_client_id).toBe("client-reg-001");
+
+    // The actor reflects the authenticated client.
+    const actor = callArgs.actor as Record<string, unknown>;
+    expect(actor.id).toBe("actor-42");
+  });
+
+  test("subsequent setSessionAuth without clientId clears the previous id", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const adapter = (await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+    })) as Awaited<ReturnType<typeof createMcpAdapter>> & {
+      setSessionAuth: (
+        actor: { type: string; id: string; name: string; groups: string[] },
+        toolPolicy?: unknown,
+        clientId?: string,
+      ) => void;
+    };
+
+    adapter.setSessionAuth(
+      { type: "ai", id: "actor-1", name: "X", groups: ["ai_agent"] },
+      undefined,
+      "client-1",
+    );
+    // Re-bind without a clientId (e.g. simple bearer fallback).
+    adapter.setSessionAuth({ type: "ai", id: "mcp-client", name: "MCP", groups: ["ai_agent"] });
+
+    const tools = getTools(adapter.server);
+    await tools.create_order?.handler({ customer_name: "Y", amount: 1 }, {});
+
+    const callArgs = (commandLayer.execute as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    const systemMeta = callArgs.systemMeta as Record<string, unknown> | undefined;
+    if (systemMeta !== undefined) {
+      expect(systemMeta._mcp_client_id).toBeUndefined();
+    }
+  });
+});

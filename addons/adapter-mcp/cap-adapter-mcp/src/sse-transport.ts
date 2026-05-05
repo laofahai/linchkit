@@ -14,7 +14,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import type { McpClientRegistry } from "./client-registry";
 import type { McpAdapterResult } from "./mcp-server";
-import type { ToolPolicy } from "./types";
+import type { McpClient, ToolPolicy } from "./types";
 
 export interface McpSseServerOptions {
   /**
@@ -36,9 +36,12 @@ export interface McpSseServerOptions {
   /**
    * Resolve an actor from a bearer token.
    * Used when clientRegistry is provided to get per-session actor.
+   * The resolved `client` (when present) carries the registration ID used
+   * to populate `_mcp_client_id` in ExecutionMeta (Spec 65 §3.3).
    */
   resolveActor?: (token: string | undefined) => Promise<{
     actor: Actor;
+    client?: McpClient;
     toolPolicy?: ToolPolicy;
   } | null>;
 }
@@ -126,14 +129,19 @@ export function createMcpSseServer(options: McpSseServerOptions): McpSseServerRe
             ? (adapterResult as McpAdapterResult).server
             : (adapterResult as McpServer);
 
-        // Resolve actor for this session if registry is available
+        // Resolve actor for this session if registry is available.
+        // The resolved client's registration ID is forwarded to setSessionAuth
+        // so the dispatch site can inject `_mcp_client_id` into ExecutionMeta
+        // (Spec 65 §3.3).
         if (resolveActor && token) {
           const resolved = await resolveActor(token);
           if (resolved && "setSessionAuth" in adapterResult) {
             const setAuth = (
-              adapterResult as { setSessionAuth: (a: Actor, p?: ToolPolicy) => void }
+              adapterResult as {
+                setSessionAuth: (a: Actor, p?: ToolPolicy, clientId?: string) => void;
+              }
             ).setSessionAuth;
-            setAuth(resolved.actor, resolved.toolPolicy);
+            setAuth(resolved.actor, resolved.toolPolicy, resolved.client?.id);
           }
         }
 
