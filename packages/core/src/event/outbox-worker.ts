@@ -127,7 +127,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
 
   /** Create a minimal handler context for re-execution.
    *  emit is swallowed to prevent cascading retries. ExecutionMeta is empty
-   *  since meta is not persisted on event rows (delivery-time only). */
+   *  because the persisted events table has no `meta` column yet — handlers
+   *  retried through the outbox don't see the originating action's caller
+   *  hints (`skip_notifications`, `dry_run`, …). Tracked: #228. */
   function createHandlerContext(): EventHandlerContext {
     return {
       emit: () => {
