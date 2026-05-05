@@ -410,6 +410,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         adapterSystemMeta[k] = v;
       }
     }
+    // Note: adapter-injected system keys (e.g. `_mcp_client_id`) are NOT
+    // currently preserved across approval suspend/replay — `ApprovalEngine`
+    // strips all `_`-prefixed keys when persisting. Tracked: #230.
 
     const rootSystemDefaults: Record<string, unknown> = {
       ...adapterSystemMeta,
