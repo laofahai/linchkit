@@ -93,7 +93,31 @@ describe("meta-keys utility", () => {
     const a = hashBehaviorAffectingMeta({ dry_run: true, bulk: false });
     const b = hashBehaviorAffectingMeta({ bulk: false, dry_run: true });
     expect(a).toBe(b);
-    expect(a).toHaveLength(16);
+    expect(a).toHaveLength(8);
+  });
+
+  it("hashBehaviorAffectingMeta: object-valued payloads canonicalize across property order", () => {
+    // Object-valued behavior-affecting keys (e.g. nested `default.config`)
+    // must hash the same regardless of property insertion order.
+    const a = hashBehaviorAffectingMeta({
+      "default.config": { region: "us", retries: 3 },
+    });
+    const b = hashBehaviorAffectingMeta({
+      "default.config": { retries: 3, region: "us" },
+    });
+    expect(a).toBe(b);
+
+    const c = hashBehaviorAffectingMeta({
+      "default.config": { region: "us", retries: 3, nested: { a: 1, b: 2 } },
+    });
+    const d = hashBehaviorAffectingMeta({
+      "default.config": { nested: { b: 2, a: 1 }, retries: 3, region: "us" },
+    });
+    expect(c).toBe(d);
+
+    // Differing values must still differ
+    const e = hashBehaviorAffectingMeta({ "default.config": { region: "eu" } });
+    expect(e).not.toBe(a);
   });
 
   it("hashBehaviorAffectingMeta: empty / observational-only -> empty string", () => {
@@ -186,6 +210,55 @@ describe("ActionExecutor idempotency — behavior-affecting meta", () => {
     expect(r2.success).toBe(true);
     expect(state.calls).toBe(2);
     expect(r1.executionId).not.toBe(r2.executionId);
+  });
+
+  it("rollout fallback: meta-suffixed miss falls back to legacy un-suffixed entry", async () => {
+    // Simulate an entry written before this change (no meta suffix in stored key).
+    // The new code probes the suffixed key first and, on miss, falls back to the
+    // bare key — so existing successful executions still short-circuit a retry
+    // that arrives with behavior-affecting meta after the deployment.
+    const baseKey = "count_call::k-legacy";
+    await logger.log({
+      id: "exec-legacy",
+      action: "count_call",
+      actor: defaultActor,
+      input: {},
+      output: { calls: 99 },
+      status: "succeeded",
+      idempotencyKey: baseKey, // no `:m:<hash>` suffix — pre-rollout shape
+      duration: 0,
+      startedAt: new Date(),
+    });
+
+    const r = await executor.execute<{ calls: number }>("count_call", {}, defaultActor, {
+      idempotencyKey: "k-legacy",
+      meta: { dry_run: true },
+    });
+
+    expect(r.success).toBe(true);
+    expect(r.executionId).toBe("exec-legacy");
+    expect(state.calls).toBe(0); // handler did not run — legacy entry honored
+  });
+
+  it("idempotency key + meta hash exceeding 255 bytes fails fast before the handler runs", async () => {
+    // Construct a raw idempotency key long enough that the suffixed effective
+    // key exceeds the varchar(255) column. The check must fire BEFORE the
+    // handler runs so callers can't end up with a committed mutation + a
+    // persistence failure that would surface as a false negative.
+    const longRawKey = "x".repeat(255);
+    const r = await executor.execute<{ error: string; code?: string }>(
+      "count_call",
+      {},
+      defaultActor,
+      {
+        idempotencyKey: longRawKey,
+        meta: { dry_run: true },
+      },
+    );
+
+    expect(r.success).toBe(false);
+    expect(r.data.code).toBe("core.action.idempotency_key_too_long");
+    expect(state.calls).toBe(0); // handler did not run
   });
 
   it("_-prefixed keys are not hashed (system keys cause no cache fragmentation)", async () => {

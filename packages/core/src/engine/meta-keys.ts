@@ -29,6 +29,10 @@ export const BEHAVIOR_AFFECTING_META_KEYS: readonly string[] = [
   "bulk",
 ];
 
+/** Length of the hex hash appended to idempotency keys. 32 bits is enough for the
+ *  behavior-affecting-meta subset within a single (action, tenant, rawKey) bucket. */
+export const META_HASH_HEX_LEN = 8;
+
 /** Returns true when the key is well-known behavior-affecting OR a `default.*` override. */
 export function isBehaviorAffectingMetaKey(key: string): boolean {
   if (key.startsWith("_")) return false;
@@ -53,14 +57,32 @@ export function extractBehaviorAffectingMeta(
 }
 
 /**
- * Returns a short stable hex hash (16 chars of sha256) of the behavior-affecting
- * subset of `meta`. Returns `""` when no behavior-affecting keys are present so
- * callers can short-circuit and avoid mutating the cache key in the common case.
+ * Recursively canonicalize a value so two semantically-equal inputs serialize
+ * identically. Plain-object property order becomes alphabetical; arrays and
+ * primitives pass through unchanged.
+ */
+function canonicalize(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(canonicalize);
+  const obj = value as Record<string, unknown>;
+  const sorted: Record<string, unknown> = {};
+  for (const k of Object.keys(obj).sort()) {
+    sorted[k] = canonicalize(obj[k]);
+  }
+  return sorted;
+}
+
+/**
+ * Returns a short stable hex hash of the behavior-affecting subset of `meta`.
+ * Keys are top-level-sorted by {@link extractBehaviorAffectingMeta}, then values
+ * are canonicalized so object-valued payloads (e.g. `default.config`) hash
+ * identically regardless of property insertion order. Returns `""` when no
+ * behavior-affecting keys are present so callers can short-circuit and avoid
+ * mutating the cache key in the common case.
  */
 export function hashBehaviorAffectingMeta(meta: Record<string, unknown> | undefined): string {
   const subset = extractBehaviorAffectingMeta(meta);
   if (Object.keys(subset).length === 0) return "";
-  // Stable JSON: keys are already sorted by extractBehaviorAffectingMeta.
-  const serialized = JSON.stringify(subset);
-  return createHash("sha256").update(serialized).digest("hex").slice(0, 16);
+  const serialized = JSON.stringify(canonicalize(subset));
+  return createHash("sha256").update(serialized).digest("hex").slice(0, META_HASH_HEX_LEN);
 }

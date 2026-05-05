@@ -484,13 +484,43 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // are intentionally excluded so they don't fragment the cache.
     const rawIdempotencyKey = currentDepth === 0 ? execOptions?.idempotencyKey : undefined;
     const metaHash = rawIdempotencyKey ? hashBehaviorAffectingMeta(metaSnapshot) : "";
-    const idempotencyKey = rawIdempotencyKey
-      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}${
-          metaHash ? `::meta:${metaHash}` : ""
-        }`
+    const baseIdempotencyKey = rawIdempotencyKey
+      ? `${actionName}:${execOptions?.tenantId ?? ""}:${rawIdempotencyKey}`
       : undefined;
+    const idempotencyKey = baseIdempotencyKey
+      ? metaHash
+        ? `${baseIdempotencyKey}:m:${metaHash}`
+        : baseIdempotencyKey
+      : undefined;
+    // Guard the varchar(255) idempotency_key column. If the suffixed key would
+    // overflow, fail before the handler runs — otherwise persistence fails after
+    // the mutation already committed and the caller sees a false failure.
+    if (idempotencyKey && idempotencyKey.length > 255) {
+      const errMsg = `Idempotency key + meta hash exceeds 255 bytes (got ${idempotencyKey.length}). Shorten the caller-provided idempotency key.`;
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        actor,
+        input,
+        status: "failed",
+        error: { message: errMsg, code: "core.action.idempotency_key_too_long" },
+        meta: metaSnapshot,
+        startedAt,
+      });
+      return {
+        success: false,
+        data: { error: errMsg, code: "core.action.idempotency_key_too_long" } as T,
+        executionId,
+      };
+    }
     if (idempotencyKey && executionLogger?.getByIdempotencyKey) {
-      const existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
+      let existing = await executionLogger.getByIdempotencyKey(idempotencyKey);
+      // Rollout fallback: a probe with a meta hash that misses also looks up
+      // the legacy un-suffixed key so entries written before this change are
+      // still honored during a deployment window.
+      if (!existing && metaHash && baseIdempotencyKey) {
+        existing = await executionLogger.getByIdempotencyKey(baseIdempotencyKey);
+      }
       if (existing && existing.status === "succeeded") {
         return {
           success: true,
