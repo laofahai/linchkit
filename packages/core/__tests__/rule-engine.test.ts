@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { evaluateCondition } from "../src/engine/condition-evaluator";
 import type { RuleEvalInput } from "../src/engine/rule-engine";
 import { evaluateRules } from "../src/engine/rule-engine";
+import { createExecutionMeta } from "../src/types/execution-meta";
 import type { RuleDefinition } from "../src/types/rule";
 
 // ── Helpers ─────────────────────────────────────────
@@ -606,5 +607,233 @@ describe("evaluateRules", () => {
     const result = await evaluateRules([rule], defaultInput);
     expect(result.duration).toBeGreaterThanOrEqual(0);
     expect(result.results[0].duration).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── meta.* field resolution (Spec 65 §6) ─────────────
+
+describe("meta.* field path resolution", () => {
+  it("resolves meta.<key> against ctx.meta.get(key)", () => {
+    const meta = createExecutionMeta({ raw: { bulk: true } });
+    expect(
+      evaluateCondition(
+        { field: "meta.bulk", operator: "eq", value: true },
+        { target: {}, context: {}, actor: { type: "human", id: "u", groups: [] }, meta },
+      ),
+    ).toBe(true);
+    expect(
+      evaluateCondition(
+        { field: "meta.bulk", operator: "eq", value: false },
+        { target: {}, context: {}, actor: { type: "human", id: "u", groups: [] }, meta },
+      ),
+    ).toBe(false);
+  });
+
+  it("missing meta key returns undefined (is_null matches)", () => {
+    const meta = createExecutionMeta({ raw: { bulk: true } });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(evaluateCondition({ field: "meta.unknown", operator: "is_null" }, ctx)).toBe(true);
+    expect(evaluateCondition({ field: "meta.unknown", operator: "eq", value: true }, ctx)).toBe(
+      false,
+    );
+  });
+
+  it("absent meta on context resolves all meta.* fields to undefined", () => {
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+    };
+    expect(evaluateCondition({ field: "meta.bulk", operator: "is_null" }, ctx)).toBe(true);
+  });
+
+  it("resolves one level of nesting after meta.<key>", () => {
+    const meta = createExecutionMeta({ raw: { source: { channel: "rest", view: "queue" } } });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(
+      evaluateCondition({ field: "meta.source.channel", operator: "eq", value: "rest" }, ctx),
+    ).toBe(true);
+    expect(evaluateCondition({ field: "meta.source.missing", operator: "is_null" }, ctx)).toBe(
+      true,
+    );
+  });
+
+  it("combined entity field + meta field via and-condition (spec 65 §6 example)", async () => {
+    const rule: RuleDefinition = {
+      name: "skip_approval_for_bulk",
+      label: "skip_approval_for_bulk",
+      trigger: { action: "submit_request" },
+      condition: {
+        operator: "and",
+        conditions: [
+          { field: "meta.bulk", operator: "eq", value: true },
+          { field: "target.amount", operator: "lt", value: 1000 },
+        ],
+      },
+      effect: { type: "warn", message: "Bulk imports under 1000 skip approval" },
+    };
+
+    const matchInput: RuleEvalInput = {
+      target: { amount: 500 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { bulk: true } }),
+    };
+    const matchResult = await evaluateRules([rule], matchInput);
+    expect(matchResult.triggered).toBe(true);
+    expect(matchResult.warnings).toHaveLength(1);
+
+    // meta.bulk missing -> condition fails
+    const noMetaInput: RuleEvalInput = {
+      target: { amount: 500 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: {} }),
+    };
+    expect((await evaluateRules([rule], noMetaInput)).triggered).toBe(false);
+
+    // amount over threshold -> condition fails
+    const overThresholdInput: RuleEvalInput = {
+      target: { amount: 2000 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { bulk: true } }),
+    };
+    expect((await evaluateRules([rule], overThresholdInput)).triggered).toBe(false);
+  });
+
+  it("flat meta keys with dots in the name (e.g. batch.parentExecutionId) resolve correctly", () => {
+    // Regression for codex P2: the framework emits flat keys whose names
+    // contain dots (`batch.parentExecutionId`, `batch.index` from
+    // batch-action-engine). A rule written against `meta.batch.parentExecutionId`
+    // must look up the joined key first and only fall back to nested
+    // POJO access if no flat key matches.
+    const meta = createExecutionMeta({
+      raw: { "batch.parentExecutionId": "exec_root", "batch.index": 3 },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(
+      evaluateCondition(
+        { field: "meta.batch.parentExecutionId", operator: "eq", value: "exec_root" },
+        ctx,
+      ),
+    ).toBe(true);
+    expect(evaluateCondition({ field: "meta.batch.index", operator: "eq", value: 3 }, ctx)).toBe(
+      true,
+    );
+  });
+
+  it("flat keys take precedence over POJO-nested interpretation", () => {
+    // Greedy match means the flat key wins. Two equally-named meta entries
+    // (one flat, one nested) shouldn't realistically coexist; assert which
+    // one is honored if they did.
+    const meta = createExecutionMeta({
+      raw: { "a.b": "flat-wins", a: { b: "nested-loses" } },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    expect(evaluateCondition({ field: "meta.a.b", operator: "eq", value: "flat-wins" }, ctx)).toBe(
+      true,
+    );
+  });
+
+  it("code-based conditions receive ctx.meta", async () => {
+    // Regression for codex P2: code conditions used to receive only
+    // {target, context, actor, signal}, so they had no way to read
+    // ExecutionMeta. The condition callback signature now exposes meta.
+    const calls: Array<Record<string, unknown> | undefined> = [];
+    const rule: RuleDefinition = {
+      name: "code-cond-reads-meta",
+      label: "code-cond-reads-meta",
+      trigger: { action: "submit" },
+      condition: (cctx) => {
+        calls.push(cctx.meta?.toJSON());
+        return cctx.meta?.get("dry_run") === true;
+      },
+      effect: { type: "warn", message: "Dry-run requested" },
+    };
+
+    const dryInput: RuleEvalInput = {
+      target: { amount: 1 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { dry_run: true } }),
+    };
+    expect((await evaluateRules([rule], dryInput)).triggered).toBe(true);
+
+    const liveInput: RuleEvalInput = {
+      target: { amount: 1 },
+      actor: { type: "human", id: "u", groups: [] },
+      meta: createExecutionMeta({ raw: { dry_run: false } }),
+    };
+    expect((await evaluateRules([rule], liveInput)).triggered).toBe(false);
+
+    // Both runs received a meta value (not undefined) — confirms the
+    // engine wiring, not just a happy-path on the first call.
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toBeDefined();
+    expect(calls[1]).toBeDefined();
+  });
+
+  it("dangerous path segments (__proto__, constructor, prototype) short-circuit to undefined", () => {
+    // Regression for gemini PR #233 security-medium: a malicious rule
+    // definition must not be able to walk through Object.prototype via
+    // `meta.foo.constructor.prototype.something`. resolveField returns
+    // undefined as soon as any segment is in DANGEROUS_PATH_SEGMENTS.
+    const meta = createExecutionMeta({
+      raw: { source: { channel: "rest", info: { name: "ok" } } },
+    });
+    const ctx = {
+      target: {},
+      context: {},
+      actor: { type: "human" as const, id: "u", groups: [] },
+      meta,
+    };
+    // meta-side traversal via constructor / prototype / __proto__ → undefined
+    expect(evaluateCondition({ field: "meta.source.constructor", operator: "is_null" }, ctx)).toBe(
+      true,
+    );
+    expect(evaluateCondition({ field: "meta.source.__proto__", operator: "is_null" }, ctx)).toBe(
+      true,
+    );
+    expect(
+      evaluateCondition({ field: "meta.source.constructor.prototype", operator: "is_null" }, ctx),
+    ).toBe(true);
+    // Non-meta side too
+    expect(evaluateCondition({ field: "target.constructor", operator: "is_null" }, ctx)).toBe(true);
+    // Sanity: legitimate nested path still works
+    expect(
+      evaluateCondition({ field: "meta.source.channel", operator: "eq", value: "rest" }, ctx),
+    ).toBe(true);
+  });
+
+  it("rules without meta.* references are unaffected by missing meta input", async () => {
+    const rule: RuleDefinition = {
+      name: "warn-large",
+      label: "warn-large",
+      trigger: { action: "submit" },
+      condition: { field: "target.amount", operator: "gt", value: 1000 },
+      effect: { type: "warn", message: "Large amount" },
+    };
+    const result = await evaluateRules([rule], {
+      target: { amount: 5000 },
+      actor: { type: "human", id: "u", groups: [] },
+    });
+    expect(result.triggered).toBe(true);
   });
 });

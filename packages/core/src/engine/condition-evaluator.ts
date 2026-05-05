@@ -5,6 +5,7 @@
  * against a flat context object with support for nested field paths.
  */
 
+import type { ExecutionMeta } from "../types/execution-meta";
 import type {
   CompositeCondition,
   DeclarativeCondition,
@@ -16,6 +17,8 @@ export interface ConditionContext {
   target: Record<string, unknown>;
   context: Record<string, unknown>;
   actor: { type: string; id: string; groups: string[] };
+  /** Current execution meta — resolves `meta.*` field paths (Spec 65 §6). */
+  meta?: ExecutionMeta;
 }
 
 /**
@@ -74,17 +77,56 @@ function evaluateSimple(condition: SimpleCondition, ctx: ConditionContext): bool
 }
 
 /**
+ * Path segments that could leak prototype internals if walked as plain
+ * property access — gemini PR review on #233 (security-medium). Any path
+ * that traverses through one of these returns `undefined` so a
+ * caller-controlled rule definition cannot probe `Object.prototype` or
+ * the constructor chain via `meta.foo.constructor.prototype...`.
+ */
+const DANGEROUS_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
  * Resolve a dot-separated field path against the context object.
- * E.g. "target.department.name" resolves ctx.target.department.name
+ *
+ * - `meta.<rest>` — resolves against `ctx.meta` (Spec 65 §6). Tries the full
+ *   remaining path as a single ExecutionMeta key first (so flat dotted keys
+ *   like `batch.parentExecutionId` still resolve), then falls back to
+ *   progressively shorter prefixes with the unresolved suffix walked as
+ *   nested object access. Missing meta or missing key returns `undefined`
+ *   (no throw).
+ * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`).
+ *
+ * Dangerous segments (`__proto__`, `constructor`, `prototype`) short-circuit
+ * to `undefined` to prevent prototype-chain probing.
  */
 export function resolveField(path: string, ctx: ConditionContext): unknown {
   const parts = path.split(".");
-  let current: unknown = ctx;
 
-  for (const part of parts) {
-    if (current === null || current === undefined) return undefined;
-    current = (current as Record<string, unknown>)[part];
+  if (parts[0] === "meta" && parts.length > 1) {
+    if (!ctx.meta) return undefined;
+    const restParts = parts.slice(1);
+    for (let prefixLen = restParts.length; prefixLen >= 1; prefixLen--) {
+      const candidateKey = restParts.slice(0, prefixLen).join(".");
+      if (!ctx.meta.has(candidateKey)) continue;
+      let current: unknown = ctx.meta.get(candidateKey);
+      for (let i = prefixLen; i < restParts.length; i++) {
+        const part = restParts[i] as string;
+        if (current === null || current === undefined || DANGEROUS_PATH_SEGMENTS.has(part)) {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
+    }
+    return undefined;
   }
 
+  let current: unknown = ctx;
+  for (const part of parts) {
+    if (current === null || current === undefined || DANGEROUS_PATH_SEGMENTS.has(part)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
   return current;
 }
