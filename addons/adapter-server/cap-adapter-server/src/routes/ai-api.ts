@@ -516,7 +516,12 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           },
         });
 
-        // Build context-aware tools (query, execute, describe, navigate)
+        // Build context-aware tools (query, describe, navigate). Writes are
+        // routed through the propose-and-confirm flow (intent resolver +
+        // ActionProposalCard) — chat is read-only. Known gap: when the
+        // intent resolver misses a low-confidence actionable prompt and
+        // falls back here, the conversation can't recover via "yes, do it".
+        // Tracked: #238.
         const tools = buildTools({
           dataProvider: scopedProvider,
           commandLayer: options.commandLayer,

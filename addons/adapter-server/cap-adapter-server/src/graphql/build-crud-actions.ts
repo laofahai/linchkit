@@ -24,9 +24,21 @@ const SYSTEM_FIELD_NAMES = new Set([
 
 function buildCreateInput(entity: EntityDefinition) {
   return Object.fromEntries(
-    Object.entries(entity.fields).filter(
-      ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
-    ),
+    Object.entries(entity.fields)
+      .filter(
+        ([fieldName, field]) => !SYSTEM_FIELD_NAMES.has(fieldName) && field.type !== "computed",
+      )
+      .map(([fieldName, field]) => {
+        // A field with `default` is auto-populated by the engine when
+        // omitted — keeping it `required` would force callers to re-state
+        // the schema's own default value (e.g. `notification.channel` =
+        // "in_app"). Treat `required + default` as effectively optional
+        // from the caller's perspective.
+        if (field.required && field.default !== undefined) {
+          return [fieldName, { ...field, required: false }];
+        }
+        return [fieldName, field];
+      }),
   );
 }
 

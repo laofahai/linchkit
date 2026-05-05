@@ -116,9 +116,15 @@ export function AIAssistant({
     setProposals((prev) => prev.filter((p) => p.id !== proposalId));
   }, []);
 
-  // Remove proposal after execution completes (success or error)
-  const handleProposalComplete = useCallback((_proposalId: string, _result: ActionResult) => {
-    setProposals((prev) => prev.filter((p) => p.id !== _proposalId));
+  // Remove proposal only on a successful execution. On failure (validation,
+  // business rule, network), the card stays so the user can read the error
+  // message and edit the proposed inputs before retrying — without this, a
+  // rejected proposal disappears immediately and the user has no path to
+  // recover short of typing the request again.
+  const handleProposalComplete = useCallback((proposalId: string, result: ActionResult) => {
+    if (result.success) {
+      setProposals((prev) => prev.filter((p) => p.id !== proposalId));
+    }
   }, []);
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
