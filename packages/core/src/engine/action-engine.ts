@@ -47,6 +47,17 @@ import {
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
 
+/** Framework-managed `_`-prefixed system meta keys. Adapters using the
+ *  trusted `systemMeta` channel cannot override these — the engine's own
+ *  assignments always win. Hoisted to module scope so it's allocated once
+ *  rather than on every action dispatch. */
+const RESERVED_FRAMEWORK_KEYS: ReadonlySet<string> = new Set([
+  "_channel",
+  "_execution_id",
+  "_depth",
+  "_source_action",
+]);
+
 // ── DataProvider interface ──────────────────────────────────
 
 /** Options for data queries — tenant isolation, soft-delete control, and locale */
@@ -390,15 +401,8 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // its assignment.
     // Adapter-supplied system keys (Spec 65 §3.3) — e.g. `_mcp_client_id`
     // injected by the MCP adapter after authenticating the caller. Reserved
-    // framework keys (`_channel`, `_execution_id`, `_depth`, `_source_action`)
-    // are filtered out so the engine's own assignments always win regardless
-    // of what the adapter supplied.
-    const RESERVED_FRAMEWORK_KEYS = new Set([
-      "_channel",
-      "_execution_id",
-      "_depth",
-      "_source_action",
-    ]);
+    // framework keys are filtered out (see module-level
+    // `RESERVED_FRAMEWORK_KEYS`) so the engine's own assignments always win.
     const adapterSystemMeta: Record<string, unknown> = {};
     const providedSystemMeta = execOptions?.systemMeta;
     if (providedSystemMeta && currentDepth === 0) {
