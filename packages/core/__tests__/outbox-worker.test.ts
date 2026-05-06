@@ -603,6 +603,47 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     expect(rows[0]?.status).toBe("completed");
   });
 
+  test("poison-pill meta column does not stall the batch", async () => {
+    // A row whose persisted meta exceeds the 8 KB ExecutionMeta cap simulates
+    // a corrupted snapshot. rowToEventRecord is called outside the per-event
+    // try/catch in processBatch, so a thrown ExecutionMetaImpl validation
+    // would otherwise crash the whole batch and stall the worker. The
+    // analyzer must swallow the throw, fall back to empty meta, and let the
+    // event itself be processed normally so handlers that don't depend on
+    // meta keep working.
+    const oversize = "x".repeat(10_000);
+    await db.insert(eventsTable).values({
+      eventType: "poison.event",
+      payload: { test: true },
+      status: "failed",
+      errorMessage: "test error",
+      retryCount: 0,
+      meta: { huge: oversize },
+    });
+    // Add a healthy event in the same batch — must still get processed.
+    await insertFailedEvent("healthy.event", { retryCount: 0 });
+
+    const registry = new EventHandlerRegistry();
+    const seen: Array<{ type: string; metaJson: Record<string, unknown> }> = [];
+    registry.register({
+      name: "two-listener",
+      listen: ["poison.event", "healthy.event"],
+      handler: async (event, ctx) => {
+        seen.push({ type: event.type, metaJson: ctx.meta.toJSON() });
+      },
+    });
+
+    const worker = createOutboxWorker({ db, registry, maxRetries: 3 });
+    const processed = await worker.processBatch();
+
+    // Both rows processed; poison row got an empty meta fallback.
+    expect(processed).toBe(2);
+    const poison = seen.find((s) => s.type === "poison.event");
+    expect(poison?.metaJson).toEqual({});
+    const healthy = seen.find((s) => s.type === "healthy.event");
+    expect(healthy?.metaJson).toEqual({});
+  });
+
   test("retry exposes empty ctx.meta when row has null meta (back-compat)", async () => {
     // Events written before the meta column existed have null meta. Handlers
     // must observe an empty ExecutionMeta so `ctx.meta.get(...)` returns

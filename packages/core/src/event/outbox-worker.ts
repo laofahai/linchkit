@@ -114,13 +114,28 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
   function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
     const payload = (row.payload as Record<string, unknown>) ?? {};
     // Reconstruct the originating action's ExecutionMeta from the persisted
-    // JSON snapshot (Spec 65 §7, issue #228). Falls back to empty meta when
+    // JSON snapshot (Spec 65 §7, issue #228). Falls back to undefined when
     // the column is null — covers events written before the column existed
-    // and bus paths that didn't carry meta. The constructor re-runs the
-    // serialization filter + size check, so a malformed snapshot is rejected
-    // here rather than smuggled into a handler ctx.
+    // and bus paths that didn't carry meta.
+    //
+    // The ExecutionMetaImpl constructor re-runs JSON-serializability + 8 KB
+    // size asserts. A poison-pill row (corrupt JSON, oversized payload)
+    // would otherwise crash the entire batch since rowToEventRecord is
+    // called outside the per-event try/catch in processBatch. We swallow
+    // the throw, fall back to empty meta, and log so operators can
+    // investigate without the worker stalling on the bad row.
     const metaJson = (row.meta as Record<string, unknown> | null | undefined) ?? undefined;
-    const meta = metaJson ? new ExecutionMetaImpl(metaJson) : undefined;
+    let meta: ExecutionMetaImpl | undefined;
+    if (metaJson) {
+      try {
+        meta = new ExecutionMetaImpl(metaJson);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          `[OutboxWorker] Event "${row.id}": persisted meta failed validation, falling back to empty (${reason})`,
+        );
+      }
+    }
     return {
       id: row.id,
       type: row.eventType,
