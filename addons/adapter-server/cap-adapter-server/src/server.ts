@@ -205,6 +205,14 @@ export function createServer(
         ? await resolveRequestTenantId(request, actor)
         : undefined;
       const locale = resolveRequestLocale(request);
+      // Forwarding policy (issue #236): collect every inbound HTTP header into
+      // a lowercase-keyed plain object so CommandLayer middleware sees the same
+      // surface for GraphQL as for REST (`routes/action-api.ts`). REST forwards
+      // every header verbatim — this keeps GraphQL on the same contract.
+      const headers: Record<string, string> = {};
+      for (const [key, value] of request.headers.entries()) {
+        headers[key] = value;
+      }
       // Wrap DataProvider with tenant isolation for this request so all GraphQL
       // resolvers (get, list, link traversal) enforce row-level tenant scoping.
       const scopedProvider =
@@ -219,6 +227,7 @@ export function createServer(
         actor,
         tenantId,
         locale,
+        headers,
         dataProvider: scopedProvider,
         permissionGroups,
         entityMap,

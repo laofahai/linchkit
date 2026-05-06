@@ -151,6 +151,7 @@ export function buildOnchangeMutationFields(
           channel: "http",
           tenantId: ctx.tenantId,
           locale: ctx.locale,
+          headers: ctx.headers,
           meta: {
             onchange: {
               entity: entityName,
