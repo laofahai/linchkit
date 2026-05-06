@@ -105,7 +105,8 @@ describe.skipIf(!dbAvailable)("PersistentEventBus (integration)", () => {
         "status" "_linchkit"."event_status" DEFAULT 'pending' NOT NULL,
         "error_message" text,
         "retry_count" integer DEFAULT 0 NOT NULL,
-        "next_retry_at" timestamp
+        "next_retry_at" timestamp,
+        "meta" jsonb
       )
     `),
     );

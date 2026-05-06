@@ -1,6 +1,6 @@
 {
-  "id": "bd44da01-c42d-4fee-b21e-cb7c5ff438fe",
-  "prevId": "82b9dd02-071e-4454-8b54-50de5af70d07",
+  "id": "bbd29386-9972-415e-8e5c-1f11abe31f5a",
+  "prevId": "bd44da01-c42d-4fee-b21e-cb7c5ff438fe",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -157,6 +157,12 @@
         },
         "meta": {
           "name": "meta",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_system_meta": {
+          "name": "actor_system_meta",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

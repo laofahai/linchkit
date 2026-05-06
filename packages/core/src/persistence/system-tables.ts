@@ -104,6 +104,13 @@ export const eventsTable = linchkitSchema.table(
     retryCount: integer("retry_count").notNull().default(0),
     /** When to next attempt processing (null = immediate or no retry scheduled) */
     nextRetryAt: timestamp("next_retry_at", { mode: "date" }),
+    /**
+     * Spec 65 §7 (issue #228) — ExecutionMeta snapshot from the originating
+     * action, persisted so outbox retries / crash recovery can rebuild
+     * `EventHandlerContext.meta` instead of starting from an empty meta.
+     * Stored as the JSON form returned by `ExecutionMeta.toJSON()`.
+     */
+    meta: jsonb("meta"),
   },
   (table) => [
     index("idx_events_type_status").on(table.eventType, table.status),

@@ -97,7 +97,8 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
         "status" "_linchkit"."event_status" DEFAULT 'pending' NOT NULL,
         "error_message" text,
         "retry_count" integer DEFAULT 0 NOT NULL,
-        "next_retry_at" timestamp
+        "next_retry_at" timestamp,
+        "meta" jsonb
       )
     `),
     );
@@ -550,5 +551,123 @@ describe.skipIf(!dbAvailable)("OutboxWorker", () => {
     worker.start();
     worker.start(); // Second call should be a no-op
     await worker.stop();
+  });
+
+  // ── Meta propagation across retries (Spec 65 §7, issue #228) ──
+
+  test("retry rebuilds ctx.meta from persisted snapshot", async () => {
+    // Insert a failed event whose persisted meta carries a caller hint
+    // (`skip_notifications: true`). The outbox-driven retry must surface
+    // the same key on `ctx.meta`, otherwise a transient failure on the
+    // first delivery would silently re-enable suppressed side effects.
+    const [row] = await db
+      .insert(eventsTable)
+      .values({
+        eventType: "order.created",
+        payload: { orderId: "ord-1" },
+        status: "failed",
+        errorMessage: "transient",
+        retryCount: 0,
+        nextRetryAt: null,
+        meta: { skip_notifications: true, source: "import" },
+      })
+      .returning({ id: eventsTable.id });
+
+    const registry = new EventHandlerRegistry();
+    let capturedSkip: unknown;
+    let capturedSource: unknown;
+    let capturedSnapshot: Record<string, unknown> | undefined;
+
+    registry.register({
+      name: "meta-reader",
+      listen: "order.created",
+      handler: async (_event, ctx) => {
+        capturedSkip = ctx.meta.get("skip_notifications");
+        capturedSource = ctx.meta.get("source");
+        capturedSnapshot = ctx.meta.toJSON();
+      },
+    });
+
+    const worker = createOutboxWorker({ db, registry, maxRetries: 3 });
+    const processed = await worker.processBatch();
+
+    expect(processed).toBe(1);
+    expect(capturedSkip).toBe(true);
+    expect(capturedSource).toBe("import");
+    expect(capturedSnapshot).toEqual({
+      skip_notifications: true,
+      source: "import",
+    });
+
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, row?.id));
+    expect(rows[0]?.status).toBe("completed");
+  });
+
+  test("poison-pill meta column does not stall the batch", async () => {
+    // A row whose persisted meta exceeds the 8 KB ExecutionMeta cap simulates
+    // a corrupted snapshot. rowToEventRecord is called outside the per-event
+    // try/catch in processBatch, so a thrown ExecutionMetaImpl validation
+    // would otherwise crash the whole batch and stall the worker. The
+    // analyzer must swallow the throw, fall back to empty meta, and let the
+    // event itself be processed normally so handlers that don't depend on
+    // meta keep working.
+    const oversize = "x".repeat(10_000);
+    await db.insert(eventsTable).values({
+      eventType: "poison.event",
+      payload: { test: true },
+      status: "failed",
+      errorMessage: "test error",
+      retryCount: 0,
+      meta: { huge: oversize },
+    });
+    // Add a healthy event in the same batch — must still get processed.
+    await insertFailedEvent("healthy.event", { retryCount: 0 });
+
+    const registry = new EventHandlerRegistry();
+    const seen: Array<{ type: string; metaJson: Record<string, unknown> }> = [];
+    registry.register({
+      name: "two-listener",
+      listen: ["poison.event", "healthy.event"],
+      handler: async (event, ctx) => {
+        seen.push({ type: event.type, metaJson: ctx.meta.toJSON() });
+      },
+    });
+
+    const worker = createOutboxWorker({ db, registry, maxRetries: 3 });
+    const processed = await worker.processBatch();
+
+    // Both rows processed; poison row got an empty meta fallback.
+    expect(processed).toBe(2);
+    const poison = seen.find((s) => s.type === "poison.event");
+    expect(poison?.metaJson).toEqual({});
+    const healthy = seen.find((s) => s.type === "healthy.event");
+    expect(healthy?.metaJson).toEqual({});
+  });
+
+  test("retry exposes empty ctx.meta when row has null meta (back-compat)", async () => {
+    // Events written before the meta column existed have null meta. Handlers
+    // must observe an empty ExecutionMeta so `ctx.meta.get(...)` returns
+    // undefined rather than throwing.
+    await insertFailedEvent("legacy.event", { retryCount: 0 });
+
+    const registry = new EventHandlerRegistry();
+    let snapshot: Record<string, unknown> | undefined;
+    let missing: unknown = "untouched";
+
+    registry.register({
+      name: "legacy-reader",
+      listen: "legacy.event",
+      handler: async (_event, ctx) => {
+        snapshot = ctx.meta.toJSON();
+        missing = ctx.meta.get("anything");
+      },
+    });
+
+    const worker = createOutboxWorker({ db, registry, maxRetries: 3 });
+    const processed = await worker.processBatch();
+
+    expect(processed).toBe(1);
+    expect(snapshot).toEqual({});
+    expect(missing).toBeUndefined();
   });
 });
