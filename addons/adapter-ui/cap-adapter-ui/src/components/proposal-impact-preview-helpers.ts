@@ -7,6 +7,8 @@
 
 import type {
   ConflictFinding,
+  ConflictResult,
+  DedupResult,
   PreAnalysisStage,
   PreAnalysisStageResult,
   ProposalPreAnalysisResult,
@@ -123,10 +125,10 @@ export function summarizePreAnalysis(
     if (stage.status === "skipped") skippedCount += 1;
     if (stage.status === "ok" && stage.data) {
       if (stageKey === "dedup") {
-        const dedup = stage.data as { similar?: unknown[] };
+        const dedup = stage.data as DedupResult;
         totalFindings += dedup.similar?.length ?? 0;
       } else if (stageKey === "conflict") {
-        const conflict = stage.data as { conflicts?: unknown[] };
+        const conflict = stage.data as ConflictResult;
         totalFindings += conflict.conflicts?.length ?? 0;
       }
     }
