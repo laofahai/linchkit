@@ -2,19 +2,34 @@ name: Review Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-  pull_request_review:
-    types: [submitted]
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review_thread:
+    types: [resolved]
   issue_comment:
     types: [created]
 
+# Cancel in-flight runs when a newer event comes in for the same PR — keeps
+# the latest run as the canonical signal for branch protection.
+concurrency:
+  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+# Why these triggers (and not `pull_request_review: submitted`):
+#   AI review bots (CodeRabbit / Gemini) post reviews while threads are still
+#   unresolved. Listening to `pull_request_review: submitted` guaranteed a
+#   FAILURE check-run on every bot review, and GitHub's branch protection
+#   keeps those historical FAILUREs as part of the same required-check name
+#   — leaving the PR BLOCKED even after every thread is resolved and the
+#   latest run SUCCEEDS. Triggering only on `pull_request_review_thread:
+#   resolved` runs the gate after a thread state change that's likely to make
+#   the proposal cleaner, not while bots are mid-comment.
 jobs:
   review-threads:
     name: Review Threads
-    # Run on PR events, review events, or "/check-reviews" comment on a PR
+    # Run on PR events, thread-resolution events, or "/check-reviews" comment on a PR
     if: >
       github.event_name == 'pull_request' ||
-      github.event_name == 'pull_request_review' ||
+      github.event_name == 'pull_request_review_thread' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        contains(github.event.comment.body, '/check-reviews'))
