@@ -343,6 +343,40 @@ describe("createConflictAnalyzer", () => {
     expect(result.notes).toContain("update definition missing or malformed");
   });
 
+  test("treats state update with non-string state entries as malformed", async () => {
+    const liveState = makeStateDef({
+      name: "purchase_request_status",
+      states: ["draft", "submitted"],
+      transitions: [{ from: "draft", to: "submitted", action: "submit" }],
+    });
+    const candidate = makeProposal({
+      id: "prop_candidate",
+      changes: [
+        {
+          target: "state",
+          operation: "update",
+          name: "purchase_request_status",
+          // states contains a non-string entry — must NOT be parsed as a real
+          // StateDefinition or the analyzer will emit false transition conflicts.
+          definition: {
+            name: "purchase_request_status",
+            states: ["draft", 42, "submitted"],
+            transitions: [],
+          } as unknown as StateDefinition,
+        },
+      ],
+    });
+    const analyzer = createConflictAnalyzer({
+      pendingProposals: makeStore([]),
+      liveStates: makeStateStore([liveState]),
+    });
+
+    const result = await analyzer.analyze(candidate);
+
+    expect(result.conflicts).toHaveLength(0);
+    expect(result.notes).toContain("update definition missing or malformed");
+  });
+
   test("supports synchronous live stores (returning arrays directly)", async () => {
     const candidate = makeProposal({
       id: "prop_candidate",

@@ -110,6 +110,7 @@ function readStateDefinition(value: unknown): StateDefinition | null {
   if (!value || typeof value !== "object") return null;
   const def = value as Partial<StateDefinition>;
   if (!Array.isArray(def.states)) return null;
+  if (!def.states.every((s) => typeof s === "string")) return null;
   if (typeof def.name !== "string") return null;
   return def as StateDefinition;
 }
@@ -232,15 +233,15 @@ export function createConflictAnalyzer(
             }
 
             const proposedStateSet = new Set(proposed.states);
-            const removed: string[] = [];
+            const removed = new Set<string>();
             for (const liveState of existing.states) {
-              if (!proposedStateSet.has(liveState)) removed.push(liveState);
+              if (!proposedStateSet.has(liveState)) removed.add(liveState);
             }
-            if (removed.length === 0) continue;
+            if (removed.size === 0) continue;
 
             for (const transition of existing.transitions) {
               const refs = statesReferencedByTransition(transition);
-              const dropped = refs.filter((r) => removed.includes(r));
+              const dropped = refs.filter((r) => removed.has(r));
               if (dropped.length === 0) continue;
               conflicts.push({
                 kind: "state_transition",
