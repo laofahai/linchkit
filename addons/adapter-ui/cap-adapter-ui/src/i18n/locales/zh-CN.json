@@ -744,7 +744,72 @@
     "phase": "阶段 {{phase}}：{{status}}",
     "phaseErrors": "{{count}} 个错误",
     "phaseErrors_other": "{{count}} 个错误",
-    "defaultRejectReason": "用户拒绝"
+    "defaultRejectReason": "用户拒绝",
+    "preanalysis": {
+      "heading": "预分析结果",
+      "empty": "该提案暂无预分析结果。",
+      "unknownError": "分析器失败但未提供错误信息。",
+      "status": {
+        "ok": "正常",
+        "error": "错误",
+        "skipped": "已跳过",
+        "notRun": "未执行"
+      },
+      "stages": {
+        "dedup": {
+          "title": "去重检查",
+          "empty": "未发现相似的待审提案。",
+          "exactMatchBanner": "与现有待审提案完全重复",
+          "similarHeader": "{{count}} 个相似提案",
+          "similarHeader_other": "{{count}} 个相似提案",
+          "payloadHash": "负载哈希",
+          "skipped": "去重检查已跳过。",
+          "notRun": "该提案未执行去重检查。",
+          "noData": "去重检查未返回数据。"
+        },
+        "conflict": {
+          "title": "冲突检测",
+          "empty": "未检测到冲突。",
+          "kinds": {
+            "rule": "规则冲突",
+            "state_transition": "状态迁移冲突",
+            "proposal": "待审提案冲突",
+            "other": "其他冲突"
+          },
+          "skipped": "冲突检测已跳过。",
+          "notRun": "该提案未执行冲突检测。",
+          "noData": "冲突分析器未返回数据。"
+        },
+        "impact": {
+          "title": "影响评估",
+          "recordsAffected": "条记录将受影响",
+          "probedEntities": "已探测的实体",
+          "sample": "样本 {{count}} 条",
+          "sample_other": "样本 {{count}} 条",
+          "skipped": "影响评估已跳过。",
+          "notRun": "该提案未执行影响评估。",
+          "noData": "影响评估未返回数据。"
+        },
+        "backtest": {
+          "title": "回测",
+          "windowDays": "窗口（天）",
+          "triggers": "假设触发次数",
+          "skipped": "回测已跳过。",
+          "notRun": "该提案未执行回测。",
+          "noData": "回测分析器未返回数据。"
+        }
+      },
+      "demo": {
+        "title": "提案预分析预览",
+        "subtitle": "Spec 55 §7.3 四阶段审查面板的演示数据。",
+        "fixtures": {
+          "full": "完整四阶段",
+          "error": "错误 + 已跳过",
+          "partial": "部分（仅去重）",
+          "empty": "空 / null"
+        }
+      }
+    }
   },
   "evolution": {
     "title": "进化历史",

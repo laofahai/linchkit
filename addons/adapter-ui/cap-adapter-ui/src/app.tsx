@@ -32,6 +32,7 @@ import { EntityListPage } from "./pages/entity-list";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { MetricsDashboardPage } from "./pages/metrics-dashboard";
+import { ProposalReviewDemoPage } from "./pages/proposal-review-demo";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
 import { StateMachineDetailPage } from "./pages/state-machines";
@@ -221,6 +222,15 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  // Spec 55 §7.3 — pre-analysis review panel demo. Renders mock fixtures so the
+  // panel is reviewable end-to-end before a real proposal review page lands.
+  const proposalReviewDemoRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/proposals/preview-demo",
+    component: ProposalReviewDemoPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Build capability page routes from server response
   const pageRegistrations = capabilityPages as PageRegistration[];
 
@@ -238,6 +248,7 @@ function buildRouter(appConfig: AppConfig) {
       configCenterRoute,
       relationGraphRoute,
       metricsDashboardRoute,
+      proposalReviewDemoRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
         .map((p) => createCapabilityPageRoute(p, authEnabled)),
