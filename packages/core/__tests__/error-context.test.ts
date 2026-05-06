@@ -5,7 +5,7 @@
  * for AI agents to understand and fix issues autonomously.
  */
 
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { DataProvider } from "../src/engine/action-engine";
 import { createActionExecutor } from "../src/engine/action-engine";
 import { evaluateRules } from "../src/engine/rule-engine";
@@ -13,10 +13,13 @@ import { createStateMachine, transition } from "../src/engine/state-machine";
 import {
   BusinessRuleError,
   ConflictError,
+  isAiAgentCaller,
   LinchKitError,
   NotFoundError,
+  shouldIncludeErrorContext,
   ValidationError,
 } from "../src/errors";
+import type { Actor } from "../src/types/action";
 import type { ErrorContext } from "../src/types/error";
 import type { RuleDefinition } from "../src/types/rule";
 
@@ -367,5 +370,258 @@ describe("RuleEngine evaluation output", () => {
     expect(output.blockReasons).toEqual([]);
     expect(output.results.length).toBe(1);
     expect(output.results[0].triggered).toBe(false);
+  });
+});
+
+// ── ErrorContext extended fields (Spec 60 Phase 5) ─────────
+
+describe("ErrorContext extended fields", () => {
+  it("should accept relatedDocs", () => {
+    const err = new LinchKitError({
+      code: "rule.business.budget",
+      message: "Budget exceeded",
+      context: {
+        entity: "purchase_request",
+        action: "submit_request",
+        suggestion: "Reduce amount or split into multiple requests",
+        relatedDocs: ["docs/specs/60_observability.md", "docs/rules/budget.md"],
+      },
+    });
+
+    expect(err.context?.relatedDocs).toEqual([
+      "docs/specs/60_observability.md",
+      "docs/rules/budget.md",
+    ]);
+  });
+
+  it("should accept non-string expected and actual values", () => {
+    const err = new LinchKitError({
+      code: "validation.field.range",
+      message: "Out of range",
+      context: {
+        field: "amount",
+        constraint: "max",
+        expected: 50000,
+        actual: 75000,
+      },
+    });
+
+    expect(err.context?.expected).toBe(50000);
+    expect(err.context?.actual).toBe(75000);
+  });
+
+  it("should accept structured expected values (e.g. enum lists)", () => {
+    const err = new LinchKitError({
+      code: "validation.field.enum",
+      message: "Invalid status",
+      context: {
+        field: "status",
+        constraint: "enum",
+        expected: ["draft", "submitted", "approved"],
+        actual: "shipped",
+      },
+    });
+
+    expect(err.context?.expected).toEqual(["draft", "submitted", "approved"]);
+  });
+});
+
+// ── toResponse({ includeContext }) gating ──────────────────
+
+describe("LinchKitError.toResponse includeContext option", () => {
+  const buildErr = () =>
+    new LinchKitError({
+      code: "rule.business.budget",
+      message: "Budget exceeded",
+      context: {
+        entity: "purchase_request",
+        action: "submit_request",
+        suggestion: "Reduce amount",
+      },
+    });
+
+  it("includes context by default (legacy behavior)", () => {
+    const res = buildErr().toResponse();
+    expect(res.error.context).toBeDefined();
+  });
+
+  it("includes context when includeContext: true", () => {
+    const res = buildErr().toResponse({ includeContext: true });
+    expect(res.error.context).toBeDefined();
+    expect(res.error.context?.entity).toBe("purchase_request");
+  });
+
+  it("omits context when includeContext: false", () => {
+    const res = buildErr().toResponse({ includeContext: false });
+    expect(res.error).not.toHaveProperty("context");
+  });
+
+  it("preserves subclass details when includeContext: false", () => {
+    const err = new ValidationError({
+      code: "user.validation.fields",
+      message: "Validation failed",
+      fields: [{ field: "email", message: "required" }],
+      context: { entity: "user", field: "email", suggestion: "Provide email" },
+    });
+    const res = err.toResponse({ includeContext: false });
+    expect(res.error).not.toHaveProperty("context");
+    // Subclass payload (fields) survives the redaction
+    expect(res.error.fields).toEqual([{ field: "email", message: "required" }]);
+  });
+
+  it("preserves NotFoundError resource details when includeContext: false", () => {
+    const err = new NotFoundError({
+      code: "record.not_found.order",
+      message: "Order not found",
+      resource: "order",
+      resourceId: "ord_42",
+      context: { entity: "order", suggestion: "Verify ID" },
+    });
+    const res = err.toResponse({ includeContext: false });
+    expect(res.error).not.toHaveProperty("context");
+    expect(res.error.details).toEqual({ resource: "order", resourceId: "ord_42" });
+  });
+});
+
+// ── isAiAgentCaller helper ────────────────────────────────
+
+describe("isAiAgentCaller", () => {
+  const baseGroups: string[] = [];
+
+  it("returns true for actor.type === 'ai'", () => {
+    const actor: Actor = { type: "ai", id: "agent-1", groups: baseGroups };
+    expect(isAiAgentCaller(actor)).toBe(true);
+  });
+
+  it("returns true when metadata.channel === 'mcp'", () => {
+    const actor: Actor = {
+      type: "human",
+      id: "u1",
+      groups: baseGroups,
+      metadata: { channel: "mcp" },
+    };
+    expect(isAiAgentCaller(actor)).toBe(true);
+  });
+
+  it("returns true when metadata.channel === 'ai'", () => {
+    const actor: Actor = {
+      type: "system",
+      id: "svc",
+      groups: baseGroups,
+      metadata: { channel: "ai" },
+    };
+    expect(isAiAgentCaller(actor)).toBe(true);
+  });
+
+  it("returns false for human actors with no AI metadata", () => {
+    const actor: Actor = { type: "human", id: "u1", groups: baseGroups };
+    expect(isAiAgentCaller(actor)).toBe(false);
+  });
+
+  it("returns false for system actors with no AI metadata", () => {
+    const actor: Actor = { type: "system", id: "svc", groups: baseGroups };
+    expect(isAiAgentCaller(actor)).toBe(false);
+  });
+
+  it("returns false for null/undefined actors", () => {
+    expect(isAiAgentCaller(null)).toBe(false);
+    expect(isAiAgentCaller(undefined)).toBe(false);
+  });
+});
+
+// ── shouldIncludeErrorContext policy ──────────────────────
+
+describe("shouldIncludeErrorContext", () => {
+  let originalEnv: string | undefined;
+
+  beforeEach(() => {
+    originalEnv = process.env.NODE_ENV;
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  it("returns true in non-production for any actor", () => {
+    process.env.NODE_ENV = "development";
+    expect(shouldIncludeErrorContext({ type: "human", id: "u1", groups: [] })).toBe(true);
+    expect(shouldIncludeErrorContext(null)).toBe(true);
+  });
+
+  it("returns true in production only for AI/agent callers", () => {
+    process.env.NODE_ENV = "production";
+    expect(shouldIncludeErrorContext({ type: "ai", id: "agent", groups: [] })).toBe(true);
+    expect(
+      shouldIncludeErrorContext({
+        type: "human",
+        id: "u1",
+        groups: [],
+        metadata: { channel: "mcp" },
+      }),
+    ).toBe(true);
+    expect(shouldIncludeErrorContext({ type: "human", id: "u1", groups: [] })).toBe(false);
+    expect(shouldIncludeErrorContext(null)).toBe(false);
+  });
+
+  it("returns true in test env (NODE_ENV !== production)", () => {
+    process.env.NODE_ENV = "test";
+    expect(shouldIncludeErrorContext(null)).toBe(true);
+  });
+});
+
+// ── Integration: ConflictError context survives toResponse ─
+
+describe("ConflictError context plumbing", () => {
+  it("passes structured context for state-conflict errors", () => {
+    const err = new ConflictError({
+      code: "order.conflict.state",
+      message: "Cannot ship a draft order",
+      currentState: "draft",
+      expectedState: "approved",
+      context: {
+        entity: "order",
+        action: "ship_order",
+        field: "status",
+        constraint: "state_transition",
+        expected: "approved",
+        actual: "draft",
+        suggestion: "Approve the order before shipping",
+      },
+    });
+
+    const res = err.toResponse({ includeContext: true });
+    expect(res.error.context).toBeDefined();
+    expect(res.error.context?.constraint).toBe("state_transition");
+    expect(res.error.currentState).toBe("draft");
+  });
+});
+
+// ── Integration: BusinessRuleError context plumbing ────────
+
+describe("BusinessRuleError context plumbing", () => {
+  it("populates context with rule constraint and expected/actual", () => {
+    const err = new BusinessRuleError({
+      code: "purchase.rule.budget",
+      message: "Amount exceeds budget",
+      rules: [{ rule: "budget_check", effect: "block", message: "Over $50,000" }],
+      context: {
+        entity: "purchase_request",
+        action: "submit_request",
+        constraint: "budget_check",
+        expected: 50000,
+        actual: 75000,
+        suggestion: "Reduce the amount or split the request",
+        relatedDocs: ["docs/rules/budget.md"],
+      },
+    });
+
+    const res = err.toResponse({ includeContext: true });
+    expect(res.error.context?.constraint).toBe("budget_check");
+    expect(res.error.context?.expected).toBe(50000);
+    expect(res.error.context?.relatedDocs).toEqual(["docs/rules/budget.md"]);
   });
 });

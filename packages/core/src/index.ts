@@ -222,15 +222,18 @@ export {
   generateGinIndex,
   generateTranslatableIndexes,
 } from "./entity/translatable-index";
+export type { ToResponseOptions } from "./errors";
 // Error classes
 export {
   AuthenticationError,
   AuthorizationError,
   BusinessRuleError,
   ConflictError,
+  isAiAgentCaller,
   LinchKitError,
   NotFoundError,
   SystemError,
+  shouldIncludeErrorContext,
   ValidationError,
 } from "./errors";
 export type { EventBus, EventHandlerRegistry } from "./event/event-bus";

@@ -5,6 +5,7 @@
  * 401 = authentication (who are you?), 403 = authorization (no permission).
  */
 
+import type { Actor } from "./types/action";
 import type {
   AuthorizationErrorData,
   BusinessRuleErrorData,
@@ -19,6 +20,53 @@ import type {
   ValidationErrorData,
 } from "./types/error";
 import { ERROR_STATUS_MAP } from "./types/error";
+
+// ── Helpers ─────────────────────────────────────────────
+
+/**
+ * Returns true when the actor represents an autonomous AI agent (or an MCP
+ * caller that proxies AI requests). Used by `LinchKitError.toResponse` to
+ * decide whether to surface the structured `context` field in production
+ * responses (Spec 60 §3.4).
+ *
+ * The current `ActorType` union does not include a literal `"mcp"` value
+ * (see `packages/core/src/types/action.ts`). MCP callers identify themselves
+ * via `actor.metadata.channel === "mcp"` after CommandLayer dispatch — we
+ * detect that as a fallback. When/if a dedicated `"mcp"` actor type is
+ * introduced, this helper will start matching it without changes elsewhere.
+ *
+ * TODO(spec-60): widen `ActorType` to include `"mcp"` so this discriminant
+ * does not depend on the metadata fallback.
+ */
+export function isAiAgentCaller(actor: Actor | undefined | null): boolean {
+  if (!actor) return false;
+  if (actor.type === "ai") return true;
+  // Accept future literal "mcp" actor type without TS complaint.
+  if ((actor.type as string) === "mcp") return true;
+  // Bracket notation keeps this resilient to `noPropertyAccessFromIndexSignature`
+  // (Record<string, unknown> can't be dot-accessed under that flag).
+  const channel = actor.metadata?.["channel"];
+  return channel === "mcp" || channel === "ai";
+}
+
+/**
+ * Default policy for whether to include `context` in a serialized error
+ * response: always in non-production, otherwise only for AI/agent callers.
+ */
+export function shouldIncludeErrorContext(actor?: Actor | null): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  return isAiAgentCaller(actor ?? null);
+}
+
+/** Options for `LinchKitError.toResponse`. */
+export interface ToResponseOptions {
+  /**
+   * Controls whether the AI-friendly `context` field is serialized into the
+   * wire response. Defaults to `true` (matches legacy behavior). Callers in
+   * production paths should pass `shouldIncludeErrorContext(actor)`.
+   */
+  includeContext?: boolean;
+}
 
 // ── Base error ──────────────────────────────────────────
 
@@ -48,8 +96,17 @@ export class LinchKitError extends Error {
     this.context = options.context;
   }
 
-  /** Convert to a standardized error response object. */
-  toResponse(): LinchKitErrorResponse {
+  /**
+   * Convert to a standardized error response object.
+   *
+   * `options.includeContext` controls whether the AI-friendly `context`
+   * field is serialized. Defaults to `true` for backwards compatibility;
+   * call sites that ship responses to untrusted callers in production should
+   * pass `shouldIncludeErrorContext(actor)` to gate the field on AI/agent
+   * callers only.
+   */
+  toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const { includeContext = true } = options;
     return {
       success: false,
       error: {
@@ -59,7 +116,7 @@ export class LinchKitError extends Error {
         ...(this.details !== undefined && { details: this.details }),
         ...(this.messageKey !== undefined && { messageKey: this.messageKey }),
         ...(this.messageParams !== undefined && { messageParams: this.messageParams }),
-        ...(this.context !== undefined && { context: this.context }),
+        ...(includeContext && this.context !== undefined && { context: this.context }),
       },
     };
   }
@@ -76,8 +133,8 @@ export class ValidationError extends LinchKitError {
     this.fields = options.fields;
   }
 
-  override toResponse(): LinchKitErrorResponse {
-    const base = super.toResponse();
+  override toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const base = super.toResponse(options);
     if (this.fields) {
       base.error.fields = this.fields;
     }
@@ -98,8 +155,8 @@ export class NotFoundError extends LinchKitError {
     this.resourceId = options.resourceId;
   }
 
-  override toResponse(): LinchKitErrorResponse {
-    const base = super.toResponse();
+  override toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const base = super.toResponse(options);
     if (this.resource || this.resourceId) {
       base.error.details = {
         ...base.error.details,
@@ -133,8 +190,8 @@ export class AuthorizationError extends LinchKitError {
     this.requiredPermissions = options.requiredPermissions;
   }
 
-  override toResponse(): LinchKitErrorResponse {
-    const base = super.toResponse();
+  override toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const base = super.toResponse(options);
     if (this.requiredGroups || this.requiredPermissions) {
       base.error.details = {
         ...base.error.details,
@@ -161,8 +218,8 @@ export class BusinessRuleError extends LinchKitError {
     this.approvalId = options.approvalId;
   }
 
-  override toResponse(): LinchKitErrorResponse {
-    const base = super.toResponse();
+  override toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const base = super.toResponse(options);
     if (this.rules) {
       base.error.rules = this.rules;
     }
@@ -188,8 +245,8 @@ export class ConflictError extends LinchKitError {
     this.expectedState = options.expectedState;
   }
 
-  override toResponse(): LinchKitErrorResponse {
-    const base = super.toResponse();
+  override toResponse(options: ToResponseOptions = {}): LinchKitErrorResponse {
+    const base = super.toResponse(options);
     if (this.currentVersion !== undefined) {
       base.error.currentVersion = this.currentVersion;
     }
