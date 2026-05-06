@@ -2,12 +2,12 @@
  * E2E tests for AI Service — real API calls.
  *
  * Requires VOLCENGINE_API_KEY env var.
- * Run: VOLCENGINE_API_KEY=sk-xxx bun test packages/core/__tests__/ai-service-e2e.test.ts
+ * Run: VOLCENGINE_API_KEY=sk-xxx bun test addons/ai-provider/cap-ai-provider/__tests__/ai-service-e2e.test.ts
  */
 import { describe, expect, it } from "bun:test";
-import { createAIService } from "@linchkit/cap-ai-provider";
+import type { AIServiceConfig } from "@linchkit/core";
 import { z } from "zod";
-import type { AIServiceConfig } from "../src/types/ai";
+import { createAIService } from "../src/ai-service";
 
 const apiKey = process.env.VOLCENGINE_API_KEY;
 
