@@ -35,6 +35,18 @@ export interface ActionProposalCardProps {
   onCancel?: () => void;
 }
 
+function resolveTranslatableLabel(
+  raw: string | undefined,
+  fallback: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (!raw) return fallback;
+  if (raw.startsWith("t:")) {
+    return t(raw.slice(2), { defaultValue: fallback });
+  }
+  return raw;
+}
+
 // ── Field Editor ────────────────────────────────────────
 
 function FieldEditor({
@@ -50,7 +62,8 @@ function FieldEditor({
   onChange: (value: unknown) => void;
   disabled: boolean;
 }) {
-  const label = schema.label ?? name;
+  const { t } = useTranslation();
+  const label = resolveTranslatableLabel(schema.label, name, t);
 
   // Enum/select field
   if (schema.options && schema.options.length > 0) {
@@ -67,7 +80,7 @@ function FieldEditor({
           <SelectContent>
             {schema.options.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label ?? opt.value}
+                {resolveTranslatableLabel(opt.label, opt.value, t)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -185,6 +198,7 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
 
   const isEditable = status === "pending";
   const inputFields = Object.entries(intent.inputSchema);
+  const actionLabel = resolveTranslatableLabel(intent.actionLabel, intent.action, t);
 
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
@@ -193,7 +207,7 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <PlayIcon className="size-3 text-primary" />
-            <span className="text-xs font-semibold">{intent.actionLabel ?? intent.action}</span>
+            <span className="text-xs font-semibold">{actionLabel}</span>
           </div>
           <ConfidenceBadge confidence={intent.confidence} />
         </div>

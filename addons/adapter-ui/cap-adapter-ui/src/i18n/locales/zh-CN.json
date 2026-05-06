@@ -410,6 +410,22 @@
     "errorDetails": "错误详情",
     "noEditableFields": "没有可编辑的字段。"
   },
+  "bulkAction": {
+    "menu": "运行动作…",
+    "title": "运行批量动作",
+    "description": "选择一个动作以应用到 {{count}} 条已选记录。",
+    "action": "动作",
+    "choosePlaceholder": "选择一个动作…",
+    "runOnCount": "应用到 {{count}} 条记录",
+    "running": "正在对选中的记录执行动作…",
+    "summary": "{{ok}} 成功，{{fail}} 失败",
+    "succeeded": "成功 ({{count}})",
+    "succeededDescription": "记录已成功更新。",
+    "failed": "失败 ({{count}})",
+    "rolledBack": "已回滚 ({{count}})",
+    "rolledBackDescription": "这些项目原本成功，但因后续项目失败而被回滚。",
+    "noActions": "没有可批量运行的动作。"
+  },
   "states": {
     "draft": "草稿",
     "pending": "待审批",

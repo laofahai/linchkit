@@ -13,6 +13,7 @@ import {
   Download,
   MoreHorizontal,
   Pencil,
+  PlayCircle,
   RefreshCw,
   Trash2,
   Upload,
@@ -41,6 +42,12 @@ interface ListToolbarProps {
   selectedCount?: number;
   onBulkAction?: (actionName: string) => void;
   onClearSelection?: () => void;
+  /**
+   * Whether the entity exposes any view-level actions runnable in batch.
+   * When true, a "Run action…" menu item appears in the bulk dropdown that
+   * opens the action chooser bound to `/api/actions/batch`.
+   */
+  hasBatchActions?: boolean;
   /** bazza filter props passed through to SearchBar */
   bazzaColumns?: Column<Record<string, unknown>>[] | undefined;
   bazzaFilters?: FiltersState | undefined;
@@ -80,6 +87,7 @@ export function ListToolbar({
   selectedCount = 0,
   onBulkAction,
   onClearSelection,
+  hasBatchActions = false,
   bazzaColumns,
   bazzaFilters,
   bazzaActions,
@@ -146,6 +154,12 @@ export function ListToolbar({
                   <Pencil className="mr-2 size-3.5" />
                   {t("bulkEdit.title", "Bulk Edit")}
                 </DropdownMenuItem>
+                {hasBatchActions && (
+                  <DropdownMenuItem onClick={() => onBulkAction?.("run_action")}>
+                    <PlayCircle className="mr-2 size-3.5" />
+                    {t("bulkAction.menu", "Run action…")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => onBulkAction?.("export")}>
                   <Download className="mr-2 size-3.5" />
                   {t("common.export")}

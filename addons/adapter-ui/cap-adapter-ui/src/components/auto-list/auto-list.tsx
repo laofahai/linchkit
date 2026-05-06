@@ -40,6 +40,7 @@ import { useEntityLabel } from "../../i18n/use-entity-label";
 import { useDataTableFilters } from "../data-table-filter";
 import type { FiltersState } from "../data-table-filter/core/types";
 import { EmptyState } from "../empty-state";
+import { BulkActionDialog } from "./bulk-action-dialog";
 import { BulkEditDialog } from "./bulk-edit-dialog";
 import { buildColumns, buildSelectionColumn } from "./columns";
 import { exportCsv } from "./csv-export";
@@ -365,6 +366,7 @@ export function AutoList({
   const setGlobalFilter = onGlobalFilterChangeProp ?? setInternalGlobalFilter;
   const [importOpen, setImportOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
 
   // ── AI search (schema mode only) ────────────────────────────────────────
 
@@ -637,6 +639,13 @@ export function AutoList({
         setBulkEditOpen(true);
         return;
       }
+      // Sentinel that opens the action chooser → /api/actions/batch dispatcher
+      // (Spec 16 §3.1). Distinct from `'edit'` which opens the field-level
+      // bulk-edit dialog.
+      if (actionName === "run_action") {
+        setBulkActionOpen(true);
+        return;
+      }
       onBulkAction?.(actionName, selectedIds);
     },
     [handleExportSelected, onBulkAction, selectedIds],
@@ -724,6 +733,9 @@ export function AutoList({
         onImport={isSchemaMode ? () => setImportOpen(true) : undefined}
         onBulkAction={isSchemaMode ? handleBulkAction : undefined}
         onClearSelection={isSchemaMode ? () => setRowSelection({}) : undefined}
+        hasBatchActions={
+          isSchemaMode && (view?.actions ?? []).some((a) => (a.position ?? "row") !== "form-header")
+        }
         bazzaColumns={isSchemaMode ? bazzaColumns : undefined}
         bazzaFilters={isSchemaMode ? bazzaFilterState : undefined}
         bazzaActions={isSchemaMode ? bazzaActions : undefined}
@@ -759,6 +771,17 @@ export function AutoList({
             schema={schema}
             selectedIds={selectedIds}
             queryFields={queryFields}
+            onCompleted={() => {
+              setRowSelection({});
+              onRefresh?.();
+            }}
+          />
+
+          <BulkActionDialog
+            open={bulkActionOpen}
+            onOpenChange={setBulkActionOpen}
+            selectedIds={selectedIds}
+            actions={view?.actions ?? []}
             onCompleted={() => {
               setRowSelection({});
               onRefresh?.();
