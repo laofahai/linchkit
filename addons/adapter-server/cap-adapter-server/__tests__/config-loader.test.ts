@@ -20,7 +20,7 @@ describe("loadConfig", () => {
     const projectRoot = resolve(import.meta.dir, "../../../..");
     const config = await loadConfig({ root: projectRoot });
     expect(config.server?.port).toBe(3001);
-    expect(config.ai?.defaultProvider).toBe("volcengine");
+    expect(config.ai?.defaultProvider).toBe("zhipu");
   });
 
   it("resolves $env placeholders in the loaded config", async () => {

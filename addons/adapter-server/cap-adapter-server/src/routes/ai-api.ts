@@ -516,13 +516,19 @@ Only include fields where you have genuine confidence. Omit fields where you wou
           },
         });
 
-        // Build context-aware tools (query, execute, describe, navigate)
+        // Build context-aware tools (query, describe, navigate). Writes are
+        // routed through the propose-and-confirm flow (intent resolver +
+        // ActionProposalCard) — chat is read-only. Known gap: when the
+        // intent resolver misses a low-confidence actionable prompt and
+        // falls back here, the conversation can't recover via "yes, do it".
+        // Tracked: #238.
         const tools = buildTools({
           dataProvider: scopedProvider,
           commandLayer: options.commandLayer,
           entityRegistry,
           ontologyRegistry: options.ontologyRegistry,
           actor,
+          allowActionExecution: false,
         });
 
         // Convert UIMessage[] (from @ai-sdk/react useChat) to ModelMessage[] (for streamText)
@@ -672,6 +678,7 @@ Rules:
 - Only match actions from the available list above.
 - Extract parameter values from the user message. Convert types appropriately (strings to numbers, etc.).
 - The user may write in any language (including Chinese like "创建采购请求"). Match intent regardless of input language.
+- For destructive actions such as delete/remove/cancel, require a specific target identifier or unambiguous record reference. If the user says "delete all", "remove all", or does not specify which record, set action to null and confidence to 0.
 - If you cannot determine a good match, set action to null and confidence to 0.
 - If some required fields are missing from the user message, list them in missingFields.
 - If confidence < 0.7, include up to 3 alternative interpretations in "alternatives".
@@ -719,6 +726,20 @@ Rules:
         const matchedAction = actionRegistry.get(parsed.action);
         if (!matchedAction || aiDisabledSchemas.has(matchedAction.entity)) {
           return { success: true, data: null };
+        }
+
+        // Code-level backstop for destructive intents: prompt-only rules can
+        // still be subverted by the model. Reject delete/remove/cancel
+        // proposals unless the user supplied an explicit target id (parsed
+        // input) or the page is already scoped to a single record (context).
+        const isDestructiveAction = /^(delete|remove|cancel)_/.test(matchedAction.name);
+        if (isDestructiveAction) {
+          const explicitId =
+            typeof parsed.input?.id === "string" && parsed.input.id.trim().length > 0;
+          const scopedRecord = typeof context?.recordId === "string" && context.recordId.length > 0;
+          if (!explicitId && !scopedRecord) {
+            return { success: true, data: null };
+          }
         }
 
         return {

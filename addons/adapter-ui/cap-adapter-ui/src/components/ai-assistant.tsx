@@ -7,9 +7,9 @@
  * - Tool/function calling support (server-side tools rendered automatically)
  * - Context-aware: passes current schema/record context with each request
  *
- * When AI is enabled, also performs parallel intent resolution on each user
- * message. If a matching action is found (confidence >= 0.5), an
- * ActionProposalCard is shown inline — the user can confirm execution or cancel.
+ * When AI is enabled, it resolves intent first. Actionable requests show an
+ * ActionProposalCard directly; only non-actionable prompts fall back to the
+ * general chat endpoint.
  */
 
 import { useChat } from "@ai-sdk/react";
@@ -42,6 +42,14 @@ import { ActionProposalCard } from "./action-proposal-card";
 interface ProposalItem {
   id: string;
   intent: IntentResolution;
+}
+
+function createTextMessage(role: "user" | "assistant", text: string): UIMessage {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    parts: [{ type: "text", text }],
+  };
 }
 
 // ── Component ────────────────────────────────────────────
@@ -108,39 +116,45 @@ export function AIAssistant({
     setProposals((prev) => prev.filter((p) => p.id !== proposalId));
   }, []);
 
-  // Remove proposal after execution completes (success or error)
-  const handleProposalComplete = useCallback((_proposalId: string, _result: ActionResult) => {
-    setProposals((prev) => prev.filter((p) => p.id !== _proposalId));
+  // Remove proposal only on a successful execution. On failure (validation,
+  // business rule, network), the card stays so the user can read the error
+  // message and edit the proposed inputs before retrying — without this, a
+  // rejected proposal disappears immediately and the user has no path to
+  // recover short of typing the request again.
+  const handleProposalComplete = useCallback((proposalId: string, result: ActionResult) => {
+    if (result.success) {
+      setProposals((prev) => prev.filter((p) => p.id !== proposalId));
+    }
   }, []);
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const textarea = inputRef.current;
     if (!textarea) return;
     const trimmed = textarea.value.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading || isResolvingIntent) return;
 
-    sendMessage({ text: trimmed });
     textarea.value = "";
 
-    // Parallel intent resolution — fire and forget, graceful on failure
     if (isAiEnabled()) {
       setIsResolvingIntent(true);
-      resolveIntent(trimmed, { schema: params.name, recordId: params.id })
-        .then((result) => {
-          if (result && result.confidence >= 0.5) {
-            const proposalId = crypto.randomUUID();
-            setProposals((prev) => [...prev, { id: proposalId, intent: result }]);
-          }
-        })
-        .catch(() => {
-          // AI unavailable — chat continues normally, no proposal shown
-        })
-        .finally(() => {
-          setIsResolvingIntent(false);
-        });
+      try {
+        const result = await resolveIntent(trimmed, { schema: params.name, recordId: params.id });
+        if (result && result.confidence >= 0.5) {
+          setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
+          const proposalId = crypto.randomUUID();
+          setProposals((prev) => [...prev, { id: proposalId, intent: result }]);
+          return;
+        }
+      } catch {
+        // AI intent resolution unavailable — fall back to general chat
+      } finally {
+        setIsResolvingIntent(false);
+      }
     }
-  }, [isLoading, sendMessage, params.name, params.id]);
+
+    sendMessage({ text: trimmed });
+  }, [isLoading, isResolvingIntent, params.name, params.id, sendMessage, setMessages]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -289,9 +303,13 @@ export function AIAssistant({
               rows={1}
               className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               style={{ maxHeight: "120px" }}
-              disabled={isLoading}
+              disabled={isLoading || isResolvingIntent}
             />
-            <Button size="icon-sm" onClick={handleSend} disabled={isLoading}>
+            <Button
+              size="icon-sm"
+              onClick={() => void handleSend()}
+              disabled={isLoading || isResolvingIntent}
+            >
               <SendIcon className="size-3.5" />
             </Button>
           </div>

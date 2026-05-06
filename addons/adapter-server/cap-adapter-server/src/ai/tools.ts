@@ -29,6 +29,8 @@ export interface ToolContext {
   ontologyRegistry?: OntologyRegistry;
   /** Current authenticated actor (for command layer execution) */
   actor?: Actor;
+  /** Whether mutating action execution should be exposed to the AI */
+  allowActionExecution?: boolean;
 }
 
 /**
@@ -98,7 +100,7 @@ export function buildTools(ctx: ToolContext) {
   }
 
   // ── Execute action tool ──────────────────────────────────
-  if (ctx.commandLayer) {
+  if (ctx.commandLayer && ctx.allowActionExecution !== false) {
     const cl = ctx.commandLayer;
     const actor = ctx.actor ?? { type: "system" as const, id: "ai-assistant", groups: [] };
 

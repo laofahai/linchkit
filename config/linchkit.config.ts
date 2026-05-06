@@ -14,7 +14,7 @@ export default defineConfig({
   },
 
   ai: {
-    defaultProvider: "volcengine",
+    defaultProvider: "zhipu",
     providers: {
       anthropic: {
         apiKey: "$env.ANTHROPIC_API_KEY",
@@ -23,6 +23,28 @@ export default defineConfig({
           fast: "claude-haiku-4-5-20251001",
           standard: "claude-sonnet-4-20250514",
           advanced: "claude-opus-4-20250514",
+        },
+      },
+      zhipu: {
+        type: "openai",
+        apiKey: "$env.ZHIPU_API_KEY",
+        endpoint: "https://open.bigmodel.cn/api/paas/v4",
+        defaultModel: "glm-4-flash-250414",
+        models: {
+          fast: "glm-4-flash-250414",
+          standard: "glm-4-flash-250414",
+          advanced: "glm-4-flash-250414",
+        },
+      },
+      openrouter: {
+        type: "openai",
+        apiKey: "$env.OPENROUTER_API_KEY",
+        endpoint: "https://openrouter.ai/api/v1",
+        defaultModel: "qwen/qwen3-coder:free",
+        models: {
+          fast: "qwen/qwen3-coder:free",
+          standard: "qwen/qwen3-coder:free",
+          advanced: "qwen/qwen3-coder:free",
         },
       },
       volcengine: {
