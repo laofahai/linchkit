@@ -202,17 +202,8 @@ export {
 } from "./observability/trace-context";
 
 // === AI service ===
-// NOTE: createAIService and resolveLanguageModel moved to @linchkit/cap-ai-provider (Spec 56).
-// Core retains only config helpers and the noop fallback.
 
-export {
-  createNoopAIService,
-  defaultAIConfig,
-  resolveModel,
-  resolveModelRoute,
-  resolveTenantConfig,
-  validateConfig as validateAIConfig,
-} from "./ai/ai-service";
+export { createNoopAIService } from "./ai/ai-service";
 
 // === AI Cost Estimator (server-only) ===
 

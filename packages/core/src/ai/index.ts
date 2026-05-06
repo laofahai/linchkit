@@ -31,16 +31,7 @@ export type {
   RateLimitWindow,
 } from "./ai-rate-limiter";
 export { AIRateLimiter } from "./ai-rate-limiter";
-// NOTE: createAIService and resolveLanguageModel moved to @linchkit/cap-ai-provider (Spec 56).
-// Core retains only config helpers and the noop fallback.
-export {
-  createNoopAIService,
-  defaultAIConfig,
-  resolveModel,
-  resolveModelRoute,
-  resolveTenantConfig,
-  validateConfig,
-} from "./ai-service";
+export { createNoopAIService } from "./ai-service";
 // Anomaly Detector
 export type {
   AnomalyDetection,
