@@ -22,7 +22,7 @@ import type { ExecutionMeta } from "../types/execution-meta";
 import {
   createExecutionMeta,
   extendExecutionMeta,
-  FRAMEWORK_RESERVED_META_KEYS,
+  extractAdapterSystemKeys,
   MetaSizeError,
   redactMetaForLog,
 } from "../types/execution-meta";
@@ -409,17 +409,14 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // ApprovalEngine.approve() forwards the persisted `actorSystemMeta`
     // through this same channel on replay so adapter attribution survives
     // suspend / replay (#230).
-    const adapterSystemMeta: Record<string, unknown> = {};
+    // Reuse the shared `extractAdapterSystemKeys` helper so the framework-
+    // reserved key boundary stays consistent with ApprovalEngine's persist
+    // path (single source of truth in execution-meta.ts).
     const providedSystemMeta = execOptions?.systemMeta;
-    if (providedSystemMeta && currentDepth === 0) {
-      for (const [k, v] of Object.entries(providedSystemMeta)) {
-        // Only `_`-prefixed keys are system keys; ignore non-system entries
-        // so adapters can't accidentally use this channel for user data.
-        if (!k.startsWith("_")) continue;
-        if (FRAMEWORK_RESERVED_META_KEYS.has(k)) continue;
-        adapterSystemMeta[k] = v;
-      }
-    }
+    const adapterSystemMeta: Record<string, unknown> =
+      (providedSystemMeta && currentDepth === 0
+        ? extractAdapterSystemKeys(providedSystemMeta)
+        : undefined) ?? {};
 
     const rootSystemDefaults: Record<string, unknown> = {
       ...adapterSystemMeta,
