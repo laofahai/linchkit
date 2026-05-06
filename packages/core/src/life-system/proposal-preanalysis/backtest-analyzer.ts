@@ -46,6 +46,7 @@ import type { BacktestResult, PreAnalyzer } from "./types";
 
 /** Default historical window when callers don't pin one. Spec 55 §7.3. */
 const DEFAULT_WINDOW_DAYS = 30;
+const DEFAULT_MAX_RECORDS_TO_SCAN = 10_000;
 
 /** Targets the analyzer knows how to replay. */
 const REPLAYABLE_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set<ProposalChangeTarget>([
@@ -67,8 +68,22 @@ const REPLAYABLE_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set<ProposalCh
 export interface BacktestDataProvider {
   /** Return execution log entries with `startedAt >= since`. */
   listExecutionsSince(since: Date): Promise<ExecutionLogEntry[]>;
-  /** Return entity rows for replay (used by entity-field constraint checks). */
-  listRecords(entity: string): Promise<Array<Record<string, unknown>>>;
+  /**
+   * Optional action-filtered scan. When the underlying store can index by
+   * action name (DB column, structured log) callers should implement this so
+   * the analyzer doesn't pull every execution into memory and filter in JS.
+   * If absent, the analyzer falls back to `listExecutionsSince` + filter.
+   */
+  listExecutionsByAction?(
+    actionNames: readonly string[],
+    since: Date,
+  ): Promise<ExecutionLogEntry[]>;
+  /**
+   * Return entity rows for replay (used by entity-field constraint checks).
+   * Honor the `limit` argument when provided — for large entities the
+   * analyzer asks for only `maxRecordsToScan` rows.
+   */
+  listRecords(entity: string, limit?: number): Promise<Array<Record<string, unknown>>>;
   /**
    * Return historical state-transition rows for `entity` in the window. When
    * absent, the analyzer derives transitions from execution log entries that
@@ -87,6 +102,13 @@ export interface CreateBacktestAnalyzerOptions {
   dataProvider: BacktestDataProvider;
   /** Window in days. Default: 30. Negative / NaN values fall back to the default. */
   windowDays?: number;
+  /**
+   * Cap on records scanned per entity-replay branch. Defaults to 10_000 to
+   * keep pre-analysis bounded for large stores. When the cap is hit the
+   * analyzer surfaces `entity:scan-truncated:<count>` in the summary so
+   * reviewers know the count is a lower bound.
+   */
+  maxRecordsToScan?: number;
   /** Optional clock for deterministic tests. Default: `() => new Date()`. */
   now?: () => Date;
 }
@@ -107,6 +129,14 @@ function isReplayableChange(change: ProposalChange): boolean {
 function resolveWindowDays(input: number | undefined): number {
   if (typeof input !== "number" || !Number.isFinite(input) || input <= 0) {
     return DEFAULT_WINDOW_DAYS;
+  }
+  return Math.floor(input);
+}
+
+/** Coerce the `maxRecordsToScan` option to a positive integer with the default. */
+function resolveMaxRecordsToScan(input: number | undefined): number {
+  if (typeof input !== "number" || !Number.isFinite(input) || input <= 0) {
+    return DEFAULT_MAX_RECORDS_TO_SCAN;
   }
   return Math.floor(input);
 }
@@ -149,6 +179,12 @@ function ctxFromExecution(entry: ExecutionLogEntry): {
       entity: entry.entity ?? "",
       recordId: entry.recordId ?? "",
       status: entry.status,
+      // Surface state-transition payload so declarative conditions that depend
+      // on transition metadata (e.g. context.from / context.to) can evaluate
+      // against historical executions.
+      from: entry.stateTransition?.from,
+      to: entry.stateTransition?.to,
+      stateTransition: entry.stateTransition,
     },
     actor: {
       type: entry.actor?.type ?? "system",
@@ -166,6 +202,7 @@ interface ReplayContext {
   provider: BacktestDataProvider;
   windowDays: number;
   windowSince: Date;
+  maxRecordsToScan: number;
 }
 
 interface BranchResult {
@@ -183,7 +220,15 @@ async function replayRule(change: ProposalChange, ctx: ReplayContext): Promise<B
   }
 
   const actionNames = actionNamesFromTrigger(def.trigger);
-  const executions = await ctx.provider.listExecutionsSince(ctx.windowSince);
+  // Prefer indexed action-filtered scan when the provider supports it. Falling
+  // back to listExecutionsSince + JS filter is fine for in-memory test doubles
+  // but unsuitable for production-sized stores.
+  let executions: ExecutionLogEntry[];
+  if (actionNames && typeof ctx.provider.listExecutionsByAction === "function") {
+    executions = await ctx.provider.listExecutionsByAction(actionNames, ctx.windowSince);
+  } else {
+    executions = await ctx.provider.listExecutionsSince(ctx.windowSince);
+  }
 
   let triggered = 0;
   for (const entry of executions) {
@@ -293,11 +338,19 @@ async function replayEntity(change: ProposalChange, ctx: ReplayContext): Promise
   // Creating a brand-new entity has no historical rows to replay against.
   if (change.operation === "create") return { count: 0, note: "entity:create-no-history" };
 
-  const records = await ctx.provider.listRecords(def.name);
-  if (records.length === 0) return { count: 0 };
+  // Bounded scan: ask the provider for `maxRecordsToScan + 1` rows so we can
+  // detect a truncation event even when the provider honors the limit hint.
+  // Providers that ignore the hint still get a JS-side slice safety net so
+  // memory pressure stays predictable.
+  const probe = ctx.maxRecordsToScan + 1;
+  const fetched = await ctx.provider.listRecords(def.name, probe);
+  if (fetched.length === 0) return { count: 0 };
 
   const fieldEntries = Object.entries(def.fields);
   if (fieldEntries.length === 0) return { count: 0 };
+
+  const truncated = fetched.length >= probe;
+  const records = truncated ? fetched.slice(0, ctx.maxRecordsToScan) : fetched;
 
   let violations = 0;
   for (const record of records) {
@@ -310,7 +363,11 @@ async function replayEntity(change: ProposalChange, ctx: ReplayContext): Promise
     }
     if (recordViolates) violations++;
   }
-  return { count: violations };
+
+  return {
+    count: violations,
+    note: truncated ? `entity:scan-truncated:${ctx.maxRecordsToScan}` : undefined,
+  };
 }
 
 // ── Public factory ─────────────────────────────────────────
@@ -319,6 +376,7 @@ export function createBacktestAnalyzer(
   options: CreateBacktestAnalyzerOptions,
 ): PreAnalyzer<"backtest", BacktestResult> {
   const windowDays = resolveWindowDays(options.windowDays);
+  const maxRecordsToScan = resolveMaxRecordsToScan(options.maxRecordsToScan);
   const now = options.now ?? (() => new Date());
 
   return {
@@ -339,6 +397,7 @@ export function createBacktestAnalyzer(
         provider: options.dataProvider,
         windowDays,
         windowSince: windowStart(now(), windowDays),
+        maxRecordsToScan,
       };
 
       let total = 0;

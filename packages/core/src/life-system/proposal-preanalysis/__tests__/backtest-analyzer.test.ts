@@ -41,6 +41,8 @@ function makeExecution(opts: MakeExecutionInput): ExecutionLogEntry {
 
 interface MakeProviderOptions {
   executions?: ExecutionLogEntry[];
+  /** When provided, exposes the optional listExecutionsByAction provider hook. */
+  executionsByAction?: Record<string, ExecutionLogEntry[]>;
   records?: Record<string, Array<Record<string, unknown>>>;
   transitions?: Record<string, Array<{ from: string; to: string; recordId: string }>>;
   failOn?: "executions" | "records" | "transitions";
@@ -70,12 +72,24 @@ function makeProvider(
       if (opts.failOn === "executions") throw new Error("boom-executions");
       return (opts.executions ?? []).filter((e) => e.startedAt >= since);
     },
-    async listRecords(entity) {
-      calls.push({ kind: "records", arg: entity });
+    async listRecords(entity, limit) {
+      calls.push({ kind: "records", arg: { entity, limit } });
       if (opts.failOn === "records") throw new Error("boom-records");
-      return opts.records?.[entity] ?? [];
+      const all = opts.records?.[entity] ?? [];
+      return typeof limit === "number" ? all.slice(0, limit) : all;
     },
   };
+  if (opts.executionsByAction) {
+    provider.listExecutionsByAction = async (actionNames, since) => {
+      calls.push({ kind: "executions", arg: { actionNames, since, indexed: true } });
+      lastSince = since;
+      const out: ExecutionLogEntry[] = [];
+      for (const name of actionNames) {
+        out.push(...(opts.executionsByAction?.[name] ?? []));
+      }
+      return out.filter((e) => e.startedAt >= since);
+    };
+  }
   if (opts.transitions || opts.failOn === "transitions") {
     provider.listStateTransitions = async (entity, since) => {
       calls.push({ kind: "transitions", arg: { entity, since } });
@@ -544,5 +558,119 @@ describe("createBacktestAnalyzer", () => {
     // Without a definition the change is filtered out as non-replayable.
     expect(result.hypotheticalTriggerCount).toBe(0);
     expect(result.summary).toBe("no replayable changes");
+  });
+
+  test("prefers listExecutionsByAction when the provider exposes it", async () => {
+    const matching: ExecutionLogEntry[] = [
+      makeExecution({ id: "a1", action: "submit_request", input: { amount: 1000 } }),
+      makeExecution({ id: "a2", action: "submit_request", input: { amount: 1500 } }),
+    ];
+    const provider = makeProvider({
+      executionsByAction: { submit_request: matching },
+      // listExecutionsSince is still wired but should not be called.
+      executions: [makeExecution({ id: "x", action: "submit_request", input: { amount: 9999 } })],
+    });
+
+    const ruleDef: RuleDefinition = {
+      name: "high_value_block",
+      label: "block",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gte", value: 1000 },
+      effect: { type: "block", message: "x" },
+    };
+    const proposal = makeProposal({
+      changes: [{ target: "rule", operation: "create", name: ruleDef.name, definition: ruleDef }],
+    });
+
+    const analyzer = createBacktestAnalyzer({ dataProvider: provider, now: () => FIXED_NOW });
+    const result = await analyzer.analyze(proposal);
+
+    // Both indexed entries should match — sentinel from listExecutionsSince must be ignored.
+    expect(result.hypotheticalTriggerCount).toBe(2);
+    expect(provider.calls.some((c) => c.kind === "executions")).toBe(true);
+    expect(
+      provider.calls.find((c) => c.kind === "executions")?.arg as {
+        indexed?: boolean;
+      },
+    ).toMatchObject({ indexed: true, actionNames: ["submit_request"] });
+  });
+
+  test("ctxFromExecution exposes from/to from stateTransition for declarative conditions", async () => {
+    const executions: ExecutionLogEntry[] = [
+      makeExecution({
+        id: "t1",
+        action: "advance_state",
+        entity: "purchase_request",
+        input: {},
+        stateTransition: { from: "draft", to: "submitted" },
+      }),
+      makeExecution({
+        id: "t2",
+        action: "advance_state",
+        entity: "purchase_request",
+        input: {},
+        stateTransition: { from: "submitted", to: "approved" },
+      }),
+    ];
+    const provider = makeProvider({ executions });
+
+    const ruleDef: RuleDefinition = {
+      name: "audit_initial_submit",
+      label: "audit",
+      trigger: { action: "advance_state" },
+      // Condition reads context.to — only the submitted-bound transition matches.
+      condition: { field: "context.to", operator: "eq", value: "submitted" },
+      effect: { type: "block", message: "x" },
+    };
+    const proposal = makeProposal({
+      changes: [{ target: "rule", operation: "create", name: ruleDef.name, definition: ruleDef }],
+    });
+
+    const analyzer = createBacktestAnalyzer({ dataProvider: provider, now: () => FIXED_NOW });
+    const result = await analyzer.analyze(proposal);
+
+    expect(result.hypotheticalTriggerCount).toBe(1);
+  });
+
+  test("entity replay caps scan at maxRecordsToScan and surfaces a truncation note", async () => {
+    const entity: EntityDefinition = {
+      name: "purchase_request",
+      fields: { reference: { type: "string", required: true, label: "Reference" } },
+    };
+    // 250 records, half violate (no reference). The test caps at 100 — we expect
+    // only the first 100 to be inspected.
+    const records = Array.from({ length: 250 }, (_, i) => ({
+      reference: i % 2 === 0 ? null : `REQ-${i}`,
+    }));
+    const provider = makeProvider({ records: { purchase_request: records } });
+
+    const proposal = makeProposal({
+      changes: [
+        {
+          target: "entity",
+          operation: "update",
+          name: entity.name,
+          definition: entity,
+        },
+      ],
+    });
+
+    const analyzer = createBacktestAnalyzer({
+      dataProvider: provider,
+      now: () => FIXED_NOW,
+      maxRecordsToScan: 100,
+    });
+    const result = await analyzer.analyze(proposal);
+
+    // Half of the first 100 violate → 50.
+    expect(result.hypotheticalTriggerCount).toBe(50);
+    expect(result.summary).toContain("entity:scan-truncated:100");
+    // Provider was asked with limit `maxRecordsToScan + 1` so the analyzer
+    // can detect overflow without trusting the hint to be honored.
+    const recordsCall = provider.calls.find((c) => c.kind === "records");
+    expect(recordsCall?.arg as { entity: string; limit: number | undefined }).toMatchObject({
+      entity: "purchase_request",
+      limit: 101,
+    });
   });
 });
