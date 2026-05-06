@@ -410,6 +410,22 @@
     "errorDetails": "Error details",
     "noEditableFields": "No editable fields available."
   },
+  "bulkAction": {
+    "menu": "Run action…",
+    "title": "Run batch action",
+    "description": "Choose an action to run against {{count}} selected records.",
+    "action": "Action",
+    "choosePlaceholder": "Select an action…",
+    "runOnCount": "Run on {{count}} records",
+    "running": "Running action against selected records…",
+    "summary": "{{ok}} succeeded, {{fail}} failed",
+    "succeeded": "Succeeded ({{count}})",
+    "succeededDescription": "Records updated successfully.",
+    "failed": "Failed ({{count}})",
+    "rolledBack": "Rolled back ({{count}})",
+    "rolledBackDescription": "These items succeeded but were undone because a later item failed.",
+    "noActions": "No actions available for the selected records."
+  },
   "states": {
     "draft": "Draft",
     "pending": "Pending",
