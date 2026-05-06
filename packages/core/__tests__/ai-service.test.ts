@@ -12,7 +12,7 @@ describe("createNoopAIService", () => {
   it("throws on complete() with a helpful message", () => {
     const noop = createNoopAIService();
     expect(() => noop.complete({ messages: [{ role: "user", content: "hello" }] })).toThrow(
-      "AI service is not configured",
+      "AI service is not configured. Add an 'ai' section to your LinchKit config.",
     );
   });
 });
