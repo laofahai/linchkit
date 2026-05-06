@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { EventBus, EventHandlerRegistry } from "../src/event/event-bus";
 import { createPersistentEventBus, PersistentEventBus } from "../src/event/persistent-event-bus";
 import type { EventHandlerDefinition, EventRecord } from "../src/types/event";
+import { ExecutionMetaImpl } from "../src/types/execution-meta";
 
 // ── Test helpers ────────────────────────────────────────────
 
@@ -259,6 +260,36 @@ describe("PersistentEventBus persistence", () => {
     await bus.emit(makeEvent("action.succeeded", { action: "approve_order" }));
 
     expect(insertedRows[0].sourceAction).toBe("approve_order");
+  });
+
+  it("persists ExecutionMeta snapshot on emit (Spec 65 §7, issue #228)", async () => {
+    const { mockDb, insertedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+
+    const event = makeEvent("order.created", { action: "create_order" });
+    event.meta = new ExecutionMetaImpl({ skip_notifications: true, source: "import" });
+
+    await bus.emit(event);
+
+    expect(insertedRows).toHaveLength(1);
+    expect(insertedRows[0].meta).toEqual({
+      skip_notifications: true,
+      source: "import",
+    });
+  });
+
+  it("persists null meta when event has no ExecutionMeta", async () => {
+    const { mockDb, insertedRows } = createMockDb();
+    const registry = new EventHandlerRegistry();
+    // biome-ignore lint/suspicious/noExplicitAny: mock db for testing
+    const bus = new PersistentEventBus(mockDb as any, registry);
+
+    await bus.emit(makeEvent("system.heartbeat"));
+
+    expect(insertedRows).toHaveLength(1);
+    expect(insertedRows[0].meta).toBeNull();
   });
 });
 
