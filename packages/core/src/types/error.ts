@@ -28,6 +28,11 @@ export type ErrorType =
 /**
  * Structured context for AI agents to understand and fix errors autonomously.
  * Populated by engines (ActionEngine, RuleEngine, StateMachine, ValidationEngine).
+ *
+ * Visibility: see `LinchKitError.toResponse({ includeContext })`. In production
+ * this field is only serialized for AI/agent callers (`isAiAgentCaller`).
+ *
+ * Sensitive values: callers MUST redact secrets before populating `actual`.
  */
 export interface ErrorContext {
   /** Which entity was involved */
@@ -36,14 +41,16 @@ export interface ErrorContext {
   action?: string;
   /** Which field caused the issue */
   field?: string;
-  /** Which constraint failed (rule name, validation name) */
+  /** Which constraint failed (rule name, validation name, e.g. "required", "enum", "min", "format") */
   constraint?: string;
-  /** What was expected */
-  expected?: string;
-  /** What was provided */
-  actual?: string;
-  /** What to change (human-readable suggestion) */
+  /** What was expected (constraint value) */
+  expected?: unknown;
+  /** What was provided — already redacted if sensitive */
+  actual?: unknown;
+  /** What to change (one short, human-readable sentence) */
   suggestion?: string;
+  /** Spec / docs links the AI agent can follow for more context */
+  relatedDocs?: string[];
 }
 
 // ── Base error ────────────────────────────────────────
