@@ -43,7 +43,9 @@ export function isAiAgentCaller(actor: Actor | undefined | null): boolean {
   if (actor.type === "ai") return true;
   // Accept future literal "mcp" actor type without TS complaint.
   if ((actor.type as string) === "mcp") return true;
-  const channel = actor.metadata?.channel;
+  // Bracket notation keeps this resilient to `noPropertyAccessFromIndexSignature`
+  // (Record<string, unknown> can't be dot-accessed under that flag).
+  const channel = actor.metadata?.["channel"];
   return channel === "mcp" || channel === "ai";
 }
 
