@@ -230,6 +230,17 @@ export async function executeBatchAction(
     const chunkResult = await postBatchChunk(items, strategy, baseIndex, fetchImpl);
     results.push(chunkResult);
     baseIndex += chunk.length;
+
+    if (!chunkResult.success) {
+      // Stop iterating when atomicity is at stake or the network is gone.
+      // - `all_or_nothing`: a failed chunk was rolled back server-side. Any
+      //   subsequent chunk that succeeds would violate the strategy's
+      //   contract by leaving partial state across the full selection.
+      // - Transport error: the system is unreachable; queueing more
+      //   requests just generates more synthetic transport failures.
+      const isTransportError = chunkResult.failed.some((f) => f.error.code === "BATCH.TRANSPORT");
+      if (strategy === "all_or_nothing" || isTransportError) break;
+    }
   }
 
   return aggregateBatchResults(results);

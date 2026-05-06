@@ -365,3 +365,86 @@ describe("executeBatchAction — error responses fold into failed", () => {
     expect(result.failed[0]?.error.message).toBe("Batch request failed (403)");
   });
 });
+
+describe("executeBatchAction — short-circuit on failure", () => {
+  test("all_or_nothing: stops after a chunk fails — no further requests", async () => {
+    let chunkCount = 0;
+    installFetch((req) => {
+      chunkCount++;
+      if (chunkCount === 1) {
+        return {
+          status: 200,
+          body: makeResult({
+            success: false,
+            strategy: "all_or_nothing",
+            failed: [{ index: 0, error: { code: "VAL.BAD", message: "rejected" } }],
+            rolledBack: req.body.actions.slice(1).map((_, i) => ({
+              index: i + 1,
+              executionId: `r-${i}`,
+            })),
+            summary: { total: req.body.actions.length, succeeded: 0, failed: 1 },
+          }),
+        };
+      }
+      // We must never get here — fail loudly if a second chunk fires.
+      throw new Error("second chunk should have been skipped");
+    });
+    const ids = Array.from({ length: 750 }, (_, i) => `id-${i}`);
+    const result = await executeBatchAction({
+      actionName: "process_payment",
+      recordIds: ids,
+      strategy: "all_or_nothing",
+    });
+    expect(chunkCount).toBe(1);
+    expect(result.success).toBe(false);
+    // Only the first chunk's failures/rollbacks should be present — no
+    // synthetic transport entries for the skipped chunk.
+    expect(result.failed.every((f) => f.error.code !== "BATCH.TRANSPORT")).toBe(true);
+  });
+
+  test("partial: a chunk failure does NOT stop subsequent chunks", async () => {
+    let chunkCount = 0;
+    installFetch(() => {
+      chunkCount++;
+      return {
+        status: 200,
+        body: makeResult({
+          success: chunkCount > 1,
+          strategy: "partial",
+          failed:
+            chunkCount === 1 ? [{ index: 0, error: { code: "VAL.BAD", message: "rejected" } }] : [],
+          summary: {
+            total: 1,
+            succeeded: chunkCount > 1 ? 1 : 0,
+            failed: chunkCount === 1 ? 1 : 0,
+          },
+        }),
+      };
+    });
+    const ids = Array.from({ length: 750 }, (_, i) => `id-${i}`);
+    const result = await executeBatchAction({
+      actionName: "approve_order",
+      recordIds: ids,
+      strategy: "partial",
+    });
+    expect(chunkCount).toBe(2);
+    expect(result.failed).toHaveLength(1);
+  });
+
+  test("transport error stops further chunks regardless of strategy", async () => {
+    let chunkCount = 0;
+    installFetch(() => {
+      chunkCount++;
+      if (chunkCount === 1) return { throw: new Error("connection refused") };
+      throw new Error("second chunk should have been skipped after transport error");
+    });
+    const ids = Array.from({ length: 750 }, (_, i) => `id-${i}`);
+    const result = await executeBatchAction({
+      actionName: "approve_order",
+      recordIds: ids,
+      strategy: "partial",
+    });
+    expect(chunkCount).toBe(1);
+    expect(result.failed[0]?.error.code).toBe("BATCH.TRANSPORT");
+  });
+});
