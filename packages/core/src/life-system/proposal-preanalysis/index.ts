@@ -1,11 +1,17 @@
 /**
  * Proposal Pre-Analysis public surface (Spec 55 §7.3).
  *
- * Ships stages 1 (dedup) and 3 (impact). Types for stages 2 (conflict) and 4
- * (backtest) are exported so follow-up analyzers can plug into the pipeline
+ * Ships stages 1 (dedup), 2 (conflict) and 3 (impact). Types for stage 4
+ * (backtest) are exported so a follow-up analyzer can plug into the pipeline
  * without touching core.
  */
 
+export type {
+  CreateConflictAnalyzerOptions,
+  LiveRuleStore,
+  LiveStateStore,
+} from "./conflict-analyzer";
+export { createConflictAnalyzer } from "./conflict-analyzer";
 export type { CreateDedupAnalyzerOptions } from "./dedup-analyzer";
 export { createDedupAnalyzer } from "./dedup-analyzer";
 export type { CreateImpactAnalyzerOptions } from "./impact-analyzer";
