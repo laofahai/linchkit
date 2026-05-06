@@ -70,6 +70,12 @@ export class PersistentEventBus extends EventBus {
           sourceAction: (event.payload?.action as string) ?? null,
           sourceExecutionId: event.executionId ?? null,
           status: "pending",
+          // Persist the originating action's ExecutionMeta snapshot so outbox
+          // retries / crash recovery can rebuild `EventHandlerContext.meta`
+          // identically to the in-memory delivery (Spec 65 §7, issue #228).
+          // `toJSON()` returns a shallow copy of plain JSON-serializable
+          // entries — already filtered + size-checked at construction.
+          meta: event.meta?.toJSON() ?? null,
         })
         .returning({ id: eventsTable.id });
 

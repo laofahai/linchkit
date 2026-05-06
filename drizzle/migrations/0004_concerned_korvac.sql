@@ -1,0 +1,1 @@
+ALTER TABLE "_linchkit"."events" ADD COLUMN "meta" jsonb;

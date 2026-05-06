@@ -113,6 +113,14 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
   /** Build an EventRecord from a database row */
   function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
     const payload = (row.payload as Record<string, unknown>) ?? {};
+    // Reconstruct the originating action's ExecutionMeta from the persisted
+    // JSON snapshot (Spec 65 §7, issue #228). Falls back to empty meta when
+    // the column is null — covers events written before the column existed
+    // and bus paths that didn't carry meta. The constructor re-runs the
+    // serialization filter + size check, so a malformed snapshot is rejected
+    // here rather than smuggled into a handler ctx.
+    const metaJson = (row.meta as Record<string, unknown> | null | undefined) ?? undefined;
+    const meta = metaJson ? new ExecutionMetaImpl(metaJson) : undefined;
     return {
       id: row.id,
       type: row.eventType,
@@ -122,20 +130,24 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
       executionId: row.sourceExecutionId ?? "",
       tenantId: row.tenantId ?? undefined,
       payload,
+      meta,
     };
   }
 
   /** Create a minimal handler context for re-execution.
-   *  emit is swallowed to prevent cascading retries. ExecutionMeta is empty
-   *  because the persisted events table has no `meta` column yet — handlers
-   *  retried through the outbox don't see the originating action's caller
-   *  hints (`skip_notifications`, `dry_run`, …). Tracked: #228. */
-  function createHandlerContext(): EventHandlerContext {
+   *  emit is swallowed to prevent cascading retries. `meta` is the originating
+   *  action's ExecutionMeta when the event row carries the persisted snapshot
+   *  (Spec 65 §7, issue #228); otherwise an empty ExecutionMeta so handlers
+   *  branching on `skip_notifications` / `dry_run` see consistent values
+   *  across the in-memory delivery and any subsequent retries. */
+  function createHandlerContext(
+    meta: EventHandlerContext["meta"] | undefined,
+  ): EventHandlerContext {
     return {
       emit: () => {
         // Swallow re-emissions from retry context to prevent cascading retries
       },
-      meta: new ExecutionMetaImpl({}),
+      meta: meta ?? new ExecutionMetaImpl({}),
     };
   }
 
@@ -152,7 +164,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions): OutboxWorker {
         (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY),
     );
 
-    const ctx = createHandlerContext();
+    const ctx = createHandlerContext(event.meta);
 
     for (const handler of matched) {
       const eventCopy = { ...event, payload: { ...event.payload } };
