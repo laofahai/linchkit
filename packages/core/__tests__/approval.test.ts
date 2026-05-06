@@ -413,6 +413,106 @@ describe("ApprovalEngine", () => {
     expect(storedMeta?._depth).toBeUndefined();
   });
 
+  it("createRequest captures adapter-set _-keys to actorSystemMeta (Spec 65 §3.3, #230)", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-adapter",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: {
+        source_view: "queue",
+        // Adapter-set: must survive
+        _mcp_client_id: "mcp-client-7",
+        // Framework-reserved: must NOT leak into actorSystemMeta
+        _execution_id: "stale-exec",
+        _channel: "rest",
+      },
+    });
+
+    const stored = store.getById(result.approvalId);
+    // User meta retains non-system entries
+    expect((stored?.meta as Record<string, unknown> | undefined)?.source_view).toBe("queue");
+
+    // Adapter-set system keys are split out for trusted replay
+    expect(stored?.actorSystemMeta).toEqual({ _mcp_client_id: "mcp-client-7" });
+    // Framework-reserved keys are dropped — engine re-stamps them on rerun
+    expect(
+      (stored?.actorSystemMeta as Record<string, unknown> | undefined)?._execution_id,
+    ).toBeUndefined();
+    expect(
+      (stored?.actorSystemMeta as Record<string, unknown> | undefined)?._channel,
+    ).toBeUndefined();
+  });
+
+  it("createRequest leaves actorSystemMeta undefined when no adapter keys present", async () => {
+    const result = await engine.createRequest({
+      action: "submit_request",
+      entity: "purchase_request",
+      input: { title: "Laptop", amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-meta-no-adapter",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: { source_view: "queue", _execution_id: "stale" },
+    });
+
+    const stored = store.getById(result.approvalId);
+    // Only framework-reserved `_`-keys present → no adapter payload to persist
+    expect(stored?.actorSystemMeta).toBeUndefined();
+  });
+
+  it("approve() replays adapter system meta but re-stamps framework keys (#230)", async () => {
+    // Replace the default action with one that captures meta via the executor's
+    // ExecutionMeta — we use a custom data provider to record what arrives.
+    const seenMeta: Record<string, unknown>[] = [];
+    const captureAction: ActionDefinition = {
+      name: "capture_meta_action",
+      entity: "purchase_request",
+      label: "Capture Meta",
+      input: { amount: { type: "number", required: true } },
+      policy: { mode: "sync", transaction: false },
+      handler: async (ctx) => {
+        seenMeta.push(ctx.meta.toJSON());
+        return { ok: true };
+      },
+    };
+    executor.registry.register(captureAction);
+
+    const created = await engine.createRequest({
+      action: "capture_meta_action",
+      entity: "purchase_request",
+      input: { amount: 15000 },
+      actor: defaultActor,
+      executionId: "exec-replay-1",
+      effect: { type: "require_approval", level: "manager" },
+      triggerRules: ["amount_check"],
+      meta: {
+        source_view: "queue",
+        _mcp_client_id: "mcp-client-42",
+        // Framework key on the original attempt — must NOT replay
+        _execution_id: "exec-replay-1",
+      },
+    });
+
+    const result = await engine.approve({ approvalId: created.approvalId }, managerActor);
+    expect(result.success).toBe(true);
+    expect(seenMeta).toHaveLength(1);
+
+    const replayedMeta = seenMeta[0];
+    // Adapter attribution survives via the trusted systemMeta channel
+    expect(replayedMeta._mcp_client_id).toBe("mcp-client-42");
+    // User meta replays unchanged
+    expect(replayedMeta.source_view).toBe("queue");
+    // Framework `_execution_id` is re-stamped by ActionEngine, NOT the
+    // suspended-attempt value
+    expect(replayedMeta._execution_id).toBeDefined();
+    expect(replayedMeta._execution_id).not.toBe("exec-replay-1");
+    expect(replayedMeta._channel).toBe("internal");
+  });
+
   it("emits approval.requested event on creation", async () => {
     await engine.createRequest({
       action: "submit_request",

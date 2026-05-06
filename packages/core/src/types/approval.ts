@@ -83,6 +83,20 @@ export interface ApprovalRequest {
   /** Original ExecutionMeta captured at suspend, replayed on approve(). */
   meta?: Record<string, unknown>;
 
+  /**
+   * Adapter-injected system meta keys captured at suspend (Spec 65 §3.3).
+   *
+   * Holds the trusted `_`-prefixed keys an adapter set on the original
+   * attempt (e.g. MCP's `_mcp_client_id`) MINUS any framework-reserved keys
+   * (`_channel`, `_execution_id`, `_depth`, `_source_action`) — those belong
+   * to the suspended attempt and are re-stamped by ActionEngine on replay.
+   *
+   * On approve(), this payload is passed through the trusted `systemMeta`
+   * channel so attribution flows back to handlers / rules / logs on the
+   * approved rerun (#230).
+   */
+  actorSystemMeta?: Record<string, unknown>;
+
   createdAt: Date;
   updatedAt: Date;
 }

@@ -141,6 +141,13 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   metadata: jsonb("metadata"),
   /** Spec 65 §14 M6 — Original ExecutionMeta captured at suspend, replayed on approve(). */
   meta: jsonb("meta"),
+  /**
+   * Spec 65 §3.3 (#230) — Adapter-injected system keys captured at suspend
+   * (e.g. MCP's `_mcp_client_id`), excluding framework-reserved keys.
+   * Replayed via the trusted `systemMeta` channel on approve() so adapter
+   * attribution survives across suspend / rerun.
+   */
+  actorSystemMeta: jsonb("actor_system_meta"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

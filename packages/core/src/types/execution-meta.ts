@@ -142,11 +142,56 @@ function cloneAndFreezeEntries(entries: Record<string, unknown>): Record<string,
   return clone;
 }
 
+/**
+ * Framework-managed `_`-prefixed system meta keys (Spec 65 §4.4).
+ *
+ * The ActionEngine owns these — adapters using the trusted `systemMeta`
+ * channel cannot override them, and ApprovalEngine drops them when
+ * persisting a suspended-attempt snapshot so the replay does not feed stale
+ * correlation data (e.g., the original `_execution_id`) to middleware.
+ *
+ * Adapter-set `_`-keys NOT in this set (e.g., MCP's `_mcp_client_id`) are
+ * preserved across approval suspend / replay by routing them through the
+ * trusted `systemMeta` channel on rerun (#230).
+ */
+export const FRAMEWORK_RESERVED_META_KEYS: ReadonlySet<string> = new Set([
+  "_channel",
+  "_execution_id",
+  "_depth",
+  "_source_action",
+]);
+
 /** Strip `_`-prefixed keys from an input object (returns a shallow copy). */
 export function stripSystemKeys(input: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input)) {
     if (k.startsWith("_")) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Extract the adapter-set `_`-prefixed system keys from `input` (Spec 65
+ * §3.3) — i.e. the `_`-keys that are NOT in {@link FRAMEWORK_RESERVED_META_KEYS}.
+ *
+ * Used by ApprovalEngine to capture the trusted attribution keys an adapter
+ * injected (e.g. MCP's `_mcp_client_id`) so they can be replayed via the
+ * `systemMeta` channel on approval rerun. The framework-reserved keys are
+ * deliberately dropped — those belong to the *suspended* attempt and must be
+ * re-stamped by ActionEngine on replay.
+ *
+ * Returns `undefined` when no qualifying keys are present so callers can
+ * cheaply skip persistence of an empty payload.
+ */
+export function extractAdapterSystemKeys(
+  input: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  let out: Record<string, unknown> | undefined;
+  for (const [k, v] of Object.entries(input)) {
+    if (!k.startsWith("_")) continue;
+    if (FRAMEWORK_RESERVED_META_KEYS.has(k)) continue;
+    if (!out) out = {};
     out[k] = v;
   }
   return out;

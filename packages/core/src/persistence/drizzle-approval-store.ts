@@ -50,6 +50,7 @@ export class DrizzleApprovalStore {
       executionError: request.executionError ?? null,
       metadata,
       meta: request.meta ?? null,
+      actorSystemMeta: request.actorSystemMeta ?? null,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
     });
@@ -85,6 +86,7 @@ export class DrizzleApprovalStore {
     if (data.executionId !== undefined) updateValues.executionId = data.executionId;
     if (data.executionError !== undefined) updateValues.executionError = data.executionError;
     if (data.meta !== undefined) updateValues.meta = data.meta;
+    if (data.actorSystemMeta !== undefined) updateValues.actorSystemMeta = data.actorSystemMeta;
 
     await this.db.update(approvalsTable).set(updateValues).where(eq(approvalsTable.id, id));
 
@@ -146,6 +148,7 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
     executionError: row.executionError ?? undefined,
     tenantId: row.tenantId ?? undefined,
     meta: (row.meta as Record<string, unknown>) ?? undefined,
+    actorSystemMeta: (row.actorSystemMeta as Record<string, unknown>) ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
