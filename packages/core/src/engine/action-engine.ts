@@ -22,6 +22,7 @@ import type { ExecutionMeta } from "../types/execution-meta";
 import {
   createExecutionMeta,
   extendExecutionMeta,
+  extractAdapterSystemKeys,
   MetaSizeError,
   redactMetaForLog,
 } from "../types/execution-meta";
@@ -48,16 +49,10 @@ import {
 import { ActionRegistry } from "./action-registry";
 import { hashBehaviorAffectingMeta } from "./meta-keys";
 
-/** Framework-managed `_`-prefixed system meta keys. Adapters using the
- *  trusted `systemMeta` channel cannot override these — the engine's own
- *  assignments always win. Hoisted to module scope so it's allocated once
- *  rather than on every action dispatch. */
-const RESERVED_FRAMEWORK_KEYS: ReadonlySet<string> = new Set([
-  "_channel",
-  "_execution_id",
-  "_depth",
-  "_source_action",
-]);
+// Framework-reserved `_`-prefixed system meta keys are defined as
+// `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
+// shared with ApprovalEngine (which must agree on the same boundary when
+// partitioning persisted meta on suspend / replay — Spec 65 §3.3, #230).
 
 // ── DataProvider interface ──────────────────────────────────
 
@@ -408,22 +403,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // its assignment.
     // Adapter-supplied system keys (Spec 65 §3.3) — e.g. `_mcp_client_id`
     // injected by the MCP adapter after authenticating the caller. Reserved
-    // framework keys are filtered out (see module-level
-    // `RESERVED_FRAMEWORK_KEYS`) so the engine's own assignments always win.
-    const adapterSystemMeta: Record<string, unknown> = {};
+    // framework keys are filtered out (see `FRAMEWORK_RESERVED_META_KEYS`)
+    // so the engine's own assignments always win.
+    //
+    // ApprovalEngine.approve() forwards the persisted `actorSystemMeta`
+    // through this same channel on replay so adapter attribution survives
+    // suspend / replay (#230).
+    // Reuse the shared `extractAdapterSystemKeys` helper so the framework-
+    // reserved key boundary stays consistent with ApprovalEngine's persist
+    // path (single source of truth in execution-meta.ts).
     const providedSystemMeta = execOptions?.systemMeta;
-    if (providedSystemMeta && currentDepth === 0) {
-      for (const [k, v] of Object.entries(providedSystemMeta)) {
-        // Only `_`-prefixed keys are system keys; ignore non-system entries
-        // so adapters can't accidentally use this channel for user data.
-        if (!k.startsWith("_")) continue;
-        if (RESERVED_FRAMEWORK_KEYS.has(k)) continue;
-        adapterSystemMeta[k] = v;
-      }
-    }
-    // Note: adapter-injected system keys (e.g. `_mcp_client_id`) are NOT
-    // currently preserved across approval suspend/replay — `ApprovalEngine`
-    // strips all `_`-prefixed keys when persisting. Tracked: #230.
+    const adapterSystemMeta: Record<string, unknown> =
+      (providedSystemMeta && currentDepth === 0
+        ? extractAdapterSystemKeys(providedSystemMeta)
+        : undefined) ?? {};
 
     const rootSystemDefaults: Record<string, unknown> = {
       ...adapterSystemMeta,

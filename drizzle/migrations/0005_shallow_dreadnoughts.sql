@@ -1,0 +1,1 @@
+ALTER TABLE "_linchkit"."approvals" ADD COLUMN "actor_system_meta" jsonb;

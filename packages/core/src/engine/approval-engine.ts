@@ -26,7 +26,11 @@ import type {
   RejectInput,
 } from "../types/approval";
 import type { EventRecord } from "../types/event";
-import { redactMetaForLog, stripSystemKeys } from "../types/execution-meta";
+import {
+  extractAdapterSystemKeys,
+  redactMetaForLog,
+  stripSystemKeys,
+} from "../types/execution-meta";
 import type { RequireApprovalEffect } from "../types/rule";
 import type { ActionExecutor } from "./action-engine";
 import type { CommandLayer } from "./command-layer";
@@ -241,23 +245,31 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
   })();
 
   /**
-   * Sanitize caller-provided meta before persisting it on the ApprovalRequest:
+   * Partition caller-provided meta into the two channels persisted on an
+   * ApprovalRequest (Spec 65 §3.3, §4.4, §10.3, #230):
    *
-   * 1. Drop `_`-prefixed system keys — they belong to the *suspended* attempt
-   *    (e.g., `_execution_id`, `_channel`, `_depth` from the original
-   *    submission). On replay, CommandLayer middleware reads `c.meta` *before*
-   *    ActionEngine.createExecutionMeta re-stamps system keys, so leaving
-   *    these values in would feed stale correlation data to tenant /
-   *    pre-action / post-action middleware (Spec 65 §4.4).
-   * 2. Apply redaction so configured masked keys (e.g., "password", "token")
-   *    never live unredacted at rest (Spec 65 §10.3) — same redaction the
-   *    execution log applies before persisting.
+   * - `meta` — user-facing keys (no `_` prefix). Redacted per
+   *   `system:execution.meta.maskedKeys` so secrets never live unredacted at
+   *   rest. Replayed via the untrusted `meta` channel on approve().
+   *
+   * - `actorSystemMeta` — adapter-set `_`-prefixed keys (e.g. MCP's
+   *   `_mcp_client_id`) MINUS framework-reserved keys (`_channel`,
+   *   `_execution_id`, `_depth`, `_source_action`). Replayed via the trusted
+   *   `systemMeta` channel on approve() so adapter attribution survives
+   *   suspend / rerun.
+   *
+   * Framework-reserved `_`-keys are always dropped — they belong to the
+   * suspended attempt and would feed stale correlation data to middleware
+   * if replayed (the engine re-stamps them on rerun).
    */
-  function sanitizeMetaForPersist(
-    meta: Record<string, unknown> | undefined,
-  ): Record<string, unknown> | undefined {
-    if (meta === undefined) return undefined;
-    return redactMetaForLog(stripSystemKeys(meta), maskedKeys);
+  function partitionMetaForPersist(meta: Record<string, unknown> | undefined): {
+    meta: Record<string, unknown> | undefined;
+    actorSystemMeta: Record<string, unknown> | undefined;
+  } {
+    if (meta === undefined) return { meta: undefined, actorSystemMeta: undefined };
+    const userMeta = redactMetaForLog(stripSystemKeys(meta), maskedKeys);
+    const actorSystemMeta = extractAdapterSystemKeys(meta);
+    return { meta: userMeta, actorSystemMeta };
   }
 
   // Fix #5: Counter scoped inside factory to avoid module-level shared state
@@ -353,6 +365,8 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     // Build merged reason from all trigger rules
     const reason = opts.effect.message ?? `Approval required (level: ${opts.effect.level})`;
 
+    const partitioned = partitionMetaForPersist(opts.meta);
+
     const request: ApprovalRequest = {
       id,
       action: opts.action,
@@ -370,7 +384,8 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
       timeoutPolicy: opts.timeoutPolicy ?? "none",
       originalExecutionId: opts.executionId,
       tenantId: opts.tenantId,
-      meta: sanitizeMetaForPersist(opts.meta),
+      meta: partitioned.meta,
+      actorSystemMeta: partitioned.actorSystemMeta,
       createdAt: now,
       updatedAt: now,
     };
@@ -446,6 +461,10 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
     //
     // Spec 65 §14 M6: replay the original ExecutionMeta captured at suspend
     // so handlers see the same meta on rerun as on the original submission.
+    //
+    // Spec 65 §3.3 (#230): adapter-injected `_`-prefixed system keys (e.g.
+    // MCP's `_mcp_client_id`) ride on the trusted `systemMeta` channel —
+    // the `meta` channel still strips all `_`-keys at the engine boundary.
     let result: ActionResult;
 
     if (commandLayer) {
@@ -458,6 +477,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         approvalId: input.approvalId,
         skipRules: request.triggerRules,
         meta: request.meta,
+        systemMeta: request.actorSystemMeta,
       });
     } else {
       // Backward-compatible fallback — direct executor call (deprecated path)
@@ -469,6 +489,7 @@ export function createApprovalEngine(options: ApprovalEngineOptions): ApprovalEn
         skipRules: request.triggerRules,
         approvalId: input.approvalId,
         meta: request.meta,
+        systemMeta: request.actorSystemMeta,
       });
     }
 
