@@ -267,6 +267,7 @@ export function buildBatchMutationField(
             channel: "http",
             tenantId: ctx.tenantId,
             locale: ctx.locale,
+            headers: ctx.headers,
             transactionManager: batchTransactionManager,
             meta,
           });

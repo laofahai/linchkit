@@ -99,6 +99,13 @@ export interface GraphQLContext {
   tenantId?: string;
   /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
   locale?: string;
+  /**
+   * HTTP request headers (lowercase keys) — propagated through CommandLayer
+   * so middleware (rate-limit, trace, custom auth) sees the same surface for
+   * GraphQL as for REST. May be `undefined` for in-process / subscription
+   * contexts where there is no originating Request.
+   */
+  headers?: Record<string, string>;
   /** Data provider for link relation resolvers */
   dataProvider?: DataProvider;
   /** Permission groups for data masking unmask checks */
@@ -238,6 +245,7 @@ export function buildGraphQLSchema(
         channel: "http",
         tenantId: ctx.tenantId,
         locale: ctx.locale,
+        headers: ctx.headers,
         includeDeleted: extraOptions?.includeDeleted,
         meta: extraOptions?.meta,
       })) as ActionResult<T>;
