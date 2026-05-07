@@ -19,11 +19,12 @@ import type {
   Actor,
   CommandLayer,
   EntityRegistry,
+  FieldOverlayRecord,
   OntologyRegistry,
   RuleDefinition,
   StateDefinition,
 } from "@linchkit/core";
-import type { ProposalEngine } from "@linchkit/core/server";
+import type { OverlayRegistry, ProposalEngine } from "@linchkit/core/server";
 import type { ExecutionLogger, InsightEngine } from "@linchkit/core/types";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -88,6 +89,14 @@ export interface McpAdapterOptions {
    * promoted insights (anomalies, friction, patterns, structural, positive).
    */
   insightEngine?: InsightEngine;
+  /**
+   * Overlay registry — exposes runtime overlay fields per entity (Spec 60 §6).
+   * When provided, the introspection tools (`list_entities`, `get_entity`)
+   * include any overlay fields in their responses so AI agents can see and
+   * reason about admin-added dynamic fields. When omitted, the responses
+   * fall back to an empty `overlayFields: []` array — never throw.
+   */
+  overlayRegistry?: OverlayRegistry;
 }
 
 /**
@@ -139,6 +148,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     proposalEngine,
     executionLogger,
     insightEngine,
+    overlayRegistry,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -292,6 +302,7 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     graphqlEndpoint,
     bearerToken,
     tenantId,
+    overlayRegistry,
   );
 
   allToolNames.push(
@@ -438,6 +449,27 @@ function buildZodShape(
   return shape;
 }
 
+/**
+ * Serialize a FieldOverlayRecord to the shape returned by `list_entities`
+ * and `get_entity`. Picks only fields that are useful to an AI agent for
+ * reasoning about and acting on the field — internal IDs and audit timestamps
+ * are intentionally omitted to keep the payload focused. The `source: "overlay"`
+ * tag distinguishes these from static fields baked into `defineEntity()`.
+ */
+function serializeOverlayField(record: FieldOverlayRecord): {
+  source: "overlay";
+  name: string;
+  fieldType: FieldOverlayRecord["fieldType"];
+  config: FieldOverlayRecord["config"];
+} {
+  return {
+    source: "overlay",
+    name: record.fieldName,
+    fieldType: record.fieldType,
+    config: record.config,
+  };
+}
+
 /** Serialize a RuleDefinition to a JSON-safe object (strip code conditions) */
 function serializeRule(rule: RuleDefinition): Record<string, unknown> {
   const serialized: Record<string, unknown> = {
@@ -507,18 +539,26 @@ function registerBuiltinTools(
   graphqlEndpoint?: string,
   bearerToken?: string,
   tenantId?: string,
+  overlayRegistry?: OverlayRegistry,
 ): void {
-  // list_entities — returns entity summaries with field names
+  // list_entities — returns entity summaries with field names + overlay-field counts
   server.tool(
     "list_entities",
-    "List all available entities with their names, labels, descriptions, and field names",
+    "List all available entities with their names, labels, descriptions, static field names, and any runtime overlay fields (Spec 60 §6).",
     async () => {
-      const entities = entityRegistry.getAll().map((s) => ({
-        name: s.name,
-        label: s.label,
-        description: s.description,
-        fields: Object.keys(s.fields),
-      }));
+      const entities = entityRegistry.getAll().map((s) => {
+        // Spec 60 §6 — surface admin-added overlay fields so AI agents see the
+        // full live shape of each entity. Falls back to [] when no registry is
+        // wired in (test setups, stdio-only builds) — never throws.
+        const overlays = overlayRegistry?.overlaysFor(s.name) ?? [];
+        return {
+          name: s.name,
+          label: s.label,
+          description: s.description,
+          fields: Object.keys(s.fields),
+          overlayFields: overlays.map(serializeOverlayField),
+        };
+      });
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify(entities, null, 2) }],
@@ -526,11 +566,11 @@ function registerBuiltinTools(
     },
   );
 
-  // get_entity — full entity definition with field types and constraints
+  // get_entity — full entity definition with field types, constraints, and overlay fields
   const getEntityShape = { name: z.string().describe("Entity name") };
   server.tool(
     "get_entity",
-    "Get the full definition of an entity by name, including all fields with types and constraints",
+    "Get the full definition of an entity by name, including all static fields with types and constraints plus any runtime overlay fields (Spec 60 §6).",
     // biome-ignore lint/suspicious/noExplicitAny: zod v4 vs SDK bundled zod type mismatch
     getEntityShape as any,
     async (args: { name: string }) => {
@@ -547,13 +587,18 @@ function registerBuiltinTools(
         };
       }
 
-      // Convert to a serializable representation with field JSON schemas
+      // Convert to a serializable representation with field JSON schemas.
+      // Overlay fields ride alongside the static field schema in their own
+      // array (richer shape than JSON Schema) so AI agents can distinguish
+      // baseline vs admin-added fields by `source: "overlay"`.
       const fieldSchemas = fieldsToJsonSchema(entity.fields);
+      const overlays = overlayRegistry?.overlaysFor(entity.name) ?? [];
       const result = {
         name: entity.name,
         label: entity.label,
         description: entity.description,
         fields: fieldSchemas,
+        overlayFields: overlays.map(serializeOverlayField),
       };
 
       return {

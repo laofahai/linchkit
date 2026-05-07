@@ -23,6 +23,7 @@ import type { EventBus } from "../event/event-bus";
 import type { FlowEngine, FlowRegistry } from "../flow/types";
 import type { EvolutionRuntime } from "../life-system/runtime";
 import type { OntologyRegistry } from "../ontology";
+import type { OverlayRegistry } from "../overlay/overlay-registry";
 import type { ActionDefinition } from "./action";
 import type { AIService, AIServiceConfig } from "./ai";
 import type { CapabilityDefinition } from "./capability";
@@ -66,6 +67,12 @@ export interface TransportContext {
   flowEngine?: FlowEngine;
   /** Ontology registry — unified semantic facade over all registries */
   ontologyRegistry?: OntologyRegistry;
+  /**
+   * Overlay registry — exposes runtime-added overlay fields per entity.
+   * When provided, transports (GraphQL, REST, MCP) can include overlay
+   * fields in their entity discovery / introspection responses.
+   */
+  overlayRegistry?: OverlayRegistry;
   /** Cache manager — multi-layer cache with event-driven invalidation */
   cacheManager?: CacheManager;
   /** Health check registry — liveness and readiness probes */

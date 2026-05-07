@@ -85,6 +85,9 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         // EvolutionRuntime is optional on TransportContext; when present we
         // expose its InsightEngine so MCP clients can call list_insights.
         insightEngine: ctx.evolutionRuntime?.insightEngine,
+        // Spec 60 §6 — when the runtime exposes overlay fields, surface them
+        // via list_entities / get_entity so AI agents see admin-added fields.
+        overlayRegistry: ctx.overlayRegistry,
       });
 
       if (transportMode === "stdio") {
@@ -131,6 +134,8 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         graphqlEndpoint,
         executionLogger: ctx.executionLogger,
         insightEngine: ctx.evolutionRuntime?.insightEngine,
+        // Spec 60 §6 — propagate overlay registry to per-session McpServers.
+        overlayRegistry: ctx.overlayRegistry,
       };
 
       const {

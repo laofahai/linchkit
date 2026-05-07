@@ -1,7 +1,12 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ActionResult, CommandLayer } from "@linchkit/core";
 import { defineAction, defineEntity, defineRule, defineState } from "@linchkit/core";
-import { ActionRegistry, createEntityRegistry } from "@linchkit/core/server";
+import {
+  ActionRegistry,
+  createEntityRegistry,
+  DefaultOverlayRegistry,
+  InMemoryOverlayStore,
+} from "@linchkit/core/server";
 import { createMcpAdapter } from "../src/mcp-server";
 
 const testEntity = defineEntity({
@@ -1248,5 +1253,263 @@ describe("createMcpAdapter — ExecutionMeta injection (Spec 65 §3.3)", () => {
     if (systemMeta !== undefined) {
       expect(systemMeta._mcp_client_id).toBeUndefined();
     }
+  });
+});
+
+// ── Overlay-field discovery (Spec 60 §6, issue #156) ───────────────────
+
+/** Helper: build an OverlayRegistry seeded with the given overlay definitions. */
+async function buildOverlayRegistry(
+  overlays: Array<{
+    entityName: string;
+    fieldName: string;
+    fieldType: "string" | "number" | "boolean" | "date" | "enum" | "json";
+    config: Record<string, unknown>;
+  }>,
+): Promise<DefaultOverlayRegistry> {
+  const store = new InMemoryOverlayStore();
+  for (const o of overlays) {
+    await store.addOverlay({
+      entityName: o.entityName,
+      fieldName: o.fieldName,
+      fieldType: o.fieldType,
+      config: o.config,
+      status: "active",
+    });
+  }
+  const registry = new DefaultOverlayRegistry(store);
+  await registry.initialize();
+  return registry;
+}
+
+describe("createMcpAdapter — overlay-field discovery (Spec 60 §6)", () => {
+  test("describe_entity (get_entity) returns overlay fields when registry has them", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const overlayRegistry = await buildOverlayRegistry([
+      {
+        entityName: "order",
+        fieldName: "color",
+        fieldType: "enum",
+        config: {
+          label: { en: "Color", "zh-CN": "颜色" },
+          required: false,
+          enumValues: ["red", "green", "blue"],
+        },
+      },
+      {
+        entityName: "order",
+        fieldName: "warranty_months",
+        fieldType: "number",
+        config: { required: true, defaultValue: 12, min: 0, max: 60 },
+      },
+    ]);
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      overlayRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0]?.text) as {
+      fields: { properties: Record<string, unknown> };
+      overlayFields: Array<{
+        source: string;
+        name: string;
+        fieldType: string;
+        config: Record<string, unknown>;
+      }>;
+    };
+
+    // Static fields still present.
+    expect(parsed.fields.properties).toHaveProperty("customer_name");
+
+    // Overlay fields surfaced with the documented shape.
+    expect(parsed.overlayFields).toHaveLength(2);
+    const byName = new Map(parsed.overlayFields.map((f) => [f.name, f]));
+    const color = byName.get("color");
+    expect(color).toBeDefined();
+    expect(color?.source).toBe("overlay");
+    expect(color?.fieldType).toBe("enum");
+    expect(color?.config.enumValues).toEqual(["red", "green", "blue"]);
+
+    const warranty = byName.get("warranty_months");
+    expect(warranty?.source).toBe("overlay");
+    expect(warranty?.fieldType).toBe("number");
+    expect(warranty?.config.defaultValue).toBe(12);
+  });
+
+  test("describe_entity (get_entity) returns empty overlayFields when none exist", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    // Registry exists but has no overlays for this entity.
+    const overlayRegistry = await buildOverlayRegistry([]);
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      overlayRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.overlayFields).toEqual([]);
+  });
+
+  test("describe_entity (get_entity) returns empty overlayFields when no registry is wired", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      // No overlayRegistry passed — must not throw.
+    });
+
+    const tools = getTools(server);
+    const result = await tools.get_entity?.handler({ name: "order" }, {});
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed.overlayFields).toEqual([]);
+  });
+
+  test("list_entities includes overlay fields for each entity", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+    entityRegistry.register(productEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const overlayRegistry = await buildOverlayRegistry([
+      {
+        entityName: "order",
+        fieldName: "color",
+        fieldType: "string",
+        config: { required: false, maxLength: 32 },
+      },
+      {
+        entityName: "product",
+        fieldName: "brand",
+        fieldType: "string",
+        config: { required: true },
+      },
+      {
+        entityName: "product",
+        fieldName: "in_stock",
+        fieldType: "boolean",
+        config: { defaultValue: true },
+      },
+    ]);
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      overlayRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_entities?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text) as Array<{
+      name: string;
+      fields: string[];
+      overlayFields: Array<{ source: string; name: string; fieldType: string }>;
+    }>;
+
+    expect(parsed).toHaveLength(2);
+    const order = parsed.find((e) => e.name === "order");
+    const product = parsed.find((e) => e.name === "product");
+    expect(order?.overlayFields).toHaveLength(1);
+    expect(order?.overlayFields[0]?.name).toBe("color");
+    expect(order?.overlayFields[0]?.source).toBe("overlay");
+    expect(product?.overlayFields).toHaveLength(2);
+    expect(product?.overlayFields.map((f) => f.name).sort()).toEqual(["brand", "in_stock"]);
+  });
+
+  test("list_entities returns empty overlayFields when no registry is wired", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      // No overlayRegistry — must not throw and default to [].
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_entities?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text) as Array<{
+      overlayFields: unknown[];
+    }>;
+    expect(parsed[0]?.overlayFields).toEqual([]);
+  });
+
+  test("overlay-field lookup is scoped to the requested entity (no cross-entity leakage)", async () => {
+    // OverlayRegistry today is keyed by entity name (no tenant scoping in the
+    // store interface). This test pins the scoping contract we DO have:
+    // `overlaysFor("order")` must not return overlays defined for "product".
+    // When per-tenant scoping lands in OverlayRegistry, an additional test
+    // should assert the same isolation across tenant boundaries.
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+    entityRegistry.register(productEntity);
+
+    const actionRegistry = new ActionRegistry();
+    const commandLayer = createMockCommandLayer();
+
+    const overlayRegistry = await buildOverlayRegistry([
+      {
+        entityName: "product",
+        fieldName: "secret_only_for_product",
+        fieldType: "string",
+        config: {},
+      },
+    ]);
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+      overlayRegistry,
+    });
+
+    const tools = getTools(server);
+    const orderResult = await tools.get_entity?.handler({ name: "order" }, {});
+    const productResult = await tools.get_entity?.handler({ name: "product" }, {});
+
+    const orderParsed = JSON.parse(orderResult.content[0]?.text);
+    const productParsed = JSON.parse(productResult.content[0]?.text);
+
+    expect(orderParsed.overlayFields).toEqual([]);
+    expect(productParsed.overlayFields).toHaveLength(1);
+    expect(productParsed.overlayFields[0].name).toBe("secret_only_for_product");
   });
 });
