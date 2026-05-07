@@ -119,9 +119,9 @@ const mcpClientsTable = pgTable("_linchkit_mcp_clients", {
 
 ### 3.3 Usage Log（轻量）
 
-不新建表。复用 `_linchkit_executions` — MCP 请求通过 CommandLayer 执行时已自动记录。`actor.id` 字段区分不同 Client。
+不新建表。复用 `_linchkit.executions` — MCP 请求通过 CommandLayer 执行时已自动记录。`actor.id` 字段区分不同 Client。
 
-GraphQL 查询代理（`query` tool）的使用通过 EventBus emit `mcp.query` 事件，被 `_linchkit_events` 捕获。
+GraphQL 查询代理（`query` tool）的使用通过 EventBus emit `mcp.query` 事件，被 `_linchkit.events` 捕获。
 
 ## 4. 认证流程
 

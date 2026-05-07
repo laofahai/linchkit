@@ -1,7 +1,7 @@
 /**
  * DrizzleExecutionLogger — PostgreSQL-backed execution logger via Drizzle ORM.
  *
- * Persists ExecutionLogEntry records to the _linchkit_executions system table.
+ * Persists ExecutionLogEntry records to the _linchkit.executions system table.
  * Complex fields (rulesEvaluated, stateTransition, childExecutionIds) are stored
  * in a JSONB metadata column.
  */

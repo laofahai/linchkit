@@ -3,7 +3,7 @@
  *
  * Extends the in-memory EventBus with database persistence.
  * When a database is available, events are stored in the
- * `_linchkit_events` system table with status tracking.
+ * `_linchkit.events` system table with status tracking.
  * Falls back to pure in-memory behavior when no DB is provided.
  *
  * Unlike the base EventBus which fires async handlers in a
@@ -42,7 +42,7 @@ export class PersistentEventBus extends EventBus {
    * Emit an event with database persistence.
    *
    * Overrides the base EventBus.emit() to:
-   * 1. Insert event into `_linchkit_events` with status 'pending'
+   * 1. Insert event into `_linchkit.events` with status 'pending'
    * 2. Execute ALL handlers (both sync and async) with full await
    * 3. Update status to 'completed' if all succeed, 'failed' if any reject
    *

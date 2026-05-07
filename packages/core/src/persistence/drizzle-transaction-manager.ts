@@ -3,7 +3,7 @@
  *
  * Implements the TransactionManager interface using Drizzle ORM.
  * Wraps action handler execution in a PostgreSQL transaction and
- * persists collected events to _linchkit_events in the same tx
+ * persists collected events to _linchkit.events in the same tx
  * (Transactional Outbox pattern).
  *
  * After the transaction commits, events are picked up by OutboxWorker
