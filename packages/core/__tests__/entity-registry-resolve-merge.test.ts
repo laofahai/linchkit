@@ -584,17 +584,14 @@ describe("EntityRegistry.resolve() — inherited constraint merge (issue #202)",
   });
 
   describe("interface + extends combined chain (codex follow-up)", () => {
-    it("documents current limitation: interface metadata does NOT transitively propagate through extends", () => {
-      // KNOWN LIMITATION (separate from #202 scope): when entity A implements
-      // an interface that contributes `immutable: true` on field X, and entity
-      // B extends A, B does NOT inherit X.immutable from the interface unless B
-      // also implements the same interface. This is because the inheritance
-      // walk uses ancestor.fields (raw) — interface seeding only happens for
-      // the entity's own `implements`, not transitively up the chain.
-      //
-      // Tracked in a follow-up issue for the EntityRegistry.resolve()
-      // semantics. This test pins the current behavior so the limitation is
-      // visible and any future fix flips it intentionally.
+    it("interface metadata propagates transitively through extends", () => {
+      // Issue #253: when entity A implements an interface that contributes
+      // `immutable: true` on field X, and entity B extends A, B inherits
+      // X.immutable from the interface even if B does not list `implements`
+      // itself. The inheritance walk seeds each ancestor's `implements`
+      // interface fields before its own fields, mirroring the self-implements
+      // seed used for the most-derived entity. This keeps interface lock
+      // metadata (Spec 63) flowing through `extends` transitively.
       const interfaces = createInterfaceRegistry();
       interfaces.register({
         name: "code_holder",
@@ -623,11 +620,10 @@ describe("EntityRegistry.resolve() — inherited constraint merge (issue #202)",
       const indirectDef = registry.resolve("audited_doc_with_code").fields.code?.definition;
       // Direct implementor: interface seeding works — immutable preserved
       expect(directDef?.immutable).toBe(true);
-      // Grandchild via `extends` only: interface metadata is NOT inherited
-      // (current behavior). Workaround: have audited_doc_with_code also list
-      // `implements: ["code_holder"]`, or restate `immutable: true` on its own
-      // field redeclaration.
-      expect(indirectDef?.immutable).toBeUndefined();
+      // Grandchild via `extends` only: interface metadata IS inherited
+      // transitively now (issue #253 fix). The grandchild's redeclared label
+      // still wins for visual properties.
+      expect(indirectDef?.immutable).toBe(true);
       expect(indirectDef?.label).toBe("Audit Code");
     });
 
@@ -656,6 +652,172 @@ describe("EntityRegistry.resolve() — inherited constraint merge (issue #202)",
       const def = registry.resolve("audited_doc_with_code_2").fields.code?.definition;
       expect(def?.immutable).toBe(true);
       expect(def?.label).toBe("Audit Code");
+    });
+
+    it("multi-interface composition across extends chain combines contributions on shared field set", () => {
+      // A implements I1 (code: immutable), B extends A implements I2 (name: readonly).
+      // Resolved B must carry BOTH constraints because:
+      //   - I1 propagates transitively via A's `implements`
+      //   - I2 is seeded from B's own `implements`
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "code_iface",
+        label: "Code Iface",
+        fields: { code: { type: "string", immutable: true } },
+      });
+      interfaces.register({
+        name: "name_iface",
+        label: "Name Iface",
+        fields: { name: { type: "string", readonly: true } },
+      });
+
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "multi_iface_a",
+        implements: ["code_iface"],
+        fields: {
+          code: { type: "string", label: "A Code" },
+          name: { type: "string", label: "A Name" },
+        },
+      });
+      registry.register({
+        name: "multi_iface_b",
+        extends: "multi_iface_a",
+        implements: ["name_iface"],
+        fields: {
+          // B does not restate either constraint key — both must inherit.
+          code: { type: "string", label: "B Code" },
+          name: { type: "string", label: "B Name" },
+        },
+      });
+
+      const resolved = registry.resolve("multi_iface_b");
+      const codeDef = resolved.fields.code?.definition;
+      const nameDef = resolved.fields.name?.definition;
+
+      expect(codeDef?.immutable).toBe(true); // from I1 via ancestor
+      expect(codeDef?.label).toBe("B Code");
+      expect(nameDef?.readonly).toBe(true); // from I2 directly
+      expect(nameDef?.label).toBe("B Name");
+    });
+
+    it("three-level chain with mid-level interface: grandchild inherits interface metadata", () => {
+      // G (no interfaces) → P (implements I) → C (extends P, no interfaces).
+      // C must inherit I's `immutable: true` on `code`.
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "mid_iface",
+        label: "Mid Iface",
+        fields: { code: { type: "string", immutable: true } },
+      });
+
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "g_root",
+        abstract: true,
+        fields: {
+          code: { type: "string", label: "G Code" },
+        },
+      });
+      registry.register({
+        name: "p_mid",
+        extends: "g_root",
+        implements: ["mid_iface"],
+        fields: {
+          code: { type: "string", label: "P Code" },
+        },
+      });
+      registry.register({
+        name: "c_leaf",
+        extends: "p_mid",
+        fields: {
+          code: { type: "string", label: "C Code" },
+        },
+      });
+
+      const def = registry.resolve("c_leaf").fields.code?.definition;
+      expect(def?.immutable).toBe(true); // contributed by I via P
+      expect(def?.label).toBe("C Code");
+    });
+
+    it("override negation through transitive seed: child explicit `immutable: false` wins over interface", () => {
+      // A implements I (code: immutable: true). B extends A and redeclares
+      // `code: { immutable: false }`. The transitive seed contributes
+      // immutable: true from I, but the child's explicit negation must win.
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "lock_iface",
+        label: "Lock Iface",
+        fields: { code: { type: "string", immutable: true } },
+      });
+
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "negate_a",
+        implements: ["lock_iface"],
+        fields: {
+          code: { type: "string", label: "A Code" },
+        },
+      });
+      registry.register({
+        name: "negate_b",
+        extends: "negate_a",
+        fields: {
+          // Explicit negation: B wants the field mutable even though the
+          // interface (via A) declared it immutable.
+          code: { type: "string", immutable: false, label: "B Code" },
+        },
+      });
+
+      const def = registry.resolve("negate_b").fields.code?.definition;
+      expect(def?.immutable).toBe(false);
+      expect(def?.label).toBe("B Code");
+    });
+
+    it("conflicting interfaces across the chain: leaf-side interface wins over root-side interface (codex review followup)", () => {
+      // A implements I1 declaring `code: { immutable: true }`.
+      // B extends A and implements I2 declaring `code: { immutable: false }`.
+      // Closer-to-leaf interface (I2 from B) must win — leaf-side semantics
+      // mirror the standard child-wins precedence used everywhere else in
+      // resolve(). Without the resolution-order fix, the root-side I1 would
+      // overwrite I2 because ancestor seeding ran AFTER self-implements.
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "imm_true_iface",
+        label: "Imm True",
+        fields: { code: { type: "string", immutable: true } },
+      });
+      interfaces.register({
+        name: "imm_false_iface",
+        label: "Imm False",
+        fields: { code: { type: "string", immutable: false } },
+      });
+
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "iface_conflict_a",
+        implements: ["imm_true_iface"],
+        fields: { code: { type: "string", label: "A Code" } },
+      });
+      registry.register({
+        name: "iface_conflict_b",
+        extends: "iface_conflict_a",
+        implements: ["imm_false_iface"],
+        fields: { code: { type: "string", label: "B Code" } },
+      });
+
+      const def = registry.resolve("iface_conflict_b").fields.code?.definition;
+      // Leaf-side interface (I2: immutable: false) wins over root-side (I1: true).
+      expect(def?.immutable).toBe(false);
+      expect(def?.label).toBe("B Code");
     });
 
     it("entity explicitly clearing interface-provided lockWhen via undefined wins", () => {
