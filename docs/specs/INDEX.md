@@ -30,7 +30,7 @@ LinchKit's 9 first-class building blocks.
 | [47](./47_schema_interface.md) | Entity Interface | InterfaceRegistry + `implements` — reusable field contracts, compliance checks | M2 | Done |
 | [48](./48_derived_properties.md) | Derived Properties | `derived` config for computed fields, evaluated at query time | M2 | Done |
 | [49](./49_schema_inheritance.md) | Entity Inheritance | Single-parent `extends`, field/Action/Rule/State inheritance chain | M2 | Done |
-| [64](./64_entity_onchange.md) | Entity Onchange | Server-side form computation — interactive pre-save field updates via `onchange` hooks on Entity | M5 | Draft |
+| [64](./64_entity_onchange.md) | Entity Onchange | Server-side form computation — interactive pre-save field updates via `onchange` hooks on Entity | M5 | Done |
 
 ## Meta-Model — Life System
 
@@ -53,7 +53,7 @@ How the meta-model executes at runtime.
 | [26](./26_transaction_model.md) | Transaction Model | Action-level transactions, Flow-level Saga pattern, compensation | M1 | Partial |
 | [32](./32_state_machine_implementation.md) | State Machine Impl | Transition validation, guard evaluation, auto-transitions, history records | M0 | Done |
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
-| [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Draft |
+| [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Done |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
 | [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M5 | Partial |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
@@ -86,7 +86,7 @@ Capability definition, extension, composition, and distribution.
 | [34](./34_cache_strategy.md) | Cache Strategy | CacheManager, in-memory cache, PostgreSQL invalidation, TTL, tenant isolation | M1 | Done |
 | [41a](./41_data_security_and_masking.md) | Data Security & Masking | Field-level masking rules, MaskingEngine, permission-based display | M1 | Done |
 | [51](./51_data_i18n.md) | Data i18n | JSONB translation storage, shared i18n package, messageKey API (supersedes spec 41 i18n) | M1 | Done |
-| [63](./63_field_immutability_and_locking.md) | Field Immutability & Locking | Immutable fields, state-driven conditional locks, core enforcement + cap-lock capability | M5 | Draft |
+| [63](./63_field_immutability_and_locking.md) | Field Immutability & Locking | Immutable fields, state-driven conditional locks, core enforcement + cap-lock capability | M5 | Partial |
 
 > **Note**: `41_data_i18n.md` is deprecated, superseded by `51_data_i18n.md` — do not implement based on 41.
 
@@ -107,7 +107,7 @@ Capability definition, extension, composition, and distribution.
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
 | [13](./13_view_and_ui.md) | Views & UI | `defineView()` — AutoList, AutoForm, Widget registry, SearchBar, state colors | M0 | Done |
-| [44](./44_realtime_subscription.md) | Realtime Subscription | GraphQL SSE subscriptions, PersistentEventBus integration, per-entity change streams | M2/M5 | Partial |
+| [44](./44_realtime_subscription.md) | Realtime Subscription | GraphQL SSE subscriptions, PersistentEventBus integration, per-entity change streams | M2/M5 | Done |
 | [53](./53_chatter_and_collaboration.md) | Unified Record Timeline | Chatter — field audit + execution log + comments + AI conversation unified timeline (Capability) | M3 | Done |
 | [54](./54_advanced_ui_features.md) | Advanced UI Features | Kanban, calendar, timeline views, drag-and-drop, dashboard builder | M2+ | Partial |
 
@@ -199,15 +199,21 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 48 |
+| Done | 51 |
 | Partial | 12 |
-| Draft | 9 |
+| Draft | 6 |
 | **Total** | **69** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-05-07 | Spec 64 Draft→Done (M5 core+API+GraphQL via #191/#198/#206; M6 frontend via #235; issues #148/#207 closed) |
+| 2026-05-07 | Spec 65 Draft→Done (Phase 1 #201, transports/log #213, idempotency #227, MCP §3.3 #231, CLI §3.5 #232, rule §6 #233, EventHandler §7 #229, masked keys #220; all Spec 65 issues closed) |
+| 2026-05-07 | Spec 63 Draft→Partial (Phase 1 core enforcement done via #203 #202 #253; Phase 2 UI integration + GraphQL field introspection NOT yet shipped; Phase 3 cap-lock capability not built) |
+| 2026-05-07 | Spec 44 Partial→Done (#136 SSE event push closed via #178 Last-Event-ID reconnection replay; record-level filtering + tenant isolation in SubscriptionManager) |
+| 2026-05-07 | Spec 56 Partial note updated: Phase 1 file extraction done (#249); Phase 2 Step 2a life-system abstractions done (#255); Step 2b partial — AI helpers consolidated (#257), but PatternDetector/AnomalyDetector/WatcherEngine impls (Step 2c) still in core |
+| 2026-05-07 | Stats updated: Done 48→51, Draft 9→6, Partial unchanged (12) |
 | 2026-04-10 | Audit fix: Spec 44 Done→Partial (issue #136 SSE event push still open); Spec 45 milestone M3→M5 (issue #150), Spec 61 milestone M3→M5 (issue #87); Stats updated (Done 49→48, Partial 11→12) |
 | 2026-04-10 | Spec 61 → Done (old field type refs cleaned); Spec 56 → Partial (Phase 1 AI exports removed from core) |
 | 2026-04-09 | Expanded spec 10 (Permission Groups planned API), spec 28 (Observability PII/trace fixes), added spec 63 content (Field Immutability & Locking) |
