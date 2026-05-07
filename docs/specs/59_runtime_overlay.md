@@ -294,6 +294,8 @@ WHERE (_extensions->>'score')::numeric > 80;
 
 The DataProvider query builder adds JSONB filter support when it detects the target field is an overlay field.
 
+**Transactional path:** `OverlayAwareDataProvider` implements `withConnection(client)`, returning a fresh wrapper around the inner provider's transaction-scoped copy and sharing the same `OverlayRegistry` instance. When `DrizzleTransactionManager` opens a transaction it applies an opt-in `wrapForTx` callback (configured by the dev-wiring) so the action handler receives the wrapper — not the bare `DrizzleDataProvider`. Overlay-managed field values therefore fold into `_extensions` end-to-end whether or not a transaction is in flight (issue #156).
+
 ### 8.2 GraphQL
 
 GraphQL schema is rebuilt dynamically when overlays change. `graphql-yoga` supports runtime schema replacement via `yoga.replaceSchema()`.

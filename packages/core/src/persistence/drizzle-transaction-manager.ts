@@ -18,11 +18,39 @@ import type { DataProvider, PendingEvent, TransactionManager } from "../engine/a
 import type { DrizzleDataProvider } from "./drizzle-data-provider";
 import { eventsTable } from "./system-tables";
 
+/**
+ * Optional callback that wraps the bare transactional `DrizzleDataProvider`
+ * before it is handed to the action handler. Used by the dev-wiring to
+ * keep an `OverlayAwareDataProvider` in the transactional path so overlay
+ * field values fold into `_extensions` end-to-end (issue #156). Default is
+ * the identity function — no wrapper applied.
+ */
+export type WrapForTxFn = (txProvider: DrizzleDataProvider) => DataProvider;
+
+export interface DrizzleTransactionManagerOptions {
+  /**
+   * Apply a wrapper (e.g. `OverlayAwareDataProvider`) around the
+   * transaction-scoped data provider before passing it to the handler.
+   * Defaults to identity. The wrapper itself must NOT call
+   * `withConnection` again — the manager has already opened the tx.
+   */
+  wrapForTx?: WrapForTxFn;
+}
+
 export class DrizzleTransactionManager implements TransactionManager {
+  private readonly db: PostgresJsDatabase;
+  private readonly dataProvider: DrizzleDataProvider;
+  private readonly wrapForTx: WrapForTxFn;
+
   constructor(
-    private readonly db: PostgresJsDatabase,
-    private readonly dataProvider: DrizzleDataProvider,
-  ) {}
+    db: PostgresJsDatabase,
+    dataProvider: DrizzleDataProvider,
+    options?: DrizzleTransactionManagerOptions,
+  ) {
+    this.db = db;
+    this.dataProvider = dataProvider;
+    this.wrapForTx = options?.wrapForTx ?? ((p) => p);
+  }
 
   async runInTransaction<T>(
     fn: (txDataProvider: DataProvider) => Promise<T>,
@@ -31,7 +59,11 @@ export class DrizzleTransactionManager implements TransactionManager {
     return this.db.transaction(async (tx) => {
       // Create a transactional copy of the data provider
       const txDb = tx as unknown as PostgresJsDatabase;
-      const txProvider = this.dataProvider.withConnection(txDb);
+      const bareTxProvider = this.dataProvider.withConnection(txDb);
+      // Apply the optional wrap (identity by default). Used by dev-wiring
+      // to keep `OverlayAwareDataProvider` in the transactional path so
+      // overlay field values fold into `_extensions` end-to-end.
+      const txProvider = this.wrapForTx(bareTxProvider);
 
       // Execute the handler with the transactional provider
       const result = await fn(txProvider);
