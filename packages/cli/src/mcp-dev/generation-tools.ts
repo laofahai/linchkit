@@ -10,7 +10,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { CapabilityDefinition } from "@linchkit/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
@@ -66,16 +66,89 @@ interface ValidationResult {
   warnings: string[];
 }
 
+/**
+ * Reserved JavaScript identifiers (ES2022 reserved + future-reserved + strict-mode reserved).
+ * Used to reject entity / action / capability names that would generate
+ * uncompilable `export const <reserved> = ...` source.
+ */
+const JS_RESERVED = new Set([
+  "abstract",
+  "await",
+  "boolean",
+  "break",
+  "byte",
+  "case",
+  "catch",
+  "char",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "final",
+  "finally",
+  "float",
+  "for",
+  "function",
+  "goto",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "instanceof",
+  "int",
+  "interface",
+  "let",
+  "long",
+  "native",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "short",
+  "static",
+  "super",
+  "switch",
+  "synchronized",
+  "this",
+  "throw",
+  "throws",
+  "transient",
+  "true",
+  "try",
+  "typeof",
+  "var",
+  "void",
+  "volatile",
+  "while",
+  "with",
+  "yield",
+]);
+
 interface FieldSpec {
   type: string;
   label?: string;
   description?: string;
   required?: boolean;
   unique?: boolean;
+  immutable?: boolean;
   min?: number;
   max?: number;
   default?: unknown;
   options?: string[];
+  machine?: string;
+  derived?: Record<string, unknown>;
   pattern?: string;
   format?: string;
 }
@@ -116,13 +189,23 @@ function renderField(spec: FieldSpec): string {
     parts.push(`description: ${JSON.stringify(spec.description)}`);
   if (spec.required) parts.push(`required: true`);
   if (spec.unique) parts.push(`unique: true`);
+  if (spec.immutable) parts.push(`immutable: true`);
   if (spec.default !== undefined) parts.push(`default: ${JSON.stringify(spec.default)}`);
   if (spec.min !== undefined) parts.push(`min: ${spec.min}`);
   if (spec.max !== undefined) parts.push(`max: ${spec.max}`);
   if (spec.pattern !== undefined) parts.push(`pattern: ${JSON.stringify(spec.pattern)}`);
   if (spec.format !== undefined) parts.push(`format: ${JSON.stringify(spec.format)}`);
+  // EnumField.options shape is Array<{ value: string }> — see packages/core/src/types/entity.ts.
+  // Render the input string[] as objects so generated code passes core's typecheck.
   if (spec.type === "enum" && Array.isArray(spec.options)) {
-    parts.push(`options: ${JSON.stringify(spec.options)}`);
+    const options = spec.options.map((opt) => ({ value: opt }));
+    parts.push(`options: ${JSON.stringify(options)}`);
+  }
+  if (spec.type === "state" && spec.machine) {
+    parts.push(`machine: ${JSON.stringify(spec.machine)}`);
+  }
+  if (spec.derived) {
+    parts.push(`derived: ${JSON.stringify(spec.derived)}`);
   }
   return `{ ${parts.join(", ")} }`;
 }
@@ -257,6 +340,8 @@ function validateEntityInput(input: EntityGenInput, defs: CollectedDefinitions):
     errors.push("Entity name is required");
   } else if (!SNAKE_CASE_RE.test(input.name)) {
     errors.push(`Entity name '${input.name}' must be snake_case`);
+  } else if (JS_RESERVED.has(input.name)) {
+    errors.push(`Entity name '${input.name}' is a reserved JavaScript keyword`);
   }
 
   // Name collision against existing catalog
@@ -309,6 +394,8 @@ function validateActionInput(input: ActionGenInput, defs: CollectedDefinitions):
     errors.push("Action name is required");
   } else if (!SNAKE_CASE_RE.test(input.name)) {
     errors.push(`Action name '${input.name}' must be snake_case`);
+  } else if (JS_RESERVED.has(input.name)) {
+    errors.push(`Action name '${input.name}' is a reserved JavaScript keyword`);
   } else {
     // verb_noun: must contain underscore + first segment in verb list (warning if missing)
     const segments = input.name.split("_");
@@ -349,6 +436,14 @@ function validateCapabilityInput(
     errors.push(
       `Capability name '${input.name}' must match 'cap-<domain>' (lowercase letters/digits, hyphens or underscores)`,
     );
+  } else {
+    // Domain segment after cap- must not be a JS reserved keyword once the
+    // hyphen is normalised to underscore (since safeId strips hyphens).
+    const safeId = input.name.replace(/[^a-zA-Z0-9_]/g, "_");
+    const domain = input.name.slice("cap-".length);
+    if (JS_RESERVED.has(domain) || JS_RESERVED.has(safeId)) {
+      errors.push(`Capability name '${input.name}' is a reserved JavaScript keyword`);
+    }
   }
 
   if (input.name && capabilities.some((c) => c.name === input.name)) {
@@ -381,8 +476,13 @@ function validateCapabilityInput(
  * structured `validation` error in the tool result.
  */
 function ensureWithinProjectRoot(projectRoot: string, absPath: string): void {
-  const normalizedRoot = projectRoot.endsWith(sep) ? projectRoot : projectRoot + sep;
-  if (absPath !== projectRoot && !absPath.startsWith(normalizedRoot)) {
+  // Use path.relative for a cross-platform check. A path is "outside" the
+  // root iff the relative form starts with `..` or is itself absolute (which
+  // happens on Windows when projectRoot and absPath live on different drives).
+  // String prefix checks alone are fragile on Windows due to drive-letter
+  // case differences (e.g. C:\ vs c:\).
+  const rel = relative(projectRoot, absPath);
+  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
     throw new Error(`targetPath '${absPath}' resolves outside projectRoot '${projectRoot}'`);
   }
 }
@@ -415,10 +515,13 @@ const generateEntityInputSchema = {
           description: z.string().optional(),
           required: z.boolean().optional(),
           unique: z.boolean().optional(),
+          immutable: z.boolean().optional(),
           min: z.number().optional(),
           max: z.number().optional(),
           default: z.unknown().optional(),
           options: z.array(z.string()).optional(),
+          machine: z.string().optional(),
+          derived: z.record(z.string(), z.unknown()).optional(),
           pattern: z.string().optional(),
           format: z.string().optional(),
         })

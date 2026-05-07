@@ -160,7 +160,10 @@ describe("MCP Dev Server — generation tools", () => {
       expect(data.validation.valid).toBe(true);
       expect(data.code).toContain("defineEntity(");
       expect(data.code).toContain('name: "invoice"');
-      expect(data.code).toContain('options: ["draft","sent","paid"]');
+      // EnumField.options shape (per packages/core/src/types/entity.ts) is
+      // Array<{ value: string }>, NOT string[]. The generator must render
+      // the wrapped object form so the resulting code passes core's typecheck.
+      expect(data.code).toContain('options: [{"value":"draft"},{"value":"sent"},{"value":"paid"}]');
       expect(data.path).toContain("addons/cap-billing/src/entities/invoice.ts");
       expect(data.written).toBe(false);
     });
@@ -206,6 +209,78 @@ describe("MCP Dev Server — generation tools", () => {
       const data = parseResult(result);
       expect(data.validation.valid).toBe(false);
       expect(data.validation.errors.some((e) => e.includes("snake_case"))).toBe(true);
+    });
+
+    test("rejects entity name that is a JavaScript reserved keyword", async () => {
+      const server = makeServer();
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "export",
+        fields: { x: { type: "string" } },
+        targetPath: "x.ts",
+        dryRun: true,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("reserved"))).toBe(true);
+    });
+
+    test("renders immutable, machine, derived, pattern, and format on fields", async () => {
+      const server = makeServer();
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "ledger_entry",
+        fields: {
+          ref: {
+            type: "string",
+            required: true,
+            immutable: true,
+            pattern: "^LE-",
+            format: "currency",
+          },
+          stage: { type: "state", machine: "ledger_state" },
+          total: {
+            type: "number",
+            derived: { type: "expression", strategy: "compute" },
+          },
+        },
+        targetPath: "addons/cap-ledger/src/entities/ledger_entry.ts",
+        dryRun: true,
+      });
+      expect(result.isError).toBeUndefined();
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(true);
+      expect(data.code).toContain("immutable: true");
+      expect(data.code).toContain('pattern: "^LE-"');
+      expect(data.code).toContain('format: "currency"');
+      expect(data.code).toContain('machine: "ledger_state"');
+      expect(data.code).toContain('derived: {"type":"expression","strategy":"compute"}');
+    });
+
+    test("generated enum + immutable code matches the EnumField shape (smoke)", async () => {
+      // Lightweight smoke test: assert the generated source contains the
+      // exact wrapped-options literal expected by EnumField (Array<{ value }>)
+      // and the immutable flag rendering. We avoid `new Function`/`eval`
+      // here on purpose (project rule: no dynamic code execution); see the
+      // earlier "generates a defineEntity() source file" test for the full
+      // string-shape assertions covered against real input.
+      const server = makeServer();
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "smoke_entity",
+        label: "Smoke",
+        fields: {
+          status: { type: "enum", label: "Status", options: ["draft", "active"] },
+          name: { type: "string", required: true, immutable: true },
+        },
+        targetPath: "addons/cap-smoke/src/entities/smoke_entity.ts",
+        dryRun: true,
+      });
+      expect(result.isError).toBeUndefined();
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(true);
+      expect(data.code).toContain('options: [{"value":"draft"},{"value":"active"}]');
+      expect(data.code).toContain("immutable: true");
+      // Sanity check: must NOT contain the legacy string[] form.
+      expect(data.code).not.toContain('options: ["draft"');
     });
   });
 
@@ -257,6 +332,23 @@ describe("MCP Dev Server — generation tools", () => {
       const data = parseResult(result);
       expect(data.validation.errors.some((e) => e.includes("already exists"))).toBe(true);
     });
+
+    test("rejects action name that is a JavaScript reserved keyword", async () => {
+      const server = makeServer();
+      // 'delete' is in VERB_LIST but is also a JS reserved keyword. The
+      // reserved check must fire so a generated `export const delete = ...`
+      // never reaches disk.
+      const result = await callTool(server, "linchkit_generate_action", {
+        name: "delete",
+        entity: "purchase_request",
+        targetPath: "x.ts",
+        dryRun: true,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("reserved"))).toBe(true);
+    });
   });
 
   describe("linchkit_generate_capability", () => {
@@ -303,6 +395,24 @@ describe("MCP Dev Server — generation tools", () => {
       const data = parseResult(result);
       expect(data.validation.valid).toBe(false);
       expect(data.validation.errors.some((e) => e.includes("type"))).toBe(true);
+    });
+
+    test("rejects capability name whose domain is a JavaScript reserved keyword", async () => {
+      const server = makeServer();
+      // Domain segment after `cap-` collides with a reserved JS identifier
+      // (`class`). The generated `export const cap_class = ...` would still
+      // compile, but accepting reserved domain names is a foot-gun; reject.
+      const result = await callTool(server, "linchkit_generate_capability", {
+        name: "cap-class",
+        type: "standard",
+        category: "business",
+        rootPath: "addons/class/cap-class",
+        dryRun: true,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("reserved"))).toBe(true);
     });
   });
 
