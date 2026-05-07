@@ -58,17 +58,21 @@ import {
   type createRelationRegistry,
   createSyncFlowEngine,
   createTriggerBinding,
+  DefaultOverlayRegistry,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
+  DrizzleOverlayStore,
   DrizzleTransactionManager,
   type EntityRegistry,
   type FlowEngine,
   HealthCheckRegistry,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
+  InMemoryOverlayStore,
   livenessCheck,
   type OutboxWorker,
+  type OverlayRegistry,
   type PermissionRegistry,
 } from "@linchkit/core/server";
 
@@ -137,6 +141,47 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     dbInstance,
     dataProvider,
   } = input;
+
+  // ── Overlay registry — Spec 60 §6 ────────────────────────────────────
+  // Constructed exactly once per dev session and assigned to
+  // transportCtx.overlayRegistry so cap-adapter-mcp, the REST overlay
+  // routes, and the GraphQL overlay-aware schema builder all read from the
+  // same instance. An overlay registered via the API is therefore visible
+  // through MCP introspection without a server restart.
+  //
+  // NOTE: This PR intentionally does NOT wrap `dataProvider` with
+  // `OverlayAwareDataProvider`. That wrap is needed for action writes to
+  // fold overlay field VALUES into the `_extensions` column, but the
+  // wrap leaks past the transactional execution path: ActionEngine
+  // resolves a transaction-scoped DataProvider via
+  // `DrizzleTransactionManager.runInTransaction`, which produces a bare
+  // `DrizzleDataProvider` — bypassing the wrapper and writing overlay
+  // fields straight to non-existent columns. Wiring the wrap correctly
+  // requires either making `DrizzleTransactionManager` aware of the
+  // wrapper or implementing a transaction-aware `withConnection`. Out
+  // of scope here; tracked as a follow-up to issue #156.
+  const overlayStore = dbInstance
+    ? new DrizzleOverlayStore(dbInstance)
+    : new InMemoryOverlayStore();
+  const overlayRegistry: OverlayRegistry = new DefaultOverlayRegistry(overlayStore);
+  // Initialize loads existing overlays into the in-memory cache. We deliberately
+  // let any DB-side error propagate (the rest of the dev session relies on
+  // overlays being present) but wrap in try/catch to attach a contextual
+  // diagnostic — the most common cause is "migrations not yet run".
+  try {
+    await overlayRegistry.initialize();
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `OverlayRegistry initialization failed: ${cause}. ` +
+        "If this is the first time running with this DATABASE_URL, " +
+        "ensure migrations have been applied (e.g. `bun run migration:apply`).",
+      { cause: err },
+    );
+  }
+  consoleLogger.info(
+    dbInstance ? "Overlay registry: drizzle" : "Overlay registry: in-memory (no DB)",
+  );
 
   // Create execution logger — Drizzle-backed when DB is available
   const executionLogger = dbInstance
@@ -460,6 +505,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     flowEngine,
     capabilities,
     ontologyRegistry,
+    overlayRegistry,
     cacheManager,
     healthCheckRegistry,
     environment,
