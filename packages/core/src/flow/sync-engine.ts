@@ -318,8 +318,12 @@ async function runCompensations(
 
     try {
       // Idempotency key (Spec 26 §3.2): identical across re-runs of the same
-      // flow instance + step so the compensating action is applied at most once.
-      const idempotencyKey = `${flowRunId}:${record.stepId}:compensate`;
+      // flow instance + step + completion-index so the compensating action is
+      // applied at most once per completion. The completion index `i` is
+      // essential — without it, a step that ran multiple times in a loop
+      // (via condition jumps) would collide on the same key and the
+      // ActionEngine would dedupe all but the first compensation.
+      const idempotencyKey = `${flowRunId}:${i}:${record.stepId}:compensate`;
       await runCtx.executeAction(record.compensationAction, resolvedInput, {
         idempotencyKey,
       });

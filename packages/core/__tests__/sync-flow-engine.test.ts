@@ -496,5 +496,98 @@ describe("SyncFlowEngine", () => {
 
       expect(compensationCallInput).toEqual({ reason: "rollback" });
     });
+
+    it("disambiguates compensation idempotency keys when a step runs multiple times in a loop", async () => {
+      // Regression for the loop-collision bug: when a single action step
+      // executes more than once via a condition jump, each completion must
+      // get its own idempotency key. Without the completion index `i` baked
+      // into the key, the ActionEngine would dedupe all but the first
+      // compensation — the second debit would never be credited back.
+      const compensationKeys: Array<string | undefined> = [];
+
+      const ctx: FlowStepContext = {
+        flowContext: {},
+        async executeAction(actionName, _input, options) {
+          if (actionName === "undo_body") {
+            compensationKeys.push(options?.idempotencyKey);
+            return { undone: true };
+          }
+          if (actionName === "crash") {
+            throw new Error("after-loop boom");
+          }
+          if (actionName === "body") {
+            return { iter: 1 };
+          }
+          return { ok: true };
+        },
+        async callAI() {
+          return { response: "stub", tokensUsed: 0 };
+        },
+        evaluateCondition() {
+          return false;
+        },
+      };
+
+      // Sync engine stores each step's output at $steps.<id>.output (overwriting
+      // on each visit). Body returns `iter: 1` every call; the condition compares
+      // a counter we maintain via the action handler's call number.
+      let bodyCalls = 0;
+      const wrapped: FlowStepContext = {
+        ...ctx,
+        async executeAction(actionName, input, options) {
+          if (actionName === "body") {
+            bodyCalls++;
+            return { iter: bodyCalls };
+          }
+          return ctx.executeAction(actionName, input, options);
+        },
+      };
+
+      const flow: FlowDefinition = {
+        name: "loop-saga",
+        trigger: { type: "manual" },
+        failurePolicy: "compensate",
+        steps: [
+          {
+            id: "body",
+            name: "Body",
+            type: "action",
+            actionName: "body",
+            compensation: "undo_body",
+          },
+          {
+            id: "check",
+            name: "Check",
+            type: "condition",
+            expression: "$steps.body.output.iter < 2",
+            // biome-ignore lint/suspicious/noThenProperty: flow condition step definition
+            then: "body",
+            else: "after",
+          },
+          {
+            id: "after",
+            name: "After",
+            type: "action",
+            actionName: "crash",
+          },
+        ],
+      };
+
+      const engine = createSyncFlowEngine(wrapped);
+      engine.registerFlow(flow);
+
+      const instance = await engine.startFlow("loop-saga", {}, { instanceId: "loop-instance-1" });
+
+      // body should have run twice (iter=1 then iter=2), then crash.
+      expect(bodyCalls).toBe(2);
+      expect(instance.status).toBe("compensated");
+
+      // Two undo_body invocations, with DISTINCT keys carrying the
+      // completion index. Reverse order: i=1 first, then i=0.
+      expect(compensationKeys).toEqual([
+        "loop-instance-1:1:body:compensate",
+        "loop-instance-1:0:body:compensate",
+      ]);
+    });
   });
 });
