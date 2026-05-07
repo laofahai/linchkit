@@ -140,16 +140,25 @@ function defaultIdGenerator(): string {
 }
 
 /**
+ * Maximum number of fields the deterministic structural translator inlines
+ * into a default list view stub. Pulled from the head of the entity's
+ * field map (insertion order). Later slices may replace this with an
+ * importance-graph-aware selection.
+ */
+const DEFAULT_VIEW_FIELD_LIMIT = 5;
+
+/**
  * Deep copy of evidence so translators cannot mutate the originating
  * Insight, and downstream consumers cannot back-leak edits into Memory.
- * Uses structuredClone for nested-safe semantics; falls back to JSON
- * round-trip when structuredClone is unavailable (older runtimes).
+ *
+ * Requires `structuredClone` (Bun and Node 17+ both provide it). We
+ * intentionally do NOT use a JSON round-trip fallback because evidence
+ * carries `Date` instances (`SensorSignal.timestamp`, baseline timestamps)
+ * which JSON.stringify silently coerces to ISO strings — that would break
+ * the `InsightEvidence` type contract for downstream consumers.
  */
 function cloneEvidence(evidence: InsightEvidence): InsightEvidence {
-  if (typeof structuredClone === "function") {
-    return structuredClone(evidence) as InsightEvidence;
-  }
-  return JSON.parse(JSON.stringify(evidence)) as InsightEvidence;
+  return structuredClone(evidence) as InsightEvidence;
 }
 
 /**
@@ -162,7 +171,7 @@ function buildDefaultListView(entity: string, ctx: TranslatorContext): ViewDefin
   const descriptor = ctx.ontology?.describe(entity);
   const fields = descriptor
     ? Object.keys(descriptor.fields)
-        .slice(0, 5)
+        .slice(0, DEFAULT_VIEW_FIELD_LIMIT)
         .map((name) => ({ field: name }))
     : [];
 
