@@ -43,6 +43,26 @@ export interface ActionProposalCardProps {
 /** Maximum number of alternatives to render in the "Did you mean" section. */
 export const MAX_DISPLAYED_ALTERNATIVES = 3;
 
+/**
+ * Confidence-band thresholds used for both the primary card badge and the
+ * alternatives pills. Aligned with Spec 52 §2.2 surfacing thresholds.
+ *
+ * - confidence < MEDIUM → destructive (red) — low confidence
+ * - MEDIUM ≤ confidence < HIGH → secondary (neutral) — passable
+ * - confidence ≥ HIGH → default (positive) — high confidence
+ */
+export const CONFIDENCE_THRESHOLD_MEDIUM = 0.5;
+export const CONFIDENCE_THRESHOLD_HIGH = 0.8;
+
+/**
+ * Minimum confidence required to render an action proposal card at all.
+ * Below this, the AI Assistant falls back to general chat instead of
+ * surfacing a card the user is unlikely to confirm. Currently aligned with
+ * `CONFIDENCE_THRESHOLD_MEDIUM`, but kept as a separate symbol so the
+ * surfacing gate can move independently of the badge color band.
+ */
+export const MIN_PROPOSAL_CONFIDENCE = CONFIDENCE_THRESHOLD_MEDIUM;
+
 function resolveTranslatableLabel(
   raw: string | undefined,
   fallback: string,
@@ -231,8 +251,9 @@ function formatConfidencePct(confidence: number): string {
 }
 
 function confidenceBadgeVariant(confidence: number): "default" | "secondary" | "destructive" {
-  if (!Number.isFinite(confidence) || confidence < 0.5) return "destructive";
-  if (confidence >= 0.8) return "default";
+  if (!Number.isFinite(confidence) || confidence < CONFIDENCE_THRESHOLD_MEDIUM)
+    return "destructive";
+  if (confidence >= CONFIDENCE_THRESHOLD_HIGH) return "default";
   return "secondary";
 }
 
@@ -304,12 +325,12 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
   const inputFields = Object.entries(currentIntent.inputSchema);
   const actionLabel = resolveTranslatableLabel(currentIntent.actionLabel, currentIntent.action, t);
 
-  // Defensive sort + cap — backend already returns sorted N-best, but this
-  // guarantees the contract when swap mutates the list.
-  const displayedAlternatives = (currentIntent.alternatives ?? [])
-    .slice()
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, MAX_DISPLAYED_ALTERNATIVES);
+  // Backend returns alternatives sorted DESC by confidence and swapAlternative
+  // re-sorts after each swap, so we only need to cap to the display limit here.
+  const displayedAlternatives = (currentIntent.alternatives ?? []).slice(
+    0,
+    MAX_DISPLAYED_ALTERNATIVES,
+  );
 
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">

@@ -36,7 +36,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type ActionResult, type IntentResolution, isAiEnabled, resolveIntent } from "../lib/api";
-import { ActionProposalCard } from "./action-proposal-card";
+import { ActionProposalCard, MIN_PROPOSAL_CONFIDENCE } from "./action-proposal-card";
 
 // ── Proposal state ───────────────────────────────────────
 
@@ -153,7 +153,10 @@ export function AIAssistant({
           // attempts the general endpoint, which itself may also be down — but
           // that path produces its own error UI in the message stream.
           toast.error(t("ai.serviceUnavailable"));
-        } else if (result.kind === "proposal" && result.proposal.confidence >= 0.5) {
+        } else if (
+          result.kind === "proposal" &&
+          result.proposal.confidence >= MIN_PROPOSAL_CONFIDENCE
+        ) {
           setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
           const proposalId = crypto.randomUUID();
           setProposals((prev) => [...prev, { id: proposalId, intent: result.proposal }]);
