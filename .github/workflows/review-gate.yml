@@ -170,30 +170,60 @@ jobs:
             // Explicitly create a check-run on the PR head SHA. This is the
             // SHA branch protection evaluates, so writing here updates the
             // PR's required-check status without needing an empty commit.
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'Review Threads',
-              head_sha: prHeadSha,
-              status: 'completed',
-              conclusion,
-              output: {
-                title,
-                summary,
-              },
-            });
-
-            core.info(`Posted Review Threads check-run (${conclusion}) on ${prHeadSha}.`);
+            //
+            // Fork-PR caveat: GitHub downgrades GITHUB_TOKEN to read-only for
+            // `pull_request` events whose head ref lives on a fork, regardless
+            // of the workflow-level `permissions:` block. `checks.create()`
+            // therefore 403s for those runs. Catch the failure and fall back
+            // to the workflow's own status — `core.setFailed` below still
+            // marks the workflow run, and GitHub auto-attaches a check-run
+            // with that status to the head SHA, matching today's behavior.
+            // For `issue_comment` events the token is the base repo's, so
+            // the call always succeeds.
+            let checkRunPosted = false;
+            try {
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'Review Threads',
+                head_sha: prHeadSha,
+                status: 'completed',
+                conclusion,
+                output: {
+                  title,
+                  summary,
+                },
+              });
+              checkRunPosted = true;
+              core.info(`Posted Review Threads check-run (${conclusion}) on ${prHeadSha}.`);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              core.warning(
+                `Could not post Review Threads check-run on ${prHeadSha} (${message}). ` +
+                  'This is expected for pull_request events from forked repositories — ' +
+                  'GitHub downgrades GITHUB_TOKEN to read-only in that case. The workflow ' +
+                  "run status itself will still convey the gate verdict.",
+              );
+            }
 
             // For `pull_request` events the workflow's own conclusion has
             // historically mirrored the gate verdict (the check shown in
             // the PR's Checks tab matches the workflow's run status). Keep
-            // that behavior. For `issue_comment` events the workflow's job
-            // is just to post the check-run on the PR head — the verdict
-            // is carried by that check-run, so the workflow itself always
-            // succeeds. Otherwise contributors would see a red Actions run
-            // for a `/check-reviews` comment even when the gate flipped to
-            // SUCCESS on the PR head.
-            if (eventName === 'pull_request' && unresolved.length > 0) {
+            // that behavior — and on fork PRs where `checks.create()` was
+            // refused, this is the ONLY signal the gate ran at all.
+            //
+            // For `issue_comment` events the verdict is carried by the
+            // explicit check-run on the PR head — so when posting succeeded
+            // the workflow always succeeds. If the post FAILED (rare, but
+            // possible if base-repo token rotation hit the API), surface the
+            // failure on the workflow itself so contributors see something
+            // went wrong.
+            const isPullRequest = eventName === 'pull_request';
+            if (isPullRequest && unresolved.length > 0) {
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
+            } else if (!isPullRequest && !checkRunPosted) {
+              core.setFailed(
+                'Failed to post Review Threads check-run on the PR head. ' +
+                  'See warning above for details.',
+              );
             }
