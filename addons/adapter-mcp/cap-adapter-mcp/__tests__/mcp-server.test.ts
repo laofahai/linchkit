@@ -1320,26 +1320,32 @@ describe("createMcpAdapter — overlay-field discovery (Spec 60 §6)", () => {
     const result = await tools.get_entity?.handler({ name: "order" }, {});
 
     expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(result.content[0]?.text);
+    const parsed = JSON.parse(result.content[0]?.text) as {
+      fields: { properties: Record<string, unknown> };
+      overlayFields: Array<{
+        source: string;
+        name: string;
+        fieldType: string;
+        config: Record<string, unknown>;
+      }>;
+    };
 
     // Static fields still present.
     expect(parsed.fields.properties).toHaveProperty("customer_name");
 
     // Overlay fields surfaced with the documented shape.
     expect(parsed.overlayFields).toHaveLength(2);
-    const byName = new Map<string, Record<string, unknown>>(
-      (parsed.overlayFields as Array<{ name: string }>).map((f) => [f.name, f]),
-    );
+    const byName = new Map(parsed.overlayFields.map((f) => [f.name, f]));
     const color = byName.get("color");
     expect(color).toBeDefined();
     expect(color?.source).toBe("overlay");
     expect(color?.fieldType).toBe("enum");
-    expect((color?.config as Record<string, unknown>).enumValues).toEqual(["red", "green", "blue"]);
+    expect(color?.config.enumValues).toEqual(["red", "green", "blue"]);
 
     const warranty = byName.get("warranty_months");
     expect(warranty?.source).toBe("overlay");
     expect(warranty?.fieldType).toBe("number");
-    expect((warranty?.config as Record<string, unknown>).defaultValue).toBe(12);
+    expect(warranty?.config.defaultValue).toBe(12);
   });
 
   test("describe_entity (get_entity) returns empty overlayFields when none exist", async () => {
