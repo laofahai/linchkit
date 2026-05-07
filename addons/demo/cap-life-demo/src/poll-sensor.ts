@@ -91,7 +91,11 @@ export class PollSensor implements LifecycleSensor {
       timestamp: this.now(),
       metadata: { sensorId: this.id },
     };
-    for (const handler of this.handlers) {
+    // Snapshot the handler set before iterating so a subscriber registered
+    // *during* delivery doesn't get the current signal — that contradicts the
+    // documented "subscribers added before start() see every signal" contract
+    // and creates surprising reentrant behavior.
+    for (const handler of [...this.handlers]) {
       // Each subscriber is isolated: a throw in one handler must not interrupt
       // delivery to the others or kill the polling loop. Errors get logged
       // (the demo uses console.error; a real impl would route to telemetry).

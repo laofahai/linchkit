@@ -51,10 +51,14 @@ export interface PipelineController {
 export function run(options: RunPipelineOptions): PipelineController {
   const { sensor, store, baseline, anomalyThreshold = 0.5, onAnomaly } = options;
   let stopped = false;
+  // Monotonic counter so two ticks landing in the same millisecond (or any
+  // test using a fixed `now()`) produce distinct keys instead of silently
+  // overwriting each other.
+  let seq = 0;
 
   const handle = async (signal: LifecycleSignal) => {
     // Step 2: write the Signal to the Memory layer.
-    const key = `signals/${sensor.id}/${signal.timestamp}`;
+    const key = `signals/${sensor.id}/${signal.timestamp}/${++seq}`;
     await store.write(key, signal);
 
     // Step 3: score against the baseline; fire the anomaly hook if needed.

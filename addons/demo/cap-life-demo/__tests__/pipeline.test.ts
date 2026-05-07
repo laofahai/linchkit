@@ -140,7 +140,7 @@ describe("life-system demo pipeline", () => {
     expect(findSensor(sensor.id)).toBeUndefined();
   });
 
-  test("registry rejects duplicate sensor IDs", () => {
+  test("registry rejects duplicate sensor IDs", async () => {
     const a = new PollSensor({
       id: "life-demo.duplicate",
       intervalMs: 250,
@@ -151,7 +151,13 @@ describe("life-system demo pipeline", () => {
       intervalMs: 250,
       produce: () => ({ value: 0 }),
     });
-    registerSensor(a);
-    expect(() => registerSensor(b)).toThrow(/already registered/);
+    try {
+      registerSensor(a);
+      expect(() => registerSensor(b)).toThrow(/already registered/);
+    } finally {
+      // afterEach only cleans SENSOR_ID; this test uses a different id and
+      // must remove it itself or it leaks into later tests in this file.
+      await unregisterSensor("life-demo.duplicate");
+    }
   });
 });
