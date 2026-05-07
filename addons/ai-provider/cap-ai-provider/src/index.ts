@@ -50,6 +50,17 @@ export { AnomalyDetector } from "./anomaly-detector";
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
 
+// Intent Resolver (Spec 52 Phase 0 PoC — natural language → ActionProposal)
+export type { ActionCatalogEntry } from "./intent-prompt";
+export { buildIntentSystemPrompt } from "./intent-prompt";
+export type {
+  ActionProposal,
+  OntologyRegistryLike,
+  ResolveIntentDeps,
+  ResolveIntentInput,
+} from "./intent-resolver";
+export { MIN_CONFIDENCE, resolveIntent } from "./intent-resolver";
+
 // Pattern Detector (moved from @linchkit/core, Spec 56 Phase 2 Step 2c)
 export type {
   PatternDetectorConfig,
