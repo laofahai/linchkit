@@ -8,7 +8,10 @@
  * All tool calls use `dryRun: true` so nothing is written to disk.
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import type { ActionDefinition, CapabilityDefinition, EntityDefinition } from "@linchkit/core";
 import type { CollectedDefinitions } from "../src/commands/startup/collect-capabilities";
 import { createMcpDevServer } from "../src/mcp-dev/server";
@@ -344,6 +347,194 @@ describe("MCP Dev Server — generation tools", () => {
       expect(text).toContain("budget_check");
       expect(text).toContain("Proposal");
       expect(text).toContain("[exists in catalog]");
+    });
+  });
+});
+
+// ── Filesystem-touching tests ───────────────────────────────────
+//
+// These tests use a real temp dir to verify path-traversal rejection,
+// overwrite protection, and dryRun semantics. The temp dir doubles as
+// the projectRoot so non-malicious targetPaths resolve inside it.
+
+describe("MCP Dev Server — filesystem safety", () => {
+  let tmpRoot: string;
+
+  beforeEach(() => {
+    tmpRoot = mkdtempSync(join(tmpdir(), "mcp-gen-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  function makeServerWithRoot(root: string): ReturnType<typeof createMcpDevServer> {
+    return createMcpDevServer({
+      definitions: mockDefinitions,
+      capabilities: [mockCapability],
+      projectRoot: root,
+    });
+  }
+
+  describe("path traversal", () => {
+    test("entity tool rejects ../../ targetPath without writing", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "invoice",
+        fields: { number: { type: "string" } },
+        targetPath: "../../../etc/passwd-test.ts",
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("outside projectRoot"))).toBe(true);
+      // Sanity: nothing got written under tmpRoot's parent.
+      expect(existsSync(join(tmpRoot, "..", "..", "..", "etc", "passwd-test.ts"))).toBe(false);
+    });
+
+    test("action tool rejects ../../ targetPath without writing", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_action", {
+        name: "approve_request",
+        entity: "purchase_request",
+        targetPath: "../../../etc/passwd-action.ts",
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("outside projectRoot"))).toBe(true);
+      expect(existsSync(join(tmpRoot, "..", "..", "..", "etc", "passwd-action.ts"))).toBe(false);
+    });
+
+    test("capability tool rejects ../../ rootPath without writing", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_capability", {
+        name: "cap-evil",
+        type: "standard",
+        category: "business",
+        rootPath: "../../../etc/cap-evil",
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("outside projectRoot"))).toBe(true);
+      expect(existsSync(join(tmpRoot, "..", "..", "..", "etc", "cap-evil"))).toBe(false);
+    });
+  });
+
+  describe("overwrite protection", () => {
+    test("entity tool refuses to overwrite without force; succeeds with force", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const targetRel = "addons/cap-billing/src/entities/invoice.ts";
+      const targetAbs = join(tmpRoot, targetRel);
+      mkdirSync(dirname(targetAbs), { recursive: true });
+      const fixture = "// pre-existing fixture content\n";
+      writeFileSync(targetAbs, fixture);
+
+      // Without force — must error and leave file untouched.
+      const blocked = await callTool(server, "linchkit_generate_entity", {
+        name: "invoice",
+        fields: { number: { type: "string", required: true } },
+        targetPath: targetRel,
+        dryRun: false,
+        force: false,
+      });
+      expect(blocked.isError).toBe(true);
+      const blockedData = parseResult(blocked);
+      expect(blockedData.validation.valid).toBe(false);
+      expect(blockedData.validation.errors.some((e) => e.includes("Refusing to overwrite"))).toBe(
+        true,
+      );
+      expect(readFileSync(targetAbs, "utf8")).toBe(fixture);
+
+      // With force — must succeed and overwrite.
+      const allowed = await callTool(server, "linchkit_generate_entity", {
+        name: "invoice",
+        fields: { number: { type: "string", required: true } },
+        targetPath: targetRel,
+        dryRun: false,
+        force: true,
+      });
+      expect(allowed.isError).toBeUndefined();
+      const allowedData = parseResult(allowed);
+      expect(allowedData.validation.valid).toBe(true);
+      expect(allowedData.written).toBe(true);
+      const written = readFileSync(targetAbs, "utf8");
+      expect(written).not.toBe(fixture);
+      expect(written).toContain("defineEntity(");
+    });
+  });
+
+  describe("dryRun does not touch fs", () => {
+    test("entity tool returns code without writing when dryRun=true", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const targetRel = "addons/cap-billing/src/entities/invoice.ts";
+      const targetAbs = join(tmpRoot, targetRel);
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "invoice",
+        fields: { number: { type: "string", required: true } },
+        targetPath: targetRel,
+        dryRun: true,
+      });
+      expect(result.isError).toBeUndefined();
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(true);
+      expect(data.path).toBe(targetAbs);
+      expect(data.code).toContain("defineEntity(");
+      expect(data.written).toBe(false);
+      expect(existsSync(targetAbs)).toBe(false);
+    });
+  });
+
+  describe("capability cap- prefix", () => {
+    test("rejects bare name without cap- prefix", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_capability", {
+        name: "billing",
+        type: "standard",
+        category: "business",
+        rootPath: "addons/billing/cap-billing",
+        dryRun: true,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("cap-<domain>"))).toBe(true);
+    });
+
+    test("accepts cap-<domain> name", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_capability", {
+        name: "cap-billing",
+        type: "standard",
+        category: "business",
+        rootPath: "addons/billing/cap-billing",
+        dryRun: true,
+      });
+      expect(result.isError).toBeUndefined();
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(true);
+    });
+  });
+
+  describe("entity field validation", () => {
+    test("rejects enum field with empty options[]", async () => {
+      const server = makeServerWithRoot(tmpRoot);
+      const result = await callTool(server, "linchkit_generate_entity", {
+        name: "invoice",
+        fields: {
+          status: { type: "enum", options: [] },
+        },
+        targetPath: "addons/cap-billing/src/entities/invoice.ts",
+        dryRun: true,
+      });
+      expect(result.isError).toBe(true);
+      const data = parseResult(result);
+      expect(data.validation.valid).toBe(false);
+      expect(data.validation.errors.some((e) => e.includes("non-empty options"))).toBe(true);
     });
   });
 });

@@ -10,7 +10,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import type { CapabilityDefinition } from "@linchkit/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
@@ -345,8 +345,10 @@ function validateCapabilityInput(
 
   if (!input.name) {
     errors.push("Capability name is required");
-  } else if (!/^[a-z][a-z0-9_-]*$/.test(input.name)) {
-    errors.push(`Capability name '${input.name}' must be lowercase letters/digits/-/_`);
+  } else if (!/^cap-[a-z][a-z0-9_-]*$/.test(input.name)) {
+    errors.push(
+      `Capability name '${input.name}' must match 'cap-<domain>' (lowercase letters/digits, hyphens or underscores)`,
+    );
   }
 
   if (input.name && capabilities.some((c) => c.name === input.name)) {
@@ -370,8 +372,28 @@ function validateCapabilityInput(
 
 // ── File-write helper ───────────────────────────────────────────
 
-function maybeWriteFile(filePath: string, content: string, dryRun: boolean): void {
+/**
+ * Ensure an absolute path resolves to a location at or beneath `projectRoot`.
+ *
+ * Guards against path-traversal payloads such as `../../etc/passwd` slipping
+ * through `resolve(projectRoot, args.targetPath)`. Throws on violation so the
+ * caller's outer try/catch (or explicit wrapper) can convert it into a
+ * structured `validation` error in the tool result.
+ */
+function ensureWithinProjectRoot(projectRoot: string, absPath: string): void {
+  const normalizedRoot = projectRoot.endsWith(sep) ? projectRoot : projectRoot + sep;
+  if (absPath !== projectRoot && !absPath.startsWith(normalizedRoot)) {
+    throw new Error(`targetPath '${absPath}' resolves outside projectRoot '${projectRoot}'`);
+  }
+}
+
+function maybeWriteFile(filePath: string, content: string, dryRun: boolean, force: boolean): void {
   if (dryRun) return;
+  if (!force && existsSync(filePath)) {
+    throw new Error(
+      `Refusing to overwrite existing file '${filePath}' — pass force: true to overwrite`,
+    );
+  }
   const dir = dirname(filePath);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -416,6 +438,10 @@ const generateEntityInputSchema = {
     .boolean()
     .optional()
     .describe("When true, do not write to disk; only return generated code"),
+  force: z
+    .boolean()
+    .optional()
+    .describe("Overwrite existing files (default: false — refuses to clobber)"),
 };
 
 const generateActionInputSchema = {
@@ -429,6 +455,10 @@ const generateActionInputSchema = {
   handlerStub: z.string().optional().describe("Optional handler body source string"),
   targetPath: z.string().describe("Path to create, e.g. addons/cap-foo/src/actions/submit-foo.ts"),
   dryRun: z.boolean().optional(),
+  force: z
+    .boolean()
+    .optional()
+    .describe("Overwrite existing files (default: false — refuses to clobber)"),
 };
 
 const generateCapabilityInputSchema = {
@@ -443,6 +473,10 @@ const generateCapabilityInputSchema = {
     .optional()
     .describe("When true, create empty entities/actions/rules/views sub-folders"),
   dryRun: z.boolean().optional(),
+  force: z
+    .boolean()
+    .optional()
+    .describe("Overwrite existing files (default: false — refuses to clobber)"),
 };
 
 /** Register all generation tools on the MCP server. */
@@ -471,6 +505,7 @@ export function registerGenerationTools(
       implements?: string[];
       targetPath: string;
       dryRun?: boolean;
+      force?: boolean;
     }) => {
       const validation = validateEntityInput(
         {
@@ -496,30 +531,52 @@ export function registerGenerationTools(
         };
       }
 
-      const code = buildEntitySource({
-        name: args.name,
-        fields: args.fields,
-        label: args.label,
-        description: args.description,
-        extends: args.extends,
-        implements: args.implements,
-      });
+      try {
+        const code = buildEntitySource({
+          name: args.name,
+          fields: args.fields,
+          label: args.label,
+          description: args.description,
+          extends: args.extends,
+          implements: args.implements,
+        });
 
-      const absPath = resolve(projectRoot, args.targetPath);
-      maybeWriteFile(absPath, code, args.dryRun ?? false);
+        const absPath = resolve(projectRoot, args.targetPath);
+        ensureWithinProjectRoot(projectRoot, absPath);
+        const dryRun = args.dryRun ?? false;
+        maybeWriteFile(absPath, code, dryRun, args.force ?? false);
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
-              { path: absPath, code, validation, written: !(args.dryRun ?? false) },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ path: absPath, code, validation, written: !dryRun }, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  error: "Validation failed",
+                  validation: {
+                    valid: false,
+                    errors: [message],
+                    warnings: validation.warnings,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -544,6 +601,7 @@ export function registerGenerationTools(
       handlerStub?: string;
       targetPath: string;
       dryRun?: boolean;
+      force?: boolean;
     }) => {
       const validation = validateActionInput(
         {
@@ -571,32 +629,54 @@ export function registerGenerationTools(
         };
       }
 
-      const code = buildActionSource({
-        name: args.name,
-        entity: args.entity,
-        label: args.label,
-        description: args.description,
-        input: args.input,
-        output: args.output,
-        policy: args.policy,
-        handlerStub: args.handlerStub,
-      });
+      try {
+        const code = buildActionSource({
+          name: args.name,
+          entity: args.entity,
+          label: args.label,
+          description: args.description,
+          input: args.input,
+          output: args.output,
+          policy: args.policy,
+          handlerStub: args.handlerStub,
+        });
 
-      const absPath = resolve(projectRoot, args.targetPath);
-      maybeWriteFile(absPath, code, args.dryRun ?? false);
+        const absPath = resolve(projectRoot, args.targetPath);
+        ensureWithinProjectRoot(projectRoot, absPath);
+        const dryRun = args.dryRun ?? false;
+        maybeWriteFile(absPath, code, dryRun, args.force ?? false);
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
-              { path: absPath, code, validation, written: !(args.dryRun ?? false) },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ path: absPath, code, validation, written: !dryRun }, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  error: "Validation failed",
+                  validation: {
+                    valid: false,
+                    errors: [message],
+                    warnings: validation.warnings,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -619,6 +699,7 @@ export function registerGenerationTools(
       rootPath: string;
       scaffoldFolders?: boolean;
       dryRun?: boolean;
+      force?: boolean;
     }) => {
       const validation = validateCapabilityInput(
         {
@@ -644,66 +725,97 @@ export function registerGenerationTools(
         };
       }
 
-      const absRoot = resolve(projectRoot, args.rootPath);
-      const dryRun = args.dryRun ?? false;
+      try {
+        const absRoot = resolve(projectRoot, args.rootPath);
+        ensureWithinProjectRoot(projectRoot, absRoot);
+        const dryRun = args.dryRun ?? false;
+        const force = args.force ?? false;
 
-      const indexCode = buildCapabilitySource({
-        name: args.name,
-        type: args.type,
-        category: args.category,
-        label: args.label,
-        description: args.description,
-      });
-      const pkgJson = buildCapabilityPackageJson({
-        name: args.name,
-        type: args.type,
-        category: args.category,
-      });
+        const indexCode = buildCapabilitySource({
+          name: args.name,
+          type: args.type,
+          category: args.category,
+          label: args.label,
+          description: args.description,
+        });
+        const pkgJson = buildCapabilityPackageJson({
+          name: args.name,
+          type: args.type,
+          category: args.category,
+        });
 
-      const files: { path: string; content: string }[] = [
-        { path: resolve(absRoot, "package.json"), content: pkgJson },
-        { path: resolve(absRoot, "src/index.ts"), content: indexCode },
-      ];
+        const files: { path: string; content: string }[] = [
+          { path: resolve(absRoot, "package.json"), content: pkgJson },
+          { path: resolve(absRoot, "src/index.ts"), content: indexCode },
+        ];
 
-      if (args.scaffoldFolders ?? true) {
-        files.push(
-          {
-            path: resolve(absRoot, "src/entities/.gitkeep"),
-            content: "",
-          },
-          {
-            path: resolve(absRoot, "src/actions/.gitkeep"),
-            content: "",
-          },
-          {
-            path: resolve(absRoot, "src/rules/.gitkeep"),
-            content: "",
-          },
-          {
-            path: resolve(absRoot, "src/views/.gitkeep"),
-            content: "",
-          },
-        );
-      }
-
-      if (!dryRun) {
-        for (const f of files) {
-          maybeWriteFile(f.path, f.content, false);
+        if (args.scaffoldFolders ?? true) {
+          files.push(
+            {
+              path: resolve(absRoot, "src/entities/.gitkeep"),
+              content: "",
+            },
+            {
+              path: resolve(absRoot, "src/actions/.gitkeep"),
+              content: "",
+            },
+            {
+              path: resolve(absRoot, "src/rules/.gitkeep"),
+              content: "",
+            },
+            {
+              path: resolve(absRoot, "src/views/.gitkeep"),
+              content: "",
+            },
+          );
         }
-      }
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
-              { rootPath: absRoot, files, validation, written: !dryRun },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+        // Re-check every scaffolded path against the project root before writing.
+        for (const f of files) {
+          ensureWithinProjectRoot(projectRoot, f.path);
+        }
+
+        if (!dryRun) {
+          for (const f of files) {
+            maybeWriteFile(f.path, f.content, false, force);
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                { rootPath: absRoot, files, validation, written: !dryRun },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  error: "Validation failed",
+                  validation: {
+                    valid: false,
+                    errors: [message],
+                    warnings: validation.warnings,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
     },
   );
 }

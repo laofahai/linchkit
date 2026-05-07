@@ -96,6 +96,8 @@ Naming conventions:
 | datetime | Date and time | min, max |
 | enum | Fixed set of values | options (required) |
 | json | Arbitrary JSON | — |
+| state | Finite state machine value (enum-like, governed by defineState) | — |
+| computed | Derived field per Spec 48 (config in \`derived\`) | — |
 
 > **Relationships** between entities are defined using \`defineRelation()\`, not field types. See Spec 46/61.
 
