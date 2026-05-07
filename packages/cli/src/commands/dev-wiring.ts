@@ -58,17 +58,21 @@ import {
   type createRelationRegistry,
   createSyncFlowEngine,
   createTriggerBinding,
+  DefaultOverlayRegistry,
   DrizzleApprovalStore,
   DrizzleDataProvider,
   DrizzleExecutionLogger,
+  DrizzleOverlayStore,
   DrizzleTransactionManager,
   type EntityRegistry,
   type FlowEngine,
   HealthCheckRegistry,
   InMemoryApprovalStore,
   InMemoryExecutionLogger,
+  InMemoryOverlayStore,
   livenessCheck,
   type OutboxWorker,
+  type OverlayRegistry,
   type PermissionRegistry,
 } from "@linchkit/core/server";
 
@@ -137,6 +141,40 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     dbInstance,
     dataProvider,
   } = input;
+
+  // ── Overlay registry — Spec 60 §6 ────────────────────────────────────
+  // Constructed exactly once per dev session and assigned to
+  // transportCtx.overlayRegistry so cap-adapter-mcp, the REST overlay
+  // routes, and the GraphQL overlay-aware schema builder all read from the
+  // same instance. An overlay registered via the API is therefore visible
+  // through MCP introspection without a server restart.
+  //
+  // NOTE: This PR intentionally does NOT wrap `dataProvider` with
+  // `OverlayAwareDataProvider`. That wrap is needed for action writes to
+  // fold overlay field VALUES into the `_extensions` column, but the
+  // wrap leaks past the transactional execution path: ActionEngine
+  // resolves a transaction-scoped DataProvider via
+  // `DrizzleTransactionManager.runInTransaction`, which produces a bare
+  // `DrizzleDataProvider` — bypassing the wrapper and writing overlay
+  // fields straight to non-existent columns. Wiring the wrap correctly
+  // requires either making `DrizzleTransactionManager` aware of the
+  // wrapper or implementing a transaction-aware `withConnection`. Out
+  // of scope here; tracked as a follow-up to issue #156.
+  const overlayStore = dbInstance
+    ? new DrizzleOverlayStore(dbInstance)
+    : new InMemoryOverlayStore();
+  const overlayRegistry: OverlayRegistry = new DefaultOverlayRegistry(overlayStore);
+  await overlayRegistry.initialize();
+  if (dbInstance) {
+    // Loaded count: total active overlays across all entities post-initialize.
+    // We don't expose getAllOverlays() on OverlayRegistry today, so query the
+    // store directly — same contract the registry uses internally.
+    const all = await overlayStore.getAllOverlays();
+    const activeCount = all.filter((r) => r.status === "active").length;
+    consoleLogger.info(`Overlay registry: drizzle (${activeCount} overlays loaded from DB)`);
+  } else {
+    consoleLogger.info("Overlay registry: in-memory (no DB)");
+  }
 
   // Create execution logger — Drizzle-backed when DB is available
   const executionLogger = dbInstance
@@ -460,6 +498,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     flowEngine,
     capabilities,
     ontologyRegistry,
+    overlayRegistry,
     cacheManager,
     healthCheckRegistry,
     environment,

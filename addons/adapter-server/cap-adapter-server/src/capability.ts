@@ -114,6 +114,7 @@ export const capAdapterServer = defineCapability({
             cacheManager: ctx.cacheManager,
             internalSchemas: INTERNAL_SCHEMA_NAMES,
             onchangeEvaluator,
+            overlayRegistry: ctx.overlayRegistry,
           });
 
           // Read port/host from system:server config (falls back to defaults via Zod)
@@ -151,6 +152,7 @@ export const capAdapterServer = defineCapability({
             aiConfig: ctx.aiConfig,
             ontologyRegistry: ctx.ontologyRegistry,
             onchangeEvaluator,
+            overlayRegistry: ctx.overlayRegistry,
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.
             // Never decode JWT directly — that bypasses signature verification.
