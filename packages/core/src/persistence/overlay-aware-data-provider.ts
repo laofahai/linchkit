@@ -188,4 +188,32 @@ export class OverlayAwareDataProvider implements DataProvider {
   ): Promise<number> {
     return this.inner.count(schema, filter, options);
   }
+
+  /**
+   * Produce a transaction-scoped wrapper backed by `client`.
+   *
+   * `DrizzleTransactionManager.runInTransaction` calls
+   * `dataProvider.withConnection(txDb)` to bind data ops to an open
+   * transaction. When the dev-wiring registers an `OverlayAwareDataProvider`
+   * as the executor's data provider, that wrapper must also be tx-aware —
+   * otherwise overlay-aware writes silently fall back to a bare
+   * `DrizzleDataProvider` inside the transaction and overlay fields hit
+   * non-existent columns.
+   *
+   * The returned wrapper shares the SAME `OverlayRegistry` instance, so
+   * overlay registrations made on the parent are visible inside the
+   * transactional copy without re-initialization.
+   *
+   * Inner providers that don't implement `withConnection` (e.g. the
+   * `InMemoryStore` used in tests) are returned as-is — there is no
+   * transactional boundary to honour.
+   */
+  withConnection(client: unknown): OverlayAwareDataProvider {
+    const inner = this.inner as DataProvider & {
+      withConnection?: (client: unknown) => DataProvider;
+    };
+    const innerWithConn =
+      typeof inner.withConnection === "function" ? inner.withConnection(client) : this.inner;
+    return new OverlayAwareDataProvider(innerWithConn, this.overlayRegistry);
+  }
 }

@@ -7,6 +7,7 @@
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
+import type { DataProvider, DataQueryOptions } from "../src/engine/action-engine";
 import { DefaultOverlayRegistry } from "../src/overlay/overlay-registry";
 import { InMemoryOverlayStore } from "../src/persistence/in-memory-overlay-store";
 import { InMemoryStore } from "../src/persistence/in-memory-store";
@@ -398,5 +399,221 @@ describe("OverlayAwareDataProvider", () => {
     expect(raw.custom_color).toBe("red");
     // Only active overlay (priority_score) should be in _extensions
     expect(raw._extensions).toEqual({ priority_score: 50 });
+  });
+});
+
+// ── withConnection (transaction-scoped wrapper) ─────────────────
+//
+// Issue #156: `OverlayAwareDataProvider` must survive the transactional
+// path so `DrizzleTransactionManager` can keep the wrapper in flight when
+// it spawns a tx-scoped DataProvider via `withConnection(tx)`.
+
+/**
+ * Inner DataProvider that records every operation against a per-instance
+ * transcript and exposes a `withConnection(client)` factory which produces
+ * a sibling instance sharing nothing but its parent's transcript root.
+ * Lets us assert that the wrapper's `withConnection` returns a NEW wrapper
+ * that delegates to the inner provider's tx-scoped copy.
+ */
+class TrackingProvider implements DataProvider {
+  readonly id: string;
+  readonly receivedClients: unknown[] = [];
+  readonly children: TrackingProvider[] = [];
+  readonly inner: InMemoryStore;
+
+  constructor(id: string, inner: InMemoryStore = new InMemoryStore()) {
+    this.id = id;
+    this.inner = inner;
+  }
+
+  withConnection(client: unknown): TrackingProvider {
+    this.receivedClients.push(client);
+    // Share the same backing InMemoryStore so the parent and tx copy see
+    // the same data — mirrors how `DrizzleDataProvider.withConnection`
+    // returns a sibling provider that talks to the same tables.
+    const child = new TrackingProvider(`${this.id}#tx${this.children.length}`, this.inner);
+    this.children.push(child);
+    return child;
+  }
+
+  get = (schema: string, id: string, options?: DataQueryOptions) =>
+    this.inner.get(schema, id, options);
+  query = (schema: string, filter: Record<string, unknown>, options?: DataQueryOptions) =>
+    this.inner.query(schema, filter, options);
+  create = (schema: string, data: Record<string, unknown>) => this.inner.create(schema, data);
+  update = (
+    schema: string,
+    id: string,
+    data: Record<string, unknown>,
+    options?: DataQueryOptions,
+  ) => this.inner.update(schema, id, data, options);
+  delete = (schema: string, id: string, options?: DataQueryOptions) =>
+    this.inner.delete(schema, id, options);
+  count = (schema: string, filter?: Record<string, unknown>, options?: DataQueryOptions) =>
+    this.inner.count(schema, filter, options);
+}
+
+describe("OverlayAwareDataProvider.withConnection (issue #156)", () => {
+  let overlayStore: InMemoryOverlayStore;
+  let registry: DefaultOverlayRegistry;
+  let tracking: TrackingProvider;
+  let wrapper: OverlayAwareDataProvider;
+
+  beforeEach(async () => {
+    overlayStore = new InMemoryOverlayStore();
+    registry = new DefaultOverlayRegistry(overlayStore);
+    await registry.register({
+      entityName: "order",
+      fieldName: "custom_color",
+      fieldType: "string",
+      config: {},
+      status: "active",
+    });
+    tracking = new TrackingProvider("root");
+    wrapper = new OverlayAwareDataProvider(tracking, registry);
+  });
+
+  test("withConnection returns a new wrapper that delegates to the inner's tx-scoped provider", () => {
+    const fakeClient = { __tx: true };
+    const txWrapper = wrapper.withConnection(fakeClient);
+
+    // A NEW wrapper instance — not `this`.
+    expect(txWrapper).toBeInstanceOf(OverlayAwareDataProvider);
+    expect(txWrapper).not.toBe(wrapper);
+
+    // The inner was asked to spawn a tx-scoped copy with our client.
+    expect(tracking.receivedClients).toEqual([fakeClient]);
+    expect(tracking.children).toHaveLength(1);
+  });
+
+  test("writes through the tx-scoped wrapper still split overlay fields into _extensions", async () => {
+    const fakeClient = { __tx: true };
+    const txWrapper = wrapper.withConnection(fakeClient);
+
+    const created = await txWrapper.create("order", {
+      title: "Tx Order",
+      custom_color: "red",
+    });
+
+    expect(created.custom_color).toBe("red");
+    expect(created._extensions).toBeUndefined();
+
+    // Inspect raw storage on the SHARED InMemoryStore to confirm the
+    // overlay field landed in `_extensions`, not as a top-level column.
+    const child = tracking.children[0];
+    if (!child) throw new Error("expected a tx child");
+    const raw = await child.inner.get("order", created.id as string);
+    expect(raw._extensions).toEqual({ custom_color: "red" });
+    expect(raw.custom_color).toBeUndefined();
+  });
+
+  test("reads through the tx-scoped wrapper spread _extensions onto the row root", async () => {
+    const fakeClient = { __tx: true };
+    const txWrapper = wrapper.withConnection(fakeClient);
+    const child = tracking.children[0];
+    if (!child) throw new Error("expected a tx child");
+
+    // Seed the underlying store directly so we test the read path in
+    // isolation (write path tested separately).
+    child.inner.seed("order", [
+      {
+        id: "tx-1",
+        title: "Seeded",
+        _extensions: { custom_color: "blue" },
+      },
+    ]);
+
+    const fetched = await txWrapper.get("order", "tx-1");
+    expect(fetched.title).toBe("Seeded");
+    expect(fetched.custom_color).toBe("blue");
+    expect(fetched._extensions).toBeUndefined();
+  });
+
+  test("parent and tx-scoped wrapper share the SAME OverlayRegistry instance", async () => {
+    const txWrapper = wrapper.withConnection({ __tx: true });
+
+    // Register a NEW overlay AFTER spawning the tx wrapper. Because both
+    // wrappers reference the same registry, the tx wrapper sees the
+    // mutation immediately — no re-initialization needed.
+    await registry.register({
+      entityName: "order",
+      fieldName: "priority_score",
+      fieldType: "number",
+      config: {},
+      status: "active",
+    });
+
+    const child = tracking.children[0];
+    if (!child) throw new Error("expected a tx child");
+
+    const created = await txWrapper.create("order", {
+      title: "Late Overlay",
+      custom_color: "green",
+      priority_score: 7,
+    });
+
+    const raw = await child.inner.get("order", created.id as string);
+    expect(raw._extensions).toEqual({ custom_color: "green", priority_score: 7 });
+  });
+
+  test("withConnection is a no-op for inner providers that don't implement it", async () => {
+    // InMemoryStore directly — no `withConnection`. The wrapper must still
+    // return a usable wrapper around the SAME inner so test wiring (and the
+    // exec.ts non-Drizzle path) keeps working.
+    const plainStore = new InMemoryStore();
+    const plainWrapper = new OverlayAwareDataProvider(plainStore, registry);
+    const txWrapper = plainWrapper.withConnection({ __tx: true });
+    expect(txWrapper).toBeInstanceOf(OverlayAwareDataProvider);
+    expect(txWrapper).not.toBe(plainWrapper);
+
+    const created = await txWrapper.create("order", {
+      title: "No-Conn",
+      custom_color: "yellow",
+    });
+    const raw = await plainStore.get("order", created.id as string);
+    expect(raw._extensions).toEqual({ custom_color: "yellow" });
+  });
+});
+
+describe("DrizzleTransactionManager.wrapForTx integration (issue #156)", () => {
+  // We can't construct a real DrizzleTransactionManager without a Postgres
+  // client, but we can simulate the same control flow with a fake
+  // TransactionManager + the wrapper, which is what dev-wiring relies on.
+  // This proves the structural plumbing the dev-wiring depends on.
+
+  test("wrapForTx callback re-applies OverlayAwareDataProvider inside runInTransaction", async () => {
+    const overlayStore = new InMemoryOverlayStore();
+    const registry = new DefaultOverlayRegistry(overlayStore);
+    await registry.register({
+      entityName: "order",
+      fieldName: "custom_color",
+      fieldType: "string",
+      config: {},
+      status: "active",
+    });
+
+    const innerStore = new InMemoryStore();
+    const tracking = new TrackingProvider("root", innerStore);
+
+    // Simulate what dev-wiring does: the executor sees the wrapper, the
+    // transaction manager applies wrapForTx after `withConnection(tx)`.
+    const wrapForTx = (txInner: DataProvider): DataProvider =>
+      new OverlayAwareDataProvider(txInner, registry);
+
+    // "tx" path: take the bare provider's tx copy, apply wrapForTx, run a
+    // write through it, observe the split.
+    const fakeTx = { __tx: true };
+    const bareTx = tracking.withConnection(fakeTx);
+    const wrappedTx = wrapForTx(bareTx);
+
+    const created = await wrappedTx.create("order", {
+      title: "Wrapped Tx",
+      custom_color: "purple",
+    });
+
+    expect(created.custom_color).toBe("purple");
+    const raw = await innerStore.get("order", created.id as string);
+    expect(raw._extensions).toEqual({ custom_color: "purple" });
+    expect(raw.custom_color).toBeUndefined();
   });
 });

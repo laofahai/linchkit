@@ -1,5 +1,5 @@
 /**
- * Tests for dev-wiring overlay registry construction (Spec 60 §6, issue #156).
+ * Tests for dev-wiring overlay registry construction (Spec 59 §8.1, issue #156).
  *
  * Verifies that wireDevEngines:
  *   1. Constructs an OverlayRegistry exactly once and assigns it to
@@ -8,11 +8,11 @@
  *   2. Falls back to InMemoryOverlayStore when no DB instance is provided.
  *   3. Surfaces overlays added at runtime via `overlayRegistry.register()` —
  *      no restart required for the discovery loop to see them.
- *
- * Out of scope here: wrapping the DataProvider with OverlayAwareDataProvider
- * for write-side handling of overlay field VALUES. That wrap leaks past the
- * transactional execution path (DrizzleTransactionManager unwraps to a bare
- * DrizzleDataProvider) and needs a separate fix tracked under #156.
+ *   4. Wraps the runtime DataProvider with OverlayAwareDataProvider so action
+ *      writes that include overlay-managed fields fold their values into
+ *      `_extensions` (issue #156). The transactional path is preserved by
+ *      `OverlayAwareDataProvider.withConnection` and the
+ *      `DrizzleTransactionManager.wrapForTx` callback.
  *
  * These tests bypass the full CLI subprocess path (covered by `info.test.ts`
  * / `exec.test.ts`) and exercise the wiring function directly with
@@ -80,7 +80,7 @@ function buildInput(opts: { dataProvider?: InMemoryStore } = {}) {
   } as const;
 }
 
-describe("wireDevEngines — overlay registry wiring (Spec 60 §6)", () => {
+describe("wireDevEngines — overlay registry wiring (Spec 59 §8.1)", () => {
   test("assigns an OverlayRegistry to TransportContext (in-memory fallback)", async () => {
     const { transportCtx } = await wireDevEngines(buildInput());
 
@@ -114,5 +114,41 @@ describe("wireDevEngines — overlay registry wiring (Spec 60 §6)", () => {
     expect(overlays).toHaveLength(1);
     expect(overlays[0]?.fieldName).toBe("color");
     expect(overlays[0]?.fieldType).toBe("enum");
+  });
+
+  test("transportCtx.dataProvider is overlay-aware — writes fold into _extensions (issue #156)", async () => {
+    const inner = new InMemoryStore();
+    const { transportCtx } = await wireDevEngines(buildInput({ dataProvider: inner }));
+    const reg = transportCtx.overlayRegistry;
+    if (!reg) throw new Error("overlayRegistry undefined");
+
+    // Register an overlay AFTER wiring to confirm the registry handed to the
+    // wrapper is the same instance the transport context exposes — i.e. the
+    // wrapper sees overlay registrations made through the public API.
+    await reg.register({
+      entityName: "order",
+      fieldName: "color",
+      fieldType: "string",
+      config: {},
+      status: "active",
+    });
+
+    const created = await transportCtx.dataProvider.create("order", {
+      customer_name: "Alice",
+      color: "red",
+    });
+
+    // From the wrapper's POV the overlay field is at the row root (spread
+    // back from `_extensions` on the way out).
+    expect(created.color).toBe("red");
+    expect(created.customer_name).toBe("Alice");
+    expect(created._extensions).toBeUndefined();
+
+    // The underlying InMemoryStore stores the value in `_extensions`, NOT
+    // as a top-level column. This is the bug class #156 fixes — without
+    // the wrap a Drizzle column write would have failed.
+    const raw = await inner.get("order", created.id as string);
+    expect(raw._extensions).toEqual({ color: "red" });
+    expect(raw.color).toBeUndefined();
   });
 });
