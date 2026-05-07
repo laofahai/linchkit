@@ -385,6 +385,70 @@ describe("AIAuditLogger", () => {
     expect(entry.actionName).toBe("approve_purchase");
   });
 
+  it("should log intent resolution events with the canonical Spec 52 §8.1.4 shape", () => {
+    const audit = new AIAuditLogger();
+    const entry = audit.logIntentResolution({
+      actorId: "user-1",
+      tenantId: "tenant-a",
+      prompt: "Create a 5000 yuan purchase request for IT",
+      matched: true,
+      action: "create_purchase_request",
+      confidence: 0.85,
+      durationMs: 42,
+      catalogSize: 7,
+      scoped: true,
+      serviceUnavailable: false,
+    });
+
+    expect(entry.eventType).toBe("intent_resolution");
+    expect(entry.riskLevel).toBe("low");
+    expect(entry.actorId).toBe("user-1");
+    expect(entry.tenantId).toBe("tenant-a");
+    expect(entry.actionName).toBe("create_purchase_request");
+    expect(entry.recommendation).toBe("Resolved → create_purchase_request");
+    const meta = entry.metadata as Record<string, unknown>;
+    expect(meta.prompt).toBe("Create a 5000 yuan purchase request for IT");
+    expect(meta.durationMs).toBe(42);
+    expect(meta.catalogSize).toBe(7);
+    expect(meta.scoped).toBe(true);
+    expect(meta.serviceUnavailable).toBe(false);
+    const result = meta.result as { matched: boolean; action: string | null; confidence: number };
+    expect(result.matched).toBe(true);
+    expect(result.action).toBe("create_purchase_request");
+    expect(result.confidence).toBe(0.85);
+  });
+
+  it("logIntentResolution captures unavailable / unmatched calls with sane defaults", () => {
+    const audit = new AIAuditLogger();
+    const unavailable = audit.logIntentResolution({
+      actorId: "user-2",
+      prompt: "anything",
+      matched: false,
+      action: null,
+      confidence: null,
+      durationMs: 0,
+      catalogSize: 0,
+      scoped: false,
+      serviceUnavailable: true,
+    });
+    expect(unavailable.eventType).toBe("intent_resolution");
+    expect(unavailable.actionName).toBe("(none)");
+    expect(unavailable.recommendation).toBe("AI service unavailable");
+
+    const noMatch = audit.logIntentResolution({
+      actorId: "user-3",
+      prompt: "haiku please",
+      matched: false,
+      action: null,
+      confidence: null,
+      durationMs: 7,
+      catalogSize: 5,
+      scoped: true,
+      serviceUnavailable: false,
+    });
+    expect(noMatch.recommendation).toBe("No matching action proposal");
+  });
+
   it("should log approval events", () => {
     const audit = new AIAuditLogger();
     const entry = audit.logApproval({

@@ -217,6 +217,7 @@ export {
   type AIAuditLoggerOptions,
   type AIAuditQueryOptions,
   type AIAuditRiskLevel,
+  type IntentResolutionAuditPayload,
 } from "./ai";
 
 // === AI Prompt Sanitizer (server-only — injection detection + PII redaction) ===

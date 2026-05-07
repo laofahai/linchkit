@@ -25,7 +25,13 @@ import type {
   AICompletionResult,
   AIService,
 } from "@linchkit/core";
-import { MIN_CONFIDENCE, type OntologyRegistryLike, resolveIntent } from "../src/intent-resolver";
+import {
+  ALTERNATIVES_CONFIDENCE_THRESHOLD,
+  MAX_ALTERNATIVES,
+  MIN_CONFIDENCE,
+  type OntologyRegistryLike,
+  resolveIntent,
+} from "../src/intent-resolver";
 
 // ── Fixture actions ─────────────────────────────────────────
 
@@ -541,5 +547,300 @@ describe("resolveIntent — scope filtering", () => {
       expect(content).not.toMatch(/[\x00\x07\x1B]/);
       expect(content).toContain("Normal labelwith NUL and BEL[31m");
     });
+  });
+});
+
+describe("resolveIntent — N-best alternatives (Spec 52 §2.2 step 4)", () => {
+  it("omits alternatives when primary confidence is at/above the threshold", async () => {
+    // AI returns a high-confidence primary plus alternatives — they must
+    // be dropped because the primary is confident enough on its own.
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: ALTERNATIVES_CONFIDENCE_THRESHOLD,
+        explanation: "High-confidence primary",
+        alternatives: [
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-123" },
+            confidence: 0.5,
+            explanation: "Maybe the user meant submit",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "Create a 5000 purchase request for IT" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal).not.toBeNull();
+    expect(proposal?.alternatives).toBeUndefined();
+  });
+
+  it("returns alternatives sorted by confidence desc when primary is uncertain", async () => {
+    const lowConfidence = ALTERNATIVES_CONFIDENCE_THRESHOLD - 0.2;
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: lowConfidence,
+        explanation: "Uncertain primary",
+        alternatives: [
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-123" },
+            confidence: 0.4,
+            explanation: "Maybe submit",
+          },
+          {
+            action: "create_vendor",
+            input: { name: "Acme" },
+            confidence: 0.6,
+            explanation: "Maybe create vendor",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "do something purchase-y" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal).not.toBeNull();
+    expect(proposal?.alternatives).toBeDefined();
+    expect(proposal?.alternatives?.length).toBe(2);
+    // Sorted by confidence desc: create_vendor (0.6) first, then submit (0.4).
+    expect(proposal?.alternatives?.[0]?.action).toBe("create_vendor");
+    expect(proposal?.alternatives?.[0]?.confidence).toBe(0.6);
+    expect(proposal?.alternatives?.[1]?.action).toBe("submit_purchase_request");
+    expect(proposal?.alternatives?.[1]?.confidence).toBe(0.4);
+  });
+
+  it("caps alternatives at MAX_ALTERNATIVES when AI returns more", async () => {
+    expect(MAX_ALTERNATIVES).toBe(3);
+
+    // AI returns 5 alternatives, all in scope. We expect only the top 3
+    // by confidence to survive.
+    // To have 5 unique in-scope candidates besides the primary, expand
+    // the ontology with extra actions only for this test.
+    const extra1: ActionDefinition = {
+      name: "extra_action_1",
+      entity: "purchase_request",
+      label: "Extra 1",
+      input: {},
+      policy: { mode: "sync", transaction: true },
+    };
+    const extra2: ActionDefinition = {
+      name: "extra_action_2",
+      entity: "purchase_request",
+      label: "Extra 2",
+      input: {},
+      policy: { mode: "sync", transaction: true },
+    };
+    const extra3: ActionDefinition = {
+      name: "extra_action_3",
+      entity: "purchase_request",
+      label: "Extra 3",
+      input: {},
+      policy: { mode: "sync", transaction: true },
+    };
+    const ontology: OntologyRegistryLike = {
+      listEntities: () => ["purchase_request", "vendor"],
+      actionsFor: (entity) =>
+        entity === "purchase_request"
+          ? [createPurchaseRequest, submitPurchaseRequest, extra1, extra2, extra3]
+          : entity === "vendor"
+            ? [createVendor]
+            : [],
+    };
+
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 1, department: "IT" },
+        confidence: 0.5,
+        explanation: "Uncertain primary",
+        alternatives: [
+          { action: "submit_purchase_request", input: {}, confidence: 0.65, explanation: "" },
+          { action: "create_vendor", input: {}, confidence: 0.55, explanation: "" },
+          { action: "extra_action_1", input: {}, confidence: 0.45, explanation: "" },
+          { action: "extra_action_2", input: {}, confidence: 0.35, explanation: "" },
+          { action: "extra_action_3", input: {}, confidence: 0.25, explanation: "" },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "ambiguous request" },
+      { ai: ai.service, ontology },
+    );
+
+    expect(proposal).not.toBeNull();
+    expect(proposal?.alternatives?.length).toBe(MAX_ALTERNATIVES);
+    // Confirm we kept the highest three.
+    expect(proposal?.alternatives?.map((a) => a.action)).toEqual([
+      "submit_purchase_request",
+      "create_vendor",
+      "extra_action_1",
+    ]);
+  });
+
+  it("drops alternatives whose action is not in the (scoped) catalog", async () => {
+    // entityFilter scopes the catalog to vendor only. The primary
+    // (create_vendor) is in scope, but the AI alternatives reference
+    // purchase_request actions that are filtered out.
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_vendor",
+        input: { name: "Acme" },
+        confidence: 0.5,
+        explanation: "Uncertain vendor create",
+        alternatives: [
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-123" },
+            confidence: 0.4,
+            explanation: "out of scope",
+          },
+          {
+            action: "create_purchase_request",
+            input: { amount: 1, department: "IT" },
+            confidence: 0.45,
+            explanation: "out of scope",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "something vendor-related", scope: { entityFilter: ["vendor"] } },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal).not.toBeNull();
+    // No in-scope alternatives → undefined (not empty array).
+    expect(proposal?.alternatives).toBeUndefined();
+  });
+
+  it("silently drops malformed alternative entries without affecting the primary", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: 0.5,
+        explanation: "Uncertain primary",
+        alternatives: [
+          // Missing `action` field — malformed.
+          { input: {}, confidence: 0.4, explanation: "broken" },
+          // Wrong type for confidence — malformed.
+          { action: "create_vendor", input: { name: "Acme" }, confidence: "high", explanation: "" },
+          // Valid entry — survives.
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-1" },
+            confidence: 0.45,
+            explanation: "ok",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "ambiguous" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    // Primary survives untouched.
+    expect(proposal?.action).toBe("create_purchase_request");
+    expect(proposal?.confidence).toBe(0.5);
+    // Only the valid alternative remains.
+    expect(proposal?.alternatives?.length).toBe(1);
+    expect(proposal?.alternatives?.[0]?.action).toBe("submit_purchase_request");
+  });
+
+  it("returns undefined alternatives when the AI returns an empty array", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: 0.5,
+        explanation: "Uncertain",
+        alternatives: [],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "ambiguous" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal?.alternatives).toBeUndefined();
+  });
+
+  it("reconciles alternative input fields the same way as the primary", async () => {
+    // Alternative includes a bogus field that must be stripped, and is
+    // missing a required field that must surface in missingFields.
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_vendor",
+        input: { name: "Acme" },
+        confidence: 0.5,
+        explanation: "Uncertain primary",
+        alternatives: [
+          {
+            action: "create_purchase_request",
+            input: { amount: 100, bogus: "x" },
+            confidence: 0.4,
+            explanation: "alt",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "ambiguous" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal?.alternatives?.length).toBe(1);
+    const alt = proposal?.alternatives?.[0];
+    expect(alt?.input).toEqual({ amount: 100 });
+    expect(alt?.missingFields).toEqual(["department"]);
+  });
+
+  it("never recurses — alternatives never carry their own alternatives", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: 0.5,
+        explanation: "Uncertain",
+        alternatives: [
+          {
+            action: "create_vendor",
+            input: { name: "Acme" },
+            confidence: 0.4,
+            explanation: "alt",
+            // Even if the AI tries to nest, we ignore it.
+            alternatives: [
+              { action: "submit_purchase_request", input: {}, confidence: 0.3, explanation: "" },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "ambiguous" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal?.alternatives?.length).toBe(1);
+    // The alternative itself has no nested alternatives.
+    expect(proposal?.alternatives?.[0]?.alternatives).toBeUndefined();
   });
 });

@@ -10,21 +10,15 @@
  *    current user can see").
  *  - Returns `{ proposal: ActionProposal | null }` (200 either way — a null
  *    proposal is a normal "no usable match" outcome, not an error).
- *  - Emits one AI audit entry per call (success, no-match, or failure) so the
- *    full intent-resolution traffic is auditable per Spec 52 §8.1.4.
+ *  - Emits one AI audit entry per call (success, no-match, or failure) using
+ *    the canonical `logIntentResolution()` helper so the full intent-resolution
+ *    traffic is auditable per Spec 52 §8.1.4.
  *
  * Hard rules (Spec 52 §1.1):
  *  - This route NEVER executes the proposed action. The user confirms via
  *    the existing `POST /api/actions/:name` endpoint after reviewing the card.
  *  - When the resolver/AI is unavailable the endpoint degrades gracefully —
  *    503 with a structured envelope so the UI can show "AI unavailable" UX.
- *
- * Audit-log mapping (Spec 52 §8.1.4 vs runtime AIAuditLogger):
- *   The runtime `AIAuditLogger` does NOT yet declare an `intent_resolution`
- *   event type — see ai-audit.ts. We pick the closest existing kind
- *   (`ai_recommendation`) and stash the canonical type plus the per-call
- *   result payload under `metadata` so future migrations can rename the
- *   event type without re-mapping fields.
  */
 
 import { type ActionProposal, resolveIntent } from "@linchkit/cap-ai-provider";
@@ -122,16 +116,11 @@ function buildPermissionScopedOntology(opts: {
 // ── Audit emission helper ───────────────────────────────────
 
 /**
- * Emit one AI audit entry per resolve-intent call.
+ * Emit one AI audit entry per resolve-intent call (Spec 52 §8.1.4).
  *
- * Spec 52 §8.1.4 defines `AIAuditEntry.type === 'intent_resolution'` but the
- * runtime `AIAuditLogger` (packages/core/src/ai/ai-audit.ts) hasn't grown
- * that event type yet. We use the closest registered kind
- * (`ai_recommendation`) via `logRecommendation()` and stash the canonical
- * type + structured result under `metadata`.
- *
- * Follow-up tracked: extend AIAuditEventType to include 'intent_resolution'
- * and switch this caller to a dedicated `logIntentResolution()` helper.
+ * Thin wrapper around the canonical `AIAuditLogger.logIntentResolution()`
+ * helper — kept as a function in this module so future call sites (e.g. an
+ * MCP transport) don't need to know the actor-id derivation.
  */
 function emitIntentResolutionAudit(opts: {
   logger: AIAuditLogger;
@@ -146,31 +135,17 @@ function emitIntentResolutionAudit(opts: {
   scoped: boolean;
   serviceUnavailable: boolean;
 }): void {
-  const recommendation = opts.matched
-    ? `Resolved → ${opts.action ?? "(unknown)"}`
-    : opts.serviceUnavailable
-      ? "AI service unavailable"
-      : "No matching action proposal";
-
-  opts.logger.logRecommendation({
+  opts.logger.logIntentResolution({
     actorId: opts.actor.id,
     tenantId: opts.tenantId,
-    actionName: opts.action ?? "(none)",
-    recommendation,
-    riskLevel: "low",
-    metadata: {
-      kind: "intent_resolution",
-      prompt: opts.prompt,
-      result: {
-        matched: opts.matched,
-        action: opts.action,
-        confidence: opts.confidence,
-      },
-      durationMs: opts.durationMs,
-      catalogSize: opts.catalogSize,
-      scoped: opts.scoped,
-      serviceUnavailable: opts.serviceUnavailable,
-    },
+    prompt: opts.prompt,
+    matched: opts.matched,
+    action: opts.action,
+    confidence: opts.confidence,
+    durationMs: opts.durationMs,
+    catalogSize: opts.catalogSize,
+    scoped: opts.scoped,
+    serviceUnavailable: opts.serviceUnavailable,
   });
 }
 
