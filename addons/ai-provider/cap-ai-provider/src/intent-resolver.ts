@@ -164,7 +164,12 @@ export async function resolveIntent(
 
   // Call AI — text completion + manual JSON parsing keeps us compatible
   // with the simplest AiService shape (no JSON-mode dependency).
-  const systemPrompt = buildIntentSystemPrompt(catalog);
+  // Pass the threshold + cap as parameters so the prompt copy stays in
+  // lockstep with the constants enforced at runtime by reconcileAlternatives.
+  const systemPrompt = buildIntentSystemPrompt(catalog, {
+    alternativesConfidenceThreshold: ALTERNATIVES_CONFIDENCE_THRESHOLD,
+    maxAlternatives: MAX_ALTERNATIVES,
+  });
   let rawContent: string;
   try {
     const result = await deps.ai.complete({
@@ -412,13 +417,19 @@ function reconcileAlternatives(
     const catalogEntry = catalogIndex.get(alt.action);
     if (!catalogEntry) continue;
 
+    // Drop alternatives that themselves fall below MIN_CONFIDENCE — they
+    // would only show up in the UI's "Did you mean..." chips as low-quality
+    // noise. Mirrors the Spec 52 §2.2 step 5 floor applied to the primary.
+    const altConfidence = clampConfidence(alt.confidence);
+    if (altConfidence < MIN_CONFIDENCE) continue;
+
     const { input: cleanedInput, missingFields } = reconcileInput(catalogEntry, alt.input ?? {});
 
     seen.add(catalogEntry.name);
     reconciled.push({
       action: catalogEntry.name,
       input: cleanedInput,
-      confidence: clampConfidence(alt.confidence),
+      confidence: altConfidence,
       missingFields,
       explanation: alt.explanation || `Proposed action: ${catalogEntry.name}`,
     });

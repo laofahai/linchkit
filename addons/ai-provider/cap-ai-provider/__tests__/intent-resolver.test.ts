@@ -689,6 +689,48 @@ describe("resolveIntent — N-best alternatives (Spec 52 §2.2 step 4)", () => {
     ]);
   });
 
+  it("drops alternatives whose confidence is below MIN_CONFIDENCE", async () => {
+    // gemini-code-assist on PR #272: alternatives below 0.4 should not
+    // surface in the UI (they would be low-quality "Did you mean..." chips).
+    // Mirrors the Spec 52 §2.2 step 5 floor applied to the primary.
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_purchase_request",
+        input: { amount: 5000, department: "IT" },
+        confidence: 0.5,
+        explanation: "Maybe a PR",
+        alternatives: [
+          {
+            action: "create_vendor",
+            input: { name: "Acme" },
+            confidence: 0.55, // above MIN_CONFIDENCE — survives
+            explanation: "kept",
+          },
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-1" },
+            confidence: 0.3, // below MIN_CONFIDENCE — dropped
+            explanation: "dropped — too low",
+          },
+          {
+            action: "submit_purchase_request",
+            input: { id: "pr-2" },
+            confidence: 0.39, // just below — also dropped
+            explanation: "dropped — boundary",
+          },
+        ],
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "something" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal?.alternatives).toHaveLength(1);
+    expect(proposal?.alternatives?.[0]?.action).toBe("create_vendor");
+  });
+
   it("drops alternatives whose action is not in the (scoped) catalog", async () => {
     // entityFilter scopes the catalog to vendor only. The primary
     // (create_vendor) is in scope, but the AI alternatives reference
