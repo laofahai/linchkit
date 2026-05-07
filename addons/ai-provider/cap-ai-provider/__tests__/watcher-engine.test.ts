@@ -1,15 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  defineWatcher,
+  type EventBusLike,
+  type EventRecord,
+  type WatcherDefinition,
+} from "@linchkit/core";
+import { createWatcherRegistry, type WatcherRegistry } from "@linchkit/core/server";
+import {
   createWatcherEngine,
   evaluateComparison,
   parseDuration,
   type WatcherActionExecutor,
   type WatcherEngine,
-} from "../src/automation";
-import { createWatcherRegistry, type WatcherRegistry } from "../src/automation/watcher-registry";
-import { defineWatcher } from "../src/define";
-import type { EventBusLike, EventRecord } from "../src/types/event";
-import type { WatcherDefinition } from "../src/types/watcher";
+} from "../src/watcher-engine";
 
 // ── Mock factories ──────────────────────────────────────
 

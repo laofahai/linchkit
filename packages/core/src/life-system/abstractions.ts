@@ -5,9 +5,12 @@
  *   Sense → Memory → Awareness → Insight → Proposal
  *
  * These interfaces are intentionally minimal and additive. Concrete
- * implementations (PatternDetector, AnomalyDetector, WatcherEngine,
- * persistent stores, ...) continue to live where they are today; this
- * module only declares the public contracts that capabilities can target.
+ * implementations live in capabilities — `PatternDetector`,
+ * `AnomalyDetector`, and `WatcherEngine` were moved out of core into
+ * `@linchkit/cap-ai-provider` in Spec 56 Phase 2 Step 2c. This module
+ * declares only the public contracts that capabilities can target. The
+ * minimal abstract `Detector` and `Watcher` contracts live alongside in
+ * `./detector.ts` and `./watcher.ts`.
  *
  * NOTE: A pre-existing detection-style `Sensor` interface (with `name` /
  * `source` / `detect()`) lives in `../types/life-system.ts` and powers

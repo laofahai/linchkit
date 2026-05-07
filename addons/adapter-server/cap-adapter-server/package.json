@@ -25,9 +25,11 @@
     "dataloader": "^2.2.3"
   },
   "peerDependencies": {
+    "@linchkit/cap-ai-provider": "^1.0.0",
     "@linchkit/core": "^0.2.0"
   },
   "devDependencies": {
+    "@linchkit/cap-ai-provider": "workspace:*",
     "@linchkit/core": "workspace:*",
     "typescript": "^6.0.2"
   },

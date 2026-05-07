@@ -7,18 +7,12 @@
  * Usage: import { createActionExecutor, EntityRegistry } from "@linchkit/core/server"
  */
 
-// === Watcher engine (data-condition automation, spec 45) ===
-
-export {
-  createWatcherEngine,
-  createWatcherRegistry,
-  evaluateComparison,
-  parseDuration,
-  type WatcherDataQuerier,
-  type WatcherEngine,
-  type WatcherEngineOptions,
-  type WatcherRegistry,
-} from "./automation";
+// === Watcher registry (data-condition automation, spec 45) ===
+// WatcherEngine concrete impl moved to @linchkit/cap-ai-provider
+// (Spec 56 Phase 2 Step 2c) — the abstract `Watcher` lifecycle interface
+// lives in `./life-system/watcher.ts`; the registry stays in core because
+// the action pipeline consumes WatcherDefinition records directly.
+export { createWatcherRegistry, type WatcherRegistry } from "./automation";
 
 // === Engine: action, command, approval, state, rule, validation, permission, proposal ===
 
@@ -206,13 +200,13 @@ export {
 export { createNoopAIService } from "./ai/ai-service";
 
 // === AI Boundary (server-only — heavyweight runtime classes) ===
+// AI Pattern Detection: concrete `PatternDetector` moved to
+// @linchkit/cap-ai-provider (Spec 56 Phase 2 Step 2c). Core re-exports
+// only the shared `PatternInsight` contract that
+// ProposalEngine.createFromInsight() consumes.
 
+export type { PatternEvidence, PatternInsight, PatternType } from "./ai";
 export { AIBoundary, AIBoundaryError } from "./ai";
-
-// === AI Pattern Detection (server-only — analysis engine) ===
-
-export type { PatternDetectorConfig, PatternEvidence, PatternInsight, PatternType } from "./ai";
-export { PatternDetector } from "./ai";
 
 // === AI Audit (server-only — compliance audit trail) ===
 
@@ -270,16 +264,8 @@ export {
   validateProposal as validateAIProposal,
 } from "./ai";
 
-// === AI Anomaly Detector (server-only — behavioral anomaly detection) ===
-
-export {
-  type AnomalyDetection,
-  AnomalyDetector,
-  type AnomalyDetectorConfig,
-  type AnomalySeverity,
-  type AnomalyType,
-  type UsageEvent,
-} from "./ai";
+// === AI Anomaly Detector ===
+// Moved to @linchkit/cap-ai-provider (Spec 56 Phase 2 Step 2c).
 
 // === Security: data masking (server-only — uses node:crypto) ===
 

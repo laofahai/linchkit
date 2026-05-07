@@ -27,6 +27,9 @@ export type { AwarenessEngineOptions } from "./awareness-engine";
 export { createAwarenessEngine } from "./awareness-engine";
 export type { SensorDefinitionConfig } from "./define-sensor";
 export { defineSensor } from "./define-sensor";
+// Spec 56 Phase 2 Step 2c — abstract Detector contract.
+// Concrete implementations live in capabilities (cap-ai-provider).
+export type { Detector } from "./detector";
 export type { CreateDispatchQueryOptions } from "./dispatch-query";
 export { createDispatchQuery } from "./dispatch-query";
 export type { EvolutionCycleOptions } from "./evolution-cycle";
@@ -72,3 +75,4 @@ export {
 export type { SignalBus, SignalBusOptions, SignalHandler } from "./signal-bus";
 export { createSignalBus } from "./signal-bus";
 export { createUsageImportanceGraph } from "./usage-graph";
+export type { Watcher } from "./watcher";

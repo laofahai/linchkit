@@ -32,15 +32,7 @@ export type {
 } from "./ai-rate-limiter";
 export { AIRateLimiter } from "./ai-rate-limiter";
 export { createNoopAIService } from "./ai-service";
-// Anomaly Detector
-export type {
-  AnomalyDetection,
-  AnomalyDetectorConfig,
-  AnomalySeverity,
-  AnomalyType,
-  UsageEvent,
-} from "./anomaly-detector";
-export { AnomalyDetector } from "./anomaly-detector";
+// Anomaly Detector — moved to @linchkit/cap-ai-provider (Spec 56 Phase 2 Step 2c).
 // Context Masker
 export type {
   ContextMaskerConfig,
@@ -69,14 +61,9 @@ export type {
   OutputViolationType,
 } from "./output-validator";
 export { sanitizeAIOutput, validateAIOutput } from "./output-validator";
-// Pattern Detector
-export type {
-  PatternDetectorConfig,
-  PatternEvidence,
-  PatternInsight,
-  PatternType,
-} from "./pattern-detector";
-export { PatternDetector } from "./pattern-detector";
+// Pattern Detector — moved to @linchkit/cap-ai-provider (Spec 56 Phase 2 Step 2c).
+// Core retains only the data contract consumed by ProposalEngine.
+export type { PatternEvidence, PatternInsight, PatternType } from "./pattern-insight";
 // Prompt Sanitizer
 export type {
   InjectionDetectionConfig,

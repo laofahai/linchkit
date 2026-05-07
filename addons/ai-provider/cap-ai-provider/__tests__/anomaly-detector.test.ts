@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { AnomalyDetection, UsageEvent } from "../src/ai/anomaly-detector";
-import { AnomalyDetector } from "../src/ai/anomaly-detector";
+import type { AnomalyDetection, UsageEvent } from "../src/anomaly-detector";
+import { AnomalyDetector } from "../src/anomaly-detector";
 
 // ── Helpers ────────────────────────────────────────────────────
 

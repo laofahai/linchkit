@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { PatternDetector } from "../src/ai/pattern-detector";
-import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
-import type { ExecutionLogEntry } from "../src/types/execution-log";
+import type { ExecutionLogEntry } from "@linchkit/core";
+import { InMemoryExecutionLogger } from "@linchkit/core/server";
+import { PatternDetector } from "../src/pattern-detector";
 
 // ── Test helpers ──────────────────────────────────────────
 

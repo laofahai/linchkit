@@ -6,9 +6,9 @@
  * execution logs to generate insights on demand (cached with short TTL).
  */
 
+import { PatternDetector, type PatternInsight } from "@linchkit/cap-ai-provider";
 import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
-import type { PatternInsight } from "@linchkit/core/server";
-import { createProposalEngine, PatternDetector } from "@linchkit/core/server";
+import { createProposalEngine } from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 

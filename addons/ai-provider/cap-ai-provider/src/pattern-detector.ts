@@ -12,48 +12,19 @@
  * - state_flow: common paths through state machines
  * - timing: actions performed at specific times of day/week
  *
+ * Implements the abstract `Detector` contract from `@linchkit/core` (Spec 56
+ * Phase 2 Step 2c). The concrete impl was moved out of core into this
+ * capability so core retains only the interface.
+ *
  * See spec 22_ai_rule_boundary.md §7 (Evolution Cycle).
  */
 
-import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
-import type { ProposalDraft } from "./proposal-engine";
+import type { Detector, ExecutionLogEntry, ExecutionLogger } from "@linchkit/core";
+import type { PatternEvidence, PatternInsight, PatternType } from "@linchkit/core/ai";
 
-// ── Pattern insight types ────────────────────────────────
-
-export type PatternType =
-  | "repetitive_action"
-  | "default_value"
-  | "validation_pattern"
-  | "state_flow"
-  | "timing";
-
-/** Evidence supporting a detected pattern */
-export interface PatternEvidence {
-  /** Number of occurrences observed */
-  count: number;
-  /** Human-readable timespan (e.g. "7 days", "30 days") */
-  timespan: string;
-  /** Sample data points illustrating the pattern */
-  examples: unknown[];
-}
-
-/** A detected pattern insight ready for proposal generation */
-export interface PatternInsight {
-  /** Unique insight identifier */
-  id: string;
-  /** Type of pattern detected */
-  type: PatternType;
-  /** Entity name this pattern relates to */
-  entity: string;
-  /** Human-readable description of the pattern */
-  description: string;
-  /** Confidence score 0-1 */
-  confidence: number;
-  /** Supporting evidence */
-  evidence: PatternEvidence;
-  /** Suggested change based on this pattern */
-  suggestedAction: ProposalDraft;
-}
+// Re-export the shared insight contract so existing callers of
+// `@linchkit/cap-ai-provider` keep importing these names from here.
+export type { PatternEvidence, PatternInsight, PatternType };
 
 // ── Detector configuration ───────────────────────────────
 
@@ -68,11 +39,13 @@ export interface PatternDetectorConfig {
   maxExamples?: number;
   /** Pattern types to detect (default: all) */
   enabledPatterns?: PatternType[];
+  /** Optional override for the detector's stable id (default: "ai.pattern_detector"). */
+  id?: string;
 }
 
 // ── Default configuration ────────────────────────────────
 
-const DEFAULT_CONFIG: Required<PatternDetectorConfig> = {
+const DEFAULT_CONFIG: Required<Omit<PatternDetectorConfig, "id">> = {
   minOccurrences: 5,
   minConfidence: 0.7,
   lookbackDays: 30,
@@ -88,12 +61,28 @@ const DEFAULT_CONFIG: Required<PatternDetectorConfig> = {
 
 // ── Pattern Detector ─────────────────────────────────────
 
-export class PatternDetector {
-  private readonly config: Required<PatternDetectorConfig>;
+export class PatternDetector implements Detector<ExecutionLogger, PatternInsight[]> {
+  readonly id: string;
+  private readonly config: Required<Omit<PatternDetectorConfig, "id">>;
   private idCounter = 0;
 
   constructor(config?: PatternDetectorConfig) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const { id, ...rest } = config ?? {};
+    this.id = id ?? "ai.pattern_detector";
+    this.config = { ...DEFAULT_CONFIG, ...rest };
+  }
+
+  /**
+   * Detect patterns in the supplied execution logger.
+   *
+   * Implements `Detector<ExecutionLogger, PatternInsight[]>`. Returns
+   * `null` when the logger has no entries in the lookback window so the
+   * caller can short-circuit; otherwise returns insights sorted by
+   * confidence (highest first).
+   */
+  async detect(input: ExecutionLogger): Promise<PatternInsight[] | null> {
+    const insights = await this.analyze(input);
+    return insights.length > 0 ? insights : null;
   }
 
   /**
