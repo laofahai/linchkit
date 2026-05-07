@@ -286,6 +286,7 @@ export {
   createSyncFlowEngine,
   createTriggerBinding,
   type FlowEngine,
+  type FlowExecuteActionOptions,
   type FlowRegistry,
   FlowRegistryImpl,
   type FlowStepContext,

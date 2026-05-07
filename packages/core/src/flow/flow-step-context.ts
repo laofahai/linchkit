@@ -22,6 +22,8 @@ export interface FlowStepContextDeps {
       options?: {
         actor?: Actor;
         tenantId?: string;
+        /** Optional idempotency key (Spec 26 §3.2) — forwarded by Saga compensation */
+        idempotencyKey?: string;
       },
       // biome-ignore lint/suspicious/noExplicitAny: ActionExecutor returns ActionResult<T> with varying T
     ) => Promise<any>;
@@ -193,7 +195,7 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
       };
     },
 
-    async executeAction(actionName, input) {
+    async executeAction(actionName, input, options) {
       // Use the flow's actor/tenant when available, fall back to system actor
       const actor = this.actor ?? {
         type: "system",
@@ -204,6 +206,7 @@ export function createFlowStepContext(deps: FlowStepContextDeps): FlowStepContex
       const result = await actionEngine.execute(actionName, input, {
         actor,
         tenantId: this.tenantId,
+        ...(options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
       });
       // ActionExecutor returns ActionResult with { success, data, executionId }
       if (typeof result === "object" && result !== null && "success" in result) {

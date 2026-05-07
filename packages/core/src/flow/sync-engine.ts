@@ -296,6 +296,7 @@ async function runCompensations(
   completed: CompletedActionRecord[],
   runCtx: FlowStepContext,
   flowContext: Record<string, unknown>,
+  flowRunId: string,
 ): Promise<CompensationLogEntry[]> {
   const log: CompensationLogEntry[] = [];
 
@@ -316,7 +317,16 @@ async function runCompensations(
     };
 
     try {
-      await runCtx.executeAction(record.compensationAction, resolvedInput);
+      // Idempotency key (Spec 26 §3.2): identical across re-runs of the same
+      // flow instance + step + completion-index so the compensating action is
+      // applied at most once per completion. The completion index `i` is
+      // essential — without it, a step that ran multiple times in a loop
+      // (via condition jumps) would collide on the same key and the
+      // ActionEngine would dedupe all but the first compensation.
+      const idempotencyKey = `${flowRunId}:${i}:${record.stepId}:compensate`;
+      await runCtx.executeAction(record.compensationAction, resolvedInput, {
+        idempotencyKey,
+      });
     } catch (err) {
       entry.status = "failed";
       entry.error = err instanceof Error ? err.message : String(err);
@@ -326,6 +336,20 @@ async function runCompensations(
   }
 
   return log;
+}
+
+/**
+ * Decide whether a flow's failure should trigger Saga compensation.
+ *
+ * `failurePolicy` (Spec 26 §1.2) is the new opt-in field; the legacy
+ * `onError === 'compensate'` value continues to trigger compensation for
+ * back-compat. When `failurePolicy === 'fail_fast'` it explicitly disables
+ * compensation even if `onError` is `'compensate'`.
+ */
+function shouldCompensate(definition: FlowDefinition): boolean {
+  if (definition.failurePolicy === "compensate") return true;
+  if (definition.failurePolicy === "fail_fast") return false;
+  return definition.onError === "compensate";
 }
 
 // ── SyncFlowEngine ──────────────────────────────────────
@@ -529,10 +553,17 @@ export function createSyncFlowEngine(
         message: err instanceof Error ? err.message : String(err),
       };
 
-      // Run Saga compensations if onError === 'compensate' and there are steps to undo
-      if (definition.onError === "compensate" && completedActionSteps.length > 0) {
+      // Run Saga compensations when the flow opted in via failurePolicy
+      // (or the legacy onError === 'compensate') and at least one step
+      // with a declared compensation action has already completed.
+      if (shouldCompensate(definition) && completedActionSteps.length > 0) {
         instance.status = "compensating";
-        const compensationLog = await runCompensations(completedActionSteps, runCtx, flowContext);
+        const compensationLog = await runCompensations(
+          completedActionSteps,
+          runCtx,
+          flowContext,
+          instanceId,
+        );
         instance.compensationLog = compensationLog;
         instance.status = "compensated";
       }

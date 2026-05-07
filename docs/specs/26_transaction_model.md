@@ -157,7 +157,7 @@ await executeAction('submit_request', { id: 'pr_001' }, {
 - 基础幂等
 
 ### M1
-- Saga 补偿（Restate Flow）
+- Saga 补偿（Restate Flow） — Implemented (issue #123). `FlowDefinition.failurePolicy: 'compensate'` runs each completed step's `compensation` Action in reverse order; per-step idempotency key (`{flow_run_id}:{step_id}:compensate`) prevents double compensation on retry. Best-effort cleanup: a single failed compensation does not abort the others, the original error is what the flow ultimately throws, with failed compensations wrapped into the error context.
 - 变更事务（蓝绿部署原子性）
 - 幂等键管理
 

@@ -16,6 +16,7 @@ export type { EventBusLike, TriggerBinding } from "./trigger-binding";
 export { createTriggerBinding } from "./trigger-binding";
 export type {
   FlowEngine,
+  FlowExecuteActionOptions,
   FlowRegistry,
   FlowStepContext,
 } from "./types";

@@ -153,6 +153,19 @@ export interface FlowDefinition {
 
   /** Error handling strategy for the entire flow */
   onError?: "abort" | "retry" | "compensate";
+  /**
+   * Saga failure policy (Spec 26 §1.2).
+   *
+   * - `compensate` — when a step fails, run the compensating Action of each
+   *   previously-completed step in reverse order (Saga pattern).
+   * - `fail_fast` — propagate the original error without compensation
+   *   (current default behaviour for backward compatibility).
+   *
+   * Optional. When set, takes precedence over the legacy `onError`
+   * value for compensation decisions; otherwise `onError === "compensate"`
+   * still triggers Saga rollback so existing flows keep working.
+   */
+  failurePolicy?: "compensate" | "fail_fast";
   /** Maximum retry attempts (applies when onError is "retry") */
   maxRetries?: number;
   /** Timeout for the entire flow in milliseconds */
