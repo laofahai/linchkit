@@ -5,7 +5,7 @@
  * Includes: flow compiler, Restate flow engine, endpoint management, health checks.
  */
 
-export { compileFlow } from "./flow-compiler";
+export { buildFlowRunHandler, compileFlow } from "./flow-compiler";
 export {
   checkRestateHealth,
   createRestateEndpoint,

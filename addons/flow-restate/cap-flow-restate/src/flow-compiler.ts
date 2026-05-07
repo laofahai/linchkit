@@ -158,53 +158,71 @@ interface FlowRunResult {
   output?: unknown;
 }
 
-// ── Compiler ─────────────────────────────────────────────
+// ── Saga helpers ─────────────────────────────────────────
 
 /**
- * Compile a FlowDefinition into a Restate workflow service.
+ * Decide whether a flow's failure should trigger Saga compensation.
  *
- * The compiled workflow has:
- * - A `run` handler that executes steps sequentially with branching
- * - Signal handlers for each approval step (named `approve_{stepId}`)
- * - A `status` handler for querying current state
- * - A `signal` handler for sending arbitrary signals (for WaitFlowStep.signal)
+ * Spec 26 §1.2 introduces `failurePolicy` as the explicit opt-in field:
+ *   - `'compensate'` — run reverse compensations on failure.
+ *   - `'fail_fast'` — propagate the original error without compensation.
+ *
+ * The legacy `onError === 'compensate'` value remains a compensation trigger
+ * for backward compatibility, unless `failurePolicy === 'fail_fast'`
+ * explicitly overrides it.
  */
-export function compileFlow(
+function shouldCompensate(definition: FlowDefinition): boolean {
+  if (definition.failurePolicy === "compensate") return true;
+  if (definition.failurePolicy === "fail_fast") return false;
+  return definition.onError === "compensate";
+}
+
+/**
+ * Wrap the original failure with information about any failed compensations.
+ *
+ * Per the task spec: the original error is what the flow ultimately throws;
+ * if any compensation failed we extend the message so observers (Restate logs,
+ * downstream callers) see both the root cause AND the cleanup gaps.
+ *
+ * The returned error is always a TerminalError so Restate marks the workflow
+ * as failed without further retries (compensation has already run; retrying
+ * the whole workflow would re-execute every step).
+ */
+function wrapWithCompensationFailures(
+  originalError: unknown,
+  compensationLog: CompensationLogEntry[],
+): Error {
+  const originalMessage =
+    originalError instanceof Error ? originalError.message : String(originalError);
+  const failed = compensationLog.filter((entry) => entry.status === "failed");
+
+  if (failed.length === 0) {
+    // All compensations succeeded — surface the original error verbatim.
+    return new restate.TerminalError(originalMessage);
+  }
+
+  const failedSummary = failed
+    .map((entry) => `${entry.stepId}->${entry.compensationAction}: ${entry.error ?? "unknown"}`)
+    .join("; ");
+  return new restate.TerminalError(`${originalMessage} (compensation failures: ${failedSummary})`);
+}
+
+// ── Run-handler builder (extracted for testability) ──────
+
+/**
+ * Build the `run` handler for a flow's Restate workflow service.
+ *
+ * Exported so unit tests can drive it with a stub `WorkflowContext` instead
+ * of standing up a real Restate server. The handler shape is identical to
+ * what `compileFlow` would attach to its `restate.workflow({...})` service.
+ */
+export function buildFlowRunHandler(
   definition: FlowDefinition,
+  steps: FlowStep[],
+  stepIndex: Map<string, number>,
   stepContext: FlowStepContext,
-): CompiledFlow {
-  const { steps } = definition;
-
-  // Build step index for O(1) lookups by step ID
-  const stepIndex = new Map<string, number>();
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    if (step) stepIndex.set(step.id, i);
-  }
-
-  // Collect approval steps and wait-signal steps for handler generation
-  const approvalSteps = steps.filter((s): s is ApprovalFlowStep => s.type === "approval");
-  const signalHandlerNames = approvalSteps.map((s) => `approve_${s.id}`);
-
-  // Check if any wait steps use signals — if so, we need a generic signal handler
-  const hasSignalWaits = steps.some((s) => s.type === "wait" && (s as WaitFlowStep).signal);
-  if (hasSignalWaits) {
-    signalHandlerNames.push("signal");
-  }
-
-  // Always include status handler
-  signalHandlerNames.push("status");
-
-  // ── Build handlers object ──────────────────────────────
-
-  // biome-ignore lint: Dynamic handler map — typed as any to support heterogeneous Restate handler signatures
-  const handlers: Record<string, any> = {};
-
-  // Main run handler
-  handlers.run = async (
-    ctx: restate.WorkflowContext,
-    input: Record<string, unknown>,
-  ): Promise<FlowRunResult> => {
+): (ctx: restate.WorkflowContext, input: Record<string, unknown>) => Promise<FlowRunResult> {
+  return async (ctx, input) => {
     const flowCtx: FlowExecutionContext = {
       input,
       instanceId: ctx.key,
@@ -281,12 +299,15 @@ export function compileFlow(
         pointer++;
       }
     } catch (err) {
-      // Run Saga compensations if onError === 'compensate'
-      if (definition.onError === "compensate" && completedActionSteps.length > 0) {
+      // Run Saga compensations when the flow opted in via failurePolicy
+      // (Spec 26 §1.2) or the legacy onError === 'compensate' value.
+      if (shouldCompensate(definition) && completedActionSteps.length > 0) {
         ctx.set("status", "compensating");
         const compensationLog: CompensationLogEntry[] = [];
 
-        // Run compensations in reverse order (durable via ctx.run)
+        // Run compensations in reverse order (durable via ctx.run).
+        // A compensation failure is recorded but does NOT abort the
+        // remaining compensations — Spec 26 §4 mandates best-effort cleanup.
         for (let i = completedActionSteps.length - 1; i >= 0; i--) {
           const record = completedActionSteps[i];
           if (!record) continue;
@@ -306,8 +327,19 @@ export function compileFlow(
           };
 
           try {
-            await ctx.run(`compensate_${record.stepId}`, () =>
-              stepContext.executeAction(record.compensationAction, resolvedInput),
+            // Idempotency key (Spec 26 §3.2): identical across re-runs of the
+            // same flow instance + step + 'compensate' phase, so retried Restate
+            // invocations of the same compensation are deduplicated by the
+            // ActionEngine instead of double-applying the undo. The completion
+            // index `i` is included so a step that ran multiple times in a
+            // loop gets distinct keys per execution — without it, only the
+            // first compensation would actually run (the rest would dedupe
+            // both at Restate's `ctx.run` cache and at the ActionEngine).
+            const idempotencyKey = `${ctx.key}:${i}:${record.stepId}:compensate`;
+            await ctx.run(`compensate_${i}_${record.stepId}`, () =>
+              stepContext.executeAction(record.compensationAction, resolvedInput, {
+                idempotencyKey,
+              }),
             );
           } catch (compErr) {
             entry.status = "failed";
@@ -319,13 +351,15 @@ export function compileFlow(
 
         ctx.set("compensation_log", compensationLog);
         ctx.set("status", "compensated");
-        return {
-          status: "completed",
-          output: { compensated: true, compensationLog },
-        };
+
+        // Re-throw the ORIGINAL error so the flow surfaces as failed; if any
+        // compensation also failed, wrap the original error message with the
+        // failed entries so the error context carries both signals.
+        throw wrapWithCompensationFailures(err, compensationLog);
       }
 
-      // Re-throw to let Restate handle retries / terminal error propagation
+      // No compensation policy in effect — propagate the original error so
+      // Restate can retry / mark the workflow failed.
       throw err;
     }
 
@@ -335,6 +369,53 @@ export function compileFlow(
       output: flowCtx.prev?.output,
     };
   };
+}
+
+// ── Compiler ─────────────────────────────────────────────
+
+/**
+ * Compile a FlowDefinition into a Restate workflow service.
+ *
+ * The compiled workflow has:
+ * - A `run` handler that executes steps sequentially with branching
+ * - Signal handlers for each approval step (named `approve_{stepId}`)
+ * - A `status` handler for querying current state
+ * - A `signal` handler for sending arbitrary signals (for WaitFlowStep.signal)
+ */
+export function compileFlow(
+  definition: FlowDefinition,
+  stepContext: FlowStepContext,
+): CompiledFlow {
+  const { steps } = definition;
+
+  // Build step index for O(1) lookups by step ID
+  const stepIndex = new Map<string, number>();
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (step) stepIndex.set(step.id, i);
+  }
+
+  // Collect approval steps and wait-signal steps for handler generation
+  const approvalSteps = steps.filter((s): s is ApprovalFlowStep => s.type === "approval");
+  const signalHandlerNames = approvalSteps.map((s) => `approve_${s.id}`);
+
+  // Check if any wait steps use signals — if so, we need a generic signal handler
+  const hasSignalWaits = steps.some((s) => s.type === "wait" && (s as WaitFlowStep).signal);
+  if (hasSignalWaits) {
+    signalHandlerNames.push("signal");
+  }
+
+  // Always include status handler
+  signalHandlerNames.push("status");
+
+  // ── Build handlers object ──────────────────────────────
+
+  // biome-ignore lint: Dynamic handler map — typed as any to support heterogeneous Restate handler signatures
+  const handlers: Record<string, any> = {};
+
+  // Main run handler — built as a standalone function so the same logic can
+  // be unit tested with a mocked WorkflowContext (see __tests__/saga-compensation.test.ts).
+  handlers.run = buildFlowRunHandler(definition, steps, stepIndex, stepContext);
 
   // Status query handler
   handlers.status = async (ctx: restate.WorkflowSharedContext): Promise<string> => {

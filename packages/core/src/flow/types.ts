@@ -41,12 +41,30 @@ export interface FlowEngine {
 
 // ── Flow Runtime Context ────────────────────────────────
 
+/** Optional execution hints passed to {@link FlowStepContext.executeAction}. */
+export interface FlowExecuteActionOptions {
+  /**
+   * Idempotency key forwarded to the underlying ActionEngine. Used by Flow
+   * Saga compensation (Spec 26 §3.2) so a re-run of the same flow step does
+   * not double-apply a compensating action.
+   */
+  idempotencyKey?: string;
+}
+
 /** Context available to flow steps during execution */
 export interface FlowStepContext {
-  /** Execute a LinchKit action */
+  /**
+   * Execute a LinchKit action.
+   *
+   * The optional `options` argument lets the Flow runtime forward an
+   * idempotency key for Saga compensation re-runs. Implementations MUST treat
+   * a missing `options` as identical to a prior 2-argument call, so existing
+   * mocks and adapters keep working.
+   */
   executeAction(
     actionName: string,
     input: Record<string, unknown>,
+    options?: FlowExecuteActionOptions,
   ): Promise<Record<string, unknown>>;
 
   /** Call AI service */
