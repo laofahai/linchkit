@@ -458,4 +458,317 @@ describe("EntityRegistry.resolve() — inherited constraint merge (issue #202)",
       expect(def?.label).toBe("Doc Ref (Ext)");
     });
   });
+
+  // ── Codex follow-up coverage gaps ───────────────────────────────────────
+
+  describe("readonly inheritance (codex follow-up)", () => {
+    it("extends: child preserves parent's `readonly: true` when only label changes", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "doc_base_ro",
+        abstract: true,
+        fields: {
+          author: { type: "string", readonly: true },
+        },
+      });
+      registry.register({
+        name: "doc_ro",
+        extends: "doc_base_ro",
+        fields: {
+          author: { type: "string", label: "Author" },
+        },
+      });
+
+      const def = registry.resolve("doc_ro").fields.author?.definition;
+      expect(def?.readonly).toBe(true);
+      expect(def?.label).toBe("Author");
+    });
+
+    it("extends: explicit `readonly: false` in child negates parent's readonly", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "doc_base_ro2",
+        abstract: true,
+        fields: {
+          note: { type: "string", readonly: true },
+        },
+      });
+      registry.register({
+        name: "doc_ro2",
+        extends: "doc_base_ro2",
+        fields: {
+          note: { type: "string", readonly: false },
+        },
+      });
+
+      const def = registry.resolve("doc_ro2").fields.note?.definition;
+      expect(def?.readonly).toBe(false);
+    });
+
+    it("implements: interface readonly survives entity redeclaration when entity does not restate it", () => {
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "auditable",
+        label: "Auditable",
+        fields: { author: { type: "string", readonly: true } },
+      });
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+      registry.register({
+        name: "audited_doc",
+        implements: ["auditable"],
+        fields: {
+          author: { type: "string", label: "Original Author" },
+        },
+      });
+
+      const def = registry.resolve("audited_doc").fields.author?.definition;
+      expect(def?.readonly).toBe(true);
+      expect(def?.label).toBe("Original Author");
+    });
+
+    it("applyOverride: explicit `readonly: false` clears the field's readonly", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "doc_override_ro",
+        fields: {
+          status: { type: "string", readonly: true },
+        },
+      });
+      registry.applyOverride("doc_override_ro", {
+        fields: { status: { readonly: false } },
+      });
+
+      const def = registry.resolve("doc_override_ro").fields.status?.definition;
+      expect(def?.readonly).toBe(false);
+    });
+  });
+
+  describe("non-constraint key regression (codex follow-up)", () => {
+    it("child wholly replaces non-mergeable visual / structural keys (label, ui, masking, translatable, derived)", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "doc_visual_base",
+        abstract: true,
+        fields: {
+          summary: {
+            type: "string",
+            label: "Parent Label",
+            ui: { widget: "textarea" },
+            masking: { strategy: "redact" },
+            translatable: true,
+            derived: { from: "raw_summary" },
+          },
+        },
+      });
+      registry.register({
+        name: "doc_visual",
+        extends: "doc_visual_base",
+        fields: {
+          summary: {
+            type: "string",
+            label: "Child Label",
+          },
+        },
+      });
+
+      const def = registry.resolve("doc_visual").fields.summary?.definition;
+      // Constraint subset (immutable/lockWhen/etc.) — none here, so nothing to preserve.
+      // Visual / structural properties: child-wins, so parent values are not carried over.
+      expect(def?.label).toBe("Child Label");
+      expect(def?.ui).toBeUndefined();
+      expect(def?.masking).toBeUndefined();
+      expect(def?.translatable).toBeUndefined();
+      expect(def?.derived).toBeUndefined();
+    });
+  });
+
+  describe("interface + extends combined chain (codex follow-up)", () => {
+    it("documents current limitation: interface metadata does NOT transitively propagate through extends", () => {
+      // KNOWN LIMITATION (separate from #202 scope): when entity A implements
+      // an interface that contributes `immutable: true` on field X, and entity
+      // B extends A, B does NOT inherit X.immutable from the interface unless B
+      // also implements the same interface. This is because the inheritance
+      // walk uses ancestor.fields (raw) — interface seeding only happens for
+      // the entity's own `implements`, not transitively up the chain.
+      //
+      // Tracked in a follow-up issue for the EntityRegistry.resolve()
+      // semantics. This test pins the current behavior so the limitation is
+      // visible and any future fix flips it intentionally.
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "code_holder",
+        label: "Code Holder",
+        fields: { code: { type: "string", immutable: true } },
+      });
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "doc_with_code",
+        implements: ["code_holder"],
+        fields: {
+          code: { type: "string", label: "Code" },
+        },
+      });
+      registry.register({
+        name: "audited_doc_with_code",
+        extends: "doc_with_code",
+        fields: {
+          code: { type: "string", label: "Audit Code" },
+        },
+      });
+
+      const directDef = registry.resolve("doc_with_code").fields.code?.definition;
+      const indirectDef = registry.resolve("audited_doc_with_code").fields.code?.definition;
+      // Direct implementor: interface seeding works — immutable preserved
+      expect(directDef?.immutable).toBe(true);
+      // Grandchild via `extends` only: interface metadata is NOT inherited
+      // (current behavior). Workaround: have audited_doc_with_code also list
+      // `implements: ["code_holder"]`, or restate `immutable: true` on its own
+      // field redeclaration.
+      expect(indirectDef?.immutable).toBeUndefined();
+      expect(indirectDef?.label).toBe("Audit Code");
+    });
+
+    it("workaround for transitive limitation: grandchild that re-declares `implements` does inherit the interface lock", () => {
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "code_holder_2",
+        label: "Code Holder 2",
+        fields: { code: { type: "string", immutable: true } },
+      });
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "doc_with_code_2",
+        implements: ["code_holder_2"],
+        fields: { code: { type: "string", label: "Code" } },
+      });
+      registry.register({
+        name: "audited_doc_with_code_2",
+        extends: "doc_with_code_2",
+        implements: ["code_holder_2"],
+        fields: { code: { type: "string", label: "Audit Code" } },
+      });
+
+      const def = registry.resolve("audited_doc_with_code_2").fields.code?.definition;
+      expect(def?.immutable).toBe(true);
+      expect(def?.label).toBe("Audit Code");
+    });
+
+    it("entity explicitly clearing interface-provided lockWhen via undefined wins", () => {
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "lockable",
+        label: "Lockable",
+        fields: { status: { type: "string", lockWhen: submittedLock } },
+      });
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "always_editable",
+        implements: ["lockable"],
+        fields: {
+          status: { type: "string", lockWhen: undefined },
+        },
+      });
+
+      const def = registry.resolve("always_editable").fields.status?.definition;
+      expect(def?.lockWhen).toBeUndefined();
+    });
+  });
+
+  describe("JSON serialization round-trip (codex follow-up)", () => {
+    it("explicit `lockWhen: undefined` survives JSON.parse(JSON.stringify(...)) — i.e. drops the key — and inheritance therefore wins", () => {
+      // After JSON round-trip, `{ lockWhen: undefined }` becomes `{}` (the key disappears).
+      // That means the child no longer "explicitly restates" lockWhen → parent's lockWhen
+      // is inherited. This is the documented behavior: explicit negation requires the key
+      // to exist as own property with value `undefined`. Tests pin this contract so a future
+      // change can't silently flip it.
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "json_parent",
+        abstract: true,
+        fields: {
+          status: { type: "string", lockWhen: submittedLock, immutable: true },
+        },
+      });
+
+      const childPayload = JSON.parse(
+        JSON.stringify({
+          name: "json_child",
+          extends: "json_parent",
+          fields: {
+            status: { type: "string", lockWhen: undefined, label: "Status (post-json)" },
+          },
+        }),
+      );
+      registry.register(childPayload);
+
+      const def = registry.resolve("json_child").fields.status?.definition;
+      expect(def?.lockWhen).toEqual(submittedLock);
+      expect(def?.immutable).toBe(true);
+      expect(def?.label).toBe("Status (post-json)");
+    });
+
+    it("JSON-cloned `immutable: false` (false survives JSON) still negates", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "json_parent_imm",
+        abstract: true,
+        fields: { code: { type: "string", immutable: true } },
+      });
+      const childPayload = JSON.parse(
+        JSON.stringify({
+          name: "json_child_imm",
+          extends: "json_parent_imm",
+          fields: { code: { type: "string", immutable: false } },
+        }),
+      );
+      registry.register(childPayload);
+
+      const def = registry.resolve("json_child_imm").fields.code?.definition;
+      expect(def?.immutable).toBe(false);
+    });
+  });
+
+  describe("MERGEABLE_CONSTRAINT_KEYS sync (codex follow-up)", () => {
+    it("readonly is mergeable (regression guard for whitelist drift)", () => {
+      // Sentinel: if a future refactor accidentally drops `readonly` from the
+      // whitelist, this targeted test fails. Pairs with the type-level
+      // assertion below.
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "ro_sentinel_base",
+        abstract: true,
+        fields: { x: { type: "string", readonly: true } },
+      });
+      registry.register({
+        name: "ro_sentinel_child",
+        extends: "ro_sentinel_base",
+        fields: { x: { type: "string", label: "X" } },
+      });
+      expect(registry.resolve("ro_sentinel_child").fields.x?.definition.readonly).toBe(true);
+    });
+
+    it("lockWhen is mergeable (regression guard for whitelist drift)", () => {
+      const registry = createEntityRegistry();
+      registry.register({
+        name: "lw_sentinel_base",
+        abstract: true,
+        fields: { y: { type: "string", lockWhen: approvedLock } },
+      });
+      registry.register({
+        name: "lw_sentinel_child",
+        extends: "lw_sentinel_base",
+        fields: { y: { type: "string", label: "Y" } },
+      });
+      expect(registry.resolve("lw_sentinel_child").fields.y?.definition.lockWhen).toEqual(
+        approvedLock,
+      );
+    });
+  });
 });

@@ -88,6 +88,28 @@ export const validateCommand = defineCommand({
 
     const categories: ValidationCategory[] = [];
 
+    // Lookup map used by interface validation to mirror EntityRegistry.register()
+    // by passing inherited+own fields into validateImplementation. Without this,
+    // CLI validation disagreed with runtime behavior for inheritance+interface cases.
+    const entityByName = new Map<string, EntityDefinition>();
+    for (const entity of entities) entityByName.set(entity.name, entity);
+
+    const collectResolvedFields = (entity: EntityDefinition) => {
+      if (!entity.extends) return undefined;
+      const chain: EntityDefinition[] = [];
+      let cursor: string | undefined = entity.extends;
+      while (cursor) {
+        const parent = entityByName.get(cursor);
+        if (!parent) break;
+        chain.unshift(parent);
+        cursor = parent.extends;
+      }
+      const fields: Record<string, EntityDefinition["fields"][string]> = {};
+      for (const ancestor of chain) Object.assign(fields, ancestor.fields);
+      Object.assign(fields, entity.fields);
+      return fields;
+    };
+
     // ── 1. Schema inheritance validation ──
     {
       const issues: QualityIssue[] = [];
@@ -139,11 +161,13 @@ export const validateCommand = defineCommand({
         }
       }
 
-      // Validate each entity's interface implementation
+      // Validate each entity's interface implementation against inherited+own fields,
+      // mirroring EntityRegistry.register() so CLI agrees with runtime.
       for (const entity of entities) {
         if (!entity.implements || entity.implements.length === 0) continue;
 
-        const implErrors = interfaceRegistry.validateImplementation(entity);
+        const resolvedFields = collectResolvedFields(entity);
+        const implErrors = interfaceRegistry.validateImplementation(entity, resolvedFields);
         for (const errMsg of implErrors) {
           issues.push({
             severity: "error",
