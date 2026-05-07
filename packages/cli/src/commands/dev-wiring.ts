@@ -164,17 +164,24 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     ? new DrizzleOverlayStore(dbInstance)
     : new InMemoryOverlayStore();
   const overlayRegistry: OverlayRegistry = new DefaultOverlayRegistry(overlayStore);
-  await overlayRegistry.initialize();
-  if (dbInstance) {
-    // Loaded count: total active overlays across all entities post-initialize.
-    // We don't expose getAllOverlays() on OverlayRegistry today, so query the
-    // store directly — same contract the registry uses internally.
-    const all = await overlayStore.getAllOverlays();
-    const activeCount = all.filter((r) => r.status === "active").length;
-    consoleLogger.info(`Overlay registry: drizzle (${activeCount} overlays loaded from DB)`);
-  } else {
-    consoleLogger.info("Overlay registry: in-memory (no DB)");
+  // Initialize loads existing overlays into the in-memory cache. We deliberately
+  // let any DB-side error propagate (the rest of the dev session relies on
+  // overlays being present) but wrap in try/catch to attach a contextual
+  // diagnostic — the most common cause is "migrations not yet run".
+  try {
+    await overlayRegistry.initialize();
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `OverlayRegistry initialization failed: ${cause}. ` +
+        "If this is the first time running with this DATABASE_URL, " +
+        "ensure migrations have been applied (e.g. `bun run migration:apply`).",
+      { cause: err },
+    );
   }
+  consoleLogger.info(
+    dbInstance ? "Overlay registry: drizzle" : "Overlay registry: in-memory (no DB)",
+  );
 
   // Create execution logger — Drizzle-backed when DB is available
   const executionLogger = dbInstance
