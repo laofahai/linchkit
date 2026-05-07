@@ -657,25 +657,45 @@ export interface IntentResolution {
   inputSchema: Record<string, IntentFieldSchema>;
 }
 
+/** Optional scoping mirrors the server's `ResolveIntentInput.scope`. */
+export interface ResolveIntentScope {
+  /** Restrict the catalog to actions on these entities. */
+  entityFilter?: string[];
+  /** Restrict the catalog to these specific action names. */
+  actionFilter?: string[];
+}
+
 /**
- * Resolve a natural language message to an action intent.
- * Returns null if AI is not configured or no intent could be resolved.
+ * Resolve a natural-language prompt to an action intent.
+ *
+ * Wire contract (Spec 52 §2.6 — POST /api/ai/resolve-intent):
+ *   request:  { prompt, scope? }
+ *   response: { proposal: ActionProposalView | null }
+ *
+ * Returns null when:
+ *   - AI is not configured (server returns 503).
+ *   - No usable proposal could be produced (server returns 200 + null).
  */
 export async function resolveIntent(
-  message: string,
-  context: { schema?: string; recordId?: string },
+  prompt: string,
+  scope?: ResolveIntentScope,
 ): Promise<IntentResolution | null> {
   const res = await fetch("/api/ai/resolve-intent", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ message, context }),
+    body: JSON.stringify({ prompt, scope }),
   });
   handleUnauthorized(res);
+  if (res.status === 503) {
+    // Graceful degradation per Spec 52 §1.1 — caller treats null as
+    // "AI unavailable" and surfaces the appropriate UX.
+    return null;
+  }
   if (!res.ok) {
     throw new Error("AI intent resolution failed");
   }
   const json = await res.json();
-  return json.data ?? null;
+  return (json.proposal as IntentResolution | null) ?? null;
 }
 
 // ── Chatter ──────────────────────────────────────────────

@@ -12,7 +12,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
-import { ActionRegistry, EntityRegistry } from "@linchkit/core/server";
+import { ActionRegistry, createOntologyRegistry, EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
@@ -101,16 +101,15 @@ const mockAiService: AIService = {
       };
     }
     if (
-      allText.includes("Intent Resolver") ||
-      allText.includes("resolve") ||
-      allText.includes("intent")
+      allText.includes("LinchKit action proposal") ||
+      allText.includes("Available actions") ||
+      allText.includes("create_task")
     ) {
+      // Canonical resolver shape: only action / input / confidence / explanation.
       return {
         content: JSON.stringify({
           action: "create_task",
-          schema: "task",
           input: { title: "Setup CI/CD pipeline", priority: "high" },
-          missingFields: ["assignee"],
           confidence: 0.9,
           explanation: "I'll create a high-priority task for setting up CI/CD.",
         }),
@@ -185,20 +184,19 @@ describe("E2E AI endpoints — no AI service configured", () => {
     expect(json.data).toBeNull();
   });
 
-  test("3. /api/ai/resolve-intent returns null data", async () => {
+  test("3. /api/ai/resolve-intent returns 503 when AI is not configured", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: "Create a task for CI/CD setup",
-        context: {},
+        prompt: "Create a task for CI/CD setup",
       }),
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).toBeNull();
+    expect(json.success).toBe(false);
+    expect(json.error.message.length).toBeGreaterThan(0);
   });
 
   test("4. /api/ai/chat returns 503 when not configured", async () => {
@@ -238,6 +236,14 @@ describe("E2E AI endpoints — with mock AI service", () => {
   const entityRegistry = new EntityRegistry();
   entityRegistry.register(taskSchema);
 
+  const ontologyRegistry = createOntologyRegistry({
+    schemas: entityRegistry,
+    actions: actionRegistry,
+    rules: [],
+    states: [],
+    views: [],
+  });
+
   const mockExecutor = {
     registry: actionRegistry,
     execute: async () => ({
@@ -254,6 +260,7 @@ describe("E2E AI endpoints — with mock AI service", () => {
       // biome-ignore lint/suspicious/noExplicitAny: mock for test
       executor: mockExecutor as any,
       entityRegistry,
+      ontologyRegistry,
     });
     server.listen(PORT);
   });
@@ -361,39 +368,43 @@ describe("E2E AI endpoints — with mock AI service", () => {
     expect(res.status).toBe(400);
   });
 
-  test("12. /api/ai/resolve-intent resolves natural language to action", async () => {
+  test("12. /api/ai/resolve-intent resolves natural language to ActionProposal", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: "Create a high priority task for CI/CD pipeline setup",
-        context: { schema: "task" },
+        prompt: "Create a high priority task for CI/CD pipeline setup",
+        scope: { entityFilter: ["task"] },
       }),
     });
 
     expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).not.toBeNull();
-    expect(json.data.action).toBe("create_task");
-    expect(json.data.schema).toBe("task");
-    expect(json.data.confidence).toBeGreaterThan(0.5);
-    expect(json.data.explanation).toBeTruthy();
-    expect(json.data.actionLabel).toBe("Create Task");
-    expect(json.data.inputSchema).toBeDefined();
+    const json = (await res.json()) as {
+      proposal: {
+        action: string;
+        input: Record<string, unknown>;
+        confidence: number;
+        explanation: string;
+      } | null;
+    };
+    expect(json.proposal).not.toBeNull();
+    if (!json.proposal) throw new Error("expected proposal");
+    expect(json.proposal.action).toBe("create_task");
+    expect(json.proposal.confidence).toBeGreaterThan(0.5);
+    expect(json.proposal.explanation.length).toBeGreaterThan(0);
   });
 
-  test("13. /api/ai/resolve-intent returns 400 when message is missing", async () => {
+  test("13. /api/ai/resolve-intent returns 400 when prompt is missing", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ context: {} }),
+      body: JSON.stringify({}),
     });
 
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.success).toBe(false);
-    expect(json.error.message).toContain("message is required");
+    expect(json.error.message.length).toBeGreaterThan(0);
   });
 
   test("14. /api/ai/chat returns 400 when messages array is empty", async () => {
@@ -431,9 +442,7 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
     complete: async () => ({
       content: JSON.stringify({
         action: null,
-        schema: null,
         input: {},
-        missingFields: [],
         confidence: 0.1,
         explanation: "Could not understand the request.",
       }),
@@ -448,6 +457,13 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
   actionRegistry.register(createTaskAction);
   const entityRegistry = new EntityRegistry();
   entityRegistry.register(taskSchema);
+  const ontologyRegistry = createOntologyRegistry({
+    schemas: entityRegistry,
+    actions: actionRegistry,
+    rules: [],
+    states: [],
+    views: [],
+  });
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
@@ -459,6 +475,7 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
         // biome-ignore lint/suspicious/noExplicitAny: mock for test
       } as any,
       entityRegistry,
+      ontologyRegistry,
     });
     server.listen(PORT);
   });
@@ -467,19 +484,17 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
     server.stop?.();
   });
 
-  test("16. resolve-intent returns null when confidence is too low", async () => {
+  test("16. resolve-intent returns null proposal when confidence is too low", async () => {
     const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: "do something unclear",
-        context: {},
+        prompt: "do something unclear",
       }),
     });
 
     expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).toBeNull();
+    const json = (await res.json()) as { proposal: unknown };
+    expect(json.proposal).toBeNull();
   });
 });
