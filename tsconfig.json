@@ -54,6 +54,7 @@
       "@linchkit/ui-kit/hooks": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src/hooks"],
       "@linchkit/ui-kit/lib/utils": ["./addons/adapter-ui/cap-adapter-ui/ui-kit/src/lib/utils"],
       "@linchkit/cap-purchase-demo": ["./addons/demo/cap-purchase-demo/src"],
+      "@linchkit/cap-life-demo": ["./addons/demo/cap-life-demo/src"],
       "@linchkit/cap-chatter-ui": ["./addons/chatter/cap-chatter-ui/src"],
       "@linchkit/cap-chatter": ["./addons/chatter/cap-chatter/src"],
       "@linchkit/cap-chatter/capability": ["./addons/chatter/cap-chatter/src/capability.ts"],
