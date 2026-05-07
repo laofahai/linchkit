@@ -271,6 +271,8 @@ export type {
   LifecycleMemoryStore,
   LifecycleSensor,
   LifecycleSignal,
+  MemoryStoreListOptions,
+  MemoryStoreListPage,
   MemoryStoreWriteOptions,
   PendingProposalStore,
   PreAnalysisPipeline,

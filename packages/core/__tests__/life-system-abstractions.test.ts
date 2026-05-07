@@ -22,6 +22,8 @@ import {
   type LifecycleMemoryStore,
   type LifecycleSensor,
   type LifecycleSignal,
+  type MemoryStoreListOptions,
+  type MemoryStoreListPage,
   type MemoryStoreWriteOptions,
   registerSensor,
   type Unsubscribe,
@@ -81,7 +83,7 @@ const _baselineShape: LifecycleBaseline = {
 void _baselineShape;
 
 // LifecycleMemoryStore must expose read/write/delete/list with the
-// documented async signatures.
+// documented async signatures (including the paginated list contract).
 const _memoryStoreShape: LifecycleMemoryStore = {
   async read(_key: string): Promise<unknown | null> {
     return null;
@@ -92,8 +94,8 @@ const _memoryStoreShape: LifecycleMemoryStore = {
   async delete(_key: string): Promise<void> {
     /* no-op */
   },
-  async list(_prefix?: string): Promise<string[]> {
-    return [];
+  async list(_prefix?: string, _options?: MemoryStoreListOptions): Promise<MemoryStoreListPage> {
+    return { keys: [] };
   },
 };
 void _memoryStoreShape;
@@ -138,19 +140,37 @@ function createInMemoryStore(): LifecycleMemoryStore {
     async delete(key) {
       data.delete(key);
     },
-    async list(prefix) {
+    async list(prefix, options) {
       const now = Date.now();
-      const result: string[] = [];
+      // Collect every non-expired matching key first, then slice into a page.
+      // Sorted output gives a stable, deterministic cursor (the cursor is the
+      // last key returned in the previous page — keys after it form the next
+      // page).
+      const matching: string[] = [];
       for (const [key, entry] of data.entries()) {
         if (isExpired(entry, now)) {
           data.delete(key);
           continue;
         }
         if (prefix === undefined || key.startsWith(prefix)) {
-          result.push(key);
+          matching.push(key);
         }
       }
-      return result;
+      matching.sort();
+
+      const cursor = options?.cursor;
+      const limit = options?.limit;
+
+      const startIndex = cursor === undefined ? 0 : matching.findIndex((k) => k > cursor);
+      const start = startIndex < 0 ? matching.length : startIndex;
+      const end = limit === undefined ? matching.length : Math.min(matching.length, start + limit);
+      const keys = matching.slice(start, end);
+
+      const page: MemoryStoreListPage = { keys };
+      if (end < matching.length && keys.length > 0) {
+        page.nextCursor = keys[keys.length - 1];
+      }
+      return page;
     },
   };
 }
@@ -161,14 +181,28 @@ function createInMemoryStore(): LifecycleMemoryStore {
  * Manually-driven LifecycleSensor — `start`/`stop` flip an `active` flag,
  * and `emit()` fans the signal out to subscribers iff the sensor is
  * active. This keeps the test deterministic (no timers).
+ *
+ * `options.onStop` lets a test observe / influence the `stop()` call —
+ * used by the unregisterSensor / clearSensors tests below to assert
+ * that lifecycle hooks are awaited and that rejections are swallowed.
  */
 function createToySensor(
   id: string,
-): LifecycleSensor & { emit(signal: LifecycleSignal): void; active: boolean } {
+  options?: { onStop?: () => Promise<void> | void },
+): LifecycleSensor & {
+  emit(signal: LifecycleSignal): void;
+  active: boolean;
+  stopCount: number;
+} {
   const handlers = new Set<(signal: LifecycleSignal) => void>();
   let active = false;
+  let stopCount = 0;
 
-  const sensor: LifecycleSensor & { emit(signal: LifecycleSignal): void; active: boolean } = {
+  const sensor: LifecycleSensor & {
+    emit(signal: LifecycleSignal): void;
+    active: boolean;
+    stopCount: number;
+  } = {
     id,
     get active() {
       return active;
@@ -176,10 +210,20 @@ function createToySensor(
     set active(v: boolean) {
       active = v;
     },
+    get stopCount() {
+      return stopCount;
+    },
+    set stopCount(v: number) {
+      stopCount = v;
+    },
     start() {
       active = true;
     },
-    stop() {
+    async stop() {
+      stopCount += 1;
+      if (options?.onStop) {
+        await options.onStop();
+      }
       active = false;
     },
     subscribe(handler) {
@@ -234,10 +278,11 @@ function createRangeBaseline(id: string): LifecycleBaseline {
 
 // ── Test cases ─────────────────────────────────────────────────────────────
 
-afterEach(() => {
+afterEach(async () => {
   // Each registry test starts from a clean slate — earlier failures must
-  // not leak sensors into later runs.
-  clearSensors();
+  // not leak sensors into later runs. `clearSensors()` is async because it
+  // awaits each registered sensor's `stop()`.
+  await clearSensors();
 });
 
 describe("LifecycleMemoryStore (in-memory implementation)", () => {
@@ -254,17 +299,20 @@ describe("LifecycleMemoryStore (in-memory implementation)", () => {
     // list returns all written keys
     await store.write("beta", "hello");
     const all = await store.list();
-    expect(all.sort()).toEqual(["alpha", "beta"]);
+    expect(all.keys.sort()).toEqual(["alpha", "beta"]);
+    // No more pages when nothing was paginated.
+    expect(all.nextCursor).toBeUndefined();
 
     // list with prefix filters
     await store.write("alpha:nested", 42);
     const filtered = await store.list("alpha");
-    expect(filtered.sort()).toEqual(["alpha", "alpha:nested"]);
+    expect(filtered.keys.sort()).toEqual(["alpha", "alpha:nested"]);
 
     // delete removes the key
     await store.delete("alpha");
     expect(await store.read("alpha")).toBeNull();
-    expect((await store.list()).sort()).toEqual(["alpha:nested", "beta"]);
+    const afterDelete = await store.list();
+    expect(afterDelete.keys.sort()).toEqual(["alpha:nested", "beta"]);
 
     // delete on missing key is a no-op
     await expect(store.delete("never-existed")).resolves.toBeUndefined();
@@ -278,7 +326,38 @@ describe("LifecycleMemoryStore (in-memory implementation)", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(await store.read("ephemeral")).toBeNull();
-    expect(await store.list()).not.toContain("ephemeral");
+    const page = await store.list();
+    expect(page.keys).not.toContain("ephemeral");
+  });
+
+  test("list supports cursor + limit pagination", async () => {
+    const store = createInMemoryStore();
+
+    // Seed 5 keys under the same prefix; the in-memory impl sorts them so
+    // the cursor is deterministic across pages.
+    for (const key of ["k:1", "k:2", "k:3", "k:4", "k:5"]) {
+      await store.write(key, key);
+    }
+
+    // First page (limit 2).
+    const page1 = await store.list("k:", { limit: 2 });
+    expect(page1.keys).toEqual(["k:1", "k:2"]);
+    expect(page1.nextCursor).toBeDefined();
+
+    // Second page using the returned cursor.
+    const page2 = await store.list("k:", { limit: 2, cursor: page1.nextCursor });
+    expect(page2.keys).toEqual(["k:3", "k:4"]);
+    expect(page2.nextCursor).toBeDefined();
+
+    // Final page has < limit keys and no nextCursor.
+    const page3 = await store.list("k:", { limit: 2, cursor: page2.nextCursor });
+    expect(page3.keys).toEqual(["k:5"]);
+    expect(page3.nextCursor).toBeUndefined();
+
+    // Calling past the end returns an empty page with no cursor.
+    const page4 = await store.list("k:", { limit: 2, cursor: page3.keys[0] });
+    expect(page4.keys).toEqual([]);
+    expect(page4.nextCursor).toBeUndefined();
   });
 });
 
@@ -297,15 +376,86 @@ describe("LifecycleSensor + sensor-registry slot", () => {
     expect(() => registerSensor(createToySensor("toy.dup"))).toThrow(/already registered/);
   });
 
-  test("unregisterSensor removes the entry and reports success", () => {
+  test("unregisterSensor removes the entry and reports success", async () => {
     const sensor = createToySensor("toy.unreg");
     registerSensor(sensor);
 
-    expect(unregisterSensor("toy.unreg")).toBe(true);
+    expect(await unregisterSensor("toy.unreg")).toBe(true);
     expect(findSensor("toy.unreg")).toBeUndefined();
 
     // second call is a no-op
-    expect(unregisterSensor("toy.unreg")).toBe(false);
+    expect(await unregisterSensor("toy.unreg")).toBe(false);
+  });
+
+  test("unregisterSensor awaits sensor.stop() before removing the entry", async () => {
+    // Track ordering: the resolved-after flag must be set BEFORE the entry
+    // is removed from the registry.
+    let stopResolved = false;
+    let entryWhenStopResolved: LifecycleSensor | undefined;
+
+    const sensor = createToySensor("toy.stop-awaited", {
+      async onStop() {
+        // Yield to the microtask queue so we can prove the unregister call
+        // is genuinely awaiting rather than firing-and-forgetting.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        // While stop() is still in flight, the entry must still exist.
+        entryWhenStopResolved = findSensor("toy.stop-awaited");
+        stopResolved = true;
+      },
+    });
+    await sensor.start();
+    registerSensor(sensor);
+
+    const removed = await unregisterSensor("toy.stop-awaited");
+
+    expect(stopResolved).toBe(true);
+    // Sensor was still registered while stop() was running.
+    expect(entryWhenStopResolved).toBe(sensor);
+    expect(sensor.stopCount).toBe(1);
+    expect(removed).toBe(true);
+    // After the await, the entry has been removed.
+    expect(findSensor("toy.stop-awaited")).toBeUndefined();
+  });
+
+  test("unregisterSensor swallows stop() rejections and still removes the sensor", async () => {
+    const sensor = createToySensor("toy.stop-rejects", {
+      async onStop() {
+        throw new Error("boom");
+      },
+    });
+    registerSensor(sensor);
+
+    // The call must resolve (not reject) even though stop() threw.
+    await expect(unregisterSensor("toy.stop-rejects")).resolves.toBe(true);
+    expect(findSensor("toy.stop-rejects")).toBeUndefined();
+    expect(sensor.stopCount).toBe(1);
+  });
+
+  test("clearSensors awaits stop() on every registered sensor", async () => {
+    const a = createToySensor("toy.clear-a");
+    const b = createToySensor("toy.clear-b", {
+      async onStop() {
+        // Force ordering: b's stop completes after a microtask hop.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      },
+    });
+    const c = createToySensor("toy.clear-c", {
+      async onStop() {
+        throw new Error("c blew up");
+      },
+    });
+    registerSensor(a);
+    registerSensor(b);
+    registerSensor(c);
+
+    await clearSensors();
+
+    expect(getSensors()).toEqual([]);
+    // Every sensor's stop() was invoked exactly once, including the one
+    // that rejected.
+    expect(a.stopCount).toBe(1);
+    expect(b.stopCount).toBe(1);
+    expect(c.stopCount).toBe(1);
   });
 
   test("subscribe receives signals emitted while the sensor is started", async () => {

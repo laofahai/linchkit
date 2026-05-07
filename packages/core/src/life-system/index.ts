@@ -17,6 +17,8 @@ export type {
   LifecycleMemoryStore,
   LifecycleSensor,
   LifecycleSignal,
+  MemoryStoreListOptions,
+  MemoryStoreListPage,
   MemoryStoreWriteOptions,
   Unsubscribe,
 } from "./abstractions";

@@ -167,8 +167,12 @@ export interface LifecycleBaseline {
    * `observation` is defined by the implementation (number, vector,
    * structured record, ...). Should be O(1) where possible so the
    * memory layer can call this on every signal.
+   *
+   * May return a Promise so implementations that need to persist or
+   * fetch external state (DB, vector store, ...) do not block the
+   * event loop. Trivial in-memory baselines can stay synchronous.
    */
-  update(observation: unknown): void;
+  update(observation: unknown): Promise<void> | void;
 
   /**
    * Score an observation against the learned baseline. Returns a value
@@ -177,16 +181,24 @@ export interface LifecycleBaseline {
    *   - `1` → maximally anomalous given the current baseline
    * Implementations should clamp out-of-range internal scores to this
    * interval rather than throwing.
+   *
+   * May return a Promise so implementations that need to perform
+   * asynchronous computation (model inference, external lookup) are
+   * not forced to block. Synchronous returns remain valid.
    */
-  score(observation: unknown): number;
+  score(observation: unknown): Promise<number> | number;
 
   /**
    * Return a serialisable snapshot of the baseline's internal state.
    * Used by the Memory layer to persist baselines across restarts and
    * to drive UI / debugging surfaces. The return value is `unknown`
    * because each baseline implementation chooses its own shape.
+   *
+   * May return a Promise so persistent baselines can hydrate their
+   * snapshot from an external store. In-memory baselines can stay
+   * synchronous.
    */
-  snapshot(): unknown;
+  snapshot(): Promise<unknown> | unknown;
 }
 
 /**
@@ -229,9 +241,24 @@ export interface LifecycleMemoryStore {
   /**
    * Enumerate keys currently in the store, optionally filtered by
    * prefix. Implementations should exclude expired entries from the
-   * returned list.
+   * returned page.
+   *
+   * Returns a {@link MemoryStoreListPage}: the keys for the requested
+   * page plus an optional `nextCursor`. When `nextCursor` is omitted
+   * the page is the last one.
+   *
+   * `options.cursor` is implementation-defined — callers must treat
+   * it as an opaque token returned by the previous call. `options.limit`
+   * is an upper bound; implementations may return fewer keys (e.g.
+   * when the store has fewer matching entries left).
+   *
+   * Backends that cannot scale to unbounded `string[]` results
+   * (Postgres, Redis, ...) should honour both options. Trivial
+   * in-memory backends may ignore `cursor` and treat `limit` as a
+   * simple slice — the `nextCursor` shape lets them upgrade later
+   * without a contract change.
    */
-  list(prefix?: string): Promise<string[]>;
+  list(prefix?: string, options?: MemoryStoreListOptions): Promise<MemoryStoreListPage>;
 }
 
 /**
@@ -249,4 +276,47 @@ export interface MemoryStoreWriteOptions {
    * deleted.
    */
   ttlMs?: number;
+}
+
+/**
+ * Options for {@link LifecycleMemoryStore.list}.
+ *
+ * Kept as a named interface so additional pagination knobs (ordering,
+ * reverse traversal, ...) can be added without breaking existing
+ * implementations.
+ */
+export interface MemoryStoreListOptions {
+  /**
+   * Opaque continuation token returned by a previous call as
+   * {@link MemoryStoreListPage.nextCursor}. Omit on the first call.
+   */
+  cursor?: string;
+
+  /**
+   * Maximum number of keys to include in the returned page. Implementations
+   * may return fewer keys if fewer matching entries remain. When omitted
+   * the implementation is free to pick a sensible default.
+   */
+  limit?: number;
+}
+
+/**
+ * A single page returned by {@link LifecycleMemoryStore.list}.
+ *
+ * `keys` holds the page contents (already filtered by `prefix` and any
+ * expiry rules). `nextCursor` is an opaque token to pass back via
+ * {@link MemoryStoreListOptions.cursor} on the next call; `undefined`
+ * signals that the current page is the last one.
+ */
+export interface MemoryStoreListPage {
+  /** Page contents. May be empty when no entries match. */
+  keys: string[];
+
+  /**
+   * Opaque token that, when passed back as
+   * {@link MemoryStoreListOptions.cursor} on the next call, returns the
+   * following page. Omitted (or `undefined`) when there are no more
+   * pages.
+   */
+  nextCursor?: string;
 }

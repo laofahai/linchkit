@@ -66,10 +66,24 @@ export function findSensor(id: string): LifecycleSensor | undefined {
 
 /**
  * Remove a sensor by ID. Returns `true` if a sensor was removed,
- * `false` when the ID was unknown. Does not call `sensor.stop()` —
- * the caller (typically the EvolutionRuntime) owns lifecycle.
+ * `false` when the ID was unknown.
+ *
+ * Awaits `sensor.stop()` before removing the entry so that any timers,
+ * sockets, or listeners held by a started sensor are released. If
+ * `stop()` rejects, the error is swallowed and removal still proceeds —
+ * the caller asked to unregister, and leaving a half-stopped sensor in
+ * the registry would only compound the failure. Stop failures should be
+ * surfaced via telemetry / Signals in a future revision.
  */
-export function unregisterSensor(id: string): boolean {
+export async function unregisterSensor(id: string): Promise<boolean> {
+  const sensor = sensors.get(id);
+  if (!sensor) return false;
+  try {
+    await sensor.stop();
+  } catch {
+    // Swallow — removal must still happen. Future: emit a Signal or
+    // telemetry event so operators can investigate stop failures.
+  }
   return sensors.delete(id);
 }
 
@@ -77,10 +91,24 @@ export function unregisterSensor(id: string): boolean {
  * Reset the registry. Intended for tests; production code should never
  * need to clear the slot.
  *
+ * Awaits `sensor.stop()` for every registered sensor before clearing
+ * the underlying map, mirroring {@link unregisterSensor}'s contract:
+ * stop failures are swallowed so a single misbehaving sensor cannot
+ * keep the registry in a half-cleared state.
+ *
  * @internal Test-only helper. Not part of the public `@linchkit/core`
  * root export — tests import this directly from the module path
  * (`@linchkit/core/...sensor-registry`) or via the life-system barrel.
  */
-export function clearSensors(): void {
+export async function clearSensors(): Promise<void> {
+  await Promise.all(
+    Array.from(sensors.values()).map(async (sensor) => {
+      try {
+        await sensor.stop();
+      } catch {
+        // Swallow — same rationale as unregisterSensor.
+      }
+    }),
+  );
   sensors.clear();
 }
