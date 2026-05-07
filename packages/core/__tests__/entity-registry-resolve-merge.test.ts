@@ -780,6 +780,46 @@ describe("EntityRegistry.resolve() — inherited constraint merge (issue #202)",
       expect(def?.label).toBe("B Code");
     });
 
+    it("conflicting interfaces across the chain: leaf-side interface wins over root-side interface (codex review followup)", () => {
+      // A implements I1 declaring `code: { immutable: true }`.
+      // B extends A and implements I2 declaring `code: { immutable: false }`.
+      // Closer-to-leaf interface (I2 from B) must win — leaf-side semantics
+      // mirror the standard child-wins precedence used everywhere else in
+      // resolve(). Without the resolution-order fix, the root-side I1 would
+      // overwrite I2 because ancestor seeding ran AFTER self-implements.
+      const interfaces = createInterfaceRegistry();
+      interfaces.register({
+        name: "imm_true_iface",
+        label: "Imm True",
+        fields: { code: { type: "string", immutable: true } },
+      });
+      interfaces.register({
+        name: "imm_false_iface",
+        label: "Imm False",
+        fields: { code: { type: "string", immutable: false } },
+      });
+
+      const registry = createEntityRegistry();
+      registry.setInterfaceRegistry(interfaces);
+
+      registry.register({
+        name: "iface_conflict_a",
+        implements: ["imm_true_iface"],
+        fields: { code: { type: "string", label: "A Code" } },
+      });
+      registry.register({
+        name: "iface_conflict_b",
+        extends: "iface_conflict_a",
+        implements: ["imm_false_iface"],
+        fields: { code: { type: "string", label: "B Code" } },
+      });
+
+      const def = registry.resolve("iface_conflict_b").fields.code?.definition;
+      // Leaf-side interface (I2: immutable: false) wins over root-side (I1: true).
+      expect(def?.immutable).toBe(false);
+      expect(def?.label).toBe("B Code");
+    });
+
     it("entity explicitly clearing interface-provided lockWhen via undefined wins", () => {
       const interfaces = createInterfaceRegistry();
       interfaces.register({

@@ -407,39 +407,24 @@ export class EntityRegistry {
       }
     }
 
-    // Inject interface fields (before inherited + own fields, so they can be overridden).
-    // We seed all interface fields — including ones the entity itself redeclares — so
-    // that lock metadata (Spec 63 `immutable`/`readonly`/`lockWhen`) and other
-    // constraints declared on the interface are preserved through the merge unless the
-    // entity explicitly restates them. Interface field validation (type/enum/required)
-    // is handled separately in InterfaceRegistry.validateImplementation.
-    if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
-      for (const ifaceName of schema.implements) {
-        const iface = this._interfaceRegistry.get(ifaceName);
-        if (!iface) continue;
-        for (const [fname, fdef] of Object.entries(iface.fields)) {
-          upsertField(fname, fdef);
-        }
-      }
-    }
-
-    // Merge inherited fields (from root ancestor down to parent)
+    // Resolution order for interface + inheritance precedence (root → leaf):
+    //
+    //   1. ancestor's interfaces, then ancestor's own fields  (root → parent)
+    //   2. self's own interfaces                              (current entity)
+    //   3. self's own fields                                  (current entity)
+    //   4. extensions, then overrides                         (later sections)
+    //
+    // Why interfaces are seeded WITHIN the chain walk before self-implements:
+    // closer-to-leaf interfaces must win over root-side interfaces when both
+    // contribute the same field. If self-implements were seeded first, a
+    // subsequent ancestor-implements pass would overwrite it (since
+    // upsertField treats each new layer as the merge "child"). Process root →
+    // leaf so leaf-side interfaces are the last to merge and win on
+    // explicit conflicts. mergeFieldDefinition's explicit-presence detection
+    // still preserves an ancestor's untouched constraints.
     if (schema.extends) {
       const chain = this.getInheritanceChain(name);
       // Apply fields from each ancestor (excluding self, which is last in chain).
-      // upsertField merges so multi-level inheritance composes constraints
-      // additively (grandparent → parent → child each contribute, most-derived
-      // explicit value wins).
-      //
-      // For each ancestor we ALSO seed its `implements` interface fields
-      // before its own fields, mirroring the self-implements seed above.
-      // This ensures interface lock metadata (Spec 63
-      // `immutable`/`readonly`/`lockWhen`) flows through `extends`
-      // transitively — exactly as if the most-derived entity had restated
-      // each ancestor's `implements`. Multi-interface composition across
-      // the chain is naturally additive thanks to upsertField's merge
-      // semantics: child explicit values still win, but unspecified
-      // constraints inherit from any ancestor's interface.
       for (let i = 0; i < chain.length - 1; i++) {
         // biome-ignore lint/style/noNonNullAssertion: index is within bounds
         const ancestor = this.entities.get(chain[i]!);
@@ -454,6 +439,19 @@ export class EntityRegistry {
           }
         }
         for (const [fname, fdef] of Object.entries(ancestor.fields)) {
+          upsertField(fname, fdef);
+        }
+      }
+    }
+
+    // Self's own interfaces — seeded AFTER the ancestor chain so leaf-side
+    // interface contributions win on conflicting keys, and BEFORE self's own
+    // fields so an entity's field declaration still wins over its interface.
+    if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
+      for (const ifaceName of schema.implements) {
+        const iface = this._interfaceRegistry.get(ifaceName);
+        if (!iface) continue;
+        for (const [fname, fdef] of Object.entries(iface.fields)) {
           upsertField(fname, fdef);
         }
       }
