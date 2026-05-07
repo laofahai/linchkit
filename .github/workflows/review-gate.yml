@@ -19,6 +19,30 @@ on:
 # thread resolution, but caused a workflow registration parse failure on
 # GitHub Actions (synthetic "push" failure with no logs). Reverted to the
 # `/check-reviews` manual escape hatch until that's understood.
+#
+# How `/check-reviews` actually unblocks the PR:
+#   `issue_comment` events run on the default branch's HEAD SHA, NOT the PR
+#   head SHA. Previously the workflow relied on `core.setFailed()` to mark
+#   the run, which let GitHub auto-create a check-run on the workflow's run
+#   SHA (= main's HEAD). The PR head SHA therefore kept its stale FAILURE
+#   from the most recent `pull_request: synchronize` run, and contributors
+#   had to push an empty commit to force a fresh check on the PR head.
+#
+#   The fix below is to call `octokit.rest.checks.create()` ourselves with
+#   an explicit `head_sha` resolved from the PR (via GraphQL `headRefOid`).
+#   That writes the new SUCCESS / FAILURE conclusion directly onto the PR
+#   head SHA, which is what branch protection evaluates. For `issue_comment`
+#   events the workflow itself always succeeds — the gate verdict is carried
+#   by the check-run, so a green Actions run for `/check-reviews` is correct
+#   even when the gate concludes FAILURE. For `pull_request` events we keep
+#   `core.setFailed()` so the workflow's own conclusion mirrors the gate
+#   (matches today's UX in the PR's "Checks" tab).
+
+permissions:
+  pull-requests: read
+  checks: write
+  contents: read
+
 jobs:
   review-threads:
     name: Review Threads
@@ -42,14 +66,26 @@ jobs:
         uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
+          EVENT_NAME: ${{ github.event_name }}
         with:
           script: |
             const prNumber = Number(process.env.PR_NUMBER);
+            const eventName = process.env.EVENT_NAME;
+
+            // Fetch review threads + the PR head SHA. We need `headRefOid`
+            // because for `issue_comment` events the workflow runs against
+            // the default branch's HEAD, not the PR head — so we must post
+            // the resulting check-run onto the PR head SHA explicitly,
+            // otherwise branch protection keeps evaluating the stale
+            // FAILURE check from the previous `pull_request: synchronize`
+            // run and the PR remains BLOCKED.
             const { repository } = await github.graphql(`
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
+                    headRefOid
                     reviewThreads(first: 100) {
+                      totalCount
                       nodes {
                         isResolved
                         comments(first: 1) {
@@ -69,20 +105,95 @@ jobs:
               number: prNumber,
             });
 
-            const threads = repository.pullRequest.reviewThreads.nodes;
+            // Defensive null check: a deleted/merged PR would leave repository.pullRequest null.
+            if (!repository || !repository.pullRequest) {
+              core.setFailed(`Pull request #${prNumber} not found.`);
+              return;
+            }
+
+            const pr = repository.pullRequest;
+            const prHeadSha = pr.headRefOid;
+            const threads = pr.reviewThreads.nodes;
+            const totalCount = pr.reviewThreads.totalCount;
+
+            // We only fetched the first 100 threads. If there are more, refuse
+            // to render a verdict — silently passing on the assumption that
+            // threads 101+ are resolved would be incorrect, and silently
+            // failing would be opaque. Loud failure surfaces the limitation
+            // so a follow-up adds pagination if a real PR ever hits it.
+            if (totalCount > threads.length) {
+              core.setFailed(
+                `PR has ${totalCount} review threads but the gate only fetched ${threads.length}. ` +
+                  'Pagination is not yet implemented — file a workflow follow-up.',
+              );
+              return;
+            }
             const unresolved = threads.filter(t => !t.isResolved);
             const total = threads.length;
 
+            // Build human-readable output for the check-run.
+            let title;
+            let summary;
             if (unresolved.length > 0) {
-              core.info(`${unresolved.length}/${total} review thread(s) unresolved:`);
+              title = `${unresolved.length} unresolved review thread(s)`;
+              const lines = [
+                `${unresolved.length} of ${total} review thread(s) are still unresolved.`,
+                '',
+                'Resolve every thread (or post `/check-reviews` after resolving) before merging.',
+                '',
+                '### Unresolved threads',
+                '',
+              ];
               for (const t of unresolved) {
                 const c = t.comments.nodes[0];
-                const snippet = (c.body || '').substring(0, 100).replace(/\n/g, ' ');
-                core.info(`  - [${c.author.login}] ${snippet}...`);
+                const author = c && c.author ? c.author.login : 'unknown';
+                const snippet = ((c && c.body) || '')
+                  .substring(0, 200)
+                  .replace(/\r?\n/g, ' ');
+                lines.push(`- **@${author}**: ${snippet}`);
+                core.info(`  - [${author}] ${snippet}`);
               }
-              core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
+              summary = lines.join('\n');
+              core.info(`${unresolved.length}/${total} review thread(s) unresolved.`);
             } else if (total === 0) {
-              core.info('No review threads — gate passes.');
+              title = 'No review threads';
+              summary = 'No review threads on this PR — gate passes.';
+              core.info(summary);
             } else {
-              core.info(`All ${total} review thread(s) resolved.`);
+              title = `All ${total} review thread(s) resolved.`;
+              summary = `All ${total} review thread(s) resolved — gate passes.`;
+              core.info(summary);
+            }
+
+            const conclusion = unresolved.length > 0 ? 'failure' : 'success';
+
+            // Explicitly create a check-run on the PR head SHA. This is the
+            // SHA branch protection evaluates, so writing here updates the
+            // PR's required-check status without needing an empty commit.
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Review Threads',
+              head_sha: prHeadSha,
+              status: 'completed',
+              conclusion,
+              output: {
+                title,
+                summary,
+              },
+            });
+
+            core.info(`Posted Review Threads check-run (${conclusion}) on ${prHeadSha}.`);
+
+            // For `pull_request` events the workflow's own conclusion has
+            // historically mirrored the gate verdict (the check shown in
+            // the PR's Checks tab matches the workflow's run status). Keep
+            // that behavior. For `issue_comment` events the workflow's job
+            // is just to post the check-run on the PR head — the verdict
+            // is carried by that check-run, so the workflow itself always
+            // succeeds. Otherwise contributors would see a red Actions run
+            // for a `/check-reviews` comment even when the gate flipped to
+            // SUCCESS on the PR head.
+            if (eventName === 'pull_request' && unresolved.length > 0) {
+              core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
             }
