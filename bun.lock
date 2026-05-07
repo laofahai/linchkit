@@ -10,7 +10,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@modelcontextprotocol/sdk": "1.29.0",
-        "@restatedev/restate-sdk": "1.11.1",
+        "@restatedev/restate-sdk": "1.13.0",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
         "dataloader": "^2.2.3",
@@ -67,11 +67,13 @@
         "graphql-yoga": "^5.18.1",
       },
       "devDependencies": {
+        "@linchkit/cap-ai-provider": "workspace:*",
         "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.1.0",
+        "@linchkit/cap-ai-provider": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/adapter-ui/cap-adapter-ui": {
@@ -97,7 +99,7 @@
         "cmdk": "^1.1.1",
         "dagre": "^0.8.5",
         "date-fns": "^4.1.0",
-        "i18next": "^25.10.4",
+        "i18next": "^26.0.6",
         "lucide-react": "^1.7.0",
         "mermaid": "^11.6.0",
         "next-themes": "^0.4.6",
@@ -122,7 +124,7 @@
         "vite": "^8.0.1",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.1.0",
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/adapter-ui/cap-adapter-ui/ui-kit": {
@@ -158,7 +160,7 @@
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.1.0",
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/auth/cap-auth": {
@@ -226,6 +228,13 @@
         "react": "^19.0.0",
       },
     },
+    "addons/demo/cap-life-demo": {
+      "name": "@linchkit/cap-life-demo",
+      "version": "0.0.1",
+      "peerDependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+    },
     "addons/demo/cap-purchase-demo": {
       "name": "@linchkit/cap-purchase-demo",
       "version": "0.0.1",
@@ -248,14 +257,14 @@
       "name": "@linchkit/cap-flow-restate",
       "version": "1.0.0",
       "dependencies": {
-        "@restatedev/restate-sdk": "1.11.1",
+        "@restatedev/restate-sdk": "1.13.0",
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.1.0",
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/migration/cap-migration": {
@@ -640,6 +649,8 @@
 
     "@linchkit/cap-flow-restate": ["@linchkit/cap-flow-restate@workspace:addons/flow-restate/cap-flow-restate"],
 
+    "@linchkit/cap-life-demo": ["@linchkit/cap-life-demo@workspace:addons/demo/cap-life-demo"],
+
     "@linchkit/cap-mcp-ui": ["@linchkit/cap-mcp-ui@workspace:addons/adapter-mcp/cap-mcp-ui"],
 
     "@linchkit/cap-migration": ["@linchkit/cap-migration@workspace:addons/migration/cap-migration"],
@@ -822,9 +833,9 @@
 
     "@repeaterjs/repeater": ["@repeaterjs/repeater@3.0.6", "https://registry.npmmirror.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz", {}, "sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA=="],
 
-    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.11.1", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.11.1" } }, "sha512-qJNpA5POJOOTx4piMNp3zwMbyS6SPn9DWpFYmWXV9zCdX1nl/mflUrSOMIdAp97xSJUo3D4thRKRuRTyv4SSzg=="],
+    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.13.0", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.13.0" } }, "sha512-SAqes+qbpMn1HCRn/275FuNkyhvYsNwoe9BJwT0OjV1ocKC27SR4UGp/d2vO9mV6804VlSapybpGs4H7SM3HMA=="],
 
-    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.11.1", "", {}, "sha512-noGcYm6WePsCNLH2becGARKnfMXxDccvVn8UyOEv1Nzxix/8S25nbnYEpRylxCPlcHdgfyvDlIQF0sW5Clk2iQ=="],
+    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.13.0", "", {}, "sha512-DVmlI3rI8coA0Hcpxd2cLaK5DKUCwKDyXWXqjMorhqd4HBqdJBWtgrS0y0ZGUW+vuzJMeFpFvq3nhQJIvn6U9Q=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.10", "https://registry.npmmirror.com/@rolldown/binding-android-arm64/-/binding-android-arm64-1.0.0-rc.10.tgz", { "os": "android", "cpu": "arm64" }, "sha512-jOHxwXhxmFKuXztiu1ORieJeTbx5vrTkcOkkkn2d35726+iwhrY1w/+nYY/AGgF12thg33qC3R1LMBF5tHTZHg=="],
 
@@ -1584,7 +1595,7 @@
 
     "human-signals": ["human-signals@8.0.1", "https://registry.npmmirror.com/human-signals/-/human-signals-8.0.1.tgz", {}, "sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ=="],
 
-    "i18next": ["i18next@25.10.4", "https://registry.npmmirror.com/i18next/-/i18next-25.10.4.tgz", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5" }, "optionalPeers": ["typescript"] }, "sha512-XsE/6eawy090meuFU0BTY9BtmWr1m9NSwLr0NK7/A04LA58wdAvDsi9WNOJ40Qb1E9NIPbvnVLZEN2fWDd3/3Q=="],
+    "i18next": ["i18next@26.0.10", "", { "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-k3yGPAlWR2RdMYoVXJoDZDT87qeHIWKH7gVksdZMpRty7QX/D9QZeYGvN08KGbKHke9wn01eYT+EEsrqX/YTlw=="],
 
     "iconv-lite": ["iconv-lite@0.7.2", "https://registry.npmmirror.com/iconv-lite/-/iconv-lite-0.7.2.tgz", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-im9DjEDQ55s9fL4EYzOAv0yMqmMBSZp6G0VvFyTMPKWxiSBHUj9NW/qqLmXUwXrrM7AvqSlTCfvqRb0cM8yYqw=="],
 
@@ -2308,8 +2319,6 @@
 
     "@linchkit/cap-ai-provider/ai": ["ai@6.0.138", "", { "dependencies": { "@ai-sdk/gateway": "3.0.80", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.21", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-49OfPe0f5uxJ6jUdA5BBXjIinP6+ZdYfAtpF2aEH64GA5wPcxH2rf/TBUQQ0bbamBz/D+TLMV18xilZqOC+zaA=="],
 
-    "@linchkit/core/i18next": ["i18next@26.0.3", "", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-1571kXINxHKY7LksWp8wP+zP0YqHSSpl/OW0Y0owFEf2H3s8gCAffWaZivcz14rMkOvn3R/psiQxVsR9t2Nafg=="],
-
     "@manypkg/find-root/@types/node": ["@types/node@12.20.55", "", {}, "sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ=="],
 
     "@manypkg/find-root/fs-extra": ["fs-extra@8.1.0", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^4.0.0", "universalify": "^0.1.0" } }, "sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g=="],
@@ -2354,8 +2363,6 @@
 
     "express/cookie": ["cookie@0.7.2", "https://registry.npmmirror.com/cookie/-/cookie-0.7.2.tgz", {}, "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w=="],
 
-    "i18next/typescript": ["typescript@5.9.3", "https://registry.npmmirror.com/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
-
     "import-fresh/resolve-from": ["resolve-from@4.0.0", "https://registry.npmmirror.com/resolve-from/-/resolve-from-4.0.0.tgz", {}, "sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g=="],
 
     "katex/commander": ["commander@8.3.0", "", {}, "sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww=="],
@@ -2371,8 +2378,6 @@
     "prompts/kleur": ["kleur@3.0.3", "https://registry.npmmirror.com/kleur/-/kleur-3.0.3.tgz", {}, "sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w=="],
 
     "react-grid-layout/fast-equals": ["fast-equals@4.0.3", "", {}, "sha512-G3BSX9cfKttjr+2o1O22tYMLq0DPluZnYtq1rXumE1SpL/F/SLIfHx08WYQoWSIpeMYf8sRbJ8++71+v6Pnxfg=="],
-
-    "react-i18next/i18next": ["i18next@26.0.3", "", { "dependencies": { "@babel/runtime": "^7.29.2" }, "peerDependencies": { "typescript": "^5 || ^6" }, "optionalPeers": ["typescript"] }, "sha512-1571kXINxHKY7LksWp8wP+zP0YqHSSpl/OW0Y0owFEf2H3s8gCAffWaZivcz14rMkOvn3R/psiQxVsR9t2Nafg=="],
 
     "read-yaml-file/js-yaml": ["js-yaml@3.14.2", "", { "dependencies": { "argparse": "^1.0.7", "esprima": "^4.0.0" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg=="],
 
