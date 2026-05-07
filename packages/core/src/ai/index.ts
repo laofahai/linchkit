@@ -9,6 +9,7 @@ export type {
   AIAuditLoggerOptions,
   AIAuditQueryOptions,
   AIAuditRiskLevel,
+  IntentResolutionAuditPayload,
 } from "./ai-audit";
 export { AIAuditLogger } from "./ai-audit";
 export type { AIBoundaryOptions } from "./ai-boundary";

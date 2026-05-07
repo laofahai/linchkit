@@ -91,16 +91,46 @@ export interface ResolveIntentDeps {
  */
 export const MIN_CONFIDENCE = 0.4;
 
+/**
+ * Confidence threshold below which the resolver surfaces N-best alternatives
+ * for the UI to render as "Did you mean..." chips (Spec 52 §2.2 step 4).
+ * At or above this threshold the primary match is confident enough that
+ * alternatives are not shown.
+ */
+export const ALTERNATIVES_CONFIDENCE_THRESHOLD = 0.7;
+
+/**
+ * Maximum number of alternatives surfaced alongside the primary proposal.
+ * Caps Spec 52 §2.2 step 4 "Did you mean..." UI chips at a sane number.
+ */
+export const MAX_ALTERNATIVES = 3;
+
 // ── AI response schema ───────────────────────────────────────
+
+/**
+ * One alternative match entry. Mirrors the primary fields exactly — no
+ * nested alternatives. Tolerated as `unknown` parsed into a flat shape,
+ * since downstream reconciliation re-validates against the catalog.
+ */
+const aiAlternativeSchema = z.object({
+  action: z.string(),
+  input: z.record(z.string(), z.unknown()).optional().default({}),
+  confidence: z.number(),
+  explanation: z.string().optional().default(""),
+});
 
 const aiResponseSchema = z.object({
   action: z.string().nullable(),
   input: z.record(z.string(), z.unknown()).optional().default({}),
   confidence: z.number(),
   explanation: z.string().optional().default(""),
+  // Alternatives are optional; each entry is independently validated and
+  // filtered by reconcileAlternatives() against the scoped catalog.
+  alternatives: z.array(z.unknown()).optional(),
 });
 
 type AiResponse = z.infer<typeof aiResponseSchema>;
+type AiAlternative = z.infer<typeof aiAlternativeSchema>;
 
 // ── Public API ───────────────────────────────────────────────
 
@@ -134,7 +164,12 @@ export async function resolveIntent(
 
   // Call AI — text completion + manual JSON parsing keeps us compatible
   // with the simplest AiService shape (no JSON-mode dependency).
-  const systemPrompt = buildIntentSystemPrompt(catalog);
+  // Pass the threshold + cap as parameters so the prompt copy stays in
+  // lockstep with the constants enforced at runtime by reconcileAlternatives.
+  const systemPrompt = buildIntentSystemPrompt(catalog, {
+    alternativesConfidenceThreshold: ALTERNATIVES_CONFIDENCE_THRESHOLD,
+    maxAlternatives: MAX_ALTERNATIVES,
+  });
   let rawContent: string;
   try {
     const result = await deps.ai.complete({
@@ -174,12 +209,21 @@ export async function resolveIntent(
 
   const { input: cleanedInput, missingFields } = reconcileInput(catalogEntry, parsed.input ?? {});
 
+  // Spec 52 §2.2 step 4 — surface N-best alternatives only when the
+  // primary match is uncertain. Above the threshold the AI is confident
+  // enough that "Did you mean..." UI chips would be noise.
+  const alternatives =
+    confidence < ALTERNATIVES_CONFIDENCE_THRESHOLD
+      ? reconcileAlternatives(parsed.alternatives, catalogIndex, catalogEntry.name)
+      : undefined;
+
   return {
     action: catalogEntry.name,
     input: cleanedInput,
     confidence,
     missingFields,
     explanation: parsed.explanation || `Proposed action: ${catalogEntry.name}`,
+    ...(alternatives && alternatives.length > 0 ? { alternatives } : {}),
   };
 }
 
@@ -335,4 +379,64 @@ function clampConfidence(value: number): number {
   if (value < 0) return 0;
   if (value > 1) return 1;
   return value;
+}
+
+// ── Alternatives reconciliation ─────────────────────────────
+
+/**
+ * Validate, allowlist, deduplicate, sort, and cap the AI-proposed
+ * alternatives list. Spec 52 §2.2 step 4.
+ *
+ * For each raw entry we:
+ *  - validate the shape via aiAlternativeSchema (drops anything malformed),
+ *  - require the action exists in the (scoped) catalog (drops out-of-scope),
+ *  - skip the primary action's own name to avoid duplication,
+ *  - reconcile its input against the action's catalog entry,
+ *  - clamp its confidence to [0, 1].
+ *
+ * Output is sorted by confidence descending and capped at MAX_ALTERNATIVES.
+ * Returns undefined when no usable alternatives remain so the caller can
+ * decide between "omit field" vs "empty array".
+ */
+function reconcileAlternatives(
+  rawAlternatives: unknown[] | undefined,
+  catalogIndex: Map<string, ActionCatalogEntry>,
+  primaryActionName: string,
+): ActionProposal[] | undefined {
+  if (!rawAlternatives || rawAlternatives.length === 0) return undefined;
+
+  const seen = new Set<string>([primaryActionName]);
+  const reconciled: ActionProposal[] = [];
+
+  for (const raw of rawAlternatives) {
+    const parsedAlt = aiAlternativeSchema.safeParse(raw);
+    if (!parsedAlt.success) continue;
+    const alt: AiAlternative = parsedAlt.data;
+
+    if (seen.has(alt.action)) continue;
+    const catalogEntry = catalogIndex.get(alt.action);
+    if (!catalogEntry) continue;
+
+    // Drop alternatives that themselves fall below MIN_CONFIDENCE — they
+    // would only show up in the UI's "Did you mean..." chips as low-quality
+    // noise. Mirrors the Spec 52 §2.2 step 5 floor applied to the primary.
+    const altConfidence = clampConfidence(alt.confidence);
+    if (altConfidence < MIN_CONFIDENCE) continue;
+
+    const { input: cleanedInput, missingFields } = reconcileInput(catalogEntry, alt.input ?? {});
+
+    seen.add(catalogEntry.name);
+    reconciled.push({
+      action: catalogEntry.name,
+      input: cleanedInput,
+      confidence: altConfidence,
+      missingFields,
+      explanation: alt.explanation || `Proposed action: ${catalogEntry.name}`,
+    });
+  }
+
+  if (reconciled.length === 0) return undefined;
+
+  reconciled.sort((a, b) => b.confidence - a.confidence);
+  return reconciled.slice(0, MAX_ALTERNATIVES);
 }

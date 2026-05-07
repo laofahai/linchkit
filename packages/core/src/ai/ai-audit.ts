@@ -23,7 +23,38 @@ export type AIAuditEventType =
   | "ai_boundary_violation"
   | "ai_proposal_generated"
   | "ai_proposal_applied"
-  | "ai_data_access";
+  | "ai_data_access"
+  | "intent_resolution";
+
+/**
+ * Structured payload for `logIntentResolution()` (Spec 52 §8.1.4).
+ *
+ * Mirrors the per-call shape emitted by the `/api/ai/resolve-intent`
+ * endpoint so downstream consumers (compliance dashboards, fine-grained
+ * AI cost analysis) get a uniform schema regardless of AI provider.
+ */
+export interface IntentResolutionAuditPayload {
+  /** Calling actor — a user id, agent id, or system id. */
+  actorId: string;
+  /** Tenant context for the call. */
+  tenantId?: string;
+  /** Raw natural-language prompt the user sent. */
+  prompt: string;
+  /** True when the resolver returned an actionable proposal. */
+  matched: boolean;
+  /** Resolved action name (null when no match). */
+  action: string | null;
+  /** Confidence in [0, 1] (null when no match). */
+  confidence: number | null;
+  /** Wall-clock duration of the resolver call (ms). */
+  durationMs: number;
+  /** De-duplicated number of actions visible to the actor. */
+  catalogSize: number;
+  /** True when permission scoping was applied to the catalog. */
+  scoped: boolean;
+  /** True when the AI service was unreachable / not configured. */
+  serviceUnavailable: boolean;
+}
 
 /** Risk level classification for audit entries */
 export type AIAuditRiskLevel = "low" | "medium" | "high" | "critical";
@@ -234,6 +265,44 @@ export class AIAuditLogger {
       actionName: params.actionName,
       recommendation: params.recommendation,
       metadata: params.metadata,
+    });
+  }
+
+  /**
+   * Log a Spec 52 intent-resolution call (one entry per `/api/ai/resolve-intent`
+   * invocation, regardless of match outcome).
+   *
+   * Distinct from `logRecommendation()`: intent resolution is a search-style
+   * read that produces a candidate action; the recommendation event is for
+   * the AI suggesting an action be performed. The split keeps audit
+   * dashboards able to count NL-resolution traffic separately from genuine
+   * AI-driven workflow proposals.
+   */
+  logIntentResolution(params: IntentResolutionAuditPayload): AIAuditEntry {
+    const recommendation = params.matched
+      ? `Resolved → ${params.action ?? "(unknown)"}`
+      : params.serviceUnavailable
+        ? "AI service unavailable"
+        : "No matching action proposal";
+    return this.addEntry({
+      eventType: "intent_resolution",
+      riskLevel: "low",
+      actorId: params.actorId,
+      tenantId: params.tenantId,
+      actionName: params.action ?? "(none)",
+      recommendation,
+      metadata: {
+        prompt: params.prompt,
+        result: {
+          matched: params.matched,
+          action: params.action,
+          confidence: params.confidence,
+        },
+        durationMs: params.durationMs,
+        catalogSize: params.catalogSize,
+        scoped: params.scoped,
+        serviceUnavailable: params.serviceUnavailable,
+      },
     });
   }
 

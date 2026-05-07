@@ -211,11 +211,11 @@ describe("POST /api/ai/resolve-intent — happy path", () => {
     expect(body.proposal.missingFields).toEqual([]);
     expect(body.proposal.explanation.length).toBeGreaterThan(0);
 
-    // Audit entry: exactly one, matched=true
+    // Audit entry: exactly one, matched=true, eventType='intent_resolution'
     const entries = auditLogger.query();
     expect(entries.length).toBe(1);
+    expect(entries[0]?.eventType).toBe("intent_resolution");
     const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
-    expect(meta?.kind).toBe("intent_resolution");
     expect((meta?.result as { matched: boolean }).matched).toBe(true);
     expect((meta?.result as { action: string | null }).action).toBe("create_purchase_request");
     expect((meta?.result as { confidence: number | null }).confidence).toBeCloseTo(0.92, 5);
@@ -265,6 +265,7 @@ describe("POST /api/ai/resolve-intent — AI cannot match", () => {
 
     const entries = auditLogger.query();
     expect(entries.length).toBe(1);
+    expect(entries[0]?.eventType).toBe("intent_resolution");
     const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
     expect((meta?.result as { matched: boolean }).matched).toBe(false);
     expect((meta?.result as { action: string | null }).action).toBeNull();
@@ -360,6 +361,7 @@ describe("POST /api/ai/resolve-intent — AI unavailable", () => {
       // Audit entry still emitted so volume is observable.
       const entries = auditLogger2.query();
       expect(entries.length).toBe(1);
+      expect(entries[0]?.eventType).toBe("intent_resolution");
       const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
       expect(meta?.serviceUnavailable).toBe(true);
     } finally {
@@ -491,12 +493,12 @@ describe("POST /api/ai/resolve-intent — audit entry shape", () => {
     // Top-level AIAuditEntry shape (from packages/core/src/ai/ai-audit.ts).
     expect(typeof entry.id).toBe("string");
     expect(typeof entry.timestamp).toBe("string");
-    expect(entry.eventType).toBe("ai_recommendation");
+    // Canonical Spec 52 §8.1.4 event type — no longer co-opting ai_recommendation.
+    expect(entry.eventType).toBe("intent_resolution");
     expect(entry.actorId).toBe("test-anon");
     expect(entry.actionName).toBe("create_purchase_request");
     // Spec 52 §8.1.4-shaped payload lives under `metadata`.
     const meta = entry.metadata as Record<string, unknown>;
-    expect(meta.kind).toBe("intent_resolution");
     expect(meta.prompt).toBe("create a purchase for 100 Eng");
     const result = meta.result as { matched: boolean; action: string | null; confidence: number };
     expect(result.matched).toBe(true);
