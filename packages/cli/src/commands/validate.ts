@@ -14,7 +14,11 @@ import type {
   LinchKitConfig,
   RelationDefinition,
 } from "@linchkit/core";
-import { createInterfaceRegistry, validateTranslatableEntity } from "@linchkit/core";
+import {
+  createInterfaceRegistry,
+  mergeFieldDefinition,
+  validateTranslatableEntity,
+} from "@linchkit/core";
 import { createRelationRegistry, EntityRegistry } from "@linchkit/core/server";
 import type { ActionInfo, EntityInfo, QualityIssue } from "@linchkit/devtools/methodology";
 import { checkActionDefinitions, checkEntityDefinitions } from "@linchkit/devtools/methodology";
@@ -88,6 +92,39 @@ export const validateCommand = defineCommand({
 
     const categories: ValidationCategory[] = [];
 
+    // Lookup map used by interface validation to mirror EntityRegistry.register()
+    // by passing inherited+own fields into validateImplementation. Without this,
+    // CLI validation disagreed with runtime behavior for inheritance+interface cases.
+    const entityByName = new Map<string, EntityDefinition>();
+    for (const entity of entities) entityByName.set(entity.name, entity);
+
+    const collectResolvedFields = (entity: EntityDefinition) => {
+      if (!entity.extends) return undefined;
+      const chain: EntityDefinition[] = [];
+      let cursor: string | undefined = entity.extends;
+      while (cursor) {
+        const parent = entityByName.get(cursor);
+        if (!parent) break;
+        chain.unshift(parent);
+        cursor = parent.extends;
+      }
+      // Mirror EntityRegistry.resolve() field merge semantics: parent's
+      // FieldConstraints + Spec 63 lock keys (immutable / readonly / lockWhen)
+      // survive child redeclarations unless the child explicitly restates them.
+      // Without this, CLI validation diverges from runtime when a child
+      // redeclares only the label or type of an inherited locked field.
+      const fields: Record<string, EntityDefinition["fields"][string]> = {};
+      const applyLayer = (source: Record<string, EntityDefinition["fields"][string]>) => {
+        for (const [name, fdef] of Object.entries(source)) {
+          const existing = fields[name];
+          fields[name] = existing ? mergeFieldDefinition(existing, fdef) : fdef;
+        }
+      };
+      for (const ancestor of chain) applyLayer(ancestor.fields);
+      applyLayer(entity.fields);
+      return fields;
+    };
+
     // ── 1. Schema inheritance validation ──
     {
       const issues: QualityIssue[] = [];
@@ -139,11 +176,13 @@ export const validateCommand = defineCommand({
         }
       }
 
-      // Validate each entity's interface implementation
+      // Validate each entity's interface implementation against inherited+own fields,
+      // mirroring EntityRegistry.register() so CLI agrees with runtime.
       for (const entity of entities) {
         if (!entity.implements || entity.implements.length === 0) continue;
 
-        const implErrors = interfaceRegistry.validateImplementation(entity);
+        const resolvedFields = collectResolvedFields(entity);
+        const implErrors = interfaceRegistry.validateImplementation(entity, resolvedFields);
         for (const errMsg of implErrors) {
           issues.push({
             severity: "error",

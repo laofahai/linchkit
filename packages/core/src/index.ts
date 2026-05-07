@@ -199,6 +199,7 @@ export {
 export type { InterfaceRegistry } from "./entity/entity-interface";
 export { createInterfaceRegistry } from "./entity/entity-interface";
 export type { EntityRegistry } from "./entity/entity-registry";
+export { MERGEABLE_CONSTRAINT_KEYS, mergeFieldDefinition } from "./entity/entity-registry";
 export { generateZodSchema, type ZodGeneratorOptions } from "./entity/entity-to-zod";
 export type { RelationRegistry } from "./entity/relation-registry";
 export { createRelationRegistry } from "./entity/relation-registry";

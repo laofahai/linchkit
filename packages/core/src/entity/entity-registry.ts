@@ -13,6 +13,7 @@ import type {
   EntityExtension,
   EntityOverride,
   FieldDefinition,
+  FieldOverrideProps,
   ResolvedEntity,
   ResolvedField,
 } from "../types/entity";
@@ -21,6 +22,80 @@ import type { InterfaceRegistry } from "./entity-interface";
 // ── Non-storable field types ────────────────────────────────────
 
 const NON_STORABLE_TYPES = new Set(["computed"]);
+
+// ── Mergeable constraint keys (Spec 63 + FieldConstraints) ──────
+
+/**
+ * Field properties that are inherited from the parent definition unless the
+ * child explicitly restates them (including explicit negation such as
+ * `immutable: false` or `lockWhen: undefined`). Covers the legacy
+ * `FieldConstraints` set plus the Spec 63 lock additions (`readonly`,
+ * `lockWhen`). All other keys (type, label, description, ui, masking, etc.)
+ * follow the existing child-wins semantics.
+ */
+export const MERGEABLE_CONSTRAINT_KEYS = [
+  "required",
+  "unique",
+  "min",
+  "max",
+  "format",
+  "pattern",
+  "default",
+  "immutable",
+  "readonly",
+  "lockWhen",
+] as const;
+
+/**
+ * Merge a child field definition on top of a parent field definition.
+ *
+ * Behavior:
+ *  - Non-constraint properties (type, label, description, ui, etc.) follow
+ *    child-wins: the resulting field is the child object, so unspecified
+ *    visual properties on the child fall back to defaults exactly as before.
+ *  - Constraint properties listed in {@link MERGEABLE_CONSTRAINT_KEYS} are
+ *    inherited from the parent UNLESS the child explicitly sets that key.
+ *    Explicit presence is detected via `Object.hasOwn`, so `immutable: false`
+ *    and `lockWhen: undefined` are treated as explicit negation and override
+ *    the parent.
+ *
+ * The function returns a new object — neither input is mutated.
+ */
+export function mergeFieldDefinition(
+  parent: FieldDefinition,
+  child: FieldDefinition,
+): FieldDefinition {
+  const merged: Record<string, unknown> = { ...child };
+  const parentRecord = parent as unknown as Record<string, unknown>;
+  for (const key of MERGEABLE_CONSTRAINT_KEYS) {
+    if (!Object.hasOwn(child, key) && Object.hasOwn(parent, key)) {
+      merged[key] = parentRecord[key];
+    }
+    // else: child either explicitly set the key (possibly to undefined) or
+    // parent doesn't define it — keep child's value as-is.
+  }
+  return merged as unknown as FieldDefinition;
+}
+
+/**
+ * Merge an override (constraint patch) on top of a resolved field definition.
+ * Overrides cannot change `type` (validated separately in resolve()), and they
+ * follow the same explicit-presence semantics as
+ * {@link mergeFieldDefinition} — every key the override declares wins, even
+ * `immutable: false` or `lockWhen: undefined`. Keys absent from the override
+ * are preserved from the existing definition.
+ */
+function mergeOverrideOnto(
+  existing: FieldDefinition,
+  override: FieldOverrideProps,
+): FieldDefinition {
+  const merged: Record<string, unknown> = { ...existing };
+  const overrideRecord = override as unknown as Record<string, unknown>;
+  for (const key of Object.keys(override)) {
+    merged[key] = overrideRecord[key];
+  }
+  return merged as unknown as FieldDefinition;
+}
 
 /** Maximum inheritance depth (A -> B -> C = depth 2, max allowed is 3 levels total) */
 const MAX_INHERITANCE_DEPTH = 3;
@@ -213,7 +288,12 @@ export class EntityRegistry {
 
   /**
    * Collect all inherited fields from the full ancestor chain for an entity.
-   * Used for field type conflict validation at registration time.
+   * Used for field type conflict validation at registration time and for
+   * interface field validation. When a field reappears down the chain, the
+   * child definition is merged on top of the parent's via
+   * {@link mergeFieldDefinition} so inherited Spec 63 lock metadata
+   * (`immutable`, `readonly`, `lockWhen`) and other constraints are preserved
+   * unless the child explicitly restates them.
    */
   private collectInheritedFields(name: string): Record<string, FieldDefinition> {
     const fields: Record<string, FieldDefinition> = {};
@@ -221,8 +301,10 @@ export class EntityRegistry {
     // chain includes `name` itself as last element; iterate all
     for (const entityName of chain) {
       const schema = this.entities.get(entityName);
-      if (schema) {
-        Object.assign(fields, schema.fields);
+      if (!schema) continue;
+      for (const [fname, fdef] of Object.entries(schema.fields)) {
+        const existing = fields[fname];
+        fields[fname] = existing ? mergeFieldDefinition(existing, fdef) : fdef;
       }
     }
     return fields;
@@ -283,6 +365,20 @@ export class EntityRegistry {
     const fields: Record<string, ResolvedField> = {};
     const isInternal = this._internalEntities.has(name);
 
+    /**
+     * Set or merge a field definition into the resolution map. When the field
+     * already exists, we merge the new layer on top of the existing
+     * definition so inherited constraints (Spec 63 `immutable`, `readonly`,
+     * `lockWhen` and the legacy `FieldConstraints` keys) survive unless the
+     * new layer explicitly restates them. Visual / structural properties on
+     * the new layer override as before.
+     */
+    const upsertField = (fname: string, fdef: FieldDefinition) => {
+      const existing = fields[fname];
+      const merged = existing ? mergeFieldDefinition(existing.definition, fdef) : fdef;
+      fields[fname] = resolveField(fname, merged);
+    };
+
     // Internal entities define their own fields — skip system field injection
     if (!isInternal) {
       // Start with system fields
@@ -291,41 +387,52 @@ export class EntityRegistry {
       }
     }
 
-    // Inject interface fields (before inherited + own fields, so they can be overridden)
+    // Inject interface fields (before inherited + own fields, so they can be overridden).
+    // We seed all interface fields — including ones the entity itself redeclares — so
+    // that lock metadata (Spec 63 `immutable`/`readonly`/`lockWhen`) and other
+    // constraints declared on the interface are preserved through the merge unless the
+    // entity explicitly restates them. Interface field validation (type/enum/required)
+    // is handled separately in InterfaceRegistry.validateImplementation.
     if (schema.implements && schema.implements.length > 0 && this._interfaceRegistry) {
-      const injected = this._interfaceRegistry.getInjectedFields(schema);
-      for (const [fname, fdef] of Object.entries(injected)) {
-        fields[fname] = resolveField(fname, fdef);
+      for (const ifaceName of schema.implements) {
+        const iface = this._interfaceRegistry.get(ifaceName);
+        if (!iface) continue;
+        for (const [fname, fdef] of Object.entries(iface.fields)) {
+          upsertField(fname, fdef);
+        }
       }
     }
 
     // Merge inherited fields (from root ancestor down to parent)
     if (schema.extends) {
       const chain = this.getInheritanceChain(name);
-      // Apply fields from each ancestor (excluding self, which is last in chain)
+      // Apply fields from each ancestor (excluding self, which is last in chain).
+      // upsertField merges so multi-level inheritance composes constraints
+      // additively (grandparent → parent → child each contribute, most-derived
+      // explicit value wins).
       for (let i = 0; i < chain.length - 1; i++) {
         // biome-ignore lint/style/noNonNullAssertion: index is within bounds
         const ancestor = this.entities.get(chain[i]!);
         if (ancestor) {
           for (const [fname, fdef] of Object.entries(ancestor.fields)) {
-            fields[fname] = resolveField(fname, fdef);
+            upsertField(fname, fdef);
           }
         }
       }
     }
 
-    // Add user-defined fields (child fields override parent fields of same name)
+    // Add user-defined fields (child fields override parent fields of same name).
+    // Merge keeps inherited constraints unless the child restates them.
     for (const [fname, fdef] of Object.entries(schema.fields)) {
-      // If this field exists in parent, allow override of non-structural properties
-      // but the child must provide a valid FieldDefinition (type is required)
-      fields[fname] = resolveField(fname, fdef);
+      upsertField(fname, fdef);
     }
 
-    // Merge extensions
+    // Merge extensions — extensions follow the same merge semantics: they only
+    // displace constraints they explicitly set.
     const exts = this.extensions.get(name) ?? [];
     for (const ext of exts) {
       for (const [fname, fdef] of Object.entries(ext.fields)) {
-        fields[fname] = resolveField(fname, fdef);
+        upsertField(fname, fdef);
       }
     }
 
@@ -345,8 +452,10 @@ export class EntityRegistry {
           );
         }
 
-        // Merge constraints into the existing definition
-        const merged = { ...existing.definition, ...constraints } as FieldDefinition;
+        // Merge override constraints into the existing definition. Every key
+        // present in the override (including explicit `undefined`) wins;
+        // keys absent from the override stay as inherited.
+        const merged = mergeOverrideOnto(existing.definition, constraints);
         fields[fname] = resolveField(fname, merged);
       }
     }
