@@ -46,7 +46,38 @@ export {
   stripSystemKeys,
 } from "./execution-meta";
 export type * from "./flow";
-export type * from "./life-system";
+// Spec 56 Phase 2 Step 2a: the public Sensor / Signal / Baseline / MemoryStore
+// names are owned by `life-system/abstractions.ts`. Re-export only the
+// non-conflicting names from the older internal types module here so the
+// public API surface stays unambiguous. (Internal modules continue to
+// import `Sensor`, `Signal`, `Baseline`, `MemoryStore` directly from
+// `./life-system` where those names refer to the legacy detection-style
+// shapes.)
+export type {
+  AttentionBudget,
+  AttentionBudgetConfig,
+  AwarenessEngine,
+  DetectingSensor,
+  Detector,
+  EvolutionCycle,
+  EvolutionCycleResult,
+  Insight,
+  InsightCausality,
+  InsightEngine,
+  InsightEvidence,
+  InsightImpact,
+  InsightPromotionConfig,
+  InsightType,
+  ScoredCandidate,
+  SensorContext,
+  SensorSignal,
+  SignalSource,
+  StructuralIssue,
+  StructuralIssueKind,
+  UsageImportanceGraph,
+  UsageNode,
+  UsageNodeKind,
+} from "./life-system";
 export type * from "./logger";
 export type * from "./onchange";
 export type * from "./overlay";

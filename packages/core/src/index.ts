@@ -257,6 +257,7 @@ export {
 } from "./i18n";
 export type {
   BacktestResult,
+  Baseline,
   ConflictFinding,
   ConflictResult,
   CreateDedupAnalyzerOptions,
@@ -267,6 +268,8 @@ export type {
   EvolutionRuntimeOptions,
   ImpactDataProvider,
   ImpactResult,
+  MemoryStore,
+  MemoryStoreWriteOptions,
   PendingProposalStore,
   PreAnalysisPipeline,
   PreAnalysisStage,
@@ -274,13 +277,19 @@ export type {
   PreAnalysisStatus,
   PreAnalyzer,
   ProposalPreAnalysisResult,
+  Sensor,
   SensorDefinitionConfig,
+  Signal,
   SignalBus,
   SignalBusOptions,
   SignalHandler,
+  Unsubscribe,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55) + Proposal pre-analysis (Spec 55 §7.3)
+// Spec 56 Phase 2 Step 2a adds Sensor/Signal/Baseline/MemoryStore abstractions
+// and the extensions.sensors slot helpers (registerSensor & friends).
 export {
+  clearSensors,
   createDedupAnalyzer,
   createDispatchQuery,
   createEvolutionRuntime,
@@ -288,6 +297,10 @@ export {
   createPreAnalysisPipeline,
   createSignalBus,
   defineSensor,
+  findSensor,
+  getSensors,
+  registerSensor,
+  unregisterSensor,
 } from "./life-system";
 export type {
   AlertCondition,

@@ -57,12 +57,21 @@ export interface SensorContext {
 }
 
 /**
- * Sensor interface — detection unit for the Sense layer (Spec 55 §3.3).
+ * DetectingSensor — pull-based detection unit for the Sense layer (Spec 55 §3.3).
  *
- * Sensors are Capability-registered, not hard-coded in core. Each sensor
- * targets a specific signal source and optionally a specific schema.
+ * Capability-registered (via `extensions.sensors`); the EvolutionRuntime calls
+ * `detect()` on every cycle and forwards any returned signal to the Memory layer.
+ *
+ * NOTE: A separate, push-based `Sensor` interface (with `id`/`start`/`stop`/
+ * `subscribe`) lives in `life-system/abstractions.ts` and forms the
+ * Spec 56 Phase 2 Step 2a public contract. Both styles co-exist — the
+ * detection-style `DetectingSensor` continues to power `defineSensor()` and
+ * the existing EvolutionRuntime, while the lifecycle-style `Sensor` is the
+ * forward-looking contract for new capabilities.
+ *
+ * @see ../life-system/abstractions.ts for the lifecycle-style {@link Sensor}.
  */
-export interface Sensor<TSignal = SensorSignal> {
+export interface DetectingSensor<TSignal = SensorSignal> {
   /** Unique sensor name within a capability. */
   name: string;
   /** Which system channel this sensor observes. */

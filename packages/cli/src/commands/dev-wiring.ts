@@ -17,12 +17,12 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   DataProvider,
+  DetectingSensor,
   EntityDefinition,
   LinchKitConfig,
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
-  Sensor,
   StateDefinition,
   TransportContext,
   ViewDefinition,
@@ -97,7 +97,7 @@ export interface WireDevEnginesInput {
   capabilities: CapabilityDefinition[];
 
   /** Sensors collected from cap.extensions.sensors (Spec 55 §3.3) */
-  sensors: Sensor[];
+  sensors: DetectingSensor[];
 
   // Database state (may be undefined if no DB)
   dbInstance?: ReturnType<typeof import("@linchkit/core/server").createDatabase>;

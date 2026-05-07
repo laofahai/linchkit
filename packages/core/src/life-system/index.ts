@@ -4,8 +4,21 @@
  * Exports factories for the full evolution pipeline:
  * SignalBus → MemoryEngine → AwarenessEngine → InsightEngine → EvolutionCycle
  * Type abstractions live in packages/core/src/types/life-system.ts.
+ *
+ * Spec 56 Phase 2 Step 2a — additional Sense / Memory abstractions
+ * (Sensor, Signal, Baseline, MemoryStore) live in `./abstractions` and
+ * the `extensions.sensors` slot helpers live in `./sensor-registry`.
  */
 
+// Spec 56 Phase 2 Step 2a — life-system abstractions (additive).
+export type {
+  Baseline,
+  MemoryStore,
+  MemoryStoreWriteOptions,
+  Sensor,
+  Signal,
+  Unsubscribe,
+} from "./abstractions";
 export { createAttentionBudget } from "./attention-budget";
 export type { AwarenessEngineOptions } from "./awareness-engine";
 export { createAwarenessEngine } from "./awareness-engine";
@@ -46,6 +59,13 @@ export {
 } from "./proposal-preanalysis";
 export type { EvolutionRuntime, EvolutionRuntimeOptions } from "./runtime";
 export { createEvolutionRuntime } from "./runtime";
+export {
+  clearSensors,
+  findSensor,
+  getSensors,
+  registerSensor,
+  unregisterSensor,
+} from "./sensor-registry";
 export type { SignalBus, SignalBusOptions, SignalHandler } from "./signal-bus";
 export { createSignalBus } from "./signal-bus";
 export { createUsageImportanceGraph } from "./usage-graph";

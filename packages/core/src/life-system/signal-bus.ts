@@ -4,10 +4,15 @@
  * Collects SensorSignal emissions from registered sensors and distributes
  * them to subscribers. Operates in-process; a persistent variant can be
  * layered on top via a MemoryStore capability.
+ *
+ * NOTE: this bus operates over the legacy detection-style sensor
+ * (`DetectingSensor`, see `../types/life-system.ts`). The Spec 56 Phase 2
+ * Step 2a lifecycle-style {@link Sensor} (in `./abstractions.ts`) is its
+ * own self-emitting contract and does not flow through this bus.
  */
 
 import { consoleLogger } from "../observability/console-logger";
-import type { Sensor, SensorContext, SensorSignal } from "../types/life-system";
+import type { DetectingSensor, SensorContext, SensorSignal } from "../types/life-system";
 
 export type SignalHandler = (signal: SensorSignal) => void | Promise<void>;
 
@@ -27,7 +32,7 @@ export interface SignalBusOptions {
  */
 export interface SignalBus {
   /** Register a sensor with this bus. */
-  registerSensor(sensor: Sensor): void;
+  registerSensor(sensor: DetectingSensor): void;
   /** Remove a previously registered sensor by name. */
   unregisterSensor(name: string): void;
   /** Subscribe to signals emitted by this bus. Returns an unsubscribe function. */
@@ -44,7 +49,7 @@ export interface SignalBus {
 }
 
 export function createSignalBus(options: SignalBusOptions = {}): SignalBus {
-  const sensors = new Map<string, Sensor>();
+  const sensors = new Map<string, DetectingSensor>();
   const subscribers: SignalHandler[] = [];
 
   const onError =
@@ -70,7 +75,7 @@ export function createSignalBus(options: SignalBusOptions = {}): SignalBus {
   }
 
   return {
-    registerSensor(sensor: Sensor): void {
+    registerSensor(sensor: DetectingSensor): void {
       sensors.set(sensor.name, sensor);
     },
 

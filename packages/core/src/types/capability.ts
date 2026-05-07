@@ -6,6 +6,7 @@
  */
 
 import type { CommandContext } from "../engine/command-layer";
+import type { Sensor as LifecycleSensor } from "../life-system/abstractions";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { CliCommand } from "./cli";
 import type {
@@ -16,7 +17,7 @@ import type {
 } from "./entity";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { FlowDefinition } from "./flow";
-import type { Sensor } from "./life-system";
+import type { DetectingSensor } from "./life-system";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RelationDefinition } from "./relation";
@@ -219,8 +220,16 @@ export interface CapabilityExtensions {
     handler: (...args: unknown[]) => Promise<void> | void;
     priority?: number;
   }>;
-  /** Sensors registered by this capability for the Sense layer (Spec 55 §3.3) */
-  sensors?: Sensor[];
+  /**
+   * Sensors registered by this capability for the Sense layer (Spec 55 §3.3).
+   *
+   * Accepts both the legacy detection-style `DetectingSensor` (powered by
+   * `defineSensor()` and consumed by the EvolutionRuntime's `runCycle()`) and
+   * the lifecycle-style `Sensor` introduced in Spec 56 Phase 2 Step 2a
+   * (`id` / `start` / `stop` / `subscribe`). Callers iterate the slot and
+   * dispatch on shape — see `cli/commands/startup/collect-capabilities.ts`.
+   */
+  sensors?: Array<DetectingSensor | LifecycleSensor>;
   /** GraphQL schema extensions — query/mutation fields merged into the main schema */
   graphqlExtensions?: GraphQLExtensionRegistration;
   /**

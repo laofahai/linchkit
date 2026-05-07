@@ -104,6 +104,20 @@ interface MemoryStore {
 
 同时增加 `extensions.sensors` 扩展槽位，让 capability 通过标准机制注册传感器。
 
+**Life-system abstractions in core (landed)**
+
+The lifecycle-style abstractions for Phase 2 Step 2a are now live in
+`@linchkit/core`. The public types are `Sensor` (`id` / `start` / `stop` /
+`subscribe`), `Signal` (`{ source, kind, data, timestamp, metadata? }`),
+`Baseline` (`update` / `score` / `snapshot`) and the generic key/value
+`MemoryStore` (`read` / `write` / `delete` / `list`). The
+`extensions.sensors` slot is backed by `registerSensor` / `getSensors` /
+`findSensor` / `unregisterSensor` helpers (see
+`packages/core/src/life-system/sensor-registry.ts`). This change is
+purely additive — `PatternDetector`, `AnomalyDetector` and `WatcherEngine`
+concretes stay in core; their migration to capabilities follows in
+subsequent PRs (Step 2b).
+
 **Step 2b — 移出具体实现**
 
 | 目标 capability | 移出内容 | 保留接口 |
