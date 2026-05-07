@@ -209,10 +209,10 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
     const resolveTenant = options.resolveRequestTenantId;
     const tenantId = resolveTenant ? await resolveTenant(request, actor) : undefined;
 
-    // Spec 52 §1.1 graceful degradation — if AI isn't configured, surface 503
-    // with a structured error so the caller can show "AI unavailable" UX.
-    // Audit the attempt anyway so operators see the volume.
-    if (!aiService?.configured) {
+    // Helper: audit the unavailable case + return 503. The audit entry is
+    // emitted whether or not the AI service was even reachable so operators
+    // can see the rate of attempts hitting an un-configured deployment.
+    const handleUnavailable = (message: string) => {
       auditLogger &&
         emitIntentResolutionAudit({
           logger: auditLogger,
@@ -227,8 +227,13 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
           scoped: false,
           serviceUnavailable: true,
         });
-      return serviceUnavailable(
-        set,
+      return serviceUnavailable(set, message);
+    };
+
+    // Spec 52 §1.1 graceful degradation — if AI isn't configured, surface 503
+    // with a structured error so the caller can show "AI unavailable" UX.
+    if (!aiService?.configured) {
+      return handleUnavailable(
         "AI service is not configured. Configure an AI provider in linchkit.config.ts to enable intent resolution.",
       );
     }
@@ -237,22 +242,7 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
     // with one, treat that as misconfiguration → 503 (rare in dev runs;
     // CLI dev wiring always provides it).
     if (!ontologyRegistry) {
-      auditLogger &&
-        emitIntentResolutionAudit({
-          logger: auditLogger,
-          actor,
-          tenantId,
-          prompt: parsed.data.prompt,
-          durationMs: 0,
-          matched: false,
-          action: null,
-          confidence: null,
-          catalogSize: 0,
-          scoped: false,
-          serviceUnavailable: true,
-        });
-      return serviceUnavailable(
-        set,
+      return handleUnavailable(
         "Ontology registry is not available — intent resolution requires the unified Ontology layer.",
       );
     }
@@ -427,7 +417,11 @@ function extractFieldOptions(
       // is `string` for UI form rendering, but EnumField definitions
       // sometimes use numeric values (status codes, version numbers).
       // Dropping them silently would leave the user without those choices.
-      if (typeof o.value === "string" || typeof o.value === "number") {
+      // NaN is excluded — `String(NaN) === "NaN"` would smuggle a useless
+      // option into the UI.
+      const isStringValue = typeof o.value === "string";
+      const isFiniteNumberValue = typeof o.value === "number" && Number.isFinite(o.value);
+      if (isStringValue || isFiniteNumberValue) {
         out.push({
           value: String(o.value),
           label: typeof o.label === "string" ? o.label : undefined,
