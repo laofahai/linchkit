@@ -4,7 +4,7 @@
  * Key: `linchkit:record-templates:${entityName}`
  * Value: array of RecordTemplate objects.
  *
- * Server-side persistence (DB table `_linchkit_record_templates`) can replace
+ * Server-side persistence (DB table `_linchkit.record_templates`) can replace
  * this later without changing the public hook API.
  */
 

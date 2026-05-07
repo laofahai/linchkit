@@ -1278,7 +1278,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     //
     // When a TransactionManager is provided, the handler runs within a
     // database transaction. Events collected via ctx.emit() are persisted
-    // to _linchkit_events in the same transaction (Transactional Outbox).
+    // to _linchkit.events in the same transaction (Transactional Outbox).
     // On failure, both data changes and events roll back atomically.
     try {
       let resultData: unknown;

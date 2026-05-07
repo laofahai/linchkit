@@ -1,7 +1,7 @@
 /**
  * OutboxWorker — Reliable event processing with retry
  *
- * Polls the `_linchkit_events` table for failed events and retries
+ * Polls the `_linchkit.events` table for failed events and retries
  * handler execution with exponential backoff. Also picks up
  * "stuck" pending events that were never processed (e.g., crash recovery).
  *

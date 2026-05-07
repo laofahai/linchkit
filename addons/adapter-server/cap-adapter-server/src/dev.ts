@@ -46,7 +46,7 @@ function findProjectRoot(startDir: string): string {
   return startDir; // fallback to original dir
 }
 
-const projectRoot = findProjectRoot(resolve(import.meta.dir, "../../../.."));
+const projectRoot = findProjectRoot(process.cwd());
 
 // ── Load .env file if present ────────────────────────────
 // Must happen BEFORE loadConfig() so that $env.VAR_NAME placeholders

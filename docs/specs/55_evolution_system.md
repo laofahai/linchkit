@@ -663,7 +663,7 @@ evolution: {
 | 进化系统层 | 依赖的现有架构 |
 |-----------|---------------|
 | Sense | PersistentEventBus, CommandLayer 日志, GraphQL 查询日志 |
-| Memory | 系统表（_linchkit_events, _linchkit_executions）扩展 |
+| Memory | 系统表（_linchkit.events, _linchkit.executions）扩展 |
 | Awareness | OntologyRegistry + 新增的重要性图谱 |
 | Insight | 新概念，但存储在系统表中 |
 | Proposal | 已有的 Proposal 机制（Spec 15）扩展 |

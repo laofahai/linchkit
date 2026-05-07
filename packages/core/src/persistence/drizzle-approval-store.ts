@@ -1,7 +1,7 @@
 /**
  * DrizzleApprovalStore — PostgreSQL-backed approval store via Drizzle ORM.
  *
- * Persists ApprovalRequest records to the _linchkit_approvals system table.
+ * Persists ApprovalRequest records to the _linchkit.approvals system table.
  */
 
 import { and, eq, lte } from "drizzle-orm";
