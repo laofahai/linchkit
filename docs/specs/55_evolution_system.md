@@ -13,6 +13,11 @@
 >
 > Execution source of truth: GitHub milestones and issues.
 
+> **Status (2026-05-07):** A minimal end-to-end skeleton lives in
+> `addons/demo/cap-life-demo/` proving the Sense → Memory pipeline runs
+> through the `LifecycleSensor` / `LifecycleMemoryStore` / `LifecycleBaseline`
+> abstractions added in PR #255.
+
 ## 1. 核心理念
 
 传统软件是**死的**——写好了就固定了，除非有人改它。
