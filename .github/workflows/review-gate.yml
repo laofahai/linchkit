@@ -11,7 +11,7 @@ on:
 # Cancel in-flight runs when a newer event comes in for the same PR — keeps
 # the latest run as the canonical signal for branch protection.
 concurrency:
-  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 # Why these triggers (and not `pull_request_review: submitted`):
@@ -26,28 +26,29 @@ concurrency:
 jobs:
   review-threads:
     name: Review Threads
-    # Run on PR events, thread-resolution events, or "/check-reviews" comment on a PR
-    if: >
-      github.event_name == 'pull_request' ||
-      github.event_name == 'pull_request_review_thread' ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '/check-reviews'))
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_review_thread' || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '/check-reviews')) }}
     runs-on: ubuntu-latest
     steps:
-      - name: Get PR number
+      - name: Resolve PR number
         id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER_FROM_PR: ${{ github.event.pull_request.number }}
+          PR_NUMBER_FROM_ISSUE: ${{ github.event.issue.number }}
         run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            echo "number=$PR_NUMBER_FROM_ISSUE" >> "$GITHUB_OUTPUT"
           else
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "number=$PR_NUMBER_FROM_PR" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Check review threads
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
           script: |
+            const prNumber = Number(process.env.PR_NUMBER);
             const { repository } = await github.graphql(`
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
@@ -69,7 +70,7 @@ jobs:
             `, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              number: ${{ steps.pr.outputs.number }}
+              number: prNumber,
             });
 
             const threads = repository.pullRequest.reviewThreads.nodes;
@@ -77,15 +78,15 @@ jobs:
             const total = threads.length;
 
             if (unresolved.length > 0) {
-              console.log(`\n❌ ${unresolved.length}/${total} review thread(s) unresolved:\n`);
+              core.info(`${unresolved.length}/${total} review thread(s) unresolved:`);
               for (const t of unresolved) {
                 const c = t.comments.nodes[0];
-                const snippet = c.body.substring(0, 100).replace(/\n/g, ' ');
-                console.log(`  - [${c.author.login}] ${snippet}...`);
+                const snippet = (c.body || '').substring(0, 100).replace(/\n/g, ' ');
+                core.info(`  - [${c.author.login}] ${snippet}...`);
               }
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
             } else if (total === 0) {
-              console.log('✅ No review threads — gate passes.');
+              core.info('No review threads — gate passes.');
             } else {
-              console.log(`✅ All ${total} review thread(s) resolved.`);
+              core.info(`All ${total} review thread(s) resolved.`);
             }
