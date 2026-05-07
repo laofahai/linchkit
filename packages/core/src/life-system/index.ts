@@ -37,6 +37,19 @@ export { createEvolutionCycle } from "./evolution-cycle";
 export { InMemoryMemoryStore } from "./in-memory-memory-store";
 export type { InsightEngineOptions } from "./insight-engine";
 export { createInsightEngine } from "./insight-engine";
+// Spec 55 §7 — Insight → Proposal translator (Slice 1: structural-only).
+export type {
+  InsightTranslator,
+  InsightTranslatorKey,
+  InsightTranslatorRegistry,
+  TranslatorContext,
+} from "./insight-to-proposal";
+export {
+  createDefaultInsightTranslatorRegistry,
+  createInsightTranslatorRegistry,
+  insightTranslatorKey,
+  schemaNoViewTranslator,
+} from "./insight-to-proposal";
 export type { MemoryEngineOptions } from "./memory-engine";
 export { MemoryEngine } from "./memory-engine";
 // Proposal pre-analysis pipeline (Spec 55 §7.3 — dedup + impact)
