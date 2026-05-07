@@ -21,7 +21,12 @@ export {
   resolveAggregateValue,
   resolveDerivedValue,
 } from "./derived-property";
-export { createEntityRegistry, EntityRegistry } from "./entity-registry";
+export {
+  createEntityRegistry,
+  EntityRegistry,
+  MERGEABLE_CONSTRAINT_KEYS,
+  mergeFieldDefinition,
+} from "./entity-registry";
 export {
   type DrizzleGeneratorOptions,
   generateDrizzleTable,

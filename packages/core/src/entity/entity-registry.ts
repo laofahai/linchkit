@@ -33,7 +33,7 @@ const NON_STORABLE_TYPES = new Set(["computed"]);
  * `lockWhen`). All other keys (type, label, description, ui, masking, etc.)
  * follow the existing child-wins semantics.
  */
-const MERGEABLE_CONSTRAINT_KEYS = [
+export const MERGEABLE_CONSTRAINT_KEYS = [
   "required",
   "unique",
   "min",
@@ -61,7 +61,10 @@ const MERGEABLE_CONSTRAINT_KEYS = [
  *
  * The function returns a new object — neither input is mutated.
  */
-function mergeFieldDefinition(parent: FieldDefinition, child: FieldDefinition): FieldDefinition {
+export function mergeFieldDefinition(
+  parent: FieldDefinition,
+  child: FieldDefinition,
+): FieldDefinition {
   const merged: Record<string, unknown> = { ...child };
   const parentRecord = parent as unknown as Record<string, unknown>;
   for (const key of MERGEABLE_CONSTRAINT_KEYS) {

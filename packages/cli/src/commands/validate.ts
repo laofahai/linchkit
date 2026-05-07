@@ -14,7 +14,11 @@ import type {
   LinchKitConfig,
   RelationDefinition,
 } from "@linchkit/core";
-import { createInterfaceRegistry, validateTranslatableEntity } from "@linchkit/core";
+import {
+  createInterfaceRegistry,
+  mergeFieldDefinition,
+  validateTranslatableEntity,
+} from "@linchkit/core";
 import { createRelationRegistry, EntityRegistry } from "@linchkit/core/server";
 import type { ActionInfo, EntityInfo, QualityIssue } from "@linchkit/devtools/methodology";
 import { checkActionDefinitions, checkEntityDefinitions } from "@linchkit/devtools/methodology";
@@ -104,9 +108,20 @@ export const validateCommand = defineCommand({
         chain.unshift(parent);
         cursor = parent.extends;
       }
+      // Mirror EntityRegistry.resolve() field merge semantics: parent's
+      // FieldConstraints + Spec 63 lock keys (immutable / readonly / lockWhen)
+      // survive child redeclarations unless the child explicitly restates them.
+      // Without this, CLI validation diverges from runtime when a child
+      // redeclares only the label or type of an inherited locked field.
       const fields: Record<string, EntityDefinition["fields"][string]> = {};
-      for (const ancestor of chain) Object.assign(fields, ancestor.fields);
-      Object.assign(fields, entity.fields);
+      const applyLayer = (source: Record<string, EntityDefinition["fields"][string]>) => {
+        for (const [name, fdef] of Object.entries(source)) {
+          const existing = fields[name];
+          fields[name] = existing ? mergeFieldDefinition(existing, fdef) : fdef;
+        }
+      };
+      for (const ancestor of chain) applyLayer(ancestor.fields);
+      applyLayer(entity.fields);
       return fields;
     };
 
