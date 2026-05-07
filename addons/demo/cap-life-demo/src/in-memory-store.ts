@@ -46,14 +46,21 @@ export class InMemoryLifecycleStore implements LifecycleMemoryStore {
   }
 
   async list(prefix?: string, options?: MemoryStoreListOptions): Promise<MemoryStoreListPage> {
-    // Drop expired entries lazily so list() never returns stale keys.
+    // Filter expired entries lazily WHILE walking — we no longer scan the
+    // whole map separately. For each candidate key we either drop it (expired)
+    // or include it. This is still O(N) on a single list call, but at least we
+    // walk the map exactly once. Production-grade stores should maintain a TTL
+    // index (sorted heap or per-bucket sweep) to avoid the linear scan
+    // entirely; out of scope for this demo store.
+    const allKeys: string[] = [];
     for (const [key, entry] of this.entries.entries()) {
-      if (this.isExpired(entry)) this.entries.delete(key);
+      if (this.isExpired(entry)) {
+        this.entries.delete(key);
+        continue;
+      }
+      if (!prefix || key.startsWith(prefix)) allKeys.push(key);
     }
-
-    const allKeys = Array.from(this.entries.keys())
-      .filter((k) => (prefix ? k.startsWith(prefix) : true))
-      .sort();
+    allKeys.sort();
 
     // Cursor is an opaque token — we encode it as the offset into `allKeys`.
     const offset = options?.cursor ? Number.parseInt(options.cursor, 10) : 0;

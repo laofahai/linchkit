@@ -92,7 +92,14 @@ export class PollSensor implements LifecycleSensor {
       metadata: { sensorId: this.id },
     };
     for (const handler of this.handlers) {
-      handler(signal);
+      // Each subscriber is isolated: a throw in one handler must not interrupt
+      // delivery to the others or kill the polling loop. Errors get logged
+      // (the demo uses console.error; a real impl would route to telemetry).
+      try {
+        handler(signal);
+      } catch (err) {
+        console.error(`[PollSensor] Handler error in sensor ${this.id}:`, err);
+      }
     }
     return signal;
   }

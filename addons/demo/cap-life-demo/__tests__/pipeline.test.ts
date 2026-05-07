@@ -39,12 +39,22 @@ function makePipeline(values: number[]) {
     anomalyThreshold: 0.5,
     onAnomaly: (signal, score) => anomalies.push({ signal, score }),
   });
+  // Register into the global sensor-registry so afterEach cleanup is effective
+  // even if a test throws before reaching `controller.stop()`. The
+  // sensor-registry helper test has its own dedicated registration and is
+  // tolerant of double-register via try/catch.
+  try {
+    registerSensor(sensor);
+  } catch {
+    // Already registered (e.g. by a test that re-registers explicitly) — ignore.
+  }
   return { sensor, store, baseline, controller, anomalies };
 }
 
 afterEach(async () => {
-  // The demo only registers a single sensor under SENSOR_ID per test;
-  // unregisterSensor handles its own stop()+remove cleanup.
+  // The demo only registers a single sensor under SENSOR_ID per test (now
+  // happens inside makePipeline). unregisterSensor handles its own
+  // stop()+remove cleanup, so a failing test still releases the polling timer.
   await unregisterSensor(SENSOR_ID);
 });
 
