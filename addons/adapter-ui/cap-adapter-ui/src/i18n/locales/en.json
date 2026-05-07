@@ -315,6 +315,8 @@
     "missingFields": "Missing required fields",
     "stop": "Stop",
     "resolvingIntent": "Detecting action intent...",
+    "didYouMean": "Did you mean:",
+    "serviceUnavailable": "AI service unavailable. Please try again later.",
     "insights": {
       "title": "AI Insights",
       "analyze": "Analyze Record",
