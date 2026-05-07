@@ -136,7 +136,7 @@ Capability definition, extension, composition, and distribution.
 | [29](./29_methodology_and_sop.md) | Methodology & SOP | Development methodology, Capability dev SOP, release process | M0 | Done |
 | [37](./37_documentation_governance.md) | Documentation Governance | Documentation standards, review process, versioned lifecycle | M1 | Draft |
 | [38](./38_release_compatibility.md) | Release Compatibility | Semantic versioning rules, migration guides, breaking change strategy | M1 | Partial |
-| [56](./56_core_slimming.md) | Core Slimming | Three-party audit consensus: ~17 files safe to extract, life-system engines stay in core, interface+impl split | M3 | Partial |
+| [56](./56_core_slimming.md) | Core Slimming | Phase 1 file extraction done (#249); Phase 2 Step 2a life-system abstractions done (#255); Step 2b AI helpers consolidated to cap-ai-provider (#257); Step 2c Detector/Watcher impl move pending | M3 | Partial |
 
 ## Deployment & Migration
 
