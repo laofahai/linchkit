@@ -219,7 +219,16 @@ export interface CapabilityExtensions {
     handler: (...args: unknown[]) => Promise<void> | void;
     priority?: number;
   }>;
-  /** Sensors registered by this capability for the Sense layer (Spec 55 §3.3) */
+  /**
+   * Detection-style sensors registered by this capability for the Sense
+   * layer (Spec 55 §3.3). Powered by `defineSensor()` and consumed by the
+   * EvolutionRuntime's `runCycle()`.
+   *
+   * NOTE: lifecycle-style sensors (`LifecycleSensor`, Spec 56 Phase 2
+   * Step 2a) do NOT flow through this slot. They register themselves via
+   * `registerSensor()` from `@linchkit/core` and are managed by a
+   * separate module-level registry in `core/life-system/sensor-registry`.
+   */
   sensors?: Sensor[];
   /** GraphQL schema extensions — query/mutation fields merged into the main schema */
   graphqlExtensions?: GraphQLExtensionRegistration;

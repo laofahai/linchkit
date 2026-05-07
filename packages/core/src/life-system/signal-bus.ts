@@ -4,6 +4,11 @@
  * Collects SensorSignal emissions from registered sensors and distributes
  * them to subscribers. Operates in-process; a persistent variant can be
  * layered on top via a MemoryStore capability.
+ *
+ * NOTE: this bus operates over the detection-style {@link Sensor} from
+ * `../types/life-system.ts`. The Spec 56 Phase 2 Step 2a lifecycle-style
+ * `LifecycleSensor` (in `./abstractions.ts`) is its own self-emitting
+ * contract and does not flow through this bus.
  */
 
 import { consoleLogger } from "../observability/console-logger";

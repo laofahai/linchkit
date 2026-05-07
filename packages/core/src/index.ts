@@ -268,6 +268,13 @@ export type {
   EvolutionRuntimeOptions,
   ImpactDataProvider,
   ImpactResult,
+  LifecycleBaseline,
+  LifecycleMemoryStore,
+  LifecycleSensor,
+  LifecycleSignal,
+  MemoryStoreListOptions,
+  MemoryStoreListPage,
+  MemoryStoreWriteOptions,
   PendingProposalStore,
   PreAnalysisPipeline,
   PreAnalysisStage,
@@ -279,8 +286,14 @@ export type {
   SignalBus,
   SignalBusOptions,
   SignalHandler,
+  Unsubscribe,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55) + Proposal pre-analysis (Spec 55 §7.3)
+// Spec 56 Phase 2 Step 2a adds lifecycle-style Sensor/Signal/Baseline/MemoryStore
+// abstractions (Lifecycle* prefix) plus the lifecycle-sensor registry helpers
+// (registerSensor & friends). `clearSensors` is intentionally NOT re-exported
+// here — it's a test-only helper, available via `./life-system` and the
+// sensor-registry module path.
 export {
   createDedupAnalyzer,
   createDispatchQuery,
@@ -289,6 +302,10 @@ export {
   createPreAnalysisPipeline,
   createSignalBus,
   defineSensor,
+  findSensor,
+  getSensors,
+  registerSensor,
+  unregisterSensor,
 } from "./life-system";
 export type {
   AlertCondition,

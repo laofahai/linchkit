@@ -19,7 +19,7 @@ export interface SensorDefinitionConfig<TSignal extends SensorSignal = SensorSig
 }
 
 /**
- * Creates a typed Sensor instance from a plain config object.
+ * Creates a typed {@link Sensor} instance from a plain config object.
  *
  * @example
  * ```ts

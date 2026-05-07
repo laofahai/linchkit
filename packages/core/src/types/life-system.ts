@@ -61,6 +61,17 @@ export interface SensorContext {
  *
  * Sensors are Capability-registered, not hard-coded in core. Each sensor
  * targets a specific signal source and optionally a specific schema.
+ *
+ * NOTE: A separate, lifecycle-style `LifecycleSensor` interface (with
+ * `id`/`start`/`stop`/`subscribe`) lives in `life-system/abstractions.ts`
+ * and forms the Spec 56 Phase 2 Step 2a forward-looking contract for
+ * push-based sensors. Both styles co-exist — the detection-style `Sensor`
+ * here powers `defineSensor()` and the existing EvolutionRuntime, while
+ * the lifecycle-style `LifecycleSensor` is for capabilities that prefer
+ * a push-based contract and register via `registerSensor()` from
+ * `@linchkit/core` rather than `extensions.sensors`.
+ *
+ * @see ../life-system/abstractions.ts for the lifecycle-style {@link LifecycleSensor}.
  */
 export interface Sensor<TSignal = SensorSignal> {
   /** Unique sensor name within a capability. */
