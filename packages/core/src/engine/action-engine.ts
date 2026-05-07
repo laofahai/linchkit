@@ -754,6 +754,34 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // so that ctx closures automatically use the transactional connection.
     let activeProvider: DataProvider = baseProvider;
 
+    // Hoist transaction-related flags so the Step 4b read path AND the
+    // `ctx.execute` closure can detect in-transaction state. Both flags are
+    // re-used at the actual transaction site below — this is a single source
+    // of truth, not a cached duplicate.
+    //
+    // `parentTxProvider` is set when this execution was invoked from a
+    // parent's `ctx.execute` while the parent was inside an open transaction
+    // (Spec 26 §1.1 nested-action transactions). When set, all data ops in
+    // this execution participate in the parent's transaction.
+    //
+    // `useTransaction` is true when the current action opens its own
+    // transaction (no parent tx, action.policy.transaction !== false, and
+    // a TransactionManager is wired).
+    const parentTxProvider = execOptions?._txDataProvider;
+    const useTransaction = !!transactionManager && action.policy?.transaction !== false;
+    /**
+     * True once a database transaction is actually open for this execution
+     * (either because the parent passed one in or this execution opened
+     * its own). The `ctx.execute` closure forwards this flag to children so
+     * they can decide whether to participate in a shared transaction OR
+     * open their own — Spec 26 §1.1 only nests transactions when one is
+     * actually live. Without this flag the engine would treat any
+     * non-null `activeProvider` as "in a transaction" and a
+     * `policy.transaction:false` parent would silently swallow the
+     * transaction declaration on its child.
+     */
+    let inTransaction = false;
+
     // ── Step 4b: Field-lock preflight for declarative updates ──────
     //
     // Lock enforcement fires from two places (Spec 63 Phase 1):
@@ -848,8 +876,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       // `status = "submitted"` would have the write invisible to the child,
       // letting `lockWhen: { state: "submitted" }` slip past enforcement.
       // Tenant wrapping matches: the parent's txProvider is already
-      // tenant-scoped, so don't re-wrap.
-      const parentTxProvider = execOptions?._txDataProvider;
+      // tenant-scoped, so don't re-wrap. `parentTxProvider` is hoisted above.
       const readProvider: DataProvider = parentTxProvider ?? baseProvider;
       try {
         existingRecord = await readProvider.get(action.entity, recordId, queryOptions);
@@ -1102,14 +1129,47 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           }
           throw err;
         }
+        // Strip top-level idempotency key from the child invocation. The root
+        // ActionExecutor already gates on `currentDepth === 0`, so the key
+        // is unused at depth > 0 — but spreading `...execOptions` carried it
+        // through anyway and obscured the contract. Spec 26 §1.1 nested
+        // transactions: child operations participate in the parent's tx and
+        // do NOT register an independent idempotency record.
+        const { idempotencyKey: _drop, ...childExecOptions } = execOptions ?? {};
+        // Spec 26 §1.1: only forward `_txDataProvider` when the current
+        // execution is actually inside an open database transaction. A
+        // parent with `policy.transaction:false` does NOT have a tx to share,
+        // so its child must be free to open its own (per the child's own
+        // `policy.transaction`) instead of riding `baseProvider` mistakenly
+        // typed as a "tx provider". Likewise `_parentPendingEvents` is only
+        // meaningful when there's a parent tx whose commit will flush them.
+        const childTxDataProvider = inTransaction ? activeProvider : undefined;
+        const childParentPendingEvents = inTransaction ? pendingEvents : undefined;
         const childResult = await execute(childActionName, childInput, actor, {
-          ...execOptions,
+          ...childExecOptions,
           _depth: currentDepth + 1,
-          _txDataProvider: activeProvider,
-          _parentPendingEvents: pendingEvents,
+          _txDataProvider: childTxDataProvider,
+          _parentPendingEvents: childParentPendingEvents,
           meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
+        // Spec 26 §1.1 (nested transactions): when the parent is running
+        // inside a database transaction and the child returns a failed
+        // result, the parent's transaction is now on a rollback path —
+        // most engines (Postgres included) reject further writes after a
+        // statement error inside an open transaction. If the parent
+        // handler swallows the failed `data` and tries to keep going, the
+        // very next write will surface a "current transaction is aborted"
+        // style error. Log a warning so the swallowing path is at least
+        // visible in logs (Spec requirement: child invocation must warn
+        // when the parent appears to be ignoring a child failure inside a
+        // shared transaction). `Logger.warn` (not `console.warn`) so the
+        // message routes through the runtime logger configured by the host.
+        if (!childResult.success && inTransaction) {
+          logger.warn(
+            `[nested-action] Child action "${childActionName}" failed inside parent transaction "${actionName}" (executionId=${executionId}). The parent's transaction is now on a rollback path — any subsequent ctx.create/update/delete will fail. Re-throw the error from your handler, or return early without further writes.`,
+          );
+        }
         return childResult.data;
       },
       hasCapability: (name: string) => capabilityNames.has(name),
@@ -1343,9 +1403,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       };
 
-      // Use transaction when available and not explicitly disabled
-      const useTransaction = transactionManager && action.policy?.transaction !== false;
-      const parentTxProvider = execOptions?._txDataProvider;
+      // `parentTxProvider` and `useTransaction` are hoisted near the top of
+      // `execute(...)` so the `ctx.execute` closure can detect in-transaction
+      // state when warning about nested-action failure swallowing.
       const parentEvents = execOptions?._parentPendingEvents;
 
       if (parentTxProvider) {
@@ -1353,6 +1413,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Use the parent's transactional provider directly so all data
         // operations participate in the same DB transaction.
         // Note: parent already wraps with tenant isolation, so no double-wrap needed.
+        inTransaction = true;
         await runHandler(parentTxProvider);
         // Propagate child events to parent's pending list so they are
         // persisted atomically when the parent's transaction commits.
@@ -1360,6 +1421,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           parentEvents.push(...pendingEvents);
         }
       } else if (useTransaction) {
+        inTransaction = true;
         await transactionManager.runInTransaction((txProvider) => {
           // Wrap the transactional provider with tenant isolation
           const scopedTxProvider = execOptions?.tenantId
@@ -1368,6 +1430,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           return runHandler(scopedTxProvider);
         }, pendingEvents);
       } else {
+        // No transaction in play — `inTransaction` stays false so any
+        // nested ctx.execute that happens inside this handler can open
+        // its own transaction per its own `policy.transaction`.
         await runHandler(baseProvider);
       }
 
