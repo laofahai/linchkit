@@ -11,7 +11,7 @@
  */
 
 import type { OntologyRegistry } from "../ontology/ontology-registry";
-import type { Insight, InsightEvidence, InsightType, SensorSignal } from "../types/life-system";
+import type { Insight, InsightEvidence, InsightType } from "../types/life-system";
 import type { ProposalAuthor, ProposalChange, ProposalDefinition } from "../types/proposal";
 import type { ViewDefinition } from "../types/view";
 
@@ -135,27 +135,21 @@ export function createInsightTranslatorRegistry(): InsightTranslatorRegistry {
 
 // ── Helpers ─────────────────────────────────────────────────
 
-let monotonic = 0;
 function defaultIdGenerator(): string {
-  monotonic += 1;
-  return `proposal_${Date.now()}_${monotonic}`;
+  return `proposal_${crypto.randomUUID()}`;
 }
 
 /**
- * Deep-immutable-ish copy of evidence so translators cannot accidentally
- * mutate the originating Insight. Signals are cloned shallowly (their
- * fields are primitives + plain objects); context is cloned via spread.
+ * Deep copy of evidence so translators cannot mutate the originating
+ * Insight, and downstream consumers cannot back-leak edits into Memory.
+ * Uses structuredClone for nested-safe semantics; falls back to JSON
+ * round-trip when structuredClone is unavailable (older runtimes).
  */
 function cloneEvidence(evidence: InsightEvidence): InsightEvidence {
-  return {
-    signals: evidence.signals.map((s: SensorSignal) => ({
-      ...s,
-      context: { ...s.context },
-    })),
-    baseline: evidence.baseline ? { ...evidence.baseline } : undefined,
-    context: { ...evidence.context },
-    counterExamples: evidence.counterExamples ? [...evidence.counterExamples] : undefined,
-  };
+  if (typeof structuredClone === "function") {
+    return structuredClone(evidence) as InsightEvidence;
+  }
+  return JSON.parse(JSON.stringify(evidence)) as InsightEvidence;
 }
 
 /**
