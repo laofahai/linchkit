@@ -380,6 +380,13 @@ describe("nested action transactions — Spec 26 §1.1", () => {
     );
     expect(matched).toBeDefined();
     expect(matched).toContain("rollback path");
+    // gemini-code-assist on PR #271: include the child's error code +
+    // message so a developer reading the log can decide whether the
+    // failure was a real DB taint or a pre-DB logical error (validation,
+    // permission). Note also that the warning copy now hedges with "MAY
+    // be on a rollback path" instead of "is on a rollback path".
+    expect(matched).toContain("message=");
+    expect(matched).toContain("validation/permission");
   });
 
   it("does NOT warn when the parent has no transaction (no taint risk)", async () => {

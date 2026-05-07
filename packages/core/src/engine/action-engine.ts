@@ -1155,19 +1155,37 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds.push(childResult.executionId);
         // Spec 26 §1.1 (nested transactions): when the parent is running
         // inside a database transaction and the child returns a failed
-        // result, the parent's transaction is now on a rollback path —
+        // result, the parent's transaction MAY be on a rollback path —
         // most engines (Postgres included) reject further writes after a
         // statement error inside an open transaction. If the parent
         // handler swallows the failed `data` and tries to keep going, the
-        // very next write will surface a "current transaction is aborted"
-        // style error. Log a warning so the swallowing path is at least
-        // visible in logs (Spec requirement: child invocation must warn
-        // when the parent appears to be ignoring a child failure inside a
-        // shared transaction). `Logger.warn` (not `console.warn`) so the
-        // message routes through the runtime logger configured by the host.
+        // very next write may surface a "current transaction is aborted"
+        // style error.
+        //
+        // Note: not every failure category implies a tainted tx — input
+        // validation, exposure blocks, and permission denials all fail
+        // BEFORE any DB statement runs, so the tx is still healthy in
+        // those cases. Distinguishing DB vs logical failures from outside
+        // the engine would require typed error categories that core
+        // doesn't expose today. Pragmatic compromise: include the child's
+        // error code + message in the warning so a developer reading the
+        // log can decide if it's a real concern. Always-warn keeps us on
+        // the safe side (false positive ≈ extra log noise vs missing the
+        // case where parent silently continues into a poisoned tx).
         if (!childResult.success && inTransaction) {
+          // The action engine's failed-result convention is
+          // `{ success: false, data: { error: <string>, code?: <string>, ... } }`.
+          // We read it structurally rather than via a typed cast since
+          // not every failure path attaches a `code` (handler throws emit
+          // only `error`, while declarative blocks like state-transition
+          // refusal also attach `code`).
+          const errData = childResult.data as { error?: unknown; code?: unknown } | undefined;
+          const codeRaw = errData?.code;
+          const msgRaw = errData?.error;
+          const errCode = typeof codeRaw === "string" ? ` code=${codeRaw}` : "";
+          const errMsg = typeof msgRaw === "string" ? ` message="${msgRaw}"` : "";
           logger.warn(
-            `[nested-action] Child action "${childActionName}" failed inside parent transaction "${actionName}" (executionId=${executionId}). The parent's transaction is now on a rollback path — any subsequent ctx.create/update/delete will fail. Re-throw the error from your handler, or return early without further writes.`,
+            `[nested-action] Child action "${childActionName}" failed inside parent transaction "${actionName}" (executionId=${executionId}).${errCode}${errMsg} If this was a database error, the parent's transaction is now on a rollback path — any subsequent ctx.create/update/delete will fail. Re-throw the error from your handler, or return early without further writes. (For pre-DB failures like validation/permission, the tx is still healthy and you can safely recover.)`,
           );
         }
         return childResult.data;
