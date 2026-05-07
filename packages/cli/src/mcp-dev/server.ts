@@ -12,6 +12,7 @@ import type { CapabilityDefinition } from "@linchkit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CollectedDefinitions } from "../commands/startup/collect-capabilities";
 import { registerDiscoveryTools } from "./discovery-tools";
+import { registerGenerationTools } from "./generation-tools";
 import { registerPrompts } from "./prompts";
 import { registerResources } from "./resources";
 import { registerUtilityTools } from "./utility-tools";
@@ -54,6 +55,7 @@ export function createMcpDevServer(options: McpDevServerOptions): McpServer {
   registerDiscoveryTools(server, definitions, capabilities);
   registerValidationTools(server, definitions);
   registerUtilityTools(server, definitions, capabilities, projectRoot);
+  registerGenerationTools(server, definitions, capabilities, projectRoot);
   registerResources(server, definitions);
   registerPrompts(server, definitions, capabilities);
 
