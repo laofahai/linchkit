@@ -140,6 +140,14 @@ follows in subsequent PRs (Step 2b).
 | `cap-ai` | AI ResponseCache, CostEstimator | `AIService` 接口留 core |
 | capability (TBD) | WatcherEngine 具体实现 | `Watcher` 接口留 core |
 
+- 2026-05-07: AI helpers (ResponseCache, CostEstimator) consolidated into
+  `cap-ai-provider`; core copies (`packages/core/src/ai/response-cache.ts`,
+  `cost-estimator.ts`) and their tests deleted, exports removed from
+  `packages/core/src/ai/index.ts`, `packages/core/src/index.ts`
+  (`ModelPricing`) and `packages/core/src/server-entry.ts`. Detector
+  migration (PatternDetector / AnomalyDetector / WatcherEngine) deferred
+  pending the `Detector` / `Watcher` interface design.
+
 ### 不移出（三方一致同意留核心）
 
 | 组件 | 原因 |

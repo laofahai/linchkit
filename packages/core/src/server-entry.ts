@@ -205,14 +205,6 @@ export {
 
 export { createNoopAIService } from "./ai/ai-service";
 
-// === AI Cost Estimator (server-only) ===
-
-export { CostEstimator, defaultCostEstimator } from "./ai";
-
-// === AI Response Cache (server-only) ===
-
-export { AIResponseCache } from "./ai";
-
 // === AI Boundary (server-only — heavyweight runtime classes) ===
 
 export { AIBoundary, AIBoundaryError } from "./ai";

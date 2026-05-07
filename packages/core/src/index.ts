@@ -21,7 +21,6 @@ export type {
   AIPolicy,
   AIRateLimits,
   AIUsageRecord,
-  ModelPricing,
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
 export type {
