@@ -148,6 +148,59 @@ follows in subsequent PRs (Step 2b).
   migration (PatternDetector / AnomalyDetector / WatcherEngine) deferred
   pending the `Detector` / `Watcher` interface design.
 
+**Step 2c — Detector / Watcher abstractions land + concrete impls move out**
+
+- 2026-05-07: Phase 2 Step 2c executed.
+  - **New core abstractions** (additive, type-only):
+    - `Detector<TInput, TOutput>` — minimal Awareness-layer contract
+      (`{ id; detect(input): TOutput | null | Promise<...> }`) at
+      `packages/core/src/life-system/detector.ts`.
+    - `Watcher` — minimal Sense-layer lifecycle contract
+      (`{ id; start(); stop() }`) at
+      `packages/core/src/life-system/watcher.ts`.
+    - Both are re-exported via `@linchkit/core` (root barrel) and
+      `packages/core/src/life-system/index.ts`. The pre-existing stub
+      `Detector` interface in `packages/core/src/types/life-system.ts`
+      was removed (no in-tree consumers).
+  - **Concrete impls moved** out of core, alongside their tests, into
+    `@linchkit/cap-ai-provider`:
+    - `packages/core/src/ai/pattern-detector.ts` →
+      `addons/ai-provider/cap-ai-provider/src/pattern-detector.ts`
+    - `packages/core/src/ai/anomaly-detector.ts` →
+      `addons/ai-provider/cap-ai-provider/src/anomaly-detector.ts`
+    - `packages/core/src/automation/watcher-engine.ts` →
+      `addons/ai-provider/cap-ai-provider/src/watcher-engine.ts`
+    - Each class now declares an `id` and `implements` its core
+      interface (`PatternDetector`/`AnomalyDetector` implement
+      `Detector`; `WatcherEngine` extends a domain-specific interface
+      that itself extends the abstract `Watcher`).
+  - **Core retains** the `WatcherRegistry` (action pipeline consumes
+    `WatcherDefinition` records directly) and a small
+    `PatternInsight` data contract at
+    `packages/core/src/ai/pattern-insight.ts` so
+    `ProposalEngine.createFromInsight()` keeps its existing API
+    without depending on `cap-ai-provider`.
+  - **Out-of-tree consumer migrated**:
+    `addons/adapter-server/cap-adapter-server/src/proposal-api.ts` now
+    imports `PatternDetector` / `PatternInsight` from
+    `@linchkit/cap-ai-provider`; `cap-adapter-server`'s `package.json`
+    gained a `peerDependencies`/`devDependencies` entry for it.
+  - **Path mapping**: root `tsconfig.json` gained
+    `"@linchkit/cap-ai-provider": ["./addons/ai-provider/cap-ai-provider/src"]`.
+  - **Tests moved** into `addons/ai-provider/cap-ai-provider/__tests__/`
+    (`pattern-detector.test.ts`, `pattern-detector-integration.test.ts`,
+    `anomaly-detector.test.ts`, `watcher-engine.test.ts`); their
+    imports were rewritten to use `@linchkit/core` / `@linchkit/core/server`.
+  - Follow-ups:
+    - `cap-ai-provider` is currently the only home for `WatcherEngine`.
+      A dedicated `cap-watcher` (or generic automation capability) may
+      be split out later if non-AI watchers proliferate; tracked as a
+      separate issue.
+    - Several lifecycle-style abstractions
+      (`LifecycleSensor`/`LifecycleSignal`/...) and the new minimal
+      `Detector`/`Watcher` interfaces still co-exist; consolidating
+      them is out of scope for Step 2c.
+
 ### 不移出（三方一致同意留核心）
 
 | 组件 | 原因 |

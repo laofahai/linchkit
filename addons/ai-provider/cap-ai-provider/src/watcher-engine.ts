@@ -7,19 +7,25 @@
  * - Timer-based (polling): staleness watchers evaluated on interval
  *
  * Watcher effects execute through normal action pipeline (CommandLayer).
+ *
+ * Implements the abstract `Watcher` lifecycle contract from `@linchkit/core`
+ * (Spec 56 Phase 2 Step 2c). The concrete impl was moved out of core into
+ * this capability so core retains only the interface.
  */
 
-import { type ConditionContext, evaluateCondition } from "../engine/condition-evaluator";
-import type { EventBusLike, EventRecord } from "../types/event";
-import type { Logger } from "../types/logger";
 import type {
+  EventBusLike,
+  EventRecord,
+  Logger,
+  Watcher,
   WatcherComparisonCondition,
   WatcherContext,
   WatcherDefinition,
   WatcherEvaluationResult,
   WatcherStateEntry,
-} from "../types/watcher";
-import type { WatcherRegistry } from "./watcher-registry";
+} from "@linchkit/core";
+import { type ConditionContext, evaluateCondition } from "@linchkit/core";
+import type { WatcherRegistry } from "@linchkit/core/server";
 
 // ── Action executor interface (shared with watcher effects) ──
 
@@ -40,13 +46,14 @@ export interface WatcherDataQuerier {
 
 // ── Watcher Engine interface ──────────────────────────────
 
-export interface WatcherEngine {
-  /** Start listening for mutation events and schedule staleness checks */
-  start(): void;
-
-  /** Stop all listeners and timers */
-  stop(): void;
-
+/**
+ * WatcherEngine extends the abstract `Watcher` lifecycle contract with the
+ * data-condition-specific evaluation API needed by the action pipeline.
+ *
+ * `start()` / `stop()` come from `Watcher`; the additional methods cover the
+ * post-mutation reactive path and debounce-state inspection.
+ */
+export interface WatcherEngine extends Watcher {
   /**
    * Evaluate watchers for a specific schema after a mutation.
    * Called by the mutation pipeline (post-action).
@@ -77,6 +84,8 @@ export interface WatcherEngineOptions {
   dataQuerier?: WatcherDataQuerier;
   /** Staleness check interval in ms (default: 60_000 = 1 minute) */
   stalenessIntervalMs?: number;
+  /** Optional override for the watcher's stable id (default: "automation.watcher_engine"). */
+  id?: string;
   logger?: Logger;
 }
 
@@ -123,6 +132,7 @@ export function evaluateComparison(value: number, condition: WatcherComparisonCo
 // ── Implementation ────────────────────────────────────────
 
 class WatcherEngineImpl implements WatcherEngine {
+  readonly id: string;
   private registry: WatcherRegistry;
   private eventBus?: EventBusLike;
   private actionExecutor?: WatcherActionExecutor;
@@ -138,6 +148,7 @@ class WatcherEngineImpl implements WatcherEngine {
   private stateMap = new Map<string, WatcherStateEntry>();
 
   constructor(options: WatcherEngineOptions) {
+    this.id = options.id ?? "automation.watcher_engine";
     this.registry = options.registry;
     this.eventBus = options.eventBus;
     this.actionExecutor = options.actionExecutor;

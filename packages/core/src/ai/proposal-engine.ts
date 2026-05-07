@@ -12,7 +12,7 @@
 
 import type { EventHandlerDefinition } from "../types/event";
 import type { RuleDefinition } from "../types/rule";
-import type { PatternInsight } from "./pattern-detector";
+import type { PatternInsight } from "./pattern-insight";
 import type {
   ProposalValidatorConfig,
   ProposalChange as SecurityProposalChange,

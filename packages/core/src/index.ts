@@ -23,10 +23,10 @@ export type {
   AIUsageRecord,
 } from "./ai";
 // AI Boundary — runtime classes exported from server-entry.ts only
-export type {
-  WatcherEngine,
-  WatcherRegistry,
-} from "./automation";
+// WatcherEngine concrete impl moved to @linchkit/cap-ai-provider
+// (Spec 56 Phase 2 Step 2c); core retains the abstract `Watcher` interface
+// (see `./life-system/watcher.ts`) and the WatcherRegistry.
+export type { WatcherRegistry } from "./automation";
 // Cache — type exports (browser-safe)
 export type {
   CacheEntry,
@@ -263,6 +263,7 @@ export type {
   CreateImpactAnalyzerOptions,
   CreatePreAnalysisPipelineOptions,
   DedupResult,
+  Detector,
   EvolutionRuntime,
   EvolutionRuntimeOptions,
   ImpactDataProvider,
@@ -286,6 +287,7 @@ export type {
   SignalBusOptions,
   SignalHandler,
   Unsubscribe,
+  Watcher,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55) + Proposal pre-analysis (Spec 55 §7.3)
 // Spec 56 Phase 2 Step 2a adds lifecycle-style Sensor/Signal/Baseline/MemoryStore

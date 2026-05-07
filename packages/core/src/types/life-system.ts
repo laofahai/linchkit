@@ -108,16 +108,9 @@ export interface MemoryStore {
 
 // ── Awareness layer ─────────────────────────────────────────
 
-/**
- * Abstract Detector interface — retained in core as an Awareness-layer contract.
- *
- * Concrete implementations (PatternDetector, AnomalyDetector) may live in
- * capabilities. Core keeps this interface so engines can depend on the abstraction
- * without coupling to specific detection algorithms.
- */
-export interface Detector<TEvent = unknown, TResult = unknown> {
-  detect(events: TEvent[]): Promise<TResult[]>;
-}
+// NOTE: The abstract `Detector` Awareness-layer contract now lives in
+// `../life-system/detector.ts` (Spec 56 Phase 2 Step 2c) so it sits next
+// to the other lifecycle abstractions. Import it via `@linchkit/core`.
 
 // -- SignalBus --
 export interface SignalBus {

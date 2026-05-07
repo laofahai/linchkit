@@ -5,6 +5,10 @@
  * compromise, abuse, or malfunction. Operates on sliding time windows
  * of usage data.
  *
+ * Implements the abstract `Detector` contract from `@linchkit/core` (Spec 56
+ * Phase 2 Step 2c). The concrete impl was moved out of core into this
+ * capability so core retains only the interface.
+ *
  * See spec 27_ai_security.md §1.5 (Rate Abuse) and M2 requirements
  * (anomalous behavior detection).
  *
@@ -15,6 +19,8 @@
  * 4. Off-hours activity — AI calls outside normal business hours
  * 5. Diverse action anomaly — sudden use of many different actions
  */
+
+import type { Detector } from "@linchkit/core";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -116,6 +122,9 @@ export interface AnomalyDetectorConfig {
 
   /** Callback when an anomaly is detected */
   onAnomaly?: (anomaly: AnomalyDetection) => void;
+
+  /** Optional override for the detector's stable id (default: "ai.anomaly_detector"). */
+  id?: string;
 }
 
 // ── Anomaly Detector ───────────────────────────────────────────
@@ -126,8 +135,16 @@ export interface AnomalyDetectorConfig {
  * Feed usage events via `recordEvent()` and call `detect()` to check
  * for anomalies. The detector maintains a bounded event buffer and
  * computes statistics over configurable time windows.
+ *
+ * Implements the abstract `Detector<DetectOptions, AnomalyDetection[]>`
+ * contract from `@linchkit/core`. The legacy `detect(options?)` signature
+ * is preserved (optional argument) so existing callers keep working;
+ * passing `undefined` matches the abstract contract's `TInput`.
  */
-export class AnomalyDetector {
+export class AnomalyDetector
+  implements Detector<AnomalyDetectorDetectOptions | undefined, AnomalyDetection[]>
+{
+  readonly id: string;
   private readonly events: UsageEvent[] = [];
   private readonly config: Required<
     Pick<
@@ -159,6 +176,7 @@ export class AnomalyDetector {
   private static readonly EMA_ALPHA = 0.3;
 
   constructor(config?: AnomalyDetectorConfig) {
+    this.id = config?.id ?? "ai.anomaly_detector";
     this.config = {
       spikeMultiplier: config?.spikeMultiplier ?? 3.0,
       errorRateThreshold: config?.errorRateThreshold ?? 0.5,
@@ -190,7 +208,7 @@ export class AnomalyDetector {
    * Returns all detected anomalies. Also fires onAnomaly callback
    * for each detection.
    */
-  detect(options?: { tenantId?: string; actorId?: string; now?: Date }): AnomalyDetection[] {
+  detect(options?: AnomalyDetectorDetectOptions): AnomalyDetection[] {
     const now = options?.now ?? new Date();
     const windowStart = new Date(now.getTime() - this.config.windowSizeMs);
     const anomalies: AnomalyDetection[] = [];
@@ -452,4 +470,11 @@ export class AnomalyDetector {
         (1 - AnomalyDetector.EMA_ALPHA) * this.baselineRate;
     }
   }
+}
+
+/** Options accepted by {@link AnomalyDetector.detect}. */
+export interface AnomalyDetectorDetectOptions {
+  tenantId?: string;
+  actorId?: string;
+  now?: Date;
 }
