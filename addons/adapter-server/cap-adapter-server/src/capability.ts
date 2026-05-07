@@ -150,6 +150,13 @@ export const capAdapterServer = defineCapability({
             aiService: ctx.aiService,
             aiConfig: ctx.aiConfig,
             ontologyRegistry: ctx.ontologyRegistry,
+            // Spec 52 §1.1 — make the permission registry available to
+            // /api/ai/resolve-intent so it can scope the action catalog
+            // to actions the calling actor is allowed to execute.
+            permissionRegistry: ctx.permissionRegistry,
+            // Spec 52 §8.1.4 — every intent_resolution call writes one
+            // audit entry through the central AIAuditLogger.
+            aiAuditLogger: ctx.aiAuditLogger,
             onchangeEvaluator,
             // Extract tenant ID from verified actor (set by auth middleware) first,
             // then fall back to X-Tenant-Id header for unauthenticated/dev scenarios.

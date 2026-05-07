@@ -3,15 +3,23 @@
  *
  * Tests for POST /api/ai/resolve-intent and POST /api/ai/execute-intent.
  * Covers:
- * - Intent resolution with OntologyRegistry context
- * - Schema AI config filtering (ai.actionable === false)
- * - execute-intent proxies to executor with ai metadata
- * - Graceful degradation when AI service is unavailable
+ * - Intent resolution against the canonical resolver (Spec 52 §2.6 contract:
+ *   `{ prompt, scope }` request, `{ proposal: ActionProposal | null }` response).
+ * - Schema AI config filtering — Phase 0 PoC scope: see ai-resolve-intent.test.ts
+ *   for the full permission-scoped catalog tests.
+ * - execute-intent proxies to executor with ai metadata.
+ * - Graceful degradation when AI service is unavailable (503).
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
-import { createActionExecutor, EntityRegistry, InMemoryStore } from "@linchkit/core/server";
+import {
+  ActionRegistry,
+  createActionExecutor,
+  createOntologyRegistry,
+  EntityRegistry,
+  InMemoryStore,
+} from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../../graphql/build-schema";
 import { createServer } from "../../server";
 
@@ -111,6 +119,18 @@ function buildTestServer(aiService: AIService): {
   entityRegistry.register(purchaseRequestSchema);
   entityRegistry.register(confidentialSchema);
 
+  // Build an ontology so the canonical resolver has a catalog to scan.
+  const actionRegistry = new ActionRegistry();
+  actionRegistry.register(createPurchaseAction);
+  actionRegistry.register(createConfidentialAction);
+  const ontology = createOntologyRegistry({
+    schemas: entityRegistry,
+    actions: actionRegistry,
+    rules: [],
+    states: [],
+    views: [],
+  });
+
   const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema, confidentialSchema], {
     executor,
     dataProvider: store,
@@ -120,6 +140,7 @@ function buildTestServer(aiService: AIService): {
     executor,
     aiService,
     entityRegistry,
+    ontologyRegistry: ontology,
   });
 
   return { server, store };
@@ -133,11 +154,12 @@ let mainApp: any;
 let mainStore: InMemoryStore;
 
 beforeAll(() => {
+  // Canonical AI response shape consumed by `resolveIntent()` —
+  // see `intent-resolver.ts` aiResponseSchema. `entity` / `missingFields`
+  // are NOT part of the resolver's contract; they're derived server-side.
   const mockResponse = JSON.stringify({
     action: "create_purchase_request",
-    entity: "purchase_request",
     input: { title: "Laptop x3", amount: 24000, department: "IT" },
-    missingFields: [],
     confidence: 0.92,
     explanation: "I'll create a purchase request for 3 laptops totalling ¥24,000 for IT.",
   });
@@ -167,63 +189,55 @@ async function post(path: string, body: unknown, port = PORT) {
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
-// ── Tests: resolve-intent ─────────────────────────────────
+// ── Tests: resolve-intent (Spec 52 §2.6 contract) ─────────
 
 describe("POST /api/ai/resolve-intent", () => {
-  test("returns 400 when message is missing", async () => {
+  test("returns 400 when prompt is missing", async () => {
     const { status, body } = await post("/api/ai/resolve-intent", {});
     expect(status).toBe(400);
     expect((body as { success: boolean }).success).toBe(false);
   });
 
-  test("returns resolved intent for natural language message", async () => {
+  test("returns ActionProposal for a natural-language prompt", async () => {
     const { status, body } = await post("/api/ai/resolve-intent", {
-      message: "Create a purchase request for 3 laptops at ¥8000 each for IT department",
+      prompt: "Create a purchase request for 3 laptops at ¥8000 each for IT department",
     });
     expect(status).toBe(200);
-    const data = body as { success: boolean; data: Record<string, unknown> };
-    expect(data.success).toBe(true);
-    expect(data.data).not.toBeNull();
-    expect(data.data.action).toBe("create_purchase_request");
-    expect(data.data.confidence).toBeGreaterThan(0.3);
-    expect(data.data.explanation).toBeTruthy();
-  });
-
-  test("includes inputSchema in response", async () => {
-    const { body } = await post("/api/ai/resolve-intent", {
-      message: "Create a purchase request",
-    });
-    const data = body as { success: boolean; data: { inputSchema: Record<string, unknown> } };
-    expect(data.success).toBe(true);
-    expect(data.data.inputSchema).toBeDefined();
-    expect(data.data.inputSchema.title).toBeDefined();
-    expect(data.data.inputSchema.amount).toBeDefined();
+    const data = body as {
+      proposal: { action: string; confidence: number; explanation: string } | null;
+    };
+    expect(data.proposal).not.toBeNull();
+    if (!data.proposal) throw new Error("expected proposal");
+    expect(data.proposal.action).toBe("create_purchase_request");
+    expect(data.proposal.confidence).toBeGreaterThan(0.3);
+    expect(data.proposal.explanation.length).toBeGreaterThan(0);
   });
 
   test("includes extracted input values from AI", async () => {
     const { body } = await post("/api/ai/resolve-intent", {
-      message: "Create a purchase request for laptops",
+      prompt: "Create a purchase request for laptops",
     });
-    const data = body as { success: boolean; data: { input: Record<string, unknown> } };
-    expect(data.success).toBe(true);
-    expect(data.data.input).toBeDefined();
+    const data = body as { proposal: { input: Record<string, unknown> } | null };
+    expect(data.proposal).not.toBeNull();
+    if (!data.proposal) throw new Error("expected proposal");
     // AI mock returns amount: 24000
-    expect(data.data.input.amount).toBe(24000);
+    expect(data.proposal.input.amount).toBe(24000);
   });
 
-  test("graceful degradation when AI service is not configured", async () => {
+  test("returns 503 when AI service is not configured", async () => {
     const PORT2 = PORT + 1;
     const { server: noAIApp } = buildTestServer(noopAIService);
     noAIApp.listen(PORT2);
     try {
-      const { body } = await post(
+      const { status, body } = await post(
         "/api/ai/resolve-intent",
-        { message: "Create a purchase request" },
+        { prompt: "Create a purchase request" },
         PORT2,
       );
-      const result = body as { success: boolean; data: unknown };
-      expect(result.success).toBe(true);
-      expect(result.data).toBeNull();
+      expect(status).toBe(503);
+      const result = body as { success: boolean; error: { message: string } };
+      expect(result.success).toBe(false);
+      expect(result.error.message.length).toBeGreaterThan(0);
     } finally {
       noAIApp.stop();
     }

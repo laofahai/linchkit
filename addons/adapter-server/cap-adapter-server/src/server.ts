@@ -25,6 +25,7 @@ import type {
   LinchKitConfig,
   OntologyRegistry,
   PermissionGroupDefinition,
+  PermissionRegistry,
   RuleDefinition,
   RuntimeConfigRegistry,
   StateDefinition,
@@ -33,6 +34,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core";
 import type {
+  AIAuditLogger,
   CacheManager,
   HealthCheckRegistry,
   InMemoryMetricsCollector,
@@ -47,6 +49,7 @@ import { mountProposalAPI } from "./proposal-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
+import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
@@ -131,6 +134,16 @@ export interface ServerOptions {
   aiConfig?: AIServiceConfig;
   /** Ontology registry for AI context-aware system prompts and tools */
   ontologyRegistry?: OntologyRegistry;
+  /**
+   * Permission registry — when provided, the intent resolver scopes its
+   * action catalog to actions the calling actor can execute (Spec 52 §1.1).
+   */
+  permissionRegistry?: PermissionRegistry;
+  /**
+   * AI audit logger — when provided, AI-touching endpoints (e.g.
+   * `/api/ai/resolve-intent`) emit one entry per call (Spec 52 §8.1.4).
+   */
+  aiAuditLogger?: AIAuditLogger;
   /** Metrics collector — when provided, /health includes metrics summary */
   metricsCollector?: InMemoryMetricsCollector;
   /** Flow definitions — used by /api/flows endpoints */
@@ -273,6 +286,11 @@ export function createServer(
   mountConfigRoutes(app, opts);
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
+  // Spec 52 §2.6 canonical intent-resolution endpoint. Mounted AFTER
+  // mountAIRoutes so the canonical handler (with permission scoping +
+  // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
+  // legacy handler is left in the file.
+  mountResolveIntentRoute(app, opts);
   mountTranslationRoutes(app, opts);
   mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
 

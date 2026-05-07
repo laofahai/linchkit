@@ -139,7 +139,13 @@ export function AIAssistant({
     if (isAiEnabled()) {
       setIsResolvingIntent(true);
       try {
-        const result = await resolveIntent(trimmed, { schema: params.name, recordId: params.id });
+        // Narrow the catalog to the current entity when the user is on a
+        // record page. `recordId` does not have a direct equivalent in the
+        // new resolver scope today; UX follow-up if record-context priming
+        // turns out to matter for accuracy.
+        const result = await resolveIntent(trimmed, {
+          entityFilter: params.name ? [params.name] : undefined,
+        });
         if (result && result.confidence >= 0.5) {
           setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
           const proposalId = crypto.randomUUID();
@@ -154,7 +160,7 @@ export function AIAssistant({
     }
 
     sendMessage({ text: trimmed });
-  }, [isLoading, isResolvingIntent, params.name, params.id, sendMessage, setMessages]);
+  }, [isLoading, isResolvingIntent, params.name, sendMessage, setMessages]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

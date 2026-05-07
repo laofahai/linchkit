@@ -1,10 +1,38 @@
+/**
+ * Spec 52 §2.6 — POST /api/ai/resolve-intent integration tests.
+ *
+ * Exercises the canonical resolver-driven endpoint. Six scenarios cover:
+ *   1. Happy path — resolved proposal + audit entry written.
+ *   2. AI cannot match — null proposal + audit entry.
+ *   3. Empty prompt — 400 (Zod validation).
+ *   4. AI service unavailable — 503 with structured error.
+ *   5. Permission filtering — actor lacks permission for an action; the
+ *      resolver's catalog must NOT include it (verified by audit catalogSize
+ *      and the deterministic-AI behavior).
+ *   6. Audit entry shape — kind/result/duration/prompt/catalogSize.
+ *
+ * All tests use a deterministic fake AIService — no real LLM calls.
+ */
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
-import { ActionRegistry, EntityRegistry } from "@linchkit/core/server";
+import type {
+  ActionDefinition,
+  Actor,
+  AIService,
+  EntityDefinition,
+  PermissionGroupDefinition,
+} from "@linchkit/core";
+import {
+  ActionRegistry,
+  AIAuditLogger,
+  createOntologyRegistry,
+  EntityRegistry,
+  PermissionRegistry,
+} from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
 
-// ── Test fixtures ────────────────────────────────────────
+// ── Fixtures ─────────────────────────────────────────────────
 
 const purchaseSchema: EntityDefinition = {
   name: "purchase_request",
@@ -14,11 +42,6 @@ const purchaseSchema: EntityDefinition = {
     amount: { type: "number", required: true, label: "Amount" },
     department: { type: "string", required: true, label: "Department" },
     description: { type: "text", label: "Description" },
-    priority: {
-      type: "enum",
-      label: "Priority",
-      options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
-    },
   },
 };
 
@@ -31,111 +54,238 @@ const createPurchaseAction: ActionDefinition = {
     amount: { type: "number", required: true, label: "Amount" },
     department: { type: "string", required: true, label: "Department" },
     description: { type: "text", label: "Description" },
-    priority: {
-      type: "enum",
-      label: "Priority",
-      options: [{ value: "low" }, { value: "medium" }, { value: "high" }],
-    },
   },
+  policy: "unrestricted",
+};
+
+const deleteEverythingAction: ActionDefinition = {
+  name: "delete_everything",
+  entity: "purchase_request",
+  label: "Delete Everything",
+  description: "Wipe the world. Demo of a permission-gated action.",
   policy: "unrestricted",
 };
 
 const graphqlSchema = buildGraphQLSchema([purchaseSchema]);
 
-// ── No AI service configured ─────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
 
-describe("POST /api/ai/resolve-intent — no AI service", () => {
-  const PORT = 31910;
-  let server: ReturnType<typeof createServer>;
-
-  beforeAll(() => {
-    server = createServer(graphqlSchema, { port: PORT });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-  });
-
-  test("returns null data when AI is not configured", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "Create a purchase request for 5000",
-        context: {},
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).toBeNull();
-  });
-
-  test("returns 400 when message is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ context: {} }),
-    });
-
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.success).toBe(false);
-    expect(json.error.message).toContain("message is required");
-  });
-});
-
-// ── With mock AI service ─────────────────────────────────
-
-describe("POST /api/ai/resolve-intent — with AI service", () => {
-  const PORT = 31911;
-  let server: ReturnType<typeof createServer>;
-
-  const mockAiService: AIService = {
-    configured: true,
-    defaultProvider: "mock",
-    providerNames: ["mock"],
-    complete: async () => ({
-      content: JSON.stringify({
-        action: "create_purchase_request",
-        schema: "purchase_request",
-        input: { amount: 5000, department: "General Admin" },
-        missingFields: ["description"],
-        confidence: 0.92,
-        explanation: "I'll create a purchase request for 5,000 assigned to General Admin.",
-      }),
-      usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
-      model: "test-model",
-      provider: "test",
-      duration: 150,
-    }),
-  };
-
-  // Build executor with action registry
-  const actionRegistry = new ActionRegistry();
-  actionRegistry.register(createPurchaseAction);
-
-  const mockExecutor = {
-    registry: actionRegistry,
-    execute: async () => ({
-      success: true,
-      data: { id: "test-123" },
-      executionId: "exec-test",
-    }),
-  };
-
+function buildOntology(actions: ActionDefinition[]): {
+  ontology: ReturnType<typeof createOntologyRegistry>;
+  entityRegistry: EntityRegistry;
+  actionRegistry: ActionRegistry;
+} {
   const entityRegistry = new EntityRegistry();
   entityRegistry.register(purchaseSchema);
+  const actionRegistry = new ActionRegistry();
+  for (const a of actions) actionRegistry.register(a);
+  const ontology = createOntologyRegistry({
+    schemas: entityRegistry,
+    actions: actionRegistry,
+    rules: [],
+    states: [],
+    views: [],
+  });
+  return { ontology, entityRegistry, actionRegistry };
+}
+
+interface FakeAiServiceOptions {
+  /** When set, used as the AI completion content verbatim. */
+  responseContent?: string;
+  /**
+   * When set, called with the system prompt to derive the response. Allows
+   * tests to assert what catalog the AI saw.
+   */
+  buildResponse?: (systemPrompt: string, userPrompt: string) => string;
+  /** Optional model name surfaced in the response. */
+  model?: string;
+  /** When true, `complete()` throws — exercises graceful-degradation. */
+  fail?: boolean;
+}
+
+function fakeAiService(opts: FakeAiServiceOptions): AIService {
+  return {
+    configured: true,
+    defaultProvider: "fake",
+    providerNames: ["fake"],
+    complete: async (req: { messages: Array<{ role: string; content: string }> }) => {
+      if (opts.fail) {
+        throw new Error("simulated AI failure");
+      }
+      const systemPrompt = req.messages.find((m) => m.role === "system")?.content ?? "";
+      const userPrompt = req.messages.find((m) => m.role === "user")?.content ?? "";
+      const content = opts.responseContent ?? opts.buildResponse?.(systemPrompt, userPrompt) ?? "";
+      return {
+        content,
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        model: opts.model ?? "fake-model",
+        provider: "fake",
+        duration: 5,
+      };
+    },
+  } as unknown as AIService;
+}
+
+const noopAiService: AIService = {
+  configured: false,
+  defaultProvider: null,
+  providerNames: [],
+  complete: async () => {
+    throw new Error("AI not configured");
+  },
+} as unknown as AIService;
+
+const ANON_ACTOR: Actor = {
+  type: "system",
+  id: "test-anon",
+  groups: [],
+};
+
+async function postResolveIntent(
+  port: number,
+  body: unknown,
+): Promise<{ status: number; json: unknown }> {
+  const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, json: await res.json() };
+}
+
+// ── Scenario 1: Happy path ───────────────────────────────────
+
+describe("POST /api/ai/resolve-intent — happy path", () => {
+  const PORT = 31920;
+  let server: ReturnType<typeof createServer>;
+  const auditLogger = new AIAuditLogger();
+  const { ontology } = buildOntology([createPurchaseAction]);
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      action: "create_purchase_request",
+      input: { amount: 5000, department: "General Admin" },
+      confidence: 0.92,
+      explanation: "Create a purchase request for 5000 General Admin.",
+    }),
+    model: "happy-model",
+  });
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
       port: PORT,
-      aiService: mockAiService,
-      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
-      executor: mockExecutor as any,
-      entityRegistry,
+      aiService: ai,
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger,
+      resolveRequestActor: () => ANON_ACTOR,
+    });
+    server.listen(PORT);
+  });
+
+  afterAll(() => {
+    server.stop?.();
+    auditLogger.clear();
+  });
+
+  test("returns ActionProposal and writes one matched=true audit entry", async () => {
+    const { status, json } = await postResolveIntent(PORT, {
+      prompt: "Create a purchase request for 5000 for General Admin",
+    });
+    expect(status).toBe(200);
+    const body = json as {
+      proposal: {
+        action: string;
+        input: Record<string, unknown>;
+        confidence: number;
+        missingFields: string[];
+        explanation: string;
+      } | null;
+    };
+    expect(body.proposal).not.toBeNull();
+    if (!body.proposal) throw new Error("expected proposal to be set");
+    expect(body.proposal.action).toBe("create_purchase_request");
+    expect(body.proposal.input.amount).toBe(5000);
+    expect(body.proposal.input.department).toBe("General Admin");
+    expect(body.proposal.confidence).toBeCloseTo(0.92, 5);
+    // Required fields the AI did not fill (amount + department are filled,
+    // description is non-required so should not appear here).
+    expect(body.proposal.missingFields).toEqual([]);
+    expect(body.proposal.explanation.length).toBeGreaterThan(0);
+
+    // Audit entry: exactly one, matched=true
+    const entries = auditLogger.query();
+    expect(entries.length).toBe(1);
+    const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
+    expect(meta?.kind).toBe("intent_resolution");
+    expect((meta?.result as { matched: boolean }).matched).toBe(true);
+    expect((meta?.result as { action: string | null }).action).toBe("create_purchase_request");
+    expect((meta?.result as { confidence: number | null }).confidence).toBeCloseTo(0.92, 5);
+    expect(typeof meta?.durationMs).toBe("number");
+    expect(meta?.prompt).toBe("Create a purchase request for 5000 for General Admin");
+  });
+});
+
+// ── Scenario 2: AI cannot match ──────────────────────────────
+
+describe("POST /api/ai/resolve-intent — AI cannot match", () => {
+  const PORT = 31921;
+  let server: ReturnType<typeof createServer>;
+  const auditLogger = new AIAuditLogger();
+  const { ontology } = buildOntology([createPurchaseAction]);
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      action: null,
+      input: {},
+      confidence: 0.0,
+      explanation: "Couldn't make sense of that.",
+    }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      port: PORT,
+      aiService: ai,
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger,
+      resolveRequestActor: () => ANON_ACTOR,
+    });
+    server.listen(PORT);
+  });
+
+  afterAll(() => {
+    server.stop?.();
+    auditLogger.clear();
+  });
+
+  test("returns { proposal: null } and writes one matched=false audit entry", async () => {
+    const { status, json } = await postResolveIntent(PORT, {
+      prompt: "Recite a sonnet about TypeScript.",
+    });
+    expect(status).toBe(200);
+    expect((json as { proposal: unknown }).proposal).toBeNull();
+
+    const entries = auditLogger.query();
+    expect(entries.length).toBe(1);
+    const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
+    expect((meta?.result as { matched: boolean }).matched).toBe(false);
+    expect((meta?.result as { action: string | null }).action).toBeNull();
+  });
+});
+
+// ── Scenario 3: Empty prompt → 400 (Zod) ─────────────────────
+
+describe("POST /api/ai/resolve-intent — empty prompt", () => {
+  const PORT = 31922;
+  let server: ReturnType<typeof createServer>;
+  const { ontology } = buildOntology([createPurchaseAction]);
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({ action: null, confidence: 0 }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      port: PORT,
+      aiService: ai,
+      ontologyRegistry: ontology,
     });
     server.listen(PORT);
   });
@@ -144,230 +294,217 @@ describe("POST /api/ai/resolve-intent — with AI service", () => {
     server.stop?.();
   });
 
-  test("resolves intent from natural language message", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: "Create a purchase request for 5000 for General Admin",
-        context: { schema: "purchase_request" },
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).not.toBeNull();
-    expect(json.data.action).toBe("create_purchase_request");
-    expect(json.data.schema).toBe("purchase_request");
-    expect(json.data.input.amount).toBe(5000);
-    expect(json.data.input.department).toBe("General Admin");
-    expect(json.data.confidence).toBe(0.92);
-    expect(json.data.explanation).toBeTruthy();
-    expect(json.data.actionLabel).toBe("Create Purchase Request");
-    expect(json.data.missingFields).toContain("description");
-    // Input schema should include field metadata
-    expect(json.data.inputSchema).toBeDefined();
-    expect(json.data.inputSchema.amount.type).toBe("number");
-    expect(json.data.inputSchema.amount.required).toBe(true);
+  test("rejects empty prompt with 400 + structured error", async () => {
+    const { status, json } = await postResolveIntent(PORT, { prompt: "" });
+    expect(status).toBe(400);
+    const body = json as { success: boolean; error: { code: string; message: string } };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("VALIDATION.FAILED");
+    expect(body.error.message.length).toBeGreaterThan(0);
   });
 
-  test("returns null when AI returns low confidence", async () => {
-    // Override mock to return low confidence
-    const lowConfService: AIService = {
-      configured: true,
-      defaultProvider: "mock",
-      providerNames: ["mock"],
-      complete: async () => ({
-        content: JSON.stringify({
-          action: null,
-          schema: null,
-          input: {},
-          missingFields: [],
-          confidence: 0.1,
-          explanation: "Could not understand the request.",
-        }),
-        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-        model: "test-model",
-        provider: "test",
-        duration: 100,
-      }),
-    };
+  test("rejects request without prompt field with 400", async () => {
+    const { status, json } = await postResolveIntent(PORT, {});
+    expect(status).toBe(400);
+    const body = json as { success: boolean };
+    expect(body.success).toBe(false);
+  });
+});
 
-    const server2Port = 31912;
-    const server2 = createServer(graphqlSchema, {
-      port: server2Port,
-      aiService: lowConfService,
-      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
-      executor: mockExecutor as any,
-      entityRegistry,
+// ── Scenario 4: AI service unavailable → 503 ─────────────────
+
+describe("POST /api/ai/resolve-intent — AI unavailable", () => {
+  const PORT = 31923;
+  let server: ReturnType<typeof createServer>;
+  const auditLogger = new AIAuditLogger();
+  const { ontology } = buildOntology([createPurchaseAction]);
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      port: PORT,
+      // No aiService configured → graceful 503
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger,
     });
-    server2.listen(server2Port);
+    server.listen(PORT);
+  });
 
+  afterAll(() => {
+    server.stop?.();
+    auditLogger.clear();
+  });
+
+  test("returns 503 with structured error envelope when no AI service is configured", async () => {
+    const { status, json } = await postResolveIntent(PORT, {
+      prompt: "Create something",
+    });
+    expect(status).toBe(503);
+    const body = json as { success: boolean; error: { message: string } };
+    expect(body.success).toBe(false);
+    expect(body.error.message.toLowerCase()).toContain("ai");
+  });
+
+  test("returns 503 when aiService.configured === false", async () => {
+    const PORT2 = 31924;
+    const auditLogger2 = new AIAuditLogger();
+    const server2 = createServer(graphqlSchema, {
+      port: PORT2,
+      aiService: noopAiService,
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger2,
+    });
+    server2.listen(PORT2);
     try {
-      const res = await fetch(`http://localhost:${server2Port}/api/ai/resolve-intent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "something unclear",
-          context: {},
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data).toBeNull();
+      const { status } = await postResolveIntent(PORT2, { prompt: "anything" });
+      expect(status).toBe(503);
+      // Audit entry still emitted so volume is observable.
+      const entries = auditLogger2.query();
+      expect(entries.length).toBe(1);
+      const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
+      expect(meta?.serviceUnavailable).toBe(true);
     } finally {
       server2.stop?.();
     }
   });
+});
 
-  test("rejects destructive actions without an explicit target id", async () => {
-    const destructiveAction: ActionDefinition = {
-      name: "delete_purchase_request",
-      entity: "purchase_request",
-      label: "Delete Purchase Request",
-      description: "Delete a purchase request",
-      input: { id: { type: "string", required: true, label: "ID" } },
-      policy: "unrestricted",
-    };
-    const destructiveRegistry = new ActionRegistry();
-    destructiveRegistry.register(destructiveAction);
+// ── Scenario 5: Permission filtering ─────────────────────────
 
-    const destructiveAi: AIService = {
-      configured: true,
-      defaultProvider: "mock",
-      providerNames: ["mock"],
-      complete: async () => ({
-        content: JSON.stringify({
-          action: "delete_purchase_request",
-          schema: "purchase_request",
-          input: {},
-          missingFields: ["id"],
-          confidence: 0.95,
-          explanation: "Delete request without explicit target.",
-        }),
-        usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
-        model: "test-model",
-        provider: "test",
-        duration: 150,
-      }),
-    };
+describe("POST /api/ai/resolve-intent — permission filtering", () => {
+  const PORT = 31925;
+  let server: ReturnType<typeof createServer>;
+  const auditLogger = new AIAuditLogger();
+  // Build an ontology with TWO actions; the actor is allowed to execute
+  // create_purchase_request but NOT delete_everything.
+  const { ontology } = buildOntology([createPurchaseAction, deleteEverythingAction]);
+  const permissionRegistry = new PermissionRegistry();
+  const groupName = "viewer";
+  const viewerGroup: PermissionGroupDefinition = {
+    name: groupName,
+    permissions: {
+      // Capability name follows permission-middleware.ts convention:
+      // capabilityName === action.entity when no resolver is configured.
+      purchase_request: {
+        purchase_request: {
+          actions: {
+            create_purchase_request: true,
+            delete_everything: false,
+          },
+        },
+      },
+    },
+  };
+  permissionRegistry.register(viewerGroup);
 
-    const port = 31914;
-    const server4 = createServer(graphqlSchema, {
-      port,
-      aiService: destructiveAi,
-      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
-      executor: { registry: destructiveRegistry } as any,
-      entityRegistry,
+  // Capture the system prompt the AI sees so we can assert that
+  // delete_everything was NOT included in the catalog.
+  let capturedSystemPrompt = "";
+  const ai = fakeAiService({
+    buildResponse: (systemPrompt) => {
+      capturedSystemPrompt = systemPrompt;
+      // The AI returns null because we don't even want it proposing the
+      // permitted action — we're only asserting the catalog was scoped.
+      return JSON.stringify({ action: null, confidence: 0, explanation: "n/a" });
+    },
+  });
+  const viewerActor: Actor = {
+    type: "human",
+    id: "viewer-1",
+    groups: [groupName],
+  };
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      port: PORT,
+      aiService: ai,
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger,
+      permissionRegistry,
+      resolveRequestActor: () => viewerActor,
     });
-    server4.listen(port);
-
-    try {
-      const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "delete all purchase requests",
-          context: {},
-        }),
-      });
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      // Code-level guardrail must drop destructive proposals lacking a target.
-      expect(json.data).toBeNull();
-    } finally {
-      server4.stop?.();
-    }
+    server.listen(PORT);
   });
 
-  test("allows destructive actions when context scopes a single record", async () => {
-    const destructiveAction: ActionDefinition = {
-      name: "delete_purchase_request",
-      entity: "purchase_request",
-      label: "Delete Purchase Request",
-      description: "Delete a purchase request",
-      input: { id: { type: "string", required: true, label: "ID" } },
-      policy: "unrestricted",
-    };
-    const destructiveRegistry = new ActionRegistry();
-    destructiveRegistry.register(destructiveAction);
-
-    const destructiveAi: AIService = {
-      configured: true,
-      defaultProvider: "mock",
-      providerNames: ["mock"],
-      complete: async () => ({
-        content: JSON.stringify({
-          action: "delete_purchase_request",
-          schema: "purchase_request",
-          input: { id: "rec-42" },
-          missingFields: [],
-          confidence: 0.95,
-          explanation: "Delete the scoped record.",
-        }),
-        usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
-        model: "test-model",
-        provider: "test",
-        duration: 150,
-      }),
-    };
-
-    const port = 31915;
-    const server5 = createServer(graphqlSchema, {
-      port,
-      aiService: destructiveAi,
-      // biome-ignore lint/suspicious/noExplicitAny: mock executor for test
-      executor: { registry: destructiveRegistry } as any,
-      entityRegistry,
-    });
-    server5.listen(port);
-
-    try {
-      const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "delete this one",
-          context: { recordId: "rec-42" },
-        }),
-      });
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data).not.toBeNull();
-      expect(json.data.action).toBe("delete_purchase_request");
-    } finally {
-      server5.stop?.();
-    }
+  afterAll(() => {
+    server.stop?.();
+    auditLogger.clear();
   });
 
-  test("returns null when no executor registry is available", async () => {
-    const server3Port = 31913;
-    const server3 = createServer(graphqlSchema, {
-      port: server3Port,
-      aiService: mockAiService,
-      // No executor
+  test("filters out actions the actor cannot execute from the resolver's catalog", async () => {
+    const { status } = await postResolveIntent(PORT, {
+      prompt: "Erase everything immediately.",
     });
-    server3.listen(server3Port);
+    expect(status).toBe(200);
+    // Verify the captured system prompt mentions create_purchase_request but
+    // NOT delete_everything (the explicit-deny action).
+    expect(capturedSystemPrompt).toContain("create_purchase_request");
+    expect(capturedSystemPrompt).not.toContain("delete_everything");
 
-    try {
-      const res = await fetch(`http://localhost:${server3Port}/api/ai/resolve-intent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "Create something",
-          context: {},
-        }),
-      });
+    // Audit entry confirms catalog scoping is active.
+    const entries = auditLogger.query();
+    expect(entries.length).toBe(1);
+    const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
+    expect(meta?.scoped).toBe(true);
+    expect(meta?.catalogSize).toBe(1);
+  });
+});
 
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data).toBeNull();
-    } finally {
-      server3.stop?.();
-    }
+// ── Scenario 6: Audit entry shape ────────────────────────────
+
+describe("POST /api/ai/resolve-intent — audit entry shape", () => {
+  const PORT = 31926;
+  let server: ReturnType<typeof createServer>;
+  const auditLogger = new AIAuditLogger();
+  const { ontology } = buildOntology([createPurchaseAction]);
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      action: "create_purchase_request",
+      input: { amount: 100, department: "Eng" },
+      confidence: 0.7,
+      explanation: "create_purchase_request fits.",
+    }),
+    model: "audit-model",
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      port: PORT,
+      aiService: ai,
+      ontologyRegistry: ontology,
+      aiAuditLogger: auditLogger,
+      resolveRequestActor: () => ANON_ACTOR,
+    });
+    server.listen(PORT);
+  });
+
+  afterAll(() => {
+    server.stop?.();
+    auditLogger.clear();
+  });
+
+  test("audit entry contains all expected fields", async () => {
+    await postResolveIntent(PORT, { prompt: "create a purchase for 100 Eng" });
+    const entries = auditLogger.query();
+    expect(entries.length).toBe(1);
+    const entry = entries[0];
+    if (!entry) throw new Error("expected audit entry");
+    // Top-level AIAuditEntry shape (from packages/core/src/ai/ai-audit.ts).
+    expect(typeof entry.id).toBe("string");
+    expect(typeof entry.timestamp).toBe("string");
+    expect(entry.eventType).toBe("ai_recommendation");
+    expect(entry.actorId).toBe("test-anon");
+    expect(entry.actionName).toBe("create_purchase_request");
+    // Spec 52 §8.1.4-shaped payload lives under `metadata`.
+    const meta = entry.metadata as Record<string, unknown>;
+    expect(meta.kind).toBe("intent_resolution");
+    expect(meta.prompt).toBe("create a purchase for 100 Eng");
+    const result = meta.result as { matched: boolean; action: string | null; confidence: number };
+    expect(result.matched).toBe(true);
+    expect(result.action).toBe("create_purchase_request");
+    expect(result.confidence).toBeCloseTo(0.7, 5);
+    expect(typeof meta.durationMs).toBe("number");
+    expect(meta.serviceUnavailable).toBe(false);
+    expect(typeof meta.catalogSize).toBe("number");
+    expect(meta.catalogSize).toBe(1);
   });
 });
