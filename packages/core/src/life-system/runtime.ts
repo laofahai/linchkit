@@ -5,8 +5,13 @@
  *   SignalBus → MemoryEngine → AwarenessEngine → InsightEngine → EvolutionCycle
  *
  * Capabilities supply Sensors via `cap.extensions.sensors`. The CLI startup
- * flattens these into a `DetectingSensor[]` (see `collectCapabilityDefinitions`)
+ * flattens these into a `Sensor[]` (see `collectCapabilityDefinitions`)
  * and passes them to this factory, which registers each on the SignalBus.
+ *
+ * NOTE: This factory operates on detection-style sensors only (the
+ * pre-existing public {@link Sensor} from `../types/life-system.ts`).
+ * Lifecycle-style sensors (`LifecycleSensor`) register themselves via
+ * `registerSensor()` from `@linchkit/core` and are managed separately.
  *
  * Without this factory the `extensions.sensors` field is dead config — sensors
  * defined by capabilities are never registered and never fire.
@@ -15,10 +20,10 @@
 import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type {
   AwarenessEngine,
-  DetectingSensor,
   EvolutionCycle,
   InsightEngine,
   MemoryStore,
+  Sensor,
   SensorContext,
 } from "../types/life-system";
 import { createAwarenessEngine } from "./awareness-engine";
@@ -41,7 +46,7 @@ export interface EvolutionRuntime {
 /** Construction options for {@link createEvolutionRuntime}. */
 export interface EvolutionRuntimeOptions {
   /** Sensors collected from capabilities. Each is registered on the SignalBus. */
-  sensors: DetectingSensor[];
+  sensors: Sensor[];
   /**
    * Optional query helper passed to sensors via {@link SensorContext} when
    * runCycle() is invoked without an explicit context. Sensors use this to

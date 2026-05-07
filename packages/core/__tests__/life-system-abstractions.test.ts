@@ -1,29 +1,35 @@
 /**
- * Tests for the Spec 56 Phase 2 Step 2a life-system abstractions.
+ * Tests for the Spec 56 Phase 2 Step 2a life-system abstractions
+ * (lifecycle-style: LifecycleSensor / LifecycleSignal / LifecycleBaseline /
+ * LifecycleMemoryStore).
  *
  * Covers:
  *   - Compile-time shape assertions for the public interfaces
- *   - A trivial in-memory MemoryStore round-trip (read/write/delete/list)
- *   - A trivial Sensor registered into the extensions.sensors slot,
- *     emitting a Signal that round-trips through subscribe()
- *   - A toy Baseline whose score() returns 0 for in-distribution data
- *     and >0 for outliers (sanity check, not statistical correctness)
+ *   - A trivial in-memory LifecycleMemoryStore round-trip
+ *     (read/write/delete/list)
+ *   - A trivial LifecycleSensor registered into the lifecycle-sensor
+ *     registry, emitting a LifecycleSignal that round-trips through
+ *     subscribe()
+ *   - A toy LifecycleBaseline whose score() returns 0 for in-distribution
+ *     data and >0 for outliers (sanity check, not statistical correctness)
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-  type Baseline,
-  clearSensors,
   findSensor,
   getSensors,
-  type MemoryStore,
+  type LifecycleBaseline,
+  type LifecycleMemoryStore,
+  type LifecycleSensor,
+  type LifecycleSignal,
   type MemoryStoreWriteOptions,
   registerSensor,
-  type Sensor,
-  type Signal,
   type Unsubscribe,
   unregisterSensor,
 } from "../src";
+// `clearSensors` is intentionally NOT part of the root @linchkit/core export
+// (test-only helper). Import it directly from the sensor-registry module.
+import { clearSensors } from "../src/life-system/sensor-registry";
 
 // ── Compile-time shape assertions ──────────────────────────────────────────
 //
@@ -31,10 +37,10 @@ import {
 // if the public shapes ever drift from the spec. We construct a value of
 // each interface and assign it to a variable typed as that interface.
 
-// Signal must accept the documented fields and reject extras only via the
-// usual TS structural rules (we don't lock that down here — `metadata` is
-// open-ended).
-const _signalShape: Signal = {
+// LifecycleSignal must accept the documented fields and reject extras only
+// via the usual TS structural rules (we don't lock that down here —
+// `metadata` is open-ended).
+const _signalShape: LifecycleSignal = {
   source: "event_bus",
   kind: "test.kind",
   data: { anything: true },
@@ -43,9 +49,9 @@ const _signalShape: Signal = {
 };
 void _signalShape;
 
-// Sensor must expose id + start + stop + subscribe with the documented
-// signatures. We don't run this; we just typecheck it.
-const _sensorShape: Sensor = {
+// LifecycleSensor must expose id + start + stop + subscribe with the
+// documented signatures. We don't run this; we just typecheck it.
+const _sensorShape: LifecycleSensor = {
   id: "test.shape",
   start() {
     /* no-op */
@@ -53,14 +59,14 @@ const _sensorShape: Sensor = {
   stop() {
     /* no-op */
   },
-  subscribe(_handler: (signal: Signal) => void): Unsubscribe {
+  subscribe(_handler: (signal: LifecycleSignal) => void): Unsubscribe {
     return () => {};
   },
 };
 void _sensorShape;
 
-// Baseline must expose id + update + score + snapshot.
-const _baselineShape: Baseline = {
+// LifecycleBaseline must expose id + update + score + snapshot.
+const _baselineShape: LifecycleBaseline = {
   id: "test.metric",
   update(_observation: unknown): void {
     /* no-op */
@@ -74,9 +80,9 @@ const _baselineShape: Baseline = {
 };
 void _baselineShape;
 
-// MemoryStore must expose read/write/delete/list with the documented
-// async signatures.
-const _memoryStoreShape: MemoryStore = {
+// LifecycleMemoryStore must expose read/write/delete/list with the
+// documented async signatures.
+const _memoryStoreShape: LifecycleMemoryStore = {
   async read(_key: string): Promise<unknown | null> {
     return null;
   },
@@ -101,11 +107,11 @@ interface Entry {
 }
 
 /**
- * Tiny MemoryStore for tests — backs the `read/write/delete/list` round-trip
- * suite below. Production capabilities (e.g. cap-memory-drizzle) would ship
- * a persistent equivalent.
+ * Tiny LifecycleMemoryStore for tests — backs the `read/write/delete/list`
+ * round-trip suite below. Production capabilities (e.g. cap-memory-drizzle)
+ * would ship a persistent equivalent.
  */
-function createInMemoryStore(): MemoryStore {
+function createInMemoryStore(): LifecycleMemoryStore {
   const data = new Map<string, Entry>();
 
   function isExpired(entry: Entry, now: number): boolean {
@@ -152,15 +158,17 @@ function createInMemoryStore(): MemoryStore {
 // ── Toy Sensor implementation ──────────────────────────────────────────────
 
 /**
- * Manually-driven Sensor — `start`/`stop` flip an `active` flag, and
- * `emit()` fans the signal out to subscribers iff the sensor is active.
- * This keeps the test deterministic (no timers).
+ * Manually-driven LifecycleSensor — `start`/`stop` flip an `active` flag,
+ * and `emit()` fans the signal out to subscribers iff the sensor is
+ * active. This keeps the test deterministic (no timers).
  */
-function createToySensor(id: string): Sensor & { emit(signal: Signal): void; active: boolean } {
-  const handlers = new Set<(signal: Signal) => void>();
+function createToySensor(
+  id: string,
+): LifecycleSensor & { emit(signal: LifecycleSignal): void; active: boolean } {
+  const handlers = new Set<(signal: LifecycleSignal) => void>();
   let active = false;
 
-  const sensor: Sensor & { emit(signal: Signal): void; active: boolean } = {
+  const sensor: LifecycleSensor & { emit(signal: LifecycleSignal): void; active: boolean } = {
     id,
     get active() {
       return active;
@@ -199,7 +207,7 @@ function createToySensor(id: string): Sensor & { emit(signal: Signal): void; act
  * Not statistically meaningful — the test only checks the contract:
  * 0 for in-distribution, >0 for outliers.
  */
-function createRangeBaseline(id: string): Baseline {
+function createRangeBaseline(id: string): LifecycleBaseline {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 
@@ -232,7 +240,7 @@ afterEach(() => {
   clearSensors();
 });
 
-describe("MemoryStore (in-memory implementation)", () => {
+describe("LifecycleMemoryStore (in-memory implementation)", () => {
   test("round-trips read / write / delete / list", async () => {
     const store = createInMemoryStore();
 
@@ -274,7 +282,7 @@ describe("MemoryStore (in-memory implementation)", () => {
   });
 });
 
-describe("Sensor + extensions.sensors slot", () => {
+describe("LifecycleSensor + sensor-registry slot", () => {
   test("registerSensor exposes the sensor via getSensors / findSensor", () => {
     const sensor = createToySensor("toy.alpha");
     registerSensor(sensor);
@@ -304,7 +312,7 @@ describe("Sensor + extensions.sensors slot", () => {
     const sensor = createToySensor("toy.emit");
     registerSensor(sensor);
 
-    const received: Signal[] = [];
+    const received: LifecycleSignal[] = [];
     const unsub: Unsubscribe = sensor.subscribe((s) => received.push(s));
 
     // Before start, emit is dropped.
@@ -313,7 +321,7 @@ describe("Sensor + extensions.sensors slot", () => {
 
     // After start, signals flow.
     await sensor.start();
-    const signal: Signal = {
+    const signal: LifecycleSignal = {
       source: "test",
       kind: "ping",
       data: { hello: "world" },
@@ -331,14 +339,14 @@ describe("Sensor + extensions.sensors slot", () => {
 
     // stop ignores subsequent emits even if a new subscriber attaches
     await sensor.stop();
-    const after: Signal[] = [];
+    const after: LifecycleSignal[] = [];
     sensor.subscribe((s) => after.push(s));
     sensor.emit({ ...signal, kind: "post-stop" });
     expect(after).toEqual([]);
   });
 });
 
-describe("Baseline (toy implementation)", () => {
+describe("LifecycleBaseline (toy implementation)", () => {
   test("scores 0 for in-distribution observations and >0 for outliers", () => {
     const baseline = createRangeBaseline("range.test");
 

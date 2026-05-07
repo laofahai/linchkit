@@ -9,8 +9,22 @@
  * persistent stores, ...) continue to live where they are today; this
  * module only declares the public contracts that capabilities can target.
  *
+ * NOTE: A pre-existing detection-style `Sensor` interface (with `name` /
+ * `source` / `detect()`) lives in `../types/life-system.ts` and powers
+ * `defineSensor()` + the existing EvolutionRuntime. The lifecycle-style
+ * abstractions in this module use a `Lifecycle` prefix to avoid colliding
+ * with that long-standing public type. Capabilities pick whichever style
+ * fits — detection-style sensors flow through `extensions.sensors`,
+ * lifecycle-style sensors register via `registerSensor()` from
+ * `@linchkit/core`.
+ *
  * Capabilities import these via:
- *   import type { Sensor, Signal, Baseline, MemoryStore } from "@linchkit/core";
+ *   import type {
+ *     LifecycleSensor,
+ *     LifecycleSignal,
+ *     LifecycleBaseline,
+ *     LifecycleMemoryStore,
+ *   } from "@linchkit/core";
  *
  * @see docs/specs/55_evolution_system.md
  * @see docs/specs/56_core_slimming.md (Phase 2 Step 2a)
@@ -27,16 +41,16 @@ export type Unsubscribe = () => void;
 // ── Sense layer ────────────────────────────────────────────────────────────
 
 /**
- * A single observation produced by a {@link Sensor}.
+ * A single observation produced by a {@link LifecycleSensor}.
  *
  * Signals are the unit of currency between the Sense and Memory layers.
- * They are intentionally opaque on the {@link Signal.data} field — the
+ * They are intentionally opaque on the {@link LifecycleSignal.data} field — the
  * MemoryStore / Awareness layer interprets the payload based on `kind`.
  *
  * Spec 55 §3.1: Signals flow in from multiple channels (event_bus, server,
  * api, graphql, mcp, ui). The `source` string identifies the channel.
  */
-export interface Signal {
+export interface LifecycleSignal {
   /**
    * Origin channel of the signal — typically a SignalSource value
    * (`event_bus`, `server`, `api`, `graphql`, `mcp`, `ui`) but kept as a
@@ -75,17 +89,20 @@ export interface Signal {
 }
 
 /**
- * Sensor — Sense-layer lifecycle contract (Spec 55 §3.3).
+ * LifecycleSensor — Sense-layer lifecycle contract (Spec 55 §3.3 /
+ * Spec 56 Phase 2 Step 2a).
  *
- * Capabilities register sensors via `extensions.sensors`. The runtime
- * starts each sensor at boot, fans signals out to subscribers via
- * {@link Sensor.subscribe}, and stops them on shutdown.
+ * Capabilities register lifecycle sensors via `registerSensor()` from
+ * `@linchkit/core` (see `./sensor-registry.ts`). The runtime starts each
+ * sensor at boot, fans signals out to subscribers via
+ * {@link LifecycleSensor.subscribe}, and stops them on shutdown.
  *
  * This is a *push* contract: sensors emit signals into the bus instead
- * of being polled. (A separate, detection-style interface exists for
- * pull-based sensors used by the EvolutionCycle.)
+ * of being polled. The detection-style {@link import("../types/life-system").Sensor}
+ * (with `detect()`) remains the contract for pull-based sensors used by
+ * the EvolutionCycle.
  */
-export interface Sensor {
+export interface LifecycleSensor {
   /**
    * Stable, globally unique identifier for this sensor instance.
    * Conventionally `<capability>.<sensor_name>` (e.g.
@@ -103,8 +120,9 @@ export interface Sensor {
 
   /**
    * Stop producing signals and release any resources acquired by
-   * {@link Sensor.start}. Called once during shutdown. Must be idempotent
-   * so the runtime can safely call it on an already-stopped sensor.
+   * {@link LifecycleSensor.start}. Called once during shutdown. Must be
+   * idempotent so the runtime can safely call it on an already-stopped
+   * sensor.
    */
   stop(): Promise<void> | void;
 
@@ -116,21 +134,27 @@ export interface Sensor {
    * the handler. Handlers are invoked synchronously from the sensor's
    * emit path — long-running work should be offloaded.
    */
-  subscribe(handler: (signal: Signal) => void): Unsubscribe;
+  subscribe(handler: (signal: LifecycleSignal) => void): Unsubscribe;
 }
 
 // ── Memory layer ───────────────────────────────────────────────────────────
 
 /**
- * Baseline — captures normal-state statistics for anomaly detection
- * (Spec 55 §4.2).
+ * LifecycleBaseline — captures normal-state statistics for anomaly
+ * detection (Spec 55 §4.2 / Spec 56 Phase 2 Step 2a).
  *
- * A Baseline is a learned distribution: feed it observations via
- * {@link Baseline.update}, then query {@link Baseline.score} to ask
- * "how anomalous is this new observation?". The 0..1 scale is fixed by
- * contract so consumers can compare scores across baseline implementations.
+ * A LifecycleBaseline is a learned distribution: feed it observations via
+ * {@link LifecycleBaseline.update}, then query {@link LifecycleBaseline.score}
+ * to ask "how anomalous is this new observation?". The 0..1 scale is fixed
+ * by contract so consumers can compare scores across baseline implementations.
+ *
+ * NOTE: A simpler structural `Baseline` (`entity` / `metric` / `value` /
+ * `calculatedAt`) lives in `../types/life-system.ts` and is what the
+ * existing MemoryStore / Awareness implementations operate on. This
+ * lifecycle variant is the forward-looking contract for capabilities
+ * that own their own scoring logic.
  */
-export interface Baseline {
+export interface LifecycleBaseline {
   /**
    * Stable identifier. Conventionally `<entity>.<metric>` (e.g.
    * `purchase_request.rejection_rate`). Used by the Memory layer as the
@@ -166,7 +190,8 @@ export interface Baseline {
 }
 
 /**
- * MemoryStore — generic key/value abstraction over the Memory layer.
+ * LifecycleMemoryStore — generic key/value abstraction over the Memory
+ * layer (Spec 56 Phase 2 Step 2a).
  *
  * Provides a minimal contract that capabilities can target without
  * coupling to a specific storage backend (Postgres, Redis, in-memory).
@@ -174,8 +199,13 @@ export interface Baseline {
  * All methods are async so implementations are free to perform I/O.
  * Values are `unknown` — Memory consumers are expected to know what
  * shape they wrote under each key.
+ *
+ * NOTE: A narrower `MemoryStore` (with `recordSignal` / `getBaseline` /
+ * `updateBaseline`) lives in `../types/life-system.ts` for the existing
+ * Sense/Memory pipeline. This lifecycle variant is the forward-looking
+ * contract for capabilities needing a generic key/value Memory surface.
  */
-export interface MemoryStore {
+export interface LifecycleMemoryStore {
   /**
    * Read the value previously written under `key`. Returns `null` when
    * the key is absent or expired. Never throws on missing keys.
@@ -185,8 +215,8 @@ export interface MemoryStore {
   /**
    * Write `value` under `key`, replacing any existing entry. The optional
    * {@link MemoryStoreWriteOptions.ttlMs} sets a relative time-to-live
-   * after which the entry should be considered expired by {@link MemoryStore.read}
-   * and {@link MemoryStore.list}.
+   * after which the entry should be considered expired by
+   * {@link LifecycleMemoryStore.read} and {@link LifecycleMemoryStore.list}.
    */
   write(key: string, value: unknown, options?: MemoryStoreWriteOptions): Promise<void>;
 
@@ -205,7 +235,7 @@ export interface MemoryStore {
 }
 
 /**
- * Options for {@link MemoryStore.write}.
+ * Options for {@link LifecycleMemoryStore.write}.
  *
  * Kept as a named interface rather than an inline literal so additional
  * fields (compaction hints, tags, ...) can be added without breaking

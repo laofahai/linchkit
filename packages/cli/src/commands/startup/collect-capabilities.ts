@@ -7,7 +7,6 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   CliCommand,
-  DetectingSensor,
   EntityDefinition,
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
@@ -15,6 +14,7 @@ import type {
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
+  Sensor,
   StateDefinition,
   TransportAdapterDefinition,
   ViewDefinition,
@@ -35,7 +35,7 @@ export interface CollectedDefinitions {
   graphqlExtensions: GraphQLExtensionRegistration[];
   commands: CliCommand[];
   /** Sensors collected from `cap.extensions.sensors` for the Sense layer (Spec 55 §3.3). */
-  sensors: DetectingSensor[];
+  sensors: Sensor[];
 }
 
 /**
@@ -58,7 +58,7 @@ export function collectCapabilityDefinitions(
   const transports: TransportAdapterDefinition[] = [];
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
-  const sensors: DetectingSensor[] = [];
+  const sensors: Sensor[] = [];
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
@@ -84,19 +84,7 @@ export function collectCapabilityDefinitions(
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
     }
     if (cap.extensions?.commands) commands.push(...cap.extensions.commands);
-    if (cap.extensions?.sensors) {
-      // extensions.sensors accepts both legacy detection-style sensors and
-      // the lifecycle-style sensors introduced in Spec 56 Phase 2 Step 2a.
-      // The EvolutionRuntime currently consumes only the detection-style
-      // shape (`detect()` is called per cycle); lifecycle sensors register
-      // themselves via `registerSensor` from `@linchkit/core` instead, so
-      // they are filtered out of this list.
-      for (const sensor of cap.extensions.sensors) {
-        if ("detect" in sensor && typeof sensor.detect === "function") {
-          sensors.push(sensor as DetectingSensor);
-        }
-      }
-    }
+    if (cap.extensions?.sensors) sensors.push(...cap.extensions.sensors);
 
     // Register i18n translation resources from the capability
     if (cap.extensions?.i18n) {

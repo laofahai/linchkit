@@ -6,7 +6,6 @@
  */
 
 import type { CommandContext } from "../engine/command-layer";
-import type { Sensor as LifecycleSensor } from "../life-system/abstractions";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { CliCommand } from "./cli";
 import type {
@@ -17,7 +16,7 @@ import type {
 } from "./entity";
 import type { EventDefinition, EventHandlerDefinition } from "./event";
 import type { FlowDefinition } from "./flow";
-import type { DetectingSensor } from "./life-system";
+import type { Sensor } from "./life-system";
 import type { PageRegistration } from "./page";
 import type { PermissionGroupDefinition } from "./permission";
 import type { RelationDefinition } from "./relation";
@@ -221,15 +220,16 @@ export interface CapabilityExtensions {
     priority?: number;
   }>;
   /**
-   * Sensors registered by this capability for the Sense layer (Spec 55 §3.3).
+   * Detection-style sensors registered by this capability for the Sense
+   * layer (Spec 55 §3.3). Powered by `defineSensor()` and consumed by the
+   * EvolutionRuntime's `runCycle()`.
    *
-   * Accepts both the legacy detection-style `DetectingSensor` (powered by
-   * `defineSensor()` and consumed by the EvolutionRuntime's `runCycle()`) and
-   * the lifecycle-style `Sensor` introduced in Spec 56 Phase 2 Step 2a
-   * (`id` / `start` / `stop` / `subscribe`). Callers iterate the slot and
-   * dispatch on shape — see `cli/commands/startup/collect-capabilities.ts`.
+   * NOTE: lifecycle-style sensors (`LifecycleSensor`, Spec 56 Phase 2
+   * Step 2a) do NOT flow through this slot. They register themselves via
+   * `registerSensor()` from `@linchkit/core` and are managed by a
+   * separate module-level registry in `core/life-system/sensor-registry`.
    */
-  sensors?: Array<DetectingSensor | LifecycleSensor>;
+  sensors?: Sensor[];
   /** GraphQL schema extensions — query/mutation fields merged into the main schema */
   graphqlExtensions?: GraphQLExtensionRegistration;
   /**

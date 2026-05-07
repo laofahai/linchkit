@@ -1,5 +1,5 @@
 /**
- * Sensor Registry — `extensions.sensors` slot for the Sense layer.
+ * Sensor Registry — module-level slot for lifecycle-style sensors.
  *
  * Mirrors the pattern used by other extension slots in core
  * (see `doctor/doctor-registry.ts` for the canonical shape):
@@ -7,35 +7,39 @@
  * (`registerSensor`, `getSensors`, `findSensor`, `unregisterSensor`,
  * `clearSensors`).
  *
- * Capabilities register their {@link Sensor} instances during boot;
- * the EvolutionRuntime reads the registered list and starts each one.
+ * Capabilities register their {@link LifecycleSensor} instances during
+ * boot; the EvolutionRuntime reads the registered list and starts each
+ * one. Detection-style sensors continue to flow through the
+ * `extensions.sensors` slot on `CapabilityDefinition` and are NOT
+ * managed by this registry.
  *
- * @see ./abstractions.ts for the {@link Sensor} interface itself
+ * @see ./abstractions.ts for the {@link LifecycleSensor} interface itself
  * @see docs/specs/55_evolution_system.md §3.3
  * @see docs/specs/56_core_slimming.md (Phase 2 Step 2a)
  */
 
-import type { Sensor } from "./abstractions";
+import type { LifecycleSensor } from "./abstractions";
 
 // ── Internal state ─────────────────────────────────────────────────────────
 
 /**
- * Module-level Map keyed by {@link Sensor.id}. Using a Map (not an array) so
- * `registerSensor` can fail fast on duplicate IDs and `findSensor` is O(1).
+ * Module-level Map keyed by {@link LifecycleSensor.id}. Using a Map (not an
+ * array) so `registerSensor` can fail fast on duplicate IDs and `findSensor`
+ * is O(1).
  */
-const sensors = new Map<string, Sensor>();
+const sensors = new Map<string, LifecycleSensor>();
 
 // ── Slot helpers ───────────────────────────────────────────────────────────
 
 /**
- * Register a {@link Sensor} into the `extensions.sensors` slot.
+ * Register a {@link LifecycleSensor} into the lifecycle-sensor registry.
  *
  * Throws if a sensor with the same `id` is already registered. Sensor IDs
  * must be globally unique because the EvolutionRuntime uses them as the
  * primary key for lifecycle management — silently overwriting would orphan
  * the previously-registered sensor's resources.
  */
-export function registerSensor(sensor: Sensor): void {
+export function registerSensor(sensor: LifecycleSensor): void {
   if (sensors.has(sensor.id)) {
     throw new Error(
       `Sensor "${sensor.id}" is already registered. Sensor IDs must be unique across all capabilities.`,
@@ -48,15 +52,15 @@ export function registerSensor(sensor: Sensor): void {
  * Return all registered sensors as an array snapshot. Mutating the
  * returned array does not affect the registry.
  */
-export function getSensors(): Sensor[] {
+export function getSensors(): LifecycleSensor[] {
   return Array.from(sensors.values());
 }
 
 /**
- * Look up a single sensor by its {@link Sensor.id}. Returns `undefined`
- * when no sensor with that ID is registered.
+ * Look up a single sensor by its {@link LifecycleSensor.id}. Returns
+ * `undefined` when no sensor with that ID is registered.
  */
-export function findSensor(id: string): Sensor | undefined {
+export function findSensor(id: string): LifecycleSensor | undefined {
   return sensors.get(id);
 }
 
@@ -72,6 +76,10 @@ export function unregisterSensor(id: string): boolean {
 /**
  * Reset the registry. Intended for tests; production code should never
  * need to clear the slot.
+ *
+ * @internal Test-only helper. Not part of the public `@linchkit/core`
+ * root export — tests import this directly from the module path
+ * (`@linchkit/core/...sensor-registry`) or via the life-system barrel.
  */
 export function clearSensors(): void {
   sensors.clear();

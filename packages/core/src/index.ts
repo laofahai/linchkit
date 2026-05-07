@@ -257,7 +257,6 @@ export {
 } from "./i18n";
 export type {
   BacktestResult,
-  Baseline,
   ConflictFinding,
   ConflictResult,
   CreateDedupAnalyzerOptions,
@@ -268,7 +267,10 @@ export type {
   EvolutionRuntimeOptions,
   ImpactDataProvider,
   ImpactResult,
-  MemoryStore,
+  LifecycleBaseline,
+  LifecycleMemoryStore,
+  LifecycleSensor,
+  LifecycleSignal,
   MemoryStoreWriteOptions,
   PendingProposalStore,
   PreAnalysisPipeline,
@@ -277,19 +279,19 @@ export type {
   PreAnalysisStatus,
   PreAnalyzer,
   ProposalPreAnalysisResult,
-  Sensor,
   SensorDefinitionConfig,
-  Signal,
   SignalBus,
   SignalBusOptions,
   SignalHandler,
   Unsubscribe,
 } from "./life-system";
 // Life-system — Sense layer (Spec 55) + Proposal pre-analysis (Spec 55 §7.3)
-// Spec 56 Phase 2 Step 2a adds Sensor/Signal/Baseline/MemoryStore abstractions
-// and the extensions.sensors slot helpers (registerSensor & friends).
+// Spec 56 Phase 2 Step 2a adds lifecycle-style Sensor/Signal/Baseline/MemoryStore
+// abstractions (Lifecycle* prefix) plus the lifecycle-sensor registry helpers
+// (registerSensor & friends). `clearSensors` is intentionally NOT re-exported
+// here — it's a test-only helper, available via `./life-system` and the
+// sensor-registry module path.
 export {
-  clearSensors,
   createDedupAnalyzer,
   createDispatchQuery,
   createEvolutionRuntime,

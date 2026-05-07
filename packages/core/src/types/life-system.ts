@@ -57,21 +57,23 @@ export interface SensorContext {
 }
 
 /**
- * DetectingSensor — pull-based detection unit for the Sense layer (Spec 55 §3.3).
+ * Sensor interface — detection unit for the Sense layer (Spec 55 §3.3).
  *
- * Capability-registered (via `extensions.sensors`); the EvolutionRuntime calls
- * `detect()` on every cycle and forwards any returned signal to the Memory layer.
+ * Sensors are Capability-registered, not hard-coded in core. Each sensor
+ * targets a specific signal source and optionally a specific schema.
  *
- * NOTE: A separate, push-based `Sensor` interface (with `id`/`start`/`stop`/
- * `subscribe`) lives in `life-system/abstractions.ts` and forms the
- * Spec 56 Phase 2 Step 2a public contract. Both styles co-exist — the
- * detection-style `DetectingSensor` continues to power `defineSensor()` and
- * the existing EvolutionRuntime, while the lifecycle-style `Sensor` is the
- * forward-looking contract for new capabilities.
+ * NOTE: A separate, lifecycle-style `LifecycleSensor` interface (with
+ * `id`/`start`/`stop`/`subscribe`) lives in `life-system/abstractions.ts`
+ * and forms the Spec 56 Phase 2 Step 2a forward-looking contract for
+ * push-based sensors. Both styles co-exist — the detection-style `Sensor`
+ * here powers `defineSensor()` and the existing EvolutionRuntime, while
+ * the lifecycle-style `LifecycleSensor` is for capabilities that prefer
+ * a push-based contract and register via `registerSensor()` from
+ * `@linchkit/core` rather than `extensions.sensors`.
  *
- * @see ../life-system/abstractions.ts for the lifecycle-style {@link Sensor}.
+ * @see ../life-system/abstractions.ts for the lifecycle-style {@link LifecycleSensor}.
  */
-export interface DetectingSensor<TSignal = SensorSignal> {
+export interface Sensor<TSignal = SensorSignal> {
   /** Unique sensor name within a capability. */
   name: string;
   /** Which system channel this sensor observes. */

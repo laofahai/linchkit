@@ -5,18 +5,19 @@
  * SignalBus → MemoryEngine → AwarenessEngine → InsightEngine → EvolutionCycle
  * Type abstractions live in packages/core/src/types/life-system.ts.
  *
- * Spec 56 Phase 2 Step 2a — additional Sense / Memory abstractions
- * (Sensor, Signal, Baseline, MemoryStore) live in `./abstractions` and
- * the `extensions.sensors` slot helpers live in `./sensor-registry`.
+ * Spec 56 Phase 2 Step 2a — additional lifecycle-style Sense / Memory
+ * abstractions (LifecycleSensor, LifecycleSignal, LifecycleBaseline,
+ * LifecycleMemoryStore) live in `./abstractions`. The lifecycle-sensor
+ * registry helpers live in `./sensor-registry`.
  */
 
-// Spec 56 Phase 2 Step 2a — life-system abstractions (additive).
+// Spec 56 Phase 2 Step 2a — lifecycle-style life-system abstractions (additive).
 export type {
-  Baseline,
-  MemoryStore,
+  LifecycleBaseline,
+  LifecycleMemoryStore,
+  LifecycleSensor,
+  LifecycleSignal,
   MemoryStoreWriteOptions,
-  Sensor,
-  Signal,
   Unsubscribe,
 } from "./abstractions";
 export { createAttentionBudget } from "./attention-budget";

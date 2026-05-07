@@ -5,12 +5,7 @@
  * extensions.sensors in their CapabilityDefinition.
  */
 
-import type {
-  DetectingSensor,
-  SensorContext,
-  SensorSignal,
-  SignalSource,
-} from "../types/life-system";
+import type { Sensor, SensorContext, SensorSignal, SignalSource } from "../types/life-system";
 
 export interface SensorDefinitionConfig<TSignal extends SensorSignal = SensorSignal> {
   /** Unique sensor name within a capability. */
@@ -24,7 +19,7 @@ export interface SensorDefinitionConfig<TSignal extends SensorSignal = SensorSig
 }
 
 /**
- * Creates a typed {@link DetectingSensor} instance from a plain config object.
+ * Creates a typed {@link Sensor} instance from a plain config object.
  *
  * @example
  * ```ts
@@ -41,7 +36,7 @@ export interface SensorDefinitionConfig<TSignal extends SensorSignal = SensorSig
  */
 export function defineSensor<TSignal extends SensorSignal = SensorSignal>(
   config: SensorDefinitionConfig<TSignal>,
-): DetectingSensor<TSignal> {
+): Sensor<TSignal> {
   return {
     name: config.name,
     source: config.source,
