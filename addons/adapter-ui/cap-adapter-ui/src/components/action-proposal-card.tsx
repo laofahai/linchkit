@@ -65,12 +65,16 @@ function resolveTranslatableLabel(
  *   - the previous primary (now reversible — the user can swap back),
  *   - all other previous alternatives, in original order.
  *
- * The chosen alternative carries no display metadata of its own (the server
- * only enriches the primary), so we synthesize minimal placeholders:
- *   - `schema` and `actionLabel` fall back to the action name,
- *   - `actionDescription` is dropped,
- *   - `inputSchema` is empty (the user keeps the AI-extracted inputs as a
- *     read-only summary; editing is disabled until the next round-trip).
+ * Reversibility: the previous primary's display metadata (`schema`,
+ * `actionLabel`, `actionDescription`, `inputSchema`) is preserved on the
+ * demoted `IntentAlternative` so swapping BACK to it later restores a
+ * fully-rendered card with editable fields.
+ *
+ * Server-returned alternatives carry no display metadata (the route only
+ * enriches the primary). When such an alternative is swapped IN, we surface
+ * placeholders (`actionLabel = action`, empty `inputSchema`) — the AI-
+ * extracted `input` is still shown as a read-only summary; field editing
+ * unlocks on the next round-trip when the user re-prompts.
  *
  * Returns `null` when `index` is out of range so callers can no-op safely.
  */
@@ -81,13 +85,18 @@ export function swapAlternative(current: IntentResolution, index: number): Inten
   const chosen = alternatives[index];
   if (!chosen) return null;
 
-  // Demote the previous primary into an alternative entry.
+  // Demote the previous primary into an alternative entry, preserving its
+  // display metadata so a future swap-back is non-lossy.
   const previousPrimary: IntentAlternative = {
     action: current.action,
     input: current.input,
     confidence: current.confidence,
     missingFields: current.missingFields,
     explanation: current.explanation,
+    schema: current.schema,
+    actionLabel: current.actionLabel,
+    actionDescription: current.actionDescription,
+    inputSchema: current.inputSchema,
   };
 
   // New alternatives = [previousPrimary, ...alternatives without chosen].
@@ -100,14 +109,14 @@ export function swapAlternative(current: IntentResolution, index: number): Inten
 
   return {
     action: chosen.action,
-    schema: chosen.action,
+    schema: chosen.schema ?? chosen.action,
     input: chosen.input,
     missingFields: chosen.missingFields,
     confidence: chosen.confidence,
     explanation: chosen.explanation,
-    actionLabel: chosen.action,
-    actionDescription: undefined,
-    inputSchema: {},
+    actionLabel: chosen.actionLabel ?? chosen.action,
+    actionDescription: chosen.actionDescription,
+    inputSchema: chosen.inputSchema ?? {},
     alternatives: nextAlternatives,
   };
 }
@@ -211,12 +220,26 @@ function FieldEditor({
 
 // ── Confidence badge ────────────────────────────────────
 
+/**
+ * Format a confidence score (0-1) as a percentage string. Defensive against
+ * NaN/Infinity/undefined that could leak from a malformed AI response —
+ * returns "—" instead of "NaN%" in those cases.
+ */
+function formatConfidencePct(confidence: number): string {
+  if (!Number.isFinite(confidence)) return "—";
+  return `${Math.round(confidence * 100)}%`;
+}
+
+function confidenceBadgeVariant(confidence: number): "default" | "secondary" | "destructive" {
+  if (!Number.isFinite(confidence) || confidence < 0.5) return "destructive";
+  if (confidence >= 0.8) return "default";
+  return "secondary";
+}
+
 function ConfidenceBadge({ confidence }: { confidence: number }) {
-  const pct = Math.round(confidence * 100);
-  const variant = confidence >= 0.8 ? "default" : confidence >= 0.5 ? "secondary" : "destructive";
   return (
-    <Badge variant={variant} className="text-[10px]">
-      {pct}%
+    <Badge variant={confidenceBadgeVariant(confidence)} className="text-[10px]">
+      {formatConfidencePct(confidence)}
     </Badge>
   );
 }
@@ -344,31 +367,30 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
             {t("ai.didYouMean")}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {displayedAlternatives.map((alt, index) => (
-              <button
-                key={alt.action}
-                type="button"
-                data-testid="proposal-alternative-pill"
-                data-action={alt.action}
-                onClick={() => handleSwapAlternative(index)}
-                className="flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px] transition-colors hover:bg-accent"
-                title={alt.explanation}
-              >
-                <span>{alt.action}</span>
-                <Badge
-                  variant={
-                    alt.confidence >= 0.8
-                      ? "default"
-                      : alt.confidence >= 0.5
-                        ? "secondary"
-                        : "destructive"
-                  }
-                  className="text-[10px]"
+            {displayedAlternatives.map((alt, index) => {
+              const altLabel = resolveTranslatableLabel(alt.actionLabel, alt.action, t);
+              return (
+                <button
+                  key={alt.action}
+                  type="button"
+                  data-testid="proposal-alternative-pill"
+                  data-action={alt.action}
+                  onClick={() => handleSwapAlternative(index)}
+                  aria-label={t("ai.swapAction", {
+                    action: altLabel,
+                    pct: formatConfidencePct(alt.confidence),
+                    defaultValue: `Switch to ${altLabel} (${formatConfidencePct(alt.confidence)})`,
+                  })}
+                  className="flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px] transition-colors hover:bg-accent"
+                  title={alt.explanation}
                 >
-                  {Math.round(alt.confidence * 100)}%
-                </Badge>
-              </button>
-            ))}
+                  <span>{altLabel}</span>
+                  <Badge variant={confidenceBadgeVariant(alt.confidence)} className="text-[10px]">
+                    {formatConfidencePct(alt.confidence)}
+                  </Badge>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

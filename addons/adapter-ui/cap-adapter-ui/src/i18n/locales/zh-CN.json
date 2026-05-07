@@ -315,7 +315,8 @@
     "missingFields": "缺少必填字段",
     "stop": "停止",
     "resolvingIntent": "正在识别操作意图...",
-    "didYouMean": "你是不是想问：",
+    "didYouMean": "您是指：",
+    "swapAction": "切换到 {{action}}（{{pct}}）",
     "serviceUnavailable": "AI 服务暂时不可用，请稍后再试。",
     "insights": {
       "title": "AI 洞察",

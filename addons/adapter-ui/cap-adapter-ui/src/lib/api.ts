@@ -666,6 +666,16 @@ export interface IntentAlternative {
   missingFields: string[];
   /** Human-readable summary suitable for UI display. */
   explanation: string;
+  /**
+   * Display metadata. Server-returned alternatives never carry these (the
+   * route only enriches the primary), but when the UI demotes a previous
+   * primary into the alternatives list it preserves the metadata here so
+   * swapping back is fully reversible (no degraded fields / labels).
+   */
+  schema?: string;
+  actionLabel?: string;
+  actionDescription?: string;
+  inputSchema?: Record<string, IntentFieldSchema>;
 }
 
 /** Result from AI intent resolution */

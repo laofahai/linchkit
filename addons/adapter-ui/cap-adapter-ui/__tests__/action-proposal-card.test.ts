@@ -112,9 +112,13 @@ describe("swapAlternative", () => {
     expect(next.schema).toBe("approve_order");
   });
 
-  test("demotes the previous primary into alternatives so the user can swap back", () => {
+  test("demotes the previous primary into alternatives, preserving display metadata", () => {
     const intent = makeIntent({
       action: "primary_action",
+      schema: "primary_entity",
+      actionLabel: "Primary",
+      actionDescription: "Primary description",
+      inputSchema: { x: { type: "number", required: false } },
       input: { x: 1 },
       confidence: 0.6,
       explanation: "Primary explanation",
@@ -134,11 +138,21 @@ describe("swapAlternative", () => {
     expect(restoredPrimary?.confidence).toBe(0.6);
     expect(restoredPrimary?.missingFields).toEqual(["m"]);
     expect(restoredPrimary?.explanation).toBe("Primary explanation");
+    // Display metadata must round-trip on the demoted primary so swap-back
+    // is fully reversible.
+    expect(restoredPrimary?.schema).toBe("primary_entity");
+    expect(restoredPrimary?.actionLabel).toBe("Primary");
+    expect(restoredPrimary?.actionDescription).toBe("Primary description");
+    expect(restoredPrimary?.inputSchema).toEqual({ x: { type: "number", required: false } });
   });
 
-  test("swap is reversible — swapping back restores the original primary identity", () => {
+  test("swap is reversible — swap-back restores ALL display metadata, not just identity", () => {
     const intent = makeIntent({
       action: "primary_action",
+      schema: "primary_entity",
+      actionLabel: "Primary",
+      actionDescription: "Primary description",
+      inputSchema: { x: { type: "number", required: false } },
       input: { x: 1 },
       confidence: 0.6,
       missingFields: [],
@@ -151,13 +165,39 @@ describe("swapAlternative", () => {
     if (!after) return;
     expect(after.action).toBe("alt_a");
 
-    // The previous primary now sits at index 0 of alternatives.
+    // The previous primary now sits at index 0 of alternatives. Swap back.
     const restored = swapAlternative(after, 0);
     expect(restored).not.toBeNull();
     if (!restored) return;
     expect(restored.action).toBe("primary_action");
     expect(restored.input).toEqual({ x: 1 });
     expect(restored.confidence).toBe(0.6);
+    // Non-lossy: display metadata fully restored.
+    expect(restored.schema).toBe("primary_entity");
+    expect(restored.actionLabel).toBe("Primary");
+    expect(restored.actionDescription).toBe("Primary description");
+    expect(restored.inputSchema).toEqual({ x: { type: "number", required: false } });
+  });
+
+  test("swap-IN uses backend-enriched alternative metadata when present", () => {
+    const enrichedAlt = makeAlt({
+      action: "alt_a",
+      confidence: 0.55,
+      input: { id: "x" },
+      schema: "alt_entity",
+      actionLabel: "Alternative A",
+      actionDescription: "Does the alternative thing",
+      inputSchema: { id: { type: "string", required: true } },
+    });
+    const intent = makeIntent({ alternatives: [enrichedAlt] });
+
+    const next = swapAlternative(intent, 0);
+    expect(next).not.toBeNull();
+    if (!next) return;
+    expect(next.schema).toBe("alt_entity");
+    expect(next.actionLabel).toBe("Alternative A");
+    expect(next.actionDescription).toBe("Does the alternative thing");
+    expect(next.inputSchema).toEqual({ id: { type: "string", required: true } });
   });
 
   test("preserves remaining alternatives sorted by confidence DESC", () => {
