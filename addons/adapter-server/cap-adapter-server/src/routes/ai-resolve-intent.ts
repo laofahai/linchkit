@@ -397,9 +397,7 @@ export function enrichProposal(
     actionLabel: primaryAction.label ?? primaryAction.name,
     actionDescription: primaryAction.description,
     inputSchema: buildInputSchema(primaryAction),
-    ...(enrichedAlternatives && enrichedAlternatives.length > 0
-      ? { alternatives: enrichedAlternatives }
-      : {}),
+    ...(enrichedAlternatives ? { alternatives: enrichedAlternatives } : {}),
   };
 }
 
@@ -443,10 +441,10 @@ function enrichAlternatives(
 
   if (enriched.length === 0) return undefined;
 
-  // Defensive DESC-by-confidence sort — the resolver already returns
-  // alternatives sorted, but filtering above may have shifted positions and
-  // the wire contract is "highest-confidence first".
-  enriched.sort((a, b) => b.confidence - a.confidence);
+  // Order is preserved from the resolver, which already sorts DESC by
+  // confidence in `reconcileAlternatives`. Iteration above only appends —
+  // filtering cannot rearrange surviving entries — so no extra sort is
+  // needed here.
   return enriched;
 }
 
