@@ -436,6 +436,56 @@ describe("InsightEngine", () => {
       expect(engine.getInsights()).toHaveLength(4);
     });
 
+    test("budget-dropped insights roll over and surface on a later cycle", async () => {
+      // Regression for the surfacing-stream leak: with a budget cap that
+      // drops insights, the dropped ones must remain candidates next cycle
+      // — promotedKeys would otherwise hide them from
+      // tryPromoteDriftCandidates forever.
+      const ontology = makeOntology({
+        A: { views: [], actions: [] },
+        B: { views: [], actions: [] },
+        C: { views: [], actions: [] },
+        D: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({ awareness });
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 2 });
+
+      const cycle1 = await engine.generateInsights({ budget });
+      expect(cycle1).toHaveLength(2);
+      const cycle1Ids = new Set(cycle1.map((i) => i.id));
+
+      // Cycle 2 — no new sensor data, but the 2 dropped insights from
+      // cycle 1 are still unsurfaced. They MUST surface now.
+      const cycle2 = await engine.generateInsights({ budget });
+      expect(cycle2).toHaveLength(2);
+      for (const insight of cycle2) {
+        expect(cycle1Ids.has(insight.id)).toBe(false);
+      }
+
+      // Cycle 3 — everything has been surfaced; nothing left.
+      const cycle3 = await engine.generateInsights({ budget });
+      expect(cycle3).toHaveLength(0);
+    });
+
+    test("without budget, surfaced insights are not re-emitted on the next cycle", async () => {
+      // Sanity: the no-budget path also marks insights as surfaced so a
+      // later budgeted cycle does not double-count them.
+      const ontology = makeOntology({
+        A: { views: [], actions: [] },
+        B: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({ awareness });
+
+      const cycle1 = await engine.generateInsights();
+      expect(cycle1).toHaveLength(2);
+
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 10 });
+      const cycle2 = await engine.generateInsights({ budget });
+      expect(cycle2).toHaveLength(0);
+    });
+
     test("with budget ranks DESC by confidence × impact", async () => {
       const ontology = makeOntology({});
       const awareness = createAwarenessEngine({ ontology });

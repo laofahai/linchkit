@@ -11,11 +11,22 @@ const DEFAULT_CONFIG: AttentionBudgetConfig = {
   endorseBoost: 1.3,
 };
 
+/**
+ * Numeric bands for the categorical InsightImpact (`low | medium | high`).
+ * Single source of truth — InsightEngine reads these when ranking insights
+ * via the budget so the band cutoffs do not drift between modules.
+ */
+export const IMPACT_BANDS: Readonly<Record<"low" | "medium" | "high", number>> = {
+  low: 0.3,
+  medium: 0.6,
+  high: 1.0,
+};
+
 function impactNumeric(impact: number): number {
   // impact is a number; treat as low/medium/high bands
-  if (impact <= 0.3) return 0.3;
-  if (impact <= 0.6) return 0.6;
-  return 1.0;
+  if (impact <= IMPACT_BANDS.low) return IMPACT_BANDS.low;
+  if (impact <= IMPACT_BANDS.medium) return IMPACT_BANDS.medium;
+  return IMPACT_BANDS.high;
 }
 
 export function createAttentionBudget(
