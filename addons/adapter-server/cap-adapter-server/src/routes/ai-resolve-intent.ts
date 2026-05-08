@@ -21,7 +21,11 @@
  *    503 with a structured envelope so the UI can show "AI unavailable" UX.
  */
 
-import { type ActionProposal, resolveIntent } from "@linchkit/cap-ai-provider";
+import {
+  type ActionCatalogEntry,
+  type ActionProposal,
+  resolveIntent,
+} from "@linchkit/cap-ai-provider";
 import type {
   ActionDefinition,
   Actor,
@@ -34,6 +38,11 @@ import type { AIAuditLogger } from "@linchkit/core/server";
 import { checkActionPermission } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import { z } from "zod";
+import {
+  DEFAULT_MAX_ACTIONS_PER_ENTITY,
+  DEFAULT_MAX_ENTITIES,
+  limitCatalogToRelevant,
+} from "../lib/relevant-actions";
 import type { ServerOptions } from "../server";
 import { resolveActor, serviceUnavailable } from "./shared";
 
@@ -234,13 +243,36 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
     // name across all entities).
     const catalogSize = computeUniqueCatalogSize(scopedOntology);
 
+    // Spec 52 Phase 1 hardening (#262 item 1) — relevance-based catalog
+    // pre-selection. For large ontologies the full action list blows past
+    // the AI provider's context window. Build a lightweight preview catalog,
+    // lexically rank it against the user's prompt, and pass the kept names
+    // through to the resolver via the existing scope filters. The pre-filter
+    // is a no-op when the catalog is already smaller than the entity cap,
+    // so default behavior on small fixtures is unchanged.
+    const intentOpts = options.intentResolverOptions ?? {};
+    const maxEntities = intentOpts.maxEntities ?? DEFAULT_MAX_ENTITIES;
+    const maxActionsPerEntity = intentOpts.maxActionsPerEntity ?? DEFAULT_MAX_ACTIONS_PER_ENTITY;
+    const previewCatalog = buildPreviewCatalog(scopedOntology, parsed.data.scope);
+    const filteredCatalog = limitCatalogToRelevant({
+      catalog: previewCatalog,
+      prompt: parsed.data.prompt,
+      maxEntities,
+      maxActionsPerEntity,
+    });
+    const augmentedScope = mergeScopeWithFilteredCatalog({
+      requestScope: parsed.data.scope,
+      filteredCatalog,
+      previewCatalog,
+    });
+
     const startedAt = Date.now();
     let proposal: Awaited<ReturnType<typeof resolveIntent>> = null;
     try {
       proposal = await resolveIntent(
         {
           prompt: parsed.data.prompt,
-          scope: parsed.data.scope,
+          scope: augmentedScope,
           tenant: tenantId,
           userId: actor.id,
         },
@@ -509,4 +541,102 @@ function computeUniqueCatalogSize(ontology: OntologyRegistryLike): number {
     }
   }
   return seen.size;
+}
+
+// ── Catalog preview + scope merging ─────────────────────────
+
+/**
+ * Build a flat `ActionCatalogEntry[]` snapshot of what the resolver would
+ * see. Mirrors `buildActionCatalog()` in cap-ai-provider but is owned by
+ * this route so we can run relevance ranking without invoking the resolver
+ * twice. Identical de-duplication semantics: the FIRST entity exposing an
+ * action wins (matching the iteration order of `listEntities()`).
+ *
+ * Honors the caller's `scope.entityFilter` / `scope.actionFilter` so the
+ * relevance ranker scores the same set of candidates the resolver will.
+ */
+function buildPreviewCatalog(
+  ontology: OntologyRegistryLike,
+  scope: { entityFilter?: string[]; actionFilter?: string[] } | undefined,
+): ActionCatalogEntry[] {
+  const entityFilter = toFilterSet(scope?.entityFilter);
+  const actionFilter = toFilterSet(scope?.actionFilter);
+
+  const seen = new Set<string>();
+  const catalog: ActionCatalogEntry[] = [];
+
+  for (const entityName of ontology.listEntities()) {
+    if (entityFilter && !entityFilter.has(entityName)) continue;
+    for (const action of ontology.actionsFor(entityName)) {
+      if (seen.has(action.name)) continue;
+      if (actionFilter && !actionFilter.has(action.name)) continue;
+      seen.add(action.name);
+      catalog.push(toCatalogPreviewEntry(action));
+    }
+  }
+  return catalog;
+}
+
+function toCatalogPreviewEntry(action: ActionDefinition): ActionCatalogEntry {
+  const inputFields: ActionCatalogEntry["inputFields"] = [];
+  if (action.input) {
+    for (const [name, raw] of Object.entries(action.input)) {
+      const field = raw as FieldDefinition;
+      inputFields.push({
+        name,
+        type: field.type,
+        required: field.required === true,
+        label: field.label,
+        description: field.description,
+      });
+    }
+  }
+
+  // Mirror cap-ai-provider's joining of description + promptHints so the
+  // relevance ranker scores the same text the resolver would feed the AI.
+  const hints = action.ai?.promptHints;
+  const description =
+    [action.description, ...(hints ?? [])].filter((s): s is string => Boolean(s)).join(" — ") ||
+    undefined;
+
+  return {
+    name: action.name,
+    entity: action.entity,
+    label: action.label,
+    description,
+    inputFields,
+  };
+}
+
+function toFilterSet(values: readonly string[] | undefined): Set<string> | undefined {
+  if (!values || values.length === 0) return undefined;
+  return new Set(values);
+}
+
+/**
+ * Merge the caller-supplied scope with the relevance-pruned action list.
+ *
+ * No-op when no truncation occurred (filteredCatalog has the same length as
+ * previewCatalog) — the caller's scope passes through unchanged so audit /
+ * test behavior on small fixtures is byte-for-byte identical.
+ *
+ * When truncation DID happen we narrow `actionFilter` to the kept set
+ * (intersected with any caller-supplied filter, which has already been
+ * applied in `buildPreviewCatalog`). `entityFilter` is similarly narrowed
+ * to the entities surviving truncation.
+ */
+function mergeScopeWithFilteredCatalog(opts: {
+  requestScope: { entityFilter?: string[]; actionFilter?: string[] } | undefined;
+  filteredCatalog: ActionCatalogEntry[];
+  previewCatalog: ActionCatalogEntry[];
+}): { entityFilter?: string[]; actionFilter?: string[] } | undefined {
+  if (opts.filteredCatalog.length === opts.previewCatalog.length) {
+    return opts.requestScope;
+  }
+  const keptActions = opts.filteredCatalog.map((e) => e.name);
+  const keptEntities = Array.from(new Set(opts.filteredCatalog.map((e) => e.entity)));
+  return {
+    entityFilter: keptEntities,
+    actionFilter: keptActions,
+  };
 }

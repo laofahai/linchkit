@@ -144,6 +144,19 @@ export interface ServerOptions {
    * `/api/ai/resolve-intent`) emit one entry per call (Spec 52 §8.1.4).
    */
   aiAuditLogger?: AIAuditLogger;
+  /**
+   * Intent resolver tunables — Spec 52 Phase 1 hardening (#262 item 1).
+   * When the actor-visible catalog is large, the intent resolver lexically
+   * pre-filters it to keep only the entries plausibly relevant to the
+   * user's prompt. Defaults are chosen to fit a comfortable AI context
+   * window for typical ontologies; override per-deployment if needed.
+   */
+  intentResolverOptions?: {
+    /** Max distinct entities surfaced to the AI. Default 20. */
+    maxEntities?: number;
+    /** Max actions per kept entity. Default 20. */
+    maxActionsPerEntity?: number;
+  };
   /** Metrics collector — when provided, /health includes metrics summary */
   metricsCollector?: InMemoryMetricsCollector;
   /** Flow definitions — used by /api/flows endpoints */
