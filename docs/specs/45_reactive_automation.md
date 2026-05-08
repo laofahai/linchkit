@@ -125,7 +125,7 @@ defineWatcher({
     filter: { field: 'status', operator: 'eq', value: 'submitted' },
     aggregate: { field: 'amount', op: 'count' },
   },
-  trigger: { type: 'schedule', cron: '0 9 * * 1', condition: { gt: 0 } },
+  trigger: { type: 'schedule', cron: '0 9 * * 1', condition: { count: { gt: 0 } } },
   effect: { action: 'send_digest', params: () => ({}) },
 })
 ```
