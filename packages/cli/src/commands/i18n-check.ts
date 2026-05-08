@@ -62,15 +62,19 @@ export interface CapabilityReport {
 
 /**
  * Flatten a nested locale tree into a map of dot-separated key → leaf value.
- * Non-string leaves (numbers, arrays, etc.) are coerced to string. We never
- * mutate the input.
+ * Non-string leaves (numbers, arrays, etc.) are coerced to string. The input
+ * is never mutated. The accumulator is passed through recursion to avoid
+ * re-allocating intermediate objects on every level.
  */
-export function flattenLocale(tree: LocaleTree, prefix = ""): Record<string, string> {
-  const out: Record<string, string> = {};
+export function flattenLocale(
+  tree: LocaleTree,
+  prefix = "",
+  out: Record<string, string> = {},
+): Record<string, string> {
   for (const [k, v] of Object.entries(tree)) {
     const path = prefix ? `${prefix}.${k}` : k;
     if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-      Object.assign(out, flattenLocale(v as LocaleTree, path));
+      flattenLocale(v as LocaleTree, path, out);
     } else {
       out[path] = typeof v === "string" ? v : String(v);
     }
@@ -114,7 +118,8 @@ export function compareLocales(locales: Record<string, Record<string, string>>):
 
   const sortedKeys = Array.from(allKeys).sort();
   for (const key of sortedKeys) {
-    const presentIn = localeNames.filter((n) => locales[n] && key in (locales[n] ?? {}));
+    // localeNames came from Object.keys(locales), so locales[n] is defined.
+    const presentIn = localeNames.filter((n) => key in (locales[n] as Record<string, string>));
     const missingIn = localeNames.filter((n) => !presentIn.includes(n));
     if (missingIn.length === 0) continue;
 
@@ -347,8 +352,8 @@ export const i18nCheckCommand = defineCommand({
     const outputJson = Boolean(args.json);
 
     const groups = discoverLocaleGroups(rootDir);
-    const reports: CapabilityReport[] = [];
-    for (const g of groups) reports.push(await checkCapability(g));
+    // Run capability checks in parallel — each does independent file I/O.
+    const reports: CapabilityReport[] = await Promise.all(groups.map(checkCapability));
 
     const totalIssues = reports.reduce((acc, r) => acc + r.issues.length, 0);
     const skippedCount = reports.filter((r) => r.skipped).length;

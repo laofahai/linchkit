@@ -187,6 +187,7 @@ function buildCommandsManifest(
     overlay: "Manage runtime overlay fields (list, promote)",
     registry: "Capability registry management (sync, list)",
     setup: "Sync AI tool configurations (skills, MCP config) for the current project",
+    "i18n-check": "Validate translation key consistency across capability locale files",
   };
 
   for (const name of builtinNames) {
