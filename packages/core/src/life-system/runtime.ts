@@ -34,6 +34,7 @@ import type { InsightEngineOptions } from "./insight-engine";
 import type { InsightTranslatorRegistry } from "./insight-to-proposal";
 import type { MemoryEngineOptions } from "./memory-engine";
 import { MemoryEngine } from "./memory-engine";
+import type { PreAnalysisPipeline } from "./proposal-preanalysis/types";
 import type { SignalBus } from "./signal-bus";
 import { createSignalBus } from "./signal-bus";
 
@@ -83,6 +84,15 @@ export interface EvolutionRuntimeOptions {
   proposalCapability?: string;
   /** Default author stamped onto every translated proposal. */
   proposalAuthor?: ProposalAuthor;
+  /**
+   * Optional Proposal Pre-Analysis pipeline (Spec 55 §7.3).
+   *
+   * When supplied, every translated proposal is analyzed (dedup → conflict →
+   * impact → backtest) before surfacing; results land on
+   * `EvolutionCycleResult.proposalAnalyses`. When omitted, that field is
+   * `[]` and behavior matches pre-#280 runtimes (zero regression).
+   */
+  proposalPreAnalysisPipeline?: PreAnalysisPipeline;
 }
 
 /** Empty OntologyRegistry stub for environments where no ontology is supplied. */
@@ -133,6 +143,7 @@ export function createEvolutionRuntime(opts: EvolutionRuntimeOptions): Evolution
     ontology,
     proposalCapability: opts.proposalCapability,
     proposalAuthor: opts.proposalAuthor,
+    proposalPreAnalysisPipeline: opts.proposalPreAnalysisPipeline,
   });
 
   // Register sensors, guarding against duplicate names. SignalBus stores sensors
