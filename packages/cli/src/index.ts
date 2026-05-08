@@ -26,6 +26,7 @@ import { devCommand } from "./commands/dev";
 import { docsCommand } from "./commands/docs";
 import { doctorCommand } from "./commands/doctor";
 import { execCommand } from "./commands/exec";
+import { i18nCheckCommand } from "./commands/i18n-check";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
@@ -67,6 +68,7 @@ const RESERVED_NAMESPACES = new Set([
   "overlay",
   "registry",
   "setup",
+  "i18n-check",
 ]);
 
 /**
@@ -238,6 +240,7 @@ async function run() {
     overlay: overlayCommand,
     registry: registryCommand,
     setup: setupCommand,
+    "i18n-check": i18nCheckCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();
