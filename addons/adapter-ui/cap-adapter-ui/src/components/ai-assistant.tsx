@@ -7,9 +7,21 @@
  * - Tool/function calling support (server-side tools rendered automatically)
  * - Context-aware: passes current schema/record context with each request
  *
- * When AI is enabled, it resolves intent first. Actionable requests show an
- * ActionProposalCard directly; only non-actionable prompts fall back to the
- * general chat endpoint.
+ * Intent-resolution routing when AI is enabled (#238):
+ *
+ *  - `proposal` (any confidence) → render `ActionProposalCard`. Low-
+ *    confidence proposals are intentionally NOT gated — the card itself
+ *    exposes alternative pills + a "Did you mean" affordance, so the user
+ *    can disambiguate or pick a different action without typing again.
+ *    Previously a `>= MIN_PROPOSAL_CONFIDENCE` gate dropped these into
+ *    chat, which then hallucinated "creating..." replies that never
+ *    touched the database — the original #238 dead-end.
+ *  - `no-match` / `unavailable` / transport-error → fall back to the
+ *    general chat endpoint. Chat runs with `allowActionExecution=false`
+ *    so it cannot mutate, but it remains useful for read-only / Q&A /
+ *    "summarize this record" flows. Actionable prompts that misroute
+ *    here are a separate concern tracked in the chat system-prompt
+ *    follow-up — see issue link in the PR for #238.
  */
 
 import { useChat } from "@ai-sdk/react";
@@ -35,8 +47,14 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type ActionResult, type IntentResolution, isAiEnabled, resolveIntent } from "../lib/api";
-import { ActionProposalCard, MIN_PROPOSAL_CONFIDENCE } from "./action-proposal-card";
+import {
+  type ActionResult,
+  type IntentResolution,
+  isAiEnabled,
+  type ResolveIntentResult,
+  resolveIntent,
+} from "../lib/api";
+import { ActionProposalCard } from "./action-proposal-card";
 
 // ── Proposal state ───────────────────────────────────────
 
@@ -51,6 +69,49 @@ function createTextMessage(role: "user" | "assistant", text: string): UIMessage 
     role,
     parts: [{ type: "text", text }],
   };
+}
+
+// ── Intent routing decision ──────────────────────────────
+
+/**
+ * Outcome of inspecting an intent-resolution result. Drives the UX in
+ * `handleSend` and is exported as a pure helper so the decision matrix can
+ * be unit-tested without mounting the component (the existing test setup
+ * is logic-only — no jsdom).
+ *
+ *  - `proposal`        — render the Action Proposal Card. ALL proposals are
+ *                        surfaced regardless of confidence (#238); the card
+ *                        itself disambiguates via alternative pills.
+ *  - `chat-fallback`   — let the general chat endpoint take the prompt.
+ *                        Used for `no-match`, `unavailable`, and transport-
+ *                        error outcomes so read-only conversational prompts
+ *                        ("summarize this record", "hello") still work.
+ *                        For `unavailable`, callers should also raise a
+ *                        toast — `notify` carries that hint.
+ */
+export type IntentRoutingDecision =
+  | { kind: "proposal"; proposal: IntentResolution }
+  | { kind: "chat-fallback"; notify?: "service-unavailable" };
+
+/**
+ * Pure routing helper — maps a `ResolveIntentResult` (or transport-error
+ * sentinel) onto the UX action the assistant should take. We drop the
+ * historical `>= MIN_PROPOSAL_CONFIDENCE` gate so low-confidence proposals
+ * become cards (the #238 fix); other outcomes fall through to chat to
+ * preserve the "ask the AI a read-only question" UX.
+ */
+export function decideIntentRouting(
+  outcome: ResolveIntentResult | { kind: "transport-error" },
+): IntentRoutingDecision {
+  switch (outcome.kind) {
+    case "proposal":
+      return { kind: "proposal", proposal: outcome.proposal };
+    case "unavailable":
+      return { kind: "chat-fallback", notify: "service-unavailable" };
+    case "no-match":
+    case "transport-error":
+      return { kind: "chat-fallback" };
+  }
 }
 
 // ── Component ────────────────────────────────────────────
@@ -139,37 +200,47 @@ export function AIAssistant({
 
     if (isAiEnabled()) {
       setIsResolvingIntent(true);
+      let outcome: ResolveIntentResult | { kind: "transport-error" };
       try {
         // Narrow the catalog to the current entity when the user is on a
         // record page. `recordId` does not have a direct equivalent in the
         // new resolver scope today; UX follow-up if record-context priming
         // turns out to matter for accuracy.
-        const result = await resolveIntent(trimmed, {
+        outcome = await resolveIntent(trimmed, {
           entityFilter: params.name ? [params.name] : undefined,
         });
-        if (result.kind === "unavailable") {
-          // Spec 52 §1.1 — surface a non-blocking toast so 503 isn't silently
-          // swallowed. The user is informed and the chat fallback below still
-          // attempts the general endpoint, which itself may also be down — but
-          // that path produces its own error UI in the message stream.
-          toast.error(t("ai.serviceUnavailable"));
-        } else if (
-          result.kind === "proposal" &&
-          result.proposal.confidence >= MIN_PROPOSAL_CONFIDENCE
-        ) {
-          setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
-          const proposalId = crypto.randomUUID();
-          setProposals((prev) => [...prev, { id: proposalId, intent: result.proposal }]);
-          return;
-        }
       } catch {
-        // Transport-level error (network, non-503 non-2xx) — fall back to
-        // general chat. The unavailable-503 case is handled above.
+        // Transport-level error (network, non-503 non-2xx). The decision
+        // helper routes this to chat-fallback so the user still gets some
+        // response — chat may be reachable even when the resolver isn't.
+        // Actionable prompts that misroute through chat are tracked by
+        // the chat-system-prompt follow-up linked from PR #283.
+        outcome = { kind: "transport-error" };
       } finally {
         setIsResolvingIntent(false);
       }
+
+      const decision = decideIntentRouting(outcome);
+
+      if (decision.kind === "proposal") {
+        // Echo the user prompt only for the card path — chat fallback adds
+        // the user message itself via `sendMessage` and double-echoing
+        // would duplicate it in the stream.
+        setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
+        const proposalId = crypto.randomUUID();
+        setProposals((prev) => [...prev, { id: proposalId, intent: decision.proposal }]);
+        return;
+      }
+
+      if (decision.notify === "service-unavailable") {
+        toast.error(t("ai.serviceUnavailable"));
+      }
+      // Fall through to chat — preserves read-only Q&A and chit-chat for
+      // prompts the resolver couldn't classify as actionable.
     }
 
+    // AI disabled OR resolver returned a non-action outcome: send the
+    // prompt to the general chat endpoint.
     sendMessage({ text: trimmed });
   }, [isLoading, isResolvingIntent, params.name, sendMessage, setMessages, t]);
 
