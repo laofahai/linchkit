@@ -26,6 +26,16 @@ if ! printf '%s' "$COMMAND" | grep -Eq '(^|[;&|])[[:space:]]*git[[:space:]]+comm
   exit 0
 fi
 
+# Branch guard: refuse commits on main/master. CLAUDE.md mandates feature-
+# branch worktrees for all changes; an accidental cd/pwd slip during parallel
+# work just landed an empty commit on main (issue #291). This must run BEFORE
+# the gate-freshness check so a fresh-gate state cannot bypass the guard.
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  echo "BLOCKED: refusing to commit on $BRANCH. Use 'git worktree add .claude/worktrees/<name> -b <branch>' for a feature branch." >&2
+  exit 2
+fi
+
 source "$(dirname "$0")/workflow-state.sh"
 
 MISSING=""
