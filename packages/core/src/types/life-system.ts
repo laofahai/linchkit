@@ -7,6 +7,7 @@
  * These are abstract contracts. Concrete implementations live in capabilities.
  */
 
+import type { ProposalPreAnalysisResult } from "../life-system/proposal-preanalysis/types";
 import type { ProposalDefinition } from "./proposal";
 
 // ── Signal sources (Spec 55 §3.1) ──────────────────────────
@@ -289,6 +290,16 @@ export interface EvolutionCycleResult {
    * may produce proposals on a future cycle once they surface.
    */
   proposals: ProposalDefinition[];
+  /**
+   * Pre-analysis results for proposals emitted this cycle (Spec 55 §7.3).
+   *
+   * Empty array when no `proposalPreAnalysisPipeline` was supplied to
+   * {@link createEvolutionCycle}, or when no proposals were emitted. When
+   * present, indexes match {@link proposals} 1:1 — `proposalAnalyses[i]`
+   * is the analysis envelope for `proposals[i]`. Each entry also carries
+   * its `proposalId` for explicit correlation when callers reorder.
+   */
+  proposalAnalyses: ProposalPreAnalysisResult[];
 }
 
 /**

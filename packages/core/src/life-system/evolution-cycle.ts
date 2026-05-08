@@ -10,12 +10,10 @@
  *   5. Generates Insights, capped by AwarenessEngine.attentionBudget
  *   6. Translates surfaced Insights into Proposals via the translator
  *      registry, when one is supplied (Spec 55 §7).
- *
- * Slice 3 closes the Insight → Proposal half of the cycle. The pre-analysis
- * pipeline (`proposal-preanalysis/*`, Spec 55 §7.3) is NOT invoked here —
- * proposal validation, dedup, and impact analysis stay separate concerns
- * orchestrated by capabilities (TODO: wire pre-analysis once proposal flow
- * is finalized — Spec 55 §7.3).
+ *   7. Runs each emitted Proposal through the pre-analysis pipeline
+ *      (dedup → conflict → impact → backtest) when one is supplied
+ *      (Spec 55 §7.3). Results land on `result.proposalAnalyses`,
+ *      indexed 1:1 with `result.proposals`.
  */
 
 import type { OntologyRegistry } from "../ontology/ontology-registry";
@@ -30,6 +28,7 @@ import type { InsightEngineOptions } from "./insight-engine";
 import { createInsightEngine } from "./insight-engine";
 import type { InsightTranslatorRegistry, TranslatorContext } from "./insight-to-proposal";
 import type { MemoryEngine } from "./memory-engine";
+import type { PreAnalysisPipeline, ProposalPreAnalysisResult } from "./proposal-preanalysis/types";
 import type { SignalBus } from "./signal-bus";
 
 export interface EvolutionCycleOptions {
@@ -63,10 +62,25 @@ export interface EvolutionCycleOptions {
   proposalCapability?: string;
   /** Optional default author stamped onto every translated proposal. */
   proposalAuthor?: ProposalAuthor;
+  /**
+   * Optional Proposal Pre-Analysis pipeline (Spec 55 §7.3).
+   *
+   * When supplied, every translated proposal is passed through
+   * `pipeline.analyze(proposal)` and the resulting envelopes land on
+   * `EvolutionCycleResult.proposalAnalyses`, indexed 1:1 with
+   * `result.proposals`. The pipeline is contractually non-throwing —
+   * analyzer errors are captured into per-stage envelopes — so the
+   * cycle never aborts on analyzer failure.
+   *
+   * When omitted, `proposalAnalyses` is `[]` and behavior is identical
+   * to pre-#280 cycles (zero regression).
+   */
+  proposalPreAnalysisPipeline?: PreAnalysisPipeline;
 }
 
 export function createEvolutionCycle(opts: EvolutionCycleOptions): EvolutionCycle {
-  const { signalBus, memoryEngine, awareness, translatorRegistry } = opts;
+  const { signalBus, memoryEngine, awareness, translatorRegistry, proposalPreAnalysisPipeline } =
+    opts;
 
   const insightEngine = createInsightEngine({
     awareness,
@@ -141,12 +155,26 @@ export function createEvolutionCycle(opts: EvolutionCycleOptions): EvolutionCycl
         proposals = translated.filter((p): p is ProposalDefinition => p !== null);
       }
 
+      // 7. Pre-analysis: when a pipeline is wired, every emitted proposal
+      // gets analyzed (dedup → conflict → impact → backtest). The
+      // pipeline contract guarantees `analyze()` never throws — analyzer
+      // failures are captured into per-stage envelopes — so we run all
+      // proposals concurrently. Indexes match `proposals` 1:1; each
+      // envelope also carries `proposalId` for callers that reorder.
+      let proposalAnalyses: ProposalPreAnalysisResult[] = [];
+      if (proposalPreAnalysisPipeline && proposals.length > 0) {
+        proposalAnalyses = await Promise.all(
+          proposals.map((proposal) => proposalPreAnalysisPipeline.analyze(proposal)),
+        );
+      }
+
       return {
         signalsCollected: signals.length,
         driftsDetected,
         newInsights: surfacedInsights,
         totalInsights: insightEngine.getInsights().length,
         proposals,
+        proposalAnalyses,
       };
     },
   };

@@ -45,6 +45,7 @@ export function isAiAgentCaller(actor: Actor | undefined | null): boolean {
   if ((actor.type as string) === "mcp") return true;
   // Bracket notation keeps this resilient to `noPropertyAccessFromIndexSignature`
   // (Record<string, unknown> can't be dot-accessed under that flag).
+  // biome-ignore lint/complexity/useLiteralKeys: bracket notation required for index-signature access
   const channel = actor.metadata?.["channel"];
   return channel === "mcp" || channel === "ai";
 }

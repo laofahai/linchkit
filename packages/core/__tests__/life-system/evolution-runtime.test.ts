@@ -138,6 +138,63 @@ describe("createEvolutionRuntime", () => {
     expect(result.signalsCollected).toBe(0);
   });
 
+  test("forwards proposalPreAnalysisPipeline through to inner cycle (Spec 55 §7.3)", async () => {
+    // Without this forwarding the pipeline option is dead config — production
+    // wiring builds cycles via createEvolutionRuntime, never the lower-level
+    // factory. Codex P1 caught exactly this gap on the #280 MVP.
+    const { createDefaultInsightTranslatorRegistry } = await import(
+      "../../src/life-system/insight-to-proposal"
+    );
+    const { createPreAnalysisPipeline } = await import(
+      "../../src/life-system/proposal-preanalysis"
+    );
+
+    let pipelineCalls = 0;
+    const pipeline = createPreAnalysisPipeline({
+      analyzers: [
+        {
+          stage: "dedup",
+          name: "spy_dedup",
+          analyze: async () => {
+            pipelineCalls++;
+            return { similar: [], exactMatch: null, payloadHash: "spy" };
+          },
+        },
+      ],
+    });
+
+    const ontology = {
+      describe: (name: string) =>
+        name === "Order" ? ({ views: [], actions: [], fields: {} } as never) : undefined,
+      listEntities: () => ["Order"],
+      searchEntities: () => [],
+      actionsFor: () => [],
+      rulesFor: () => [],
+      stateFor: () => undefined,
+      viewsFor: () => [],
+      flowsFor: () => [],
+      handlersFor: () => [],
+      relatedEntities: () => [],
+      entitiesImplementing: () => [],
+      toJSON: () => ({}),
+      toMarkdown: () => "",
+    };
+
+    const runtime = createEvolutionRuntime({
+      sensors: [],
+      ontology,
+      translatorRegistry: createDefaultInsightTranslatorRegistry(),
+      proposalPreAnalysisPipeline: pipeline,
+    });
+
+    const result = await runtime.evolutionCycle.runCycle();
+
+    expect(result.proposals.length).toBeGreaterThanOrEqual(1);
+    expect(result.proposalAnalyses).toHaveLength(result.proposals.length);
+    expect(pipelineCalls).toBe(result.proposals.length);
+    expect(result.proposalAnalyses[0]?.stages.dedup?.status).toBe("ok");
+  });
+
   test("throws on duplicate sensor names", () => {
     // Two sensors with the same name silently overwrite each other on SignalBus
     // (Map keyed by name). Duplicates indicate a capability misconfiguration
