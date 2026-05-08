@@ -5,6 +5,15 @@
  * - Priority ordering (descending)
  * - Short-circuiting on block effects
  * - Effect merging across all triggered rules
+ *
+ * Two-phase API for batch optimization (Spec 04 §8.2, issue #209):
+ *  - {@link collectRules}: pure rule-set resolution by `trigger.action`.
+ *    Stable for the entire batch — call ONCE per action name.
+ *  - {@link evaluateConditions}: per-record condition evaluation against
+ *    a pre-collected rule set. Call once per record.
+ *
+ * {@link evaluateRules} remains as the simple per-record entry point that
+ * accepts an already-filtered rule list (back-compat).
  */
 
 import type { MetricsCollector } from "../observability/metrics";
@@ -97,13 +106,55 @@ export interface RuleEvalOutput {
 }
 
 /**
- * Evaluate a list of rules against the given input context.
+ * Resolve the rule set for an action name.
+ *
+ * Pure-function filter: returns rules whose `trigger.action` matches
+ * `actionName` (string equality, or membership when the trigger lists
+ * multiple action names). Independent of the record under evaluation,
+ * so the result is STABLE for the entire batch — callers should hoist
+ * this call OUT of any per-record loop.
+ *
+ * Non-action triggers (state-change, field-change, event, schedule) are
+ * filtered out; they don't apply to the action-execution path.
+ *
+ * Spec 04 §8.2 batch-mode rule-evaluation merging (issue #209): a
+ * 100-item batch with N rules calls `collectRules` once, not 100×.
+ */
+export function collectRules(actionName: string, rules: RuleDefinition[]): RuleDefinition[] {
+  const matched: RuleDefinition[] = [];
+  for (const rule of rules) {
+    const trigger = rule.trigger as { action?: string | string[] };
+    const actions = trigger.action;
+    if (actions === undefined) continue;
+    if (typeof actions === "string") {
+      if (actions === actionName) matched.push(rule);
+    } else if (Array.isArray(actions) && actions.includes(actionName)) {
+      matched.push(rule);
+    }
+  }
+  // Pre-sort by priority descending so the per-record evaluator never has
+  // to reorder the same rule set across a batch (codex P2 review on
+  // PR #288). Default priority is 0; ties preserve declaration order
+  // because Array#sort in V8 / JSC is stable.
+  matched.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  return matched;
+}
+
+/**
+ * Evaluate a pre-collected rule set against a single record/context.
  *
  * Rules are sorted by priority (descending). Block effects cause
  * short-circuiting: once a block is encountered, remaining rules
  * are skipped but all block reasons so far are collected.
+ *
+ * Empty rule list short-circuits: returns a no-op result without
+ * touching any per-record condition logic.
+ *
+ * This is the per-record path of the two-phase API (Spec 04 §8.2,
+ * issue #209). For batch execution, call {@link collectRules} once
+ * per batch and pass the result here for every item.
  */
-export async function evaluateRules(
+export async function evaluateConditions(
   rules: RuleDefinition[],
   input: RuleEvalInput,
   options?: RuleEvalOptions,
@@ -130,8 +181,11 @@ export async function evaluateRules(
     return output;
   }
 
-  // Sort by priority descending (higher priority first); default to 0
-  const sorted = [...rules].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  // Rules are pre-sorted by priority (descending) inside `collectRules` —
+  // we iterate them as-is to avoid reordering the same set N times across
+  // a batch (codex P2 review on PR #288). Callers building a rules array
+  // by hand for the back-compat `evaluateRules` entry point get the sort
+  // for free via the wrapper below.
 
   const ctx: ConditionContext = {
     target: input.target,
@@ -140,7 +194,7 @@ export async function evaluateRules(
     meta: input.meta,
   };
 
-  for (const rule of sorted) {
+  for (const rule of rules) {
     // Skip rules that have already been approved
     if (options?.skipRules?.includes(rule.name)) {
       output.results.push({
@@ -218,6 +272,28 @@ export async function evaluateRules(
 
   output.duration = performance.now() - totalStart;
   return output;
+}
+
+/**
+ * Per-record rule evaluation against a hand-filtered rule list.
+ *
+ * Back-compat entry point: existing callers that pass an UNSORTED rule
+ * array still get priority-descending evaluation. The wrapper sorts
+ * once before delegating to {@link evaluateConditions}.
+ *
+ * New batch callers should split the work via {@link collectRules}
+ * (which sorts) + {@link evaluateConditions} (which assumes sorted
+ * input) so the rule-set resolution AND ordering run once per batch
+ * instead of once per record (Spec 04 §8.2, issue #209).
+ */
+export async function evaluateRules(
+  rules: RuleDefinition[],
+  input: RuleEvalInput,
+  options?: RuleEvalOptions,
+): Promise<RuleEvalOutput> {
+  if (rules.length <= 1) return evaluateConditions(rules, input, options);
+  const sorted = [...rules].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  return evaluateConditions(sorted, input, options);
 }
 
 /**

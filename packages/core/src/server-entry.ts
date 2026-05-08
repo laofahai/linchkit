@@ -88,6 +88,8 @@ export {
 } from "./engine/proposal-generator";
 
 export {
+  collectRules,
+  evaluateConditions,
   evaluateRules,
   type RuleEvalInput,
   type RuleEvalOptions,
