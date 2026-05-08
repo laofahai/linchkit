@@ -297,9 +297,11 @@ export type {
 // sensor-registry module path.
 export {
   createDedupAnalyzer,
+  createDefaultInsightTranslatorRegistry,
   createDispatchQuery,
   createEvolutionRuntime,
   createImpactAnalyzer,
+  createInsightTranslatorRegistry,
   createPreAnalysisPipeline,
   createSignalBus,
   defineSensor,
