@@ -326,12 +326,16 @@ describe("buildSystemPrompt — mutation-policy suffix", () => {
     expect(prompt).toContain("CANNOT directly create");
   });
 
-  test("default DEFAULT_SYSTEM_PROMPT no longer claims to perform actions", () => {
+  test("default DEFAULT_SYSTEM_PROMPT keeps the original confirmation wording (gemini #286 review)", () => {
+    // Reverted from the agent's tightened wording: when allowActionExecution
+    // is true (executeAction tool exposed), the AI legitimately performs
+    // writes. Telling the base prompt to "do NOT claim to perform the
+    // action" would force the AI to deny tool calls it just succeeded.
+    // Read-only safety lives entirely in the suffix (only appended when
+    // allowActionExecution=false).
     const prompt = buildSystemPrompt({ allowActionExecution: true });
-    // Old wording removed
-    expect(prompt).not.toContain("wait for explicit user confirmation before execution");
-    // New wording present
-    expect(prompt).toContain("do NOT claim to perform the action");
+    expect(prompt).toContain("wait for explicit user confirmation before execution");
+    expect(prompt).not.toContain("Mutation Policy");
   });
 });
 
@@ -345,7 +349,10 @@ describe("chat route — passes allowActionExecution=false to buildSystemPrompt"
     // a full streamText mock harness.
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const here = new URL(".", import.meta.url).pathname;
+    const { fileURLToPath } = await import("node:url");
+    // Use fileURLToPath for Windows portability — `.pathname` returns
+    // `/C:/path/` on Windows and breaks `path.resolve` (CodeRabbit review).
+    const here = path.dirname(fileURLToPath(import.meta.url));
     const source = await fs.readFile(path.resolve(here, "../src/routes/ai-api.ts"), "utf-8");
 
     // Find the chat route definition
