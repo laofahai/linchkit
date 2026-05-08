@@ -108,6 +108,14 @@ export interface BaseFieldDefinition extends FieldConstraints {
   ui?: FieldUIHints;
   /** Capability required for this field. Field is hidden when capability is absent. */
   requiresCapability?: string;
+  /**
+   * When true and the field is `required`, an empty string ("") is treated as
+   * a present value rather than missing during NL intent reconciliation
+   * (Spec 52). Defaults to false — the resolver continues to surface "" as a
+   * missing required field for normal scalar inputs. Has no effect on `null`
+   * or absent values, which are always treated as missing.
+   */
+  allowEmpty?: boolean;
   /** Derived field configuration (spec 48). When set, field value is computed, not user-input. */
   derived?: {
     /** Derivation type */
