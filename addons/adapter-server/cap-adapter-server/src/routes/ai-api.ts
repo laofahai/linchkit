@@ -503,7 +503,10 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         // Resolve locale from request body or Accept-Language header
         const locale = extractLocale(context?.locale, request);
 
-        // Build dynamic system prompt with schema context from OntologyRegistry
+        // Build dynamic system prompt with schema context from OntologyRegistry.
+        // Mirror `allowActionExecution=false` from the buildTools call below —
+        // chat tools are read-only, and the system prompt must explicitly tell
+        // the AI to never claim it performed a write. See issue #285.
         const systemPrompt = buildSystemPrompt({
           assistantConfig,
           ontologyRegistry: options.ontologyRegistry,
@@ -514,6 +517,7 @@ Only include fields where you have genuine confidence. Omit fields where you wou
             recordData: context?.recordData,
             locale,
           },
+          allowActionExecution: false,
         });
 
         // Build context-aware tools (query, describe, navigate). Writes are

@@ -62,8 +62,30 @@ export function extractLocale(
 const DEFAULT_SYSTEM_PROMPT = `You are LinchKit AI Assistant, an intelligent business operations helper.
 You help users understand their data, navigate the system, query records, and prepare business actions for confirmation.
 Be concise, helpful, and action-oriented. When users ask about data, use the available tools to query and analyze it.
-When users want to perform write actions, explain what will happen and wait for explicit user confirmation before execution.
+When users want to perform write actions, explain what will happen — but do NOT claim to perform the action; the structured proposal flow handles execution.
 Always respond in the same language the user writes in.`;
+
+/**
+ * Hardcoded mutation-policy suffix appended when chat tools are read-only
+ * (caller passes `allowActionExecution=false`). This prevents the AI from
+ * hallucinating "Created successfully!" replies for prompts that look like
+ * mutations but cannot be executed from chat. See issue #285.
+ *
+ * Placed AFTER all other parts so user-supplied prompts (assistantConfig.systemPrompt)
+ * can never accidentally override it.
+ *
+ * The recovery path deliberately points at the sidebar entity action button
+ * only — telling the user "type the action again" loops them right back
+ * into chat (the same dead-end that misrouted the prompt here in the first
+ * place — codex P3 review on PR #286).
+ */
+const MUTATION_POLICY_SUFFIX = `## Mutation Policy (HARD CONSTRAINT — non-negotiable)
+You CANNOT directly create, update, delete, or modify any data via this chat. The chat tools are read-only.
+- For any user request involving writes (create / add / submit / approve / reject / delete / update / modify / change / 创建 / 添加 / 提交 / 批准 / 拒绝 / 删除 / 更新 / 修改), you MUST:
+  1. NEVER claim you performed the operation. Do NOT say "created", "saved", "submitted", "done", "成功", "完成", "已创建", or any phrasing that implies the write happened.
+  2. Tell the user explicitly that you cannot perform writes from chat.
+  3. Direct them to the structured proposal flow via the entity list: open the entity in the sidebar and use its create / edit / action buttons. Do NOT tell them to retype the request in the chat input — that path leads back here. Localize the redirection: in Chinese, "请打开左侧边栏对应实体页面，使用页面上的『新建』或操作按钮发起结构化操作"; in English, "Please open the matching entity page from the sidebar and use its create / edit / action buttons."
+- For read-only requests ("show me", "what is", "summarize", "查看", "总结") use the available query / describe / navigate tools normally.`;
 
 /**
  * Build a dynamic system prompt based on assistant config and runtime context.
@@ -73,8 +95,22 @@ export function buildSystemPrompt(options: {
   ontologyRegistry?: OntologyRegistry;
   entityRegistry?: EntityRegistry;
   context?: SystemPromptContext;
+  /**
+   * Whether the chat session can execute write actions. Pass `false` to
+   * append the mutation-policy suffix (see {@link MUTATION_POLICY_SUFFIX});
+   * `true` or omitted leaves the prompt write-enabled — symmetric with
+   * `buildTools`'s `allowActionExecution !== false` default, so the same
+   * `undefined` value means "writes available" in both helpers and a
+   * future caller can't accidentally pair a write-enabled tool set with
+   * a refuse-to-write prompt (codex P2 review on PR #286).
+   *
+   * Read-only chat callers (the standard case) MUST pass `false` to both
+   * `buildSystemPrompt` and `buildTools`.
+   */
+  allowActionExecution?: boolean;
 }): string {
-  const { assistantConfig, ontologyRegistry, entityRegistry, context } = options;
+  const { assistantConfig, ontologyRegistry, entityRegistry, context, allowActionExecution } =
+    options;
 
   const parts: string[] = [];
 
@@ -166,6 +202,16 @@ export function buildSystemPrompt(options: {
         parts.push(`Current record data:\n\`\`\`json\n${summary}\n\`\`\``);
       }
     }
+  }
+
+  // 5. Mutation-policy suffix — MUST be the last section so user-supplied
+  //    prompts can't override it. Appended ONLY when the caller explicitly
+  //    opts into read-only mode by passing `allowActionExecution=false`.
+  //    Defaults are aligned with `buildTools`: undefined / true → write-
+  //    enabled, no suffix. Chat callers always pass `false` here AND to
+  //    `buildTools` so the two stay consistent.
+  if (allowActionExecution === false) {
+    parts.push(`\n${MUTATION_POLICY_SUFFIX}`);
   }
 
   return parts.join("\n");

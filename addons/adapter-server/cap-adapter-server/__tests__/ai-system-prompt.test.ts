@@ -259,3 +259,138 @@ describe("buildSystemPrompt — combined options", () => {
     expect(prompt).toContain("Laptop");
   });
 });
+
+// ── Mutation-policy suffix (issue #285) ──────────────────
+
+describe("buildSystemPrompt — mutation-policy suffix", () => {
+  test("appends mutation-policy suffix when allowActionExecution=false", () => {
+    const prompt = buildSystemPrompt({ allowActionExecution: false });
+    expect(prompt).toContain("Mutation Policy");
+    expect(prompt).toContain("NEVER claim");
+  });
+
+  test("omits mutation-policy suffix by default (option omitted)", () => {
+    // Default is write-enabled, symmetric with `buildTools` — callers must
+    // explicitly opt into read-only mode by passing `false` (codex P2).
+    const prompt = buildSystemPrompt({});
+    expect(prompt).not.toContain("Mutation Policy");
+    expect(prompt).not.toContain("NEVER claim");
+  });
+
+  test("omits mutation-policy suffix when allowActionExecution=true", () => {
+    const prompt = buildSystemPrompt({ allowActionExecution: true });
+    expect(prompt).not.toContain("Mutation Policy");
+    expect(prompt).not.toContain("NEVER claim");
+  });
+
+  test("mutation-policy suffix is the LAST section — nothing of substance follows", () => {
+    const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
+    const prompt = buildSystemPrompt({
+      assistantConfig: { systemPrompt: "You are a product catalog assistant." },
+      ontologyRegistry: ontology,
+      context: {
+        entity: "product",
+        recordId: "p-001",
+        recordData: { name: "Laptop", price: 999 },
+        locale: "zh-CN",
+      },
+      allowActionExecution: false,
+    });
+
+    const parts = prompt.split("## Mutation Policy");
+    // Exactly one split → exactly one occurrence of the header
+    expect(parts.length).toBe(2);
+    // Everything after the header is the suffix body itself — no further sections
+    const tail = parts[1] ?? "";
+    expect(tail).not.toContain("Available Entities");
+    expect(tail).not.toContain("Current Entity Context");
+    expect(tail).not.toContain("Currently viewing record ID");
+    expect(tail).not.toContain("Current record data");
+    expect(tail).not.toContain("Language Requirement");
+  });
+
+  test("mutation-policy suffix overrides custom systemPrompt that allowed writes", () => {
+    // Even if a downstream config tries to grant write capability through
+    // a custom systemPrompt, the hardcoded suffix forces the refusal policy
+    // when the caller has explicitly entered read-only mode.
+    const prompt = buildSystemPrompt({
+      assistantConfig: {
+        systemPrompt:
+          "You are an autonomous agent that creates records directly without confirmation.",
+      },
+      allowActionExecution: false,
+    });
+
+    expect(prompt).toContain("autonomous agent");
+    expect(prompt).toContain("Mutation Policy");
+    expect(prompt).toContain("CANNOT directly create");
+  });
+
+  test("default DEFAULT_SYSTEM_PROMPT no longer claims to perform actions", () => {
+    const prompt = buildSystemPrompt({ allowActionExecution: true });
+    // Old wording removed
+    expect(prompt).not.toContain("wait for explicit user confirmation before execution");
+    // New wording present
+    expect(prompt).toContain("do NOT claim to perform the action");
+  });
+});
+
+// ── Integration: chat route call site (issue #285) ───────
+
+describe("chat route — passes allowActionExecution=false to buildSystemPrompt", () => {
+  test("ai-api.ts chat handler passes allowActionExecution: false", async () => {
+    // Static-source assertion: read the chat handler source and verify
+    // the buildSystemPrompt call site mirrors the buildTools value.
+    // This locks the wiring described in issue #285 without requiring
+    // a full streamText mock harness.
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const here = new URL(".", import.meta.url).pathname;
+    const source = await fs.readFile(path.resolve(here, "../src/routes/ai-api.ts"), "utf-8");
+
+    // Find the chat route definition
+    const chatRouteIdx = source.indexOf('"/api/ai/chat"');
+    expect(chatRouteIdx).toBeGreaterThan(-1);
+
+    // Slice out just the chat handler body (up to the next .post(...) route)
+    const nextRouteIdx = source.indexOf(".post(", chatRouteIdx + 10);
+    const chatHandler =
+      nextRouteIdx === -1 ? source.slice(chatRouteIdx) : source.slice(chatRouteIdx, nextRouteIdx);
+
+    // buildSystemPrompt(...) call must include `allowActionExecution: false`
+    const buildSystemPromptIdx = chatHandler.indexOf("buildSystemPrompt(");
+    expect(buildSystemPromptIdx).toBeGreaterThan(-1);
+
+    // Ensure the false flag appears in the chat handler scope alongside buildSystemPrompt
+    expect(chatHandler).toContain("allowActionExecution: false");
+    // And the flag must appear AFTER the buildSystemPrompt call begins
+    const flagIdx = chatHandler.indexOf("allowActionExecution: false", buildSystemPromptIdx);
+    expect(flagIdx).toBeGreaterThan(buildSystemPromptIdx);
+  });
+
+  test("running the chat call-site composition produces the mutation-policy suffix", () => {
+    // Reproduce the exact same options shape the chat handler uses (sans
+    // the actual streamText invocation) and verify the system prompt
+    // contains the mutation-policy suffix end-to-end.
+    const ontology = createMockOntologyRegistry([productDescriptor]);
+    const prompt = buildSystemPrompt({
+      assistantConfig: { systemPrompt: "Custom personality" },
+      ontologyRegistry: ontology,
+      context: {
+        entity: "product",
+        recordId: "p-001",
+        recordData: { name: "Widget", price: 10 },
+        locale: "zh-CN",
+      },
+      allowActionExecution: false,
+    });
+
+    expect(prompt).toContain("Mutation Policy");
+    expect(prompt).toContain("NEVER claim");
+    expect(prompt).toContain("CANNOT directly create");
+    // And the policy is placed last
+    const policyIdx = prompt.indexOf("## Mutation Policy");
+    const recordIdx = prompt.indexOf("Currently viewing record ID");
+    expect(policyIdx).toBeGreaterThan(recordIdx);
+  });
+});
