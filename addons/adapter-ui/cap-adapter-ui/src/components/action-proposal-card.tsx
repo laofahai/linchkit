@@ -54,15 +54,6 @@ export const MAX_DISPLAYED_ALTERNATIVES = 3;
 export const CONFIDENCE_THRESHOLD_MEDIUM = 0.5;
 export const CONFIDENCE_THRESHOLD_HIGH = 0.8;
 
-/**
- * Minimum confidence required to render an action proposal card at all.
- * Below this, the AI Assistant falls back to general chat instead of
- * surfacing a card the user is unlikely to confirm. Currently aligned with
- * `CONFIDENCE_THRESHOLD_MEDIUM`, but kept as a separate symbol so the
- * surfacing gate can move independently of the badge color band.
- */
-export const MIN_PROPOSAL_CONFIDENCE = CONFIDENCE_THRESHOLD_MEDIUM;
-
 function resolveTranslatableLabel(
   raw: string | undefined,
   fallback: string,
