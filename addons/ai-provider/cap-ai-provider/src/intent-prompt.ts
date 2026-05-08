@@ -25,6 +25,11 @@ export interface ActionCatalogEntry {
     required: boolean;
     label?: string;
     description?: string;
+    /**
+     * When true, an empty string ("") is treated as a present value during
+     * input reconciliation even if `required` is true. Default: false.
+     */
+    allowEmpty?: boolean;
   }>;
 }
 
@@ -77,6 +82,12 @@ export function buildIntentSystemPrompt(
       name: f.name,
       type: f.type,
       required: f.required,
+      // Forward the empty-string opt-in to the model so it knows ""
+      // is a legitimate value for fields that mark `allowEmpty: true`,
+      // not a missing-field signal (codex P2 / gemini NIT review on
+      // PR #287). Omitted when false/undefined to keep the prompt
+      // compact for the common case.
+      ...(f.allowEmpty === true ? { allowEmpty: true } : {}),
       label: f.label ? sanitizeText(f.label) : undefined,
       description: f.description ? sanitizeText(f.description) : undefined,
     })),
@@ -101,7 +112,7 @@ Rules:
 1. Pick at most ONE primary action whose "name" appears in the JSON array above. NEVER invent an action that is not listed.
 2. If no listed action is a reasonable fit, set "action" to null and explain in plain English what was unclear.
 3. Extract input parameters that the user explicitly stated. Do NOT guess or hallucinate values.
-4. Use only field names that appear in the chosen action's "inputFields" list. Drop anything else.
+4. Use only field names that appear in the chosen action's "inputFields" list. Drop anything else. A field marked \`"allowEmpty": true\` accepts an empty string \`""\` as a valid present value — only set the field to \`""\` when the user explicitly indicated an empty value; otherwise omit the field.
 5. Provide a confidence score in [0, 1] reflecting how confident you are that this is the user's intent.
 6. Provide a one-sentence English explanation suitable for showing to the user inside a confirmation card.
 7. If the primary "confidence" is below ${opts.alternativesConfidenceThreshold}, OPTIONALLY include an "alternatives" array with up to ${opts.maxAlternatives} other plausible matches, each with the same JSON shape as the primary (action, input, confidence, explanation). Each alternative's "action" MUST also appear in the JSON array above; do not invent. Sort alternatives by confidence descending. Omit "alternatives" entirely (or use an empty array) when confidence is high or when no other reasonable match exists.

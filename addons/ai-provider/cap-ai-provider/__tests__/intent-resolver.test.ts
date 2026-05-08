@@ -27,6 +27,7 @@ import type {
 } from "@linchkit/core";
 import {
   ALTERNATIVES_CONFIDENCE_THRESHOLD,
+  extractFirstJsonObject,
   MAX_ALTERNATIVES,
   MIN_CONFIDENCE,
   type OntologyRegistryLike,
@@ -884,5 +885,175 @@ describe("resolveIntent — N-best alternatives (Spec 52 §2.2 step 4)", () => {
     expect(proposal?.alternatives?.length).toBe(1);
     // The alternative itself has no nested alternatives.
     expect(proposal?.alternatives?.[0]?.alternatives).toBeUndefined();
+  });
+});
+
+// ── #262 item 2 — extractFirstJsonObject hardening ──────────
+
+describe("extractFirstJsonObject — JSON extraction hardening (#262 item 2)", () => {
+  it("returns plain JSON unchanged", () => {
+    expect(extractFirstJsonObject('{"a":1}')).toBe('{"a":1}');
+  });
+
+  it("extracts JSON from a fenced code block", () => {
+    // Matches the substring ignoring the fence wrappers.
+    expect(extractFirstJsonObject('```json\n{"a":1}\n```')).toBe('{"a":1}');
+  });
+
+  it("extracts JSON surrounded by prose", () => {
+    expect(extractFirstJsonObject('Here is the JSON: {"a":1}. Done.')).toBe('{"a":1}');
+  });
+
+  it("returns the OUTER object when an embedded JSON example lives in a string field", () => {
+    // Regression for the brace-counting drift bug: `lastIndexOf('}')` would
+    // pick the inner brace of the example. The lexical scanner returns the
+    // outer object verbatim.
+    const raw = '{"action":"x","explanation":"e.g. {\\"foo\\":\\"bar\\"}"}';
+    const extracted = extractFirstJsonObject(raw);
+    expect(extracted).toBe(raw);
+    // Round-trip parse to confirm structural validity.
+    const parsed = JSON.parse(extracted ?? "") as { action: string; explanation: string };
+    expect(parsed.action).toBe("x");
+    expect(parsed.explanation).toBe('e.g. {"foo":"bar"}');
+  });
+
+  it("ignores braces inside a quoted string", () => {
+    // The string content has unbalanced braces, but quote-tracking keeps
+    // depth accurate so the full object is returned.
+    const raw = '{"a":"}{"}';
+    expect(extractFirstJsonObject(raw)).toBe(raw);
+  });
+
+  it("ignores escaped quotes inside string contents", () => {
+    const raw = '{"a":"\\"hi\\""}';
+    expect(extractFirstJsonObject(raw)).toBe(raw);
+  });
+
+  it("returns null when no JSON object is present", () => {
+    expect(extractFirstJsonObject("Just prose here.")).toBeNull();
+  });
+
+  it("returns null when the JSON is truncated (no closing brace)", () => {
+    expect(extractFirstJsonObject('{"a":1')).toBeNull();
+  });
+});
+
+describe("resolveIntent — embedded JSON example regression (#262 item 2)", () => {
+  it("parses the outer object even when explanation contains an inline JSON example", async () => {
+    // Without the lexical extractor, `lastIndexOf('}')` would slice off the
+    // closing brace of the example inside `explanation` and JSON.parse would
+    // fail or — worse — succeed with truncated data.
+    const ai = makeFakeAi(
+      '{"action":"create_vendor","input":{"name":"Acme"},"confidence":0.9,' +
+        '"explanation":"Like {\\"name\\":\\"Acme\\"}"}',
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "Add vendor Acme" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(proposal).not.toBeNull();
+    expect(proposal?.action).toBe("create_vendor");
+    expect(proposal?.input).toEqual({ name: "Acme" });
+    expect(proposal?.explanation).toBe('Like {"name":"Acme"}');
+  });
+});
+
+// ── #262 item 3 — allowEmpty opt-in for required fields ─────
+
+describe("resolveIntent — allowEmpty opt-in (#262 item 3)", () => {
+  // Per-test ontology: a required `note` field whose `allowEmpty` we toggle.
+  function makeNoteOntology(allowEmpty: boolean | undefined): OntologyRegistryLike {
+    const action: ActionDefinition = {
+      name: "leave_note",
+      entity: "note",
+      label: "Leave Note",
+      input: {
+        // `required: true` means absent/null is missing. `allowEmpty: true`
+        // additionally relaxes the empty-string-as-missing rule.
+        note: { type: "text", required: true, label: "Note", allowEmpty },
+      },
+      policy: { mode: "sync", transaction: true },
+    };
+    return {
+      listEntities: () => ["note"],
+      actionsFor: (e) => (e === "note" ? [action] : []),
+    };
+  }
+
+  it("treats empty string as missing when allowEmpty is unset (default)", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "leave_note",
+        input: { note: "" },
+        confidence: 0.8,
+        explanation: "Empty note",
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "leave an empty note" },
+      { ai: ai.service, ontology: makeNoteOntology(undefined) },
+    );
+
+    expect(proposal?.missingFields).toEqual(["note"]);
+  });
+
+  it("treats empty string as present when allowEmpty=true (preserves the value)", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "leave_note",
+        input: { note: "" },
+        confidence: 0.8,
+        explanation: "Empty note",
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "leave an empty note" },
+      { ai: ai.service, ontology: makeNoteOntology(true) },
+    );
+
+    expect(proposal?.missingFields).toEqual([]);
+    // The empty string is kept on the proposal input — UI may render it as
+    // an explicitly-cleared value rather than prompting again.
+    expect(proposal?.input).toEqual({ note: "" });
+  });
+
+  it("treats null as missing even when allowEmpty=true (only relaxes the empty-string rule)", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "leave_note",
+        input: { note: null },
+        confidence: 0.8,
+        explanation: "Null note",
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "leave note" },
+      { ai: ai.service, ontology: makeNoteOntology(true) },
+    );
+
+    expect(proposal?.missingFields).toEqual(["note"]);
+  });
+
+  it("treats absent key as missing even when allowEmpty=true", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "leave_note",
+        input: {},
+        confidence: 0.8,
+        explanation: "No note key",
+      }),
+    );
+
+    const proposal = await resolveIntent(
+      { prompt: "leave note" },
+      { ai: ai.service, ontology: makeNoteOntology(true) },
+    );
+
+    expect(proposal?.missingFields).toEqual(["note"]);
   });
 });
