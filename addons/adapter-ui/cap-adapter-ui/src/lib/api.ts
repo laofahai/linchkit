@@ -644,6 +644,40 @@ export interface IntentFieldSchema {
   description?: string;
 }
 
+/**
+ * Bare alternative interpretation returned alongside a primary proposal.
+ *
+ * The server returns N-best alternatives sorted by confidence DESC (capped at
+ * 3) when the primary's confidence is below the AI provider's surfacing
+ * threshold. Each alternative is a bare `ActionProposal` from the resolver —
+ * the route enriches only the primary with display metadata, so alternatives
+ * carry no `actionLabel` / `inputSchema` of their own. When a user swaps an
+ * alternative into the primary slot the UI must look up its display metadata
+ * (label, description, input schema) on demand.
+ */
+export interface IntentAlternative {
+  /** Matched action name. */
+  action: string;
+  /** Pre-filled input parameters validated against the action's schema. */
+  input: Record<string, unknown>;
+  /** Confidence in [0, 1]. */
+  confidence: number;
+  /** Required fields the AI did not fill. */
+  missingFields: string[];
+  /** Human-readable summary suitable for UI display. */
+  explanation: string;
+  /**
+   * Display metadata. Server-returned alternatives never carry these (the
+   * route only enriches the primary), but when the UI demotes a previous
+   * primary into the alternatives list it preserves the metadata here so
+   * swapping back is fully reversible (no degraded fields / labels).
+   */
+  schema?: string;
+  actionLabel?: string;
+  actionDescription?: string;
+  inputSchema?: Record<string, IntentFieldSchema>;
+}
+
 /** Result from AI intent resolution */
 export interface IntentResolution {
   action: string;
@@ -655,6 +689,8 @@ export interface IntentResolution {
   actionLabel: string;
   actionDescription?: string;
   inputSchema: Record<string, IntentFieldSchema>;
+  /** Optional N-best alternatives surfaced when primary confidence is low. */
+  alternatives?: IntentAlternative[];
 }
 
 /** Optional scoping mirrors the server's `ResolveIntentInput.scope`. */
@@ -666,20 +702,39 @@ export interface ResolveIntentScope {
 }
 
 /**
+ * Discriminated result of `resolveIntent`.
+ *
+ * Three outcomes need to be distinguished by the caller:
+ *
+ *  - `{ kind: "proposal" }` — the server returned a usable proposal; render
+ *    the Action Proposal Card.
+ *  - `{ kind: "unavailable" }` — the server returned 503 (AI not configured
+ *    or upstream provider unreachable); the caller should surface a
+ *    non-blocking toast/banner instead of silently falling through.
+ *  - `{ kind: "no-match" }` — the server returned 200 with `proposal: null`
+ *    (no usable match for the prompt); the caller should fall back to the
+ *    general chat endpoint.
+ */
+export type ResolveIntentResult =
+  | { kind: "proposal"; proposal: IntentResolution }
+  | { kind: "unavailable" }
+  | { kind: "no-match" };
+
+/**
  * Resolve a natural-language prompt to an action intent.
  *
  * Wire contract (Spec 52 §2.6 — POST /api/ai/resolve-intent):
  *   request:  { prompt, scope? }
  *   response: { proposal: ActionProposalView | null }
  *
- * Returns null when:
- *   - AI is not configured (server returns 503).
- *   - No usable proposal could be produced (server returns 200 + null).
+ * Returns a discriminated `ResolveIntentResult` so callers can distinguish
+ * "no usable match" (200 + null) from "service unavailable" (503). Network
+ * errors and other non-2xx responses still throw.
  */
 export async function resolveIntent(
   prompt: string,
   scope?: ResolveIntentScope,
-): Promise<IntentResolution | null> {
+): Promise<ResolveIntentResult> {
   const res = await fetch("/api/ai/resolve-intent", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -687,15 +742,19 @@ export async function resolveIntent(
   });
   handleUnauthorized(res);
   if (res.status === 503) {
-    // Graceful degradation per Spec 52 §1.1 — caller treats null as
-    // "AI unavailable" and surfaces the appropriate UX.
-    return null;
+    // Graceful degradation per Spec 52 §1.1 — caller surfaces the
+    // appropriate "AI unavailable" UX (toast / banner).
+    return { kind: "unavailable" };
   }
   if (!res.ok) {
     throw new Error("AI intent resolution failed");
   }
   const json = await res.json();
-  return (json.proposal as IntentResolution | null) ?? null;
+  const proposal = (json.proposal as IntentResolution | null | undefined) ?? null;
+  if (!proposal) {
+    return { kind: "no-match" };
+  }
+  return { kind: "proposal", proposal };
 }
 
 // ── Chatter ──────────────────────────────────────────────

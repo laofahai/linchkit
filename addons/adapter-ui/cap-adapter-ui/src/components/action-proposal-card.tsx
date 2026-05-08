@@ -22,7 +22,12 @@ import {
 import { AlertTriangleIcon, CheckCircle2Icon, Loader2Icon, PlayIcon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ActionResult, IntentFieldSchema, IntentResolution } from "../lib/api";
+import type {
+  ActionResult,
+  IntentAlternative,
+  IntentFieldSchema,
+  IntentResolution,
+} from "../lib/api";
 import { executeAction } from "../lib/api";
 
 // ── Types ────────────────────────────────────────────────
@@ -35,6 +40,29 @@ export interface ActionProposalCardProps {
   onCancel?: () => void;
 }
 
+/** Maximum number of alternatives to render in the "Did you mean" section. */
+export const MAX_DISPLAYED_ALTERNATIVES = 3;
+
+/**
+ * Confidence-band thresholds used for both the primary card badge and the
+ * alternatives pills. Aligned with Spec 52 §2.2 surfacing thresholds.
+ *
+ * - confidence < MEDIUM → destructive (red) — low confidence
+ * - MEDIUM ≤ confidence < HIGH → secondary (neutral) — passable
+ * - confidence ≥ HIGH → default (positive) — high confidence
+ */
+export const CONFIDENCE_THRESHOLD_MEDIUM = 0.5;
+export const CONFIDENCE_THRESHOLD_HIGH = 0.8;
+
+/**
+ * Minimum confidence required to render an action proposal card at all.
+ * Below this, the AI Assistant falls back to general chat instead of
+ * surfacing a card the user is unlikely to confirm. Currently aligned with
+ * `CONFIDENCE_THRESHOLD_MEDIUM`, but kept as a separate symbol so the
+ * surfacing gate can move independently of the badge color band.
+ */
+export const MIN_PROPOSAL_CONFIDENCE = CONFIDENCE_THRESHOLD_MEDIUM;
+
 function resolveTranslatableLabel(
   raw: string | undefined,
   fallback: string,
@@ -45,6 +73,72 @@ function resolveTranslatableLabel(
     return t(raw.slice(2), { defaultValue: fallback });
   }
   return raw;
+}
+
+// ── Pure swap helper (exported for unit testing) ─────────
+
+/**
+ * Swap an alternative at the given index into the primary slot.
+ *
+ * Returns a new `IntentResolution` whose primary is the chosen alternative
+ * and whose alternatives list contains:
+ *   - the previous primary (now reversible — the user can swap back),
+ *   - all other previous alternatives, in original order.
+ *
+ * Reversibility: the previous primary's display metadata (`schema`,
+ * `actionLabel`, `actionDescription`, `inputSchema`) is preserved on the
+ * demoted `IntentAlternative` so swapping BACK to it later restores a
+ * fully-rendered card with editable fields.
+ *
+ * Server-returned alternatives carry no display metadata (the route only
+ * enriches the primary). When such an alternative is swapped IN, we surface
+ * placeholders (`actionLabel = action`, empty `inputSchema`) — the AI-
+ * extracted `input` is still shown as a read-only summary; field editing
+ * unlocks on the next round-trip when the user re-prompts.
+ *
+ * Returns `null` when `index` is out of range so callers can no-op safely.
+ */
+export function swapAlternative(current: IntentResolution, index: number): IntentResolution | null {
+  const alternatives = current.alternatives ?? [];
+  if (index < 0 || index >= alternatives.length) return null;
+
+  const chosen = alternatives[index];
+  if (!chosen) return null;
+
+  // Demote the previous primary into an alternative entry, preserving its
+  // display metadata so a future swap-back is non-lossy.
+  const previousPrimary: IntentAlternative = {
+    action: current.action,
+    input: current.input,
+    confidence: current.confidence,
+    missingFields: current.missingFields,
+    explanation: current.explanation,
+    schema: current.schema,
+    actionLabel: current.actionLabel,
+    actionDescription: current.actionDescription,
+    inputSchema: current.inputSchema,
+  };
+
+  // New alternatives = [previousPrimary, ...alternatives without chosen].
+  // Sort DESC by confidence so the highest-confidence alternative renders
+  // first regardless of swap history.
+  const remaining = alternatives.filter((_, i) => i !== index);
+  const nextAlternatives = [previousPrimary, ...remaining].sort(
+    (a, b) => b.confidence - a.confidence,
+  );
+
+  return {
+    action: chosen.action,
+    schema: chosen.schema ?? chosen.action,
+    input: chosen.input,
+    missingFields: chosen.missingFields,
+    confidence: chosen.confidence,
+    explanation: chosen.explanation,
+    actionLabel: chosen.actionLabel ?? chosen.action,
+    actionDescription: chosen.actionDescription,
+    inputSchema: chosen.inputSchema ?? {},
+    alternatives: nextAlternatives,
+  };
 }
 
 // ── Field Editor ────────────────────────────────────────
@@ -146,12 +240,27 @@ function FieldEditor({
 
 // ── Confidence badge ────────────────────────────────────
 
+/**
+ * Format a confidence score (0-1) as a percentage string. Defensive against
+ * NaN/Infinity/undefined that could leak from a malformed AI response —
+ * returns "—" instead of "NaN%" in those cases.
+ */
+function formatConfidencePct(confidence: number): string {
+  if (!Number.isFinite(confidence)) return "—";
+  return `${Math.round(confidence * 100)}%`;
+}
+
+function confidenceBadgeVariant(confidence: number): "default" | "secondary" | "destructive" {
+  if (!Number.isFinite(confidence) || confidence < CONFIDENCE_THRESHOLD_MEDIUM)
+    return "destructive";
+  if (confidence >= CONFIDENCE_THRESHOLD_HIGH) return "default";
+  return "secondary";
+}
+
 function ConfidenceBadge({ confidence }: { confidence: number }) {
-  const pct = Math.round(confidence * 100);
-  const variant = confidence >= 0.8 ? "default" : confidence >= 0.5 ? "secondary" : "destructive";
   return (
-    <Badge variant={variant} className="text-[10px]">
-      {pct}%
+    <Badge variant={confidenceBadgeVariant(confidence)} className="text-[10px]">
+      {formatConfidencePct(confidence)}
     </Badge>
   );
 }
@@ -161,6 +270,11 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
 export function ActionProposalCard({ intent, onComplete, onCancel }: ActionProposalCardProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<ProposalStatus>("pending");
+  // Track current intent in state so alternatives can be swapped into the
+  // primary slot without a server round-trip. Initialized from the prop on
+  // first render only — subsequent prop changes are ignored to avoid clobbering
+  // user-driven swaps.
+  const [currentIntent, setCurrentIntent] = useState<IntentResolution>(intent);
   const [editedInput, setEditedInput] = useState<Record<string, unknown>>({ ...intent.input });
   const [_result, setResult] = useState<ActionResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -169,12 +283,23 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
     setEditedInput((prev) => ({ ...prev, [field]: value }));
   }, []);
 
+  const handleSwapAlternative = useCallback((index: number) => {
+    setCurrentIntent((prev) => {
+      const next = swapAlternative(prev, index);
+      if (!next) return prev;
+      // Reset edited inputs to the chosen alternative's AI-extracted inputs.
+      setEditedInput({ ...next.input });
+      setErrorMessage(null);
+      return next;
+    });
+  }, []);
+
   const handleExecute = useCallback(async () => {
     setStatus("executing");
     setErrorMessage(null);
 
     try {
-      const actionResult = await executeAction(intent.action, editedInput);
+      const actionResult = await executeAction(currentIntent.action, editedInput);
       setResult(actionResult);
 
       if (actionResult.success) {
@@ -189,7 +314,7 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : t("ai.actionExecFailed"));
     }
-  }, [intent.action, editedInput, onComplete, t]);
+  }, [currentIntent.action, editedInput, onComplete, t]);
 
   const handleCancel = useCallback(() => {
     setStatus("cancelled");
@@ -197,8 +322,15 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
   }, [onCancel]);
 
   const isEditable = status === "pending";
-  const inputFields = Object.entries(intent.inputSchema);
-  const actionLabel = resolveTranslatableLabel(intent.actionLabel, intent.action, t);
+  const inputFields = Object.entries(currentIntent.inputSchema);
+  const actionLabel = resolveTranslatableLabel(currentIntent.actionLabel, currentIntent.action, t);
+
+  // Backend returns alternatives sorted DESC by confidence and swapAlternative
+  // re-sorts after each swap, so we only need to cap to the display limit here.
+  const displayedAlternatives = (currentIntent.alternatives ?? []).slice(
+    0,
+    MAX_DISPLAYED_ALTERNATIVES,
+  );
 
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
@@ -209,16 +341,18 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
             <PlayIcon className="size-3 text-primary" />
             <span className="text-xs font-semibold">{actionLabel}</span>
           </div>
-          <ConfidenceBadge confidence={intent.confidence} />
+          <ConfidenceBadge confidence={currentIntent.confidence} />
         </div>
-        {intent.actionDescription && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{intent.actionDescription}</p>
+        {currentIntent.actionDescription && (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {currentIntent.actionDescription}
+          </p>
         )}
       </div>
 
       {/* Explanation */}
       <div className="border-b px-3 py-2">
-        <p className="text-xs text-muted-foreground">{intent.explanation}</p>
+        <p className="text-xs text-muted-foreground">{currentIntent.explanation}</p>
       </div>
 
       {/* Input fields */}
@@ -238,12 +372,47 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
       )}
 
       {/* Missing fields warning */}
-      {intent.missingFields.length > 0 && status === "pending" && (
+      {currentIntent.missingFields.length > 0 && status === "pending" && (
         <div className="flex items-start gap-1.5 border-t px-3 py-2">
           <AlertTriangleIcon className="mt-0.5 size-3 text-amber-500 shrink-0" />
           <p className="text-[11px] text-amber-600">
-            {t("ai.missingFields")}: {intent.missingFields.join(", ")}
+            {t("ai.missingFields")}: {currentIntent.missingFields.join(", ")}
           </p>
+        </div>
+      )}
+
+      {/* Alternatives — "Did you mean" pills, only while pending */}
+      {displayedAlternatives.length > 0 && status === "pending" && (
+        <div className="border-t px-3 py-2" data-testid="proposal-alternatives">
+          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+            {t("ai.didYouMean")}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {displayedAlternatives.map((alt, index) => {
+              const altLabel = resolveTranslatableLabel(alt.actionLabel, alt.action, t);
+              return (
+                <button
+                  key={alt.action}
+                  type="button"
+                  data-testid="proposal-alternative-pill"
+                  data-action={alt.action}
+                  onClick={() => handleSwapAlternative(index)}
+                  aria-label={t("ai.swapAction", {
+                    action: altLabel,
+                    pct: formatConfidencePct(alt.confidence),
+                    defaultValue: `Switch to ${altLabel} (${formatConfidencePct(alt.confidence)})`,
+                  })}
+                  className="flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px] transition-colors hover:bg-accent"
+                  title={alt.explanation}
+                >
+                  <span>{altLabel}</span>
+                  <Badge variant={confidenceBadgeVariant(alt.confidence)} className="text-[10px]">
+                    {formatConfidencePct(alt.confidence)}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

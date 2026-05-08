@@ -20,6 +20,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  toast,
 } from "@linchkit/ui-kit/components";
 import { useParams } from "@tanstack/react-router";
 import type { UIMessage, UIMessagePart } from "ai";
@@ -35,7 +36,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type ActionResult, type IntentResolution, isAiEnabled, resolveIntent } from "../lib/api";
-import { ActionProposalCard } from "./action-proposal-card";
+import { ActionProposalCard, MIN_PROPOSAL_CONFIDENCE } from "./action-proposal-card";
 
 // ── Proposal state ───────────────────────────────────────
 
@@ -146,21 +147,31 @@ export function AIAssistant({
         const result = await resolveIntent(trimmed, {
           entityFilter: params.name ? [params.name] : undefined,
         });
-        if (result && result.confidence >= 0.5) {
+        if (result.kind === "unavailable") {
+          // Spec 52 §1.1 — surface a non-blocking toast so 503 isn't silently
+          // swallowed. The user is informed and the chat fallback below still
+          // attempts the general endpoint, which itself may also be down — but
+          // that path produces its own error UI in the message stream.
+          toast.error(t("ai.serviceUnavailable"));
+        } else if (
+          result.kind === "proposal" &&
+          result.proposal.confidence >= MIN_PROPOSAL_CONFIDENCE
+        ) {
           setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
           const proposalId = crypto.randomUUID();
-          setProposals((prev) => [...prev, { id: proposalId, intent: result }]);
+          setProposals((prev) => [...prev, { id: proposalId, intent: result.proposal }]);
           return;
         }
       } catch {
-        // AI intent resolution unavailable — fall back to general chat
+        // Transport-level error (network, non-503 non-2xx) — fall back to
+        // general chat. The unavailable-503 case is handled above.
       } finally {
         setIsResolvingIntent(false);
       }
     }
 
     sendMessage({ text: trimmed });
-  }, [isLoading, isResolvingIntent, params.name, sendMessage, setMessages]);
+  }, [isLoading, isResolvingIntent, params.name, sendMessage, setMessages, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
