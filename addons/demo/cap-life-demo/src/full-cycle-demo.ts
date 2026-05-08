@@ -82,10 +82,12 @@ export interface FullCycleDemoResult {
  * entities the demo needs. `synthetic_metric` has NO views — the trigger for
  * the `schema_no_view` structural issue → insight → proposal pipeline.
  *
- * Returned object satisfies only the slice of OntologyRegistry that the
- * AwarenessEngine and InsightTranslator touch (`describe`, `listEntities`).
- * The other registry methods are unused in this demo and would force a
- * pile of zero-info dependencies if implemented faithfully — KISS.
+ * The full {@link OntologyRegistry} contract is satisfied with no-op stubs
+ * for the methods AwarenessEngine and InsightTranslator don't currently
+ * exercise. This keeps the demo as a robust reference for capability
+ * authors — adding a future structural check that calls, say,
+ * `actionsFor()` will yield empty results instead of "is not a function"
+ * runtime errors.
  */
 function createDemoOntology(): OntologyRegistry {
   const schemas: Record<string, Partial<EntityDescriptor>> = {
@@ -103,13 +105,20 @@ function createDemoOntology(): OntologyRegistry {
   };
 
   return {
-    describe(entityName: string): EntityDescriptor | undefined {
-      return schemas[entityName] as EntityDescriptor | undefined;
-    },
-    listEntities(): string[] {
-      return Object.keys(schemas);
-    },
-  } as unknown as OntologyRegistry;
+    describe: (entityName) => schemas[entityName] as EntityDescriptor | undefined,
+    listEntities: () => Object.keys(schemas),
+    searchEntities: () => [],
+    actionsFor: () => [],
+    rulesFor: () => [],
+    stateFor: () => undefined,
+    viewsFor: () => [],
+    flowsFor: () => [],
+    handlersFor: () => [],
+    relatedEntities: () => [],
+    entitiesImplementing: () => [],
+    toJSON: () => ({}) as ReturnType<OntologyRegistry["toJSON"]>,
+    toMarkdown: () => "",
+  };
 }
 
 /**

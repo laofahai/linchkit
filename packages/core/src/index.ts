@@ -268,6 +268,9 @@ export type {
   EvolutionRuntimeOptions,
   ImpactDataProvider,
   ImpactResult,
+  InsightTranslator,
+  InsightTranslatorKey,
+  InsightTranslatorRegistry,
   LifecycleBaseline,
   LifecycleMemoryStore,
   LifecycleSensor,
@@ -286,6 +289,7 @@ export type {
   SignalBus,
   SignalBusOptions,
   SignalHandler,
+  TranslatorContext,
   Unsubscribe,
   Watcher,
 } from "./life-system";
