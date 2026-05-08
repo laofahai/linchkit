@@ -392,3 +392,13 @@ export { defineSemanticRelation } from "./types/semantic-relation";
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
 export { validateIdentifier } from "./utils/identifier";
+// View layout helpers — syntactic sugar over FormLayoutNode JSON shape
+export {
+  type FieldOptions,
+  field,
+  group,
+  notebook,
+  page,
+  row,
+  separator,
+} from "./view/layout-helpers";
