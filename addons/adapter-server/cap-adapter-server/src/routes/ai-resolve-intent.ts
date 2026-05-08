@@ -308,7 +308,7 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
 // ── Response enrichment ─────────────────────────────────────
 
 /** Wire-format proposal: bare resolver output plus action display metadata. */
-export interface ActionProposalView extends ActionProposal {
+export interface ActionProposalView extends Omit<ActionProposal, "alternatives"> {
   /** Entity name the matched action operates on. */
   schema: string;
   /** Human-readable action label (from `defineAction({ label })`). */
@@ -316,6 +316,30 @@ export interface ActionProposalView extends ActionProposal {
   /** Optional human-readable action description. */
   actionDescription?: string;
   /** Input parameter descriptors suitable for rendering a confirmation form. */
+  inputSchema: Record<string, IntentFieldSchema>;
+  /**
+   * Alternatives enriched with the same display metadata as the primary, so
+   * the UI can swap one into the primary slot without a second round-trip.
+   * Filtered against the scoped ontology (hallucination defense — same rule
+   * as the primary). Omitted when no usable alternatives remain.
+   */
+  alternatives?: IntentAlternativeView[];
+}
+
+/**
+ * Wire-format alternative: bare resolver alternative plus action display
+ * metadata. Mirrors `ActionProposalView` minus the recursive `alternatives`
+ * field (alternatives never themselves carry alternatives).
+ */
+export interface IntentAlternativeView {
+  action: string;
+  input: Record<string, unknown>;
+  confidence: number;
+  missingFields: string[];
+  explanation: string;
+  schema: string;
+  actionLabel: string;
+  actionDescription?: string;
   inputSchema: Record<string, IntentFieldSchema>;
 }
 
@@ -328,27 +352,31 @@ export interface IntentFieldSchema {
   description?: string;
 }
 
-function enrichProposal(
+/**
+ * Build a one-pass `name -> ActionDefinition` index over the (already scoped)
+ * ontology. Used for O(1) lookups during proposal + alternatives enrichment
+ * instead of repeated linear scans.
+ */
+function buildScopedActionIndex(ontology: OntologyRegistryLike): Map<string, ActionDefinition> {
+  const index = new Map<string, ActionDefinition>();
+  for (const entityName of ontology.listEntities()) {
+    for (const action of ontology.actionsFor(entityName)) {
+      // First-write-wins: the resolver de-dupes by name across entities and
+      // we mirror that here so primary + alternatives see the same action.
+      if (!index.has(action.name)) index.set(action.name, action);
+    }
+  }
+  return index;
+}
+
+export function enrichProposal(
   proposal: ActionProposal | null,
   ontology: OntologyRegistryLike,
 ): ActionProposalView | null {
   if (!proposal) return null;
 
-  // Find the matched action in the (scoped) ontology so we never disclose
-  // metadata for an action the user can't see.
-  for (const entityName of ontology.listEntities()) {
-    for (const action of ontology.actionsFor(entityName)) {
-      if (action.name === proposal.action) {
-        return {
-          ...proposal,
-          schema: action.entity,
-          actionLabel: action.label ?? action.name,
-          actionDescription: action.description,
-          inputSchema: buildInputSchema(action),
-        };
-      }
-    }
-  }
+  const actionIndex = buildScopedActionIndex(ontology);
+  const primaryAction = actionIndex.get(proposal.action);
 
   // Spec 52 §1.1 hard rule: "AI sees only what the current user can see."
   // The resolver's catalog-allowlist should already drop proposals outside
@@ -356,7 +384,68 @@ function enrichProposal(
   // hallucinated action name (whether from prompt injection or a stale
   // training corpus) cannot be confirmed back to the caller. Returning null
   // is the same as "no usable match" from the resolver's own perspective.
-  return null;
+  if (!primaryAction) return null;
+
+  // Strip the bare `alternatives` from the primary spread — we replace it
+  // with the enriched list (or omit when empty) below.
+  const { alternatives: rawAlternatives, ...primaryRest } = proposal;
+  const enrichedAlternatives = enrichAlternatives(rawAlternatives, actionIndex);
+
+  return {
+    ...primaryRest,
+    schema: primaryAction.entity,
+    actionLabel: primaryAction.label ?? primaryAction.name,
+    actionDescription: primaryAction.description,
+    inputSchema: buildInputSchema(primaryAction),
+    ...(enrichedAlternatives ? { alternatives: enrichedAlternatives } : {}),
+  };
+}
+
+/**
+ * Enrich each alternative with the same display metadata as the primary.
+ *
+ * Filtering rules (mirror the primary's hallucination-defense exit gate):
+ *  - Drop alternatives whose action is NOT in the scoped ontology (never echo
+ *    a half-enriched placeholder — the user must not be able to confirm an
+ *    action they can't see).
+ *  - Preserve resolver order beyond a defensive DESC-by-confidence resort —
+ *    filtering may have changed cardinality but not which alternatives are
+ *    most relevant.
+ *
+ * Returns `undefined` when the input list is empty/missing or filtering
+ * dropped every entry, matching the resolver's own "omit field when empty"
+ * convention so the wire envelope stays uniform.
+ */
+function enrichAlternatives(
+  rawAlternatives: ActionProposal[] | undefined,
+  actionIndex: Map<string, ActionDefinition>,
+): IntentAlternativeView[] | undefined {
+  if (!rawAlternatives || rawAlternatives.length === 0) return undefined;
+
+  const enriched: IntentAlternativeView[] = [];
+  for (const alt of rawAlternatives) {
+    const action = actionIndex.get(alt.action);
+    if (!action) continue;
+    enriched.push({
+      action: alt.action,
+      input: alt.input,
+      confidence: alt.confidence,
+      missingFields: alt.missingFields,
+      explanation: alt.explanation,
+      schema: action.entity,
+      actionLabel: action.label ?? action.name,
+      actionDescription: action.description,
+      inputSchema: buildInputSchema(action),
+    });
+  }
+
+  if (enriched.length === 0) return undefined;
+
+  // Order is preserved from the resolver, which already sorts DESC by
+  // confidence in `reconcileAlternatives`. Iteration above only appends —
+  // filtering cannot rearrange surviving entries — so no extra sort is
+  // needed here.
+  return enriched;
 }
 
 function buildInputSchema(action: ActionDefinition): Record<string, IntentFieldSchema> {
