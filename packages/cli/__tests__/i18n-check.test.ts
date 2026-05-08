@@ -15,6 +15,7 @@ import {
   compareLocales,
   discoverLocaleGroups,
   flattenLocale,
+  type LocaleGroup,
   type LocaleTree,
 } from "../src/commands/i18n-check";
 
