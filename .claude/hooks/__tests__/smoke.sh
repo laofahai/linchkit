@@ -114,6 +114,75 @@ unset rc
 out=$(make_input "git commit&&echo done" | "$HOOKS/pre-commit.sh" 2>&1) || rc=$? ; rc=${rc:-0}
 check "commit-then-&& → exit 2" "[ \"$rc\" = 2 ]"
 
+# Issue #291: branch guard — block commits on main/master. The guard must run
+# BEFORE gate-freshness, so even with all gates fresh it must still block.
+# We shadow `git` via a PATH stub that overrides `git rev-parse --abbrev-ref
+# HEAD` only and forwards every other invocation to the real git binary.
+STUB_DIR="$SMOKE_TMP/git-stub"
+mkdir -p "$STUB_DIR"
+REAL_GIT=$(command -v git)
+cat > "$STUB_DIR/git" <<STUB
+#!/bin/bash
+if [ "\$1" = "rev-parse" ] && [ "\$2" = "--abbrev-ref" ] && [ "\$3" = "HEAD" ] && [ -n "\${FAKE_BRANCH:-}" ]; then
+  echo "\$FAKE_BRANCH"
+  exit 0
+fi
+exec "$REAL_GIT" "\$@"
+STUB
+chmod +x "$STUB_DIR/git"
+
+STUBBED_PATH="$STUB_DIR:$PATH"
+
+run_with_branch() {
+  # $1 = fake branch name, $2 = command for make_input.
+  # Use a tempfile so we don't have to escape JSON through nested bash -c.
+  local input_file="$SMOKE_TMP/hook-input.json"
+  make_input "$2" > "$input_file"
+  FAKE_BRANCH="$1" PATH="$STUBBED_PATH" "$HOOKS/pre-commit.sh" < "$input_file" 2>&1
+}
+
+mark_gates_for_branch() {
+  # Mark fresh QG state under a fake branch so wf_fresh sees gates as fresh
+  # when the hook resolves _wf_file with the same fake branch.
+  FAKE_BRANCH="$1" PATH="$STUBBED_PATH" bash -c "
+    source '$HOOKS/workflow-state.sh'
+    wf_reset
+    wf_mark check_passed
+    wf_mark typecheck_passed
+    wf_mark tests_passed
+  "
+}
+
+wf_reset
+mark_gates_for_branch main
+unset rc
+out=$(run_with_branch main "git commit -m msg") || rc=$? ; rc=${rc:-0}
+check "branch=main with fresh gates → exit 2" "[ \"$rc\" = 2 ]"
+check "branch=main message mentions BLOCKED" "printf '%s' \"\$out\" | grep -q BLOCKED"
+check "branch=main message mentions worktree" "printf '%s' \"\$out\" | grep -q 'git worktree add'"
+
+mark_gates_for_branch master
+unset rc
+out=$(run_with_branch master "git commit -m msg") || rc=$? ; rc=${rc:-0}
+check "branch=master with fresh gates → exit 2" "[ \"$rc\" = 2 ]"
+check "branch=master message mentions BLOCKED" "printf '%s' \"\$out\" | grep -q BLOCKED"
+
+mark_gates_for_branch feat/foo
+unset rc
+out=$(run_with_branch feat/foo "git commit -m msg") || rc=$? ; rc=${rc:-0}
+check "branch=feat/foo with fresh gates → exit 0 (falls through)" "[ \"$rc\" = 0 ]"
+
+# And on a feature branch with NO gates: must still hit the gate-freshness
+# block (proves the branch guard didn't short-circuit non-main paths).
+FAKE_BRANCH=feat/foo PATH="$STUBBED_PATH" bash -c "source '$HOOKS/workflow-state.sh'; wf_reset"
+unset rc
+out=$(run_with_branch feat/foo "git commit -m msg") || rc=$? ; rc=${rc:-0}
+check "branch=feat/foo no gates → exit 2 (gate-freshness still runs)" "[ \"$rc\" = 2 ]"
+check "branch=feat/foo no gates → BLOCKED for gates" "printf '%s' \"\$out\" | grep -q 'Quality gates'"
+
+# Reset back to real branch state for downstream tests.
+wf_reset
+
 unset rc
 wf_mark check_passed
 wf_mark typecheck_passed
