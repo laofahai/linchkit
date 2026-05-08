@@ -73,13 +73,16 @@ describe("view layout helpers", () => {
     expect(separator()).toEqual({ type: "separator" });
   });
 
+  it("separator(label) renders the optional label", () => {
+    expect(separator("Section 2")).toEqual({ type: "separator", label: "Section 2" });
+  });
+
   it("output is JSON-serializable (deterministic, no functions, no cycles)", () => {
     const tree = row(group(field("a"), field("b")));
     const json = JSON.stringify(tree);
-    // Re-parsing must yield a structurally identical value.
+    // Structural equality check below already implies no functions survived
+    // serialization (JSON.stringify drops them, breaking deep equality).
     expect(JSON.parse(json)).toEqual(tree);
-    // No functions or class instances slipped in.
-    expect(json.includes("function")).toBe(false);
   });
 
   it("round-trips with the verbose syntax (helpers === sugar)", () => {

@@ -75,7 +75,7 @@ export function page(title: string, ...children: FormLayoutNode[]): FormPageNode
   return { type: "page", title, children };
 }
 
-/** Build a visual separator. */
-export function separator(): FormSeparatorNode {
-  return { type: "separator" };
+/** Build a visual separator. The optional label renders as a caption beside the line. */
+export function separator(label?: string): FormSeparatorNode {
+  return label !== undefined ? { type: "separator", label } : { type: "separator" };
 }
