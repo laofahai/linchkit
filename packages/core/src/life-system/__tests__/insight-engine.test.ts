@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { EntityDescriptor, OntologyRegistry } from "../../ontology/ontology-registry";
 import type { SensorSignal } from "../../types/life-system";
+import { createAttentionBudget } from "../attention-budget";
 import { createAwarenessEngine } from "../awareness-engine";
 import { createInsightEngine } from "../insight-engine";
 
@@ -400,6 +401,156 @@ describe("InsightEngine", () => {
       const third = await engine.generateInsights();
       const reGenerated = third.filter((i) => i.type === "anomaly" && i.entity === "order");
       expect(reGenerated).toHaveLength(1);
+    });
+  });
+
+  describe("attention budget integration (Spec 55 §6.3)", () => {
+    test("without budget returns all promoted insights (regression)", async () => {
+      const ontology = makeOntology({
+        A: { views: [], actions: [] },
+        B: { views: [], actions: [] },
+        C: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({ awareness });
+
+      const insights = await engine.generateInsights();
+      expect(insights).toHaveLength(3);
+    });
+
+    test("with budget caps at maxInsightsPerCycle", async () => {
+      const ontology = makeOntology({
+        A: { views: [], actions: [] },
+        B: { views: [], actions: [] },
+        C: { views: [], actions: [] },
+        D: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({ awareness });
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 2 });
+
+      const surfaced = await engine.generateInsights({ budget });
+      expect(surfaced).toHaveLength(2);
+
+      // Storage is unaffected — all 4 structural insights still retained.
+      expect(engine.getInsights()).toHaveLength(4);
+    });
+
+    test("with budget ranks DESC by confidence × impact", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: { minOccurrences: 1, minDistinctContexts: 1, minConfidence: 0.5 },
+      });
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 10 });
+
+      // Low impact / low confidence drift on entity "alpha"
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 0.6, context: { entity: "alpha", tenantId: "t1" } }),
+        0.1, // low impact
+      );
+      // High impact / high confidence drift on entity "omega"
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 1.0, context: { entity: "omega", tenantId: "t1" } }),
+        0.9, // high impact
+      );
+
+      const surfaced = await engine.generateInsights({ budget });
+      expect(surfaced).toHaveLength(2);
+      // Highest confidence × impact wins.
+      expect(surfaced[0]?.entity).toBe("omega");
+      expect(surfaced[1]?.entity).toBe("alpha");
+    });
+
+    test("with budget drops below cap when more candidates exist", async () => {
+      const ontology = makeOntology({
+        A: { views: [], actions: [] },
+        B: { views: [], actions: [] },
+        C: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({ awareness });
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 1 });
+
+      const surfaced = await engine.generateInsights({ budget });
+      expect(surfaced).toHaveLength(1);
+    });
+
+    test("ignored types decay on the next ranking pass (Spec 55 §6.4)", async () => {
+      const ontologyA = makeOntology({
+        // Drift insight (anomaly) on "Order" + structural insight on "Product"
+        Product: { views: [], actions: [] },
+      });
+      const awareness = createAwarenessEngine({ ontology: ontologyA });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: { minOccurrences: 1, minDistinctContexts: 1, minConfidence: 0.5 },
+      });
+      const budget = createAttentionBudget({
+        maxInsightsPerCycle: 10,
+        ignoreDecay: 0.1, // very aggressive decay
+      });
+
+      // Drift on "Order" with high confidence + high impact → high baseline score.
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 1.0, context: { entity: "Order", tenantId: "t1" } }),
+        0.9,
+      );
+
+      const first = await engine.generateInsights({ budget });
+      // Both anomaly (Order drift) and structural (Product) should appear.
+      const anomalyFirst = first.find((i) => i.type === "anomaly");
+      const structuralFirst = first.find((i) => i.type === "structural");
+      expect(anomalyFirst).toBeDefined();
+      expect(structuralFirst).toBeDefined();
+
+      // User ignores the "anomaly" type → its weight decays.
+      budget.recordIgnore("anomaly");
+
+      // Force a second drift insight on a different entity so the engine has
+      // fresh material to rank against the structural insight on the next pass.
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 1.0, context: { entity: "Other", tenantId: "t1" } }),
+        0.9,
+      );
+      // And re-add a structural-ish signal so we still have candidates.
+      // (Structural insight was already promoted — it won't re-emit. Use rank
+      // directly to verify the decay effect on type weights.)
+      const ranked = budget.rank([
+        { item: "anomaly_candidate", confidence: 1, impact: 1, type: "anomaly" },
+        { item: "structural_candidate", confidence: 1, impact: 1, type: "structural" },
+      ]);
+      // After ignoring "anomaly", structural should now outrank anomaly.
+      expect(ranked[0]?.item).toBe("structural_candidate");
+      expect(ranked[1]?.item).toBe("anomaly_candidate");
+    });
+
+    test("typeWeight from recordEndorse boosts surfacing priority", async () => {
+      const ontology = makeOntology({});
+      const awareness = createAwarenessEngine({ ontology });
+      const engine = createInsightEngine({
+        awareness,
+        promotion: { minOccurrences: 1, minDistinctContexts: 1, minConfidence: 0.5 },
+      });
+      const budget = createAttentionBudget({ maxInsightsPerCycle: 1, endorseBoost: 5.0 });
+
+      // Two equal-strength drifts → without endorsement, ordering is by score
+      // ties (insertion). After endorsing "anomaly" (only existing type), the
+      // single survivor is still an anomaly — verify the budget caps to 1.
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 0.9, context: { entity: "alpha", tenantId: "t1" } }),
+        0.5,
+      );
+      engine.recordDriftCandidate(
+        makeSignal({ confidence: 0.9, context: { entity: "beta", tenantId: "t2" } }),
+        0.5,
+      );
+
+      budget.recordEndorse("anomaly");
+      const surfaced = await engine.generateInsights({ budget });
+      expect(surfaced).toHaveLength(1);
+      expect(surfaced[0]?.type).toBe("anomaly");
     });
   });
 

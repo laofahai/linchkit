@@ -244,11 +244,25 @@ export interface InsightPromotionConfig {
 }
 
 /**
+ * Options for InsightEngine.generateInsights (Spec 55 §6.3).
+ *
+ * When `budget` is provided, the engine ranks the freshly produced insights
+ * by `confidence × impact × importance × typeWeight` and caps them at the
+ * budget's `maxInsightsPerCycle`. Insights stored via promotion remain in
+ * `getInsights()` regardless — the budget only controls what surfaces in
+ * this cycle's return value.
+ */
+export interface GenerateInsightsOptions {
+  /** Optional attention budget. Without it, all promoted insights surface. */
+  budget?: AttentionBudget;
+}
+
+/**
  * InsightEngine — generates Insights from Awareness + Memory data (Spec 55 §6).
  */
 export interface InsightEngine {
   /** Generate insights from current awareness state */
-  generateInsights(): Promise<Insight[]>;
+  generateInsights(opts?: GenerateInsightsOptions): Promise<Insight[]>;
   /** Record a drift event as an insight candidate */
   recordDriftCandidate(signal: SensorSignal, deviation: number): void;
   /** Get all promoted insights */

@@ -11,7 +11,9 @@
  */
 
 import type {
+  AttentionBudget,
   AwarenessEngine,
+  GenerateInsightsOptions,
   Insight,
   InsightEngine,
   InsightImpact,
@@ -60,6 +62,45 @@ function deviationToImpact(deviation: number): InsightImpact {
   if (deviation >= 0.7) return "high";
   if (deviation >= 0.4) return "medium";
   return "low";
+}
+
+/**
+ * Convert categorical InsightImpact to a numeric factor for AttentionBudget.rank().
+ * Aligns with attention-budget's internal impactNumeric bands (0.3 / 0.6 / 1.0).
+ */
+function impactToNumeric(impact: InsightImpact): number {
+  switch (impact) {
+    case "high":
+      return 1.0;
+    case "medium":
+      return 0.6;
+    case "low":
+      return 0.3;
+  }
+}
+
+/**
+ * Apply attention budget to a freshly produced batch of insights (Spec 55 §6.3).
+ *
+ * The budget ranks by `confidence × impact × importance × typeWeight` and caps
+ * at `maxInsightsPerCycle`. Returned order is DESC by composite score (NOT
+ * insertion order) so the highest-priority insight surfaces first — matches
+ * Spec 55 §6.4 "按 confidence × impact 排序".
+ */
+function applyBudget(insights: Insight[], budget: AttentionBudget): Insight[] {
+  if (insights.length === 0) return insights;
+
+  const ranked = budget.rank(
+    insights.map((insight) => ({
+      item: insight,
+      confidence: insight.confidence,
+      impact: impactToNumeric(insight.impact),
+      entity: insight.entity,
+      type: insight.type,
+    })),
+  );
+
+  return ranked.map((scored) => scored.item);
 }
 
 /** Derive a context key for distinctness counting.
@@ -259,7 +300,7 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
   }
 
   return {
-    async generateInsights(): Promise<Insight[]> {
+    async generateInsights(opts: GenerateInsightsOptions = {}): Promise<Insight[]> {
       const newInsights: Insight[] = [];
 
       // Structural insights (no promotion needed — Spec 55 §6.3)
@@ -271,6 +312,14 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
 
       // Evict oldest insights if over retention limit
       enforceRetentionLimit();
+
+      // Apply attention budget (Spec 55 §6.3): rank by confidence × impact ×
+      // importance × typeWeight and cap at maxInsightsPerCycle. Storage in
+      // promotedInsights is unaffected — the budget controls what surfaces
+      // this cycle, not what is retained.
+      if (opts.budget) {
+        return applyBudget(newInsights, opts.budget);
+      }
 
       return newInsights;
     },
