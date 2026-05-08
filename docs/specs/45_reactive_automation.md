@@ -1,368 +1,302 @@
-# 响应式自动化 — 数据条件触发
+# 数据条件 Watcher
 
-> Status: Done | Date: 2026-03-23
+> Status: Partial | Date: 2026-05-08
 > 灵感来源: Palantir Automate（对象集条件触发、阈值越界）
-> 里程碑: M3
+> 里程碑: M5
+> Issue: #150（移除 AutomationEngine，spec 仅保留 Watcher）
 
-## 1. 问题
+## 1. 为什么需要 Watcher
 
-LinchKit 当前的自动化是**纯事件驱动**的：EventHandler 在 Action 成功或状态迁移时触发。这遗漏了一类重要的自动化场景：
+LinchKit 的事件反应能力由 `defineEventHandler` 提供：当 Action 成功、记录变更、状态迁移等**系统事件**发生时，处理器同步或异步地执行副作用。EventHandler 解决「事件 X 发生 → 做 Y」。
 
-**数据条件触发** — 「当数据达到某种状态时，执行 X」。
+但还存在一类反应不能用事件表达 —— **数据自身达到某种状态**：
 
-以下场景无法用当前 EventHandler 表达：
-- 「当某部门待审批的采购申请总额超过 ¥100,000 时，通知 CFO」
-- 「当库存数量低于安全库存时，自动创建采购申请」
-- 「当申请在 submitted 状态停留超过 48 小时时，升级处理」
-- 「每周一 9 点，如果有超过 3 天未审批的申请，发送摘要」
+- 「当某部门待审批的采购申请总额超过 ¥100,000 时，通知 CFO」（聚合越界）
+- 「当库存数量低于安全库存时，自动创建采购申请」（单字段越界）
+- 「当申请在 submitted 状态停留超过 48 小时时，升级处理」（时间维度的"停滞"）
+- 「当一条记录新进入或离开某个过滤集合时，发送通知」（集合成员变化）
 
-这些需要：
-1. 轮询 + 条件评估（定时）
-2. 聚合感知触发器（Action 后评估）
-3. 时间 + 数据条件组合
+这些条件**不是单个事件**，而是数据的累积状态、时间维度的停滞、或集合层面的入/出。EventHandler 看不到「累积」「停滞」或「集合差」—— 它只看到一个个独立事件。
 
-## 2. 方案：defineWatcher
+`defineWatcher` 提供与 EventHandler 互补的能力：**声明数据条件，由 WatcherEngine 在合适的时机评估并通过 CommandLayer 触发 Action**。
 
-引入 `defineWatcher` — 将数据条件与自动化动作组合的声明。Watcher 在定时或相关数据变更后被评估。
+> **不是 EventHandler 的替代**。事件直接反应仍然用 `defineEventHandler`；Watcher 只针对数据条件型自动化。两者机制和心智模型都不同（详见 §6）。
 
-```typescript
-import { defineWatcher } from '@linchkit/core'
+## 2. 四种触发类型
 
-export const budgetAlert = defineWatcher({
-  name: 'department_budget_alert',
-  label: '部门支出超预算告警',
+Watcher 共定义四种触发器。前三种已实现并配套测试，`schedule` 已定义类型但**尚未实现**。
 
-  // 监视什么
-  watch: {
-    schema: 'purchase_request',
-    filter: { status: { in: ['submitted', 'approved'] } },
-    aggregate: { field: 'amount', op: 'sum', groupBy: 'department_id' },
-  },
+| trigger.type | 何时触发 | 评估方式 | 实现状态 |
+|--------------|---------|---------|---------|
+| `threshold` | 字段或聚合值越过比较条件 | Action 后（事件总线） | ✅ 已实现 |
+| `set_change` | 记录进入/离开过滤集合，或在集合内被更新 | Action 后（事件总线） | ✅ 已实现 |
+| `staleness` | 记录在某状态停留超过阈值 | 后台定时轮询 | ✅ 已实现 |
+| `schedule` | 按 cron 表达式定时评估 | （后台定时轮询） | ⚠️ 类型已定义，引擎未实现 |
 
-  // 何时触发
-  trigger: {
-    type: 'threshold',
-    condition: { gt: 100_000 },      // sum(amount) > 100,000
-    // 每组仅触发一次，直到条件重置
-    debounce: 'once_until_reset',
-  },
+> `watch.filter` 的类型是 `DeclarativeCondition`（`{ field, operator, value }` / 复合 `and`/`or` / `not`），与 Rule 共享。后续示例都使用这一形式。
 
-  // 做什么
-  effect: {
-    action: 'send_notification',
-    params: (context) => ({
-      to: context.group.department.manager,
-      template: 'budget_exceeded',
-      data: { department: context.group.department_id, total: context.value },
-    }),
-  },
-})
-```
+### 2.1 threshold — 阈值越界
 
-## 3. Watcher 类型
+`threshold` 监视单条记录的某个字段，或一组记录的聚合值（sum / count / avg / min / max），当值满足比较条件（`gt` / `gte` / `lt` / `lte` / `eq`）时触发。
 
-### 3.1 阈值 Watcher
-
-当聚合值越过边界时触发。
+聚合时 `aggregate.field` 必须是数值字段：当前 `computeAggregate()` 先把 `field` 的值过滤到数值，再做 `sum`/`avg`/`min`/`max`/`count` —— 因此 **`count` 等于「`aggregate.field` 是数值的记录数」，不是「过滤后所有记录数」**。`groupBy` 当前**仅用于 debounce 的分组 key**（控制每个 group 只触发一次），并**不会**让引擎按组计算多份聚合 —— 引擎对 `watch.filter` 过滤后的全集计算单一聚合值。
 
 ```typescript
+// 单条记录字段
 defineWatcher({
   name: 'low_inventory_alert',
-  watch: {
-    schema: 'inventory_item',
-    filter: {},               // 所有项
-    // 无聚合 — 监视单条记录
-  },
-  trigger: {
-    type: 'threshold',
-    field: 'quantity',
-    condition: { lt: '$reorder_point' },  // 字段引用
-    debounce: 'once_until_reset',
-  },
-  effect: {
-    action: 'create_purchase_request',
-    params: (ctx) => ({
-      item_id: ctx.record.id,
-      quantity: ctx.record.reorder_quantity,
-    }),
-  },
+  watch: { entity: 'inventory_item' },
+  trigger: { type: 'threshold', field: 'quantity', condition: { lt: 10 }, debounce: 'once_until_reset' },
+  effect: { action: 'create_purchase_request', params: (ctx) => ({ item_id: ctx.record!.id }) },
 })
-```
 
-### 3.2 过期 Watcher
-
-当记录在某种状态停留过久时触发。
-
-```typescript
+// 全集聚合（pending 申请总额超过 ¥100,000）
 defineWatcher({
-  name: 'stale_request_escalation',
+  name: 'pending_budget_alert',
   watch: {
-    schema: 'purchase_request',
-    filter: { status: 'submitted' },
+    entity: 'purchase_request',
+    filter: {
+      operator: 'or',
+      conditions: [
+        { field: 'status', operator: 'eq', value: 'submitted' },
+        { field: 'status', operator: 'eq', value: 'approved' },
+      ],
+    },
+    aggregate: { field: 'amount', op: 'sum' },
   },
-  trigger: {
-    type: 'staleness',
-    field: 'updated_at',
-    threshold: '48h',          // 48 小时后视为过期
-  },
-  effect: {
-    action: 'escalate_request',
-    params: (ctx) => ({ id: ctx.record.id }),
-  },
+  trigger: { type: 'threshold', condition: { gt: 100_000 }, debounce: 'once_until_reset' },
+  effect: { action: 'send_notification', params: (ctx) => ({ template: 'budget_exceeded', value: ctx.value }) },
 })
 ```
 
-### 3.3 定时 + 条件 Watcher
+### 2.2 set_change — 集合成员变化
 
-按时间表评估条件。
-
-```typescript
-defineWatcher({
-  name: 'weekly_unapproved_digest',
-  watch: {
-    schema: 'purchase_request',
-    filter: { status: 'submitted' },
-    // 条件：count > 0
-  },
-  trigger: {
-    type: 'schedule',
-    cron: '0 9 * * 1',        // 每周一 9 点
-    condition: { count: { gt: 0 } },
-  },
-  effect: {
-    action: 'send_digest',
-    params: (ctx) => ({
-      requests: ctx.records,
-      count: ctx.count,
-    }),
-  },
-})
-```
-
-### 3.4 集合变更 Watcher
-
-当记录进入或离开过滤集合时触发（灵感来自 Palantir Automate）。
+`set_change` 监视过滤集合的成员变化。比较记录变更前后是否匹配 `watch.filter`：
+- `on: 'added'` — 之前不匹配，现在匹配（新进入集合）
+- `on: 'removed'` — 之前匹配，现在不匹配（离开集合）
+- `on: 'modified'` — 变更前后**都仍在集合内**，且本次确实是 update（`oldRecord` 存在）。引擎**不**做新旧字段值的内容比较，只要在集合内被更新过就 fire。
 
 ```typescript
 defineWatcher({
   name: 'new_high_value_request',
   watch: {
-    schema: 'purchase_request',
-    filter: { amount: { gt: 50_000 }, status: 'submitted' },
+    entity: 'purchase_request',
+    filter: {
+      operator: 'and',
+      conditions: [
+        { field: 'amount', operator: 'gt', value: 50_000 },
+        { field: 'status', operator: 'eq', value: 'submitted' },
+      ],
+    },
   },
-  trigger: {
-    type: 'set_change',
-    on: 'added',               // 'added' | 'removed' | 'modified'
-  },
-  effect: {
-    action: 'send_notification',
-    params: (ctx) => ({
-      to: 'cfo@company.com',
-      template: 'high_value_request',
-      data: { id: ctx.record.id, amount: ctx.record.amount },
-    }),
-  },
+  trigger: { type: 'set_change', on: 'added' },
+  effect: { action: 'send_notification', params: (ctx) => ({ to: 'cfo@company.com', id: ctx.record!.id }) },
 })
 ```
 
-## 4. 评估策略
+### 2.3 staleness — 停滞越界
 
-Watcher 需要评估机制。两种模式：
-
-### 4.1 Action 后评估（响应式）
-
-任何修改被监视 Schema 的 Action 执行后，评估相关 Watcher：
-
-```
-Action 在 Schema X 上执行
-  → 查找 watch.schema == X 的 Watcher
-  → 评估每个 Watcher 的条件
-  → 条件满足 → 执行 effect
-```
-
-轻量且即时，但只能捕获通过 Action 的变更（不包括直接 DB 编辑）。
-
-**实现：** 挂入 ActionExecutor 的 post-action 阶段（EventHandler 分发之后）。
-
-### 4.2 定时评估（轮询）
-
-对 staleness 和 cron 类型的 Watcher，后台 Worker 定时评估条件：
-
-```
-WatcherWorker 每分钟运行一次
-  → 查找 type='staleness' 或 type='schedule' 的 Watcher
-  → 检查是否到了评估时间（cron 匹配或 staleness 间隔）
-  → 通过 DataProvider 执行查询
-  → 条件满足 → 执行 effect
-```
-
-**实现：** 与 OutboxWorker 并行运行。使用同一个 DataProvider 查询。
-
-### 4.3 混合模式（推荐）
-
-两者结合：threshold/set_change 用 Action 后评估；staleness/schedule 用定时评估。
-
-## 5. 去重与防重复
-
-Watcher 不能对同一条件反复触发：
-
-| 策略 | 行为 |
-|------|------|
-| `once_until_reset` | 条件变为 true 时触发一次。直到条件变为 false 再变为 true 才再次触发。 |
-| `once_per_record` | 每条匹配的记录触发一次。追踪已触发的记录 ID。 |
-| `cooldown` | 每个 `cooldownPeriod`（如 `'1h'`）最多触发一次。 |
-
-状态追踪存储在系统表：`_linchkit.watcher_state`。
-
-```typescript
-// 系统表
-_linchkit.watcher_state: {
-  watcher_name: string        // Watcher 标识
-  group_key: string           // groupBy 值或记录 ID
-  last_fired_at: timestamp
-  condition_met: boolean      // 当前条件状态
-  tenant_id: string
-}
-```
-
-## 6. WatcherDefinition 完整结构
+`staleness` 在后台定时检查匹配记录的时间戳字段，超过阈值视为停滞，触发效果。
 
 ```typescript
 defineWatcher({
-  name: string,
-  label: string,
-  description?: string,
-
+  name: 'stale_request_escalation',
   watch: {
-    schema: string,
-    filter?: DeclarativeCondition,
-    aggregate?: {
-      field: string,
-      op: 'sum' | 'count' | 'avg' | 'min' | 'max',
-      groupBy?: string,        // 按此字段分组
-    },
+    entity: 'purchase_request',
+    filter: { field: 'status', operator: 'eq', value: 'submitted' },
   },
-
-  trigger: {
-    type: 'threshold' | 'staleness' | 'schedule' | 'set_change',
-
-    // threshold 类型:
-    field?: string,                          // 要比较的字段（单条记录）
-    condition?: ComparisonCondition,          // { gt, lt, eq, gte, lte }
-
-    // staleness 类型:
-    // field: 要检查的时间戳字段
-    // threshold: 时长字符串（'48h', '7d'）
-
-    // schedule 类型:
-    cron?: string,
-    // condition: 可选 — 仅在条件同时满足时触发
-
-    // set_change 类型:
-    on?: 'added' | 'removed' | 'modified',
-
-    // 去重
-    debounce?: 'once_until_reset' | 'once_per_record' | 'cooldown',
-    cooldownPeriod?: string,     // cooldown 策略的冷却时长
-  },
-
-  effect: {
-    action: string,
-    params: Record<string, unknown> | ((ctx: WatcherContext) => Record<string, unknown>),
-  },
-
-  // 限制
-  enabled?: boolean,           // 默认: true
-  tenantScoped?: boolean,      // 默认: true（按租户评估）
+  trigger: { type: 'staleness', field: 'updated_at', threshold: '48h' },
+  effect: { action: 'escalate_request', params: (ctx) => ({ id: ctx.record!.id }) },
 })
 ```
 
-## 7. 与现有概念的关系
+支持的时长单位：`d` / `h` / `m` / `s`（如 `'48h'`、`'7d'`、`'30m'`）。
 
-| 概念 | 职责 | 与 Watcher 的区别 |
-|------|------|-------------------|
-| **Rule** | Action 前置约束 | Rule 阻止/修改特定 Action。Watcher 观察聚合数据状态。 |
-| **EventHandler** | 事件后置反应 | Handler 对单个事件做反应。Watcher 对累积数据条件做反应。 |
-| **Flow** | 多步骤编排 | Flow 编排序列。Watcher 是单次触发的自动化。 |
+### 2.4 schedule — 定时（specified, not yet implemented）
+
+`schedule` 计划按 cron 表达式定时评估条件。**类型已在 `WatcherTrigger` 中定义，但 WatcherEngine 中尚无 cron 调度实现**。声明此类 Watcher 当前不会执行。
+
+```typescript
+// 类型已定义，引擎实现待补
+defineWatcher({
+  name: 'weekly_unapproved_digest',
+  watch: {
+    entity: 'purchase_request',
+    filter: { field: 'status', operator: 'eq', value: 'submitted' },
+    aggregate: { field: 'amount', op: 'count' },
+  },
+  trigger: { type: 'schedule', cron: '0 9 * * 1', condition: { gt: 0 } },
+  effect: { action: 'send_digest', params: () => ({}) },
+})
+```
+
+## 3. `defineWatcher()` API
+
+```typescript
+import { defineWatcher } from '@linchkit/core'
+import type { WatcherDefinition } from '@linchkit/core'
+
+export function defineWatcher(
+  definition: Omit<WatcherDefinition, 'enabled'> & { enabled?: boolean },
+): WatcherDefinition
+```
+
+`WatcherDefinition` 完整结构：
+
+```typescript
+interface WatcherDefinition {
+  name: string                 // 唯一标识
+  label?: string
+  description?: string
+  watch: {
+    entity: string             // 目标实体
+    filter?: DeclarativeCondition
+    aggregate?: { field: string; op: 'sum' | 'count' | 'avg' | 'min' | 'max'; groupBy?: string }
+  }
+  trigger: ThresholdWatcherTrigger | StalenessWatcherTrigger | ScheduleWatcherTrigger | SetChangeWatcherTrigger
+  effect: {
+    action: string             // 通过 CommandLayer 执行的 Action 名
+    params: Record<string, unknown> | ((ctx: WatcherContext) => Record<string, unknown>)
+  }
+  enabled: boolean             // 默认 true
+  tenantScoped?: boolean       // 默认 true
+}
+```
+
+每种 trigger 都支持 `debounce`：
+
+- `'once_until_reset'` — 同一个 group key 内，条件再次满足时**不会**自动 re-fire；
+  - 对 **`staleness`**：当 staleness 检查发现条件不再满足时，引擎会把 `conditionMet` 自动清回 `false`，下次再次满足时可重新触发。
+  - 对 **`threshold` / `set_change`**：状态只会被 fire 时设为 `true`，不再回滚。后续若需 re-fire，必须显式调用 `WatcherEngine.resetState(name, groupKey)`（或进程重启，因 stateMap 在内存中）。
+- `'once_per_record'` — 按 group key 仅触发一次，永久停留。
+- `'cooldown'` + `cooldownPeriod` — 上次 fire 后经过指定间隔才允许再次 fire（默认 `1h`）。
+
+完整定义见 `packages/core/src/types/watcher.ts`。
+
+## 4. WatcherEngine
+
+WatcherEngine 是 `Watcher` 生命周期合约（`packages/core/src/life-system/watcher.ts`）的具体实现，按 Spec 56 移出 core，落在 `@linchkit/cap-ai-provider`：
+
+- **注册查找** —— `WatcherRegistry`（`packages/core/src/automation/watcher-registry.ts`）按 entity 索引，post-mutation 时只评估相关 Watcher。
+- **响应式评估** —— 订阅 EventBus 上的 `record.created` / `record.updated`；对 `threshold` 和 `set_change` 触发器，事件到达后立即评估并按 debounce 决定是否 fire。
+- **轮询评估** —— `staleness` 触发器由 `setInterval`（默认 60s）周期性检查 `dataQuerier.queryRecords()` 的结果。`schedule` 触发器尚未接入轮询（见 §2.4）。
+- **效果执行** —— 通过注入的 `WatcherActionExecutor.executeAction(name, input)` 调用。引擎本身**不感知 CommandLayer**；cap-ai-provider 在装配时把 executor 桥接到 CommandLayer，使 Watcher fire 与普通 Action 共享 7-slot 管线（auth / permission / tenant / pre-action / post-action）。其他 executor 实现（测试桩、低权限沙盒）也可以接入此接口。
+- **debounce 状态** —— 当前为内存中的 `stateMap`（`${watcherName}:${groupKey}`）。**持久化的 `_linchkit.watcher_state` 系统表尚未实现**，进程重启会丢失 debounce 状态。
+
+详见实现：`addons/ai-provider/cap-ai-provider/src/watcher-engine.ts`，测试：`addons/ai-provider/cap-ai-provider/__tests__/watcher-engine.test.ts`。
+
+## 5. 示例
+
+### 5.1 库存低于阈值自动补货
+
+```typescript
+defineWatcher({
+  name: 'inventory_replenish',
+  label: '库存补货',
+  watch: { entity: 'inventory_item' },
+  trigger: {
+    type: 'threshold',
+    field: 'quantity',
+    condition: { lt: 10 },
+    debounce: 'cooldown',
+    cooldownPeriod: '24h',
+  },
+  effect: {
+    action: 'create_purchase_request',
+    params: (ctx) => ({ item_id: ctx.record!.id, quantity: ctx.record!.reorder_quantity }),
+  },
+})
+```
+
+效果：当 `inventory_item.quantity` 跌破 10 时触发一次 `create_purchase_request`；同一记录的下一次触发受 24h 冷却限制（`cooldown`），避免补货中途的多次写入引起重复采购。
+若改用 `'once_until_reset'`，则触发一次后状态会一直停留在「已触发」，直到调用 `WatcherEngine.resetState(...)` 或进程重启 —— 适合「永久封存到首次告警结束」的场景，不适合自动恢复。
+
+### 5.2 大额申请进入待审队列时通知 CFO
+
+```typescript
+defineWatcher({
+  name: 'high_value_request_alert',
+  watch: {
+    entity: 'purchase_request',
+    filter: {
+      operator: 'and',
+      conditions: [
+        { field: 'amount', operator: 'gt', value: 50_000 },
+        { field: 'status', operator: 'eq', value: 'submitted' },
+      ],
+    },
+  },
+  trigger: { type: 'set_change', on: 'added' },
+  effect: {
+    action: 'send_notification',
+    params: (ctx) => ({ to: 'cfo@company.com', subject: 'High-value request', request_id: ctx.record!.id }),
+  },
+})
+```
+
+效果：仅当一条记录从「不匹配 filter」变成「匹配 filter」时通知 CFO（避免对已经在队列里的旧记录重复发）。
+
+### 5.3 长期未处理的提交自动升级
+
+```typescript
+defineWatcher({
+  name: 'submitted_too_long',
+  watch: {
+    entity: 'purchase_request',
+    filter: { field: 'status', operator: 'eq', value: 'submitted' },
+  },
+  trigger: { type: 'staleness', field: 'updated_at', threshold: '48h', debounce: 'once_per_record' },
+  effect: { action: 'escalate_request', params: (ctx) => ({ id: ctx.record!.id }) },
+})
+```
+
+效果：每条 `submitted` 状态超过 48 小时未更新的记录会被升级一次。
+
+## 6. 与其他元模型概念的关系
+
+| 概念 | 触发依据 | 与 Watcher 的关系 |
+|------|---------|-------------------|
+| **Rule** | Action 前置约束 | Rule 阻止/修改特定 Action 的执行。Watcher 不参与 Action 准入。 |
+| **EventHandler** | 系统事件（Action 成功、状态迁移、记录变更） | Handler 对**单个事件**反应。Watcher 对**累积/聚合/集合/停滞**反应。 |
+| **Flow** | 显式编排多步 | Flow 编排过程。Watcher 是单触发→单 Action。 |
 
 **心智模型：**
 - Rule = 「这个操作应该被允许吗？」
-- EventHandler = 「这个操作发生了，现在做 X」
-- Watcher = 「数据已经达到了状态 Y，做 Z」
+- EventHandler = 「事件 X 发生了，做 Y」
+- Watcher = 「数据/集合/时间已经达到了状态 Z，做 W」
 
-## 8. 安全
+## 7. UI 管理
 
-- Watcher effect 通过正常的 Action 管道执行（CommandLayer、权限检查）
-- Watcher effect 以 `system` actor 身份运行（不是触发数据变更的用户）
-- 每个 Watcher 必须明确授予 system actor 权限
-- `tenant_id` 范围是强制的 — Watcher 按租户评估
+Watcher 管理界面（`/admin/automations`，规划中，尚未实装）。规划展示：
 
-## 9. 不做什么
+- **列表**：name / label / watch.entity / trigger.type / effect.action / enabled / 上次触发时间 / 累计触发次数。
+- **详情**：watch / trigger / debounce 的结构化展示；从 `watcher_state` 读取每个 group key 的当前条件状态。
+- **历史**：触发时间、group key、condition 评估结果、Action 执行结果（成功/失败）；阈值类 Watcher 展示聚合值随时间的折线图。
+- **状态面板**：活跃 Watcher 数 / 当日触发数 / 失败数 / 下次定时评估时间。
 
-- **不在 Action 事务中同步评估 Watcher** — 评估在 Action 之后或定时进行。绝不阻塞 Action 管道。
-- **不替代 EventHandler** — Watcher 是补充，不是替代。对特定事件的直接反应用 EventHandler。对聚合/条件驱动的自动化用 Watcher。
-- **不构建完整的 CEP（复杂事件处理）引擎** — 保持简单。如果需求超出 threshold/staleness/schedule/set_change，考虑引入专用 CEP 系统。
+实装依赖 `_linchkit.watcher_state` 表（§4 中尚未持久化）和 cap-ai-provider 暴露的查询接口。
 
-## 10. 里程碑
+## 8. 不做什么 / 已移除
 
-### M3
-- `defineWatcher()` 类型定义 + `WatcherRegistry`
-- 阈值 Watcher（Action 后评估）
-- 过期 Watcher（定时评估）
-- `_linchkit.watcher_state` 系统表
-- 去重: `once_until_reset`、`once_per_record`
+- **AutomationEngine / `defineAutomation` / AutomationTrigger / AutomationAction —— 已在 PR #146 移除。** 它们与 EventHandler 形成声明式重复，没有独立价值。系统事件反应统一使用 `defineEventHandler`，数据条件反应使用 `defineWatcher`。
+- **不在 Action 事务中同步评估 Watcher** —— Watcher fire 在 post-action 之后或后台轮询中进行，绝不阻塞 Action 主路径。
+- **不替代 EventHandler** —— Watcher 是补充。直接事件反应（如「Action 成功后写审计日志」）继续用 EventHandler。
+- **不构建完整的 CEP（复杂事件处理）引擎** —— 当前覆盖 threshold / staleness / set_change / schedule 四种条件，超出此范围的复杂时序逻辑应外接专用 CEP 系统。
 
-### M4
-- 集合变更 Watcher
-- 定时（cron）Watcher
-- Watcher 管理 UI（启用/禁用、查看状态、历史）
-- `cooldown` 去重策略
+## 9. 里程碑
 
-## 11. UI Management
+### 已完成（M3）
 
-Watcher（响应式自动化）需要管理界面，让管理员配置、监控和审计自动化规则。
+- `defineWatcher()` + `WatcherDefinition` 类型
+- `WatcherRegistry`（注册、enable/disable、按 entity 查找）
+- WatcherEngine 实装（`@linchkit/cap-ai-provider`）：threshold（单条 + 聚合）、set_change、staleness
+- 三种 debounce 策略：`once_until_reset` / `once_per_record` / `cooldown`
+- EventBus 订阅、CommandLayer 接入
 
-### 11.1 自动化规则列表 (`/admin/automations`)
+### 待完成（M5+）
 
-展示所有已注册的 Watcher：
-
-| 列 | 说明 |
-|------|------|
-| **name** | Watcher 标识 |
-| **label** | 人类可读名称 |
-| **watch.schema** | 监视的 Schema |
-| **trigger.type** | 触发类型（threshold / staleness / schedule / set_change） |
-| **effect.action** | 触发的 Action |
-| **enabled** | 启用状态（开关控件，支持直接切换） |
-| **上次触发** | 最近一次触发的时间 |
-| **触发次数** | 累计触发次数（从 `_linchkit.watcher_state` 统计） |
-
-筛选：按 Schema、trigger 类型、启用状态筛选。
-
-### 11.2 Watcher 配置详情
-
-点击 Watcher 进入详情页：
-
-- **监视配置**：watch 的 schema、filter、aggregate 的结构化展示
-- **触发条件**：threshold 的条件表达式、staleness 的时间阈值、schedule 的 cron 表达式（附带人类可读说明，如"每周一 9:00"）
-- **去重策略**：debounce 模式 + cooldown 参数
-- **效果配置**：目标 Action + 参数模板
-- **当前状态**：从 `_linchkit.watcher_state` 读取每个 group_key 的当前条件状态和上次触发时间
-
-### 11.3 触发历史 / 执行日志
-
-Watcher 详情页底部展示触发历史：
-
-- 每次触发记录：触发时间、group_key、条件评估结果、执行的 Action、Action 执行结果（成功/失败）
-- 支持时间范围筛选
-- 失败的触发高亮显示，附带错误信息
-- 阈值 Watcher 展示聚合值的历史趋势（简单折线图：值 vs 阈值线）
-
-### 11.4 Watcher 状态监控
-
-在自动化列表页顶部展示整体状态面板：
-
-- **活跃 Watcher 数**：当前启用的 Watcher 总数
-- **今日触发数**：当日所有 Watcher 的累计触发次数
-- **失败数**：当日触发但 Action 执行失败的次数
-- **下次定时评估**：最近一个 schedule/staleness Watcher 的下次评估时间
+- `schedule` 触发器引擎实现（cron 调度）
+- `_linchkit.watcher_state` 系统表持久化（替换内存 stateMap）
+- `aggregate.groupBy` 真正按分组计算多份聚合（当前只把 `groupBy` 用作 debounce key）
+- `set_change` 的 `'modified'` 增加新旧字段值比较（当前只校验 in-set 状态）
+- `/admin/automations` 管理 UI + 触发历史 + 聚合趋势

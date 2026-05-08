@@ -55,7 +55,7 @@ How the meta-model executes at runtime.
 | [39](./39_execution_contract.md) | Execution Contract | Input/output contracts, execution lifecycle, idempotency, parent-child executions | M0 | Done |
 | [65](./65_execution_context.md) | Execution Context | `ExecutionMeta` — immutable metadata propagation through Action→EventHandler→nested Action chain | M5 | Done |
 | [40](./40_rule_execute_action_boundary.md) | Rule-Action Boundary | When rules trigger Actions vs passive checks | M1 | Done |
-| [45](./45_reactive_automation.md) | Reactive Automation | `defineWatcher()` — data-condition triggers (threshold/staleness/set_change/schedule). AutomationEngine removed; WatcherEngine evaluates conditions via EventBus and executes effects through CommandLayer. | M5 | Partial |
+| [45](./45_reactive_automation.md) | Data-Condition Watcher | `defineWatcher()` — threshold / staleness / set_change / schedule triggers; WatcherEngine fires effects through CommandLayer. Complement to EventHandler, not a replacement. | M5 | Partial |
 | [59](./59_runtime_overlay.md) | Runtime Overlay | Additive runtime entity changes (field add, enum extend) via ProposalEngine, promotion to code | M3 | Done |
 
 ## Capability System
@@ -208,6 +208,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-05-08 | Spec 45 rewritten: title "Reactive Automation" → "Data-Condition Watcher"; AutomationEngine sections dropped (removed in PR #146); spec now scoped to `defineWatcher` only (issue #150) |
 | 2026-05-07 | Spec 64 Draft→Done (M5 core+API+GraphQL via #191/#198/#206; M6 frontend via #235; issues #148/#207 closed) |
 | 2026-05-07 | Spec 65 Draft→Done (Phase 1 #201, transports/log #213, idempotency #227, MCP §3.3 #231, CLI §3.5 #232, rule §6 #233, EventHandler §7 #229, masked keys #220; all Spec 65 issues closed) |
 | 2026-05-07 | Spec 63 Draft→Partial (Phase 1 core enforcement done via #203 #202 #253; Phase 2 UI integration + GraphQL field introspection NOT yet shipped; Phase 3 cap-lock capability not built) |
