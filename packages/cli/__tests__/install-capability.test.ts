@@ -452,15 +452,29 @@ describe("linch install", () => {
         },
       );
 
+      let timedOut = false;
       const killTimer = setTimeout(() => {
+        timedOut = true;
         proc.kill();
       }, 8_000);
 
       try {
         const exitCode = await proc.exited;
-        // `bun add` should fail (or be killed by the timer above); either
-        // path lands a non-zero exit, which is what the assertion checks.
+        // `bun add` should fail with ECONNREFUSED in well under 1s. If the
+        // kill-timer ever fires, the spawn will still exit non-zero (a
+        // killed process satisfies the "should fail" assertion), but that
+        // means `bun add` blocked instead of failing fast — exactly the
+        // Bun regression mode we want to surface (oven-sh/bun#5831,
+        // #11526). Throw a descriptive error instead of silently passing,
+        // so the regression doesn't hide behind a green test.
         expect(exitCode).not.toBe(0);
+        if (timedOut) {
+          throw new Error(
+            "bun add did not fail fast against an unreachable registry — " +
+              "the 8s kill-timer fired. This may indicate a Bun regression " +
+              "(oven-sh/bun#5831, #11526). Investigate before merging.",
+          );
+        }
       } finally {
         clearTimeout(killTimer);
       }
