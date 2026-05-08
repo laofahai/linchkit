@@ -5,6 +5,9 @@
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "scripts": {
+    "demo": "bun run src/cli.ts"
+  },
   "peerDependencies": {
     "@linchkit/core": "workspace:*"
   }

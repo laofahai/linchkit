@@ -268,6 +268,9 @@ export type {
   EvolutionRuntimeOptions,
   ImpactDataProvider,
   ImpactResult,
+  InsightTranslator,
+  InsightTranslatorKey,
+  InsightTranslatorRegistry,
   LifecycleBaseline,
   LifecycleMemoryStore,
   LifecycleSensor,
@@ -286,6 +289,7 @@ export type {
   SignalBus,
   SignalBusOptions,
   SignalHandler,
+  TranslatorContext,
   Unsubscribe,
   Watcher,
 } from "./life-system";
@@ -297,9 +301,11 @@ export type {
 // sensor-registry module path.
 export {
   createDedupAnalyzer,
+  createDefaultInsightTranslatorRegistry,
   createDispatchQuery,
   createEvolutionRuntime,
   createImpactAnalyzer,
+  createInsightTranslatorRegistry,
   createPreAnalysisPipeline,
   createSignalBus,
   defineSensor,

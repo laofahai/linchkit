@@ -17,6 +17,12 @@ import { defineCapability } from "@linchkit/core";
 
 export type { CountingBaselineOptions } from "./counting-baseline";
 export { CountingBaseline } from "./counting-baseline";
+export type {
+  FullCycleDemoResult,
+  ProposalAnalysis,
+  RunFullCycleDemoOptions,
+} from "./full-cycle-demo";
+export { runFullCycleDemo } from "./full-cycle-demo";
 export { InMemoryLifecycleStore } from "./in-memory-store";
 export type { PipelineController, RunPipelineOptions } from "./pipeline";
 export { run } from "./pipeline";
