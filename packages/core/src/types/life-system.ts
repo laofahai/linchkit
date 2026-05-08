@@ -7,6 +7,8 @@
  * These are abstract contracts. Concrete implementations live in capabilities.
  */
 
+import type { ProposalDefinition } from "./proposal";
+
 // ── Signal sources (Spec 55 §3.1) ──────────────────────────
 
 /** Channels through which signals enter the system. */
@@ -277,6 +279,16 @@ export interface EvolutionCycleResult {
   driftsDetected: number;
   newInsights: Insight[];
   totalInsights: number;
+  /**
+   * Proposals translated from this cycle's surfaced insights (Spec 55 §7).
+   *
+   * Empty array when no `translatorRegistry` was supplied to
+   * {@link createEvolutionCycle}, or when no surfaced insight matched a
+   * registered translator. Only insights that *surfaced* in this cycle are
+   * candidates — budget-dropped insights stay in the unsurfaced pool and
+   * may produce proposals on a future cycle once they surface.
+   */
+  proposals: ProposalDefinition[];
 }
 
 /**

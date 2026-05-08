@@ -26,10 +26,12 @@ import type {
   Sensor,
   SensorContext,
 } from "../types/life-system";
+import type { ProposalAuthor } from "../types/proposal";
 import { createAwarenessEngine } from "./awareness-engine";
 import { createEvolutionCycle } from "./evolution-cycle";
 import { InMemoryMemoryStore } from "./in-memory-memory-store";
 import type { InsightEngineOptions } from "./insight-engine";
+import type { InsightTranslatorRegistry } from "./insight-to-proposal";
 import type { MemoryEngineOptions } from "./memory-engine";
 import { MemoryEngine } from "./memory-engine";
 import type { SignalBus } from "./signal-bus";
@@ -70,6 +72,17 @@ export interface EvolutionRuntimeOptions {
   memoryEngine?: Pick<MemoryEngineOptions, "windowSize" | "driftThreshold">;
   /** Override InsightEngine promotion config. */
   insightPromotion?: InsightEngineOptions["promotion"];
+  /**
+   * Optional Insight → Proposal translator registry (Spec 55 §7).
+   * When omitted, the cycle emits insights only — `result.proposals` is
+   * an empty array. Pass `createDefaultInsightTranslatorRegistry()` (from
+   * `./insight-to-proposal`) to enable structural proposal generation.
+   */
+  translatorRegistry?: InsightTranslatorRegistry;
+  /** Capability label stamped onto every translated proposal. */
+  proposalCapability?: string;
+  /** Default author stamped onto every translated proposal. */
+  proposalAuthor?: ProposalAuthor;
 }
 
 /** Empty OntologyRegistry stub for environments where no ontology is supplied. */
@@ -109,14 +122,17 @@ export function createEvolutionRuntime(opts: EvolutionRuntimeOptions): Evolution
     windowSize: opts.memoryEngine?.windowSize,
     driftThreshold: opts.memoryEngine?.driftThreshold,
   });
-  const awareness = createAwarenessEngine({
-    ontology: opts.ontology ?? createEmptyOntology(),
-  });
+  const ontology = opts.ontology ?? createEmptyOntology();
+  const awareness = createAwarenessEngine({ ontology });
   const innerCycle = createEvolutionCycle({
     signalBus,
     memoryEngine,
     awareness,
     insightPromotion: opts.insightPromotion,
+    translatorRegistry: opts.translatorRegistry,
+    ontology,
+    proposalCapability: opts.proposalCapability,
+    proposalAuthor: opts.proposalAuthor,
   });
 
   // Register sensors, guarding against duplicate names. SignalBus stores sensors
