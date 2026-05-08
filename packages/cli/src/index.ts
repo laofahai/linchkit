@@ -26,6 +26,7 @@ import { devCommand } from "./commands/dev";
 import { docsCommand } from "./commands/docs";
 import { doctorCommand } from "./commands/doctor";
 import { execCommand } from "./commands/exec";
+import { i18nCheckCommand } from "./commands/i18n-check";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
@@ -67,6 +68,7 @@ const RESERVED_NAMESPACES = new Set([
   "overlay",
   "registry",
   "setup",
+  "i18n-check",
 ]);
 
 /**
@@ -185,6 +187,7 @@ function buildCommandsManifest(
     overlay: "Manage runtime overlay fields (list, promote)",
     registry: "Capability registry management (sync, list)",
     setup: "Sync AI tool configurations (skills, MCP config) for the current project",
+    "i18n-check": "Validate translation key consistency across capability locale files",
   };
 
   for (const name of builtinNames) {
@@ -238,6 +241,7 @@ async function run() {
     overlay: overlayCommand,
     registry: registryCommand,
     setup: setupCommand,
+    "i18n-check": i18nCheckCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();
