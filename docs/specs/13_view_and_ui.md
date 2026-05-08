@@ -977,7 +977,7 @@ Bridge 模块可以扩展导航（给已有菜单加项）。
 | `/admin/flows` | Flow 管理 | Flow 列表、步骤图、执行监控、实例管理（见 `23_rule_engine_and_flow.md` §6） | M2 |
 | `/admin/proposals` | Proposal 审批 | AI 生成的变更提案审批、diff 展示、影响分析（见 `15_ai_developer_experience.md` §8.1） | M2 |
 | `/admin/evolution` | 进化历史 | AI 辅助系统演进的时间线、变更对比、指标趋势（见 `15_ai_developer_experience.md` §8.3） | M3 |
-| `/admin/automations` | 自动化管理 | Watcher 列表、配置、触发历史、状态监控（见 `45_reactive_automation.md` §11） | M3 |
+| `/admin/automations` | 自动化管理 | Watcher 列表、配置、触发历史、状态监控（见 `45_reactive_automation.md` §7） | M3 |
 | `/admin/insights` | AI 洞察 | 异常检测、优化建议、使用模式分析（见 `15_ai_developer_experience.md` §8.2） | M3 |
 | `/admin/schemas` | Schema 浏览 | Schema 定义查看、字段结构、关联关系、状态机可视化 | M1 |
 | `/admin/events` | 事件浏览 | Event 时间线、事件溯源、EventHandler 关联 | M2 |
