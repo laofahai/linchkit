@@ -210,11 +210,11 @@ export function AIAssistant({
           entityFilter: params.name ? [params.name] : undefined,
         });
       } catch {
-        // Transport-level error (network, non-503 non-2xx). We surface this
-        // inline rather than falling back to chat — the chat endpoint runs
-        // with `allowActionExecution=false`, so silently routing actionable
-        // prompts there produces "creating..." replies that never mutate
-        // (#238).
+        // Transport-level error (network, non-503 non-2xx). The decision
+        // helper routes this to chat-fallback so the user still gets some
+        // response — chat may be reachable even when the resolver isn't.
+        // Actionable prompts that misroute through chat are tracked by
+        // the chat-system-prompt follow-up linked from PR #283.
         outcome = { kind: "transport-error" };
       } finally {
         setIsResolvingIntent(false);
