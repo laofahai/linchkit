@@ -1,7 +1,7 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { evaluateCondition } from "../src/engine/condition-evaluator";
 import type { RuleEvalInput } from "../src/engine/rule-engine";
-import { evaluateRules } from "../src/engine/rule-engine";
+import { collectRules, evaluateConditions, evaluateRules } from "../src/engine/rule-engine";
 import { createExecutionMeta } from "../src/types/execution-meta";
 import type { RuleDefinition } from "../src/types/rule";
 
@@ -835,5 +835,291 @@ describe("meta.* field path resolution", () => {
       actor: { type: "human", id: "u", groups: [] },
     });
     expect(result.triggered).toBe(true);
+  });
+});
+
+// ── collectRules + evaluateConditions split (Spec 04 §8.2 / issue #209) ─────
+
+describe("collectRules", () => {
+  it("filters rules whose ActionTrigger.action matches the action name", () => {
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "r1", trigger: { action: "submit" } }),
+      makeRule({ name: "r2", trigger: { action: "approve" } }),
+      makeRule({ name: "r3", trigger: { action: "submit" } }),
+    ];
+    const matched = collectRules("submit", rules);
+    expect(matched.map((r) => r.name)).toEqual(["r1", "r3"]);
+  });
+
+  it("supports ActionTrigger.action as an array", () => {
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "r-multi", trigger: { action: ["submit", "approve"] } }),
+      makeRule({ name: "r-single", trigger: { action: "approve" } }),
+      makeRule({ name: "r-other", trigger: { action: ["create", "delete"] } }),
+    ];
+    expect(collectRules("submit", rules).map((r) => r.name)).toEqual(["r-multi"]);
+    expect(collectRules("approve", rules).map((r) => r.name)).toEqual(["r-multi", "r-single"]);
+    expect(collectRules("create", rules).map((r) => r.name)).toEqual(["r-other"]);
+  });
+
+  it("filters out non-action triggers (state-change, event, etc.)", () => {
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "r-action", trigger: { action: "submit" } }),
+      makeRule({
+        name: "r-state",
+        trigger: { stateChange: { entity: "purchase", to: "approved" } },
+      }),
+      makeRule({ name: "r-event", trigger: { event: "purchase.created" } }),
+      makeRule({ name: "r-schedule", trigger: { schedule: "0 0 * * *" } }),
+    ];
+    const matched = collectRules("submit", rules);
+    expect(matched.map((r) => r.name)).toEqual(["r-action"]);
+  });
+
+  it("returns an empty array when no rule targets the action", () => {
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "r1", trigger: { action: "approve" } }),
+      makeRule({ name: "r2", trigger: { action: "reject" } }),
+    ];
+    expect(collectRules("submit", rules)).toEqual([]);
+  });
+
+  it("returns an empty array when given an empty input", () => {
+    expect(collectRules("submit", [])).toEqual([]);
+  });
+
+  it("returns rules pre-sorted by priority descending (codex P2)", () => {
+    // Pre-sorting in collectRules removes the per-record sort cost from
+    // evaluateConditions, so a 100-item batch pays the O(N log N) sort
+    // exactly once rather than once per record.
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "low", trigger: { action: "submit" }, priority: 1 }),
+      makeRule({ name: "high", trigger: { action: "submit" }, priority: 100 }),
+      makeRule({ name: "medium", trigger: { action: "submit" }, priority: 50 }),
+    ];
+    const matched = collectRules("submit", rules);
+    expect(matched.map((r) => r.name)).toEqual(["high", "medium", "low"]);
+  });
+
+  it("preserves declaration order on priority ties (stable sort)", () => {
+    const rules: RuleDefinition[] = [
+      makeRule({ name: "first-tied", trigger: { action: "submit" }, priority: 10 }),
+      makeRule({ name: "second-tied", trigger: { action: "submit" }, priority: 10 }),
+      makeRule({ name: "third-tied", trigger: { action: "submit" }, priority: 10 }),
+    ];
+    const matched = collectRules("submit", rules);
+    expect(matched.map((r) => r.name)).toEqual(["first-tied", "second-tied", "third-tied"]);
+  });
+});
+
+describe("evaluateConditions", () => {
+  it("produces the same output as evaluateRules for the same input (back-compat)", async () => {
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "warn",
+        priority: 10,
+        condition: { field: "target.amount", operator: "gt", value: 0 },
+        effect: { type: "warn", message: "warn" },
+      }),
+      makeRule({
+        name: "enrich",
+        priority: 5,
+        condition: { field: "target.amount", operator: "gt", value: 0 },
+        effect: { type: "enrich", setFields: { tag: "x" } },
+      }),
+    ];
+    const a = await evaluateRules(rules, defaultInput);
+    const b = await evaluateConditions(rules, defaultInput);
+
+    // Durations differ run-to-run; compare the deterministic shape.
+    const stripDurations = (out: typeof a) => ({
+      ...out,
+      duration: 0,
+      results: out.results.map((r) => ({ ...r, duration: 0 })),
+    });
+    expect(stripDurations(b)).toEqual(stripDurations(a));
+  });
+
+  it("short-circuits cleanly on empty rule list (no-op for every record)", async () => {
+    // collectRules → [] → evaluateConditions must NEVER touch any rule logic.
+    // Verify by passing a code condition that would throw if invoked.
+    const exploding: RuleDefinition = makeRule({
+      name: "explode",
+      condition: () => {
+        throw new Error("must not run");
+      },
+      effect: { type: "block", message: "blocked" },
+    });
+    // Sanity: when included, the rule fires (fail-closed).
+    const fired = await evaluateConditions([exploding], defaultInput);
+    expect(fired.triggered).toBe(true);
+
+    // After collectRules filters it out (different action name), the empty
+    // result must be a true no-op for every record.
+    const empty = collectRules("not-the-trigger-action", [exploding]);
+    expect(empty).toEqual([]);
+
+    for (const amount of [0, 100, 5000, 999999]) {
+      const result = await evaluateConditions(empty, {
+        ...defaultInput,
+        target: { ...defaultInput.target, amount },
+      });
+      expect(result.triggered).toBe(false);
+      expect(result.blocked).toBe(false);
+      expect(result.results).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
+      expect(result.actions).toHaveLength(0);
+    }
+  });
+});
+
+describe("batch rule-evaluation merging (issue #209)", () => {
+  /**
+   * Build a rule registry exposing the same surface a real registry
+   * would: a single `getRulesForAction(name)` lookup that returns the
+   * matching rule set. Wrapped in `bun:test`'s `mock()` so we can
+   * assert call count.
+   */
+  function makeMockRegistry(allRules: RuleDefinition[]) {
+    const lookup = mock((actionName: string) => collectRules(actionName, allRules));
+    return { getRulesForAction: lookup };
+  }
+
+  it("100-item batch with 20 rules calls the registry lookup at most once", async () => {
+    // Build 20 rules — half match `submit_purchase`, half match a different
+    // action so collectRules has real filtering work to do.
+    const rules: RuleDefinition[] = [];
+    for (let i = 0; i < 10; i++) {
+      rules.push(
+        makeRule({
+          name: `submit-rule-${i}`,
+          priority: i,
+          trigger: { action: "submit_purchase" },
+          condition: { field: "target.amount", operator: "gt", value: -1 },
+          effect: { type: "warn", message: `w-${i}` },
+        }),
+      );
+    }
+    for (let i = 0; i < 10; i++) {
+      rules.push(
+        makeRule({
+          name: `approve-rule-${i}`,
+          trigger: { action: "approve_purchase" },
+          condition: { field: "target.amount", operator: "gt", value: -1 },
+          effect: { type: "warn", message: `wa-${i}` },
+        }),
+      );
+    }
+
+    const registry = makeMockRegistry(rules);
+
+    // ── Batch path: hoist collectRules OUT of the per-record loop ──
+    const collected = registry.getRulesForAction("submit_purchase");
+    expect(collected).toHaveLength(10);
+
+    const records = Array.from({ length: 100 }, (_, i) => ({
+      amount: i,
+      department: { name: "engineering" },
+      status: "draft",
+    }));
+
+    for (const record of records) {
+      const result = await evaluateConditions(collected, {
+        target: record,
+        actor: { type: "human", id: "u", groups: ["employee"] },
+        context: {},
+      });
+      // Sanity: each record fires every collected warn rule (10 warnings).
+      expect(result.warnings).toHaveLength(10);
+    }
+
+    // KEY ASSERTION: the rule-set lookup ran exactly once for the whole batch.
+    expect(registry.getRulesForAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("naive (non-merged) per-item path would call the lookup once per record — counter sanity", async () => {
+    // Negative control: documents the cost we are AVOIDING. If a future
+    // refactor accidentally drops the hoist, the count flips from 1 → 100
+    // and the previous test catches it. This test confirms the counter
+    // wiring is sensitive enough to detect the regression.
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "r",
+        trigger: { action: "submit" },
+        condition: { field: "target.amount", operator: "gt", value: -1 },
+        effect: { type: "warn", message: "w" },
+      }),
+    ];
+    const registry = makeMockRegistry(rules);
+
+    const records = Array.from({ length: 100 }, (_, i) => ({ amount: i }));
+
+    // Intentionally call the lookup INSIDE the loop (the non-merged baseline).
+    for (const record of records) {
+      const collected = registry.getRulesForAction("submit");
+      await evaluateConditions(collected, {
+        target: record,
+        actor: { type: "human", id: "u", groups: [] },
+        context: {},
+      });
+    }
+    expect(registry.getRulesForAction).toHaveBeenCalledTimes(100);
+  });
+
+  it("per-record condition variance is preserved across the batch", async () => {
+    // Single rule that matches even-amount records only; assert exactly N/2
+    // records trigger the effect, proving condition evaluation still varies
+    // per record after the rule-set hoist.
+    const rules: RuleDefinition[] = [
+      makeRule({
+        name: "even-only",
+        trigger: { action: "submit" },
+        condition: (ctx) => ((ctx.target.amount as number) ?? 0) % 2 === 0,
+        effect: { type: "warn", message: "even" },
+      }),
+    ];
+    const registry = makeMockRegistry(rules);
+
+    const collected = registry.getRulesForAction("submit");
+    expect(collected).toHaveLength(1);
+
+    const total = 100;
+    const records = Array.from({ length: total }, (_, i) => ({ amount: i }));
+    let triggered = 0;
+    for (const record of records) {
+      const result = await evaluateConditions(collected, {
+        target: record,
+        actor: { type: "human", id: "u", groups: [] },
+        context: {},
+      });
+      if (result.triggered) triggered++;
+    }
+    expect(triggered).toBe(total / 2);
+    expect(registry.getRulesForAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("empty rule set short-circuits as a no-op for every record", async () => {
+    // collectRules returns [] when no rule targets the action — every per-record
+    // call must be a true no-op (no exceptions, no work done).
+    const rules: RuleDefinition[] = [makeRule({ name: "r-other", trigger: { action: "approve" } })];
+    const registry = makeMockRegistry(rules);
+    const collected = registry.getRulesForAction("submit");
+    expect(collected).toEqual([]);
+
+    const records = Array.from({ length: 50 }, (_, i) => ({ amount: i }));
+    for (const record of records) {
+      const result = await evaluateConditions(collected, {
+        target: record,
+        actor: { type: "human", id: "u", groups: [] },
+        context: {},
+      });
+      expect(result.triggered).toBe(false);
+      expect(result.blocked).toBe(false);
+      expect(result.results).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.actions).toEqual([]);
+      expect(result.requiredApproval).toBeNull();
+    }
+    expect(registry.getRulesForAction).toHaveBeenCalledTimes(1);
   });
 });

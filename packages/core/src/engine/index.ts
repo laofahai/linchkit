@@ -101,6 +101,8 @@ export {
 } from "./proposal-generator";
 // Rule engine
 export {
+  collectRules,
+  evaluateConditions,
   evaluateRules,
   type RuleEvalInput,
   type RuleEvalOptions,
