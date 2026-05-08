@@ -299,7 +299,11 @@ describe("EvolutionCycle", () => {
       proposalCapability: "test-cap",
     });
 
-    const result = await cycle.runCycle();
+    // Pin the cycle to a known signal-time so we can assert the proposal's
+    // createdAt was stamped from sensorContext.timestamp (not from the
+    // wall clock).
+    const cycleTimestamp = new Date("2026-05-08T00:00:00.000Z");
+    const result = await cycle.runCycle({ timestamp: cycleTimestamp });
 
     expect(result.newInsights.some((i) => i.type === "structural")).toBe(true);
     expect(result.proposals).toHaveLength(1);
@@ -316,6 +320,10 @@ describe("EvolutionCycle", () => {
     const sourceInsight = result.newInsights.find((i) => i.type === "structural");
     if (!sourceInsight) throw new Error("expected structural insight");
     expect(proposal.description).toBe(sourceInsight.summary);
+    // Proposal createdAt inherits sensorContext.timestamp so historical
+    // replay and fixed-clock tests reproduce identical proposals.
+    expect(proposal.createdAt.getTime()).toBe(cycleTimestamp.getTime());
+    expect(proposal.updatedAt.getTime()).toBe(cycleTimestamp.getTime());
   });
 
   test("budget caps surfaced insights AND proposals match surfaced only", async () => {

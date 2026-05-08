@@ -122,11 +122,20 @@ export function createEvolutionCycle(opts: EvolutionCycleOptions): EvolutionCycl
       // insights stay in the unsurfaced pool inside InsightEngine and may
       // surface (and translate) on a later cycle. When no registry is
       // wired, proposals stays empty — preserves pre-Slice-3 contract.
+      //
+      // The translator context inherits the sensor cycle's timestamp via
+      // `now`, so proposals stamp their createdAt/updatedAt with the
+      // signal-time rather than the wall clock — important for historical
+      // replay (out-of-band log ingestion) and tests with a fixed clock.
       let proposals: ProposalDefinition[] = [];
       if (translatorRegistry && surfacedInsights.length > 0) {
+        const cycleTranslatorCtx: TranslatorContext = {
+          ...translatorCtxTemplate,
+          now: () => sensorContext.timestamp,
+        };
         const translated = await Promise.all(
           surfacedInsights.map((insight) =>
-            translatorRegistry.translate(insight, translatorCtxTemplate),
+            translatorRegistry.translate(insight, cycleTranslatorCtx),
           ),
         );
         proposals = translated.filter((p): p is ProposalDefinition => p !== null);
