@@ -11,7 +11,9 @@
  */
 
 import type {
+  AttentionBudget,
   AwarenessEngine,
+  GenerateInsightsOptions,
   Insight,
   InsightEngine,
   InsightImpact,
@@ -19,6 +21,7 @@ import type {
   SensorSignal,
   StructuralIssue,
 } from "../types/life-system";
+import { IMPACT_BANDS } from "./attention-budget";
 
 const DEFAULT_PROMOTION: InsightPromotionConfig = {
   minOccurrences: 3,
@@ -62,6 +65,39 @@ function deviationToImpact(deviation: number): InsightImpact {
   return "low";
 }
 
+/**
+ * Convert categorical InsightImpact to a numeric factor for AttentionBudget.rank().
+ * Reuses IMPACT_BANDS exported from attention-budget.ts as the single source of
+ * truth — the band cutoffs cannot drift between the two modules.
+ */
+function impactToNumeric(impact: InsightImpact): number {
+  return IMPACT_BANDS[impact];
+}
+
+/**
+ * Apply attention budget to a freshly produced batch of insights (Spec 55 §6.3).
+ *
+ * The budget ranks by `confidence × impact × importance × typeWeight` and caps
+ * at `maxInsightsPerCycle`. Returned order is DESC by composite score (NOT
+ * insertion order) so the highest-priority insight surfaces first — matches
+ * Spec 55 §6.4 "按 confidence × impact 排序".
+ */
+function applyBudget(insights: Insight[], budget: AttentionBudget): Insight[] {
+  if (insights.length === 0) return insights;
+
+  const ranked = budget.rank(
+    insights.map((insight) => ({
+      item: insight,
+      confidence: insight.confidence,
+      impact: impactToNumeric(insight.impact),
+      entity: insight.entity,
+      type: insight.type,
+    })),
+  );
+
+  return ranked.map((scored) => scored.item);
+}
+
 /** Derive a context key for distinctness counting.
  *  Uses tenantId + source to support both multi-tenant and single-tenant setups. */
 function contextKey(signal: SensorSignal): string {
@@ -79,17 +115,34 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
   const driftCandidates = new Map<string, DriftCandidate>();
   const promotedInsights: Insight[] = [];
   const promotedKeys = new Set<string>();
+  /**
+   * Insight ids that have been promoted but not yet surfaced to a caller.
+   * When `generateInsights({ budget })` caps the surfaced batch, the
+   * unsurfaced remainder stays here and re-enters the candidate pool on
+   * the next call — preventing the surfacing-stream leak where a promoted
+   * insight that was budget-dropped would otherwise never re-appear
+   * (`tryPromoteDriftCandidates` skips already-promoted keys, so the
+   * unsurfaced state must be tracked separately from `promotedKeys`).
+   *
+   * Without a budget, callers receive every new insight, so we mark them
+   * surfaced immediately to keep the set bounded.
+   */
+  const unsurfacedIds = new Set<string>();
 
   /** Evict oldest insights when over capacity, cleaning up their keys */
   function enforceRetentionLimit(): void {
     while (promotedInsights.length > maxInsights) {
       const evicted = promotedInsights.shift();
+      if (!evicted) continue;
       // Drift patterns may re-alert after eviction. Structural issues
       // should stay deduped until structuralToInsights() sees them resolved.
-      if (evicted?.type === "anomaly") {
+      if (evicted.type === "anomaly") {
         const evictedKey = findKeyForInsight(evicted);
         if (evictedKey) promotedKeys.delete(evictedKey);
       }
+      // Always drop from the unsurfaced set — an evicted insight cannot
+      // surface even if its key remains promoted.
+      unsurfacedIds.delete(evicted.id);
     }
   }
 
@@ -206,6 +259,7 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
 
         promotedInsights.push(insight);
         promotedKeys.add(candidate.key);
+        unsurfacedIds.add(insight.id);
         newInsights.push(insight);
         // Free candidate memory after promotion
         driftCandidates.delete(candidate.key);
@@ -252,6 +306,7 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
 
       promotedInsights.push(insight);
       promotedKeys.add(key);
+      unsurfacedIds.add(insight.id);
       newInsights.push(insight);
     }
 
@@ -259,7 +314,7 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
   }
 
   return {
-    async generateInsights(): Promise<Insight[]> {
+    async generateInsights(opts: GenerateInsightsOptions = {}): Promise<Insight[]> {
       const newInsights: Insight[] = [];
 
       // Structural insights (no promotion needed — Spec 55 §6.3)
@@ -269,10 +324,31 @@ export function createInsightEngine(opts: InsightEngineOptions): InsightEngine {
       // Drift insights (require promotion)
       newInsights.push(...tryPromoteDriftCandidates());
 
-      // Evict oldest insights if over retention limit
+      // Evict oldest insights if over retention limit (also drops them
+      // from unsurfacedIds so eviction wins over rollover).
       enforceRetentionLimit();
 
-      return newInsights;
+      // Without a budget, surface every newly produced insight (and clear
+      // them from the unsurfaced set so they aren't re-emitted next cycle).
+      // Spec 55 §6.3 — the budget is the only rate-limit.
+      if (!opts.budget) {
+        for (const insight of newInsights) {
+          unsurfacedIds.delete(insight.id);
+        }
+        return newInsights;
+      }
+
+      // With a budget: candidate pool is EVERY promoted insight that has
+      // not yet been surfaced — including ones that were budget-dropped on
+      // earlier calls. Without rolling over, dropped insights would be lost
+      // forever because tryPromoteDriftCandidates() skips already-promoted
+      // keys.
+      const candidates = promotedInsights.filter((i) => unsurfacedIds.has(i.id));
+      const surfaced = applyBudget(candidates, opts.budget);
+      for (const insight of surfaced) {
+        unsurfacedIds.delete(insight.id);
+      }
+      return surfaced;
     },
 
     recordDriftCandidate,
