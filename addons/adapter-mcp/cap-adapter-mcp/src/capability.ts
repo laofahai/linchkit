@@ -2,16 +2,17 @@
  * Capability definition for cap-adapter-mcp
  *
  * Registers the MCP transport and CLI command for starting the MCP server.
- * The transport factory wires the MCP server to LinchKit's CommandLayer
- * via stdio transport, exposing all MCP-eligible actions as MCP tools.
+ * Transport factory logic lives in mcp-transport.ts to keep this file declarative.
+ * The full parametrized factory (SSE + auth options) lives in factory.ts.
  */
 
-import type { CliCommandContext, TransportContext, TransportLifecycle } from "@linchkit/core";
+import type { CliCommandContext } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
 import { McpClientRegistry } from "./client-registry";
 import { InMemoryMcpClientStore } from "./client-store-memory";
 import { capAdapterMcpConfig } from "./config";
 import { buildMcpGraphQLExtension } from "./graphql";
+import { createMcpTransport } from "./mcp-transport";
 
 // Default registry for the static export (in-memory, dev/test only)
 const defaultStore = new InMemoryMcpClientStore();
@@ -31,40 +32,7 @@ export const capAdapterMcp = defineCapability({
       {
         name: "mcp",
         label: "Model Context Protocol",
-        factory: async (ctx: TransportContext): Promise<TransportLifecycle> => {
-          // Lazy import to avoid loading heavy deps at registration time
-          const { createMcpAdapter } = await import("./mcp-server");
-          const { StdioServerTransport } = await import(
-            "@modelcontextprotocol/sdk/server/stdio.js"
-          );
-
-          // Read config from typed accessor (env resolved, validated, frozen)
-          const mcpCfg = capAdapterMcpConfig.from(ctx);
-          const { bearerToken, tenantId, graphqlEndpoint } = mcpCfg;
-          const { server: mcpServer } = await createMcpAdapter({
-            commandLayer: ctx.commandLayer,
-            entityRegistry: ctx.entityRegistry,
-            actionRegistry: ctx.executor.registry,
-            bearerToken,
-            tenantId,
-            graphqlEndpoint,
-          });
-
-          // Create stdio transport instance
-          // stdio transport: process-level security — no token enforcement needed
-          const stdioTransport = new StdioServerTransport();
-
-          return {
-            start: async () => {
-              await mcpServer.connect(stdioTransport);
-              console.log("[cap-adapter-mcp] MCP server running on stdio");
-            },
-            stop: async () => {
-              await mcpServer.close();
-              console.log("[cap-adapter-mcp] MCP server stopped");
-            },
-          };
-        },
+        factory: createMcpTransport,
         config: {
           bearerToken: {
             type: "string",
