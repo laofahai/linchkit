@@ -6,27 +6,26 @@
  * server into a TransportLifecycle that capability.ts references by name.
  */
 
-import type { TransportContext, TransportLifecycle } from "@linchkit/core";
+import type { Actor, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { serverConfig } from "@linchkit/core";
 import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
 
-export function resolveRequestTenantId(
-  request: Request,
-  actor?: { tenantId?: string; metadata?: Record<string, unknown> },
-): string | undefined {
-  // Prefer tenant from verified actor (auth middleware already validated the JWT)
+export function resolveRequestTenantId(request: Request, actor?: Actor): string | undefined {
+  // Prefer tenant from verified actor (auth middleware already validated the JWT).
+  // If actor is present but carries no tenant claim, return undefined — do NOT
+  // fall back to the header. That would let an authenticated caller control
+  // tenant scoping via an unvalidated header value.
   if (actor) {
     const actorTenant =
       actor.tenantId ??
       (typeof actor.metadata?.tenantId === "string" ? actor.metadata.tenantId : undefined) ??
       (typeof actor.metadata?.tenant_id === "string" ? actor.metadata.tenant_id : undefined) ??
       (typeof actor.metadata?.org_id === "string" ? actor.metadata.org_id : undefined);
-    if (actorTenant) {
-      return actorTenant;
-    }
+    return actorTenant;
   }
-  // Fallback: explicit header (e.g., dev mode without auth, or service-to-service)
-  return request.headers.get("x-tenant-id") ?? undefined;
+  // Unauthenticated / dev / service-to-service: accept explicit header.
+  const tenantId = request.headers.get("x-tenant-id")?.trim();
+  return tenantId ? tenantId : undefined;
 }
 
 export async function createHttpTransport(ctx: TransportContext): Promise<TransportLifecycle> {
@@ -172,8 +171,8 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     },
     stop: () => {
       // Stop the subscription manager (heartbeat/idle timers) if present
-      // biome-ignore lint/suspicious/noExplicitAny: accessing internal lifecycle ref
-      const subManager = (app as any).__subscriptionManager;
+      const subManager = (app as { __subscriptionManager?: { stop?: () => void } })
+        .__subscriptionManager;
       if (subManager?.stop) subManager.stop();
       app.stop();
     },
