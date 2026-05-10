@@ -124,7 +124,25 @@ jobs:
             // threads 101+ are resolved would be incorrect, and silently
             // failing would be opaque. Loud failure surfaces the limitation
             // so a follow-up adds pagination if a real PR ever hits it.
+            //
+            // Post a conservative failure status BEFORE returning so that a
+            // prior success on this SHA cannot keep branch protection green
+            // while we have an incomplete picture of the review threads.
             if (totalCount > threads.length) {
+              const overflowDescription =
+                `Unable to evaluate all review threads (${threads.length}/${totalCount} fetched).`;
+              try {
+                await github.rest.repos.createCommitStatus({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  sha: prHeadSha,
+                  state: 'failure',
+                  context: 'review-threads',
+                  description: overflowDescription.substring(0, 140),
+                });
+              } catch (err) {
+                core.warning(`Could not post overflow failure status: ${String(err)}`);
+              }
               core.setFailed(
                 `PR has ${totalCount} review threads but the gate only fetched ${threads.length}. ` +
                   'Pagination is not yet implemented — file a workflow follow-up.',
@@ -197,6 +215,11 @@ jobs:
             const isPullRequest = eventName === 'pull_request';
             if (isPullRequest && unresolved.length > 0) {
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
+            } else if (isPullRequest && !statusPosted) {
+              core.setFailed(
+                'Failed to post required review-threads commit status on the PR head. ' +
+                  'Use /check-reviews to retry from base-repo context.',
+              );
             } else if (!isPullRequest && !statusPosted) {
               core.setFailed(
                 'Failed to post review-threads commit status on the PR head. ' +
