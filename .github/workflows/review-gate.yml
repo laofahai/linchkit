@@ -131,7 +131,6 @@ jobs:
               );
               return;
             }
-
             const unresolved = threads.filter(t => !t.isResolved);
             const total = threads.length;
 
@@ -169,8 +168,8 @@ jobs:
             //
             // Fork-PR caveat: GitHub downgrades GITHUB_TOKEN to read-only for
             // `pull_request` events whose head ref lives on a fork, regardless
-            // of the workflow-level `permissions:` block. Catch the failure and
-            // fall back to the workflow's own status via `core.setFailed`.
+            // of the workflow-level `permissions:` block. The status post will
+            // 403; the workflow's own failure then signals the gate result.
             let statusPosted = false;
             try {
               await github.rest.repos.createCommitStatus({
@@ -190,23 +189,28 @@ jobs:
                 `Could not post review-threads commit status on ${prHeadSha} (${message}). ` +
                   'This is expected for pull_request events from forked repositories — ' +
                   'GitHub downgrades GITHUB_TOKEN to read-only in that case. The workflow ' +
-                  "run status itself will still convey the gate verdict.",
+                  'failure below will convey the gate verdict.',
               );
             }
 
-            // For `pull_request` events mirror the gate verdict on the workflow run
-            // (visible in the PR Checks tab). For fork PRs where `createCommitStatus`
-            // was refused, this is the only signal the gate ran at all.
+            // Fail the workflow whenever the required commit status could not be
+            // posted — regardless of event type. A missing `review-threads` status
+            // on the PR head SHA leaves branch protection in a blocking "pending"
+            // state even when all threads are resolved and the workflow appears green.
             //
-            // For `issue_comment` events the verdict is carried by the commit status
-            // on the PR head — the workflow itself should succeed unless the status
-            // post failed.
+            // For `pull_request` events from forks the status post is always expected
+            // to fail (GITHUB_TOKEN is read-only); the workflow failure itself signals
+            // the gate result in that case.
+            //
+            // For `issue_comment` events the verdict is carried by the commit status;
+            // the workflow succeeds only when the status was posted successfully and
+            // threads are resolved (the status state carries the failure signal).
             const isPullRequest = eventName === 'pull_request';
-            if (isPullRequest && unresolved.length > 0) {
-              core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
-            } else if (!isPullRequest && !statusPosted) {
+            if (!statusPosted) {
               core.setFailed(
                 'Failed to post review-threads commit status on the PR head. ' +
                   'See warning above for details.',
               );
+            } else if (isPullRequest && unresolved.length > 0) {
+              core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
             }
