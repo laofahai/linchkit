@@ -20,7 +20,7 @@ export class DrizzleApprovalStore {
   constructor(private db: PostgresJsDatabase) {}
 
   async create(request: ApprovalRequest): Promise<void> {
-    const metadata: ApprovalMetadata = {
+    const actorsSnapshot: ApprovalMetadata = {
       requestedBy: request.requestedBy,
       decidedBy: request.decidedBy,
     };
@@ -48,7 +48,7 @@ export class DrizzleApprovalStore {
       originalExecutionId: request.originalExecutionId,
       executionId: request.executionId ?? null,
       executionError: request.executionError ?? null,
-      metadata,
+      actorsSnapshot,
       meta: request.meta ?? null,
       actorSystemMeta: request.actorSystemMeta ?? null,
       createdAt: request.createdAt,
@@ -74,12 +74,12 @@ export class DrizzleApprovalStore {
     if (data.status !== undefined) updateValues.status = data.status;
     if (data.decidedBy !== undefined) {
       updateValues.decidedBy = data.decidedBy.id;
-      // Also update metadata JSONB with full Actor object
-      const meta: ApprovalMetadata = {
+      // Also update actors_snapshot JSONB with full Actor object
+      const actorsSnapshot: ApprovalMetadata = {
         requestedBy: existing.requestedBy,
         decidedBy: data.decidedBy,
       };
-      updateValues.metadata = meta;
+      updateValues.actorsSnapshot = actorsSnapshot;
     }
     if (data.decidedAt !== undefined) updateValues.decidedAt = data.decidedAt;
     if (data.decisionNote !== undefined) updateValues.decisionNote = data.decisionNote;
@@ -117,7 +117,7 @@ export class DrizzleApprovalStore {
 type ApprovalRow = typeof approvalsTable.$inferSelect;
 
 function rowToRequest(row: ApprovalRow): ApprovalRequest {
-  const meta = (row.metadata ?? {}) as ApprovalMetadata;
+  const actorsMeta = (row.actorsSnapshot ?? {}) as ApprovalMetadata;
   const fallbackActor: Actor = {
     type: (row.actorType ?? "system") as ActorType,
     id: row.actorId ?? "unknown",
@@ -133,11 +133,11 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
     level: row.level,
     reason: row.reason,
     triggerRules: (row.triggerRules as string[]) ?? [],
-    requestedBy: meta.requestedBy ?? fallbackActor,
+    requestedBy: actorsMeta.requestedBy ?? fallbackActor,
     assignee: { type: row.assigneeType as "role" | "user" | "group", value: row.assigneeValue },
     status: row.status as ApprovalStatus,
     decidedBy:
-      meta.decidedBy ??
+      actorsMeta.decidedBy ??
       (row.decidedBy ? { type: "human" as ActorType, id: row.decidedBy, groups: [] } : undefined),
     decidedAt: row.decidedAt ?? undefined,
     decisionNote: row.decisionNote ?? undefined,

@@ -43,6 +43,13 @@
       "when": 1778069771875,
       "tag": "0005_shallow_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778465994937,
+      "tag": "0006_rename_approvals_metadata_to_actors_snapshot",
+      "breakpoints": true
     }
   ]
 }
