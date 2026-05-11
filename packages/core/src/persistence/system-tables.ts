@@ -145,6 +145,12 @@ export const approvalsTable = linchkitSchema.table("approvals", {
   originalExecutionId: varchar("original_execution_id", { length: 255 }),
   executionId: varchar("execution_id", { length: 255 }),
   executionError: text("execution_error"),
+  /**
+   * Full Actor JSON snapshot for `requestedBy` / `decidedBy`, captured at
+   * create/decide time so historical attribution survives even if the
+   * referenced actor is later renamed or deleted. Distinct from `meta`
+   * (ExecutionMeta, Spec 65) — see issue #223.
+   */
   actorsSnapshot: jsonb("actors_snapshot"),
   /** Spec 65 §14 M6 — Original ExecutionMeta captured at suspend, replayed on approve(). */
   meta: jsonb("meta"),

@@ -11,7 +11,7 @@ import type { ApprovalQuery, ApprovalRequest, ApprovalStatus } from "../types/ap
 import { approvalsTable } from "./system-tables";
 
 /** Full actor objects stored in JSONB to avoid lossy column mapping */
-interface ApprovalMetadata {
+interface ApprovalActorsSnapshot {
   requestedBy?: Actor;
   decidedBy?: Actor;
 }
@@ -20,7 +20,7 @@ export class DrizzleApprovalStore {
   constructor(private db: PostgresJsDatabase) {}
 
   async create(request: ApprovalRequest): Promise<void> {
-    const actorsSnapshot: ApprovalMetadata = {
+    const actorsSnapshot: ApprovalActorsSnapshot = {
       requestedBy: request.requestedBy,
       decidedBy: request.decidedBy,
     };
@@ -75,7 +75,7 @@ export class DrizzleApprovalStore {
     if (data.decidedBy !== undefined) {
       updateValues.decidedBy = data.decidedBy.id;
       // Also update actors_snapshot JSONB with full Actor object
-      const actorsSnapshot: ApprovalMetadata = {
+      const actorsSnapshot: ApprovalActorsSnapshot = {
         requestedBy: existing.requestedBy,
         decidedBy: data.decidedBy,
       };
@@ -117,7 +117,7 @@ export class DrizzleApprovalStore {
 type ApprovalRow = typeof approvalsTable.$inferSelect;
 
 function rowToRequest(row: ApprovalRow): ApprovalRequest {
-  const actorsMeta = (row.actorsSnapshot ?? {}) as ApprovalMetadata;
+  const actorsSnapshot = (row.actorsSnapshot ?? {}) as ApprovalActorsSnapshot;
   const fallbackActor: Actor = {
     type: (row.actorType ?? "system") as ActorType,
     id: row.actorId ?? "unknown",
@@ -133,11 +133,11 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
     level: row.level,
     reason: row.reason,
     triggerRules: (row.triggerRules as string[]) ?? [],
-    requestedBy: actorsMeta.requestedBy ?? fallbackActor,
+    requestedBy: actorsSnapshot.requestedBy ?? fallbackActor,
     assignee: { type: row.assigneeType as "role" | "user" | "group", value: row.assigneeValue },
     status: row.status as ApprovalStatus,
     decidedBy:
-      actorsMeta.decidedBy ??
+      actorsSnapshot.decidedBy ??
       (row.decidedBy ? { type: "human" as ActorType, id: row.decidedBy, groups: [] } : undefined),
     decidedAt: row.decidedAt ?? undefined,
     decisionNote: row.decisionNote ?? undefined,
