@@ -61,9 +61,15 @@ indexed for O(1) dedup lookup.
 
 | Event category | Derivation |
 |----------------|------------|
-| Framework runtime events (`action.*`, `record.*`, `state.*`) | `sha256(execution_id + ":" + event_type + ":" + (record_id \|\| ""))` |
+| Framework runtime events (`action.*`, `record.*`, `state.*`) | `sha256(execution_id + ":" + event_type + ":" + (record_id \|\| "") + ":" + seq)` where `seq` is a per-(execution, event_type, record_id) monotonic counter, starting at 0, incremented each time the same combination is emitted within the same execution |
 | Custom events emitted via `ctx.emit()` | `sha256(execution_id + ":" + event_type + ":" + caller_stable_id)` where `caller_stable_id` is a caller-supplied string (defaults to sequence number within execution) |
 | Restate Flow step events | Restate's built-in idempotency key is forwarded directly — no additional derivation needed |
+
+> **Retry stability note:** `execution_id` is allocated at the beginning of each `Action.execute()` call.
+> A retried action receives a **new** `execution_id`, so its events get new idempotency keys and bypass
+> the dedup window correctly — re-emission after a retry is the expected behavior. The dedup window
+> (§2.5) guards only against double-dispatch of the *same* outbox entry (e.g. a crashed worker
+> re-claiming it), not against logically distinct retry attempts.
 
 For **Restate-orchestrated flows** (Spec 23), Restate already provides durable exactly-once
 semantics for step execution. The dedup layer below applies only to non-Restate paths (direct
@@ -74,7 +80,7 @@ Action execution, Outbox workers). Restate events pass through without additiona
 Before dispatching an outbox entry to an EventHandler, the worker checks whether the event's
 idempotency key has already been successfully processed by that handler:
 
-```
+```text
 outbox_completions(event_idempotency_key, handler_name) → completed_at
 ```
 
@@ -144,13 +150,15 @@ partition. Dropping an old partition drops its indexes atomically — no manual 
 Events progress through three tiers based on age, configurable per tenant:
 
 | Tier | Default age | Storage | Query capability |
-|------|-------------|---------|-----------------|
+|------|-------------|---------|------------------|
 | **Hot** | 0–90 days | Full record in main partitions | Real-time, all fields |
 | **Warm** | 90 days–12 months | Main partition (payload stripped to summary) | Queryable, no payload detail |
 | **Cold** | 12 months+ | Archived to `_linchkit.events_archive` or external object storage | Bulk-read only; payload from archive |
 
 **Warm transition** strips the `payload` JSONB column (moves to `_linchkit.events_payload_archive`
 keyed by event ID) to reduce table bloat while preserving the event skeleton for audit queries.
+`_linchkit.events_payload_archive` uses the **same monthly range partitioning** strategy (on
+`archived_at TIMESTAMPTZ`) so its own Cold transition can drop old partitions atomically.
 
 **Cold transition** moves entire old partition rows to an append-only archive table (or exports to
 object storage such as S3/GCS). The main partition is dropped after archival is verified.
@@ -350,6 +358,9 @@ the events table strategy (§3.1). The same automated partition-creation job cov
 **Warm transition**: The large JSONB columns (`input`, `output`, `changes`, `rulesEvaluated`) are
 moved to a separate `_linchkit.execution_details` table. The main executions row keeps summary
 columns for dashboards and AI Insight queries without loading full payloads.
+`_linchkit.execution_details` uses the **same monthly range partitioning** strategy (on
+`transitioned_at TIMESTAMPTZ`) so its own Cold transition can drop old partitions atomically,
+mirroring the approach for `_linchkit.events_payload_archive` (§3.2).
 
 **Cold transition**: Rows aggregated into `execution_log_daily_stats` (§6.5) and then archived
 or purged from the main table (per `coldStrategy` config).
@@ -359,7 +370,7 @@ or purged from the main table (per `coldStrategy` config).
 A scheduled capability (`cap-lifecycle-cleanup`, autoInstall when `cap-audit` is installed) runs
 the Hot→Warm→Cold transitions:
 
-```
+```text
 Schedule: daily at 02:00 local time (configurable)
 Algorithm:
   1. For each tenant (or globally if single-tenant):
@@ -410,7 +421,7 @@ CREATE TABLE _linchkit.execution_log_daily_stats (
   date        DATE NOT NULL,
   tenant_id   TEXT NOT NULL,
   action      TEXT NOT NULL,
-  schema      TEXT,
+  schema      TEXT NOT NULL DEFAULT '', -- '' for global actions not targeting a specific schema
 
   -- Counters
   total_count       INTEGER NOT NULL DEFAULT 0,
@@ -429,7 +440,7 @@ CREATE TABLE _linchkit.execution_log_daily_stats (
                        THEN failed_count::NUMERIC / total_count
                        ELSE 0 END) STORED,
 
-  PRIMARY KEY (date, tenant_id, action, COALESCE(schema, ''))
+  PRIMARY KEY (date, tenant_id, action, schema)
 );
 
 CREATE INDEX idx_stats_tenant_date ON _linchkit.execution_log_daily_stats (tenant_id, date DESC);
