@@ -87,6 +87,7 @@ Capability definition, extension, composition, and distribution.
 | [41a](./41_data_security_and_masking.md) | Data Security & Masking | Field-level masking rules, MaskingEngine, permission-based display | M1 | Done |
 | [51](./51_data_i18n.md) | Data i18n | JSONB translation storage, shared i18n package, messageKey API (supersedes spec 41 i18n) | M1 | Done |
 | [63](./63_field_immutability_and_locking.md) | Field Immutability & Locking | Immutable fields, state-driven conditional locks, core enforcement + cap-lock capability | M5 | Partial |
+| [66](./66_event_lifecycle_management.md) | Event Lifecycle Management | Event deduplication, archival/retention (hot/warm/cold), replay tooling, execution log governance | M5–M7 | Draft |
 
 > **Note**: `41_data_i18n.md` is deprecated, superseded by `51_data_i18n.md` — do not implement based on 41.
 
