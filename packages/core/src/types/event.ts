@@ -97,6 +97,9 @@ export type SubscriptionEventType =
   | "record.created"
   | "record.updated"
   | "record.deleted"
+  | "record.batch_created"
+  | "record.batch_updated"
+  | "record.batch_deleted"
   | "state.changed"
   | "approval.resolved"
   | "entity.changed";

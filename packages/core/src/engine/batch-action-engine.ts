@@ -18,7 +18,6 @@
  *
  * Deferred (Spec 04 §8.2 — follow-up issues):
  *  - Rule-evaluation merging (collect once, evaluate per record).
- *  - Batch event merging into `record.batch_*` events.
  *  - Parallel `partial`-mode execution (sequential is fine for v1: order
  *    matters in many UIs and serial keeps DB connection usage bounded).
  */
@@ -36,6 +35,89 @@ import type {
   TransactionManager,
 } from "./action-engine";
 import { generateExecutionId } from "./action-helpers";
+
+// ── Batch event merging (Spec 04 §8.2) ──────────────────────
+
+/**
+ * Maps individual record event types to their batch counterparts.
+ * Only these three types are eligible for merging.
+ */
+const INDIVIDUAL_TO_BATCH_EVENT: Readonly<Record<string, string>> = {
+  "record.created": "record.batch_created",
+  "record.updated": "record.batch_updated",
+  "record.deleted": "record.batch_deleted",
+};
+
+/**
+ * Merge same-type, same-entity `record.*` events emitted during a batch
+ * execution into `record.batch_*` events (Spec 04 §8.2).
+ *
+ * Groups events by (type, entity, tenantId). Groups with a single member are
+ * kept as individual events — no batch wrapping for solo items. Non-record
+ * events and unrecognised event types pass through unchanged.
+ *
+ * Back-compat: individual events are kept alongside the new batch event so
+ * existing handlers subscribed to `record.created/updated/deleted` continue
+ * to fire without modification. Future work can switch to replace-mode once
+ * all handlers are updated to handle `record.batch_*` directly.
+ */
+export function mergePendingBatchEvents(events: PendingEvent[]): PendingEvent[] {
+  if (events.length === 0) return [];
+
+  // Separate mergeable from pass-through events
+  const groups = new Map<string, PendingEvent[]>();
+  const passThrough: PendingEvent[] = [];
+
+  for (const event of events) {
+    if (!INDIVIDUAL_TO_BATCH_EVENT[event.type]) {
+      passThrough.push(event);
+      continue;
+    }
+    const entity = typeof event.payload.entity === "string" ? event.payload.entity : "";
+    const key = `${event.type}::${entity}::${event.tenantId ?? ""}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = [];
+      groups.set(key, group);
+    }
+    group.push(event);
+  }
+
+  const result: PendingEvent[] = [...passThrough];
+
+  for (const group of groups.values()) {
+    // Always keep individual events (back-compat: existing handlers still fire)
+    result.push(...group);
+
+    if (group.length < 2) continue; // no batch event for single-item groups
+
+    const first = group[0];
+    if (!first) continue;
+    const batchType = INDIVIDUAL_TO_BATCH_EVENT[first.type];
+    if (!batchType) continue; // type narrowing guard (should never happen given the map check)
+    const entity = typeof first.payload.entity === "string" ? first.payload.entity : undefined;
+    const recordIds = group
+      .map((e) => (typeof e.payload.recordId === "string" ? e.payload.recordId : null))
+      .filter((id): id is string => id !== null);
+
+    result.push({
+      type: batchType,
+      payload: {
+        entity,
+        recordIds,
+        count: group.length,
+        records: group.map((e) => e.payload),
+      },
+      tenantId: first.tenantId,
+      sourceAction: first.sourceAction,
+      sourceExecutionId: first.sourceExecutionId,
+      traceId: first.traceId,
+      meta: first.meta,
+    });
+  }
+
+  return result;
+}
 
 /**
  * Maximum number of items allowed in a single batch.
@@ -332,6 +414,10 @@ async function runAllOrNothing(
         }
         succeededInside.push(toSucceededItem(i, result.executionId, result));
       }
+      // Merge same-type, same-entity record events into batch events (Spec 04 §8.2).
+      // Splice in-place so the array reference passed to runInTransaction stays valid.
+      const merged = mergePendingBatchEvents(sharedPendingEvents);
+      sharedPendingEvents.splice(0, sharedPendingEvents.length, ...merged);
     }, sharedPendingEvents);
   } catch (err) {
     if (err instanceof BatchAbortError) {
