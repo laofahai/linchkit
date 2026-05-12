@@ -104,20 +104,52 @@ export type SubscriptionEventType =
   | "approval.resolved"
   | "entity.changed";
 
-/** SSE event pushed to subscribed clients (spec 44) */
-export interface SubscriptionEvent {
-  type: SubscriptionEventType;
+/** SSE event for a single-record mutation (record.created / updated / deleted) */
+export type RecordSubscriptionEvent = {
+  type: "record.created" | "record.updated" | "record.deleted";
   entity: string;
   recordId: string;
   tenantId: string;
-  /** Partial data — only changed fields, not the full record */
-  changes?: Record<string, unknown>;
-  /** State transition info (only for state.changed) */
-  state?: { from: string; to: string; action: string };
   actor: { id: string; type: string };
   timestamp: string;
   executionId?: string;
-}
+  /** Partial data — only changed fields, not the full record */
+  changes?: Record<string, unknown>;
+};
+
+/** SSE event for a multi-record batch mutation (record.batch_created / updated / deleted) */
+export type BatchRecordSubscriptionEvent = {
+  type: "record.batch_created" | "record.batch_updated" | "record.batch_deleted";
+  entity: string;
+  recordIds: string[];
+  count: number;
+  tenantId: string;
+  actor: { id: string; type: string };
+  timestamp: string;
+  executionId?: string;
+};
+
+/**
+ * SSE event pushed to subscribed clients (spec 44).
+ *
+ * Discriminated union on `type` — use type narrowing to access fields that
+ * differ between single-record, batch, and state/approval/entity variants.
+ */
+export type SubscriptionEvent =
+  | RecordSubscriptionEvent
+  | BatchRecordSubscriptionEvent
+  | {
+      type: "state.changed" | "approval.resolved" | "entity.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      /** State transition info (only for state.changed) */
+      state?: { from: string; to: string; action: string };
+      changes?: Record<string, unknown>;
+    };
 
 // ── EventBusLike interface ───────────────────────────────────
 // Minimal event bus contract used by automation and flow modules
