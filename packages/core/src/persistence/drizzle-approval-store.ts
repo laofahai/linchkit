@@ -117,7 +117,7 @@ export class DrizzleApprovalStore {
 type ApprovalRow = typeof approvalsTable.$inferSelect;
 
 function rowToRequest(row: ApprovalRow): ApprovalRequest {
-  const meta = (row.actorsSnapshot ?? {}) as ApprovalMetadata;
+  const actorsSnapshot = (row.actorsSnapshot ?? {}) as ApprovalMetadata;
   const fallbackActor: Actor = {
     type: (row.actorType ?? "system") as ActorType,
     id: row.actorId ?? "unknown",
@@ -133,11 +133,11 @@ function rowToRequest(row: ApprovalRow): ApprovalRequest {
     level: row.level,
     reason: row.reason,
     triggerRules: (row.triggerRules as string[]) ?? [],
-    requestedBy: meta.requestedBy ?? fallbackActor,
+    requestedBy: actorsSnapshot.requestedBy ?? fallbackActor,
     assignee: { type: row.assigneeType as "role" | "user" | "group", value: row.assigneeValue },
     status: row.status as ApprovalStatus,
     decidedBy:
-      meta.decidedBy ??
+      actorsSnapshot.decidedBy ??
       (row.decidedBy ? { type: "human" as ActorType, id: row.decidedBy, groups: [] } : undefined),
     decidedAt: row.decidedAt ?? undefined,
     decisionNote: row.decisionNote ?? undefined,
