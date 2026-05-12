@@ -60,19 +60,18 @@ const INDIVIDUAL_TO_BATCH_EVENT: Readonly<Record<string, string>> = {
  * existing handlers subscribed to `record.created/updated/deleted` continue
  * to fire without modification. Future work can switch to replace-mode once
  * all handlers are updated to handle `record.batch_*` directly.
+ *
+ * Original event order is preserved; batch events are appended at the end
+ * so downstream handlers that rely on causal sequences are unaffected.
  */
 export function mergePendingBatchEvents(events: PendingEvent[]): PendingEvent[] {
   if (events.length === 0) return [];
 
-  // Separate mergeable from pass-through events
+  // Collect groups for batch event generation — original order preserved below.
   const groups = new Map<string, PendingEvent[]>();
-  const passThrough: PendingEvent[] = [];
 
   for (const event of events) {
-    if (!INDIVIDUAL_TO_BATCH_EVENT[event.type]) {
-      passThrough.push(event);
-      continue;
-    }
+    if (!INDIVIDUAL_TO_BATCH_EVENT[event.type]) continue;
     const entity = typeof event.payload.entity === "string" ? event.payload.entity : "";
     const key = `${event.type}::${entity}::${event.tenantId ?? ""}`;
     let group = groups.get(key);
@@ -83,12 +82,11 @@ export function mergePendingBatchEvents(events: PendingEvent[]): PendingEvent[] 
     group.push(event);
   }
 
-  const result: PendingEvent[] = [...passThrough];
+  // Keep all original events in their exact order (back-compat: existing handlers still fire).
+  // Batch events are appended after all individual events to avoid reordering causal sequences.
+  const result: PendingEvent[] = [...events];
 
   for (const group of groups.values()) {
-    // Always keep individual events (back-compat: existing handlers still fire)
-    result.push(...group);
-
     if (group.length < 2) continue; // no batch event for single-item groups
 
     const first = group[0];

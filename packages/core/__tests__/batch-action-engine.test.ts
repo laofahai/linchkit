@@ -527,6 +527,30 @@ describe("mergePendingBatchEvents (Spec 04 §8.2)", () => {
     expect((batch?.payload.records as unknown[])?.length).toBe(2);
   });
 
+  it("preserves original event order and appends batch events at the end", () => {
+    const events: PendingEvent[] = [
+      { type: "custom.hook", payload: { step: 1 }, tenantId },
+      makeEvent("record.created", "r1"),
+      { type: "custom.hook", payload: { step: 2 }, tenantId },
+      makeEvent("record.created", "r2"),
+    ];
+
+    const result = mergePendingBatchEvents(events);
+
+    // Original events must appear in original order at the start
+    expect(result[0]?.type).toBe("custom.hook");
+    expect(result[0]?.payload.step).toBe(1);
+    expect(result[1]?.type).toBe("record.created");
+    expect(result[1]?.payload.recordId).toBe("r1");
+    expect(result[2]?.type).toBe("custom.hook");
+    expect(result[2]?.payload.step).toBe(2);
+    expect(result[3]?.type).toBe("record.created");
+    expect(result[3]?.payload.recordId).toBe("r2");
+    // Batch event appended after all originals
+    expect(result[4]?.type).toBe("record.batch_created");
+    expect(result).toHaveLength(5);
+  });
+
   it("propagates sourceAction, traceId, and meta from first event in group", () => {
     const events: PendingEvent[] = [
       {
