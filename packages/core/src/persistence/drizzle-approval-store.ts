@@ -20,7 +20,7 @@ export class DrizzleApprovalStore {
   constructor(private db: PostgresJsDatabase) {}
 
   async create(request: ApprovalRequest): Promise<void> {
-    const metadata: ApprovalMetadata = {
+    const actorsSnapshot: ApprovalMetadata = {
       requestedBy: request.requestedBy,
       decidedBy: request.decidedBy,
     };
@@ -48,7 +48,7 @@ export class DrizzleApprovalStore {
       originalExecutionId: request.originalExecutionId,
       executionId: request.executionId ?? null,
       executionError: request.executionError ?? null,
-      metadata,
+      actorsSnapshot,
       meta: request.meta ?? null,
       actorSystemMeta: request.actorSystemMeta ?? null,
       createdAt: request.createdAt,
@@ -74,12 +74,12 @@ export class DrizzleApprovalStore {
     if (data.status !== undefined) updateValues.status = data.status;
     if (data.decidedBy !== undefined) {
       updateValues.decidedBy = data.decidedBy.id;
-      // Also update metadata JSONB with full Actor object
-      const meta: ApprovalMetadata = {
+      // Also update actorsSnapshot JSONB with full Actor object
+      const actorsSnapshot: ApprovalMetadata = {
         requestedBy: existing.requestedBy,
         decidedBy: data.decidedBy,
       };
-      updateValues.metadata = meta;
+      updateValues.actorsSnapshot = actorsSnapshot;
     }
     if (data.decidedAt !== undefined) updateValues.decidedAt = data.decidedAt;
     if (data.decisionNote !== undefined) updateValues.decisionNote = data.decisionNote;
@@ -117,7 +117,7 @@ export class DrizzleApprovalStore {
 type ApprovalRow = typeof approvalsTable.$inferSelect;
 
 function rowToRequest(row: ApprovalRow): ApprovalRequest {
-  const meta = (row.metadata ?? {}) as ApprovalMetadata;
+  const meta = (row.actorsSnapshot ?? {}) as ApprovalMetadata;
   const fallbackActor: Actor = {
     type: (row.actorType ?? "system") as ActorType,
     id: row.actorId ?? "unknown",
