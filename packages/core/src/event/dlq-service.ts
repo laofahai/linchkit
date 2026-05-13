@@ -54,7 +54,7 @@ export interface DlqService {
 
   /**
    * Reset a dead-letter event to pending so OutboxWorker picks it up again.
-   * Clears retryCount, nextRetryAt, and errorMessage.
+   * Clears retryCount, nextRetryAt, errorMessage, and processedAt.
    * Returns true if the event was found and reset, false if not found.
    */
   replay(id: string): Promise<boolean>;
@@ -73,6 +73,8 @@ export interface DlqService {
 }
 
 // ── Internal helpers ────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function rowToEntry(row: typeof eventsTable.$inferSelect): DlqEntry {
   return {
@@ -122,6 +124,7 @@ export function createDlqService(db: PostgresJsDatabase): DlqService {
   }
 
   async function get(id: string): Promise<DlqEntry | null> {
+    if (!UUID_RE.test(id)) return null;
     const rows = await db
       .select()
       .from(eventsTable)
@@ -131,6 +134,7 @@ export function createDlqService(db: PostgresJsDatabase): DlqService {
   }
 
   async function replay(id: string): Promise<boolean> {
+    if (!UUID_RE.test(id)) return false;
     const result = await db
       .update(eventsTable)
       .set({
@@ -138,6 +142,7 @@ export function createDlqService(db: PostgresJsDatabase): DlqService {
         retryCount: 0,
         nextRetryAt: null,
         errorMessage: null,
+        processedAt: null,
       })
       .where(and(eq(eventsTable.id, id), eq(eventsTable.status, "dead_letter")))
       .returning({ id: eventsTable.id });
@@ -145,6 +150,7 @@ export function createDlqService(db: PostgresJsDatabase): DlqService {
   }
 
   async function purge(id: string): Promise<boolean> {
+    if (!UUID_RE.test(id)) return false;
     const result = await db
       .delete(eventsTable)
       .where(and(eq(eventsTable.id, id), eq(eventsTable.status, "dead_letter")))
