@@ -26,7 +26,7 @@ export interface DlqEntry {
 export interface DlqListOptions {
   tenantId?: string;
   eventType?: string;
-  /** Max entries to return (default: 50) */
+  /** Max entries to return (default: 50, max: 100) */
   limit?: number;
   /** Number of entries to skip (default: 0) */
   offset?: number;
@@ -94,7 +94,9 @@ function rowToEntry(row: typeof eventsTable.$inferSelect): DlqEntry {
  */
 export function createDlqService(db: PostgresJsDatabase): DlqService {
   async function list(options?: DlqListOptions): Promise<{ entries: DlqEntry[]; total: number }> {
-    const { tenantId, eventType, limit = 50, offset = 0 } = options ?? {};
+    const { tenantId, eventType } = options ?? {};
+    const limit = Math.max(1, Math.min(options?.limit ?? 50, 100));
+    const offset = Math.max(0, options?.offset ?? 0);
 
     const where = and(
       eq(eventsTable.status, "dead_letter"),
