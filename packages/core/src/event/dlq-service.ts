@@ -97,8 +97,10 @@ function rowToEntry(row: typeof eventsTable.$inferSelect): DlqEntry {
 export function createDlqService(db: PostgresJsDatabase): DlqService {
   async function list(options?: DlqListOptions): Promise<{ entries: DlqEntry[]; total: number }> {
     const { tenantId, eventType } = options ?? {};
-    const limit = Math.max(1, Math.min(options?.limit ?? 50, 100));
-    const offset = Math.max(0, options?.offset ?? 0);
+    const rawLimit = Number(options?.limit);
+    const rawOffset = Number(options?.offset);
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(Math.trunc(rawLimit), 100)) : 50;
+    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : 0;
 
     const where = and(
       eq(eventsTable.status, "dead_letter"),

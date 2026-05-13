@@ -101,7 +101,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     await db.delete(eventsTable);
   });
 
-  // ── list ───────────────────────────────────────────────────
+  // ── list ───────────────────────────────────────────
 
   test("list returns empty result when no dead-letter events", async () => {
     const result = await svc.list();
@@ -172,7 +172,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(page2.total).toBe(3);
   });
 
-  // ── get ────────────────────────────────────────────────────
+  // ── get ────────────────────────────────────────────
 
   test("get returns a dead-letter event by id", async () => {
     const id = await insertEvent({ eventType: "order.created", errorMessage: "boom" });
@@ -196,7 +196,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(entry).toBeNull();
   });
 
-  // ── replay ─────────────────────────────────────────────────
+  // ── replay ─────────────────────────────────────────
 
   test("replay resets event to pending with cleared retry state", async () => {
     const id = await insertEvent({ retryCount: 5, errorMessage: "max retries exceeded" });
@@ -209,6 +209,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(row.retryCount).toBe(0);
     expect(row.nextRetryAt).toBeNull();
     expect(row.errorMessage).toBeNull();
+    expect(row.processedAt).toBeNull();
   });
 
   test("replay returns false for unknown id", async () => {
@@ -225,7 +226,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(row.status).toBe("failed");
   });
 
-  // ── purge ──────────────────────────────────────────────────
+  // ── purge ──────────────────────────────────────────
 
   test("purge removes the dead-letter event from the table", async () => {
     const id = await insertEvent();
@@ -251,7 +252,7 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(rows).toHaveLength(1);
   });
 
-  // ── getStats ───────────────────────────────────────────────
+  // ── getStats ───────────────────────────────────────
 
   test("getStats returns zero totals when no dead-letter events", async () => {
     const stats = await svc.getStats();
