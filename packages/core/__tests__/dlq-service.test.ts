@@ -109,13 +109,21 @@ describe.skipIf(!dbAvailable)("DlqService", () => {
     expect(result.total).toBe(0);
   });
 
-  test("list returns dead-letter events in descending order", async () => {
-    await insertEvent({ eventType: "order.created" });
+  test("list returns dead-letter events in descending creation order", async () => {
+    // Insert two events sequentially so their created_at timestamps differ.
+    const idFirst = await insertEvent({ eventType: "order.created" });
+    // Small delay ensures the second row gets a strictly later created_at.
+    await new Promise((resolve) => setTimeout(resolve, 5));
     await insertEvent({ eventType: "payment.failed" });
 
     const result = await svc.list();
     expect(result.total).toBe(2);
     expect(result.entries).toHaveLength(2);
+    // Newest row is first (descending created_at).
+    expect(result.entries[1].id).toBe(idFirst);
+    expect(result.entries[0].createdAt.getTime()).toBeGreaterThanOrEqual(
+      result.entries[1].createdAt.getTime(),
+    );
   });
 
   test("list does not include non-dead-letter events", async () => {
