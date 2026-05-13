@@ -149,32 +149,15 @@ describe("EventBus deduplication — enabled", () => {
     // Wait for the window to expire
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    // Prune only happens when seenKeys size >= DEFAULT_DEDUP_PRUNE_THRESHOLD (500).
-    // For this test, we emit 500 unique events first so the prune loop runs
-    // and removes the expired key, then verify the next event goes through.
-    // Alternatively — just verify the TTL semantics hold: emit with a NEW
-    // key to confirm bus is still functional, and trust the unit check above.
-
-    // With window=1ms the entry expires but prune is lazy (threshold=500).
-    // The raw Map.has() will still return true until pruned.
-    // This is correct behavior by design: the window is advisory/best-effort.
-    // The important invariant is that entries are *eventually* evicted.
-    // We verify the prune runs when the map is large:
-    for (let i = 0; i < 499; i++) {
-      await bus.emit(makeEvent("record.created", `exec-${i}`));
-    }
-    // Now seenKeys.size >= 500, prune will run on next emit, clearing expired entries
-    await bus.emit(makeEvent("record.created", "exec-trigger-prune"));
-
-    // The original EXEC_A entry expired (1ms window) and was pruned.
-    // Re-emitting EXEC_A should go through.
+    // Expiry is now checked per-key on access (not just at lazy-prune time).
+    // Re-emitting EXEC_A after the window expires should dispatch the handler.
     await bus.emit(makeEvent("record.created", EXEC_A));
 
-    // 1 (first) + 499 (unique) + 1 (trigger-prune) + 1 (re-dispatched after expiry) = 502
-    expect(calls).toHaveLength(502);
+    // 1 (first) + 1 (re-dispatched after expiry) = 2
+    expect(calls).toHaveLength(2);
   });
 
-  it("suppressed event is still recorded in eventLog", async () => {
+  it("suppressed event is not recorded in eventLog", async () => {
     // Dedup suppression happens before emitDepth++, so the suppressed event
     // does NOT enter the event log. Verify this explicit contract.
     const { bus } = makeBusWithDedup(5 * 60 * 1000);

@@ -125,7 +125,7 @@ export class EventBus {
       this.maxEventLogSize = opts.maxEventLogSize ?? DEFAULT_MAX_EVENT_LOG_SIZE;
       this.logger = opts.logger ?? consoleLogger;
       this.metrics = opts.metrics ?? noopMetricsCollector;
-      this.dedupWindow = opts.dedupWindow ?? 0;
+      this.dedupWindow = Math.max(0, opts.dedupWindow ?? 0);
     } else {
       this.registry = registryOrOpts as EventHandlerRegistry;
       this.maxEmitDepth = maxEmitDepth;
@@ -145,7 +145,7 @@ export class EventBus {
    * derived as `{executionId}:{type}`.
    */
   protected checkAndMarkDedup(event: EventRecord): boolean {
-    if (!this.dedupWindow) return false;
+    if (this.dedupWindow <= 0) return false;
 
     const key = event.idempotencyKey ?? `${event.executionId}:${event.type}`;
     const now = Date.now();
@@ -157,10 +157,17 @@ export class EventBus {
       }
     }
 
-    if (this.seenKeys.has(key)) {
-      this.logger.warn(`[EventBus] Duplicate event suppressed: key="${key}", type="${event.type}"`);
-      this.metrics.increment("event.dedup_suppressed", { eventType: event.type });
-      return true;
+    const existingExpiry = this.seenKeys.get(key);
+    if (existingExpiry !== undefined) {
+      if (existingExpiry > now) {
+        this.logger.warn(
+          `[EventBus] Duplicate event suppressed: key="${key}", type="${event.type}"`,
+        );
+        this.metrics.increment("event.dedup_suppressed", { eventType: event.type });
+        return true;
+      }
+      // Key exists but expired; allow re-dispatch and refresh expiry below.
+      this.seenKeys.delete(key);
     }
 
     this.seenKeys.set(key, now + this.dedupWindow);

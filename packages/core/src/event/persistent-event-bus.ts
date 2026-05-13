@@ -232,7 +232,7 @@ export class PersistentEventBus extends EventBus {
 /** Create a PersistentEventBus with its own EventHandlerRegistry */
 export function createPersistentEventBus(
   db: PostgresJsDatabase,
-  options?: Pick<PersistentEventBusOptions, "dedupWindow" | "logger" | "maxEmitDepth">,
+  options?: Omit<PersistentEventBusOptions, "registry">,
 ): {
   registry: EventHandlerRegistry;
   bus: PersistentEventBus;
