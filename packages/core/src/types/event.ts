@@ -49,6 +49,13 @@ export interface EventRecord {
   capabilityVersion?: string;
 
   /**
+   * Optional deduplication key. When set, EventBus will suppress a second
+   * dispatch of the same key within the configured dedupWindow. If omitted,
+   * the bus derives the key as `{executionId}:{type}` when dedup is enabled.
+   */
+  idempotencyKey?: string;
+
+  /**
    * Execution metadata from the originating action (Spec 65 §7).
    * Delivery-time only — NOT persisted to the events table. EventBus reads
    * this to build the handler context's `ctx.meta`.
