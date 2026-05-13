@@ -2,6 +2,13 @@
  * Event module — public API
  */
 
+export {
+  createDlqService,
+  type DlqEntry,
+  type DlqListOptions,
+  type DlqService,
+  type DlqStats,
+} from "./dlq-service";
 export { createEventBus, EventBus, EventHandlerRegistry, matchesFilter } from "./event-bus";
 export {
   createOutboxWorker,
