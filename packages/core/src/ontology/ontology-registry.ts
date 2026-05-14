@@ -18,6 +18,7 @@ import type {
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
 import type {
+  DependencyEdge,
   DependencyGraph,
   ImpactLayers,
   MetaModelRef,
@@ -28,8 +29,6 @@ import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
 import {
-  bfsForward,
-  bfsReverse,
   extractDependencyEdges,
   inferActionSemantics,
   inferEntitySemantics,
@@ -315,6 +314,43 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     relations: allRelationDefs,
   });
 
+  // Pre-build adjacency maps for O(V+E) BFS
+  const dagFromAdj = new Map<string, DependencyEdge[]>();
+  const dagToAdj = new Map<string, DependencyEdge[]>();
+  for (const edge of dagEdges) {
+    const fk = `${edge.from.type}:${edge.from.name}`;
+    const tk = `${edge.to.type}:${edge.to.name}`;
+    const fromList = dagFromAdj.get(fk) ?? [];
+    fromList.push(edge);
+    dagFromAdj.set(fk, fromList);
+    const toList = dagToAdj.get(tk) ?? [];
+    toList.push(edge);
+    dagToAdj.set(tk, toList);
+  }
+
+  // Pre-index elements by name for O(1) lookups in resolveSemanticsFor
+  const actionsByNameMap = new Map(allActions.map((a) => [a.name, a]));
+  const rulesByNameMap = new Map(deps.rules.map((r) => [r.name, r]));
+  const flowsByNameMap = new Map(allFlows.map((f) => [f.name, f]));
+  const statesByNameMap = new Map(deps.states.map((s) => [s.name, s]));
+  const eventsByNameMap = new Map(allEvents.map((e) => [e.name, e]));
+  const handlersByNameMap = new Map(allHandlers.map((h) => [h.name, h]));
+  const viewsByNameMap = new Map(deps.views.map((v) => [v.name, v]));
+  const relsByNameMap = new Map(allRelationDefs.map((r) => [r.name, r]));
+
+  // Pre-cache allRefs — built once, not rebuilt on every call
+  const cachedAllRefs: MetaModelRef[] = [
+    ...deps.schemas.getAll().map((e) => ({ type: "entity" as const, name: e.name })),
+    ...allActions.map((a) => ({ type: "action" as const, name: a.name })),
+    ...deps.rules.map((r) => ({ type: "rule" as const, name: r.name })),
+    ...deps.states.map((s) => ({ type: "state" as const, name: s.name })),
+    ...allEvents.map((e) => ({ type: "event" as const, name: e.name })),
+    ...allHandlers.map((h) => ({ type: "event_handler" as const, name: h.name })),
+    ...deps.views.map((v) => ({ type: "view" as const, name: v.name })),
+    ...allFlows.map((f) => ({ type: "flow" as const, name: f.name })),
+    ...allRelationDefs.map((r) => ({ type: "relation" as const, name: r.name })),
+  ];
+
   /** Resolve semantics for any meta-model element (infer + merge explicit) */
   function resolveSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined {
     switch (ref.type) {
@@ -326,39 +362,34 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
         return inferEntitySemantics(entity, entityActions, entityState);
       }
       case "action": {
-        const action = allActions.find((a) => a.name === ref.name);
+        const action = actionsByNameMap.get(ref.name);
         if (!action) return undefined;
         return inferActionSemantics(action);
       }
       case "rule": {
-        const rule = deps.rules.find((r) => r.name === ref.name);
+        const rule = rulesByNameMap.get(ref.name);
         if (!rule) return undefined;
         return inferRuleSemantics(rule);
       }
       case "flow": {
-        const flow = allFlows.find((f) => f.name === ref.name);
+        const flow = flowsByNameMap.get(ref.name);
         if (!flow) return undefined;
         return inferFlowSemantics(flow);
       }
       case "state": {
-        const state = deps.states.find((s) => s.name === ref.name);
-        return inferGenericSemantics(state);
+        return inferGenericSemantics(statesByNameMap.get(ref.name));
       }
       case "event": {
-        const event = allEvents.find((e) => e.name === ref.name);
-        return inferGenericSemantics(event);
+        return inferGenericSemantics(eventsByNameMap.get(ref.name));
       }
       case "event_handler": {
-        const handler = allHandlers.find((h) => h.name === ref.name);
-        return inferGenericSemantics(handler);
+        return inferGenericSemantics(handlersByNameMap.get(ref.name));
       }
       case "view": {
-        const view = deps.views.find((v) => v.name === ref.name);
-        return inferGenericSemantics(view);
+        return inferGenericSemantics(viewsByNameMap.get(ref.name));
       }
       case "relation": {
-        const rel = allRelationDefs.find((r) => r.name === ref.name);
-        return inferGenericSemantics(rel);
+        return inferGenericSemantics(relsByNameMap.get(ref.name));
       }
       default:
         return undefined;
@@ -367,17 +398,7 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
   /** Collect all MetaModelRefs in the registry */
   function allRefs(): MetaModelRef[] {
-    const refs: MetaModelRef[] = [];
-    for (const e of deps.schemas.getAll()) refs.push({ type: "entity", name: e.name });
-    for (const a of allActions) refs.push({ type: "action", name: a.name });
-    for (const r of deps.rules) refs.push({ type: "rule", name: r.name });
-    for (const s of deps.states) refs.push({ type: "state", name: s.name });
-    for (const ev of allEvents) refs.push({ type: "event", name: ev.name });
-    for (const h of allHandlers) refs.push({ type: "event_handler", name: h.name });
-    for (const v of deps.views) refs.push({ type: "view", name: v.name });
-    for (const f of allFlows) refs.push({ type: "flow", name: f.name });
-    for (const rel of allRelationDefs) refs.push({ type: "relation", name: rel.name });
-    return refs;
+    return cachedAllRefs;
   }
 
   /** Collect items from the inheritance chain (ancestors only, excluding self) */
@@ -665,12 +686,51 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
     // ── Spec 67: Dependency DAG API ───────────────────
 
     dependencyGraph(ref: MetaModelRef): DependencyGraph {
-      const { nodes, edges } = bfsForward(ref, dagEdges);
+      const rk = (r: MetaModelRef) => `${r.type}:${r.name}`;
+      const visited = new Set<string>([rk(ref)]);
+      const queue: MetaModelRef[] = [ref];
+      const nodes: MetaModelRef[] = [ref];
+      const edges: DependencyEdge[] = [];
+      while (queue.length > 0) {
+        const current = queue.shift();
+        if (!current) break;
+        for (const edge of dagFromAdj.get(rk(current)) ?? []) {
+          edges.push(edge);
+          const toKey = rk(edge.to);
+          if (!visited.has(toKey)) {
+            visited.add(toKey);
+            queue.push(edge.to);
+            nodes.push(edge.to);
+          }
+        }
+      }
       return { root: ref, nodes, edges };
     },
 
     impactAnalysis(ref: MetaModelRef): ImpactLayers {
-      return bfsReverse(ref, dagEdges);
+      const rk = (r: MetaModelRef) => `${r.type}:${r.name}`;
+      const visited = new Set<string>([rk(ref)]);
+      const layers: MetaModelRef[][] = [[ref]];
+      let frontier = [ref];
+      while (frontier.length > 0) {
+        const nextLayer: MetaModelRef[] = [];
+        for (const node of frontier) {
+          for (const edge of dagToAdj.get(rk(node)) ?? []) {
+            const fromKey = rk(edge.from);
+            if (!visited.has(fromKey)) {
+              visited.add(fromKey);
+              nextLayer.push(edge.from);
+            }
+          }
+        }
+        if (nextLayer.length > 0) {
+          layers.push(nextLayer);
+          frontier = nextLayer;
+        } else {
+          break;
+        }
+      }
+      return layers;
     },
   };
 }
