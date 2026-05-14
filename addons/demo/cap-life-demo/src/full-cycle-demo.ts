@@ -118,6 +118,11 @@ function createDemoOntology(): OntologyRegistry {
     entitiesImplementing: () => [],
     toJSON: () => ({}) as ReturnType<OntologyRegistry["toJSON"]>,
     toMarkdown: () => "",
+    searchByIntent: () => [],
+    searchByDomain: () => [],
+    getSemanticsFor: () => undefined,
+    dependencyGraph: (ref) => ({ root: ref, nodes: [ref], edges: [] }),
+    impactAnalysis: (ref) => [[ref]],
   };
 }
 
