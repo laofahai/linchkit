@@ -6,6 +6,7 @@
  */
 
 import type { ErrorContext } from "./error";
+import type { MetaSemantics } from "./meta-semantics";
 
 // ── State metadata ──────────────────────────────────────
 
@@ -37,6 +38,8 @@ export interface StateDefinition<TStates extends string = string> {
   transitions: Transition[];
 
   meta?: Partial<Record<TStates, StateMeta>>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: MetaSemantics;
 }
 
 // ── State Machine extension (for Bridge) ──────────────────

@@ -17,10 +17,26 @@ import type {
 } from "../types/entity";
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
-import type { RelationCardinality } from "../types/relation";
+import type {
+  DependencyGraph,
+  ImpactLayers,
+  MetaModelRef,
+  MetaSemantics,
+} from "../types/meta-semantics";
+import type { RelationCardinality, RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
+import {
+  bfsForward,
+  bfsReverse,
+  extractDependencyEdges,
+  inferActionSemantics,
+  inferEntitySemantics,
+  inferFlowSemantics,
+  inferGenericSemantics,
+  inferRuleSemantics,
+} from "./meta-semantics-inference";
 
 // ── Relation descriptor ──────────────────────────────────
 
@@ -140,6 +156,8 @@ export interface OntologyRegistryDeps {
   flows?: FlowRegistryLike;
   links?: RelationRegistryLike;
   interfaces?: InterfaceRegistryLike;
+  /** Raw relation definitions for dependency DAG (Spec 67) */
+  relationDefs?: RelationDefinition[];
 }
 
 // ── OntologyRegistry interface ──────────────────────────────
@@ -183,6 +201,28 @@ export interface OntologyRegistry {
 
   /** Export ontology as Markdown summary */
   toMarkdown(): string;
+
+  // ── Spec 67: Semantic search API ────────────────────────
+
+  /** Find all meta-model elements with a matching intent tag */
+  searchByIntent(intent: string): MetaModelRef[];
+
+  /** Find all meta-model elements in a given business domain */
+  searchByDomain(domain: string): MetaModelRef[];
+
+  /** Get the resolved (inferred + explicit) semantics for a meta-model element */
+  getSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined;
+
+  // ── Spec 67: Dependency DAG API ─────────────────────────
+
+  /** Return a dependency subgraph rooted at the given element */
+  dependencyGraph(ref: MetaModelRef): DependencyGraph;
+
+  /**
+   * Impact analysis: who depends on this element?
+   * Returns BFS layers — layers[0] = root, layers[1] = direct dependents, etc.
+   */
+  impactAnalysis(ref: MetaModelRef): ImpactLayers;
 }
 
 // ── Factory ──────────────────────────────────────────────
@@ -254,6 +294,90 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
         handlersByEntity.set(sn, list);
       }
     }
+  }
+
+  // ── Spec 67: Dependency DAG + Semantics index ──────────────────────────────
+
+  const allFlows = deps.flows ? deps.flows.getAll() : [];
+  const allHandlers = deps.handlers ? deps.handlers.getAll() : [];
+  const allEvents = deps.events ?? [];
+  const allRelationDefs = deps.relationDefs ?? [];
+
+  const dagEdges = extractDependencyEdges({
+    entities: deps.schemas.getAll(),
+    actions: allActions,
+    rules: deps.rules,
+    states: deps.states,
+    events: allEvents,
+    handlers: allHandlers,
+    flows: allFlows,
+    views: deps.views,
+    relations: allRelationDefs,
+  });
+
+  /** Resolve semantics for any meta-model element (infer + merge explicit) */
+  function resolveSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined {
+    switch (ref.type) {
+      case "entity": {
+        const entity = deps.schemas.get(ref.name);
+        if (!entity) return undefined;
+        const entityActions = actionsByEntity.get(ref.name) ?? [];
+        const entityState = statesByEntity.get(ref.name);
+        return inferEntitySemantics(entity, entityActions, entityState);
+      }
+      case "action": {
+        const action = allActions.find((a) => a.name === ref.name);
+        if (!action) return undefined;
+        return inferActionSemantics(action);
+      }
+      case "rule": {
+        const rule = deps.rules.find((r) => r.name === ref.name);
+        if (!rule) return undefined;
+        return inferRuleSemantics(rule);
+      }
+      case "flow": {
+        const flow = allFlows.find((f) => f.name === ref.name);
+        if (!flow) return undefined;
+        return inferFlowSemantics(flow);
+      }
+      case "state": {
+        const state = deps.states.find((s) => s.name === ref.name);
+        return inferGenericSemantics(state);
+      }
+      case "event": {
+        const event = allEvents.find((e) => e.name === ref.name);
+        return inferGenericSemantics(event);
+      }
+      case "event_handler": {
+        const handler = allHandlers.find((h) => h.name === ref.name);
+        return inferGenericSemantics(handler);
+      }
+      case "view": {
+        const view = deps.views.find((v) => v.name === ref.name);
+        return inferGenericSemantics(view);
+      }
+      case "relation": {
+        const rel = allRelationDefs.find((r) => r.name === ref.name);
+        return inferGenericSemantics(rel);
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  /** Collect all MetaModelRefs in the registry */
+  function allRefs(): MetaModelRef[] {
+    const refs: MetaModelRef[] = [];
+    for (const e of deps.schemas.getAll()) refs.push({ type: "entity", name: e.name });
+    for (const a of allActions) refs.push({ type: "action", name: a.name });
+    for (const r of deps.rules) refs.push({ type: "rule", name: r.name });
+    for (const s of deps.states) refs.push({ type: "state", name: s.name });
+    for (const ev of allEvents) refs.push({ type: "event", name: ev.name });
+    for (const h of allHandlers) refs.push({ type: "event_handler", name: h.name });
+    for (const v of deps.views) refs.push({ type: "view", name: v.name });
+    for (const f of allFlows) refs.push({ type: "flow", name: f.name });
+    for (const rel of allRelationDefs) refs.push({ type: "relation", name: rel.name });
+    return refs;
   }
 
   /** Collect items from the inheritance chain (ancestors only, excluding self) */
@@ -514,6 +638,39 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
       }
 
       return lines.join("\n");
+    },
+
+    // ── Spec 67: Semantic search API ──────────────────────
+
+    searchByIntent(intent: string): MetaModelRef[] {
+      const q = intent.toLowerCase();
+      return allRefs().filter((ref) => {
+        const sem = resolveSemanticsFor(ref);
+        return sem?.intent?.some((i) => i.toLowerCase().includes(q)) ?? false;
+      });
+    },
+
+    searchByDomain(domain: string): MetaModelRef[] {
+      const q = domain.toLowerCase();
+      return allRefs().filter((ref) => {
+        const sem = resolveSemanticsFor(ref);
+        return sem?.domain?.some((d) => d.toLowerCase().includes(q)) ?? false;
+      });
+    },
+
+    getSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined {
+      return resolveSemanticsFor(ref);
+    },
+
+    // ── Spec 67: Dependency DAG API ───────────────────────
+
+    dependencyGraph(ref: MetaModelRef): DependencyGraph {
+      const { nodes, edges } = bfsForward(ref, dagEdges);
+      return { root: ref, nodes, edges };
+    },
+
+    impactAnalysis(ref: MetaModelRef): ImpactLayers {
+      return bfsReverse(ref, dagEdges);
     },
   };
 }

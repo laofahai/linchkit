@@ -10,6 +10,7 @@ import type { AIService } from "./ai";
 import type { FieldDefinition } from "./entity";
 import type { ExecutionMeta } from "./execution-meta";
 import type { Logger } from "./logger";
+import type { ActionSemantics } from "./meta-semantics";
 
 // ── Actor types ──────────────────────────────────────
 
@@ -225,6 +226,8 @@ export interface ActionDefinition {
   permissions?: ActionPermissions;
   /** AI behavior configuration for this action (spec 52 §2.4) */
   ai?: ActionAIConfig;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: ActionSemantics;
 }
 
 // ── Action execution result ─────────────────────────────────

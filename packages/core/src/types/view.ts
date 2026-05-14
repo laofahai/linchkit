@@ -122,6 +122,8 @@ export interface ViewDefinition {
    * Example: `{ draft: ["submit"], pending: ["approve"], approved: [] }`
    */
   stateActions?: Record<string, string[]>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: import("./meta-semantics").MetaSemantics;
 }
 
 // ── Form layout (Odoo-style group nesting) ──────────────────────────────────

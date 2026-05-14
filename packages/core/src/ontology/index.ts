@@ -23,6 +23,17 @@ export {
 } from "./impact-analysis";
 export { generateSemanticMermaid, type MermaidExportOptions } from "./mermaid-export";
 export {
+  bfsForward,
+  bfsReverse,
+  type DagExtractionInput,
+  extractDependencyEdges,
+  inferActionSemantics,
+  inferEntitySemantics,
+  inferFlowSemantics,
+  inferGenericSemantics,
+  inferRuleSemantics,
+} from "./meta-semantics-inference";
+export {
   createOntologyRegistry,
   type EntityDescriptor,
   type OntologyRegistry,
