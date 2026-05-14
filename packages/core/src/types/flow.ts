@@ -6,6 +6,8 @@
  * human approval gates, and AI completion steps.
  */
 
+import type { FlowSemantics } from "./meta-semantics";
+
 // ── Flow triggers ──────────────────────────────────────
 
 /** Triggered by an internal event (e.g., "action.succeeded") */
@@ -174,7 +176,7 @@ export interface FlowDefinition {
   /** Explicit chaining: trigger downstream flow(s) on completion */
   onComplete?: FlowChainConfig | FlowChainConfig[];
   /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
-  semantics?: import("./meta-semantics").FlowSemantics;
+  semantics?: FlowSemantics;
 }
 
 /** Configuration for explicit flow chaining */

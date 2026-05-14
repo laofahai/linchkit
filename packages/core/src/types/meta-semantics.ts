@@ -75,7 +75,7 @@ export interface FlowSemantics extends MetaSemantics {
 
 /** Relation — semantic meaning of the relationship */
 export interface RelationSemantics extends MetaSemantics {
-  /** Human-readable business meaning: '供应商为采购单供货' */
+  /** Human-readable business meaning: 'Supplier supplies goods for a purchase order' */
   businessMeaning?: string;
 }
 

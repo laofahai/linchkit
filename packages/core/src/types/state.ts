@@ -24,6 +24,8 @@ export interface Transition {
   from: string | string[];
   to: string;
   action: string;
+  /** Rule name that guards this transition (Spec 67 DAG edge: state → guards → rule) */
+  guard?: string;
 }
 
 // ── State Machine definition ──────────────────────────────

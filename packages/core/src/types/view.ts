@@ -5,6 +5,8 @@
  * Supports view types: list / form / kanban / calendar / dashboard / tree.
  */
 
+import type { MetaSemantics } from "./meta-semantics";
+
 // ── View types ───────────────────────────────────────
 
 export type ViewType = "list" | "form" | "kanban" | "calendar" | "dashboard" | "workspace" | "tree";
@@ -123,7 +125,7 @@ export interface ViewDefinition {
    */
   stateActions?: Record<string, string[]>;
   /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
-  semantics?: import("./meta-semantics").MetaSemantics;
+  semantics?: MetaSemantics;
 }
 
 // ── Form layout (Odoo-style group nesting) ──────────────────────────────────

@@ -303,7 +303,9 @@ function extractEntitiesFromRuleTrigger(
   rule: RuleDefinition,
   actionToEntity: Map<string, string>,
 ): string[] {
-  const trigger = rule.trigger as Record<string, unknown>;
+  const trigger = rule.trigger as unknown;
+  if (!trigger || typeof trigger !== "object") return [];
+  const t = trigger as { action?: unknown; stateChange?: unknown; fieldChange?: unknown };
   const entities = new Set<string>();
 
   const processAction = (name: string): void => {
@@ -311,27 +313,25 @@ function extractEntitiesFromRuleTrigger(
     if (entity) entities.add(entity);
   };
 
-  if (typeof trigger.action === "string") {
-    processAction(trigger.action);
-  } else if (Array.isArray(trigger.action)) {
-    for (const a of trigger.action) {
+  if (typeof t.action === "string") {
+    processAction(t.action);
+  } else if (Array.isArray(t.action)) {
+    for (const a of t.action) {
       if (typeof a === "string") processAction(a);
     }
   }
-  const sc = trigger.stateChange as Record<string, unknown> | undefined;
+  const sc = t.stateChange as { entity?: unknown } | undefined;
   if (sc && typeof sc.entity === "string") entities.add(sc.entity);
-  const fc = trigger.fieldChange as Record<string, unknown> | undefined;
+  const fc = t.fieldChange as { entity?: unknown } | undefined;
   if (fc && typeof fc.entity === "string") entities.add(fc.entity);
 
   return [...entities];
 }
 
 function extractActionsFromEffect(rule: RuleDefinition): string[] {
-  const eff = rule.effect as Record<string, unknown>;
-  if (!eff) return [];
-  if (typeof eff.action === "string") return [eff.action];
-  if (Array.isArray(eff.actions)) {
-    return eff.actions.filter((a): a is string => typeof a === "string");
-  }
+  const eff = rule.effect as unknown;
+  if (!eff || typeof eff !== "object") return [];
+  const e = eff as { action?: unknown };
+  if (typeof e.action === "string") return [e.action];
   return [];
 }
