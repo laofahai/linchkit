@@ -9,9 +9,9 @@ on:
 # Why these triggers (and not `pull_request_review: submitted`):
 #   AI review bots (CodeRabbit / Gemini) post reviews while threads are still
 #   unresolved. Listening to `pull_request_review: submitted` guaranteed a
-#   FAILURE check-run on every bot review, and GitHub's branch protection
-#   keeps those historical FAILUREs as part of the same required-check name
-#   — leaving the PR BLOCKED even after every thread is resolved and the
+#   FAILURE status on every bot review, and GitHub's branch protection keeps
+#   those historical FAILUREs as part of the same required-check name —
+#   leaving the PR BLOCKED even after every thread is resolved and the
 #   latest run SUCCEEDS. The recommended path: after resolving threads, post
 #   `/check-reviews` on the PR to re-run the gate.
 #
@@ -22,25 +22,34 @@ on:
 #
 # How `/check-reviews` actually unblocks the PR:
 #   `issue_comment` events run on the default branch's HEAD SHA, NOT the PR
-#   head SHA. Previously the workflow relied on `core.setFailed()` to mark
-#   the run, which let GitHub auto-create a check-run on the workflow's run
-#   SHA (= main's HEAD). The PR head SHA therefore kept its stale FAILURE
-#   from the most recent `pull_request: synchronize` run, and contributors
-#   had to push an empty commit to force a fresh check on the PR head.
+#   head SHA. The fix is to call `repos.createCommitStatus()` ourselves with
+#   an explicit `sha` resolved from the PR (via GraphQL `headRefOid`). That
+#   writes the new success / failure verdict directly onto the PR head SHA,
+#   which is what branch protection evaluates.
 #
-#   The fix below is to call `octokit.rest.checks.create()` ourselves with
-#   an explicit `head_sha` resolved from the PR (via GraphQL `headRefOid`).
-#   That writes the new SUCCESS / FAILURE conclusion directly onto the PR
-#   head SHA, which is what branch protection evaluates. For `issue_comment`
-#   events the workflow itself always succeeds — the gate verdict is carried
-#   by the check-run, so a green Actions run for `/check-reviews` is correct
-#   even when the gate concludes FAILURE. For `pull_request` events we keep
-#   `core.setFailed()` so the workflow's own conclusion mirrors the gate
-#   (matches today's UX in the PR's "Checks" tab).
+#   We use the Commit Statuses API (not the Checks API) because statuses are
+#   keyed by (sha, context) and the LATEST status wins — there is no
+#   historical-stickiness problem. The Checks API suffered from a Feb-2025
+#   GitHub restriction: check-runs created by GitHub Actions can only be
+#   updated within the same workflow run. That made the dedup loop (which
+#   neutralized stale FAILURE check-runs across workflow runs) fail with
+#   403/422, leaving stale FAILUREs blocking PRs. See #296.
+#
+#   For `issue_comment` events the workflow itself always succeeds — the gate
+#   verdict is carried by the commit status on the PR head SHA, so a green
+#   Actions run for `/check-reviews` is correct even when the gate concludes
+#   failure. For `pull_request` events we keep `core.setFailed()` so the
+#   workflow's own conclusion mirrors the gate (matches today's UX in the
+#   PR's "Checks" tab).
+#
+# Branch protection: requires status context `review-threads` (not a check-run
+#   name). After merging this workflow update for the first time, an admin must
+#   update the branch ruleset to require the `review-threads` commit status
+#   instead of the "Review Threads" check-run.
 
 permissions:
   pull-requests: read
-  checks: write
+  statuses: write
   contents: read
 
 jobs:
@@ -75,10 +84,9 @@ jobs:
             // Fetch review threads + the PR head SHA. We need `headRefOid`
             // because for `issue_comment` events the workflow runs against
             // the default branch's HEAD, not the PR head — so we must post
-            // the resulting check-run onto the PR head SHA explicitly,
-            // otherwise branch protection keeps evaluating the stale
-            // FAILURE check from the previous `pull_request: synchronize`
-            // run and the PR remains BLOCKED.
+            // the resulting commit status onto the PR head SHA explicitly,
+            // otherwise branch protection keeps evaluating the stale verdict
+            // from the previous `pull_request: synchronize` run.
             const { repository } = await github.graphql(`
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
@@ -131,200 +139,85 @@ jobs:
             const unresolved = threads.filter(t => !t.isResolved);
             const total = threads.length;
 
-            // Build human-readable output for the check-run.
-            let title;
-            let summary;
+            // Build human-readable description for the commit status.
+            // The Statuses API only supports a short description (<=140 chars);
+            // unresolved thread details are logged to the workflow run instead.
+            let description;
             if (unresolved.length > 0) {
-              title = `${unresolved.length} unresolved review thread(s)`;
-              const lines = [
-                `${unresolved.length} of ${total} review thread(s) are still unresolved.`,
-                '',
-                'Resolve every thread (or post `/check-reviews` after resolving) before merging.',
-                '',
-                '### Unresolved threads',
-                '',
-              ];
+              description = `${unresolved.length} unresolved review thread(s)`;
               for (const t of unresolved) {
                 const c = t.comments.nodes[0];
                 const author = c && c.author ? c.author.login : 'unknown';
                 const snippet = ((c && c.body) || '')
                   .substring(0, 200)
                   .replace(/\r?\n/g, ' ');
-                lines.push(`- **@${author}**: ${snippet}`);
                 core.info(`  - [${author}] ${snippet}`);
               }
-              summary = lines.join('\n');
               core.info(`${unresolved.length}/${total} review thread(s) unresolved.`);
             } else if (total === 0) {
-              title = 'No review threads';
-              summary = 'No review threads on this PR — gate passes.';
-              core.info(summary);
+              description = 'No review threads';
+              core.info('No review threads on this PR — gate passes.');
             } else {
-              title = `All ${total} review thread(s) resolved.`;
-              summary = `All ${total} review thread(s) resolved — gate passes.`;
-              core.info(summary);
+              description = `All ${total} review thread(s) resolved.`;
+              core.info(description + ' Gate passes.');
             }
 
-            const conclusion = unresolved.length > 0 ? 'failure' : 'success';
+            const state = unresolved.length > 0 ? 'failure' : 'success';
 
-            // Explicitly create a check-run on the PR head SHA. This is the
-            // SHA branch protection evaluates, so writing here updates the
-            // PR's required-check status without needing an empty commit.
-            //
-            // Order matters: we POST the new run BEFORE neutralizing prior
-            // runs. If we neutralized first and `create` then failed (e.g.
-            // fork-PR token downgrade), the SHA could end up with no
-            // FAILURE check-run AND no SUCCESS — leaving the gate in a
-            // muddled state. Posting first guarantees that the latest
-            // verdict lands on the SHA before any history is rewritten.
+            // Post a commit status on the PR head SHA. Unlike check-runs,
+            // commit statuses are keyed by (sha, context): the latest status
+            // for a given context always wins — no historical-stickiness, no
+            // dedup loop needed. Each call to `/check-reviews` simply
+            // overwrites the previous verdict for the same context on the
+            // same SHA.
             //
             // Fork-PR caveat: GitHub downgrades GITHUB_TOKEN to read-only for
-            // `pull_request` events whose head ref lives on a fork, regardless
-            // of the workflow-level `permissions:` block. `checks.create()`
-            // therefore 403s for those runs. Catch the failure and fall back
-            // to the workflow's own status — `core.setFailed` below still
-            // marks the workflow run, and GitHub auto-attaches a check-run
-            // with that status to the head SHA, matching today's behavior.
-            // For `issue_comment` events the token is the base repo's, so
-            // the call always succeeds.
-            let checkRunPosted = false;
+            // `pull_request` events whose head ref lives on a fork. The
+            // `statuses: write` permission is therefore ineffective for those
+            // runs. Catch the failure and fall back to the workflow's own
+            // status — `core.setFailed` below still marks the workflow run,
+            // and GitHub auto-attaches that status to the head SHA, matching
+            // previous behavior. For `issue_comment` events the token is the
+            // base repo's, so the call always succeeds.
+            let statusPosted = false;
             try {
-              await github.rest.checks.create({
+              await github.rest.repos.createCommitStatus({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: 'Review Threads',
-                head_sha: prHeadSha,
-                status: 'completed',
-                conclusion,
-                output: {
-                  title,
-                  summary,
-                },
+                sha: prHeadSha,
+                state,
+                context: 'review-threads',
+                description: description.substring(0, 140),
               });
-              checkRunPosted = true;
-              core.info(`Posted Review Threads check-run (${conclusion}) on ${prHeadSha}.`);
+              statusPosted = true;
+              core.info(`Posted review-threads commit status (${state}) on ${prHeadSha}.`);
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               core.warning(
-                `Could not post Review Threads check-run on ${prHeadSha} (${message}). ` +
+                `Could not post review-threads commit status on ${prHeadSha} (${message}). ` +
                   'This is expected for pull_request events from forked repositories — ' +
                   'GitHub downgrades GITHUB_TOKEN to read-only in that case. The workflow ' +
                   "run status itself will still convey the gate verdict.",
               );
             }
 
-            // Neutralize any prior `Review Threads` check-runs on this same
-            // SHA. GitHub branch protection treats ANY historical FAILURE
-            // check-run on a SHA as blocking, even when a newer SUCCESS
-            // check-run with the same name exists for the same SHA. Without
-            // this dedup, a PR that had unresolved threads at
-            // `pull_request: synchronize` time stays BLOCKED even after
-            // threads are resolved and `/check-reviews` posts a SUCCESS —
-            // the historical FAILURE check-run is still counted. Marking
-            // older runs as `neutral` (instead of deleting them) preserves
-            // history while telling branch protection to ignore them.
+            // For `pull_request` events the workflow's own conclusion mirrors
+            // the gate verdict (the check shown in the PR's Checks tab matches
+            // the workflow's run status). Keep that behavior — and on fork PRs
+            // where `statuses: write` was refused, this is the ONLY signal the
+            // gate ran at all.
             //
-            // Only runs the loop when the new check-run actually posted.
-            // Otherwise we'd be silencing the OLD failure without anything
-            // newer in its place — leaving the SHA with no current verdict.
-            //
-            // Per-run try/catch: a 403/422 on one update must not abort
-            // cleanup of the rest. Possible causes include same-name runs
-            // posted by a different GitHub App (which our token can't
-            // touch) or transient API errors. Each failure is logged at
-            // warning level; the worst case degrades to today's behavior
-            // for that one run.
-            //
-            // In-progress runs are intentionally NOT skipped: a still-
-            // running prior gate could complete after we post and end up
-            // re-blocking the PR with a stale verdict on the same SHA.
-            // Attempting `update(... conclusion: neutral)` on an
-            // in-progress run will 422 from the API; the per-run catch
-            // logs and moves on, accepting the small race that the run
-            // finishes between our list and update. The next gate event
-            // (synchronize / `/check-reviews`) re-runs this dedup.
-            //
-            // Idempotent: when no prior runs exist (first synchronize
-            // event), the loop simply does nothing.
-            //
-            // App scope: we filter by `check_name` server-side but NOT by
-            // `app_id`. Our gate's name "Review Threads" is unlikely to
-            // collide with any other app's runs in this repo, and our
-            // installation token cannot mutate runs owned by a different
-            // GitHub App anyway — those calls return 403, which the
-            // per-run catch handles. Adding an `app_id` filter would
-            // require an extra API call to discover our own ID and is
-            // not worth the round-trip given the per-run safety net.
-            if (checkRunPosted) {
-              let existing;
-              try {
-                existing = await github.paginate(
-                  github.rest.checks.listForRef,
-                  {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    ref: prHeadSha,
-                    check_name: 'Review Threads',
-                    per_page: 100,
-                  },
-                );
-              } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                core.warning(
-                  `Could not list prior Review Threads check-runs on ${prHeadSha} (${message}). ` +
-                    'Continuing — the fresh check-run was posted, but stale FAILUREs ' +
-                    'may keep the PR BLOCKED until manually cleared.',
-                );
-                existing = [];
-              }
-              for (const run of existing) {
-                try {
-                  await github.rest.checks.update({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    check_run_id: run.id,
-                    status: 'completed',
-                    conclusion: 'neutral',
-                    output: {
-                      title: 'Superseded by a newer Review Threads run',
-                      summary:
-                        'This check-run was neutralized because the gate re-evaluated ' +
-                        'this SHA. See the latest Review Threads check-run for the ' +
-                        'current verdict.',
-                    },
-                  });
-                  core.info(
-                    `Neutralized prior Review Threads check-run #${run.id} (was ${run.conclusion ?? run.status}) on ${prHeadSha}.`,
-                  );
-                } catch (err) {
-                  const message = err instanceof Error ? err.message : String(err);
-                  core.warning(
-                    `Skipped neutralizing Review Threads check-run #${run.id} on ${prHeadSha} (${message}). ` +
-                      'A 422 here typically means the run is still in progress; a 403 ' +
-                      'means it belongs to a different GitHub App.',
-                  );
-                }
-              }
-            }
-
-            // For `pull_request` events the workflow's own conclusion has
-            // historically mirrored the gate verdict (the check shown in
-            // the PR's Checks tab matches the workflow's run status). Keep
-            // that behavior — and on fork PRs where `checks.create()` was
-            // refused, this is the ONLY signal the gate ran at all.
-            //
-            // For `issue_comment` events the verdict is carried by the
-            // explicit check-run on the PR head — so when posting succeeded
-            // the workflow always succeeds. If the post FAILED (rare, but
-            // possible if base-repo token rotation hit the API), surface the
-            // failure on the workflow itself so contributors see something
-            // went wrong.
+            // For `issue_comment` events the verdict is carried by the commit
+            // status on the PR head SHA — so when posting succeeded the
+            // workflow always succeeds. If the post FAILED (rare, but possible
+            // if base-repo token rotation hit the API), surface the failure on
+            // the workflow itself so contributors see something went wrong.
             const isPullRequest = eventName === 'pull_request';
             if (isPullRequest && unresolved.length > 0) {
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
-            } else if (!isPullRequest && !checkRunPosted) {
+            } else if (!isPullRequest && !statusPosted) {
               core.setFailed(
-                'Failed to post Review Threads check-run on the PR head. ' +
+                'Failed to post review-threads commit status on the PR head. ' +
                   'See warning above for details.',
               );
             }
