@@ -192,17 +192,19 @@ jobs:
               );
             }
 
-            // For `pull_request` events mirror the gate verdict on the workflow
-            // run itself, matching the UX contributors expect in the Checks tab.
-            // On fork PRs where `repos.createCommitStatus()` was refused, this
-            // is the ONLY signal the gate ran at all.
-            //
-            // For `issue_comment` events the verdict is on the commit status —
-            // so the workflow itself succeeds when posting succeeded. Surface
-            // a failure only when the status post failed (rare).
+            // Mirror the gate verdict on the workflow run itself.
+            // For `pull_request` events this keeps the Checks tab consistent
+            // and is the only signal on fork PRs where the status post was
+            // refused. For `issue_comment` events the commit status is the
+            // primary signal; only fail the workflow if the status post failed.
             const isPullRequest = eventName === 'pull_request';
             if (isPullRequest && unresolved.length > 0) {
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
+            } else if (isPullRequest && !statusPosted) {
+              core.setFailed(
+                'Failed to post required review-threads commit status on the PR head. ' +
+                  'Use /check-reviews to retry from base-repo context.',
+              );
             } else if (!isPullRequest && !statusPosted) {
               core.setFailed(
                 'Failed to post review-threads status on the PR head. ' +
