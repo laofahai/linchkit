@@ -9,30 +9,41 @@ on:
 # Why these triggers (and not `pull_request_review: submitted`):
 #   AI review bots (CodeRabbit / Gemini) post reviews while threads are still
 #   unresolved. Listening to `pull_request_review: submitted` guaranteed a
-#   FAILURE on every bot review, leaving the PR BLOCKED even after threads
-#   are resolved. The recommended path: after resolving threads, post
-#   `/check-reviews` on the PR to re-run the gate.
+#   FAILURE signal on every bot review, leaving the PR BLOCKED even after
+#   every thread is resolved and the latest run SUCCEEDS. The recommended
+#   path: after resolving threads, post `/check-reviews` on the PR to re-run
+#   the gate.
 #
 # Note: `pull_request_review_thread` was tried as a trigger to auto-rerun on
 # thread resolution, but caused a workflow registration parse failure on
 # GitHub Actions (synthetic "push" failure with no logs). Reverted to the
 # `/check-reviews` manual escape hatch until that's understood.
 #
-# Why Statuses API instead of Checks API (#296):
-#   GitHub's Feb-2025 change prevents a workflow run from updating check-runs
-#   created by a different run of the same workflow. The previous dedup loop
-#   therefore received 403/422 on every `/check-reviews` invocation, leaving
-#   stale FAILURE check-runs permanently blocking the PR.
+# Why Commit Statuses API (not Check Runs):
+#   GitHub's Feb-2025 change restricts check-run updates to the same workflow
+#   run that created them. A different workflow invocation (e.g. `/check-reviews`
+#   triggering via issue_comment) cannot call `checks.update()` on a prior run's
+#   check-run — the API returns 403/422. The dedup loop that neutralized stale
+#   FAILURE check-runs therefore stopped working, and PRs stayed BLOCKED even
+#   after all threads were resolved.
 #
-#   The Statuses API (POST /repos/{owner}/{repo}/statuses/{sha}) is keyed by
-#   (sha, context): the latest status for a given context always wins, with no
-#   historical-stickiness and no cross-workflow-run restriction. This eliminates
-#   both the dedup loop and the Feb-2025 restriction in one change.
+#   The Commit Statuses API (`POST /repos/{owner}/{repo}/statuses/{sha}`) does
+#   not have this restriction. Statuses are keyed by (commit, context) and the
+#   latest status by timestamp always wins — no historical-stickiness, no dedup
+#   loop needed. Branch protection evaluates only the latest status for the
+#   configured context, so a new SUCCESS overwrites the prior FAILURE immediately.
 #
-#   BRANCH PROTECTION NOTE: After merging this PR, an admin must update the
-#   branch protection rule from requiring check-run "Review Threads" to
-#   requiring commit status context "review-threads". See the PR body for
-#   the exact gh CLI command.
+#   Migration note: branch protection must require status context `review-threads`
+#   (not check-run name `Review Threads`). See PR #296 for the ruleset change.
+#
+# How `/check-reviews` unblocks the PR:
+#   `issue_comment` events run on the default branch's HEAD SHA, NOT the PR
+#   head SHA. We resolve the PR head SHA via GraphQL `headRefOid` and post the
+#   status directly on that SHA, so branch protection evaluates the fresh verdict
+#   without needing an empty commit. The workflow itself always succeeds for
+#   `issue_comment` events — the gate verdict is carried by the commit status.
+#   For `pull_request` events we keep `core.setFailed()` so the workflow's own
+#   conclusion mirrors the gate (matches UX in the PR's Checks tab).
 
 permissions:
   pull-requests: read
@@ -71,7 +82,7 @@ jobs:
             // Fetch review threads + the PR head SHA. We need `headRefOid`
             // because for `issue_comment` events the workflow runs against
             // the default branch's HEAD, not the PR head — so we must post
-            // the status onto the PR head SHA explicitly.
+            // the resulting status onto the PR head SHA explicitly.
             const { repository } = await github.graphql(`
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
@@ -124,17 +135,19 @@ jobs:
             const unresolved = threads.filter(t => !t.isResolved);
             const total = threads.length;
 
-            // Build status description (Statuses API caps description at 140 chars).
+            // Build a short description for the commit status (140 char limit).
             let description;
             if (unresolved.length > 0) {
-              description = `${unresolved.length} of ${total} thread(s) unresolved — resolve before merging.`;
+              description = `${unresolved.length} unresolved review thread(s) — resolve before merging.`;
+              core.info(`${unresolved.length}/${total} review thread(s) unresolved.`);
               for (const t of unresolved) {
                 const c = t.comments.nodes[0];
                 const author = c && c.author ? c.author.login : 'unknown';
-                const snippet = ((c && c.body) || '').substring(0, 120).replace(/\r?\n/g, ' ');
+                const snippet = ((c && c.body) || '')
+                  .substring(0, 200)
+                  .replace(/\r?\n/g, ' ');
                 core.info(`  - [${author}] ${snippet}`);
               }
-              core.info(`${unresolved.length}/${total} review thread(s) unresolved.`);
             } else if (total === 0) {
               description = 'No review threads — gate passes.';
               core.info(description);
@@ -143,15 +156,19 @@ jobs:
               core.info(description);
             }
 
-            // Statuses API: keyed by (sha, context). Latest status wins —
-            // no historical stickiness, no dedup loop needed. This is the
-            // core fix for the Feb-2025 restriction that broke check-run
-            // neutralization across workflow runs (#296).
+            const state = unresolved.length > 0 ? 'failure' : 'success';
+
+            // Post a commit status on the PR head SHA. The Statuses API is
+            // keyed by (commit, context): the latest status for a given context
+            // always wins, so a new SUCCESS immediately overwrites any prior
+            // FAILURE without a dedup loop.
             //
             // Fork-PR caveat: GitHub downgrades GITHUB_TOKEN to read-only for
-            // `pull_request` events whose head ref lives on a fork. Catch the
-            // 403 and fall back to workflow status only (same behavior as before).
-            const state = unresolved.length > 0 ? 'failure' : 'success';
+            // `pull_request` events from forks. `repos.createCommitStatus()`
+            // therefore 403s for those runs. Fall back to `core.setFailed()`
+            // below — the workflow's own conclusion still conveys the verdict.
+            // For `issue_comment` events the token is the base repo's, so the
+            // call always succeeds.
             let statusPosted = false;
             try {
               await github.rest.repos.createCommitStatus({
@@ -160,7 +177,8 @@ jobs:
                 sha: prHeadSha,
                 state,
                 context: 'review-threads',
-                description,
+                description: description.substring(0, 140),
+                target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
               });
               statusPosted = true;
               core.info(`Posted review-threads status (${state}) on ${prHeadSha}.`);
@@ -170,18 +188,18 @@ jobs:
                 `Could not post review-threads status on ${prHeadSha} (${message}). ` +
                   'This is expected for pull_request events from forked repositories — ' +
                   'GitHub downgrades GITHUB_TOKEN to read-only in that case. The workflow ' +
-                  'run status itself will still convey the gate verdict.',
+                  "run status itself will still convey the gate verdict.",
               );
             }
 
-            // For `pull_request` events the workflow's own conclusion mirrors
-            // the gate verdict (shown in the PR's Checks tab). Keep that
-            // behavior — and on fork PRs where the status post was refused,
-            // this is the ONLY signal the gate ran at all.
+            // For `pull_request` events mirror the gate verdict on the workflow
+            // run itself, matching the UX contributors expect in the Checks tab.
+            // On fork PRs where `repos.createCommitStatus()` was refused, this
+            // is the ONLY signal the gate ran at all.
             //
-            // For `issue_comment` events the verdict is carried by the commit
-            // status on the PR head — so when posting succeeded the workflow
-            // always succeeds. Surface a failure if the post itself failed.
+            // For `issue_comment` events the verdict is on the commit status —
+            // so the workflow itself succeeds when posting succeeded. Surface
+            // a failure only when the status post failed (rare).
             const isPullRequest = eventName === 'pull_request';
             if (isPullRequest && unresolved.length > 0) {
               core.setFailed(`${unresolved.length} unresolved review thread(s). Resolve all before merging.`);
