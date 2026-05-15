@@ -129,7 +129,25 @@ jobs:
             // threads 101+ are resolved would be incorrect, and silently
             // failing would be opaque. Loud failure surfaces the limitation
             // so a follow-up adds pagination if a real PR ever hits it.
+            //
+            // For `issue_comment` events we must also post a `failure` commit
+            // status before returning: branch protection evaluates the status,
+            // not the workflow conclusion, and an older `success` status on
+            // this SHA would otherwise remain in place — allowing merge even
+            // though the gate could not render a verdict.
             if (totalCount > threads.length) {
+              try {
+                await github.rest.repos.createCommitStatus({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  sha: prHeadSha,
+                  state: 'failure',
+                  context: 'review-threads',
+                  description: `PR has ${totalCount} threads; only ${threads.length} fetched (pagination TODO)`.substring(0, 140),
+                });
+              } catch (err) {
+                core.warning(`Could not post pagination-limit failure status: ${err instanceof Error ? err.message : String(err)}`);
+              }
               core.setFailed(
                 `PR has ${totalCount} review threads but the gate only fetched ${threads.length}. ` +
                   'Pagination is not yet implemented — file a workflow follow-up.',
