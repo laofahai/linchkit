@@ -111,6 +111,11 @@ function createEmptyOntology(): OntologyRegistry {
     entitiesImplementing: () => [],
     toJSON: () => ({}),
     toMarkdown: () => "",
+    searchByIntent: () => [],
+    searchByDomain: () => [],
+    getSemanticsFor: () => undefined,
+    dependencyGraph: (ref) => ({ root: ref, nodes: [ref], edges: [] }),
+    impactAnalysis: (ref) => [[ref]],
   };
 }
 

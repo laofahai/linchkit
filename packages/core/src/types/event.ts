@@ -6,6 +6,7 @@
  */
 
 import type { ExecutionMeta } from "./execution-meta";
+import type { MetaSemantics } from "./meta-semantics";
 
 // ── Event categories ────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface EventDefinition {
   description?: string;
   category: "custom";
   payload?: Record<string, unknown>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: MetaSemantics;
 }
 
 // ── Event record ────────────────────────────────────────
@@ -49,6 +52,13 @@ export interface EventRecord {
   capabilityVersion?: string;
 
   /**
+   * Optional deduplication key. When set, EventBus will suppress a second
+   * dispatch of the same key within the configured dedupWindow. If omitted,
+   * the bus derives the key as `{executionId}:{type}` when dedup is enabled.
+   */
+  idempotencyKey?: string;
+
+  /**
    * Execution metadata from the originating action (Spec 65 §7).
    * Delivery-time only — NOT persisted to the events table. EventBus reads
    * this to build the handler context's `ctx.meta`.
@@ -76,6 +86,8 @@ export interface EventHandlerDefinition {
   retryPolicy?: RetryPolicy;
 
   handler: (event: EventRecord, ctx: EventHandlerContext) => Promise<void>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: MetaSemantics;
 }
 
 // ── EventHandler Context ────────────────────────────
@@ -97,24 +109,81 @@ export type SubscriptionEventType =
   | "record.created"
   | "record.updated"
   | "record.deleted"
+  | "record.batch_created"
+  | "record.batch_updated"
+  | "record.batch_deleted"
   | "state.changed"
   | "approval.resolved"
   | "entity.changed";
 
-/** SSE event pushed to subscribed clients (spec 44) */
-export interface SubscriptionEvent {
-  type: SubscriptionEventType;
+/** SSE event for a single-record mutation (record.created / updated / deleted) */
+export type RecordSubscriptionEvent = {
+  type: "record.created" | "record.updated" | "record.deleted";
   entity: string;
   recordId: string;
   tenantId: string;
-  /** Partial data — only changed fields, not the full record */
-  changes?: Record<string, unknown>;
-  /** State transition info (only for state.changed) */
-  state?: { from: string; to: string; action: string };
   actor: { id: string; type: string };
   timestamp: string;
   executionId?: string;
-}
+  /** Partial data — only changed fields, not the full record */
+  changes?: Record<string, unknown>;
+};
+
+/** SSE event for a multi-record batch mutation (record.batch_created / updated / deleted) */
+export type BatchRecordSubscriptionEvent = {
+  type: "record.batch_created" | "record.batch_updated" | "record.batch_deleted";
+  entity: string;
+  recordIds: string[];
+  count: number;
+  /** Per-record payloads from the originating individual events */
+  records?: Array<Record<string, unknown>>;
+  tenantId: string;
+  actor: { id: string; type: string };
+  timestamp: string;
+  executionId?: string;
+};
+
+/**
+ * SSE event pushed to subscribed clients (spec 44).
+ *
+ * Discriminated union on `type` — narrow on `event.type` to access the correct
+ * fields for each event kind without unsafe casts.
+ */
+export type SubscriptionEvent =
+  | RecordSubscriptionEvent
+  | BatchRecordSubscriptionEvent
+  | {
+      type: "state.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      /** Required for state.changed — describes the transition */
+      state: { from: string; to: string; action: string };
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "approval.resolved";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "entity.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    };
 
 // ── EventBusLike interface ───────────────────────────────────
 // Minimal event bus contract used by automation and flow modules

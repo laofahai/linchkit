@@ -23,19 +23,39 @@ import { EventBus, EventHandlerRegistry, matchesFilter } from "./event-bus";
 
 const DEFAULT_PRIORITY = 100;
 
+export interface PersistentEventBusOptions {
+  registry: EventHandlerRegistry;
+  maxEmitDepth?: number;
+  logger?: Logger;
+  /** Deduplication window in ms; 0 = disabled (default). */
+  dedupWindow?: number;
+}
+
 export class PersistentEventBus extends EventBus {
   private readonly db: PostgresJsDatabase;
   private readonly persistLogger: Logger;
 
   constructor(
     db: PostgresJsDatabase,
-    registry: EventHandlerRegistry,
+    registryOrOpts: EventHandlerRegistry | PersistentEventBusOptions,
     maxEmitDepth?: number,
     logger: Logger = consoleLogger,
   ) {
-    super(registry, maxEmitDepth, logger);
-    this.db = db;
-    this.persistLogger = logger;
+    if (registryOrOpts instanceof EventHandlerRegistry) {
+      super(registryOrOpts, maxEmitDepth, logger);
+      this.db = db;
+      this.persistLogger = logger;
+    } else {
+      const opts = registryOrOpts;
+      super({
+        registry: opts.registry,
+        maxEmitDepth: opts.maxEmitDepth,
+        logger: opts.logger,
+        dedupWindow: opts.dedupWindow,
+      });
+      this.db = db;
+      this.persistLogger = opts.logger ?? consoleLogger;
+    }
   }
 
   /**
@@ -57,6 +77,9 @@ export class PersistentEventBus extends EventBus {
         `EventBus max emit depth (${this.maxEmitDepth}) exceeded for event "${event.type}". Possible infinite loop.`,
       );
     }
+
+    // Deduplication: suppress duplicate events within the configured window
+    if (this.checkAndMarkDedup(event)) return;
 
     // Persist event with 'pending' status
     let rowId: string | undefined;
@@ -207,11 +230,14 @@ export class PersistentEventBus extends EventBus {
 }
 
 /** Create a PersistentEventBus with its own EventHandlerRegistry */
-export function createPersistentEventBus(db: PostgresJsDatabase): {
+export function createPersistentEventBus(
+  db: PostgresJsDatabase,
+  options?: Omit<PersistentEventBusOptions, "registry">,
+): {
   registry: EventHandlerRegistry;
   bus: PersistentEventBus;
 } {
   const registry = new EventHandlerRegistry();
-  const bus = new PersistentEventBus(db, registry);
+  const bus = new PersistentEventBus(db, { registry, ...options });
   return { registry, bus };
 }
