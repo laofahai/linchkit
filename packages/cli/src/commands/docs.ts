@@ -20,6 +20,8 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   EntityDefinition,
+  EventDefinition,
+  EventHandlerDefinition,
   FlowDefinition,
   LinchKitConfig,
   RelationDefinition,
@@ -95,6 +97,8 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const flows: FlowDefinition[] = [];
+  const events: EventDefinition[] = [];
+  const eventHandlers: EventHandlerDefinition[] = [];
 
   for (const cap of capabilities) {
     if (cap.entities) entities.push(...cap.entities);
@@ -104,6 +108,8 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
     if (cap.flows) flows.push(...cap.flows);
+    if (cap.events) events.push(...cap.events);
+    if (cap.eventHandlers) eventHandlers.push(...cap.eventHandlers);
   }
 
   // Build registries
@@ -141,7 +147,7 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     flows: flowRegistry,
   });
 
-  return { ontology, entities, actions, rules, states, views, links, flows };
+  return { ontology, entities, actions, rules, states, views, links, flows, events, eventHandlers };
 }
 
 /** Write content to a file or stdout */
@@ -460,7 +466,7 @@ export const docsCommand = defineCommand({
   },
   async run({ args }) {
     const { capabilities } = await loadCapabilities();
-    const { ontology, rules, states, views, flows, links } =
+    const { ontology, rules, states, views, flows, links, events, eventHandlers } =
       buildOntologyFromCapabilities(capabilities);
 
     const projectDoc = generateProjectDoc(ontology, {
@@ -470,6 +476,8 @@ export const docsCommand = defineCommand({
       views,
       flows,
       relations: links,
+      events,
+      eventHandlers,
     });
     const markdown = renderProjectDoc(projectDoc);
 
@@ -482,7 +490,7 @@ export const docsCommand = defineCommand({
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, markdown, "utf-8");
     console.log(
-      `[linch] docs written to ${outPath} (${projectDoc.entities.length} entities, ${projectDoc.rules.length} rules, ${projectDoc.stateMachines.length} state machines, ${projectDoc.views.length} views, ${projectDoc.flows.length} flows, ${projectDoc.relations.length} relations)`,
+      `[linch] docs written to ${outPath} (${projectDoc.entities.length} entities, ${projectDoc.rules.length} rules, ${projectDoc.stateMachines.length} state machines, ${projectDoc.views.length} views, ${projectDoc.flows.length} flows, ${projectDoc.relations.length} relations, ${projectDoc.events.length} events, ${projectDoc.eventHandlers.length} event handlers)`,
     );
   },
 });

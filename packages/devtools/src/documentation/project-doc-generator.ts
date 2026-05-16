@@ -13,6 +13,8 @@
  */
 
 import type {
+  EventDefinition,
+  EventHandlerDefinition,
   FlowDefinition,
   OntologyRegistry,
   RelationDefinition,
@@ -63,6 +65,24 @@ export interface ProjectFlowDoc {
   onError?: string;
 }
 
+/** Documentation for a single event */
+export interface ProjectEventDoc {
+  name: string;
+  label?: string;
+  description?: string;
+  payloadKeys: string[];
+}
+
+/** Documentation for a single event handler */
+export interface ProjectEventHandlerDoc {
+  name: string;
+  label?: string;
+  description?: string;
+  listen: string[];
+  async: boolean;
+  priority?: number;
+}
+
 /** Documentation for a single relation */
 export interface ProjectRelationDoc {
   name: string;
@@ -87,6 +107,8 @@ export interface ProjectDoc {
   views: ProjectViewDoc[];
   flows: ProjectFlowDoc[];
   relations: ProjectRelationDoc[];
+  events: ProjectEventDoc[];
+  eventHandlers: ProjectEventHandlerDoc[];
 }
 
 // -- Generator inputs -------------------------------------------------
@@ -112,6 +134,10 @@ export interface ProjectDocGeneratorOptions {
   flows?: FlowDefinition[];
   /** All relation definitions. */
   relations?: RelationDefinition[];
+  /** All custom events. */
+  events?: EventDefinition[];
+  /** All event handlers. */
+  eventHandlers?: EventHandlerDefinition[];
 }
 
 // -- Generator -------------------------------------------------
@@ -149,6 +175,14 @@ export function generateProjectDoc(
     .map(relationToDoc)
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const events = (options.events ?? [])
+    .map(eventToDoc)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const eventHandlers = (options.eventHandlers ?? [])
+    .map(eventHandlerToDoc)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     title: options.title ?? "Project Documentation",
     description: options.description,
@@ -159,6 +193,8 @@ export function generateProjectDoc(
     views,
     flows,
     relations,
+    events,
+    eventHandlers,
   };
 }
 
@@ -265,6 +301,26 @@ function flowToDoc(flow: FlowDefinition): ProjectFlowDoc {
   };
 }
 
+function eventToDoc(event: EventDefinition): ProjectEventDoc {
+  return {
+    name: event.name,
+    label: event.label,
+    description: event.description,
+    payloadKeys: event.payload ? Object.keys(event.payload).sort() : [],
+  };
+}
+
+function eventHandlerToDoc(handler: EventHandlerDefinition): ProjectEventHandlerDoc {
+  return {
+    name: handler.name,
+    label: handler.label,
+    description: handler.description,
+    listen: Array.isArray(handler.listen) ? [...handler.listen] : [handler.listen],
+    async: handler.async ?? false,
+    priority: handler.priority,
+  };
+}
+
 function relationToDoc(rel: RelationDefinition): ProjectRelationDoc {
   return {
     name: rel.name,
@@ -312,6 +368,8 @@ export function renderProjectDoc(doc: ProjectDoc): string {
   lines.push(`- Views: ${doc.views.length}`);
   lines.push(`- Flows: ${doc.flows.length}`);
   lines.push(`- Relations: ${doc.relations.length}`);
+  lines.push(`- Events: ${doc.events.length}`);
+  lines.push(`- Event Handlers: ${doc.eventHandlers.length}`);
   lines.push("");
 
   if (doc.entities.length > 0) {
@@ -336,6 +394,14 @@ export function renderProjectDoc(doc: ProjectDoc): string {
 
   if (doc.relations.length > 0) {
     lines.push(...renderRelationsSection(doc.relations));
+  }
+
+  if (doc.events.length > 0) {
+    lines.push(...renderEventsSection(doc.events));
+  }
+
+  if (doc.eventHandlers.length > 0) {
+    lines.push(...renderEventHandlersSection(doc.eventHandlers));
   }
 
   // Always end with a single trailing newline for byte-stable diffs.
@@ -508,6 +574,52 @@ function renderRelationsSection(relations: ProjectRelationDoc[]): string[] {
     }
   }
   lines.push("");
+  return lines;
+}
+
+function renderEventsSection(events: ProjectEventDoc[]): string[] {
+  const lines: string[] = [];
+  lines.push("## Events");
+  lines.push("");
+  for (const event of events) {
+    lines.push(`### ${event.name}`);
+    lines.push("");
+    if (event.description) {
+      lines.push(`> ${event.description}`);
+      lines.push("");
+    }
+    if (event.label && event.label !== event.name) {
+      lines.push(`- Label: ${event.label}`);
+    }
+    if (event.payloadKeys.length > 0) {
+      lines.push(`- Payload keys: ${event.payloadKeys.map((k) => `\`${k}\``).join(", ")}`);
+    }
+    lines.push("");
+  }
+  return lines;
+}
+
+function renderEventHandlersSection(handlers: ProjectEventHandlerDoc[]): string[] {
+  const lines: string[] = [];
+  lines.push("## Event Handlers");
+  lines.push("");
+  for (const h of handlers) {
+    lines.push(`### ${h.name}`);
+    lines.push("");
+    if (h.description) {
+      lines.push(`> ${h.description}`);
+      lines.push("");
+    }
+    if (h.label && h.label !== h.name) {
+      lines.push(`- Label: ${h.label}`);
+    }
+    lines.push(`- Listens: ${h.listen.map((l) => `\`${l}\``).join(", ")}`);
+    lines.push(`- Async: ${h.async ? "yes" : "no"}`);
+    if (h.priority !== undefined) {
+      lines.push(`- Priority: ${h.priority}`);
+    }
+    lines.push("");
+  }
   return lines;
 }
 
