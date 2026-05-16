@@ -1,7 +1,7 @@
 {
   "theme": {
     "toggle": {
-      "ariaLabel": "Toggle theme",
+      "ariaLabel": "Toggle theme (current: {{mode}})",
       "tooltip": "Switch theme (current: {{mode}})",
       "modes": {
         "system": "System",

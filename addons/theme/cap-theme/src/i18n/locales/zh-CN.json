@@ -1,7 +1,7 @@
 {
   "theme": {
     "toggle": {
-      "ariaLabel": "切换主题",
+      "ariaLabel": "切换主题（当前：{{mode}}）",
       "tooltip": "切换主题（当前：{{mode}}）",
       "modes": {
         "system": "跟随系统",

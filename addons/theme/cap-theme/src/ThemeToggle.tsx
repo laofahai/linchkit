@@ -42,7 +42,10 @@ export function ThemeToggle({ className }: ThemeToggleProps = {}) {
   const Icon = MODE_ICONS[mode];
   const modeLabel = t(`theme.toggle.modes.${mode}`);
   const tooltip = t("theme.toggle.tooltip", { mode: modeLabel });
-  const ariaLabel = t("theme.toggle.ariaLabel");
+  // Embed the active mode in the accessible name so screen readers announce
+  // the current selection — bare `aria-label` would override the sr-only
+  // child and leave assistive tech without the live value.
+  const ariaLabel = t("theme.toggle.ariaLabel", { mode: modeLabel });
 
   const handleClick = () => {
     setMode(nextMode(mode));

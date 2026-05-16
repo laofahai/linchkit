@@ -17,7 +17,7 @@
  * re-render. This matches the React 19 / Vite SSR story used by cap-adapter-ui.
  */
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { readStoredTheme } from "./theme-storage";
 import { commitMode, resolveMode } from "./transitions";
 import type { ResolvedTheme, ThemeContextValue, ThemeMode } from "./types";
@@ -53,29 +53,30 @@ export function ThemeProvider({ children, defaultMode = "system" }: ThemeProvide
     defaultMode === "dark" ? "dark" : "light",
   );
 
-  // Tracks whether we've completed the initial hydration. Until that flips,
-  // we never overwrite the storage with `defaultMode` (which would clobber a
-  // genuine user preference on a hard reload).
-  const hydratedRef = useRef(false);
+  // Tracks whether we've completed the initial hydration. State (not ref) so
+  // React re-renders before the mode-change effect runs — otherwise the two
+  // effects can fire on the same commit and the mode-change branch sees a
+  // stale `mode` while believing hydration is done.
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   // ── Hydration: read persisted preference + probe matchMedia once. ──
   useEffect(() => {
     // Run only on mount — re-firing on prop changes would clobber any user
-    // toggle. The `hydratedRef` guard also short-circuits the mode-change
-    // effect below until this completes.
-    if (hydratedRef.current) return;
+    // toggle. `hasHydrated` also short-circuits the mode-change effect below
+    // until this completes.
+    if (hasHydrated) return;
     const stored = readStoredTheme();
     const effective = stored ?? defaultMode;
     setModeState(effective);
     setResolvedMode(resolveMode(effective));
-    hydratedRef.current = true;
-  }, [defaultMode]);
+    setHasHydrated(true);
+  }, [defaultMode, hasHydrated]);
 
   // ── React to mode changes: persist + recompute resolved scheme. ──
   useEffect(() => {
-    if (!hydratedRef.current) return; // skip the very first render
+    if (!hasHydrated) return; // wait until the hydrated mode has rendered
     setResolvedMode(commitMode(mode));
-  }, [mode]);
+  }, [hasHydrated, mode]);
 
   // ── Apply resolved scheme to the DOM. ──
   useEffect(() => {
@@ -90,13 +91,8 @@ export function ThemeProvider({ children, defaultMode = "system" }: ThemeProvide
     const onChange = (event: MediaQueryListEvent) => {
       setResolvedMode(event.matches ? "dark" : "light");
     };
-    // `addEventListener` is the modern API; Safari < 14 used `addListener`.
-    // We feature-detect to stay compatible without polluting the type surface.
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    }
-    return undefined;
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
   }, [mode]);
 
   const setMode = useCallback((next: ThemeMode) => {

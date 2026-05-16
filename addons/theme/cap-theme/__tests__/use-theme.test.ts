@@ -84,15 +84,19 @@ function installWindow({ prefersDark, initialStored }: InstallOptions) {
   const mql = makeMql(prefersDark);
   const matchMedia = mock((_query: string) => mql);
 
-  // biome-ignore lint/suspicious/noExplicitAny: minimal test-only window shim.
-  (globalThis as any).window = { localStorage: storage, matchMedia } as any;
+  (globalThis as GlobalWithTestWindow).window = { localStorage: storage, matchMedia };
 
   return { mql, matchMedia, store };
 }
 
+interface TestWindow {
+  localStorage: Storage;
+  matchMedia: (query: string) => FakeMediaQueryList;
+}
+type GlobalWithTestWindow = typeof globalThis & { window?: TestWindow };
+
 function clearWindow() {
-  // biome-ignore lint/suspicious/noExplicitAny: removing the test-only shim.
-  delete (globalThis as any).window;
+  delete (globalThis as GlobalWithTestWindow).window;
 }
 
 afterEach(() => {

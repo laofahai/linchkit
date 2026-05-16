@@ -10,15 +10,15 @@
 import "./i18n";
 
 export { capTheme } from "./capability";
+export { resolveSystemTheme } from "./system-theme";
 export { ThemeProvider, type ThemeProviderProps } from "./ThemeProvider";
-export { ThemeToggle, type ThemeToggleProps, THEME_CYCLE } from "./ThemeToggle";
+export { THEME_CYCLE, ThemeToggle, type ThemeToggleProps } from "./ThemeToggle";
 export {
   clearStoredTheme,
   readStoredTheme,
   writeStoredTheme,
 } from "./theme-storage";
-export { nextMode, resolveMode, commitMode } from "./transitions";
-export { resolveSystemTheme } from "./system-theme";
+export { commitMode, nextMode, resolveMode } from "./transitions";
 export type { ResolvedTheme, ThemeContextValue, ThemeMode } from "./types";
 export { THEME_STORAGE_KEY } from "./types";
 export { useTheme } from "./use-theme";

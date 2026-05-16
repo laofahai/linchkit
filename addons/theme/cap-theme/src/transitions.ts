@@ -6,8 +6,8 @@
  * state.
  */
 
-import { writeStoredTheme } from "./theme-storage";
 import { resolveSystemTheme } from "./system-theme";
+import { writeStoredTheme } from "./theme-storage";
 import type { ResolvedTheme, ThemeMode } from "./types";
 
 /**

@@ -14,11 +14,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import {
-  clearStoredTheme,
-  readStoredTheme,
-  writeStoredTheme,
-} from "../src/theme-storage";
+import { clearStoredTheme, readStoredTheme, writeStoredTheme } from "../src/theme-storage";
 import { THEME_STORAGE_KEY } from "../src/types";
 
 interface FakeStorage extends Storage {
@@ -49,15 +45,17 @@ function makeStorage(): FakeStorage {
  * Install a fake `window` with the provided storage. We attach to
  * `globalThis` so the helper's `typeof window === "undefined"` check passes.
  */
-function installWindow(storage: Storage | (() => never)) {
-  type Win = { localStorage: Storage | (() => never) };
-  // biome-ignore lint/suspicious/noExplicitAny: minimal test-only window shim.
-  (globalThis as unknown as { window: Win }).window = { localStorage: storage } as any;
+interface TestWindow {
+  localStorage: Storage;
+}
+type GlobalWithTestWindow = typeof globalThis & { window?: TestWindow };
+
+function installWindow(storage: Storage) {
+  (globalThis as GlobalWithTestWindow).window = { localStorage: storage };
 }
 
 function clearWindow() {
-  // biome-ignore lint/suspicious/noExplicitAny: removing the test-only shim.
-  delete (globalThis as any).window;
+  delete (globalThis as GlobalWithTestWindow).window;
 }
 
 describe("theme-storage", () => {
