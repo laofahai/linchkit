@@ -58,6 +58,8 @@ export interface PermissionGroupBuilder {
   visibleFields(...fields: string[]): PermissionGroupBuilder;
   /** Mark fields as hidden (blacklist) on the current entity */
   hiddenFields(...fields: string[]): PermissionGroupBuilder;
+  /** Mark fields as unmasked (override default masking) on the current entity */
+  unmaskFields(...fields: string[]): PermissionGroupBuilder;
   /** Materialize the definition. Idempotent — each call returns a fresh clone. */
   build(): PermissionGroupDefinition;
 }
@@ -222,9 +224,15 @@ export function permissionGroup(name: string): PermissionGroupBuilder {
     },
 
     ownRecords(field = "created_by") {
+      const trimmed = typeof field === "string" ? field.trim() : "";
+      if (trimmed.length === 0) {
+        throw new Error(
+          "permissionGroup.ownRecords requires a non-empty field name (e.g. 'created_by')",
+        );
+      }
       const data = ensureData(requireEntity("ownRecords"));
       const condition: DataAccessCondition = {
-        field,
+        field: trimmed,
         operator: "eq",
         value: "$actor.id",
       };
@@ -252,6 +260,17 @@ export function permissionGroup(name: string): PermissionGroupBuilder {
         if (!list.includes(name)) list.push(name);
       }
       f.hidden = list;
+      return builder;
+    },
+
+    unmaskFields(...fields) {
+      const f = ensureFields(requireEntity("unmaskFields"));
+      const list = f.unmask ?? [];
+      for (const name of fields) {
+        if (!name || typeof name !== "string") continue;
+        if (!list.includes(name)) list.push(name);
+      }
+      f.unmask = list;
       return builder;
     },
 
@@ -316,13 +335,13 @@ function cloneEntry(entry: EntityGrant): EntityGrant {
       cloned.data.read =
         typeof entry.data.read === "string"
           ? entry.data.read
-          : { condition: { ...entry.data.read.condition } };
+          : { condition: structuredClone(entry.data.read.condition) };
     }
     if (entry.data.write !== undefined) {
       cloned.data.write =
         typeof entry.data.write === "string"
           ? entry.data.write
-          : { condition: { ...entry.data.write.condition } };
+          : { condition: structuredClone(entry.data.write.condition) };
     }
   }
   if (entry.fields) {

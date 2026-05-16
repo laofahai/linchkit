@@ -197,6 +197,51 @@ describe("permissionGroup() chain builder", () => {
         hidden: ["x"],
       });
     });
+
+    it(".unmaskFields() accumulates without dupes", () => {
+      const def = permissionGroup("g")
+        .on("e")
+        .unmaskFields("ssn", "dob")
+        .unmaskFields("dob", "tax_id")
+        .build();
+
+      expect(def.grant?.e?.fields?.unmask).toEqual(["ssn", "dob", "tax_id"]);
+    });
+  });
+
+  describe("ownRecords() validation", () => {
+    it("throws when field is an empty or whitespace-only string", () => {
+      expect(() => permissionGroup("g").on("e").ownRecords("")).toThrow(/non-empty field name/);
+      expect(() => permissionGroup("g").on("e").ownRecords("   ")).toThrow(/non-empty field name/);
+    });
+
+    it("trims surrounding whitespace from the field name", () => {
+      const def = permissionGroup("g").on("e").ownRecords("  created_by  ").build();
+      expect(def.grant?.e?.data).toEqual({
+        read: { condition: { field: "created_by", operator: "eq", value: "$actor.id" } },
+        write: { condition: { field: "created_by", operator: "eq", value: "$actor.id" } },
+      });
+    });
+  });
+
+  describe("deep-clone isolation in build()", () => {
+    it("mutating nested condition objects after build() does not leak across builds", () => {
+      const builder = permissionGroup("g").on("e").ownRecords("created_by");
+
+      const a = builder.build();
+      const b = builder.build();
+
+      // Deep mutation on a's condition object
+      const readA = a.grant?.e?.data?.read;
+      if (typeof readA === "object" && readA !== null) {
+        (readA.condition as Record<string, unknown>).value = "$actor.leaked";
+      }
+
+      const readB = b.grant?.e?.data?.read;
+      if (typeof readB === "object" && readB !== null) {
+        expect(readB.condition.value).toBe("$actor.id");
+      }
+    });
   });
 
   describe(".build() idempotency", () => {
