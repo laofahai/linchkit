@@ -15,7 +15,7 @@
  * handler failures"). The original event row is never modified.
  */
 
-import { and, count, desc, eq, gte, lte, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { withTraceId } from "../observability/trace-context";
 import { eventsTable } from "../persistence/system-tables";
@@ -255,12 +255,15 @@ function createReplayContext(
   };
 }
 
-function selectHandlers(
-  registry: EventHandlerRegistry,
-  eventType: string,
-  payload: Record<string, unknown>,
-  onlyHandler: string | undefined,
-): EventHandlerDefinition[] {
+interface SelectHandlersOptions {
+  registry: EventHandlerRegistry;
+  eventType: string;
+  payload: Record<string, unknown>;
+  onlyHandler?: string;
+}
+
+function selectHandlers(options: SelectHandlersOptions): EventHandlerDefinition[] {
+  const { registry, eventType, payload, onlyHandler } = options;
   const all = registry.getByEvent(eventType);
   const filtered = all.filter((h) => {
     if (onlyHandler && h.name !== onlyHandler) return false;
@@ -269,6 +272,29 @@ function selectHandlers(
   });
   filtered.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
   return filtered;
+}
+
+/**
+ * `instanceof Date` matches `new Date("not-a-date")` (an "Invalid Date"
+ * whose getTime() is NaN). Treat those as missing so the SQL filter
+ * never carries an invalid timestamp.
+ */
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+/**
+ * Deep clone via `structuredClone` so handler mutations on nested objects
+ * (e.g. `event.payload.user.name = "x"`) cannot leak to subsequent
+ * handlers in the same replay or to a later replay of the same row.
+ * Falls back to `JSON.parse(JSON.stringify(...))` if structuredClone is
+ * unavailable in the runtime (older bun versions).
+ */
+function deepClonePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  if (typeof structuredClone === "function") {
+    return structuredClone(payload);
+  }
+  return JSON.parse(JSON.stringify(payload));
 }
 
 // ── Factory ─────────────────────────────────────────────────
@@ -282,8 +308,8 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     if (options?.eventType !== undefined)
       filters.push(eq(eventsTable.eventType, options.eventType));
     if (options?.entity !== undefined) filters.push(eq(eventsTable.sourceAction, options.entity));
-    if (options?.since instanceof Date) filters.push(gte(eventsTable.createdAt, options.since));
-    if (options?.until instanceof Date) filters.push(lte(eventsTable.createdAt, options.until));
+    if (isValidDate(options?.since)) filters.push(gte(eventsTable.createdAt, options.since));
+    if (isValidDate(options?.until)) filters.push(lte(eventsTable.createdAt, options.until));
     if (filters.length === 0) return undefined;
     if (filters.length === 1) return filters[0];
     return and(...filters);
@@ -296,24 +322,17 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     const offset = clampOffset(options?.offset);
     const where = buildWhere(options);
 
+    // Drizzle's `.where(undefined)` is a no-op, so we can pass `where`
+    // directly and skip the redundant ternary branches.
     const [rows, totals] = await Promise.all([
-      where
-        ? db
-            .select()
-            .from(eventsTable)
-            .where(where)
-            .orderBy(desc(eventsTable.createdAt))
-            .limit(limit)
-            .offset(offset)
-        : db
-            .select()
-            .from(eventsTable)
-            .orderBy(desc(eventsTable.createdAt))
-            .limit(limit)
-            .offset(offset),
-      where
-        ? db.select({ total: count() }).from(eventsTable).where(where)
-        : db.select({ total: count() }).from(eventsTable),
+      db
+        .select()
+        .from(eventsTable)
+        .where(where)
+        .orderBy(desc(eventsTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ total: count() }).from(eventsTable).where(where),
     ]);
 
     return {
@@ -345,7 +364,12 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     onlyHandler: string | undefined,
   ): Promise<ReplayResult> {
     const event = rowToEventRecord(row);
-    const handlers = selectHandlers(registry, event.type, event.payload, onlyHandler);
+    const handlers = selectHandlers({
+      registry,
+      eventType: event.type,
+      payload: event.payload,
+      onlyHandler,
+    });
     if (handlers.length === 0) return { delivered: 0, errors: [] };
 
     const ctx = createReplayContext(event.meta as ExecutionMetaImpl | undefined, event.id);
@@ -355,8 +379,9 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     const errors: ReplayError[] = [];
 
     for (const handler of handlers) {
-      // Shallow copy so handler mutations cannot leak to siblings/replays.
-      const eventCopy: EventRecord = { ...event, payload: { ...event.payload } };
+      // Deep clone via structuredClone so nested-object mutations from one
+      // handler cannot leak to siblings or to a later replay of the same row.
+      const eventCopy: EventRecord = { ...event, payload: deepClonePayload(event.payload) };
       try {
         const exec = () => handler.handler(eventCopy, ctx);
         if (traceId) {
@@ -382,17 +407,27 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
       throw new Error(`replayBatch: batch size ${ids.length} exceeds maximum of ${MAX_BATCH_SIZE}`);
     }
 
+    // Partition once: keep the original order so the caller's `ids` line up
+    // with `results`, but bulk-fetch the valid UUIDs in a single query
+    // instead of issuing one round-trip per id.
+    const validIds = ids.filter((id) => UUID_RE.test(id));
+    const rowsById = new Map<string, typeof eventsTable.$inferSelect>();
+    if (validIds.length > 0) {
+      const rows = await db.select().from(eventsTable).where(inArray(eventsTable.id, validIds));
+      for (const row of rows) {
+        rowsById.set(row.id, row);
+      }
+    }
+
     const results: BatchReplayResult["results"] = [];
     let totalDelivered = 0;
     let totalErrors = 0;
 
     for (const id of ids) {
-      if (!UUID_RE.test(id)) {
-        results.push({ id, replayed: false, delivered: 0, errors: [] });
-        continue;
-      }
-      const row = await fetchRow(id);
+      const row = rowsById.get(id);
       if (!row) {
+        // Either the id was malformed (filtered out above) or no row
+        // matched it in the bulk fetch.
         results.push({ id, replayed: false, delivered: 0, errors: [] });
         continue;
       }
