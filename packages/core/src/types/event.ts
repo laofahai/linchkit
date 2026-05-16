@@ -6,6 +6,7 @@
  */
 
 import type { ExecutionMeta } from "./execution-meta";
+import type { MetaSemantics } from "./meta-semantics";
 
 // ── Event categories ────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface EventDefinition {
   description?: string;
   category: "custom";
   payload?: Record<string, unknown>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: MetaSemantics;
 }
 
 // ── Event record ────────────────────────────────────────
@@ -83,6 +86,8 @@ export interface EventHandlerDefinition {
   retryPolicy?: RetryPolicy;
 
   handler: (event: EventRecord, ctx: EventHandlerContext) => Promise<void>;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: MetaSemantics;
 }
 
 // ── EventHandler Context ────────────────────────────

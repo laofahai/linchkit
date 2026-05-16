@@ -17,12 +17,27 @@ import type {
 } from "../types/entity";
 import type { EventDefinition, EventHandlerDefinition } from "../types/event";
 import type { FlowDefinition } from "../types/flow";
-import type { RelationCardinality } from "../types/relation";
+import type {
+  DependencyEdge,
+  DependencyGraph,
+  ImpactLayers,
+  MetaModelRef,
+  MetaSemantics,
+} from "../types/meta-semantics";
+import type { RelationCardinality, RelationDefinition } from "../types/relation";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
 import type { ViewDefinition } from "../types/view";
+import {
+  extractDependencyEdges,
+  inferActionSemantics,
+  inferEntitySemantics,
+  inferFlowSemantics,
+  inferGenericSemantics,
+  inferRuleSemantics,
+} from "./meta-semantics-inference";
 
-// ── Relation descriptor ──────────────────────────────────
+// ── Relation descriptor ───────────────────────────────────
 
 /** Directional relationship between two schemas */
 export interface RelationDescriptor {
@@ -38,7 +53,7 @@ export interface RelationDescriptor {
   label?: string;
 }
 
-// ── Schema descriptor ──────────────────────────────────
+// ── Schema descriptor ───────────────────────────────────
 
 /** Complete picture of a schema — all metadata in one place */
 export interface EntityDescriptor {
@@ -127,7 +142,7 @@ interface InterfaceRegistryLike {
   list(): InterfaceDefinition[];
 }
 
-// ── Dependencies for createOntologyRegistry ──────────────────
+// ── Dependencies for createOntologyRegistry ──────────────
 
 export interface OntologyRegistryDeps {
   schemas: EntityRegistryLike;
@@ -140,9 +155,11 @@ export interface OntologyRegistryDeps {
   flows?: FlowRegistryLike;
   links?: RelationRegistryLike;
   interfaces?: InterfaceRegistryLike;
+  /** Raw relation definitions for dependency DAG (Spec 67) */
+  relationDefs?: RelationDefinition[];
 }
 
-// ── OntologyRegistry interface ──────────────────────────────
+// ── OntologyRegistry interface ──────────────────────────
 
 export interface OntologyRegistry {
   /** Get complete descriptor for an entity */
@@ -183,9 +200,31 @@ export interface OntologyRegistry {
 
   /** Export ontology as Markdown summary */
   toMarkdown(): string;
+
+  // ── Spec 67: Semantic search API ────────────────────
+
+  /** Find all meta-model elements with a matching intent tag */
+  searchByIntent(intent: string): MetaModelRef[];
+
+  /** Find all meta-model elements in a given business domain */
+  searchByDomain(domain: string): MetaModelRef[];
+
+  /** Get the resolved (inferred + explicit) semantics for a meta-model element */
+  getSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined;
+
+  // ── Spec 67: Dependency DAG API ─────────────────────
+
+  /** Return a dependency subgraph rooted at the given element */
+  dependencyGraph(ref: MetaModelRef): DependencyGraph;
+
+  /**
+   * Impact analysis: who depends on this element?
+   * Returns BFS layers — layers[0] = root, layers[1] = direct dependents, etc.
+   */
+  impactAnalysis(ref: MetaModelRef): ImpactLayers;
 }
 
-// ── Factory ──────────────────────────────────────────────
+// ── Factory ────────────────────────────────────────────
 
 /**
  * Create an OntologyRegistry that aggregates existing registries.
@@ -254,6 +293,112 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
         handlersByEntity.set(sn, list);
       }
     }
+  }
+
+  // ── Spec 67: Dependency DAG + Semantics index ────────────────────────
+
+  const allFlows = deps.flows ? deps.flows.getAll() : [];
+  const allHandlers = deps.handlers ? deps.handlers.getAll() : [];
+  const allEvents = deps.events ?? [];
+  const allRelationDefs = deps.relationDefs ?? [];
+
+  const dagEdges = extractDependencyEdges({
+    entities: deps.schemas.getAll(),
+    actions: allActions,
+    rules: deps.rules,
+    states: deps.states,
+    events: allEvents,
+    handlers: allHandlers,
+    flows: allFlows,
+    views: deps.views,
+    relations: allRelationDefs,
+  });
+
+  // Pre-build adjacency maps for O(V+E) BFS
+  const dagFromAdj = new Map<string, DependencyEdge[]>();
+  const dagToAdj = new Map<string, DependencyEdge[]>();
+  for (const edge of dagEdges) {
+    const fk = `${edge.from.type}:${edge.from.name}`;
+    const tk = `${edge.to.type}:${edge.to.name}`;
+    const fromList = dagFromAdj.get(fk) ?? [];
+    fromList.push(edge);
+    dagFromAdj.set(fk, fromList);
+    const toList = dagToAdj.get(tk) ?? [];
+    toList.push(edge);
+    dagToAdj.set(tk, toList);
+  }
+
+  // Pre-index elements by name for O(1) lookups in resolveSemanticsFor
+  const actionsByNameMap = new Map(allActions.map((a) => [a.name, a]));
+  const rulesByNameMap = new Map(deps.rules.map((r) => [r.name, r]));
+  const flowsByNameMap = new Map(allFlows.map((f) => [f.name, f]));
+  const statesByNameMap = new Map(deps.states.map((s) => [s.name, s]));
+  const eventsByNameMap = new Map(allEvents.map((e) => [e.name, e]));
+  const handlersByNameMap = new Map(allHandlers.map((h) => [h.name, h]));
+  const viewsByNameMap = new Map(deps.views.map((v) => [v.name, v]));
+  const relsByNameMap = new Map(allRelationDefs.map((r) => [r.name, r]));
+
+  // Pre-cache allRefs — built once, not rebuilt on every call
+  const cachedAllRefs: MetaModelRef[] = [
+    ...deps.schemas.getAll().map((e) => ({ type: "entity" as const, name: e.name })),
+    ...allActions.map((a) => ({ type: "action" as const, name: a.name })),
+    ...deps.rules.map((r) => ({ type: "rule" as const, name: r.name })),
+    ...deps.states.map((s) => ({ type: "state" as const, name: s.name })),
+    ...allEvents.map((e) => ({ type: "event" as const, name: e.name })),
+    ...allHandlers.map((h) => ({ type: "event_handler" as const, name: h.name })),
+    ...deps.views.map((v) => ({ type: "view" as const, name: v.name })),
+    ...allFlows.map((f) => ({ type: "flow" as const, name: f.name })),
+    ...allRelationDefs.map((r) => ({ type: "relation" as const, name: r.name })),
+  ];
+
+  /** Resolve semantics for any meta-model element (infer + merge explicit) */
+  function resolveSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined {
+    switch (ref.type) {
+      case "entity": {
+        const entity = deps.schemas.get(ref.name);
+        if (!entity) return undefined;
+        const entityActions = actionsByEntity.get(ref.name) ?? [];
+        const entityState = statesByEntity.get(ref.name);
+        return inferEntitySemantics(entity, entityActions, entityState);
+      }
+      case "action": {
+        const action = actionsByNameMap.get(ref.name);
+        if (!action) return undefined;
+        return inferActionSemantics(action);
+      }
+      case "rule": {
+        const rule = rulesByNameMap.get(ref.name);
+        if (!rule) return undefined;
+        return inferRuleSemantics(rule);
+      }
+      case "flow": {
+        const flow = flowsByNameMap.get(ref.name);
+        if (!flow) return undefined;
+        return inferFlowSemantics(flow);
+      }
+      case "state": {
+        return inferGenericSemantics(statesByNameMap.get(ref.name));
+      }
+      case "event": {
+        return inferGenericSemantics(eventsByNameMap.get(ref.name));
+      }
+      case "event_handler": {
+        return inferGenericSemantics(handlersByNameMap.get(ref.name));
+      }
+      case "view": {
+        return inferGenericSemantics(viewsByNameMap.get(ref.name));
+      }
+      case "relation": {
+        return inferGenericSemantics(relsByNameMap.get(ref.name));
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  /** Collect all MetaModelRefs in the registry */
+  function allRefs(): MetaModelRef[] {
+    return cachedAllRefs;
   }
 
   /** Collect items from the inheritance chain (ancestors only, excluding self) */
@@ -515,10 +660,82 @@ export function createOntologyRegistry(deps: OntologyRegistryDeps): OntologyRegi
 
       return lines.join("\n");
     },
+
+    // ── Spec 67: Semantic search API ──────────────────
+
+    searchByIntent(intent: string): MetaModelRef[] {
+      const q = intent.toLowerCase();
+      return allRefs().filter((ref) => {
+        const sem = resolveSemanticsFor(ref);
+        return sem?.intent?.some((i) => i.toLowerCase().includes(q)) ?? false;
+      });
+    },
+
+    searchByDomain(domain: string): MetaModelRef[] {
+      const q = domain.toLowerCase();
+      return allRefs().filter((ref) => {
+        const sem = resolveSemanticsFor(ref);
+        return sem?.domain?.some((d) => d.toLowerCase().includes(q)) ?? false;
+      });
+    },
+
+    getSemanticsFor(ref: MetaModelRef): MetaSemantics | undefined {
+      return resolveSemanticsFor(ref);
+    },
+
+    // ── Spec 67: Dependency DAG API ───────────────────
+
+    dependencyGraph(ref: MetaModelRef): DependencyGraph {
+      const rk = (r: MetaModelRef) => `${r.type}:${r.name}`;
+      const visited = new Set<string>([rk(ref)]);
+      const queue: MetaModelRef[] = [ref];
+      const nodes: MetaModelRef[] = [ref];
+      const edges: DependencyEdge[] = [];
+      while (queue.length > 0) {
+        const current = queue.shift();
+        if (!current) break;
+        for (const edge of dagFromAdj.get(rk(current)) ?? []) {
+          edges.push(edge);
+          const toKey = rk(edge.to);
+          if (!visited.has(toKey)) {
+            visited.add(toKey);
+            queue.push(edge.to);
+            nodes.push(edge.to);
+          }
+        }
+      }
+      return { root: ref, nodes, edges };
+    },
+
+    impactAnalysis(ref: MetaModelRef): ImpactLayers {
+      const rk = (r: MetaModelRef) => `${r.type}:${r.name}`;
+      const visited = new Set<string>([rk(ref)]);
+      const layers: MetaModelRef[][] = [[ref]];
+      let frontier = [ref];
+      while (frontier.length > 0) {
+        const nextLayer: MetaModelRef[] = [];
+        for (const node of frontier) {
+          for (const edge of dagToAdj.get(rk(node)) ?? []) {
+            const fromKey = rk(edge.from);
+            if (!visited.has(fromKey)) {
+              visited.add(fromKey);
+              nextLayer.push(edge.from);
+            }
+          }
+        }
+        if (nextLayer.length > 0) {
+          layers.push(nextLayer);
+          frontier = nextLayer;
+        } else {
+          break;
+        }
+      }
+      return layers;
+    },
   };
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────
 
 /** Extract entity names from a rule trigger, using action registry to resolve action→entity */
 function extractEntityFromTrigger(
@@ -593,16 +810,16 @@ function extractEntitiesFromHandler(
   entityRegistry: EntityRegistryLike,
 ): string[] {
   const listen = Array.isArray(handler.listen) ? handler.listen : [handler.listen];
-  const entityNames: string[] = [];
+  const entityNames = new Set<string>();
 
   for (const eventType of listen) {
     // Convention: event names like "purchase_request.submit.succeeded"
     const parts = eventType.split(".");
     const entityName = parts[0];
     if (parts.length >= 2 && entityName && entityRegistry.has(entityName)) {
-      entityNames.push(entityName);
+      entityNames.add(entityName);
     }
   }
 
-  return entityNames;
+  return [...entityNames];
 }
