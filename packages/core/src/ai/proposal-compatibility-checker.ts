@@ -214,28 +214,56 @@ function checkConstraintTightening(
     };
   }
 
-  // narrowing min (raising the floor)
-  if (typeof patch.min === "number" && typeof current.min === "number" && patch.min > current.min) {
-    return {
-      rule: "tighten_constraint_narrow_min",
-      severity: "breaking",
-      change,
-      reason:
-        `Raising min from ${current.min} to ${patch.min} on "${change.entity}.${change.field}" ` +
-        `is breaking — existing values below ${patch.min} will violate the new constraint`,
-    };
+  // narrowing min: raising the floor OR introducing one where none existed.
+  // Adding `min` to a previously-unconstrained field rejects rows that were
+  // valid before, so it is just as breaking as raising an existing floor.
+  if (typeof patch.min === "number") {
+    if (current.min === undefined) {
+      return {
+        rule: "tighten_constraint_narrow_min",
+        severity: "breaking",
+        change,
+        reason:
+          `Adding a min of ${patch.min} to "${change.entity}.${change.field}" is breaking — ` +
+          `existing values below ${patch.min} will violate the new constraint`,
+      };
+    }
+    if (typeof current.min === "number" && patch.min > current.min) {
+      return {
+        rule: "tighten_constraint_narrow_min",
+        severity: "breaking",
+        change,
+        reason:
+          `Raising min from ${current.min} to ${patch.min} on "${change.entity}.${change.field}" ` +
+          `is breaking — existing values below ${patch.min} will violate the new constraint`,
+      };
+    }
   }
 
-  // narrowing max (lowering the ceiling)
-  if (typeof patch.max === "number" && typeof current.max === "number" && patch.max < current.max) {
-    return {
-      rule: "tighten_constraint_narrow_max",
-      severity: "breaking",
-      change,
-      reason:
-        `Lowering max from ${current.max} to ${patch.max} on "${change.entity}.${change.field}" ` +
-        `is breaking — existing values above ${patch.max} will violate the new constraint`,
-    };
+  // narrowing max: lowering the ceiling OR introducing one where none existed.
+  // Adding `max` to a previously-unconstrained field rejects rows that were
+  // valid before, so it is just as breaking as lowering an existing ceiling.
+  if (typeof patch.max === "number") {
+    if (current.max === undefined) {
+      return {
+        rule: "tighten_constraint_narrow_max",
+        severity: "breaking",
+        change,
+        reason:
+          `Adding a max of ${patch.max} to "${change.entity}.${change.field}" is breaking — ` +
+          `existing values above ${patch.max} will violate the new constraint`,
+      };
+    }
+    if (typeof current.max === "number" && patch.max < current.max) {
+      return {
+        rule: "tighten_constraint_narrow_max",
+        severity: "breaking",
+        change,
+        reason:
+          `Lowering max from ${current.max} to ${patch.max} on "${change.entity}.${change.field}" ` +
+          `is breaking — existing values above ${patch.max} will violate the new constraint`,
+      };
+    }
   }
 
   return undefined;
@@ -387,26 +415,27 @@ export function compatibilityCheck(
 
   // Cross-change consistency: if the same field is dropped and then re-added
   // with a new type, surface that as an info note rather than a clean drop.
-  for (let i = 0; i < changes.length; i++) {
-    const dropCandidate = changes[i];
-    if (!dropCandidate || dropCandidate.kind !== "field_drop") continue;
-    for (let j = i + 1; j < changes.length; j++) {
-      const nextCandidate = changes[j];
-      if (!nextCandidate) continue;
-      if (
-        nextCandidate.kind === "field_add" &&
-        nextCandidate.entity === dropCandidate.entity &&
-        nextCandidate.field === dropCandidate.field
-      ) {
-        info.push({
-          rule: "field_drop_and_readd",
-          severity: "info",
-          change: nextCandidate,
-          reason:
-            `Field "${dropCandidate.entity}.${dropCandidate.field}" is dropped and re-added — ` +
-            `treat as a destructive replacement`,
-        });
-      }
+  // Two passes (O(N)) keyed by "entity.field" instead of O(N²) nested loops:
+  //   pass 1 → index all field_add changes by their target key
+  //   pass 2 → for every field_drop, look the matching add up in the index
+  const addIndex = new Map<string, CompatibilityChange & { kind: "field_add" }>();
+  for (const change of changes) {
+    if (change.kind === "field_add") {
+      addIndex.set(`${change.entity}.${change.field}`, change);
+    }
+  }
+  for (const change of changes) {
+    if (change.kind !== "field_drop") continue;
+    const match = addIndex.get(`${change.entity}.${change.field}`);
+    if (match) {
+      info.push({
+        rule: "field_drop_and_readd",
+        severity: "info",
+        change: match,
+        reason:
+          `Field "${change.entity}.${change.field}" is dropped and re-added — ` +
+          `treat as a destructive replacement`,
+      });
     }
   }
 

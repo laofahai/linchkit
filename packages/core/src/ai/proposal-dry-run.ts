@@ -375,11 +375,19 @@ function validatePostState(snapshot: CompatibilityRegistrySnapshot): DryRunModel
       });
       continue;
     }
+    // Always verify that the target field literally exists. Even when
+    // `toField` is omitted (implicit "id"), we must confirm the target
+    // entity actually defines an "id" field — otherwise the reference is
+    // dangling. Skipping the check for "id" was a silent escape hatch.
     const toField = ref.toField ?? "id";
-    if (toField !== "id" && !to.fields[toField]) {
+    if (!to.fields[toField]) {
       errors.push({
         code: "dangling_reference_to_field",
-        message: `Reference target field "${ref.toEntity}.${toField}" does not exist`,
+        message:
+          ref.toField === undefined
+            ? `Reference "${ref.fromEntity}.${ref.fromField} → ${ref.toEntity}" assumes ` +
+              `target field "id" which does not exist on entity "${ref.toEntity}"`
+            : `Reference target field "${ref.toEntity}.${toField}" does not exist`,
         entity: ref.toEntity,
         field: toField,
       });

@@ -163,6 +163,45 @@ describe("dryRunProposal — drift / error detection", () => {
     expect(result.modelErrors[0].code).toBe("duplicate_entity");
   });
 
+  it("detects dangling reference when target entity has no implicit id field", () => {
+    // The reference omits `toField`, which defaults to "id". But the target
+    // entity ("note_doc") deliberately has no `id` field — the dry-run must
+    // still flag this as a dangling reference rather than silently allowing it.
+    const snapshot: CompatibilityRegistrySnapshot = {
+      entities: {
+        product: {
+          name: "product",
+          fields: {
+            id: { type: "string", required: true },
+            note_ref: { type: "string" },
+          },
+        },
+        note_doc: {
+          name: "note_doc",
+          fields: {
+            // intentionally no "id" field
+            content: { type: "text" },
+          },
+        },
+      },
+      references: [
+        {
+          fromEntity: "product",
+          fromField: "note_ref",
+          toEntity: "note_doc",
+          // toField omitted → previously assumed "id" existed implicitly
+        },
+      ],
+    };
+    const result = dryRunProposal([], snapshot);
+    expect(result.ok).toBe(false);
+    const danglers = result.modelErrors.filter((e) => e.code === "dangling_reference_to_field");
+    expect(danglers).toHaveLength(1);
+    expect(danglers[0].message).toContain('assumes target field "id"');
+    expect(danglers[0].entity).toBe("note_doc");
+    expect(danglers[0].field).toBe("id");
+  });
+
   it("detects dangling reference target after a field drop", () => {
     // Reference to category.label which we then drop
     const snapshot: CompatibilityRegistrySnapshot = {

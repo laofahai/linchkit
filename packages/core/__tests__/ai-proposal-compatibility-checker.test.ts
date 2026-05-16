@@ -187,6 +187,25 @@ describe("compatibilityCheck — breaking-change rules", () => {
     expect(result.breaking[0].rule).toBe("tighten_constraint_narrow_min");
   });
 
+  it("detects introducing a min where none existed (tighten_constraint_narrow_min)", () => {
+    // `qty` on line_item has no min/max — adding a min must be breaking
+    const snapshot = makeSnapshot();
+    const result = compatibilityCheck(
+      [
+        {
+          kind: "field_constraint_change",
+          entity: "line_item",
+          field: "qty",
+          patch: { min: 1 },
+        },
+      ],
+      snapshot,
+    );
+    expect(result.compatible).toBe(false);
+    expect(result.breaking[0].rule).toBe("tighten_constraint_narrow_min");
+    expect(result.breaking[0].reason).toContain("Adding a min");
+  });
+
   it("detects narrowing max downward (tighten_constraint_narrow_max)", () => {
     const snapshot = makeSnapshot();
     const result = compatibilityCheck(
@@ -202,6 +221,25 @@ describe("compatibilityCheck — breaking-change rules", () => {
     );
     expect(result.compatible).toBe(false);
     expect(result.breaking[0].rule).toBe("tighten_constraint_narrow_max");
+  });
+
+  it("detects introducing a max where none existed (tighten_constraint_narrow_max)", () => {
+    // `qty` on line_item has no min/max — adding a max must be breaking
+    const snapshot = makeSnapshot();
+    const result = compatibilityCheck(
+      [
+        {
+          kind: "field_constraint_change",
+          entity: "line_item",
+          field: "qty",
+          patch: { max: 1000 },
+        },
+      ],
+      snapshot,
+    );
+    expect(result.compatible).toBe(false);
+    expect(result.breaking[0].rule).toBe("tighten_constraint_narrow_max");
+    expect(result.breaking[0].reason).toContain("Adding a max");
   });
 
   it("detects narrowing an enum (tighten_constraint_narrow_enum)", () => {
@@ -278,6 +316,42 @@ describe("compatibilityCheck — warnings", () => {
       snapshot,
     );
     expect(result.info.some((i) => i.rule === "field_drop_and_readd")).toBe(true);
+  });
+
+  it("matches each drop/re-add pair exactly once across many changes", () => {
+    // Exercises the two-pass Map index — three drop/add pairs should yield
+    // exactly three `field_drop_and_readd` notes (one per pair), proving the
+    // index does not double-count when many changes are present.
+    const snapshot = makeSnapshot();
+    snapshot.references = [];
+    const result = compatibilityCheck(
+      [
+        { kind: "field_drop", entity: "order", field: "note" },
+        { kind: "field_drop", entity: "order", field: "amount" },
+        { kind: "field_drop", entity: "line_item", field: "qty" },
+        {
+          kind: "field_add",
+          entity: "order",
+          field: "note",
+          definition: { type: "text" },
+        },
+        {
+          kind: "field_add",
+          entity: "order",
+          field: "amount",
+          definition: { type: "number" },
+        },
+        {
+          kind: "field_add",
+          entity: "line_item",
+          field: "qty",
+          definition: { type: "number" },
+        },
+      ],
+      snapshot,
+    );
+    const replacements = result.info.filter((i) => i.rule === "field_drop_and_readd");
+    expect(replacements).toHaveLength(3);
   });
 });
 
