@@ -18,8 +18,13 @@
  * });
  * sdk.start();
  *
- * // Graceful shutdown
- * process.on("SIGTERM", async () => { await sdk.shutdown(); });
+ * // Graceful shutdown — handle both SIGTERM and SIGINT.
+ * for (const signal of ["SIGTERM", "SIGINT"] as const) {
+ *   process.on(signal, async () => {
+ *     await sdk.shutdown();
+ *     process.exit(0);
+ *   });
+ * }
  * ```
  *
  * No auto-start. Surprise startup means a service silently opens a
@@ -55,11 +60,17 @@ export interface BootstrapNodeSdkOptions {
   /**
    * Base OTLP/HTTP endpoint (e.g. `http://localhost:4318`). The
    * trace exporter posts to `${endpoint}/v1/traces`, the metric
-   * exporter to `${endpoint}/v1/metrics` — the OTel SDK appends those
-   * paths automatically when only the base is provided via env.
+   * exporter to `${endpoint}/v1/metrics`.
    *
-   * Falls back to the `OTEL_EXPORTER_OTLP_ENDPOINT` env var; if that
-   * is also unset the exporters default to `http://localhost:4318`.
+   * Resolution follows the OpenTelemetry specification:
+   * 1. Per-signal env var (`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` /
+   *    `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`) is used as-is — no path
+   *    suffix is appended.
+   * 2. Otherwise this `endpoint` option (or the base env var
+   *    `OTEL_EXPORTER_OTLP_ENDPOINT`) is treated as the base and the
+   *    signal-specific path (`v1/traces` / `v1/metrics`) is appended.
+   * 3. If nothing is set the exporters default to
+   *    `http://localhost:4318`.
    */
   endpoint?: string;
   /**
@@ -103,7 +114,7 @@ const DEFAULT_SERVICE_NAME = "linchkit";
  */
 export function bootstrapNodeSdk(options: BootstrapNodeSdkOptions = {}): NodeSDK {
   const serviceName = options.serviceName ?? DEFAULT_SERVICE_NAME;
-  const endpoint = options.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const baseEndpoint = options.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   const headers = options.headers;
 
   const resource = resourceFromAttributes({
@@ -111,22 +122,34 @@ export function bootstrapNodeSdk(options: BootstrapNodeSdkOptions = {}): NodeSDK
     ...(options.serviceVersion ? { [ATTR_SERVICE_VERSION]: options.serviceVersion } : {}),
   });
 
-  // OTLP exporters resolve their endpoint from `url` if provided; when
-  // `url` is undefined they fall back to env vars themselves, so it is
-  // safe to pass `undefined` here.
+  // Per the OTel spec, per-signal env vars are used verbatim and base
+  // endpoints have the signal path appended. When neither is set we
+  // pass `undefined` so the exporter falls back to its built-in default
+  // (`http://localhost:4318/v1/<signal>`).
+  const traceUrl = resolveSignalUrl({
+    perSignalEnv: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    base: baseEndpoint,
+    signalPath: "v1/traces",
+  });
+  const metricUrl = resolveSignalUrl({
+    perSignalEnv: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+    base: baseEndpoint,
+    signalPath: "v1/metrics",
+  });
+
   const traceExporter = options.disableTraces
     ? undefined
     : new OTLPTraceExporter({
-        url: endpoint ? `${trimSlash(endpoint)}/v1/traces` : undefined,
-        headers,
+        ...(traceUrl !== undefined ? { url: traceUrl } : {}),
+        ...(headers !== undefined ? { headers } : {}),
       });
 
   const metricReader = options.disableMetrics
     ? undefined
     : new PeriodicExportingMetricReader({
         exporter: new OTLPMetricExporter({
-          url: endpoint ? `${trimSlash(endpoint)}/v1/metrics` : undefined,
-          headers,
+          ...(metricUrl !== undefined ? { url: metricUrl } : {}),
+          ...(headers !== undefined ? { headers } : {}),
         }),
         ...(options.metricExportIntervalMs !== undefined
           ? { exportIntervalMillis: options.metricExportIntervalMs }
@@ -142,6 +165,33 @@ export function bootstrapNodeSdk(options: BootstrapNodeSdkOptions = {}): NodeSDK
 
 // ── Helpers ──────────────────────────────────────────────
 
-function trimSlash(value: string): string {
-  return value.endsWith("/") ? value.slice(0, -1) : value;
+/**
+ * Resolve the final exporter URL for a single OTLP signal.
+ *
+ * - If the per-signal env var is set, return it verbatim (OTel spec
+ *   says signal-specific endpoints are NOT modified).
+ * - Else if a base endpoint is provided, join it with the signal path
+ *   using `URL` so we never produce double slashes or drop a configured
+ *   path prefix.
+ * - Else return `undefined` so the exporter falls back to its built-in
+ *   default.
+ *
+ * Exported for testability.
+ */
+export function resolveSignalUrl(args: {
+  perSignalEnv: string | undefined;
+  base: string | undefined;
+  signalPath: string;
+}): string | undefined {
+  const { perSignalEnv, base, signalPath } = args;
+  if (perSignalEnv !== undefined && perSignalEnv !== "") {
+    return perSignalEnv;
+  }
+  if (base === undefined || base === "") {
+    return undefined;
+  }
+  // `URL` only honours a relative path correctly when the base ends in
+  // "/" — otherwise the last path segment is replaced. Normalise once.
+  const normalised = base.endsWith("/") ? base : `${base}/`;
+  return new URL(signalPath, normalised).toString();
 }

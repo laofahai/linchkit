@@ -63,11 +63,14 @@ sdk.start();
 //    uses `getObservability().tracer / .meter` flows through OTel.
 setObservability(createOtelAdapter({ serviceName: "linchkit-server" }));
 
-// 3. Graceful shutdown — keep this so spans + metrics flush.
-process.on("SIGTERM", async () => {
-  await sdk.shutdown();
-  process.exit(0);
-});
+// 3. Graceful shutdown — handle both SIGTERM (orchestrators) and
+//    SIGINT (Ctrl-C) so spans + metrics flush before exit.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, async () => {
+    await sdk.shutdown();
+    process.exit(0);
+  });
+}
 ```
 
 ## Environment variables
@@ -77,7 +80,9 @@ variables. The most relevant ones:
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP/HTTP endpoint. Used when `bootstrapNodeSdk({ endpoint })` is omitted. | `http://localhost:4318` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP/HTTP endpoint. Used when `bootstrapNodeSdk({ endpoint })` is omitted; `v1/traces` and `v1/metrics` are appended automatically. | `http://localhost:4318` |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Per-signal trace endpoint. Used verbatim — overrides both the base env var and the `endpoint` option. | unset |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Per-signal metric endpoint. Used verbatim — overrides both the base env var and the `endpoint` option. | unset |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `k=v` request headers (e.g. auth tokens). | unset |
 | `OTEL_SERVICE_NAME` | Used by the SDK as a fallback `service.name`. The `serviceName` option in this package takes precedence. | unset |
 | `OTEL_LOG_LEVEL` | Internal SDK log level (`debug`, `info`, `warn`, `error`). | `info` |
