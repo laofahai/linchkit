@@ -10,7 +10,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@modelcontextprotocol/sdk": "1.29.0",
-        "@restatedev/restate-sdk": "1.13.0",
+        "@restatedev/restate-sdk": "1.14.2",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
         "dataloader": "^2.2.3",
@@ -163,6 +163,20 @@
         "@linchkit/core": "^0.2.0",
       },
     },
+    "addons/audit/cap-audit-ui": {
+      "name": "@linchkit/cap-audit-ui",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/cap-adapter-ui": "workspace:*",
+        "@linchkit/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@linchkit/cap-adapter-ui": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
+        "react": "^19.0.0",
+        "react-i18next": ">=14.0.0",
+      },
+    },
     "addons/auth/cap-auth": {
       "name": "@linchkit/cap-auth",
       "version": "1.0.0",
@@ -257,7 +271,7 @@
       "name": "@linchkit/cap-flow-restate",
       "version": "1.0.0",
       "dependencies": {
-        "@restatedev/restate-sdk": "1.13.0",
+        "@restatedev/restate-sdk": "1.14.2",
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
@@ -637,6 +651,8 @@
 
     "@linchkit/cap-ai-provider": ["@linchkit/cap-ai-provider@workspace:addons/ai-provider/cap-ai-provider"],
 
+    "@linchkit/cap-audit-ui": ["@linchkit/cap-audit-ui@workspace:addons/audit/cap-audit-ui"],
+
     "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:addons/auth/cap-auth"],
 
     "@linchkit/cap-auth-better-auth": ["@linchkit/cap-auth-better-auth@workspace:addons/auth/cap-auth-better-auth"],
@@ -833,9 +849,9 @@
 
     "@repeaterjs/repeater": ["@repeaterjs/repeater@3.0.6", "https://registry.npmmirror.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz", {}, "sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA=="],
 
-    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.13.0", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.13.0" } }, "sha512-SAqes+qbpMn1HCRn/275FuNkyhvYsNwoe9BJwT0OjV1ocKC27SR4UGp/d2vO9mV6804VlSapybpGs4H7SM3HMA=="],
+    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.14.2", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.14.2" } }, "sha512-qh6g0oTH7wuy9hGm2gdAmsfOO8StYYS1Yy5goQ2dhBk1OsO/GPy4jcMdWwRSgIaql7LvDpXBrj5orQU1+QXC2Q=="],
 
-    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.13.0", "", {}, "sha512-DVmlI3rI8coA0Hcpxd2cLaK5DKUCwKDyXWXqjMorhqd4HBqdJBWtgrS0y0ZGUW+vuzJMeFpFvq3nhQJIvn6U9Q=="],
+    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.14.2", "", {}, "sha512-fJPgdp8ITo0uaCS3zbrAqwv7l7CayF1uA84e1Iz8tqvBTllMdGuio5j/kwDlzXf2Ad7FFFdyKx4CjaSTCpo3PA=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.10", "https://registry.npmmirror.com/@rolldown/binding-android-arm64/-/binding-android-arm64-1.0.0-rc.10.tgz", { "os": "android", "cpu": "arm64" }, "sha512-jOHxwXhxmFKuXztiu1ORieJeTbx5vrTkcOkkkn2d35726+iwhrY1w/+nYY/AGgF12thg33qC3R1LMBF5tHTZHg=="],
 
