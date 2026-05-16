@@ -14,6 +14,7 @@ import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } f
 import { addDays, addMonths, format, parse, startOfDay, subDays, subMonths } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
 import { CalendarGrid } from "./CalendarGrid";
+import { parseDayDroppableId } from "./droppable-ids";
 import type { CalendarBoardProps, CalendarRecord, CalendarViewMode } from "./types";
 import { useCalendarData } from "./use-calendar-data";
 
@@ -97,9 +98,8 @@ export function CalendarBoard(props: CalendarBoardProps) {
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       if (!onMoveEvent || !event.over) return;
-      const overId = String(event.over.id);
-      if (!overId.startsWith("day:")) return;
-      const dayKey = overId.slice("day:".length);
+      const dayKey = parseDayDroppableId(String(event.over.id));
+      if (dayKey === null) return;
       const record = chipsById.get(String(event.active.id));
       if (!record) return;
       const targetDate = parse(dayKey, "yyyy-MM-dd", new Date());

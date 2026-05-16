@@ -10,6 +10,7 @@ import {
   endOfWeek,
   isBefore,
   isSameDay,
+  isValid,
   parseISO,
   startOfDay,
   startOfMonth,
@@ -23,24 +24,24 @@ const WEEK_STARTS_ON = 0 as const;
 
 /**
  * Parse a date-ish field. Accepts Date, ISO string, epoch ms.
- * Returns null when the value is unset or unparseable so callers can skip the record.
+ *
+ * String inputs MUST be ISO-8601 — we deliberately do not fall back to the
+ * native `new Date(string)` constructor because its non-ISO behaviour is
+ * implementation-defined and silently varies between engines.
+ *
+ * Returns `null` when the value is unset, not one of the supported shapes,
+ * or fails ISO parsing, so callers can skip the record.
  */
 export function parseCalendarDate(value: unknown): Date | null {
   if (value === null || value === undefined || value === "") return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value instanceof Date) return isValid(value) ? value : null;
   if (typeof value === "number") {
     const fromNumber = new Date(value);
-    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+    return isValid(fromNumber) ? fromNumber : null;
   }
   if (typeof value === "string") {
-    try {
-      const parsed = parseISO(value);
-      if (!Number.isNaN(parsed.getTime())) return parsed;
-    } catch {
-      // fall through
-    }
-    const native = new Date(value);
-    return Number.isNaN(native.getTime()) ? null : native;
+    const parsed = parseISO(value);
+    return isValid(parsed) ? parsed : null;
   }
   return null;
 }
@@ -86,6 +87,11 @@ export function toDayKey(date: Date): string {
 /**
  * Project records into CalendarEventChips. Records without a parseable start
  * date are dropped. Multi-day events normalize end >= start.
+ *
+ * Every record MUST carry a stable `id` field — it is used as the React key
+ * and drag-and-drop identity. Index-based fallbacks would silently break
+ * across re-renders (state loss, ghost drag targets), so we fail loudly at
+ * the boundary instead.
  */
 export function toEventChips({
   records,
@@ -113,8 +119,15 @@ export function toEventChips({
       }
     }
 
+    const rawId = record.id;
+    if (rawId === undefined || rawId === null || rawId === "") {
+      throw new Error(
+        `cap-view-calendar: record at index ${i} must have an \`id\` field — calendar chips require a stable id for React keys and drag-and-drop identity.`,
+      );
+    }
+    const id = String(rawId);
+
     const titleRaw = record[titleField];
-    const id = record.id !== undefined && record.id !== null ? String(record.id) : `chip-${i}`;
     chips.push({
       id,
       record,

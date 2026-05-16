@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { DAY_DROPPABLE_PREFIX, dayDroppableId, parseDayDroppableId } from "../src/droppable-ids";
 import {
   bucketChipsIntoCells,
   getCalendarRange,
@@ -19,20 +20,36 @@ describe("parseCalendarDate", () => {
     expect(parseCalendarDate("")).toBeNull();
   });
 
-  it("parses ISO strings, Date objects, and epoch ms", () => {
-    const iso = parseCalendarDate("2026-05-16");
-    expect(iso).toBeInstanceOf(Date);
-    expect(iso?.getFullYear()).toBe(2026);
+  it("parses ISO strings via parseISO", () => {
+    const dateOnly = parseCalendarDate("2026-05-16");
+    expect(dateOnly).toBeInstanceOf(Date);
+    expect(dateOnly?.getFullYear()).toBe(2026);
 
-    const native = parseCalendarDate(new Date("2026-05-16T12:00:00Z"));
-    expect(native?.getUTCDate()).toBe(16);
+    const withTime = parseCalendarDate("2026-05-16T09:30:00Z");
+    expect(withTime).toBeInstanceOf(Date);
+    expect(withTime?.getUTCHours()).toBe(9);
+  });
 
+  it("passes Date inputs through (when valid)", () => {
+    const input = new Date("2026-05-16T12:00:00Z");
+    const out = parseCalendarDate(input);
+    expect(out).toBe(input);
+    expect(out?.getUTCDate()).toBe(16);
+  });
+
+  it("returns null for an Invalid Date input", () => {
+    expect(parseCalendarDate(new Date("not-a-date"))).toBeNull();
+  });
+
+  it("parses epoch ms numbers", () => {
     const ms = parseCalendarDate(1747353600000);
     expect(ms).toBeInstanceOf(Date);
   });
 
-  it("returns null for unparseable strings", () => {
+  it("returns null for non-ISO strings (no native Date fallback)", () => {
     expect(parseCalendarDate("not-a-date")).toBeNull();
+    // Legacy human-readable form parsed by `new Date(string)` must NOT slip through.
+    expect(parseCalendarDate("May 16 2026")).toBeNull();
   });
 });
 
@@ -114,13 +131,47 @@ describe("toEventChips", () => {
     expect(chips[0]?.end.getDate()).toBe(chips[0]?.start.getDate());
   });
 
-  it("synthesises a stable id when record.id is missing", () => {
-    const chips = toEventChips({
-      records: [{ due_date: "2026-05-16", title: "Standalone" }],
-      dateField: "due_date",
-      titleField: "title",
-    });
-    expect(chips[0]?.id).toBe("chip-0");
+  it("throws when a record is missing its id field", () => {
+    expect(() =>
+      toEventChips({
+        records: [{ due_date: "2026-05-16", title: "Standalone" }],
+        dateField: "due_date",
+        titleField: "title",
+      }),
+    ).toThrow(/must have an `id` field/);
+  });
+
+  it("throws when id is null or empty", () => {
+    expect(() =>
+      toEventChips({
+        records: [{ id: null, due_date: "2026-05-16", title: "Null" }],
+        dateField: "due_date",
+        titleField: "title",
+      }),
+    ).toThrow(/must have an `id` field/);
+    expect(() =>
+      toEventChips({
+        records: [{ id: "", due_date: "2026-05-16", title: "Empty" }],
+        dateField: "due_date",
+        titleField: "title",
+      }),
+    ).toThrow(/must have an `id` field/);
+  });
+});
+
+describe("dayDroppableId", () => {
+  it("prefixes the day key with the shared constant", () => {
+    expect(dayDroppableId("2026-05-16")).toBe(`${DAY_DROPPABLE_PREFIX}2026-05-16`);
+  });
+
+  it("round-trips through parseDayDroppableId", () => {
+    const id = dayDroppableId("2026-05-16");
+    expect(parseDayDroppableId(id)).toBe("2026-05-16");
+  });
+
+  it("returns null for unrelated droppable ids", () => {
+    expect(parseDayDroppableId("chip:abc")).toBeNull();
+    expect(parseDayDroppableId("2026-05-16")).toBeNull();
   });
 });
 

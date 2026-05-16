@@ -10,6 +10,11 @@ export { CalendarBoard } from "./CalendarBoard";
 export { CalendarEvent, type CalendarEventProps } from "./CalendarEvent";
 export { CalendarGrid, type CalendarGridProps } from "./CalendarGrid";
 export { capViewCalendar } from "./capability";
+export {
+  DAY_DROPPABLE_PREFIX,
+  dayDroppableId,
+  parseDayDroppableId,
+} from "./droppable-ids";
 export type {
   CalendarBoardProps,
   CalendarDayCell,

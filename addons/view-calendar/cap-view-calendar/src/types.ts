@@ -38,7 +38,7 @@ export interface CalendarBoardProps {
 }
 
 export interface CalendarEventChip {
-  /** Stable id used as React key + drag id. Falls back to JSON when record.id is missing. */
+  /** Stable id used as React key + drag id. Sourced directly from `record.id`. */
   id: string;
   /** Source record. */
   record: CalendarRecord;

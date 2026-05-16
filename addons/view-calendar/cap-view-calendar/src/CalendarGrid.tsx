@@ -14,6 +14,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { format, isToday } from "date-fns";
 import { CalendarEvent } from "./CalendarEvent";
+import { dayDroppableId } from "./droppable-ids";
 import type { CalendarDayCell, CalendarEventChip, CalendarViewMode } from "./types";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -33,7 +34,7 @@ interface DayCellProps {
 }
 
 function DayCell({ cell, mode, draggable, onEventClick }: DayCellProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: `day:${cell.key}` });
+  const { setNodeRef, isOver } = useDroppable({ id: dayDroppableId(cell.key) });
   const today = isToday(cell.date);
   const muted = mode === "month" && !cell.inFocalMonth;
 
