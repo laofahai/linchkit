@@ -80,12 +80,18 @@ export interface AuditDetail extends AuditRow {
 /**
  * Build the `filter` JSON string consumed by the auto-generated
  * `executionLogList` query. The server-side filter is conjunctive
- * (AND across keys) and supports `gte`/`lte` operators on datetime
- * fields via Drizzle's between operator.
+ * (AND across keys).
  *
  * Empty / undefined values are dropped so the resulting filter is
  * minimal — this matches how `cap-adapter-ui/lib/api`'s
  * `queryExecutionLogs` builds its filter argument.
+ *
+ * Date-range note: `startedAfter` / `startedBefore` are intentionally
+ * dropped here. `SystemDataProvider` currently applies filters with
+ * equality only (`eq(col, value)`); serializing a `{ gte, lte }` shape
+ * would silently return zero rows. Once the provider gains range-operator
+ * support these branches can be re-enabled (the UI fields stay so the
+ * shape of the page doesn't change when the server side lands).
  */
 export function buildAuditFilter(filters: AuditFilters): string | undefined {
   const filter: Record<string, unknown> = {};
@@ -93,12 +99,6 @@ export function buildAuditFilter(filters: AuditFilters): string | undefined {
   if (filters.actorId) filter.actor_id = filters.actorId;
   if (filters.status) filter.status = filters.status;
   if (filters.entity) filter.entity_name = filters.entity;
-  if (filters.startedAfter) {
-    filter.started_at = { ...((filter.started_at as object) ?? {}), gte: filters.startedAfter };
-  }
-  if (filters.startedBefore) {
-    filter.started_at = { ...((filter.started_at as object) ?? {}), lte: filters.startedBefore };
-  }
   return Object.keys(filter).length > 0 ? JSON.stringify(filter) : undefined;
 }
 
@@ -207,7 +207,6 @@ const DETAIL_QUERY = `
         status duration_ms
         error_code error_message
         input output meta
-        state_transition_from state_transition_to
         started_at completed_at
       }
     }
@@ -220,8 +219,23 @@ interface DetailRow extends ListRow {
   input: unknown;
   output: unknown;
   meta: unknown;
-  state_transition_from: string | null;
-  state_transition_to: string | null;
+}
+
+/**
+ * State transition (from / to action) is persisted inside the executions
+ * `metadata` JSONB under `stateTransition` rather than as top-level columns.
+ * Project the values out of the parsed meta payload.
+ */
+function extractStateTransition(meta: unknown): { from: string | null; to: string | null } {
+  if (meta && typeof meta === "object") {
+    const t = (meta as { stateTransition?: { from?: unknown; to?: unknown } }).stateTransition;
+    if (t && typeof t === "object") {
+      const from = typeof t.from === "string" ? t.from : null;
+      const to = typeof t.to === "string" ? t.to : null;
+      return { from, to };
+    }
+  }
+  return { from: null, to: null };
 }
 
 /**
@@ -262,14 +276,17 @@ export async function queryAuditDetail(id: string): Promise<AuditDetail | null> 
   const row = res.data?.executionLogList?.items.at(0);
   if (!row) return null;
 
+  const meta = parseJsonField(row.meta) as Record<string, unknown> | null;
+  const transition = extractStateTransition(meta);
+
   return {
     ...rowToAudit(row),
     capability: row.capability,
     channel: row.channel,
     input: parseJsonField(row.input),
     output: parseJsonField(row.output),
-    meta: parseJsonField(row.meta) as Record<string, unknown> | null,
-    stateTransitionFrom: row.state_transition_from,
-    stateTransitionTo: row.state_transition_to,
+    meta,
+    stateTransitionFrom: transition.from,
+    stateTransitionTo: transition.to,
   };
 }

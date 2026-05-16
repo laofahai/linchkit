@@ -82,18 +82,18 @@ describe("buildAuditFilter", () => {
     });
   });
 
-  it("merges date range into a single started_at gte/lte clause", () => {
+  it("drops startedAfter/startedBefore until SystemDataProvider supports range operators", () => {
+    // SystemDataProvider currently uses equality-only filters; emitting a
+    // { gte, lte } clause silently returns zero rows. The UI fields stay so
+    // the layout is stable, but the wire payload must omit them for now.
     const raw = buildAuditFilter({
+      action: "create_order",
       startedAfter: "2026-01-01T00:00:00.000Z",
       startedBefore: "2026-01-02T00:00:00.000Z",
     });
     const parsed = JSON.parse(raw ?? "{}");
-    expect(parsed).toEqual({
-      started_at: {
-        gte: "2026-01-01T00:00:00.000Z",
-        lte: "2026-01-02T00:00:00.000Z",
-      },
-    });
+    expect(parsed).toEqual({ action_name: "create_order" });
+    expect(parsed.started_at).toBeUndefined();
   });
 
   it("drops empty string values", () => {
@@ -200,9 +200,10 @@ describe("queryAuditDetail", () => {
               error_message: null,
               input: JSON.stringify({ amount: 100 }),
               output: JSON.stringify({ ok: true }),
-              meta: JSON.stringify({ _channel: "graphql" }),
-              state_transition_from: "draft",
-              state_transition_to: "submitted",
+              meta: JSON.stringify({
+                _channel: "graphql",
+                stateTransition: { from: "draft", to: "submitted" },
+              }),
               started_at: "2026-05-16T12:00:00.000Z",
               completed_at: "2026-05-16T12:00:00.042Z",
             },
@@ -215,7 +216,10 @@ describe("queryAuditDetail", () => {
     expect(detail).not.toBeNull();
     expect(detail?.input).toEqual({ amount: 100 });
     expect(detail?.output).toEqual({ ok: true });
-    expect(detail?.meta).toEqual({ _channel: "graphql" });
+    expect(detail?.meta).toMatchObject({
+      _channel: "graphql",
+      stateTransition: { from: "draft", to: "submitted" },
+    });
     expect(detail?.stateTransitionFrom).toBe("draft");
     expect(detail?.stateTransitionTo).toBe("submitted");
     expect(detail?.capability).toBe("cap-purchase");
