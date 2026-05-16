@@ -17,6 +17,20 @@ export {
   matchesFilter,
 } from "./event-bus";
 export {
+  type BatchReplayResult,
+  createEventReplayService,
+  type EventDetail,
+  type EventListOptions,
+  type EventReplayService,
+  type EventReplayServiceOptions,
+  type EventSummary,
+  type HandlerExecution,
+  type HandlerHistoryQuery,
+  type ReplayError,
+  type ReplayOptions,
+  type ReplayResult,
+} from "./event-replay-service";
+export {
   createOutboxWorker,
   type OutboxMetrics,
   type OutboxWorker,
