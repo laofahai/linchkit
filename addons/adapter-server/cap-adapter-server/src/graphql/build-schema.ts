@@ -17,6 +17,7 @@ import type {
   DerivedPropertyEngine,
   EntityDefinition,
   EventBus,
+  EventReplayService,
   MaskRecordOptions,
   PermissionGroupDefinition,
   RelationDefinition,
@@ -44,6 +45,7 @@ import {
 import { buildBatchMutationField } from "./build-batch-mutation";
 import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
+import { buildEventsGraphQLExtension } from "./events";
 import { safeParseJSON } from "./json-arg";
 import {
   generateActionInputType,
@@ -201,6 +203,18 @@ export interface BuildGraphQLSchemaOptions {
    * here, or set it on `createCommandLayer` so both transports pick it up.
    */
   transactionManager?: TransactionManager;
+  /**
+   * Event replay service. When provided, the schema registers three
+   * admin-only operations consumed by cap-audit-ui:
+   *   - `eventList`               (query)
+   *   - `eventHandlerHistory`     (query)
+   *   - `eventReplay`             (mutation)
+   *
+   * Omit to keep the GraphQL surface free of event introspection — the UI
+   * surfaces a clear "events surface unavailable" error if it tries to
+   * call these operations without the service wired.
+   */
+  eventReplayService?: EventReplayService;
 }
 
 /**
@@ -342,21 +356,29 @@ export function buildGraphQLSchema(
   };
 
   if (entities.length === 0) {
-    // Return a minimal valid schema with a placeholder query (plus any extra fields)
+    // Return a minimal valid schema with a placeholder query (plus any
+    // extra fields and the optional events extension).
+    const eventsExt = options?.eventReplayService
+      ? buildEventsGraphQLExtension({ service: options.eventReplayService })
+      : { queryFields: {}, mutationFields: {} };
     const minimalQueryFields: Record<string, GraphQLFieldConfig<unknown, unknown>> = {
       _empty: {
         type: GraphQLString,
         resolve: () => "No entities registered",
       },
+      ...eventsExt.queryFields,
       ...options?.extraQueryFields,
     };
-    const minimalMutationFields = options?.extraMutationFields;
+    const minimalMutationFields: Record<string, GraphQLFieldConfig<unknown, unknown>> = {
+      ...eventsExt.mutationFields,
+      ...options?.extraMutationFields,
+    };
     return new GraphQLSchema({
       query: new GraphQLObjectType({
         name: "Query",
         fields: minimalQueryFields,
       }),
-      ...(minimalMutationFields && Object.keys(minimalMutationFields).length > 0
+      ...(Object.keys(minimalMutationFields).length > 0
         ? {
             mutation: new GraphQLObjectType({
               name: "Mutation",
@@ -1076,6 +1098,18 @@ export function buildGraphQLSchema(
     internalSchemas,
   });
   Object.assign(mutationFields, onchangeFields);
+
+  // Merge the event-replay GraphQL surface (issue #321) — wired only when
+  // the host passes an `EventReplayService` instance. Registered BEFORE
+  // capability-contributed fields so a capability can override individual
+  // operations if it wants to (mirrors how cap-search composes).
+  if (options?.eventReplayService) {
+    const eventsExt = buildEventsGraphQLExtension({
+      service: options.eventReplayService,
+    });
+    Object.assign(queryFields, eventsExt.queryFields);
+    Object.assign(mutationFields, eventsExt.mutationFields);
+  }
 
   // Merge capability-contributed GraphQL fields (Spec 57 graphqlExtensions)
   if (options?.extraQueryFields) {
