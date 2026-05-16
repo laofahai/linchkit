@@ -25,6 +25,7 @@ import { describeCommand } from "./commands/describe";
 import { devCommand } from "./commands/dev";
 import { docsCommand } from "./commands/docs";
 import { doctorCommand } from "./commands/doctor";
+import { eventsCommand } from "./commands/events";
 import { execCommand } from "./commands/exec";
 import { i18nCheckCommand } from "./commands/i18n-check";
 import { infoCommand } from "./commands/info";
@@ -69,6 +70,7 @@ const RESERVED_NAMESPACES = new Set([
   "registry",
   "setup",
   "i18n-check",
+  "events",
 ]);
 
 /**
@@ -188,6 +190,7 @@ function buildCommandsManifest(
     registry: "Capability registry management (sync, list)",
     setup: "Sync AI tool configurations (skills, MCP config) for the current project",
     "i18n-check": "Validate translation key consistency across capability locale files",
+    events: "Inspect and replay persisted events (list, inspect, replay, replay-batch)",
   };
 
   for (const name of builtinNames) {
@@ -242,6 +245,7 @@ async function run() {
     registry: registryCommand,
     setup: setupCommand,
     "i18n-check": i18nCheckCommand,
+    events: eventsCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();
