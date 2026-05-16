@@ -21,6 +21,7 @@
 import { Badge } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Hash } from "lucide-react";
+import { useRef } from "react";
 import type { SearchHit } from "../hooks/useSearchClient";
 
 export interface SearchResultsListProps {
@@ -40,8 +41,15 @@ function formatScore(score: number): string {
 export function SearchResultsList(props: SearchResultsListProps) {
   const { hits, limit = 200, onSelect, className } = props;
   const visible = hits.slice(0, Math.max(0, limit));
+  const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   if (visible.length === 0) return null;
+
+  function focusRow(index: number) {
+    if (visible.length === 0) return;
+    const wrapped = (index + visible.length) % visible.length;
+    rowRefs.current[wrapped]?.focus();
+  }
 
   // <div role="listbox"> rather than <ul> — biome's
   // noNoninteractiveElementToInteractiveRole rule rejects the
@@ -54,12 +62,15 @@ export function SearchResultsList(props: SearchResultsListProps) {
       role="listbox"
       aria-label="Search results"
     >
-      {visible.map((hit) => {
+      {visible.map((hit, index) => {
         const key = `${hit.entity}:${hit.recordId}`;
         const interactive = typeof onSelect === "function";
         return (
           <div
             key={key}
+            ref={(el) => {
+              rowRefs.current[index] = el;
+            }}
             role="option"
             aria-selected={false}
             tabIndex={interactive ? 0 : -1}
@@ -74,6 +85,21 @@ export function SearchResultsList(props: SearchResultsListProps) {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       onSelect?.(hit);
+                      return;
+                    }
+                    // Arrow / Home / End navigation per WAI-ARIA listbox.
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      focusRow(index + 1);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      focusRow(index - 1);
+                    } else if (event.key === "Home") {
+                      event.preventDefault();
+                      focusRow(0);
+                    } else if (event.key === "End") {
+                      event.preventDefault();
+                      focusRow(visible.length - 1);
                     }
                   }
                 : undefined
