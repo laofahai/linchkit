@@ -5,8 +5,8 @@ a debounced search panel, and an admin page (`/admin/search`) backed
 by the `search` GraphQL query exposed by `@linchkit/cap-search`.
 
 Read-only — the panel issues GraphQL queries via `@linchkit/cap-adapter-ui`'s
-default transport (or an injected `fetchFn`). It never writes data and
-never bypasses the server-side tenant scope.
+default transport (or an injected `transport` via `useSearchClient`). It
+never writes data and never bypasses the server-side tenant scope.
 
 ## Installation
 
@@ -30,6 +30,8 @@ Hosting apps that build on `cap-adapter-ui` get the route for free.
 import { SearchPanel, useSearchClient } from "@linchkit/cap-search-ui";
 
 export function CommandPalette() {
+  // Default transport uses cap-adapter-ui's authenticated graphql() client.
+  // Pass `{ transport }` to inject a custom GraphQL transport (e.g. in tests).
   const client = useSearchClient();
   return <SearchPanel search={client.search} onSelect={(hit) => navigate(hit)} />;
 }

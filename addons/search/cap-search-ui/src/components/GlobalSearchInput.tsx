@@ -13,6 +13,7 @@
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Search } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Return a platform-appropriate keyboard hint string. We avoid touching
@@ -45,14 +46,15 @@ export interface GlobalSearchInputProps {
 }
 
 export function GlobalSearchInput(props: GlobalSearchInputProps) {
+  const { t } = useTranslation();
   const {
     value,
     onSearch,
-    placeholder = "Search...",
+    placeholder = t("search.input.placeholder", "Search..."),
     className,
     enableShortcut = true,
     id = "global-search-input",
-    ariaLabel = "Global search",
+    ariaLabel = t("search.input.ariaLabel", "Global search"),
   } = props;
 
   const inputRef = useRef<HTMLInputElement | null>(null);

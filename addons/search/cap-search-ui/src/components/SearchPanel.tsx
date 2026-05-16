@@ -24,6 +24,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { SearchHit } from "../hooks/useSearchClient";
 import GlobalSearchInput from "./GlobalSearchInput";
 import SearchResultsList from "./SearchResultsList";
@@ -45,6 +46,7 @@ export interface SearchPanelProps {
 
 export function SearchPanel(props: SearchPanelProps) {
   const { search, debounceMs = 200, minQueryLength = 2, limit = 20, onSelect, className } = props;
+  const { t } = useTranslation();
 
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<readonly SearchHit[]>([]);
@@ -101,7 +103,7 @@ export function SearchPanel(props: SearchPanelProps) {
         <GlobalSearchInput value={query} onSearch={setQuery} />
         {loading && (
           <Loader2
-            aria-label="Loading search results"
+            aria-label={t("search.panel.loadingAria", "Loading search results")}
             className="size-4 animate-spin text-muted-foreground"
           />
         )}
@@ -119,15 +121,23 @@ export function SearchPanel(props: SearchPanelProps) {
 
         {!error && tooShort && (
           <p className="text-xs text-muted-foreground">
-            Type at least {minQueryLength} characters to search.
+            {t("search.panel.typeMinChars", {
+              defaultValue: "Type at least {{count}} characters to search.",
+              count: minQueryLength,
+            })}
           </p>
         )}
 
         {!error && !tooShort && !loading && hits.length === 0 && (
-          <p className="text-xs text-muted-foreground">No results for "{trimmed}".</p>
+          <p className="text-xs text-muted-foreground">
+            {t("search.panel.noResults", {
+              defaultValue: 'No results for "{{query}}".',
+              query: trimmed,
+            })}
+          </p>
         )}
 
-        {!error && hits.length > 0 && (
+        {!error && !tooShort && hits.length > 0 && (
           <SearchResultsList hits={hits} limit={limit} onSelect={onSelect} />
         )}
       </div>

@@ -1,0 +1,26 @@
+{
+  "search": {
+    "page": {
+      "title": "Global Search",
+      "subtitle": "Full-text search across every entity with a registered defineSearchIndex.",
+      "tipPrefix": "Tip: press",
+      "tipFocusInput": "to focus the input,",
+      "tipClear": "to clear."
+    },
+    "panel": {
+      "loadingAria": "Loading search results",
+      "typeMinChars": "Type at least {{count}} characters to search.",
+      "noResults": "No results for \"{{query}}\"."
+    },
+    "input": {
+      "placeholder": "Search...",
+      "ariaLabel": "Global search"
+    },
+    "results": {
+      "ariaLabel": "Search results"
+    },
+    "errors": {
+      "queryFailed": "Search query failed"
+    }
+  }
+}

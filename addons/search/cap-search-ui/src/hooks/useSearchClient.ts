@@ -16,8 +16,21 @@
  * record-id when no separate body is available.
  */
 
+import { i18n } from "@linchkit/cap-adapter-ui";
 import { graphql } from "@linchkit/cap-adapter-ui/lib/api";
 import { useMemo } from "react";
+
+/**
+ * Resolve a translation key against the shared i18next instance, falling
+ * back to the supplied string when the runtime has no matching bundle
+ * (e.g. in a unit-test process that imports this module without booting
+ * cap-adapter-ui's i18n init). Used for the rare error path where we can't
+ * call `useTranslation()` because we're outside a React component.
+ */
+function tr(key: string, fallback: string): string {
+  const result = i18n.t(key, { defaultValue: fallback });
+  return typeof result === "string" ? result : fallback;
+}
 
 export interface SearchHit {
   /** snake_case entity name (e.g. "purchase_request"). */
@@ -51,6 +64,33 @@ const SEARCH_QUERY =
   "  }\n" +
   "}";
 
+/** Default page size used when callers omit `limit` (matches SearchPanel default). */
+const DEFAULT_LIMIT = 20;
+/** Server-side hard cap on `limit` — keep this client mirror in sync with the resolver. */
+const MAX_LIMIT = 200;
+/** Server-side floor on `limit` — zero/negative is rejected upstream. */
+const MIN_LIMIT = 1;
+
+/**
+ * Coerce a caller-supplied `limit` into a safe integer in `[MIN_LIMIT, MAX_LIMIT]`.
+ *
+ * - `undefined` / non-finite (NaN, ±Infinity) → `DEFAULT_LIMIT` (20)
+ * - Non-integer → truncated via `Math.trunc` (matches Postgres bigint coercion)
+ * - Below `MIN_LIMIT` → clamped up to 1
+ * - Above `MAX_LIMIT` → clamped down to 200
+ *
+ * Pre-flight normalization avoids round-trip GraphQL errors for trivially
+ * invalid values and mirrors the server clamp so the UI never surprises
+ * users with a request that the resolver silently truncated.
+ */
+export function normalizeLimit(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_LIMIT;
+  const truncated = Math.trunc(value);
+  if (truncated < MIN_LIMIT) return MIN_LIMIT;
+  if (truncated > MAX_LIMIT) return MAX_LIMIT;
+  return truncated;
+}
+
 /** Low-level transport — accepts a GraphQL query + variables, returns a body. */
 export type SearchTransport = (
   query: string,
@@ -82,12 +122,12 @@ export function createSearchClient(transport?: SearchTransport): SearchClient {
       const body = await send(SEARCH_QUERY, {
         q: trimmed,
         entity: searchOptions?.entity,
-        limit: searchOptions?.limit ?? 20,
+        limit: normalizeLimit(searchOptions?.limit),
       });
 
       if (body.errors && body.errors.length > 0) {
         const first = body.errors.at(0);
-        throw new Error(first?.message ?? "Search query failed");
+        throw new Error(first?.message ?? tr("search.errors.queryFailed", "Search query failed"));
       }
 
       const hits = body.data?.search ?? [];

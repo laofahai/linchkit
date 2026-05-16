@@ -18,7 +18,8 @@
     "@linchkit/cap-adapter-ui": "^1.0.0",
     "@linchkit/cap-search": "^0.0.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-i18next": ">=14.0.0"
   },
   "devDependencies": {
     "@linchkit/core": "workspace:*",

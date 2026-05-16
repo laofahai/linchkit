@@ -22,6 +22,7 @@ import { Badge } from "@linchkit/ui-kit/components";
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { Hash } from "lucide-react";
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { SearchHit } from "../hooks/useSearchClient";
 
 export interface SearchResultsListProps {
@@ -40,6 +41,7 @@ function formatScore(score: number): string {
 
 export function SearchResultsList(props: SearchResultsListProps) {
   const { hits, limit = 200, onSelect, className } = props;
+  const { t } = useTranslation();
   const visible = hits.slice(0, Math.max(0, limit));
   const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -60,7 +62,7 @@ export function SearchResultsList(props: SearchResultsListProps) {
     <div
       className={cn("flex flex-col divide-y rounded-md border bg-card", className)}
       role="listbox"
-      aria-label="Search results"
+      aria-label={t("search.results.ariaLabel", "Search results")}
     >
       {visible.map((hit, index) => {
         const key = `${hit.entity}:${hit.recordId}`;

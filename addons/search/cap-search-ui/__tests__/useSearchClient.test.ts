@@ -115,4 +115,33 @@ describe("createSearchClient", () => {
       limit: 5,
     });
   });
+
+  it("clamps a negative limit up to 1 before sending", async () => {
+    const stub = makeTransport({ data: { search: [] } });
+    const client = createSearchClient(stub.transport);
+
+    await client.search("neg", { limit: -10 });
+
+    expect(stub.calls[0]?.variables.limit).toBe(1);
+  });
+
+  it("clamps a limit above 200 down to the server-side max", async () => {
+    const stub = makeTransport({ data: { search: [] } });
+    const client = createSearchClient(stub.transport);
+
+    await client.search("big", { limit: 5_000 });
+
+    expect(stub.calls[0]?.variables.limit).toBe(200);
+  });
+
+  it("defaults non-finite or missing limit to 20", async () => {
+    const stub = makeTransport({ data: { search: [] } });
+    const client = createSearchClient(stub.transport);
+
+    await client.search("nan", { limit: Number.NaN });
+    await client.search("undef");
+
+    expect(stub.calls[0]?.variables.limit).toBe(20);
+    expect(stub.calls[1]?.variables.limit).toBe(20);
+  });
 });

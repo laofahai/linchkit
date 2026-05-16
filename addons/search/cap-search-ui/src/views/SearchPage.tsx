@@ -11,18 +11,23 @@
  * importing <SearchPanel> directly with a custom `search` prop.
  */
 
+import { useTranslation } from "react-i18next";
 import SearchPanel from "../components/SearchPanel";
 import { useSearchClient } from "../hooks/useSearchClient";
 
 export function SearchPage() {
   const client = useSearchClient();
+  const { t } = useTranslation();
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <header>
-        <h1 className="text-lg font-semibold">Global Search</h1>
+        <h1 className="text-lg font-semibold">{t("search.page.title", "Global Search")}</h1>
         <p className="text-xs text-muted-foreground">
-          Full-text search across every entity with a registered defineSearchIndex.
+          {t(
+            "search.page.subtitle",
+            "Full-text search across every entity with a registered defineSearchIndex.",
+          )}
         </p>
       </header>
 
@@ -31,9 +36,12 @@ export function SearchPage() {
       </main>
 
       <footer className="text-[10px] text-muted-foreground">
-        Tip: press <kbd className="rounded border bg-muted px-1 font-mono">⌘K</kbd> /{" "}
-        <kbd className="rounded border bg-muted px-1 font-mono">Ctrl+K</kbd> to focus the input,{" "}
-        <kbd className="rounded border bg-muted px-1 font-mono">Esc</kbd> to clear.
+        {t("search.page.tipPrefix", "Tip: press")}{" "}
+        <kbd className="rounded border bg-muted px-1 font-mono">⌘K</kbd> /{" "}
+        <kbd className="rounded border bg-muted px-1 font-mono">Ctrl+K</kbd>{" "}
+        {t("search.page.tipFocusInput", "to focus the input,")}{" "}
+        <kbd className="rounded border bg-muted px-1 font-mono">Esc</kbd>{" "}
+        {t("search.page.tipClear", "to clear.")}
       </footer>
     </div>
   );
