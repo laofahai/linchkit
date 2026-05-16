@@ -2,11 +2,21 @@
  * Event module — public API
  */
 
-export { createEventBus, EventBus, EventHandlerRegistry, matchesFilter } from "./event-bus";
+export {
+  createEventBus,
+  EventBus,
+  type EventBusOptions,
+  EventHandlerRegistry,
+  matchesFilter,
+} from "./event-bus";
 export {
   createOutboxWorker,
   type OutboxMetrics,
   type OutboxWorker,
   type OutboxWorkerOptions,
 } from "./outbox-worker";
-export { createPersistentEventBus, PersistentEventBus } from "./persistent-event-bus";
+export {
+  createPersistentEventBus,
+  PersistentEventBus,
+  type PersistentEventBusOptions,
+} from "./persistent-event-bus";
