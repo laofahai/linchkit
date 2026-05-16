@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@linchkit/core": ["../../../packages/core/src"],
+      "@linchkit/cap-adapter-ui": ["../../adapter-ui/cap-adapter-ui/src"],
+      "@linchkit/cap-adapter-ui/route-registry": [
+        "../../adapter-ui/cap-adapter-ui/src/lib/route-registry.ts"
+      ],
+      "@linchkit/cap-adapter-ui/lib/api": ["../../adapter-ui/cap-adapter-ui/src/lib/api.ts"],
+      "@linchkit/cap-search": ["../cap-search/src"],
+      "@linchkit/ui-kit": ["../../adapter-ui/cap-adapter-ui/ui-kit/src"],
+      "@linchkit/ui-kit/components": ["../../adapter-ui/cap-adapter-ui/ui-kit/src/components"],
+      "@linchkit/ui-kit/hooks": ["../../adapter-ui/cap-adapter-ui/ui-kit/src/hooks"],
+      "@linchkit/ui-kit/lib/utils": ["../../adapter-ui/cap-adapter-ui/ui-kit/src/lib/utils"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "__tests__/**/*.ts", "__tests__/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}
