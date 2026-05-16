@@ -192,4 +192,147 @@ describe("RedisCacheProvider", () => {
     expect(() => new RedisCacheProvider()).toThrow();
     if (original !== undefined) process.env.REDIS_URL = original;
   });
+
+  it("rejects non-positive maxLocalMirrorEntries", () => {
+    expect(
+      () =>
+        new RedisCacheProvider({
+          client: new MockRedis(),
+          maxLocalMirrorEntries: 0,
+        }),
+    ).toThrow();
+    expect(
+      () =>
+        new RedisCacheProvider({
+          client: new MockRedis(),
+          maxLocalMirrorEntries: -5,
+        }),
+    ).toThrow();
+  });
+});
+
+describe("RedisCacheProvider local-mirror LRU", () => {
+  it("evicts the oldest entry once the cap is exceeded", async () => {
+    const mock = new MockRedis();
+    const p = new RedisCacheProvider({
+      client: mock,
+      namespace: NS,
+      invalidationChannel: "test:invalidate",
+      maxLocalMirrorEntries: 3,
+    });
+    try {
+      p.set("a", 1);
+      p.set("b", 2);
+      p.set("c", 3);
+      p.set("d", 4);
+      // "a" is the oldest insertion → should be evicted from the mirror.
+      // We assert the mirror state via stats().size and by observing that a
+      // get on "a" misses (hydration will repopulate, so we only check the
+      // synchronous first-call result).
+      expect(p.stats().size).toBe(3);
+      // Wipe Redis so hydration cannot bring "a" back during the same tick.
+      mock.store.clear();
+      expect(p.get("a")).toBeUndefined();
+      expect(p.get<number>("b")).toBe(2);
+      expect(p.get<number>("c")).toBe(3);
+      expect(p.get<number>("d")).toBe(4);
+      expect(p.stats().evictions).toBeGreaterThanOrEqual(1);
+    } finally {
+      await p.close();
+    }
+  });
+
+  it("bumps a read entry to MRU so a later write evicts a different key", async () => {
+    const mock = new MockRedis();
+    const p = new RedisCacheProvider({
+      client: mock,
+      namespace: NS,
+      invalidationChannel: "test:invalidate",
+      maxLocalMirrorEntries: 3,
+    });
+    try {
+      p.set("a", 1);
+      p.set("b", 2);
+      p.set("c", 3);
+      // Read "a" to bump it to MRU. Order should now be: b, c, a.
+      expect(p.get<number>("a")).toBe(1);
+      // Adding "d" should now evict "b" (the new LRU), not "a".
+      p.set("d", 4);
+      mock.store.clear();
+      expect(p.get("b")).toBeUndefined();
+      expect(p.get<number>("a")).toBe(1);
+      expect(p.get<number>("c")).toBe(3);
+      expect(p.get<number>("d")).toBe(4);
+    } finally {
+      await p.close();
+    }
+  });
+
+  it("bumps a hydrated entry to MRU", async () => {
+    const mock = new MockRedis();
+    const p = new RedisCacheProvider({
+      client: mock,
+      namespace: NS,
+      invalidationChannel: "test:invalidate",
+      maxLocalMirrorEntries: 3,
+    });
+    try {
+      p.set("a", 1);
+      p.set("b", 2);
+      p.set("c", 3);
+      // Pre-seed Redis with "z" and hydrate via a missed get.
+      mock.store.set(`${NS}:k:z`, JSON.stringify({ v: 99, t: [], c: Date.now() }));
+      expect(p.get("z")).toBeUndefined();
+      await flushAsync();
+      // Mirror order is now: b, c, z (hydration bumped z to MRU; a was evicted).
+      mock.store.clear();
+      expect(p.get("a")).toBeUndefined();
+      expect(p.get<number>("z")).toBe(99);
+    } finally {
+      await p.close();
+    }
+  });
+});
+
+describe("RedisCacheProvider hydration dedup", () => {
+  it("coalesces concurrent misses on the same key into a single Redis GET", async () => {
+    const mock = new MockRedis();
+    let inflight = 0;
+    let maxInflight = 0;
+    let totalGets = 0;
+    const originalGet = mock.get.bind(mock);
+    mock.get = async (key: string) => {
+      totalGets++;
+      inflight++;
+      maxInflight = Math.max(maxInflight, inflight);
+      try {
+        // Stall so concurrent callers can queue up.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return originalGet(key);
+      } finally {
+        inflight--;
+      }
+    };
+
+    const p = new RedisCacheProvider({
+      client: mock,
+      namespace: NS,
+      invalidationChannel: "test:invalidate",
+    });
+    try {
+      mock.store.set(`${NS}:k:hot`, JSON.stringify({ v: "shared", t: [], c: Date.now() }));
+      // Fire many concurrent misses on the same key.
+      for (let i = 0; i < 8; i++) p.get("hot");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Exactly one hydration GET should have hit Redis.
+      const hotGets = mock.commandsByName("GET").filter((cmd) => cmd.args[0] === `${NS}:k:hot`);
+      expect(hotGets.length).toBe(1);
+      expect(totalGets).toBe(1);
+      expect(maxInflight).toBe(1);
+      // After hydration the mirror is populated and the value is observable.
+      expect(p.get<string>("hot")).toBe("shared");
+    } finally {
+      await p.close();
+    }
+  });
 });

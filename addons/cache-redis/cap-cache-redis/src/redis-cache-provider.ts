@@ -65,6 +65,8 @@ type LocalEntry = {
   tags: string[];
 };
 
+const DEFAULT_MAX_LOCAL_MIRROR_ENTRIES = 10_000;
+
 export class RedisCacheProvider implements CacheProvider {
   private readonly client: RedisLike;
   private readonly encoder: RedisKeyEncoder;
@@ -73,7 +75,18 @@ export class RedisCacheProvider implements CacheProvider {
     debug: (msg: string) => void;
     error: (msg: string, err?: unknown) => void;
   };
+  /**
+   * Process-local mirror. Uses Map insertion order to implement LRU:
+   * - on read hit, the entry is deleted and re-inserted to bump it to MRU;
+   * - on write, oldest entries are evicted when size exceeds the cap.
+   */
   private readonly localMirror = new Map<string, LocalEntry>();
+  private readonly maxLocalMirrorEntries: number;
+  /**
+   * Tracks in-flight `hydrateFromRedis` calls so concurrent misses on the
+   * same key only fire a single Redis GET (thundering herd guard).
+   */
+  private readonly inflightHydrations = new Map<string, Promise<void>>();
 
   private _hits = 0;
   private _misses = 0;
@@ -86,6 +99,11 @@ export class RedisCacheProvider implements CacheProvider {
       debug: options.logger?.debug ?? noopLogger.debug,
       error: options.logger?.error ?? noopLogger.error,
     };
+    const cap = options.maxLocalMirrorEntries ?? DEFAULT_MAX_LOCAL_MIRROR_ENTRIES;
+    if (!Number.isFinite(cap) || cap <= 0) {
+      throw new Error("RedisCacheProvider: `maxLocalMirrorEntries` must be a positive integer");
+    }
+    this.maxLocalMirrorEntries = Math.floor(cap);
 
     this.client = resolveClient(options);
 
@@ -115,7 +133,7 @@ export class RedisCacheProvider implements CacheProvider {
     if (!entry) {
       this._misses++;
       // Schedule a best-effort Redis hydration so the next call hits the mirror.
-      void this.hydrateFromRedis(key).catch((err) => {
+      void this.scheduleHydration(key).catch((err) => {
         this.logger.error(`[RedisCacheProvider] hydrate failed for ${key}`, err);
       });
       return undefined;
@@ -128,6 +146,10 @@ export class RedisCacheProvider implements CacheProvider {
       this._misses++;
       return undefined;
     }
+
+    // LRU bump: delete + re-insert to move the entry to MRU position.
+    this.localMirror.delete(key);
+    this.localMirror.set(key, entry);
 
     this._hits++;
     const isStale = entry.softExpiresAt !== undefined && now > entry.softExpiresAt;
@@ -163,12 +185,15 @@ export class RedisCacheProvider implements CacheProvider {
       c: now,
     };
 
+    // Re-insertion bumps the entry to MRU; eviction trims back to the cap.
+    this.localMirror.delete(key);
     this.localMirror.set(key, {
       value,
       expiresAt: hardExpiresAt,
       softExpiresAt,
       tags,
     });
+    this.evictLocalMirrorIfNeeded();
 
     void this.writeToRedis(key, envelope, pxMillis, tags).catch((err) => {
       this.logger.error(`[RedisCacheProvider] SET failed for ${key}`, err);
@@ -286,6 +311,20 @@ export class RedisCacheProvider implements CacheProvider {
     await this.client.del(tagKey);
   }
 
+  /**
+   * Dedup concurrent hydrations for the same key — only one Redis GET runs
+   * at a time. Subsequent callers await the in-flight Promise.
+   */
+  private scheduleHydration(key: string): Promise<void> {
+    const existing = this.inflightHydrations.get(key);
+    if (existing) return existing;
+    const promise = this.hydrateFromRedis(key).finally(() => {
+      this.inflightHydrations.delete(key);
+    });
+    this.inflightHydrations.set(key, promise);
+    return promise;
+  }
+
   private async hydrateFromRedis(key: string): Promise<void> {
     const raw = await this.client.get(this.encoder.valueKey(key));
     const envelope = decodeEnvelope(raw);
@@ -296,12 +335,25 @@ export class RedisCacheProvider implements CacheProvider {
       await this.client.del(this.encoder.valueKey(key));
       return;
     }
+    // Bump to MRU just like a fresh write.
+    this.localMirror.delete(key);
     this.localMirror.set(key, {
       value: envelope.v,
       expiresAt: envelope.e,
       softExpiresAt: envelope.s,
       tags: envelope.t,
     });
+    this.evictLocalMirrorIfNeeded();
+  }
+
+  /** Trim the local mirror back to its cap, dropping LRU entries first. */
+  private evictLocalMirrorIfNeeded(): void {
+    while (this.localMirror.size > this.maxLocalMirrorEntries) {
+      const oldest = this.localMirror.keys().next();
+      if (oldest.done) break;
+      this.localMirror.delete(oldest.value);
+      this._evictions++;
+    }
   }
 
   private handleInvalidation(msg: InvalidationMessage): void {

@@ -55,6 +55,13 @@ export interface RedisCacheProviderOptions {
    * `ioredis` import path.
    */
   clientFactory?: RedisClientFactory;
+  /**
+   * Maximum number of entries retained in the process-local mirror before
+   * least-recently-used eviction kicks in. Caps memory usage in long-lived
+   * processes that touch many distinct keys.
+   * @default 10_000
+   */
+  maxLocalMirrorEntries?: number;
   /** Optional logger for debug/error output. Defaults to no-op. */
   logger?: {
     debug?: (msg: string) => void;
