@@ -22,30 +22,6 @@ export interface AuditFiltersProps {
   onReset: () => void;
 }
 
-/**
- * Convert an `<input type="datetime-local">` value (no timezone) into
- * an ISO string. Returns `undefined` for empty input so we don't send
- * empty filter keys to the server.
- */
-function toIso(local: string): string | undefined {
-  if (!local) return undefined;
-  const date = new Date(local);
-  if (Number.isNaN(date.getTime())) return undefined;
-  return date.toISOString();
-}
-
-/**
- * Convert an ISO string back to the `datetime-local` input format
- * (YYYY-MM-DDTHH:mm). Empty / undefined → empty string.
- */
-function fromIso(iso: string | undefined): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  // Drop seconds and timezone — datetime-local accepts YYYY-MM-DDTHH:mm
-  return date.toISOString().slice(0, 16);
-}
-
 export function AuditFiltersBar(props: AuditFiltersProps) {
   const { value, onChange, onApply, onReset } = props;
   const { t } = useTranslation();
@@ -122,31 +98,14 @@ export function AuditFiltersBar(props: AuditFiltersProps) {
         </select>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="audit-filter-after" className="text-xs">
-          {t("audit.filters.after", "After")}
-        </Label>
-        <Input
-          id="audit-filter-after"
-          type="datetime-local"
-          value={fromIso(value.startedAfter)}
-          onChange={(e) => patch({ startedAfter: toIso(e.target.value) })}
-          className="h-8 w-52"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="audit-filter-before" className="text-xs">
-          {t("audit.filters.before", "Before")}
-        </Label>
-        <Input
-          id="audit-filter-before"
-          type="datetime-local"
-          value={fromIso(value.startedBefore)}
-          onChange={(e) => patch({ startedBefore: toIso(e.target.value) })}
-          className="h-8 w-52"
-        />
-      </div>
+      {/*
+        Date range filters (After / Before) are intentionally hidden until
+        SystemDataProvider supports range operators. Showing them while
+        buildAuditFilter drops the values produced an "Apply" that looked
+        successful but didn't change the wire payload — confusing UX. The
+        AuditFilters type retains the fields so the prop shape doesn't break
+        when range support lands and the inputs return.
+      */}
 
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm">

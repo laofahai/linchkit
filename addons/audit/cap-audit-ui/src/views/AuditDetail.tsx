@@ -43,6 +43,26 @@ function JsonBlock({ value }: { value: unknown }) {
   );
 }
 
+/**
+ * Format an ISO timestamp using the active i18n locale and the user's
+ * timezone. Mirrors the helper in AuditList so list rows and detail rows
+ * render identically and we don't rely on the locale-implicit
+ * `Date.toLocaleString()`.
+ */
+function formatDateTime(iso: string, locale: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
@@ -54,7 +74,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function AuditDetailView(props: AuditDetailViewProps) {
   const { executionId, onClose } = props;
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [detail, setDetail] = useState<AuditDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,11 +171,11 @@ export function AuditDetailView(props: AuditDetailViewProps) {
                 {detail.capability ?? <span className="text-xs text-muted-foreground">—</span>}
               </Field>
               <Field label={t("audit.detail.startedAt", "Started")}>
-                <span className="text-xs">{new Date(detail.startedAt).toLocaleString()}</span>
+                <span className="text-xs">{formatDateTime(detail.startedAt, i18n.language)}</span>
               </Field>
               <Field label={t("audit.detail.completedAt", "Completed")}>
                 <span className="text-xs">
-                  {detail.completedAt ? new Date(detail.completedAt).toLocaleString() : "—"}
+                  {detail.completedAt ? formatDateTime(detail.completedAt, i18n.language) : "—"}
                 </span>
               </Field>
             </section>

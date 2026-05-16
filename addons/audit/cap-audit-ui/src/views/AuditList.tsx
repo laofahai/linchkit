@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@linchkit/ui-kit/components";
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AuditFilters as AuditFiltersValue,
@@ -44,10 +44,30 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+/**
+ * Format an ISO timestamp using the active i18n locale and the user's
+ * timezone. Centralized so list rows and detail rows render identically
+ * and we don't rely on the locale-implicit `Date.toLocaleString()` (which
+ * gives different output depending on the JS runtime's default locale).
+ */
+function formatDateTime(iso: string, locale: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 // ── Component ───────────────────────────────────────────
 
 export function AuditList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [filters, setFilters] = useState<AuditFiltersValue>({});
   // Filters that have actually been submitted — separate so typing
   // in a filter input doesn't hammer the server until the user clicks
@@ -59,8 +79,13 @@ export function AuditList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Monotonic request id — guards against an older fetch resolving last
+  // and overwriting the result of a newer fetch (filter switches, manual
+  // refresh, pagination clicks all race the in-flight request).
+  const requestSeqRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -69,14 +94,17 @@ export function AuditList() {
         page,
         pageSize: PAGE_SIZE,
       });
+      // Stale response — a newer fetch already started; drop this result.
+      if (seq !== requestSeqRef.current) return;
       setRows(result.items);
       setTotal(result.total);
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
       setRows([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   }, [appliedFilters, page]);
 
@@ -168,11 +196,21 @@ export function AuditList() {
                   <TableRow
                     key={row.id}
                     data-state={selectedId === row.id ? "selected" : undefined}
-                    className="cursor-pointer"
+                    className="cursor-pointer focus:bg-muted focus:outline-none"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t("audit.list.openDetail", "Open audit detail")}
+                    aria-pressed={selectedId === row.id}
                     onClick={() => setSelectedId(row.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedId(row.id);
+                      }
+                    }}
                   >
                     <TableCell className="font-mono text-xs">
-                      {new Date(row.startedAt).toLocaleString()}
+                      {formatDateTime(row.startedAt, i18n.language)}
                     </TableCell>
                     <TableCell className="font-medium">{row.action}</TableCell>
                     <TableCell>
