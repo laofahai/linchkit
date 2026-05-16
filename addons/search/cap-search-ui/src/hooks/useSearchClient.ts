@@ -67,6 +67,43 @@ export interface UseSearchClientOptions {
 }
 
 /**
+ * Build a `SearchClient` from a transport. Exported separately from the
+ * hook so the wire contract can be tested without touching React (the
+ * hook is just a `useMemo` wrapper around this factory).
+ */
+export function createSearchClient(transport?: SearchTransport): SearchClient {
+  return {
+    async search(query, searchOptions) {
+      const trimmed = query.trim();
+      if (trimmed.length === 0) return [];
+
+      const send: SearchTransport = transport ?? ((q, v) => graphql<{ search: SearchHit[] }>(q, v));
+
+      const body = await send(SEARCH_QUERY, {
+        q: trimmed,
+        entity: searchOptions?.entity,
+        limit: searchOptions?.limit ?? 20,
+      });
+
+      if (body.errors && body.errors.length > 0) {
+        const first = body.errors.at(0);
+        throw new Error(first?.message ?? "Search query failed");
+      }
+
+      const hits = body.data?.search ?? [];
+      // Defensive copy with normalized score — protects downstream
+      // components from receiving NaN if the server ever returns a
+      // non-numeric value (defensive parity with DrizzleSearchService).
+      return hits.map((hit) => ({
+        entity: hit.entity,
+        recordId: hit.recordId,
+        score: Number(hit.score) || 0,
+      }));
+    },
+  };
+}
+
+/**
  * Hook returning a stable `SearchClient`. Re-renders never reissue
  * the network call; the `search` callable is memoized for the lifetime
  * of the component when options are unchanged.
@@ -79,38 +116,5 @@ export interface UseSearchClientOptions {
  */
 export function useSearchClient(options: UseSearchClientOptions = {}): SearchClient {
   const transport = options.transport;
-
-  return useMemo<SearchClient>(
-    () => ({
-      async search(query, searchOptions) {
-        const trimmed = query.trim();
-        if (trimmed.length === 0) return [];
-
-        const send: SearchTransport =
-          transport ?? ((q, v) => graphql<{ search: SearchHit[] }>(q, v));
-
-        const body = await send(SEARCH_QUERY, {
-          q: trimmed,
-          entity: searchOptions?.entity,
-          limit: searchOptions?.limit ?? 20,
-        });
-
-        if (body.errors && body.errors.length > 0) {
-          const first = body.errors.at(0);
-          throw new Error(first?.message ?? "Search query failed");
-        }
-
-        const hits = body.data?.search ?? [];
-        // Defensive copy with normalized score — protects downstream
-        // components from receiving NaN if the server ever returns a
-        // non-numeric value (defensive parity with DrizzleSearchService).
-        return hits.map((hit) => ({
-          entity: hit.entity,
-          recordId: hit.recordId,
-          score: Number(hit.score) || 0,
-        }));
-      },
-    }),
-    [transport],
-  );
+  return useMemo<SearchClient>(() => createSearchClient(transport), [transport]);
 }

@@ -1,29 +1,21 @@
 /**
- * Tests for the useSearchClient hook's transport contract.
+ * Tests for the search client's transport contract.
  *
- * Bun's default test runner has no React renderer, so we exercise the
- * client by calling the hook implementation directly via a tiny shim —
- * the hook is a pure useMemo wrapper, so the returned callable is the
- * same shape with or without React's lifecycle. This keeps the test
- * deterministic and avoids adding @testing-library/react as a new
- * runtime dependency (see CLAUDE.md — new deps need approval).
- *
- * The default transport is `@linchkit/cap-adapter-ui/lib/api`'s
- * `graphql()` helper (it injects Authorization + X-Tenant-Id). Tests
- * override that by passing `transport`, so the auth surface is the
- * adapter-ui's responsibility, not this hook's.
+ * We exercise `createSearchClient(transport)` directly (the bare factory
+ * the hook wraps) — this avoids importing React at all, which is critical
+ * because `mock.module("react", ...)` leaks across files in bun's shared
+ * test process and breaks any other test that imports a real `React.createContext`
+ * (config-loader.test.ts ran into exactly that). The hook itself is a one-line
+ * `useMemo` wrapper; testing the factory covers the wire contract end-to-end.
  */
 
-import { afterEach, describe, expect, it, mock } from "bun:test";
-import type { GraphQLResponse, SearchHit, SearchTransport } from "../src/hooks/useSearchClient";
-
-// Mock React's useMemo to immediately invoke the factory — we only need
-// the returned callable for testing the network contract.
-mock.module("react", () => ({
-  useMemo: <T>(factory: () => T): T => factory(),
-}));
-
-const { useSearchClient } = await import("../src/hooks/useSearchClient");
+import { describe, expect, it } from "bun:test";
+import {
+  createSearchClient,
+  type GraphQLResponse,
+  type SearchHit,
+  type SearchTransport,
+} from "../src/hooks/useSearchClient";
 
 interface TransportCall {
   query: string;
@@ -42,11 +34,7 @@ function makeTransport(response: GraphQLResponse<{ search: SearchHit[] }>): {
   return { transport, calls };
 }
 
-afterEach(() => {
-  mock.restore();
-});
-
-describe("useSearchClient", () => {
+describe("createSearchClient", () => {
   it("sends a GraphQL query with the expected variables via the transport", async () => {
     const stub = makeTransport({
       data: {
@@ -57,7 +45,7 @@ describe("useSearchClient", () => {
       },
     });
 
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
     const hits = await client.search("widgets");
 
     expect(stub.calls).toHaveLength(1);
@@ -74,7 +62,7 @@ describe("useSearchClient", () => {
 
   it("trims and short-circuits on whitespace-only queries (no transport call)", async () => {
     const stub = makeTransport({ data: { search: [] } });
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
 
     const hits = await client.search("   ");
 
@@ -87,7 +75,7 @@ describe("useSearchClient", () => {
       data: { search: [{ entity: "user", recordId: "u-1", score: 1.5 }] },
     });
 
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
     const hits = await client.search("alice");
     expect(hits).toEqual([{ entity: "user", recordId: "u-1", score: 1.5 }]);
   });
@@ -102,7 +90,7 @@ describe("useSearchClient", () => {
       },
     });
 
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
     const hits = await client.search("query");
     expect(hits[0]?.score).toBe(0);
     expect(hits[1]?.score).toBe(0);
@@ -110,14 +98,14 @@ describe("useSearchClient", () => {
 
   it("throws when the GraphQL response carries errors", async () => {
     const stub = makeTransport({ errors: [{ message: "boom" }] });
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
 
     await expect(client.search("hello")).rejects.toThrow("boom");
   });
 
   it("forwards entity and limit options into variables", async () => {
     const stub = makeTransport({ data: { search: [] } });
-    const client = useSearchClient({ transport: stub.transport });
+    const client = createSearchClient(stub.transport);
 
     await client.search("scoped", { entity: "purchase_request", limit: 5 });
 
