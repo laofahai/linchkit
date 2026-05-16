@@ -163,6 +163,20 @@
         "@linchkit/core": "^0.2.0",
       },
     },
+    "addons/audit/cap-audit-ui": {
+      "name": "@linchkit/cap-audit-ui",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/cap-adapter-ui": "workspace:*",
+        "@linchkit/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@linchkit/cap-adapter-ui": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
+        "react": "^19.0.0",
+        "react-i18next": ">=14.0.0",
+      },
+    },
     "addons/auth/cap-auth": {
       "name": "@linchkit/cap-auth",
       "version": "1.0.0",
@@ -636,6 +650,8 @@
     "@linchkit/cap-adapter-ui": ["@linchkit/cap-adapter-ui@workspace:addons/adapter-ui/cap-adapter-ui"],
 
     "@linchkit/cap-ai-provider": ["@linchkit/cap-ai-provider@workspace:addons/ai-provider/cap-ai-provider"],
+
+    "@linchkit/cap-audit-ui": ["@linchkit/cap-audit-ui@workspace:addons/audit/cap-audit-ui"],
 
     "@linchkit/cap-auth": ["@linchkit/cap-auth@workspace:addons/auth/cap-auth"],
 
