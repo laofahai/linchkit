@@ -91,6 +91,34 @@ export {
   ProposalCodeGenerator,
   type QualityGateRunner,
 } from "./proposal-code-generator";
+// Proposal Compatibility Checker (Spec 09 Phase 3)
+export {
+  buildCompatibilitySnapshot,
+  compatibilityCheck,
+} from "./proposal-compatibility-checker";
+export type {
+  CompatibilityChange,
+  CompatibilityIssue,
+  CompatibilityRegistrySnapshot,
+  CompatibilityResult,
+  CompatibilitySeverity,
+  EntityCreateChange,
+  EntityDeleteChange,
+  EntityReference,
+  EntityRenameChange,
+  EnumOptionsChange,
+  FieldAddChange,
+  FieldConstraintChange,
+  FieldDropChange,
+  FieldTypeChange,
+} from "./proposal-compatibility-types";
+// Proposal Dry-Run (Spec 09 Phase 4)
+export type {
+  DryRunModelError,
+  DryRunResult,
+  DryRunSideEffects,
+} from "./proposal-dry-run";
+export { dryRunProposal } from "./proposal-dry-run";
 // Proposal Engine
 export type {
   AIProposalStatus,
@@ -112,6 +140,18 @@ export type {
   ProposalViolation,
 } from "./proposal-validator";
 export { createProposalValidator, validateProposal } from "./proposal-validator";
+// Extended Proposal Validator (Spec 09 4-phase pipeline)
+export type {
+  ExtendedPhaseStatus,
+  ExtendedPhaseSummary,
+  ExtendedValidationResult,
+  ExtendedValidatorConfig,
+  ExtendedValidatorInput,
+} from "./proposal-validator-extended";
+export {
+  createExtendedProposalValidator,
+  validateProposalExtended,
+} from "./proposal-validator-extended";
 // Record Analyzer
 export type {
   RecordAnalysis,

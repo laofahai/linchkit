@@ -14,11 +14,20 @@ import type { EventHandlerDefinition } from "../types/event";
 import type { RuleDefinition } from "../types/rule";
 import type { PatternInsight } from "./pattern-insight";
 import type {
+  CompatibilityChange,
+  CompatibilityRegistrySnapshot,
+} from "./proposal-compatibility-types";
+import type {
   ProposalValidatorConfig,
   ProposalChange as SecurityProposalChange,
   ProposalValidationResult as SecurityValidationResult,
 } from "./proposal-validator";
 import { validateProposal as validateProposalSecurity } from "./proposal-validator";
+import type {
+  ExtendedValidationResult,
+  ExtendedValidatorConfig,
+} from "./proposal-validator-extended";
+import { validateProposalExtended } from "./proposal-validator-extended";
 
 // ── Proposal types ───────────────────────────────────────
 
@@ -265,6 +274,41 @@ export class ProposalEngine {
     proposal.status = "rolled_back";
     proposal.rolledBackAt = new Date();
     return proposal;
+  }
+
+  // ── Extended validation (Spec 09 Phase 1–4) ─────────────
+
+  /**
+   * Run the full Spec-09 4-phase validation pipeline on a proposal.
+   * Returns the combined result without changing the proposal's status.
+   * Use this to preview a submission before calling {@link submit}.
+   *
+   * Phases 3 (compatibility) and 4 (dry-run) are only executed when the
+   * caller supplies field-level changes + a registry snapshot. The security
+   * pipeline (Phase 1+2) always runs.
+   */
+  validateExtended(
+    proposalId: string,
+    options?: {
+      compatibilityChanges?: CompatibilityChange[];
+      snapshot?: CompatibilityRegistrySnapshot;
+      extendedConfig?: ExtendedValidatorConfig;
+    },
+  ): ExtendedValidationResult {
+    const proposal = this.getOrThrow(proposalId);
+    const securityChanges = this.toSecurityChanges(proposal);
+    const cfg: ExtendedValidatorConfig = {
+      ...(options?.extendedConfig ?? {}),
+      security: options?.extendedConfig?.security ?? this.validatorConfig,
+    };
+    return validateProposalExtended(
+      {
+        securityChanges,
+        compatibilityChanges: options?.compatibilityChanges,
+        snapshot: options?.snapshot,
+      },
+      cfg,
+    );
   }
 
   // ── Queries ────────────────────────────────────────────
