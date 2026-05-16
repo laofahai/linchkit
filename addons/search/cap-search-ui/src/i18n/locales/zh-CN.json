@@ -1,0 +1,26 @@
+{
+  "search": {
+    "page": {
+      "title": "全局搜索",
+      "subtitle": "对所有注册了 defineSearchIndex 的实体进行全文搜索。",
+      "tipPrefix": "提示：按",
+      "tipFocusInput": "聚焦输入框，",
+      "tipClear": "清空。"
+    },
+    "panel": {
+      "loadingAria": "正在加载搜索结果",
+      "typeMinChars": "请输入至少 {{count}} 个字符以开始搜索。",
+      "noResults": "没有找到与 “{{query}}” 匹配的结果。"
+    },
+    "input": {
+      "placeholder": "搜索...",
+      "ariaLabel": "全局搜索"
+    },
+    "results": {
+      "ariaLabel": "搜索结果"
+    },
+    "errors": {
+      "queryFailed": "搜索请求失败"
+    }
+  }
+}
