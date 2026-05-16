@@ -1,0 +1,39 @@
+{
+  "name": "@linchkit/cap-view-kanban",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0",
+    "@linchkit/cap-adapter-ui": "^1.0.0",
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "@linchkit/cap-adapter-ui": "workspace:*"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.2.0",
+    "type": "standard",
+    "category": "view",
+    "autoInstall": false
+  }
+}
