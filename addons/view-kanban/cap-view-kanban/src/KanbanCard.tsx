@@ -8,16 +8,23 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import type { TFunction } from "i18next";
 import type { CSSProperties, JSX, KeyboardEvent, MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type { KanbanCardProps, KanbanRecord } from "./types";
 
-/** Stringify an arbitrary field value for card display. */
-function displayValue(value: unknown): string {
+/**
+ * Stringify an arbitrary field value for card display.
+ *
+ * Array values format through i18next's pluralisation rules so the suffix
+ * matches the active locale ("1 item" / "3 items" / "3 项").
+ */
+function displayValue(value: unknown, t: TFunction): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
-  if (Array.isArray(value)) return `${value.length} items`;
+  if (Array.isArray(value)) return t("kanban.card.itemsCount", { count: value.length });
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
     if ("name" in obj) return String(obj.name);
@@ -47,6 +54,7 @@ export function KanbanCard({
   onClick,
   isPending,
 }: KanbanCardProps): JSX.Element {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: record.id,
     data: { recordId: record.id },
@@ -61,7 +69,7 @@ export function KanbanCard({
 
   const titleField = resolveTitleField(schema, cardFields);
   const secondaryFields = cardFields.slice(1);
-  const titleValue = displayValue(record[titleField]) || record.id;
+  const titleValue = displayValue(record[titleField], t) || record.id;
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     // Suppress click that came from a drag end.
@@ -108,7 +116,7 @@ export function KanbanCard({
             return (
               <div key={field} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <dt className="shrink-0">{label}:</dt>
-                <dd className="truncate text-foreground/80">{displayValue(value)}</dd>
+                <dd className="truncate text-foreground/80">{displayValue(value, t)}</dd>
               </div>
             );
           })}

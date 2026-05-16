@@ -9,6 +9,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 import { KanbanCard } from "./KanbanCard";
 import type { KanbanColumnProps } from "./types";
 
@@ -22,10 +23,12 @@ export function KanbanColumn({
   onCardClick,
   pendingRecordId,
 }: KanbanColumnProps): JSX.Element {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({
     id: stateValue,
     data: { stateValue },
   });
+  const recordsCountLabel = t("kanban.column.recordsCount", { count: records.length });
 
   const borderClass = isOver
     ? isInvalidTarget
@@ -47,16 +50,18 @@ export function KanbanColumn({
           {label}
         </h3>
         <span
-          title={`${records.length} records`}
+          title={recordsCountLabel}
           className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-background px-1.5 text-[10px] font-medium text-muted-foreground"
         >
-          <span className="sr-only">{`${records.length} records`}</span>
+          <span className="sr-only">{recordsCountLabel}</span>
           <span aria-hidden="true">{records.length}</span>
         </span>
       </header>
       <div className="flex-1 space-y-2 overflow-y-auto p-2">
         {records.length === 0 ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">No records</p>
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            {t("kanban.column.empty")}
+          </p>
         ) : (
           records.map((record) => (
             <KanbanCard

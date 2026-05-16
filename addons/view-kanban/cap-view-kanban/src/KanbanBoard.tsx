@@ -25,6 +25,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { type JSX, useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { KanbanColumn } from "./KanbanColumn";
 import type { KanbanBoardProps, KanbanRecord } from "./types";
 import {
@@ -56,6 +57,7 @@ export function KanbanBoard({
   transition = defaultTransition,
   className,
 }: KanbanBoardProps): JSX.Element {
+  const { t } = useTranslation();
   const effectiveStateField = stateField ?? stateDefinition.field;
   const effectiveCardFields = useMemo<ReadonlyArray<string>>(
     () =>
@@ -117,8 +119,11 @@ export function KanbanBoard({
             to: toState,
             error: new Error(
               validation.reason === "no-transition"
-                ? `Transition from "${fromState}" to "${toState}" is not allowed`
-                : "Source state is unknown",
+                ? t("kanban.board.error.description", {
+                    from: fromState ?? "",
+                    to: toState,
+                  })
+                : t("kanban.board.error.unknownSource"),
             ),
           });
         }
@@ -147,6 +152,7 @@ export function KanbanBoard({
       entity,
       onTransitionError,
       onTransitioned,
+      t,
       transition,
       transitionsIndex,
     ],

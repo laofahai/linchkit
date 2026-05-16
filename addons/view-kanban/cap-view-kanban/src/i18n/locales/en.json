@@ -1,0 +1,20 @@
+{
+  "kanban": {
+    "board": {
+      "error": {
+        "title": "Transition not allowed",
+        "description": "Transition from \"{{from}}\" to \"{{to}}\" is not allowed.",
+        "unknownSource": "Source state is unknown."
+      }
+    },
+    "card": {
+      "itemsCount_one": "{{count}} item",
+      "itemsCount_other": "{{count}} items"
+    },
+    "column": {
+      "recordsCount_one": "{{count}} record",
+      "recordsCount_other": "{{count}} records",
+      "empty": "No records"
+    }
+  }
+}
