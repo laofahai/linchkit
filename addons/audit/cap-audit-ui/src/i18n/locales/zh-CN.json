@@ -15,7 +15,8 @@
       "duration": "耗时",
       "empty": "当前筛选条件下没有匹配的执行日志。",
       "openDetail": "打开执行详情",
-      "totalCount": "共 {{count}} 条"
+      "totalCount_one": "共 {{count}} 条",
+      "totalCount_other": "共 {{count}} 条"
     },
     "detail": {
       "title": "执行详情",
@@ -68,8 +69,8 @@
       "summary": "重放摘要",
       "summaryHeading": "重放结果",
       "summaryDryHeading": "试运行结果",
-      "delivered": "已派发 {{n}} 个",
-      "failed": "失败 {{n}} 个",
+      "delivered": "已派发 {{count}} 个",
+      "failed": "失败 {{count}} 个",
       "noHandlers": "没有已注册的处理器匹配该事件。"
     },
     "timeline": {
@@ -79,7 +80,8 @@
       "hideHandlers": "隐藏处理器",
       "viewHandlers": "查看处理器",
       "replay": "重放",
-      "totalCount": "共 {{count}} 个事件"
+      "totalCount_one": "共 {{count}} 个事件",
+      "totalCount_other": "共 {{count}} 个事件"
     }
   }
 }

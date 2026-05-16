@@ -30,8 +30,12 @@ const RESOURCES = {
 // `deep=true` so existing bundles (cap-adapter-ui's "translation" namespace)
 // are merged rather than replaced; `overwrite=true` ensures HMR re-imports
 // pick up edits to the JSON without a full reload.
-for (const [locale, resource] of Object.entries(RESOURCES)) {
-  i18n.addResourceBundle(locale, "translation", resource, true, true);
+export function registerAuditI18nResources(): void {
+  for (const [locale, resource] of Object.entries(RESOURCES)) {
+    i18n.addResourceBundle(locale, "translation", resource, true, true);
+  }
 }
+
+registerAuditI18nResources();
 
 export { RESOURCES };

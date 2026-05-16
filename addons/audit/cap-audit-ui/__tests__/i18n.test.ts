@@ -18,13 +18,15 @@ import { describe, expect, it } from "bun:test";
 // (events.*). Local-only common keys live under audit.common.*.
 const SAMPLE_KEYS = [
   "audit.list.title",
-  "audit.list.totalCount",
+  "audit.list.totalCount_one",
+  "audit.list.totalCount_other",
   "audit.detail.title",
   "audit.detail.stateTransition",
   "audit.filters.statusAny",
   "audit.common.previous",
   "audit.common.next",
   "events.timeline.title",
+  "events.timeline.totalCount_other",
   "events.handlers.title",
   "events.replay.title",
   "events.replay.delivered",
@@ -33,12 +35,12 @@ const SAMPLE_KEYS = [
 describe("cap-audit-ui i18n bootstrap", () => {
   it("registers en and zh-CN translations for every audit/events key", async () => {
     const { i18n } = await import("@linchkit/cap-adapter-ui");
-    // Triggers `addResourceBundle(…)` for both locales as a side effect.
-    await import("../src/i18n");
-    // Subsequent imports of any view also re-import the bootstrap;
-    // re-evaluation must be idempotent (addResourceBundle deep=true,
-    // overwrite=true) — assert by re-running the import and re-checking.
-    await import("../src/i18n");
+    const { registerAuditI18nResources } = await import("../src/i18n");
+
+    // Explicit second call validates the bootstrap is idempotent;
+    // `addResourceBundle(deep=true, overwrite=true)` must merge without
+    // tearing down the host's existing "translation" namespace.
+    registerAuditI18nResources();
 
     for (const key of SAMPLE_KEYS) {
       const enValue = i18n.getResource("en", "translation", key);

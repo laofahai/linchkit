@@ -15,7 +15,8 @@
       "duration": "Duration",
       "empty": "No execution log entries match the current filters.",
       "openDetail": "Open audit detail",
-      "totalCount": "{{count}} entries"
+      "totalCount_one": "{{count}} entry",
+      "totalCount_other": "{{count}} entries"
     },
     "detail": {
       "title": "Execution detail",
@@ -68,8 +69,8 @@
       "summary": "Replay summary",
       "summaryHeading": "Replay result",
       "summaryDryHeading": "Dry run result",
-      "delivered": "{{n}} delivered",
-      "failed": "{{n}} failed",
+      "delivered": "{{count}} delivered",
+      "failed": "{{count}} failed",
       "noHandlers": "No registered handlers matched this event."
     },
     "timeline": {
@@ -79,7 +80,8 @@
       "hideHandlers": "Hide handlers",
       "viewHandlers": "View handlers",
       "replay": "Replay",
-      "totalCount": "{{count}} events"
+      "totalCount_one": "{{count}} event",
+      "totalCount_other": "{{count}} events"
     }
   }
 }
