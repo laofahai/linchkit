@@ -3,6 +3,13 @@
  */
 
 export {
+  createDlqService,
+  type DlqEntry,
+  type DlqListOptions,
+  type DlqService,
+  type DlqStats,
+} from "./dlq-service";
+export {
   createEventBus,
   EventBus,
   type EventBusOptions,
