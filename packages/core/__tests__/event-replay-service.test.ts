@@ -157,6 +157,35 @@ describe.skipIf(!dbAvailable)("EventReplayService", () => {
     expect(byRange.total).toBe(3);
   });
 
+  test("list filters by recordId at the SQL level and projects it into the summary", async () => {
+    // Insert two matching rows beyond the first page and a few non-matching
+    // ones; without server-side filtering, `--record X --limit 2` would miss
+    // rows past offset 2 (the previous CLI N+1 bug — Gemini finding 1).
+    await insertEvent({ eventType: "noise.a", payload: { recordId: "other" } });
+    await insertEvent({ eventType: "noise.b", payload: { recordId: "other" } });
+    await insertEvent({ eventType: "noise.c", payload: { recordId: "other" } });
+    const matchA = await insertEvent({ eventType: "match.a", payload: { recordId: "target" } });
+    await insertEvent({ eventType: "noise.d", payload: { recordId: "other" } });
+    const matchB = await insertEvent({ eventType: "match.b", payload: { recordId: "target" } });
+
+    const filtered = await svc.list({ recordId: "target", limit: 2 });
+    expect(filtered.total).toBe(2);
+    expect(filtered.items).toHaveLength(2);
+    const ids = filtered.items.map((i) => i.id).sort();
+    expect(ids).toEqual([matchA, matchB].sort());
+    // EventSummary must surface the projected recordId so the CLI table can
+    // render it without an extra round-trip per row.
+    for (const item of filtered.items) {
+      expect(item.recordId).toBe("target");
+    }
+  });
+
+  test("list returns undefined recordId when payload omits the field", async () => {
+    await insertEvent({ eventType: "no.record", payload: { other: "value" } });
+    const result = await svc.list();
+    expect(result.items[0].recordId).toBeUndefined();
+  });
+
   test("list pagination clamps limit and offset", async () => {
     for (let i = 0; i < 5; i++) {
       await insertEvent({ eventType: `evt.${i}` });

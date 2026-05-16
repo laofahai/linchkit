@@ -15,7 +15,7 @@
  * handler failures"). The original event row is never modified.
  */
 
-import { and, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte, type SQL, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { withTraceId } from "../observability/trace-context";
 import { eventsTable } from "../persistence/system-tables";
@@ -36,6 +36,12 @@ export interface EventSummary {
   errorMessage?: string;
   createdAt: Date;
   processedAt?: Date;
+  /**
+   * Projected from `payload->>'recordId'`. Present when the originating
+   * EventRecord stored a recordId in its payload (framework events do this
+   * by default; arbitrary domain events may omit it).
+   */
+  recordId?: string;
 }
 
 export interface EventDetail extends EventSummary {
@@ -89,6 +95,13 @@ export interface EventListOptions {
   /** Filter by sourceAction (the action that emitted the event). */
   entity?: string;
   eventType?: string;
+  /**
+   * Filter by payload-side `recordId`. Applied as a JSONB predicate
+   * (`payload->>'recordId' = $value`) so the filter is evaluated server-side
+   * BEFORE pagination — fixing the previous client-side N+1 + post-limit-filter
+   * issue (#PR320 Gemini finding 1).
+   */
+  recordId?: string;
   /** Lower-bound (inclusive) on `createdAt`. */
   since?: Date;
   /** Upper-bound (inclusive) on `createdAt`. */
@@ -145,6 +158,8 @@ function clampOffset(value: unknown): number {
 }
 
 function rowToSummary(row: typeof eventsTable.$inferSelect): EventSummary {
+  const payload = (row.payload as Record<string, unknown> | null) ?? null;
+  const recordId = payload ? pickStringField(payload, "recordId") : undefined;
   return {
     id: row.id,
     tenantId: row.tenantId ?? undefined,
@@ -156,6 +171,7 @@ function rowToSummary(row: typeof eventsTable.$inferSelect): EventSummary {
     errorMessage: row.errorMessage ?? undefined,
     createdAt: row.createdAt,
     processedAt: row.processedAt ?? undefined,
+    recordId,
   };
 }
 
@@ -308,6 +324,13 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     if (options?.eventType !== undefined)
       filters.push(eq(eventsTable.eventType, options.eventType));
     if (options?.entity !== undefined) filters.push(eq(eventsTable.sourceAction, options.entity));
+    if (options?.recordId !== undefined) {
+      // JSONB path extract — parameterized via drizzle's sql template so the
+      // recordId value is bound as a placeholder rather than interpolated.
+      filters.push(
+        sql`(${eventsTable.payload}->>'recordId') = ${options.recordId}` as unknown as SQL,
+      );
+    }
     if (isValidDate(options?.since)) filters.push(gte(eventsTable.createdAt, options.since));
     if (isValidDate(options?.until)) filters.push(lte(eventsTable.createdAt, options.until));
     if (filters.length === 0) return undefined;

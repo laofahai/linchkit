@@ -91,6 +91,7 @@ function summary(overrides: Partial<EventSummary> = {}): EventSummary {
     errorMessage: overrides.errorMessage,
     createdAt: overrides.createdAt ?? new Date("2026-05-01T10:00:00Z"),
     processedAt: overrides.processedAt,
+    recordId: overrides.recordId,
   };
 }
 
@@ -144,12 +145,16 @@ const stderr = () => stderrBuf.join("\n");
 // ── runList ────────────────────────────────────────────────
 
 describe("runList", () => {
-  test("renders table with timestamp + entity + recordId + eventType + id columns", async () => {
+  test("renders table with truncated id columns by default", async () => {
     const svc = makeService({
       async list() {
         return {
           items: [
-            summary({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", sourceAction: "create_order" }),
+            summary({
+              id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+              sourceAction: "create_order",
+              recordId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            }),
           ],
           total: 1,
         };
@@ -163,8 +168,32 @@ describe("runList", () => {
     expect(out).toContain("EventType");
     expect(out).toContain("Id");
     expect(out).toContain("create_order");
-    expect(out).toContain("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    // Truncated to first 8 chars + ellipsis; full UUID must NOT appear.
+    expect(out).toContain("aaaaaaaa…");
+    expect(out).toContain("bbbbbbbb…");
+    expect(out).not.toContain("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     expect(out).toContain("Showing 1 of 1 event(s).");
+  });
+
+  test("--full renders ids without truncation", async () => {
+    const svc = makeService({
+      async list() {
+        return {
+          items: [
+            summary({
+              id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+              recordId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            }),
+          ],
+          total: 1,
+        };
+      },
+    });
+    await runList(svc, { full: true });
+    const out = stdout();
+    expect(out).toContain("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    expect(out).toContain("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    expect(out).not.toContain("aaaaaaaa…");
   });
 
   test("emits JSON when --json is set", async () => {
@@ -179,10 +208,11 @@ describe("runList", () => {
     expect(parsed.items).toHaveLength(1);
   });
 
-  test("forwards --entity/--since/--until/--limit/--offset to service", async () => {
+  test("forwards --entity/--record/--since/--until/--limit/--offset to service", async () => {
     const svc = makeService();
     await runList(svc, {
       entity: "create_order",
+      record: "rec-123",
       since: "2026-05-01T00:00:00Z",
       until: "2026-05-02T00:00:00Z",
       limit: 25,
@@ -191,10 +221,28 @@ describe("runList", () => {
     expect(svc.calls.list).toHaveLength(1);
     const opts = svc.calls.list[0] ?? {};
     expect(opts.entity).toBe("create_order");
+    expect(opts.recordId).toBe("rec-123");
     expect(opts.since?.toISOString()).toBe("2026-05-01T00:00:00.000Z");
     expect(opts.until?.toISOString()).toBe("2026-05-02T00:00:00.000Z");
     expect(opts.limit).toBe(25);
     expect(opts.offset).toBe(5);
+  });
+
+  test("--record is passed straight through (no client-side filter, no svc.get calls)", async () => {
+    const svc = makeService({
+      async list() {
+        return {
+          items: [summary({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", recordId: "rec-9" })],
+          total: 1,
+        };
+      },
+    });
+    await runList(svc, { record: "rec-9" });
+    expect(svc.calls.list).toHaveLength(1);
+    expect(svc.calls.list[0]?.recordId).toBe("rec-9");
+    // The old implementation called svc.get() once per row; verify that's gone.
+    expect(svc.calls.get).toHaveLength(0);
+    expect(stdout()).toContain("Showing 1 of 1 event(s).");
   });
 
   test("prints friendly message when no events", async () => {

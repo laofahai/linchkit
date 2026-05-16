@@ -53,13 +53,22 @@ const MAX_DESC_WIDTH = 40;
 
 export interface ListArgs {
   entity?: string;
-  /** recordId is not a column in `_linchkit.events`; it is applied as a payload filter. */
+  /**
+   * Filter by `payload->>'recordId'`. Applied server-side by
+   * `EventReplayService.list` so pagination and counts reflect the filter.
+   */
   record?: string;
   since?: string;
   until?: string;
   limit?: number;
   offset?: number;
   json?: boolean;
+  /**
+   * Disable Id / RecordId truncation in the table output. When unset, both
+   * columns show the first 8 chars + `…` so the table fits in 88 chars and
+   * does not wrap on 120-char terminals (Gemini finding 3).
+   */
+  full?: boolean;
 }
 
 export interface InspectArgs {
@@ -90,73 +99,56 @@ export async function runList(svc: EventReplayService, args: ListArgs): Promise<
   const offset = parseIntArg("--offset", args.offset, 0);
   const opts: EventListOptions = {
     entity: args.entity,
+    recordId: args.record,
     since: parseDateArg("--since", args.since),
     until: parseDateArg("--until", args.until),
     limit,
     offset,
   };
+  // The service applies `--record` as a JSONB predicate (payload->>'recordId'),
+  // so pagination + `total` already reflect the filter. No client-side filter.
   const { items, total } = await svc.list(opts);
 
-  // recordId is not a column on `_linchkit.events` — it lives inside the
-  // JSONB payload. When --record is given, fetch each candidate row's full
-  // detail (capped by --limit) and filter by payload.recordId. This costs
-  // up to `limit` extra queries; the upper bound (100) keeps it predictable.
-  const enrichedRows = args.record ? await enrichWithRecordIds(svc, items) : items;
-  const filtered = args.record
-    ? enrichedRows.filter((row) => extractRecordId(row) === args.record)
-    : enrichedRows;
-
   if (args.json) {
-    console.log(JSON.stringify({ items: filtered, total }, null, 2));
+    console.log(JSON.stringify({ items, total }, null, 2));
     return;
   }
 
-  if (filtered.length === 0) {
+  if (items.length === 0) {
     console.log("[linch] No events found.");
     return;
   }
 
+  const full = args.full ?? false;
+  // Default widths fit a typical 88-char terminal table. `--full` shows the
+  // raw 36-char UUID / recordId at the cost of wrapping on narrow shells.
+  const idWidth = full ? 36 : 12;
+  const recordWidth = full ? 36 : 12;
   const columns: Column<EventSummary>[] = [
-    { header: "Timestamp", width: 24, get: (r) => fmtTimestamp(r.createdAt) },
-    { header: "Entity", width: 20, get: (r) => r.sourceAction ?? "" },
-    { header: "RecordId", width: 36, get: (r) => extractRecordId(r) ?? "" },
-    { header: "EventType", width: 30, get: (r) => r.eventType },
-    { header: "Id", width: 36, get: (r) => r.id },
+    { header: "Timestamp", width: 20, get: (r) => fmtTimestamp(r.createdAt).slice(0, 19) },
+    { header: "Entity", width: 18, get: (r) => truncate(r.sourceAction ?? "", 18) },
+    {
+      header: "RecordId",
+      width: recordWidth,
+      get: (r) => formatIdCell(r.recordId, full),
+    },
+    { header: "EventType", width: 24, get: (r) => truncate(r.eventType, 24) },
+    { header: "Id", width: idWidth, get: (r) => formatIdCell(r.id, full) },
   ];
-  printTable(filtered, columns);
-  console.log(`\nShowing ${filtered.length} of ${total} event(s).`);
+  printTable(items, columns);
+  console.log(`\nShowing ${items.length} of ${total} event(s).`);
 }
 
 /**
- * EventSummary intentionally omits payload (Spec 66 §3.1 — list is a
- * lightweight projection). Pull recordId from a `recordId` field added by
- * enrichment (or by a test double that pre-projects it); otherwise return
- * undefined.
+ * Render an id-like cell. Full mode returns the value verbatim; truncated
+ * mode shows the first 8 chars followed by `…` (U+2026) so the user knows
+ * the value was clipped and can re-run with `--full` to copy it.
  */
-function extractRecordId(row: EventSummary): string | undefined {
-  const maybe = (row as unknown as { recordId?: unknown }).recordId;
-  return typeof maybe === "string" ? maybe : undefined;
-}
-
-/**
- * Enrich list rows with the payload's `recordId` so client-side --record
- * filtering can match. N+1 by design — capped at the caller-supplied limit
- * (default 50, max 100) and only invoked when --record is set.
- */
-async function enrichWithRecordIds(
-  svc: EventReplayService,
-  rows: EventSummary[],
-): Promise<(EventSummary & { recordId?: string })[]> {
-  return Promise.all(
-    rows.map(async (row) => {
-      const detail = await svc.get(row.id);
-      const recordId = detail?.payload?.recordId;
-      return {
-        ...row,
-        recordId: typeof recordId === "string" ? recordId : undefined,
-      };
-    }),
-  );
+function formatIdCell(value: string | undefined, full: boolean): string {
+  if (!value) return "";
+  if (full) return value;
+  if (value.length <= 8) return value;
+  return `${value.slice(0, 8)}…`;
 }
 
 export async function runInspect(svc: EventReplayService, args: InspectArgs): Promise<void> {
@@ -431,6 +423,11 @@ const eventsListCommand = defineCommand({
     limit: { type: "string", description: "Max entries (default 50, max 100)", default: "50" },
     offset: { type: "string", description: "Offset for pagination", default: "0" },
     json: { type: "boolean", description: "Output as JSON", default: false },
+    full: {
+      type: "boolean",
+      description: "Show full Id / RecordId values (disables truncation)",
+      default: false,
+    },
   },
   async run({ args }) {
     await withService(false, (handle) =>
@@ -442,6 +439,7 @@ const eventsListCommand = defineCommand({
         limit: parseIntArg("--limit", args.limit, 50),
         offset: parseIntArg("--offset", args.offset, 0),
         json: args.json as boolean,
+        full: args.full as boolean,
       }),
     );
   },
