@@ -42,7 +42,6 @@ export {
   renderEntityDoc,
   renderSystemDoc,
 } from "./markdown-renderer";
-
 export {
   generateOpenAPISpec,
   type OpenAPIGeneratorOptions,
@@ -51,3 +50,14 @@ export {
   type OpenAPISchemaObject,
   type OpenAPISpec,
 } from "./openapi-generator";
+export {
+  generateProjectDoc,
+  type ProjectDoc,
+  type ProjectDocGeneratorOptions,
+  type ProjectFlowDoc,
+  type ProjectRelationDoc,
+  type ProjectRuleDoc,
+  type ProjectStateMachineDoc,
+  type ProjectViewDoc,
+  renderProjectDoc,
+} from "./project-doc-generator";

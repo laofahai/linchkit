@@ -1,6 +1,11 @@
 /**
  * linch docs — Documentation generation commands
  *
+ * Default behavior (no subcommand): walks the OntologyRegistry and writes a
+ * single project-wide Markdown document with sections for every meta-model
+ * artifact (Entities, Actions, Rules, State Machines, Views, Flows,
+ * Relations). Output defaults to `./docs/generated/README.md` per Spec 25.
+ *
  * Subcommands:
  *   generate  — Generate Markdown API documentation from the ontology
  *   openapi   — Generate OpenAPI 3.0 specification
@@ -9,11 +14,13 @@
  *   search    — Search across all documentation
  */
 
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type {
   ActionDefinition,
   CapabilityDefinition,
   EntityDefinition,
+  FlowDefinition,
   LinchKitConfig,
   RelationDefinition,
   RuleDefinition,
@@ -22,6 +29,7 @@ import type {
 } from "@linchkit/core";
 import {
   ActionRegistry,
+  createFlowRegistry,
   createOntologyRegistry,
   createRelationRegistry,
   EntityRegistry,
@@ -31,12 +39,17 @@ import {
   generateApiDoc,
   generateCapabilityDoc,
   generateOpenAPISpec,
+  generateProjectDoc,
   renderCapabilityDoc,
+  renderProjectDoc,
   renderSystemDoc,
 } from "@linchkit/devtools/documentation";
 import { validateActionDoc, validateEntityDoc } from "@linchkit/devtools/governance";
 import { defineCommand } from "citty";
 import { loadConfig } from "../utils/load-config";
+
+/** Default output path for `linch docs` (no subcommand). */
+const DEFAULT_DOCS_OUT = "./docs/generated/README.md";
 
 // ── Helpers ──────────────────────────────────
 
@@ -68,7 +81,11 @@ async function loadCapabilities(): Promise<{
 
 /**
  * Build a lightweight OntologyRegistry from capabilities.
- * Only constructs Schema, Action, and Link registries (no DB, no event bus).
+ *
+ * Wires Schema, Action, Relation, and Flow registries plus the raw
+ * rule/state/view/relation arrays so the OntologyRegistry can surface
+ * every meta-model artifact for `linch docs`. Side-effect-free — no DB,
+ * no event bus.
  */
 function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   const entities: EntityDefinition[] = [];
@@ -77,6 +94,7 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
   const states: StateDefinition[] = [];
   const links: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
+  const flows: FlowDefinition[] = [];
 
   for (const cap of capabilities) {
     if (cap.entities) entities.push(...cap.entities);
@@ -85,6 +103,7 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     if (cap.states) states.push(...cap.states);
     if (cap.relations) links.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
+    if (cap.flows) flows.push(...cap.flows);
   }
 
   // Build registries
@@ -105,6 +124,13 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     }
   }
 
+  const flowRegistry = createFlowRegistry();
+  for (const flow of flows) {
+    if (!flowRegistry.has(flow.name)) {
+      flowRegistry.register(flow);
+    }
+  }
+
   const ontology = createOntologyRegistry({
     schemas: entityRegistry,
     actions: actionRegistry,
@@ -112,9 +138,10 @@ function buildOntologyFromCapabilities(capabilities: CapabilityDefinition[]) {
     states,
     views,
     links: relationRegistry,
+    flows: flowRegistry,
   });
 
-  return { ontology, entities, actions };
+  return { ontology, entities, actions, rules, states, views, links, flows };
 }
 
 /** Write content to a file or stdout */
@@ -405,7 +432,24 @@ type DocSearchResult = import("@linchkit/devtools/documentation").DocSearchResul
 export const docsCommand = defineCommand({
   meta: {
     name: "docs",
-    description: "Generate, view, and search API documentation",
+    description: "Generate project-wide Markdown docs (Spec 25); subcommands for advanced uses",
+  },
+  args: {
+    out: {
+      type: "string",
+      description: `Output file path (default: ${DEFAULT_DOCS_OUT})`,
+      default: DEFAULT_DOCS_OUT,
+    },
+    title: {
+      type: "string",
+      description: "Documentation title",
+      default: "Project Documentation",
+    },
+    stdout: {
+      type: "boolean",
+      description: "Write to stdout instead of a file (overrides --out)",
+      default: false,
+    },
   },
   subCommands: {
     generate: generateCommand,
@@ -413,5 +457,32 @@ export const docsCommand = defineCommand({
     validate: validateCommand,
     show: showCommand,
     search: searchCommand,
+  },
+  async run({ args }) {
+    const { capabilities } = await loadCapabilities();
+    const { ontology, rules, states, views, flows, links } =
+      buildOntologyFromCapabilities(capabilities);
+
+    const projectDoc = generateProjectDoc(ontology, {
+      title: args.title as string,
+      rules,
+      states,
+      views,
+      flows,
+      relations: links,
+    });
+    const markdown = renderProjectDoc(projectDoc);
+
+    if (args.stdout as boolean) {
+      process.stdout.write(markdown);
+      return;
+    }
+
+    const outPath = resolve(process.cwd(), args.out as string);
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, markdown, "utf-8");
+    console.log(
+      `[linch] docs written to ${outPath} (${projectDoc.entities.length} entities, ${projectDoc.rules.length} rules, ${projectDoc.stateMachines.length} state machines, ${projectDoc.views.length} views, ${projectDoc.flows.length} flows, ${projectDoc.relations.length} relations)`,
+    );
   },
 });
