@@ -153,7 +153,7 @@ Capability definition, extension, composition, and distribution.
 |---|-------|---------|-----------|--------|
 | [24](./24_relation_graph.md) | Relation Graph | Entity relation visualization, semantic inference, impact analysis, mermaid export | M2 | Done |
 | [43](./43_ontology_layer.md) | Ontology Layer | OntologyRegistry — unified read-only facade, describe(), searchEntities(), toJSON() | M2 | Done |
-| [67](./67_meta_model_semantics.md) | Meta-Model Semantics | `MetaSemantics` on every defineXxx() — intent/domain/risk/cost/evidence + structural inference; consumed by evolution, NL→defineXxx, conflict detection | M5–M6 | Partial |
+| [67](./67_meta_model_semantics.md) | Meta-Model Semantics | `MetaSemantics` on every defineXxx() — intent/domain/summary/tags + per-type extensions (rule regulation+riskLevel, action scope, etc.) + structural inference; consumed by evolution, NL→defineXxx, conflict detection | M5–M6 | Partial |
 
 ## Initialization
 
