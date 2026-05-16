@@ -170,4 +170,85 @@ describe("createSearchIndexer", () => {
     expect(() => defineSearchIndex({ entity: "doc", fields: [] })).toThrow();
     expect(() => defineSearchIndex({ entity: "", fields: ["x"] })).toThrow();
   });
+
+  // Real CRUD payload shape from build-crud-actions.ts: the entity name is in
+  // `payload.schema` (NOT `payload.entity`) and the new record is spread at
+  // the top level of the payload (NOT under `_new`/`after`). The earlier
+  // versions of these helpers silently dropped these events; codex flagged
+  // it as P1 — these regression tests lock the contract.
+  it("indexes a real CRUD record.created — schema + top-level fields", async () => {
+    const handler = createSearchIndexer({ indexes: registry, service });
+    await handler.handler(
+      makeEvent("record.created", {
+        // Strip the `entity` overlay so we exercise the schema fallback.
+        entity: undefined,
+        payload: {
+          schema: "purchase_request",
+          recordId: "rec-001",
+          // Spread record fields directly — matches build-crud-actions.ts:
+          //   ctx.emit("record.created", { schema, recordId, ...result });
+          title: "Office chairs",
+          description: "Need 12 ergonomic chairs",
+          vendor: "Acme",
+          id: "rec-001",
+        },
+      }),
+      stubCtx as never,
+    );
+
+    const hits = await service.search("ergonomic");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.recordId).toBe("rec-001");
+  });
+
+  it("indexes a real CRUD record.updated — _new under schema-keyed payload", async () => {
+    const handler = createSearchIndexer({ indexes: registry, service });
+    await handler.handler(
+      makeEvent("record.updated", {
+        entity: undefined,
+        payload: {
+          schema: "purchase_request",
+          recordId: "rec-001",
+          _old: { title: "Old title" },
+          _new: { title: "Brand-new chairs", description: "x", vendor: "Beta" },
+          changedFields: ["title", "description", "vendor"],
+        },
+      }),
+      stubCtx as never,
+    );
+
+    const hits = await service.search("Brand-new");
+    expect(hits).toHaveLength(1);
+  });
+
+  it("removes the document on a real CRUD record.deleted", async () => {
+    const handler = createSearchIndexer({ indexes: registry, service });
+
+    // Seed via real-shape created event so we delete what was actually indexed.
+    await handler.handler(
+      makeEvent("record.created", {
+        entity: undefined,
+        payload: {
+          schema: "purchase_request",
+          recordId: "rec-001",
+          title: "Doomed",
+          description: "d",
+          vendor: "v",
+          id: "rec-001",
+        },
+      }),
+      stubCtx as never,
+    );
+    expect(service.size()).toBe(1);
+
+    await handler.handler(
+      makeEvent("record.deleted", {
+        entity: undefined,
+        recordId: undefined,
+        payload: { schema: "purchase_request", recordId: "rec-001", id: "rec-001" },
+      }),
+      stubCtx as never,
+    );
+    expect(service.size()).toBe(0);
+  });
 });

@@ -35,7 +35,49 @@ function buildContent(fields: string[], row: Record<string, unknown>): string {
   return parts.join(" ");
 }
 
-/** Pick the post-update payload, supporting both `_new` and `after` conventions. */
+/**
+ * Keys the CRUD emitters add at the top level alongside the spread record
+ * fields. Strip them so the indexer only sees real entity columns.
+ *
+ * `record.created` payload shape (build-crud-actions.ts):
+ *     { schema, recordId, ...result }
+ * `record.updated` shape:
+ *     { schema, recordId, _old, _new, changedFields }
+ * `record.deleted` shape:
+ *     { schema, recordId, id }   // no record body
+ */
+const CRUD_PAYLOAD_OVERHEAD_KEYS = new Set([
+  "schema",
+  "entity",
+  "recordId",
+  "id",
+  "_old",
+  "_new",
+  "changedFields",
+  "after",
+  "before",
+]);
+
+function omitOverhead(payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (CRUD_PAYLOAD_OVERHEAD_KEYS.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Pick the post-write record body for indexing.
+ *
+ * For `record.created`, the built-in CRUD action spreads the new record at
+ * the top level (`{ schema, recordId, ...result }`), so the body IS the
+ * payload (minus the overhead keys above).
+ *
+ * For `record.updated`, the body is `_new` (full updated record).
+ *
+ * Other emitters that follow the `_new` / `after` convention also work.
+ */
 function extractAfter(event: EventRecord): Record<string, unknown> | undefined {
   const payload = event.payload as Record<string, unknown>;
   if (payload._new && typeof payload._new === "object") {
@@ -44,8 +86,23 @@ function extractAfter(event: EventRecord): Record<string, unknown> | undefined {
   if (payload.after && typeof payload.after === "object") {
     return payload.after as Record<string, unknown>;
   }
-  // Fall back to the payload itself if neither convention is present (some
-  // emitters put the new record at the top level).
+  // Default for record.created (and any other emitter that puts the record
+  // at the top level): treat the payload itself as the record body, with
+  // CRUD overhead keys removed.
+  const stripped = omitOverhead(payload);
+  return Object.keys(stripped).length > 0 ? stripped : undefined;
+}
+
+/**
+ * Resolve the entity name from an event. The action engine only promotes
+ * `payload.entity` into `event.entity`, but the built-in CRUD emitters
+ * use `payload.schema` instead, so we have to fall back through both.
+ */
+function resolveEntity(event: EventRecord): string | undefined {
+  if (event.entity) return event.entity;
+  const payload = event.payload as Record<string, unknown>;
+  if (typeof payload.entity === "string" && payload.entity) return payload.entity;
+  if (typeof payload.schema === "string" && payload.schema) return payload.schema;
   return undefined;
 }
 
@@ -71,8 +128,12 @@ export function createSearchIndexer(options: SearchIndexerOptions): EventHandler
     listen: ["record.created", "record.updated", "record.deleted"],
 
     async handler(event, _ctx) {
-      const entity = event.entity ?? (event.payload.entity as string | undefined);
-      const recordId = event.recordId ?? (event.payload.recordId as string | undefined);
+      const entity = resolveEntity(event);
+      const payload = event.payload as Record<string, unknown>;
+      const recordId =
+        event.recordId ??
+        (typeof payload.recordId === "string" ? payload.recordId : undefined) ??
+        (typeof payload.id === "string" ? payload.id : undefined);
       if (!entity || !recordId) return;
 
       const indexDef = indexes.get(entity);
