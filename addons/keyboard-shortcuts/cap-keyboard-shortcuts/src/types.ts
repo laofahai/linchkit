@@ -41,13 +41,23 @@ export interface KeyEventLike {
 /** Shortcut handler signature. The originating event is passed through. */
 export type ShortcutHandler = (event: KeyEventLike) => void;
 
-/** Shortcut registration options shared by `useShortcut` and the registry. */
+/**
+ * Shortcut options accepted by `useShortcut`. `keys` is optional/nullable
+ * to support conditional registration — `useShortcut` early-returns when
+ * `keys` is falsy without ever touching the registry. Use
+ * {@link RegisterShortcutOptions} when calling the registry directly.
+ */
 export interface ShortcutOptions {
   /**
    * Key combination(s). A single chord like `"Mod+K"` or a space-separated
    * sequence of chords like `"g h"`. See module docstring for the grammar.
+   *
+   * Pass `null` or `undefined` from `useShortcut` to skip registration
+   * entirely — useful for conditional shortcuts (e.g. a cheatsheet trigger
+   * the host has opted out of) without forcing callers to invent an
+   * "unreachable" key string.
    */
-  keys: string;
+  keys?: string | null;
   /** Invoked when the shortcut matches and (`when` ? `when()` : true) holds. */
   handler: ShortcutHandler;
   /** Optional predicate — when it returns false the shortcut is skipped. */
@@ -65,6 +75,15 @@ export interface ShortcutOptions {
    * Default false — editable targets are bailed out as a UX safety net.
    */
   allowInInput?: boolean;
+}
+
+/**
+ * Strict variant consumed by `ShortcutRegistry.register`. `keys` is required
+ * here because the registry has no way to "skip" — the hook layer is the
+ * place where conditional registration is decided.
+ */
+export interface RegisterShortcutOptions extends Omit<ShortcutOptions, "keys"> {
+  keys: string;
 }
 
 /**

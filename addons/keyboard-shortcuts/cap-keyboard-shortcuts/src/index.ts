@@ -15,6 +15,7 @@ export { capKeyboardShortcuts } from "./capability";
 export {
   detectPlatform,
   formatKeys,
+  MODIFIER_KEYS,
   matchChord,
   parseChord,
   parseKeys,
@@ -26,14 +27,17 @@ export {
   useShortcutRegistry,
 } from "./ShortcutProvider";
 export {
+  DEFAULT_SEQUENCE_PREFIX_DELAY_MS,
   DEFAULT_SEQUENCE_TIMEOUT_MS,
   type RegistryOptions,
+  type RegistryScheduler,
   ShortcutRegistry,
 } from "./shortcut-registry";
 export type {
   KeyChord,
   KeyEventLike,
   Platform,
+  RegisterShortcutOptions,
   ShortcutHandler,
   ShortcutId,
   ShortcutOptions,

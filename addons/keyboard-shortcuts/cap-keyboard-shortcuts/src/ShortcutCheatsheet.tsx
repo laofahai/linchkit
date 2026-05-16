@@ -50,16 +50,14 @@ export function ShortcutCheatsheet(props: ShortcutCheatsheetProps) {
     [isControlled, onOpenChange],
   );
 
-  // Built-in toggle shortcut. We register only when triggerKeys is set so
-  // hosts can opt out cleanly.
+  // Built-in toggle shortcut. `useShortcut` no-ops when `keys` is
+  // null/undefined, so the cheatsheet stays absent from its own list when
+  // the host has disabled the trigger.
   useShortcut({
-    keys: triggerKeys ?? "Shift+F24", // unreachable key when disabled
+    keys: triggerKeys,
     description: t("keyboardShortcuts.cheatsheet.toggleDescription", "Toggle shortcut cheatsheet"),
     scope: t("keyboardShortcuts.cheatsheet.scope", "Help"),
-    handler: () => {
-      if (triggerKeys === null) return;
-      setOpen(!isOpen);
-    },
+    handler: () => setOpen(!isOpen),
   });
 
   // Esc to close — we wire this with a plain effect rather than a

@@ -161,4 +161,31 @@ describe("useShortcut", () => {
     expect(registry.dispatch({ event })).toBe(true);
     expect(fired).toBe(1);
   });
+
+  it("no-ops when keys is null (conditional registration)", () => {
+    const registry = new ShortcutRegistry({ platform: "other" });
+    resetHookState(registry);
+
+    useShortcut({
+      keys: null,
+      description: "Disabled trigger",
+      handler: () => {},
+    });
+
+    runQueuedEffects();
+    expect(registry.size()).toBe(0);
+  });
+
+  it("no-ops when keys is undefined (conditional registration)", () => {
+    const registry = new ShortcutRegistry({ platform: "other" });
+    resetHookState(registry);
+
+    useShortcut({
+      description: "Disabled trigger",
+      handler: () => {},
+    });
+
+    runQueuedEffects();
+    expect(registry.size()).toBe(0);
+  });
 });

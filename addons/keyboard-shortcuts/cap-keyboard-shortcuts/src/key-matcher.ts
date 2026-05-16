@@ -12,8 +12,14 @@
 
 import type { KeyChord, KeyEventLike, Platform } from "./types";
 
-/** Modifier-only key names that should never count as the chord's "key". */
-const MODIFIER_KEYS = new Set([
+/**
+ * Modifier-only key names that should never count as the chord's "key".
+ *
+ * Exported so the registry can filter out modifier-only `keydown` events
+ * before they pollute the sequence buffer (e.g. pressing just `Ctrl`
+ * while preparing a `Mod+K G` chord).
+ */
+export const MODIFIER_KEYS: ReadonlySet<string> = new Set([
   "shift",
   "control",
   "ctrl",
