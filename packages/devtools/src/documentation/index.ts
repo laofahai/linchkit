@@ -59,5 +59,5 @@ export {
   type ProjectRuleDoc,
   type ProjectStateMachineDoc,
   type ProjectViewDoc,
-  renderProjectDoc,
 } from "./project-doc-generator";
+export { renderProjectDoc } from "./project-doc-renderer";
