@@ -182,6 +182,15 @@ export {
 } from "./observability/alert-engine";
 export { consoleLogger } from "./observability/console-logger";
 export { InMemoryExecutionLogger } from "./observability/execution-logger";
+export type {
+  Counter,
+  Histogram,
+  InstrumentOptions,
+  Meter,
+  MetricAttributes,
+  MetricAttributeValue,
+} from "./observability/meter";
+export { NoopMeter, noopMeter } from "./observability/meter";
 export {
   InMemoryMetricsCollector,
   type MetricSnapshot,
@@ -189,6 +198,12 @@ export {
   type MetricsSummary,
   noopMetricsCollector,
 } from "./observability/metrics";
+export type { Observability } from "./observability/observability-registry";
+export {
+  getObservability,
+  resetObservability,
+  setObservability,
+} from "./observability/observability-registry";
 export {
   createStructuredLogger,
   createTestLogSink,
@@ -203,6 +218,17 @@ export {
   type TraceState,
   withTrace,
 } from "./observability/trace-context";
+export type {
+  Span,
+  SpanAttributes,
+  SpanAttributeValue,
+  SpanKind,
+  SpanStatus,
+  SpanStatusCode,
+  StartSpanOptions,
+  Tracer,
+} from "./observability/tracer";
+export { NoopTracer, noopTracer } from "./observability/tracer";
 
 // === AI service ===
 

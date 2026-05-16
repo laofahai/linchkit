@@ -295,3 +295,177 @@ Proposal
 - External monitoring (Grafana / Prometheus)
 - **Log volume budgets per tenant**
 - **Full-stack log search by traceId**
+
+## 10. M3 OpenTelemetry Integration
+
+Tracking issue: **#130** (Spec 28 M3+).
+
+This section defines the OTel surface area LinchKit core exposes and the
+contracts a future `cap-otel` capability must honor. Phase 1 ships the
+**seam only** — interfaces, a noop default, and a single demonstration
+call site — without taking any `@opentelemetry/*` dependency in core.
+Phase 2 ships the adapter capability + dashboards.
+
+### 10.1 Phase 1 deliverables (this release)
+
+- `Tracer` / `Span` / `Meter` / `Counter` / `Histogram` interfaces in
+  `@linchkit/core` that mirror the shape of `@opentelemetry/api` (no
+  hard dependency).
+- `NoopTracer` + `NoopMeter` defaults — zero runtime cost.
+- Module-level singleton: `getObservability()` / `setObservability()` /
+  `resetObservability()` (the latter for tests).
+- One demonstration span emitted from CommandLayer
+  (`linchkit.command.dispatch`) so the seam is exercised by every
+  request, not just in tests.
+
+### 10.2 Phase 2 deliverables (follow-up issue)
+
+- `cap-otel` capability (new addon) wrapping `@opentelemetry/api` +
+  `@opentelemetry/sdk-trace-node` + `@opentelemetry/sdk-metrics` +
+  `@opentelemetry/exporter-trace-otlp-http` and
+  `@opentelemetry/exporter-metrics-otlp-http`.
+- Pre-built Grafana dashboards committed under
+  `docs/observability/grafana/` (JSON exports).
+- Prometheus alert rules under `docs/observability/prometheus/`.
+- A semantic-convention matrix that maps LinchKit attributes to OTel
+  semantic conventions (`http.*`, `db.*`, `messaging.*`).
+- Optional auto-instrumentation hooks for Bun/Elysia HTTP, Drizzle,
+  and Restate.
+
+### 10.3 Architecture sketch
+
+```text
+CommandLayer.execute(command)
+  └─ withTrace(...)                            (already in place — LinchKit trace_id)
+      └─ tracer.startSpan("linchkit.command.dispatch")
+          ├─ middleware: pre                   → no span (Phase 2 adds per-slot spans)
+          ├─ middleware: auth                  → span "linchkit.command.auth"
+          ├─ exposure check
+          ├─ middleware: permission            → span "linchkit.command.permission"
+          ├─ middleware: tenant                → span "linchkit.command.tenant"
+          ├─ middleware: pre-action            → span "linchkit.command.pre_action"
+          ├─ executor.execute()
+          │     └─ span "linchkit.action.<name>"
+          │           ├─ rule evaluation       → child span "linchkit.rule.<name>"
+          │           ├─ data provider write
+          │           └─ event emission        → span "linchkit.event.<name>"
+          │                 └─ EventHandler    → child span "linchkit.event_handler.<name>"
+          │                       └─ may enqueue flow → span "linchkit.flow.<id>.<step>"
+          └─ middleware: post-action           → span "linchkit.command.post_action"
+```
+
+Phase 1 only emits the outer `linchkit.command.dispatch` span. Phase 2
+fills in the inner spans incrementally — each is an additive change at
+its own call site, made possible by the seam.
+
+### 10.4 Span naming convention
+
+| Span | Where emitted |
+|------|---------------|
+| `linchkit.command.dispatch` | `CommandLayer.execute()` entry — **Phase 1** |
+| `linchkit.command.<slot>` | Each pipeline slot (`auth`, `permission`, `tenant`, `pre_action`, `post_action`) — Phase 2 |
+| `linchkit.action.<name>` | `ActionEngine.execute()` per action — Phase 2 |
+| `linchkit.event.<name>` | EventBus emit — Phase 2 |
+| `linchkit.event_handler.<name>` | EventHandler invocation — Phase 2 |
+| `linchkit.flow.<flowId>.<step>` | Restate Flow step entry — Phase 2 |
+| `linchkit.rule.<name>` | Rule evaluation when block/effect runs — Phase 2 |
+
+Naming rules:
+- Lowercase, dot-separated, ASCII only.
+- Domain prefix is always `linchkit.` (avoids collision with auto-
+  instrumentation that uses `http.*` / `db.*`).
+- Action / event / handler / rule names are the user-defined entity
+  identifiers (already validated `verb_noun` for actions, snake_case
+  elsewhere) — safe to use verbatim.
+
+### 10.5 Span attribute schema
+
+Required on every span emitted by core:
+
+| Attribute | Type | Notes |
+|-----------|------|-------|
+| `linchkit.command` | string | The command/action name (`linchkit.command.*` spans). |
+| `linchkit.channel` | string | One of `http`, `mcp`, `cli`, `ui`, `internal`. |
+| `linchkit.trace_id` | string | LinchKit internal trace ID (mirrors `X-Trace-Id`). Distinct from OTel `trace_id`; allows correlation with the existing Execution Log. |
+
+Conditional (set when present on the request):
+
+| Attribute | Type | Notes |
+|-----------|------|-------|
+| `linchkit.tenant_id` | string | Set by tenant middleware. Required for any span emitted after the tenant slot. |
+| `linchkit.capability` | string | The capability that owns the action/entity (resolved via OntologyRegistry). |
+| `linchkit.entity` | string | The target entity name when applicable. |
+| `linchkit.action` | string | The action name (set on `linchkit.action.*` spans even though the prefix already names it — eases cross-span query). |
+| `linchkit.actor.id` | string | Set on auth-completed spans only. |
+| `linchkit.actor.type` | string | `human` / `system` / `agent`. |
+| `linchkit.approval_id` | string | Set when re-executing an approval. |
+| `linchkit.skip_action_slots` | boolean | Set on `onchange` dispatch. |
+
+PII rule: NEVER set raw user input, password, or token fields as
+attributes. Field names of failed validators are allowed (already used
+elsewhere in the codebase for error context).
+
+### 10.6 Trace propagation (HTTP + GraphQL)
+
+| Transport | Inbound | Outbound |
+|-----------|---------|----------|
+| REST | Read W3C `traceparent` + `tracestate` from request headers; restore via `withTraceId` so the `X-Trace-Id` and OTel trace IDs share a parent. | Emit `traceparent` on any outgoing HTTP call from `cap-*` adapters. |
+| GraphQL | Yoga plugin reads `traceparent`. | N/A (server-side only). |
+| MCP | Adapter forwards `_traceparent` system meta when present. | Adapter sets `_traceparent` on tool invocations. |
+| Restate | Phase 2: store `traceparent` in workflow state so resumed steps continue the same trace. | Phase 2. |
+
+LinchKit's internal `X-Trace-Id` (Spec 28 §4.4) and the OTel
+`trace_id` are kept in sync only at request boundaries — internally
+each system uses its own ID for legacy compatibility (the Execution
+Log writes the LinchKit ID; OTel exports its own ID).
+
+### 10.7 OTLP exporter configuration (Phase 2)
+
+Environment variables (standard OTel names):
+
+| Var | Default | Notes |
+|-----|---------|-------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | _unset_ | When unset, the noop tracer/meter stay registered — **no network calls**. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `grpc` supported when the gRPC SDK is installed. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | _unset_ | Comma-separated `k=v` pairs for auth tokens. |
+| `OTEL_SERVICE_NAME` | `linchkit` | Override per deployment. |
+| `OTEL_SERVICE_VERSION` | package.json `version` | Read at startup. |
+| `OTEL_RESOURCE_ATTRIBUTES` | `linchkit.tenant_mode=multi` | Caller may append. |
+| `OTEL_TRACES_SAMPLER` | `parentbased_traceidratio` | |
+| `OTEL_TRACES_SAMPLER_ARG` | `1.0` (dev) / `0.1` (prod default) | Tunable. |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` (ms) | |
+
+Defaults are designed so a Phase 2 install with **no env vars set**
+behaves like Phase 1: noop only, no exporter, zero network traffic.
+
+### 10.8 Metric set
+
+LinchKit-defined OTel instruments (Phase 2 — names finalize when the
+adapter ships):
+
+| Instrument | Type | Unit | Attributes |
+|------------|------|------|------------|
+| `linchkit.commands.duration` | histogram | `ms` | `command`, `channel`, `status` |
+| `linchkit.actions.invoked` | counter | `1` | `action`, `status`, `tenant_id` |
+| `linchkit.events.processed` | counter | `1` | `event`, `status` (`success` / `error`), `handler` |
+| `linchkit.replay.batch.size` | histogram | `1` | `source` (`outbox` / `worker`) |
+| `linchkit.rules.blocked` | counter | `1` | `rule`, `entity` |
+| `linchkit.flow.active` | gauge (observable) | `1` | `flow_id` |
+
+These overlap with the existing in-process `MetricsCollector` metrics
+on purpose: the adapter subscribes to the in-process collector and
+forwards observations to OTel — one direction of data flow, no double
+counting.
+
+### 10.9 Future Phase 2
+
+- Pre-built Grafana dashboards committed under
+  `docs/observability/grafana/` (JSON exports for: Command Overview,
+  Action Drilldown, Event Pipeline, Tenant Comparison).
+- Prometheus alert rules under `docs/observability/prometheus/` (high
+  error rate, p99 regression, outbox backlog, flow stalled).
+- Semantic conventions matrix mapping LinchKit attributes to OTel
+  `http.*`, `db.*`, `messaging.*` where overlap exists.
+- Auto-instrumentation for Elysia, Drizzle, and Restate.
+- `OTEL_SDK_DISABLED=true` honored by the adapter to fall back to noop
+  without uninstalling.
