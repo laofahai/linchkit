@@ -10,11 +10,16 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 // Stub the cap-adapter-ui api module BEFORE the audit-api import below
-// so `graphql()` is intercepted. mock.module must be set up before any
-// dynamic imports of the consumer.
+// so `graphql()` is intercepted. mock.module is process-wide in bun:test
+// and persists across test files, so we re-export the full module surface
+// (only `graphql` is replaced) — otherwise unrelated test files that import
+// the api module (`isAuthEnabled`, `isAiEnabled`, etc.) would get an
+// undefined for every function we forgot to declare, breaking test isolation.
 const graphqlMock = mock(async (_query: string, _vars?: Record<string, unknown>) => ({ data: {} }));
 
+const apiActual = await import("@linchkit/cap-adapter-ui/lib/api");
 mock.module("@linchkit/cap-adapter-ui/lib/api", () => ({
+  ...apiActual,
   graphql: graphqlMock,
 }));
 
