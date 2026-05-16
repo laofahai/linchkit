@@ -75,12 +75,20 @@ export function matchesFilter(
 
 // ── EventBus ────────────────────────────────────────────────
 
+const DEFAULT_DEDUP_PRUNE_THRESHOLD = 500;
+
 export interface EventBusOptions {
   registry: EventHandlerRegistry;
   maxEmitDepth?: number;
   logger?: Logger;
   maxEventLogSize?: number;
   metrics?: MetricsCollector;
+  /**
+   * Deduplication window in milliseconds. When set to a positive value,
+   * duplicate events (same derived key within the window) are suppressed
+   * before handler dispatch. Default 0 = dedup disabled.
+   */
+  dedupWindow?: number;
 }
 
 export class EventBus {
@@ -91,6 +99,8 @@ export class EventBus {
   protected maxEventLogSize: number;
   protected logger: Logger;
   protected metrics: MetricsCollector;
+  protected dedupWindow: number;
+  private seenKeys = new Map<string, number>(); // key → expiry timestamp (ms)
 
   constructor(opts: EventBusOptions);
   /** @deprecated Use options object instead */
@@ -115,13 +125,58 @@ export class EventBus {
       this.maxEventLogSize = opts.maxEventLogSize ?? DEFAULT_MAX_EVENT_LOG_SIZE;
       this.logger = opts.logger ?? consoleLogger;
       this.metrics = opts.metrics ?? noopMetricsCollector;
+      this.dedupWindow = Math.max(0, opts.dedupWindow ?? 0);
     } else {
       this.registry = registryOrOpts as EventHandlerRegistry;
       this.maxEmitDepth = maxEmitDepth;
       this.maxEventLogSize = maxEventLogSize;
       this.logger = logger;
       this.metrics = metrics;
+      this.dedupWindow = 0;
     }
+  }
+
+  /**
+   * Check if an event is a duplicate within the configured dedup window.
+   * If dedup is enabled and the event is a duplicate, returns true (caller
+   * should skip dispatch). Otherwise marks the key as seen and returns false.
+   *
+   * The dedup key is `event.idempotencyKey` when provided, otherwise
+   * derived as `{executionId}:{type}`.
+   */
+  protected checkAndMarkDedup(event: EventRecord): boolean {
+    if (this.dedupWindow <= 0) return false;
+
+    const key = event.idempotencyKey ?? `${event.executionId}:${event.type}`;
+    const now = Date.now();
+
+    // Lazy prune: remove expired entries when map grows large
+    if (this.seenKeys.size >= DEFAULT_DEDUP_PRUNE_THRESHOLD) {
+      for (const [k, expiry] of this.seenKeys) {
+        if (expiry <= now) this.seenKeys.delete(k);
+      }
+    }
+
+    const existingExpiry = this.seenKeys.get(key);
+    if (existingExpiry !== undefined) {
+      if (existingExpiry > now) {
+        this.logger.warn(
+          `[EventBus] Duplicate event suppressed: key="${key}", type="${event.type}"`,
+        );
+        this.metrics.increment("event.dedup_suppressed", { eventType: event.type });
+        return true;
+      }
+      // Key exists but expired; allow re-dispatch and refresh expiry below.
+      this.seenKeys.delete(key);
+    }
+
+    this.seenKeys.set(key, now + this.dedupWindow);
+    return false;
+  }
+
+  /** Expose dedup store size for testing and observability */
+  get dedupStoreSize(): number {
+    return this.seenKeys.size;
   }
 
   /**
@@ -141,6 +196,9 @@ export class EventBus {
         `EventBus max emit depth (${this.maxEmitDepth}) exceeded for event "${event.type}". Possible infinite loop.`,
       );
     }
+
+    // Deduplication: suppress duplicate events within the configured window
+    if (this.checkAndMarkDedup(event)) return;
 
     this.emitDepth++;
     try {

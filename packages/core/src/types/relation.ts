@@ -10,6 +10,7 @@
  */
 
 import type { FieldDefinition } from "./entity";
+import type { RelationSemantics } from "./meta-semantics";
 
 // ── Cardinality ──────────────────────────────────────────
 
@@ -70,6 +71,8 @@ export interface RelationDefinition {
 
   /** Whether the relationship is required. Default: false */
   required?: boolean;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: RelationSemantics;
 }
 
 // ── Relation info (directional view) ──────────────────────────────────────────

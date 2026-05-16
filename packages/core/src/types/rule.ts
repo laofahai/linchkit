@@ -6,6 +6,7 @@
  */
 
 import type { ExecutionMeta } from "./execution-meta";
+import type { RuleSemantics } from "./meta-semantics";
 
 // ── Comparison operators ──────────────────────────────────────
 
@@ -170,6 +171,8 @@ export interface RuleDefinition {
   context?: RuleContext;
   condition: DeclarativeCondition | CodeCondition;
   effect: RuleEffect;
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: RuleSemantics;
 }
 
 // ── Rule evaluation result ──────────────────────────────────

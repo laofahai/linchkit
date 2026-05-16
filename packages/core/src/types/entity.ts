@@ -5,6 +5,7 @@
  * Define once, auto-generate Zod / Drizzle / TypeScript / GraphQL / JSON Schema.
  */
 
+import type { EntitySemantics } from "./meta-semantics";
 import type { OnchangeDefinition } from "./onchange";
 
 // ── Field types ──────────────────────────────────────────
@@ -349,6 +350,8 @@ export interface EntityDefinition<
    * editable even when the record as a whole is locked.
    */
   lockAllowFields?: string[];
+  /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
+  semantics?: EntitySemantics;
 }
 
 // ── Schema extension and override ─────────────────────────────────

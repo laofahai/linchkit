@@ -48,6 +48,7 @@ export {
 export type * from "./flow";
 export type * from "./life-system";
 export type * from "./logger";
+export type * from "./meta-semantics";
 export type * from "./onchange";
 export type * from "./overlay";
 export type * from "./page";

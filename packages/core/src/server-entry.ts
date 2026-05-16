@@ -133,6 +133,13 @@ export { createRelationRegistry, RelationRegistry } from "./entity/relation-regi
 
 // === Event bus ===
 
+export {
+  createDlqService,
+  type DlqEntry,
+  type DlqListOptions,
+  type DlqService,
+  type DlqStats,
+} from "./event/dlq-service";
 export { createEventBus, EventBus, EventHandlerRegistry } from "./event/event-bus";
 export {
   createOutboxWorker,
