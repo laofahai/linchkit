@@ -199,6 +199,17 @@ function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
       meta = undefined;
     }
   }
+  // Re-hydrate top-level EventRecord fields from the persisted payload so
+  // the dispatched record matches the original shape. For framework events
+  // (record.created/updated/deleted, state.changed, ...) the producer puts
+  // entity/recordId/action inside the payload jsonb; the EventRecord type
+  // also exposes them at the top level. Handlers like cache invalidation
+  // read the top-level fields, so dropping them silently no-ops the replay.
+  const entity = pickStringField(payload, "entity");
+  const recordId = pickStringField(payload, "recordId");
+  const action = pickStringField(payload, "action") ?? row.sourceAction ?? undefined;
+  const capability = pickStringField(payload, "capability");
+
   return {
     id: row.id,
     type: row.eventType,
@@ -207,19 +218,40 @@ function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
     actor: { type: "system", id: "event-replay" },
     executionId: row.sourceExecutionId ?? "",
     tenantId: row.tenantId ?? undefined,
+    entity,
+    recordId,
+    action,
+    capability,
     payload,
     meta,
   };
 }
 
-/** Handler context for replay — emits are swallowed to avoid cascading replays. */
-function createReplayContext(meta: ExecutionMetaImpl | undefined): EventHandlerContext {
+function pickStringField(payload: Record<string, unknown>, key: string): string | undefined {
+  const v = payload[key];
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+/**
+ * Handler context for replay — emits are swallowed to avoid cascading
+ * replays, and the meta is tagged with `_replay`/`_replay_origin_id`
+ * (Spec 66 §4.3 safety markers) so handlers can short-circuit
+ * non-idempotent side effects (sending email, billing, calling
+ * external APIs) when invoked from a replay rather than the
+ * original delivery.
+ */
+function createReplayContext(
+  meta: ExecutionMetaImpl | undefined,
+  originEventId: string,
+): EventHandlerContext {
+  const base = meta ?? new ExecutionMetaImpl({});
+  const tagged = base.extend({}, { _replay: true, _replay_origin_id: originEventId });
   return {
     emit: () => {
       // Replay does not propagate chained emits; downstream events are out of
       // scope for a single-event re-dispatch (Spec 66 §4.3 safety guards).
     },
-    meta: meta ?? new ExecutionMetaImpl({}),
+    meta: tagged,
   };
 }
 
@@ -316,7 +348,7 @@ export function createEventReplayService(opts: EventReplayServiceOptions): Event
     const handlers = selectHandlers(registry, event.type, event.payload, onlyHandler);
     if (handlers.length === 0) return { delivered: 0, errors: [] };
 
-    const ctx = createReplayContext(event.meta as ExecutionMetaImpl | undefined);
+    const ctx = createReplayContext(event.meta as ExecutionMetaImpl | undefined, event.id);
     const traceId = (event.payload as Record<string, unknown>)?._traceId as string | undefined;
 
     let delivered = 0;
