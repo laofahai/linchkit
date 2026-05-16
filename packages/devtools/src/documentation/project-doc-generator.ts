@@ -623,6 +623,16 @@ function renderEventHandlersSection(handlers: ProjectEventHandlerDoc[]): string[
   return lines;
 }
 
+/**
+ * Escape characters that would break a Markdown table row: pipes (which
+ * GFM treats as column separators) and embedded newlines (which would split
+ * the row across lines).
+ */
+function escapeMarkdownTableCell(value: string | undefined): string {
+  if (!value) return "";
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
 function renderFieldTable(fields: FieldDoc[]): string[] {
   if (fields.length === 0) return ["_No fields._"];
 
@@ -638,7 +648,9 @@ function renderFieldTable(fields: FieldDoc[]): string[] {
 
     const req = f.required ? "yes" : "no";
     const desc = f.description ?? f.label;
-    lines.push(`| ${f.name} | ${typeStr} | ${req} | ${desc} |`);
+    lines.push(
+      `| ${escapeMarkdownTableCell(f.name)} | ${escapeMarkdownTableCell(typeStr)} | ${req} | ${escapeMarkdownTableCell(desc)} |`,
+    );
   }
 
   return lines;
