@@ -418,6 +418,8 @@ export { defineSemanticRelation } from "./types/semantic-relation";
 export { resolveEnvVars } from "./utils/env";
 export type { IdentifierValidationResult } from "./utils/identifier";
 export { validateIdentifier } from "./utils/identifier";
+// View layout chain builder — parallel ergonomic API to the helpers above
+export { type FormLayoutBuilder, formLayout } from "./view/form-layout-builder";
 // View layout helpers — syntactic sugar over FormLayoutNode JSON shape
 export {
   type FieldOptions,
