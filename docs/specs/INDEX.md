@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 70 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 71 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -153,6 +153,7 @@ Capability definition, extension, composition, and distribution.
 |---|-------|---------|-----------|--------|
 | [24](./24_relation_graph.md) | Relation Graph | Entity relation visualization, semantic inference, impact analysis, mermaid export | M2 | Done |
 | [43](./43_ontology_layer.md) | Ontology Layer | OntologyRegistry — unified read-only facade, describe(), searchEntities(), toJSON() | M2 | Done |
+| [67](./67_meta_model_semantics.md) | Meta-Model Semantics | `MetaSemantics` on every defineXxx() — intent/domain/risk/cost/evidence + structural inference; consumed by evolution, NL→defineXxx, conflict detection | M5–M6 | Partial |
 
 ## Initialization
 
@@ -201,14 +202,15 @@ Capability definition, extension, composition, and distribution.
 | Status | Count |
 |--------|-------|
 | Done | 51 |
-| Partial | 12 |
+| Partial | 13 |
 | Draft | 7 |
-| **Total** | **70** unique specs |
+| **Total** | **71** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-05-16 | Added Spec 67 (Meta-Model Semantics — Partial; Phase 1 types + structural inference + OntologyRegistry semantic API landed via PR #308); Stats updated: Partial 12→13, Total 70→71 |
 | 2026-05-11 | Added Spec 66 (Event Lifecycle Management — Draft); Stats updated: Draft 6→7, Total 69→70 |
 | 2026-05-08 | Spec 45 rewritten: title "Reactive Automation" → "Data-Condition Watcher"; AutomationEngine sections dropped (removed in PR #146); spec now scoped to `defineWatcher` only (issue #150) |
 | 2026-05-07 | Spec 64 Draft→Done (M5 core+API+GraphQL via #191/#198/#206; M6 frontend via #235; issues #148/#207 closed) |
