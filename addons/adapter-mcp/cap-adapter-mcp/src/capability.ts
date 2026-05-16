@@ -39,11 +39,6 @@ export const capAdapterMcp = defineCapability({
             secret: true,
             description: "Bearer token for MCP auth",
           },
-          enableStdio: {
-            type: "boolean",
-            default: true,
-            description: "Enable stdio transport",
-          },
           tenantId: {
             type: "string",
             description: "Tenant ID for multi-tenant scoping",
