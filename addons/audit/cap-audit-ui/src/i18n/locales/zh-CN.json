@@ -1,0 +1,85 @@
+{
+  "audit": {
+    "common": {
+      "previous": "上一页",
+      "next": "下一页"
+    },
+    "list": {
+      "title": "审计日志",
+      "subtitle": "_linchkit.executions 中记录的每一次 Action 执行。",
+      "startedAt": "开始时间",
+      "action": "Action",
+      "entity": "实体",
+      "actor": "操作者",
+      "status": "状态",
+      "duration": "耗时",
+      "empty": "当前筛选条件下没有匹配的执行日志。",
+      "openDetail": "打开执行详情",
+      "totalCount": "共 {{count}} 条"
+    },
+    "detail": {
+      "title": "执行详情",
+      "executionId": "执行 ID",
+      "status": "状态",
+      "action": "Action",
+      "duration": "耗时",
+      "actor": "操作者",
+      "entity": "实体",
+      "channel": "通道",
+      "capability": "能力",
+      "startedAt": "开始时间",
+      "completedAt": "完成时间",
+      "error": "错误",
+      "stateTransition": "状态迁移",
+      "input": "输入",
+      "output": "输出",
+      "meta": "执行元数据 (Spec 65)",
+      "notFound": "未找到该执行记录。"
+    },
+    "filters": {
+      "action": "Action",
+      "actor": "操作者",
+      "entity": "实体",
+      "status": "状态",
+      "statusAny": "全部",
+      "apply": "应用",
+      "reset": "重置筛选"
+    }
+  },
+  "events": {
+    "handlers": {
+      "title": "处理器历史",
+      "empty": "没有处理器调用记录。",
+      "handler": "处理器",
+      "status": "状态",
+      "duration": "毫秒",
+      "aggregate": "（聚合）"
+    },
+    "replay": {
+      "title": "重放事件",
+      "description": "通过已注册的处理器重新派发该事件。原始事件行不会被修改。",
+      "targetFallback": "事件",
+      "dryRun": "试运行",
+      "dryRunHint": "试运行 — 仅解析候选处理器而不实际调用。",
+      "handlerFilterLabel": "限定处理器（可选）",
+      "cancel": "取消",
+      "submit": "立即重放",
+      "submitDry": "运行试重放",
+      "summary": "重放摘要",
+      "summaryHeading": "重放结果",
+      "summaryDryHeading": "试运行结果",
+      "delivered": "已派发 {{n}} 个",
+      "failed": "失败 {{n}} 个",
+      "noHandlers": "没有已注册的处理器匹配该事件。"
+    },
+    "timeline": {
+      "title": "事件时间线",
+      "subtitle": "_linchkit.events 中持久化的每一个领域事件，附带每个处理器的派发状态。",
+      "empty": "没有事件匹配当前筛选条件。",
+      "hideHandlers": "隐藏处理器",
+      "viewHandlers": "查看处理器",
+      "replay": "重放",
+      "totalCount": "共 {{count}} 个事件"
+    }
+  }
+}

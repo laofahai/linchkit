@@ -4,7 +4,15 @@
  * Registers the audit log admin route + the event timeline admin route.
  * Imported by the host UI bundle (cap-adapter-ui) to wire the capability
  * into the admin layout.
+ *
+ * The `./i18n` import is side-effect-only — it adds the capability's
+ * `en` / `zh-CN` bundles to the shared react-i18next instance before
+ * any view is rendered. Keep it ABOVE the route registration so the
+ * `audit.list.title` / `events.timeline.title` labels used below
+ * resolve on first render.
  */
+
+import "./i18n";
 
 import { registerAdminRoute } from "@linchkit/cap-adapter-ui/route-registry";
 
