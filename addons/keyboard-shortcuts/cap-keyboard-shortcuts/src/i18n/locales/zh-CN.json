@@ -1,0 +1,11 @@
+{
+  "keyboardShortcuts": {
+    "cheatsheet": {
+      "title": "键盘快捷键",
+      "empty": "尚未注册任何快捷键。",
+      "close": "关闭",
+      "scope": "帮助",
+      "toggleDescription": "切换快捷键速查表"
+    }
+  }
+}

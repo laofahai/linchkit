@@ -295,6 +295,18 @@
         "@linchkit/core": "^0.2.0",
       },
     },
+    "addons/keyboard-shortcuts/cap-keyboard-shortcuts": {
+      "name": "@linchkit/cap-keyboard-shortcuts",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+        "react": "^19.0.0",
+        "react-i18next": "^14",
+      },
+    },
     "addons/migration/cap-migration": {
       "name": "@linchkit/cap-migration",
       "version": "1.0.0",
@@ -712,6 +724,8 @@
     "@linchkit/cap-file-storage": ["@linchkit/cap-file-storage@workspace:addons/file-storage/cap-file-storage"],
 
     "@linchkit/cap-flow-restate": ["@linchkit/cap-flow-restate@workspace:addons/flow-restate/cap-flow-restate"],
+
+    "@linchkit/cap-keyboard-shortcuts": ["@linchkit/cap-keyboard-shortcuts@workspace:addons/keyboard-shortcuts/cap-keyboard-shortcuts"],
 
     "@linchkit/cap-life-demo": ["@linchkit/cap-life-demo@workspace:addons/demo/cap-life-demo"],
 
