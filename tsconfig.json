@@ -60,6 +60,9 @@
       "@linchkit/cap-chatter": ["./addons/chatter/cap-chatter/src"],
       "@linchkit/cap-chatter/capability": ["./addons/chatter/cap-chatter/src/capability.ts"],
       "@linchkit/cap-chatter/graphql": ["./addons/chatter/cap-chatter/src/graphql.ts"],
+      "@linchkit/cap-search": ["./addons/search/cap-search/src"],
+      "@linchkit/cap-search/capability": ["./addons/search/cap-search/src/capability.ts"],
+      "@linchkit/cap-search/graphql": ["./addons/search/cap-search/src/graphql.ts"],
       "@/*": ["./addons/adapter-ui/cap-adapter-ui/src/*"]
     }
   },

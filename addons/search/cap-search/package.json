@@ -1,0 +1,35 @@
+{
+  "name": "@linchkit/cap-search",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts",
+    "./graphql": "./src/graphql.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0",
+    "drizzle-orm": "^0.45.1",
+    "graphql": "^16.13.1"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "typescript": "^6.0.2"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.1.0",
+    "type": "standard",
+    "category": "system"
+  }
+}
