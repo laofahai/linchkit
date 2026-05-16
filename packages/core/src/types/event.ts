@@ -123,69 +123,55 @@ export type BatchRecordSubscriptionEvent = {
   entity: string;
   recordIds: string[];
   count: number;
-  /**
-   * Per-record payloads from the original individual events, in original order.
-   * Mirrors what the underlying `record.created/updated/deleted` events
-   * carried, so subscribers can react to the batch without losing per-record
-   * context (e.g., changed fields).
-   */
-  records: Array<Record<string, unknown>>;
+  /** Per-record payloads from the originating individual events */
+  records?: Array<Record<string, unknown>>;
   tenantId: string;
   actor: { id: string; type: string };
   timestamp: string;
   executionId?: string;
-};
-
-/** SSE event for a state-machine transition (state.changed). */
-export type StateChangedSubscriptionEvent = {
-  type: "state.changed";
-  entity: string;
-  recordId?: string;
-  tenantId: string;
-  actor: { id: string; type: string };
-  timestamp: string;
-  executionId?: string;
-  /** State transition info — required for state.changed. */
-  state: { from: string; to: string; action: string };
-  changes?: Record<string, unknown>;
-};
-
-/** SSE event for an approval resolution (approval.resolved). */
-export type ApprovalResolvedSubscriptionEvent = {
-  type: "approval.resolved";
-  entity: string;
-  recordId?: string;
-  tenantId: string;
-  actor: { id: string; type: string };
-  timestamp: string;
-  executionId?: string;
-  changes?: Record<string, unknown>;
-};
-
-/** SSE event for an entity-level change (entity.changed). */
-export type EntityChangedSubscriptionEvent = {
-  type: "entity.changed";
-  entity: string;
-  recordId?: string;
-  tenantId: string;
-  actor: { id: string; type: string };
-  timestamp: string;
-  executionId?: string;
-  changes?: Record<string, unknown>;
 };
 
 /**
  * SSE event pushed to subscribed clients (spec 44).
  *
- * Discriminated union on `type` — narrow by `type` to access fields that
- * differ between single-record, batch, state, approval, and entity variants.
+ * Discriminated union on `type` — narrow on `event.type` to access the correct
+ * fields for each event kind without unsafe casts.
  */
 export type SubscriptionEvent =
   | RecordSubscriptionEvent
   | BatchRecordSubscriptionEvent
-  | StateChangedSubscriptionEvent
-  | ApprovalResolvedSubscriptionEvent
-  | EntityChangedSubscriptionEvent;
+  | {
+      type: "state.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      /** Required for state.changed — describes the transition */
+      state: { from: string; to: string; action: string };
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "approval.resolved";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "entity.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    };
 
 // ── EventBusLike interface ───────────────────────────────────
 // Minimal event bus contract used by automation and flow modules
