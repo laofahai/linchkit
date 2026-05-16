@@ -391,3 +391,102 @@ describe("CommandLayer.executeBatch — input validation", () => {
     expect(provider.records.size).toBe(2);
   });
 });
+
+// ── Batch event merging integration (Spec 04 §8.2) ────────────
+
+describe("CommandLayer.executeBatch — batch event merging", () => {
+  /** Action that explicitly emits record.created so pendingEvents are populated. */
+  const createItemWithEvent: ActionDefinition = {
+    name: "create_item_ev",
+    entity: "item",
+    label: "Create Item (emits event)",
+    policy: { mode: "sync", transaction: true },
+    exposure: "all",
+    handler: async (ctx) => {
+      const record = await ctx.create("item", { title: ctx.input.title });
+      const id = (record as Record<string, unknown>).id as string;
+      ctx.emit("record.created", { entity: "item", recordId: id, title: ctx.input.title });
+      return record;
+    },
+  };
+
+  it("merges record.created events from all_or_nothing batch into record.batch_created", async () => {
+    const provider = createSnapshotProvider();
+    let capturedPending: PendingEvent[] = [];
+
+    const capturingTxManager: TransactionManager = {
+      async runInTransaction<T>(fn: (tx: DataProvider) => Promise<T>, pending: PendingEvent[]) {
+        const result = await fn(provider);
+        capturedPending = [...pending]; // capture after fn() + merge step
+        return result;
+      },
+    };
+
+    const executor = createActionExecutor({
+      dataProvider: provider,
+      transactionManager: capturingTxManager,
+    });
+    executor.registry.register(createItemWithEvent);
+    const layer = createCommandLayer({ executor, transactionManager: capturingTxManager });
+
+    const result = await layer.executeBatch({
+      input: {
+        strategy: "all_or_nothing",
+        actions: [
+          { name: "create_item_ev", input: { title: "A" } },
+          { name: "create_item_ev", input: { title: "B" } },
+          { name: "create_item_ev", input: { title: "C" } },
+        ],
+      },
+      actor: adminActor,
+    });
+
+    expect(result.success).toBe(true);
+
+    // Individual events kept for back-compat
+    const individual = capturedPending.filter((e) => e.type === "record.created");
+    expect(individual).toHaveLength(3);
+
+    // One batch event added
+    const batch = capturedPending.filter((e) => e.type === "record.batch_created");
+    expect(batch).toHaveLength(1);
+    const batchEvent = batch.at(0);
+    expect(batchEvent?.payload.entity).toBe("item");
+    expect((batchEvent?.payload.recordIds as string[]).length).toBe(3);
+    expect(batchEvent?.payload.count).toBe(3);
+  });
+
+  it("does not create batch events for single-item batches", async () => {
+    const provider = createSnapshotProvider();
+    let capturedPending: PendingEvent[] = [];
+
+    const capturingTxManager: TransactionManager = {
+      async runInTransaction<T>(fn: (tx: DataProvider) => Promise<T>, pending: PendingEvent[]) {
+        const result = await fn(provider);
+        capturedPending = [...pending];
+        return result;
+      },
+    };
+
+    const executor = createActionExecutor({
+      dataProvider: provider,
+      transactionManager: capturingTxManager,
+    });
+    executor.registry.register(createItemWithEvent);
+    const layer = createCommandLayer({ executor, transactionManager: capturingTxManager });
+
+    await layer.executeBatch({
+      input: {
+        strategy: "all_or_nothing",
+        actions: [{ name: "create_item_ev", input: { title: "Solo" } }],
+      },
+      actor: adminActor,
+    });
+
+    const batch = capturedPending.filter((e) => e.type === "record.batch_created");
+    expect(batch).toHaveLength(0);
+
+    const individual = capturedPending.filter((e) => e.type === "record.created");
+    expect(individual).toHaveLength(1);
+  });
+});

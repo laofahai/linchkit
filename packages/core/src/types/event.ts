@@ -97,24 +97,81 @@ export type SubscriptionEventType =
   | "record.created"
   | "record.updated"
   | "record.deleted"
+  | "record.batch_created"
+  | "record.batch_updated"
+  | "record.batch_deleted"
   | "state.changed"
   | "approval.resolved"
   | "entity.changed";
 
-/** SSE event pushed to subscribed clients (spec 44) */
-export interface SubscriptionEvent {
-  type: SubscriptionEventType;
+/** SSE event for a single-record mutation (record.created / updated / deleted) */
+export type RecordSubscriptionEvent = {
+  type: "record.created" | "record.updated" | "record.deleted";
   entity: string;
   recordId: string;
   tenantId: string;
-  /** Partial data — only changed fields, not the full record */
-  changes?: Record<string, unknown>;
-  /** State transition info (only for state.changed) */
-  state?: { from: string; to: string; action: string };
   actor: { id: string; type: string };
   timestamp: string;
   executionId?: string;
-}
+  /** Partial data — only changed fields, not the full record */
+  changes?: Record<string, unknown>;
+};
+
+/** SSE event for a multi-record batch mutation (record.batch_created / updated / deleted) */
+export type BatchRecordSubscriptionEvent = {
+  type: "record.batch_created" | "record.batch_updated" | "record.batch_deleted";
+  entity: string;
+  recordIds: string[];
+  count: number;
+  /** Per-record payloads from the originating individual events */
+  records?: Array<Record<string, unknown>>;
+  tenantId: string;
+  actor: { id: string; type: string };
+  timestamp: string;
+  executionId?: string;
+};
+
+/**
+ * SSE event pushed to subscribed clients (spec 44).
+ *
+ * Discriminated union on `type` — narrow on `event.type` to access the correct
+ * fields for each event kind without unsafe casts.
+ */
+export type SubscriptionEvent =
+  | RecordSubscriptionEvent
+  | BatchRecordSubscriptionEvent
+  | {
+      type: "state.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      /** Required for state.changed — describes the transition */
+      state: { from: string; to: string; action: string };
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "approval.resolved";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    }
+  | {
+      type: "entity.changed";
+      entity: string;
+      recordId?: string;
+      tenantId: string;
+      actor: { id: string; type: string };
+      timestamp: string;
+      executionId?: string;
+      changes?: Record<string, unknown>;
+    };
 
 // ── EventBusLike interface ───────────────────────────────────
 // Minimal event bus contract used by automation and flow modules

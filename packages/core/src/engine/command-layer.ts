@@ -42,9 +42,9 @@ import type {
   TransactionManager,
 } from "./action-engine";
 import { generateExecutionId } from "./action-helpers";
-import { MAX_BATCH_SIZE } from "./batch-action-engine";
+import { MAX_BATCH_SIZE, mergePendingBatchEvents } from "./batch-action-engine";
 
-// ── Slot names (execution order) ────────────────────────────
+// ── Slot names (execution order) ──────────────────────────────
 
 const SLOT_ORDER = [
   "pre",
@@ -58,13 +58,13 @@ const SLOT_ORDER = [
 
 export type SlotName = (typeof SLOT_ORDER)[number];
 
-// ── Pipeline ID generator ───────────────────────────────────
+// ── Pipeline ID generator ─────────────────────────────────
 
 function generatePipelineId(): string {
   return `pipeline_${crypto.randomUUID()}`;
 }
 
-// ── CommandContext ───────────────────────────────────────────
+// ── CommandContext ───────────────────────────────────────
 
 export interface CommandContext {
   /** Action name to execute */
@@ -91,7 +91,7 @@ export interface CommandContext {
   traceId?: string;
 }
 
-// ── Middleware types ────────────────────────────────────────
+// ── Middleware types ────────────────────────────────────
 
 export type MiddlewareHandler = (ctx: CommandContext, next: () => Promise<void>) => Promise<void>;
 
@@ -108,7 +108,7 @@ export interface MiddlewareRegistration {
   critical?: boolean;
 }
 
-// ── Anonymous actor default ─────────────────────────────────
+// ── Anonymous actor default ─────────────────────────────
 
 const ANONYMOUS_ACTOR: Actor = {
   type: "system",
@@ -116,7 +116,7 @@ const ANONYMOUS_ACTOR: Actor = {
   groups: [],
 };
 
-// ── Exposure check (built-in) ───────────────────────────────
+// ── Exposure check (built-in) ───────────────────────────
 
 function checkExposure(action: ActionDefinition, channel: ExecutionChannel): boolean {
   const exposure = action.exposure;
@@ -125,7 +125,7 @@ function checkExposure(action: ActionDefinition, channel: ExecutionChannel): boo
   return val !== false;
 }
 
-// ── CommandLayer ────────────────────────────────────────────
+// ── CommandLayer ───────────────────────────────────────
 
 export interface CommandLayerOptions {
   /** The action executor to invoke after pipeline */
@@ -251,7 +251,7 @@ export interface CommandExecuteOptions {
   _parentPendingEvents?: PendingEvent[];
 }
 
-// ── Batch execute options ───────────────────────────────────
+// ── Batch execute options ──────────────────────────────
 
 /** Options for {@link CommandLayer.executeBatch}. */
 export interface CommandBatchExecuteOptions {
@@ -810,7 +810,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       return opts;
     };
 
-    // ── Strategy: partial ─────────────────────────────────
+    // ── Strategy: partial ───────────────────────────────
     if (strategy === "partial") {
       const succeeded: BatchSucceededItem[] = [];
       const failed: BatchActionsResult["failed"] = [];
@@ -878,6 +878,9 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
           }
           succeededInside.push(toSucceededItem(i, result));
         }
+        // Merge same-type, same-entity record events into batch events (Spec 04 §8.2).
+        const merged = mergePendingBatchEvents(sharedPendingEvents);
+        sharedPendingEvents.splice(0, sharedPendingEvents.length, ...merged);
       }, sharedPendingEvents);
     } catch (err) {
       if (err instanceof BatchAbort) {
@@ -932,7 +935,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
   return { use, execute, executeBatch, getMiddlewares };
 }
 
-// ── Batch helpers ───────────────────────────────────────────
+// ── Batch helpers ───────────────────────────────────────
 
 /** Map an `ActionResult.data` payload into a structured batch error. */
 function extractErrorFromActionResult(result: ActionResult): {
@@ -976,7 +979,7 @@ function buildBatchValidationFailure(
   };
 }
 
-// ── Pipeline errors ─────────────────────────────────────────
+// ── Pipeline errors ──────────────────────────────────────
 
 /** Error thrown by built-in exposure check */
 export class ExposureError extends AuthorizationError {
