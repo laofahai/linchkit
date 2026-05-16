@@ -1,0 +1,13 @@
+{
+  "theme": {
+    "toggle": {
+      "ariaLabel": "切换主题",
+      "tooltip": "切换主题（当前：{{mode}}）",
+      "modes": {
+        "system": "跟随系统",
+        "light": "浅色",
+        "dark": "深色"
+      }
+    }
+  }
+}
