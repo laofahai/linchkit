@@ -1,0 +1,11 @@
+{
+  "keyboardShortcuts": {
+    "cheatsheet": {
+      "title": "Keyboard shortcuts",
+      "empty": "No shortcuts are registered yet.",
+      "close": "Close",
+      "scope": "Help",
+      "toggleDescription": "Toggle shortcut cheatsheet"
+    }
+  }
+}
