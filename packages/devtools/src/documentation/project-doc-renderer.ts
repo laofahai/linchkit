@@ -28,7 +28,11 @@ import type {
  *
  * Top-level sections are emitted in a stable order:
  * Entities → Actions (per entity) → Rules → State Machines →
- * Views → Flows → Relations.
+ * Views → Flows → Relations → Events → Event Handlers.
+ *
+ * Sections are skipped when their underlying list is empty so the
+ * generated document stays focused on whatever the project actually
+ * defines.
  */
 export function renderProjectDoc(doc: ProjectDoc): string {
   const lines: string[] = [];
