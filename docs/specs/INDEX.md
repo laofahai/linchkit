@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 69 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 70 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -87,6 +87,7 @@ Capability definition, extension, composition, and distribution.
 | [41a](./41_data_security_and_masking.md) | Data Security & Masking | Field-level masking rules, MaskingEngine, permission-based display | M1 | Done |
 | [51](./51_data_i18n.md) | Data i18n | JSONB translation storage, shared i18n package, messageKey API (supersedes spec 41 i18n) | M1 | Done |
 | [63](./63_field_immutability_and_locking.md) | Field Immutability & Locking | Immutable fields, state-driven conditional locks, core enforcement + cap-lock capability | M5 | Partial |
+| [66](./66_event_lifecycle_management.md) | Event Lifecycle Management | Event deduplication, archival/retention (hot/warm/cold), replay tooling, execution log governance | M5–M7 | Draft |
 
 > **Note**: `41_data_i18n.md` is deprecated, superseded by `51_data_i18n.md` — do not implement based on 41.
 
@@ -201,13 +202,14 @@ Capability definition, extension, composition, and distribution.
 |--------|-------|
 | Done | 51 |
 | Partial | 12 |
-| Draft | 6 |
-| **Total** | **69** unique specs |
+| Draft | 7 |
+| **Total** | **70** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-05-11 | Added Spec 66 (Event Lifecycle Management — Draft); Stats updated: Draft 6→7, Total 69→70 |
 | 2026-05-08 | Spec 45 rewritten: title "Reactive Automation" → "Data-Condition Watcher"; AutomationEngine sections dropped (removed in PR #146); spec now scoped to `defineWatcher` only (issue #150) |
 | 2026-05-07 | Spec 64 Draft→Done (M5 core+API+GraphQL via #191/#198/#206; M6 frontend via #235; issues #148/#207 closed) |
 | 2026-05-07 | Spec 65 Draft→Done (Phase 1 #201, transports/log #213, idempotency #227, MCP §3.3 #231, CLI §3.5 #232, rule §6 #233, EventHandler §7 #229, masked keys #220; all Spec 65 issues closed) |
