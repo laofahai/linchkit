@@ -314,6 +314,19 @@
         "@linchkit/core": "^0.1.0",
       },
     },
+    "addons/search/cap-search": {
+      "name": "@linchkit/cap-search",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+        "drizzle-orm": "^0.45.1",
+        "graphql": "^16.13.1",
+      },
+    },
     "packages/cli": {
       "name": "@linchkit/cli",
       "version": "0.2.0",
@@ -676,6 +689,8 @@
     "@linchkit/cap-permission": ["@linchkit/cap-permission@workspace:addons/permission/cap-permission"],
 
     "@linchkit/cap-purchase-demo": ["@linchkit/cap-purchase-demo@workspace:addons/demo/cap-purchase-demo"],
+
+    "@linchkit/cap-search": ["@linchkit/cap-search@workspace:addons/search/cap-search"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 
