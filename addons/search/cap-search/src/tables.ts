@@ -23,19 +23,31 @@ const tsvector = customType<{ data: string; driverData: string }>({
 
 // ── search_documents table ──────────────────────────────────
 
+/**
+ * Tenant-less rows (single-tenant deployments or system entities) are stored
+ * with `tenant_id = ''` rather than NULL. Postgres treats NULLs as distinct in
+ * standard unique indexes, so a NULLable `tenant_id` would silently allow
+ * duplicate rows per (entity, record_id). Forcing an empty-string sentinel
+ * keeps the unique index meaningful without resorting to a partial index +
+ * COALESCE expression. The application layer translates a missing tenantId to
+ * `''` at insert time and treats `''` as "no tenant" at query time.
+ */
+export const NO_TENANT_SENTINEL = "";
+
 export const searchDocumentsTable = linchkitSchema.table(
   "search_documents",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: varchar("tenant_id", { length: 255 }),
+    tenantId: varchar("tenant_id", { length: 255 }).notNull().default(NO_TENANT_SENTINEL),
     entity: varchar("entity", { length: 255 }).notNull(),
     recordId: varchar("record_id", { length: 255 }).notNull(),
     tsv: tsvector("tsv").notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
   (table) => [
-    // One row per (tenant, entity, record). NULL tenant_id is treated as a
-    // distinct value by Postgres, so single-tenant deployments work.
+    // One row per (tenant, entity, record). tenant_id is NOT NULL with a `''`
+    // default so the unique index actually prevents duplicates — see the
+    // NO_TENANT_SENTINEL doc above for why we don't allow NULL here.
     uniqueIndex("idx_search_documents_unique").on(table.tenantId, table.entity, table.recordId),
     index("idx_search_documents_entity").on(table.entity),
     // GIN index on tsv is created via raw SQL in a follow-up migration —
