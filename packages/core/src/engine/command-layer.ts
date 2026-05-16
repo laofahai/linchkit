@@ -29,6 +29,7 @@ import { AuthorizationError, LinchKitError, SystemError } from "../errors";
 import { consoleLogger } from "../observability/console-logger";
 import type { MetricsCollector } from "../observability/metrics";
 import { noopMetricsCollector } from "../observability/metrics";
+import { getObservability } from "../observability/observability-registry";
 import { getCurrentTrace, withTrace, withTraceId } from "../observability/trace-context";
 import type { ActionDefinition, ActionResult, Actor } from "../types/action";
 import type { BatchActionsInput, BatchActionsResult, BatchSucceededItem } from "../types/batch";
@@ -366,6 +367,41 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
     // Capture trace ID from the active trace context
     const trace = getCurrentTrace();
 
+    // OTel seam (Spec 28 M3, issue #130 Phase 1) — emit a single
+    // `linchkit.command.dispatch` span around the pipeline. Defaults to
+    // the noop tracer (zero cost); a future OTel adapter swaps in via
+    // `setObservability(...)` without touching this call site.
+    const dispatchSpan = getObservability().tracer.startSpan("linchkit.command.dispatch", {
+      kind: "internal",
+      attributes: {
+        "linchkit.command": execOptions.command,
+        "linchkit.channel": execOptions.channel ?? "internal",
+        ...(trace?.traceId ? { "linchkit.trace_id": trace.traceId } : {}),
+      },
+    });
+    try {
+      const result = await executeInnerImpl(execOptions, pipelineStart, trace, dispatchSpan);
+      // Authoritative status set here so every early-return failure path
+      // (unknown action, blocked middleware, invalid approval options, …)
+      // exports an accurate span status, not just the late success path.
+      // Inner catch records exception details first; this set is idempotent.
+      dispatchSpan.setStatus({ code: result.success ? "ok" : "error" });
+      return result;
+    } catch (err) {
+      dispatchSpan.recordException(err instanceof Error ? err : new Error(String(err)));
+      dispatchSpan.setStatus({ code: "error" });
+      throw err;
+    } finally {
+      dispatchSpan.end();
+    }
+  }
+
+  async function executeInnerImpl(
+    execOptions: CommandExecuteOptions,
+    pipelineStart: number,
+    trace: ReturnType<typeof getCurrentTrace>,
+    dispatchSpan: ReturnType<ReturnType<typeof getObservability>["tracer"]["startSpan"]>,
+  ): Promise<ActionResult> {
     // Build context with copies to isolate from caller
     const ctx: CommandContext = {
       command: execOptions.command,
@@ -609,6 +645,12 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
       const run = compose(pipeline);
       await run(ctx);
     } catch (err) {
+      // Record on the OTel dispatch span (noop unless an adapter is wired).
+      dispatchSpan.recordException(err instanceof Error ? err : String(err));
+      dispatchSpan.setStatus({
+        code: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
       metrics.increment("action.executions", { action: ctx.command, status: "error" });
       metrics.increment("action.errors", { action: ctx.command });
       metrics.timing("action.duration_ms", Date.now() - pipelineStart, {

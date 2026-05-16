@@ -322,7 +322,22 @@ export type {
   AlertSeverity,
   SystemAlertDefinition,
 } from "./observability/alert-engine";
+export type {
+  Counter,
+  Histogram,
+  InstrumentOptions,
+  Meter,
+  MetricAttributes,
+  MetricAttributeValue,
+} from "./observability/meter";
+export { NoopMeter, noopMeter } from "./observability/meter";
 export type { MetricSnapshot, MetricsCollector, MetricsSummary } from "./observability/metrics";
+export type { Observability } from "./observability/observability-registry";
+export {
+  getObservability,
+  resetObservability,
+  setObservability,
+} from "./observability/observability-registry";
 export type {
   LogLevel,
   LogSink,
@@ -330,6 +345,17 @@ export type {
   StructuredLoggerOptions,
 } from "./observability/structured-logger";
 export type { TraceState } from "./observability/trace-context";
+export type {
+  Span,
+  SpanAttributes,
+  SpanAttributeValue,
+  SpanKind,
+  SpanStatus,
+  SpanStatusCode,
+  StartSpanOptions,
+  Tracer,
+} from "./observability/tracer";
+export { NoopTracer, noopTracer } from "./observability/tracer";
 export type {
   EntityDescriptor,
   OntologyRegistry,
