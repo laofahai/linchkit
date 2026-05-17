@@ -63,6 +63,10 @@
       "@linchkit/cap-search": ["./addons/search/cap-search/src"],
       "@linchkit/cap-search/capability": ["./addons/search/cap-search/src/capability.ts"],
       "@linchkit/cap-search/graphql": ["./addons/search/cap-search/src/graphql.ts"],
+      "@linchkit/cap-cache-redis": ["./addons/cache-redis/cap-cache-redis/src"],
+      "@linchkit/cap-cache-redis/capability": [
+        "./addons/cache-redis/cap-cache-redis/src/capability.ts"
+      ],
       "@/*": ["./addons/adapter-ui/cap-adapter-ui/src/*"]
     }
   },

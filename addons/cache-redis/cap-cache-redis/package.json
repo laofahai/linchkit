@@ -1,0 +1,36 @@
+{
+  "name": "@linchkit/cap-cache-redis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.0"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "typescript": "^6.0.2"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.1.0",
+    "type": "standard",
+    "category": "system",
+    "autoInstall": false
+  }
+}

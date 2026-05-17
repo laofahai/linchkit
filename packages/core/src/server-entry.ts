@@ -303,7 +303,33 @@ export {
 // === AI Proposal Validator (server-only — proposal security checks) ===
 
 export {
+  buildCompatibilitySnapshot,
+  type CompatibilityChange,
+  type CompatibilityIssue,
+  type CompatibilityRegistrySnapshot,
+  type CompatibilityResult,
+  type CompatibilitySeverity,
+  compatibilityCheck,
+  createExtendedProposalValidator,
   createProposalValidator,
+  type DryRunModelError,
+  type DryRunResult,
+  type DryRunSideEffects,
+  dryRunProposal,
+  type EntityCreateChange,
+  type EntityDeleteChange,
+  type EntityReference,
+  type EntityRenameChange,
+  type EnumOptionsChange,
+  type ExtendedPhaseStatus,
+  type ExtendedPhaseSummary,
+  type ExtendedValidationResult,
+  type ExtendedValidatorConfig,
+  type ExtendedValidatorInput,
+  type FieldAddChange,
+  type FieldConstraintChange,
+  type FieldDropChange,
+  type FieldTypeChange,
   type ProposalChange,
   type ProposalChangeType,
   type ProposalCustomRule,
@@ -312,6 +338,7 @@ export {
   type ProposalValidatorConfig,
   type ProposalViolation,
   validateProposal as validateAIProposal,
+  validateProposalExtended,
 } from "./ai";
 
 // === AI Anomaly Detector ===
