@@ -49,6 +49,13 @@ export type {
   ConversationManagerOptions,
 } from "./conversation-manager";
 export { ConversationManager } from "./conversation-manager";
+// Data Quality Scanner
+export type {
+  DataQualityIssue,
+  DataQualityReport,
+  DataQualityScanOptions,
+} from "./data-quality-scanner";
+export { scanDataQuality } from "./data-quality-scanner";
 // Message Formatter
 export type { AIMessageBlock, AIRichMessage } from "./message-formatter";
 export { formatRichMessage, parseRichMessage } from "./message-formatter";
