@@ -35,6 +35,7 @@ import { mcpDevCommand } from "./commands/mcp-dev";
 import { overlayCommand } from "./commands/overlay";
 import { publishCommand } from "./commands/publish";
 import { registryCommand } from "./commands/registry";
+import { releaseCheckCommand } from "./commands/release-check";
 import { searchCommand } from "./commands/search";
 import { setupCommand } from "./commands/setup";
 import { collectCapabilityDefinitions } from "./commands/startup/collect-capabilities";
@@ -71,6 +72,7 @@ const RESERVED_NAMESPACES = new Set([
   "setup",
   "i18n-check",
   "events",
+  "release-check",
 ]);
 
 /**
@@ -191,6 +193,7 @@ function buildCommandsManifest(
     setup: "Sync AI tool configurations (skills, MCP config) for the current project",
     "i18n-check": "Validate translation key consistency across capability locale files",
     events: "Inspect and replay persisted events (list, inspect, replay, replay-batch)",
+    "release-check": "Analyze migration files for blue-green release compatibility (Spec 38 §9)",
   };
 
   for (const name of builtinNames) {
@@ -246,6 +249,7 @@ async function run() {
     setup: setupCommand,
     "i18n-check": i18nCheckCommand,
     events: eventsCommand,
+    "release-check": releaseCheckCommand,
   };
 
   const { tree: capCommands, commands: capCommandList } = await discoverCapabilityCommands();

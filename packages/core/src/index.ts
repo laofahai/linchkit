@@ -328,6 +328,24 @@ export {
   unregisterSensor,
 } from "./life-system";
 export type {
+  MigrationAnalysis,
+  ReleaseCompatibilityResult,
+  ReleaseType,
+  RollbackMode,
+  StatementAnalysis,
+  TenantOverrideImpact,
+} from "./migration/release-compatibility";
+// Migration — release compatibility checker (Spec 38 §9)
+export {
+  aggregateReleaseType,
+  analyzeFile,
+  analyzeMigrationSql,
+  buildResult,
+  checkReleaseCompatibility,
+  classifyStatement,
+  splitStatements,
+} from "./migration/release-compatibility";
+export type {
   AlertCondition,
   AlertEffect,
   AlertEvaluationResult,
