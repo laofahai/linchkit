@@ -370,22 +370,23 @@
         "react-i18next": ">=14.0.0",
       },
     },
-    "addons/view-calendar/cap-view-calendar": {
-      "name": "@linchkit/cap-view-calendar",
+    "addons/view-kanban/cap-view-kanban": {
+      "name": "@linchkit/cap-view-kanban",
       "version": "0.1.0",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
-        "date-fns": "^4.1.0",
+        "@dnd-kit/utilities": "^3.2.2",
       },
       "devDependencies": {
         "@linchkit/cap-adapter-ui": "workspace:*",
         "@linchkit/core": "workspace:*",
-        "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/cap-adapter-ui": "^1.0.0",
         "@linchkit/core": "^0.2.0",
+        "i18next": ">=23.0.0",
         "react": "^19.0.0",
+        "react-i18next": ">=14.0.0",
       },
     },
     "packages/cli": {
@@ -761,7 +762,7 @@
 
     "@linchkit/cap-search-ui": ["@linchkit/cap-search-ui@workspace:addons/search/cap-search-ui"],
 
-    "@linchkit/cap-view-calendar": ["@linchkit/cap-view-calendar@workspace:addons/view-calendar/cap-view-calendar"],
+    "@linchkit/cap-view-kanban": ["@linchkit/cap-view-kanban@workspace:addons/view-kanban/cap-view-kanban"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 

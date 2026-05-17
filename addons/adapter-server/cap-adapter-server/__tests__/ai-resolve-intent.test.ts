@@ -156,7 +156,7 @@ async function postResolveIntent(
 // ── Scenario 1: Happy path ───────────────────────────────────
 
 describe("POST /api/ai/resolve-intent — happy path", () => {
-  const PORT = 31920;
+  const PORT = 31940;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -227,7 +227,7 @@ describe("POST /api/ai/resolve-intent — happy path", () => {
 // ── Scenario 2: AI cannot match ──────────────────────────────
 
 describe("POST /api/ai/resolve-intent — AI cannot match", () => {
-  const PORT = 31921;
+  const PORT = 31941;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -275,7 +275,7 @@ describe("POST /api/ai/resolve-intent — AI cannot match", () => {
 // ── Scenario 3: Empty prompt → 400 (Zod) ─────────────────────
 
 describe("POST /api/ai/resolve-intent — empty prompt", () => {
-  const PORT = 31922;
+  const PORT = 31942;
   let server: ReturnType<typeof createServer>;
   const { ontology } = buildOntology([createPurchaseAction]);
   const ai = fakeAiService({
@@ -315,7 +315,7 @@ describe("POST /api/ai/resolve-intent — empty prompt", () => {
 // ── Scenario 4: AI service unavailable → 503 ─────────────────
 
 describe("POST /api/ai/resolve-intent — AI unavailable", () => {
-  const PORT = 31923;
+  const PORT = 31943;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -373,7 +373,7 @@ describe("POST /api/ai/resolve-intent — AI unavailable", () => {
 // ── Scenario 5: Permission filtering ─────────────────────────
 
 describe("POST /api/ai/resolve-intent — permission filtering", () => {
-  const PORT = 31925;
+  const PORT = 31945;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   // Build an ontology with TWO actions; the actor is allowed to execute
@@ -454,7 +454,7 @@ describe("POST /api/ai/resolve-intent — permission filtering", () => {
 // ── Scenario 6: Audit entry shape ────────────────────────────
 
 describe("POST /api/ai/resolve-intent — audit entry shape", () => {
-  const PORT = 31926;
+  const PORT = 31946;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
