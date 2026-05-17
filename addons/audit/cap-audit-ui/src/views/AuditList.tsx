@@ -259,7 +259,7 @@ export function AuditList() {
               size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || loading}
-              aria-label={t("common.previous", "Previous")}
+              aria-label={t("audit.common.previous", "Previous")}
             >
               <ChevronLeft className="size-4" />
             </Button>
@@ -271,7 +271,7 @@ export function AuditList() {
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || loading}
-              aria-label={t("common.next", "Next")}
+              aria-label={t("audit.common.next", "Next")}
             >
               <ChevronRight className="size-4" />
             </Button>

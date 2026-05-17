@@ -368,14 +368,14 @@
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-i18next": ">=14.0.0",
-<<<<<<< HEAD
       },
     },
-    "addons/theme/cap-theme": {
-      "name": "@linchkit/cap-theme",
+    "addons/view-kanban/cap-view-kanban": {
+      "name": "@linchkit/cap-view-kanban",
       "version": "0.1.0",
       "dependencies": {
-        "lucide-react": "^1.7.0",
+        "@dnd-kit/core": "^6.3.1",
+        "@dnd-kit/utilities": "^3.2.2",
       },
       "devDependencies": {
         "@linchkit/cap-adapter-ui": "workspace:*",
@@ -384,10 +384,9 @@
       "peerDependencies": {
         "@linchkit/cap-adapter-ui": "^1.0.0",
         "@linchkit/core": "^0.2.0",
+        "i18next": ">=23.0.0",
         "react": "^19.0.0",
         "react-i18next": ">=14.0.0",
-=======
->>>>>>> origin/main
       },
     },
     "packages/cli": {
@@ -763,7 +762,7 @@
 
     "@linchkit/cap-search-ui": ["@linchkit/cap-search-ui@workspace:addons/search/cap-search-ui"],
 
-    "@linchkit/cap-theme": ["@linchkit/cap-theme@workspace:addons/theme/cap-theme"],
+    "@linchkit/cap-view-kanban": ["@linchkit/cap-view-kanban@workspace:addons/view-kanban/cap-view-kanban"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 

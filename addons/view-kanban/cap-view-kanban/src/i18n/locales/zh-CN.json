@@ -1,0 +1,20 @@
+{
+  "kanban": {
+    "board": {
+      "error": {
+        "title": "状态转换被拒绝",
+        "description": "不允许从 “{{from}}” 转换到 “{{to}}”。",
+        "unknownSource": "无法识别源状态。"
+      }
+    },
+    "card": {
+      "itemsCount_one": "{{count}} 项",
+      "itemsCount_other": "{{count}} 项"
+    },
+    "column": {
+      "recordsCount_one": "{{count}} 条记录",
+      "recordsCount_other": "{{count}} 条记录",
+      "empty": "暂无记录"
+    }
+  }
+}

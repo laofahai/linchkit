@@ -1,0 +1,87 @@
+{
+  "audit": {
+    "common": {
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "list": {
+      "title": "Audit Log",
+      "subtitle": "Every action execution recorded in _linchkit.executions.",
+      "startedAt": "Started",
+      "action": "Action",
+      "entity": "Entity",
+      "actor": "Actor",
+      "status": "Status",
+      "duration": "Duration",
+      "empty": "No execution log entries match the current filters.",
+      "openDetail": "Open audit detail",
+      "totalCount_one": "{{count}} entry",
+      "totalCount_other": "{{count}} entries"
+    },
+    "detail": {
+      "title": "Execution detail",
+      "executionId": "Execution ID",
+      "status": "Status",
+      "action": "Action",
+      "duration": "Duration",
+      "actor": "Actor",
+      "entity": "Entity",
+      "channel": "Channel",
+      "capability": "Capability",
+      "startedAt": "Started",
+      "completedAt": "Completed",
+      "error": "Error",
+      "stateTransition": "State transition",
+      "input": "Input",
+      "output": "Output",
+      "meta": "Execution meta (Spec 65)",
+      "notFound": "Execution not found."
+    },
+    "filters": {
+      "action": "Action",
+      "actor": "Actor",
+      "entity": "Entity",
+      "status": "Status",
+      "statusAny": "Any",
+      "apply": "Apply",
+      "reset": "Reset filters"
+    }
+  },
+  "events": {
+    "handlers": {
+      "title": "Handler history",
+      "empty": "No handler invocations recorded.",
+      "handler": "Handler",
+      "status": "Status",
+      "duration": "ms",
+      "aggregate": "(aggregate)"
+    },
+    "replay": {
+      "title": "Replay event",
+      "description": "Re-dispatch the event through its registered handlers. The original event row is never modified.",
+      "targetFallback": "Event",
+      "dryRun": "Dry run",
+      "dryRunHint": "Dry run — resolve candidate handlers without invoking them.",
+      "handlerFilterLabel": "Restrict to handler (optional)",
+      "cancel": "Cancel",
+      "submit": "Replay now",
+      "submitDry": "Run dry replay",
+      "summary": "Replay summary",
+      "summaryHeading": "Replay result",
+      "summaryDryHeading": "Dry run result",
+      "delivered": "{{count}} delivered",
+      "failed": "{{count}} failed",
+      "noHandlers": "No registered handlers matched this event."
+    },
+    "timeline": {
+      "title": "Event Timeline",
+      "subtitle": "Every domain event persisted to _linchkit.events with per-handler delivery state.",
+      "empty": "No events match the current filter.",
+      "hideHandlers": "Hide handlers",
+      "viewHandlers": "View handlers",
+      "replay": "Replay",
+      "totalCount_one": "{{count}} event",
+      "totalCount_other": "{{count}} events"
+    }
+  }
+}

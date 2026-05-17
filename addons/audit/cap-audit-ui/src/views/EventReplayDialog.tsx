@@ -209,11 +209,17 @@ function ReplaySummary({ report }: { report: ReplayReport }) {
             : t("events.replay.summaryHeading", "Replay result")}
         </span>
         <Badge variant="default">
-          {t("events.replay.delivered", { defaultValue: "{{n}} delivered", n: report.delivered })}
+          {t("events.replay.delivered", {
+            defaultValue: "{{count}} delivered",
+            count: report.delivered,
+          })}
         </Badge>
         {report.failed > 0 && (
           <Badge variant="destructive">
-            {t("events.replay.failed", { defaultValue: "{{n}} failed", n: report.failed })}
+            {t("events.replay.failed", {
+              defaultValue: "{{count}} failed",
+              count: report.failed,
+            })}
           </Badge>
         )}
       </header>
