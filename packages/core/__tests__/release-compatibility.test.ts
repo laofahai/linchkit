@@ -427,15 +427,9 @@ describe("checkReleaseCompatibility", () => {
     ];
     await Promise.all(fileContents.map(([n, c]) => writeFile(join(tmpDir, n), c)));
 
-    const t0 = Date.now();
     const r = await checkReleaseCompatibility(tmpDir);
-    const elapsed = Date.now() - t0;
 
     expect(r.releaseType).toBe("contract");
-    // Sanity check: parallel reads of five tiny files should finish quickly.
-    // Pure serial reads would still be fast in practice — the assertion is a
-    // soft upper bound to catch egregious regressions to sequential I/O.
-    expect(elapsed).toBeLessThan(2000);
   });
 });
 

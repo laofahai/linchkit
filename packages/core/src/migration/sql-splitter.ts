@@ -58,6 +58,8 @@ function tokenizeStatements(sql: string): string[] {
 
     // Block comment — skip up to matching `*/`
     if (ch === "/" && next === "*") {
+      // Preserve a token boundary so ALTER/*x*/TABLE doesn't merge into ALTERTABLE.
+      if (current.length > 0 && !/\s$/.test(current)) current += " ";
       i += 2;
       while (i < len && !(sql[i] === "*" && i + 1 < len && sql[i + 1] === "/")) i++;
       if (i < len) i += 2; // consume closing `*/`
