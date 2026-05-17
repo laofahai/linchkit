@@ -320,9 +320,18 @@ describe("scanDataQuality — score", () => {
       status: "draft",
       updated_at: nowIso,
     }));
+    // Inject a completeness violation beyond the first 10 records
+    records[250] = {
+      id: "r250",
+      title: null as unknown as string,
+      amount: 100,
+      status: "draft",
+      updated_at: nowIso,
+    };
     const report = scanDataQuality(records, baseEntity, { maxRecords: 10 });
-    // The scanner should only have analyzed the first 10
-    // Total count reflects the full input before slicing
+    // Total count reflects full input; scanned set is sliced to 10
     expect(report.stats.totalRecords).toBe(500);
+    // Record r250 is beyond the scan window — must not appear in any issue
+    expect(report.issues.some((i) => i.recordIds.includes("r250"))).toBe(false);
   });
 });

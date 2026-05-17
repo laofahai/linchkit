@@ -945,11 +945,32 @@ Only include fields where you have genuine confidence. Omit fields where you wou
       }
 
       try {
-        const maxRecords = scanOptions?.maxRecords ?? 1000;
+        const rawMax = scanOptions?.maxRecords;
+        const maxRecords =
+          typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0
+            ? Math.min(Math.floor(rawMax), 10000)
+            : 1000;
+
+        const validatedOptions = {
+          maxRecords,
+          freshnessThresholdMs:
+            typeof scanOptions?.freshnessThresholdMs === "number" &&
+            Number.isFinite(scanOptions.freshnessThresholdMs) &&
+            scanOptions.freshnessThresholdMs > 0
+              ? scanOptions.freshnessThresholdMs
+              : undefined,
+          outlierZThreshold:
+            typeof scanOptions?.outlierZThreshold === "number" &&
+            Number.isFinite(scanOptions.outlierZThreshold) &&
+            scanOptions.outlierZThreshold > 0
+              ? scanOptions.outlierZThreshold
+              : undefined,
+        };
+
         const records = await dataProvider.query(entityName, { limit: maxRecords });
 
         const { scanDataQuality } = await import("@linchkit/core/ai");
-        const report = scanDataQuality(records, entityDef, scanOptions);
+        const report = scanDataQuality(records, entityDef, validatedOptions);
 
         return { success: true, data: report };
       } catch (err) {

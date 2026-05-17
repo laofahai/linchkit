@@ -94,11 +94,9 @@ function computeScore(issues: DataQualityIssue[], totalRecords: number): number 
   const medCount = issues.filter((i) => i.severity === "medium").length;
   const lowCount = issues.filter((i) => i.severity === "low").length;
 
-  // Weight deductions relative to record count to keep scores meaningful at scale
-  const recordFactor = Math.min(1, 100 / Math.max(1, totalRecords));
-  deduction += Math.min(50, highCount * 5 * recordFactor * 100);
-  deduction += Math.min(30, medCount * 2 * recordFactor * 100);
-  deduction += Math.min(20, lowCount * 0.5 * recordFactor * 100);
+  deduction += Math.min(50, highCount * 5);
+  deduction += Math.min(30, medCount * 2);
+  deduction += Math.min(20, lowCount * 0.5);
 
   return Math.max(0, Math.round(100 - deduction));
 }
@@ -241,7 +239,8 @@ function checkReferential(
     const suspicious = records.filter((r) => {
       const v = r[field];
       if (v === null || v === undefined) return false; // null is fine for non-required refs
-      if (typeof v === "string" && (v === "" || v === "null" || v === "undefined")) return true;
+      if (typeof v === "string" && (v === "" || v === "null" || v === "undefined" || v === "0"))
+        return true;
       return false;
     });
 
