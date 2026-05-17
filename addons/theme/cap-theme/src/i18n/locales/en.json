@@ -1,0 +1,13 @@
+{
+  "theme": {
+    "toggle": {
+      "ariaLabel": "Toggle theme (current: {{mode}})",
+      "tooltip": "Switch theme (current: {{mode}})",
+      "modes": {
+        "system": "System",
+        "light": "Light",
+        "dark": "Dark"
+      }
+    }
+  }
+}
