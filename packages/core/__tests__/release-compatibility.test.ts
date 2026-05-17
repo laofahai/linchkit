@@ -9,6 +9,7 @@ import {
   buildResult,
   checkReleaseCompatibility,
   classifyStatement,
+  crossPlatformBasename,
   splitStatements,
 } from "../src/migration/release-compatibility";
 
@@ -25,10 +26,12 @@ ALTER TABLE "foo" ADD COLUMN "bar" text;`;
     expect(parts[1]).toContain("ADD COLUMN");
   });
 
-  test("non-Drizzle files treated as single block (no semicolon split)", () => {
+  test("non-Drizzle files split on top-level semicolons", () => {
     const sql = `CREATE TABLE "a" (); ALTER TABLE "a" ADD COLUMN "x" text;`;
     const parts = splitStatements(sql);
-    expect(parts).toHaveLength(1);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("CREATE TABLE");
+    expect(parts[1]).toContain("ADD COLUMN");
   });
 
   test("filters empty strings and comment-only lines", () => {
@@ -36,6 +39,73 @@ ALTER TABLE "foo" ADD COLUMN "bar" text;`;
     const parts = splitStatements(sql);
     expect(parts).toHaveLength(1);
     expect(parts[0]).toContain("ADD COLUMN");
+  });
+
+  test("strips trailing same-line `-- comment`", () => {
+    const sql = `ALTER TABLE "t" ADD COLUMN "x" text; -- note: harmless\n`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).not.toContain("--");
+    expect(parts[0]).not.toContain("note");
+    expect(parts[0]).toContain("ADD COLUMN");
+  });
+
+  test("strips single-line block comments", () => {
+    const sql = `ALTER TABLE "t" /* inline */ ADD COLUMN "x" text;`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).not.toContain("/*");
+    expect(parts[0]).not.toContain("inline");
+  });
+
+  test("strips multi-line block comments", () => {
+    const sql = `/*\n multi\n line\n*/\nALTER TABLE "t" ADD COLUMN "x" text;`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toContain("ADD COLUMN");
+    expect(parts[0]).not.toContain("multi");
+  });
+
+  test("does not split on `;` inside a string literal", () => {
+    const sql = `INSERT INTO "t" ("note") VALUES ('hello; world; still one');`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toContain("hello; world; still one");
+  });
+
+  test("preserves `--` inside string literal (not treated as comment)", () => {
+    const sql = `INSERT INTO "t" ("note") VALUES ('value -- not a comment');`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toContain("-- not a comment");
+  });
+
+  test("preserves `/* */` inside string literal", () => {
+    const sql = `INSERT INTO "t" ("note") VALUES ('not /* a */ comment');`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toContain("/* a */");
+  });
+
+  test("handles doubled single-quote escape inside string", () => {
+    const sql = `INSERT INTO "t" ("note") VALUES ('it''s fine; really'); SELECT 1;`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("it''s fine; really");
+  });
+
+  test("does not split inside dollar-quoted `DO $$ ... $$` block", () => {
+    const sql = `DO $$ BEGIN PERFORM 1; PERFORM 2; END $$;\nSELECT 1;`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("PERFORM 1; PERFORM 2");
+  });
+
+  test("does not split inside tagged dollar-quoted `$tag$ ... $tag$` block", () => {
+    const sql = `DO $body$ BEGIN PERFORM 'a; b'; END $body$;\nSELECT 2;`;
+    const parts = splitStatements(sql);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("$body$");
   });
 });
 
@@ -330,6 +400,43 @@ describe("checkReleaseCompatibility", () => {
     // DROP INDEX is safe, CREATE INDEX is expand
     expect(r.releaseType).toBe("expand");
   });
+
+  test("non-ENOENT readdir error is re-thrown (path is a file, not a dir)", async () => {
+    // Pointing the directory argument at a regular file produces ENOTDIR on
+    // POSIX (and on Windows) which must NOT be silently coerced to `safe`.
+    const filePath = join(tmpDir, "not-a-dir.txt");
+    await writeFile(filePath, "I am a file");
+    let caught: NodeJS.ErrnoException | null = null;
+    try {
+      await checkReleaseCompatibility(filePath);
+    } catch (err) {
+      caught = err as NodeJS.ErrnoException;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught?.code).not.toBe("ENOENT");
+  });
+
+  test("reads multiple migration files concurrently and aggregates correctly", async () => {
+    // Create several files; the worst classification (contract) should win.
+    const fileContents: Array<[string, string]> = [
+      ["0001_a.sql", `CREATE TABLE "a" ("id" uuid PRIMARY KEY);`],
+      ["0002_b.sql", `CREATE TABLE "b" ("id" uuid PRIMARY KEY);`],
+      ["0003_c.sql", `CREATE TABLE "c" ("id" uuid PRIMARY KEY);`],
+      ["0004_d.sql", `ALTER TABLE "a" RENAME COLUMN "old" TO "new";`],
+      ["0005_e.sql", `CREATE INDEX "idx_b" ON "b" USING btree ("id");`],
+    ];
+    await Promise.all(fileContents.map(([n, c]) => writeFile(join(tmpDir, n), c)));
+
+    const t0 = Date.now();
+    const r = await checkReleaseCompatibility(tmpDir);
+    const elapsed = Date.now() - t0;
+
+    expect(r.releaseType).toBe("contract");
+    // Sanity check: parallel reads of five tiny files should finish quickly.
+    // Pure serial reads would still be fast in practice — the assertion is a
+    // soft upper bound to catch egregious regressions to sequential I/O.
+    expect(elapsed).toBeLessThan(2000);
+  });
 });
 
 // ── analyzeFile ───────────────────────────────────────────────────────────────
@@ -352,5 +459,27 @@ describe("analyzeFile", () => {
     const analysis = await analyzeFile(filePath);
     expect(analysis.file).toBe("0001_test.sql");
     expect(analysis.result.releaseType).toBe("expand");
+  });
+});
+
+// ── crossPlatformBasename ─────────────────────────────────────────────────────
+
+describe("crossPlatformBasename", () => {
+  test("strips POSIX directory components", () => {
+    expect(crossPlatformBasename("/var/migrations/0001_init.sql")).toBe("0001_init.sql");
+  });
+
+  test("strips Windows directory components even on POSIX hosts", () => {
+    expect(crossPlatformBasename("C:\\repo\\drizzle\\migrations\\0001_init.sql")).toBe(
+      "0001_init.sql",
+    );
+  });
+
+  test("handles forward-slash-only mixed Windows paths", () => {
+    expect(crossPlatformBasename("D:/repo/drizzle/0002_alter.sql")).toBe("0002_alter.sql");
+  });
+
+  test("bare filename returns unchanged", () => {
+    expect(crossPlatformBasename("0003_only.sql")).toBe("0003_only.sql");
   });
 });

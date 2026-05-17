@@ -12,7 +12,21 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join, posix as posixPath, win32 as win32Path } from "node:path";
+import { splitStatements } from "./sql-splitter";
+
+export { splitStatements } from "./sql-splitter";
+
+/**
+ * Cross-platform `basename` that recognises both POSIX `/` and Windows `\`
+ * separators regardless of the host platform.  Used so that file paths
+ * captured from Windows-formatted SQL paths still render as a bare filename.
+ *
+ * Exported for unit tests.
+ */
+export function crossPlatformBasename(filePath: string): string {
+  return filePath.includes("\\") ? win32Path.basename(filePath) : posixPath.basename(filePath);
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,33 +316,6 @@ export function buildResult(
   return { ...base, blockers };
 }
 
-// ── SQL Splitter ─────────────────────────────────────────────────────────────
-
-/**
- * Strip SQL comments from a segment:
- *   - block comments `/* ... *\/` (including multi-line)
- *   - single-line trailing comments `-- ...`
- */
-function stripComments(segment: string): string {
-  return segment
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/--.*$/gm, "")
-    .trim();
-}
-
-/**
- * Split a Drizzle migration file into individual SQL statements.
- * Drizzle uses `--> statement-breakpoint` as the canonical delimiter; files
- * without breakpoints are treated as a single block to avoid false splits on
- * semicolons inside strings or procedural `DO` blocks.
- */
-export function splitStatements(sql: string): string[] {
-  const hasDrizzleBreakpoints = sql.includes("--> statement-breakpoint");
-  const raw = hasDrizzleBreakpoints ? sql.split("--> statement-breakpoint") : [sql];
-
-  return raw.map(stripComments).filter((s) => s.length > 0);
-}
-
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /** Analyze a single SQL migration string. */
@@ -377,6 +364,6 @@ export async function checkReleaseCompatibility(
 /** Analyze a specific migration file by path. */
 export async function analyzeFile(filePath: string): Promise<MigrationAnalysis> {
   const sql = await readFile(filePath, "utf-8");
-  const name = basename(filePath);
+  const name = crossPlatformBasename(filePath);
   return analyzeMigrationSql(sql, name);
 }
