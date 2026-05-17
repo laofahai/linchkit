@@ -116,8 +116,12 @@ export class OtelSpanAdapter implements Span {
   }
 
   isRecording(): boolean {
-    // Core's contract: returns true until end() has been called.
-    return !this.ended;
+    // After end() we always report false; before that, defer to the inner
+    // OTel span. A wrapped NonRecordingSpan (sampler dropped it, no SDK
+    // installed, etc.) already returns false — preserving that signal lets
+    // callers skip expensive attribute computation on dropped spans.
+    if (this.ended) return false;
+    return this.inner.isRecording();
   }
 }
 

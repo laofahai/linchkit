@@ -222,6 +222,17 @@ describe("OtelSpanAdapter", () => {
     expect(span.isRecording()).toBe(false);
   });
 
+  it("isRecording mirrors a NonRecordingSpan (inner returns false)", () => {
+    const inner = new FakeOtelSpan();
+    inner.ended = true; // simulate a NonRecordingSpan / dropped span
+    const span = new OtelSpanAdapter(inner);
+
+    // The wrapper hasn't been ended yet, but the inner span reports
+    // not-recording — we must propagate that signal so callers can skip
+    // expensive attribute computation.
+    expect(span.isRecording()).toBe(false);
+  });
+
   it("end() is idempotent — second call is a no-op", () => {
     const inner = new FakeOtelSpan();
     const span = new OtelSpanAdapter(inner);
