@@ -12,7 +12,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -192,7 +192,17 @@ export function classifyStatement(sql: string): StatementAnalysis {
     };
   }
 
-  // Unknown or comment-only statements — treat as safe
+  // Unknown ALTER / DROP / TRUNCATE — conservatively flag as contract so the
+  // deployment gate errs on the side of caution for unrecognised destructive DDL
+  // (e.g. ADD CONSTRAINT, TRUNCATE TABLE, ALTER SEQUENCE).
+  if (/^\s*(ALTER|DROP|TRUNCATE)\b/i.test(stmt)) {
+    return {
+      statement: stmt,
+      type: "contract",
+      reason: "Unrecognised ALTER/DROP/TRUNCATE — conservatively treated as contract",
+    };
+  }
+
   return {
     statement: stmt,
     type: "safe",
@@ -295,25 +305,28 @@ export function buildResult(
 // ── SQL Splitter ─────────────────────────────────────────────────────────────
 
 /**
+ * Strip SQL comments from a segment:
+ *   - block comments `/* ... *\/` (including multi-line)
+ *   - single-line trailing comments `-- ...`
+ */
+function stripComments(segment: string): string {
+  return segment
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/--.*$/gm, "")
+    .trim();
+}
+
+/**
  * Split a Drizzle migration file into individual SQL statements.
- * Drizzle uses `--> statement-breakpoint` as statement delimiter.
- * Falls back to splitting on `;` for non-Drizzle SQL.
+ * Drizzle uses `--> statement-breakpoint` as the canonical delimiter; files
+ * without breakpoints are treated as a single block to avoid false splits on
+ * semicolons inside strings or procedural `DO` blocks.
  */
 export function splitStatements(sql: string): string[] {
   const hasDrizzleBreakpoints = sql.includes("--> statement-breakpoint");
-  const raw = hasDrizzleBreakpoints ? sql.split("--> statement-breakpoint") : sql.split(";");
+  const raw = hasDrizzleBreakpoints ? sql.split("--> statement-breakpoint") : [sql];
 
-  return raw
-    .map((segment) => {
-      // Strip leading comment lines from each segment, then trim
-      const withoutLeadingComments = segment
-        .split("\n")
-        .filter((line) => !line.trim().startsWith("--"))
-        .join("\n")
-        .trim();
-      return withoutLeadingComments;
-    })
-    .filter((s) => s.length > 0);
+  return raw.map(stripComments).filter((s) => s.length > 0);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -338,20 +351,24 @@ export async function checkReleaseCompatibility(
   try {
     const entries = await readdir(migrationsDir);
     files = entries.filter((f) => f.endsWith(".sql")).sort();
-  } catch {
-    // No migrations directory or empty — treat as safe
-    return buildResult("safe");
+  } catch (err) {
+    // Missing migrations directory — treat as safe; surface all other I/O errors
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return buildResult("safe");
+    }
+    throw err;
   }
 
   if (files.length === 0) return buildResult("safe");
 
-  const allStatementTypes: ReleaseType[] = [];
+  const results = await Promise.all(
+    files.map(async (file) => {
+      const sql = await readFile(join(migrationsDir, file), "utf-8");
+      return splitStatements(sql).map(classifyStatement);
+    }),
+  );
 
-  for (const file of files) {
-    const sql = await readFile(join(migrationsDir, file), "utf-8");
-    const stmts = splitStatements(sql).map(classifyStatement);
-    allStatementTypes.push(...stmts.map((s) => s.type));
-  }
+  const allStatementTypes: ReleaseType[] = results.flatMap((stmts) => stmts.map((s) => s.type));
 
   const releaseType = aggregateReleaseType(allStatementTypes);
   return buildResult(releaseType);
@@ -360,6 +377,6 @@ export async function checkReleaseCompatibility(
 /** Analyze a specific migration file by path. */
 export async function analyzeFile(filePath: string): Promise<MigrationAnalysis> {
   const sql = await readFile(filePath, "utf-8");
-  const name = filePath.split("/").pop() ?? filePath;
+  const name = basename(filePath);
   return analyzeMigrationSql(sql, name);
 }

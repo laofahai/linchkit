@@ -25,10 +25,10 @@ ALTER TABLE "foo" ADD COLUMN "bar" text;`;
     expect(parts[1]).toContain("ADD COLUMN");
   });
 
-  test("falls back to semicolon splitting", () => {
+  test("non-Drizzle files treated as single block (no semicolon split)", () => {
     const sql = `CREATE TABLE "a" (); ALTER TABLE "a" ADD COLUMN "x" text;`;
     const parts = splitStatements(sql);
-    expect(parts).toHaveLength(2);
+    expect(parts).toHaveLength(1);
   });
 
   test("filters empty strings and comment-only lines", () => {
@@ -123,9 +123,19 @@ describe("classifyStatement", () => {
     expect(r.type).toBe("contract");
   });
 
-  test("unknown statement → safe", () => {
+  test("unknown statement (non-ALTER/DROP) → safe", () => {
     const r = classifyStatement(`COMMENT ON TABLE "t" IS 'Some comment';`);
     expect(r.type).toBe("safe");
+  });
+
+  test("unrecognised ALTER → contract (conservative fallback)", () => {
+    const r = classifyStatement(`ALTER TABLE "t" ADD CONSTRAINT "pk" PRIMARY KEY ("id");`);
+    expect(r.type).toBe("contract");
+  });
+
+  test("TRUNCATE TABLE → contract (conservative fallback)", () => {
+    const r = classifyStatement(`TRUNCATE TABLE "t";`);
+    expect(r.type).toBe("contract");
   });
 });
 

@@ -12,7 +12,7 @@
  *   linch release-check --json
  */
 
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   analyzeFile,
   checkReleaseCompatibility,
@@ -40,13 +40,13 @@ export async function runReleaseCheck(opts: ReleaseCheckOptions): Promise<Releas
   const cwd = opts.cwd ?? process.cwd();
 
   if (opts.file) {
-    const filePath = opts.file.startsWith("/") ? opts.file : join(cwd, opts.file);
+    const filePath = isAbsolute(opts.file) ? opts.file : join(cwd, opts.file);
     const analysis = await analyzeFile(filePath);
     return { result: analysis.result, analysis };
   }
 
   const migrationsDir = opts.dir
-    ? opts.dir.startsWith("/")
+    ? isAbsolute(opts.dir)
       ? opts.dir
       : join(cwd, opts.dir)
     : join(cwd, "drizzle", "migrations");
