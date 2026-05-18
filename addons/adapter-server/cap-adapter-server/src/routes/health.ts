@@ -41,11 +41,15 @@ export function mountHealthRoutes(app: Elysia, options: ServerOptions): void {
 
   app
     // Liveness: always 200 — answers "is the process alive?"
+    // Response shape matches the legacy `/health` contract consumed by
+    // existing tests and dashboards: `{ status: "healthy", timestamp, checks }`.
     .get("/health", () => {
       return {
-        status: "ok",
+        status: "healthy",
+        timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         version: SERVER_VERSION,
+        checks: { process: { ok: true } },
       };
     })
     // Readiness: 200 when dependencies are reachable, 503 otherwise.
