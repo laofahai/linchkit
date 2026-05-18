@@ -86,9 +86,81 @@ export type MatcherFn<TOutput = unknown> = (
 ) => MatcherResult;
 
 /**
+ * Per-fixture input for the intent scenario.
+ *
+ * The shape is defined here (not inside a scenario adapter) so fixture
+ * JSON files committed to disk have a single canonical schema and
+ * downstream packages can author fixtures without depending on the
+ * scenario adapter implementation.
+ */
+export interface IntentFixtureInput {
+  /** Natural-language message handed to the resolver. */
+  userMessage: string;
+}
+
+/**
+ * Per-fixture context for the intent scenario.
+ *
+ * `catalogSource` selects which action catalog the scenario evaluates against:
+ *  - `inline:<name>` — the scenario adapter requests the catalog by name
+ *    via its `loadInlineCatalog` dep (the bin wires it to disk JSON).
+ *  - `demo:<capName>` — the scenario adapter falls back to the live
+ *    OntologyRegistry exposed in deps (used when fixtures depend on the
+ *    runtime-discovered action surface).
+ *
+ * `scope` narrows the resolved catalog before the AI call.
+ */
+export interface IntentFixtureContext {
+  catalogSource: string;
+  scope?: { entityFilter?: string[]; actionFilter?: string[] };
+}
+
+/**
+ * Single entry returned by an inline catalog loader.
+ *
+ * The shape is intentionally a structural subset of `ActionDefinition`
+ * from `@linchkit/core` — fixture authors only need the fields the
+ * intent-resolver reads (name/entity/label/description/input/ai.promptHints).
+ * The scenario adapter coerces these to the production `ActionDefinition`
+ * shape at its boundary.
+ */
+export interface InlineCatalogAction {
+  name: string;
+  entity: string;
+  label: string;
+  description?: string;
+  input?: Record<
+    string,
+    {
+      type: string;
+      required?: boolean;
+      label?: string;
+      description?: string;
+      allowEmpty?: boolean;
+    }
+  >;
+}
+
+/**
+ * Minimal `OntologyRegistry` surface used by the intent scenario in
+ * `demo:*` mode. Mirrors `OntologyRegistryLike` from
+ * `addons/ai-provider/cap-ai-provider` but kept here as the structurally
+ * weaker public shape that fixture/test code can construct without
+ * importing addon-side types. The scenario adapter at the addon boundary
+ * is responsible for satisfying the stricter production type that
+ * `resolveIntent` consumes.
+ */
+export interface OntologyRegistryLike {
+  listEntities(): string[];
+  actionsFor(
+    entityName: string,
+  ): ReadonlyArray<InlineCatalogAction & { ai?: { promptHints?: string[] } }>;
+}
+
+/**
  * Scenario-neutral shape consumed by intent-scenario matchers.
  *
- * A later scenario adapter is responsible for converting
+ * A scenario adapter (in `cap-ai-provider`) is responsible for converting
  * `cap-ai-provider`'s `ActionProposal` (and its `alternatives`) to this
  * shape. Defining it here keeps the matcher module free of `addons/`
  * imports per the module-boundary rule in the root CLAUDE.md.

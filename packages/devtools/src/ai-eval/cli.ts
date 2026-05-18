@@ -3,10 +3,12 @@
  *
  * # Architecture note (addon-coupled defaults are intentional)
  *
- * `packages/devtools` MUST NOT import from `addons/`. This CLI module
- * therefore exposes `runCli(argv, deps)` and the addon supplies the live-mode
- * dependencies (AIService + ontology + inline-catalog loader) via the
- * `deps.loadLiveDeps()` callback. The thin entry script lives in
+ * `packages/devtools` MUST NOT import from `addons/` and an eval scenario
+ * MUST call the production code it evaluates — those two rules pull in
+ * opposite directions for scenario adapters. The resolution: scenario
+ * adapters live in their owning capability package, and the CLI exposes
+ * a `registerScenarios` callback so the addon entry script wires the
+ * scenario adapter into the registry. The thin entry script lives in
  * `addons/ai-provider/cap-ai-provider/bin/ai-eval.ts` and dispatches here.
  *
  * The default fixture/baseline/catalog paths point at the cap-ai-provider
@@ -33,7 +35,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import type { AIService } from "@linchkit/core";
 import { compareToBaseline, loadCanonicalBaseline } from "./baseline";
 import { registerIntentMatchers } from "./matchers/intent";
 import { createMatcherRegistry } from "./matchers/registry";
@@ -46,14 +47,8 @@ import {
   type RunOptions,
   runEval,
 } from "./runner";
-import {
-  createIntentScenario,
-  type InlineCatalogAction,
-  type IntentScenarioDeps,
-  type OntologyRegistryLike,
-} from "./scenarios/intent";
-import { createScenarioRegistry } from "./scenarios/registry";
-import type { BaselineFile, IntentEvalOutput, RunReport } from "./types";
+import { createScenarioRegistry, type ScenarioRegistry } from "./scenarios/registry";
+import type { BaselineFile, InlineCatalogAction, IntentEvalOutput, RunReport } from "./types";
 
 // ── Conventional default paths (overridable via flags) ───────
 
@@ -74,17 +69,32 @@ export interface CliRunResult {
 
 export interface CliDeps {
   /**
+   * Register scenario adapters into the runner's scenario registry. The
+   * CLI itself never registers scenarios — the addon entry script owns
+   * scenario wiring so it can import production code (e.g. resolveIntent
+   * from cap-ai-provider) that the scenario must exercise.
+   */
+  registerScenarios: (registry: ScenarioRegistry) => void;
+  /**
    * Live-mode dependencies. The factory is only invoked when the CLI is
    * actually about to call the AI service (i.e. AI_EVAL_LIVE === "1" and
    * the cost cap is not exceeded). Rejecting aborts the run with a clear
    * error message.
+   *
+   * The returned object is passed straight through to the runner as the
+   * `deps` blob — its shape is opaque to the CLI; the scenario adapter
+   * resolves what it needs. The CLI augments the returned object with the
+   * resolved `model` and `catalogsDir` (the latter as a default disk
+   * inline-catalog loader when none is supplied) under conventional keys
+   * (`model`, `loadInlineCatalog`) so most adapters do not need to wire
+   * them by hand.
    */
-  loadLiveDeps: () => Promise<{
-    ai: AIService;
-    ontology: OntologyRegistryLike;
-    /** Optional inline catalog loader. When omitted, CLI falls back to disk. */
-    loadInlineCatalog?: (name: string) => Promise<ReadonlyArray<InlineCatalogAction>>;
-  }>;
+  loadLiveDeps: (ctx: {
+    /** Resolved catalogs directory (CLI default + --catalogs-dir override). */
+    catalogsDir: string;
+    /** Effective model from --model, or undefined when not set. */
+    model: string | undefined;
+  }) => Promise<Record<string, unknown>>;
   /** Override the cwd used for default fixture/baseline/catalog roots. */
   cwd?: string;
   /** Stdout sink for the report. Defaults to `process.stdout.write`. */
@@ -177,22 +187,26 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
     }
   }
 
-  // Build scenario/matcher registries — only "intent" is wired in Phase 1.
+  // Scenario registry — populated by the addon entry script through deps.
   const scenarioRegistry = createScenarioRegistry();
-  scenarioRegistry.register("intent", createIntentScenario());
+  deps.registerScenarios(scenarioRegistry);
+  // Matcher registry: Phase 1 only the intent matchers ship in devtools;
+  // additional matcher families would register here once they exist.
   const matcherRegistry = createMatcherRegistry<IntentEvalOutput>();
   registerIntentMatchers(matcherRegistry);
 
   // Live deps are only resolved when actually needed.
-  let runDeps: IntentScenarioDeps | undefined;
+  let runDeps: Record<string, unknown> | undefined;
   if (live) {
     try {
-      const liveDeps = await deps.loadLiveDeps();
+      const liveDeps = await deps.loadLiveDeps({ catalogsDir, model: parsed.model });
+      // Provide conventional fallbacks so most adapters do not need to wire
+      // model / loadInlineCatalog by hand. The adapter can still override
+      // by populating these keys explicitly in its returned object.
       runDeps = {
-        ai: liveDeps.ai,
-        ontology: liveDeps.ontology,
-        loadInlineCatalog: liveDeps.loadInlineCatalog ?? makeDiskInlineLoader(catalogsDir),
+        loadInlineCatalog: makeDiskInlineLoader(catalogsDir),
         model: parsed.model,
+        ...liveDeps,
       };
     } catch (e) {
       err(`ERROR loading live dependencies: ${(e as Error).message}\n`);

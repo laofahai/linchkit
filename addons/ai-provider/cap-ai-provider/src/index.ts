@@ -50,6 +50,14 @@ export { AnomalyDetector } from "./anomaly-detector";
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
 
+// AI Eval scenario adapter (spec 69) — wraps the production resolveIntent
+// so eval fixtures gate the real prompt + parser pipeline.
+export {
+  createIntentScenario,
+  type IntentScenarioAdapter,
+  type IntentScenarioDeps,
+} from "./eval/intent-scenario";
+
 // Intent Resolver (Spec 52 Phase 0 PoC — natural language → ActionProposal)
 export type { ActionCatalogEntry } from "./intent-prompt";
 export { buildIntentSystemPrompt } from "./intent-prompt";

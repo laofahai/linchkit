@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   canonicalPath,
-  createIntentScenario,
   createMatcherRegistry,
   createScenarioRegistry,
   type EvalFixture,
@@ -17,13 +16,7 @@ import {
   runEval,
   writeCanonicalBaseline,
 } from "../../src/ai-eval";
-import {
-  buildOkResponse,
-  fixturesDirFromMap,
-  inlineCatalog,
-  makeMockAi,
-  makeOntology,
-} from "./helpers";
+import { buildOkResponse, fixturesDirFromMap, makeMockAi, makeMockIntentScenario } from "./helpers";
 
 interface TempDirs {
   fixtures: string;
@@ -88,7 +81,7 @@ describe("runEval (live mode end-to-end)", () => {
       "200": buildOkResponse({ amount: 200, confidence: 0.8 }),
     });
     const scenarioRegistry = createScenarioRegistry();
-    scenarioRegistry.register("intent", createIntentScenario());
+    scenarioRegistry.register("intent", makeMockIntentScenario());
     const matcherRegistry = createMatcherRegistry<IntentEvalOutput>();
     registerIntentMatchers(matcherRegistry);
 
@@ -97,11 +90,7 @@ describe("runEval (live mode end-to-end)", () => {
         scenario: "intent",
         fixturesDir: dirs.fixtures,
         live: true,
-        deps: {
-          ai,
-          ontology: makeOntology(),
-          loadInlineCatalog: async () => inlineCatalog(),
-        },
+        deps: { ai },
         refreshBaseline: true,
         baselinesDir: dirs.baselines,
         modelId: "mock-sonnet",
@@ -151,7 +140,7 @@ describe("runEval cost cap", () => {
       aiCalled = true;
     });
     const scenarioRegistry = createScenarioRegistry();
-    scenarioRegistry.register("intent", createIntentScenario());
+    scenarioRegistry.register("intent", makeMockIntentScenario());
     const matcherRegistry = createMatcherRegistry<IntentEvalOutput>();
     registerIntentMatchers(matcherRegistry);
 
@@ -161,7 +150,7 @@ describe("runEval cost cap", () => {
           scenario: "intent",
           fixturesDir: dirs.fixtures,
           live: true,
-          deps: { ai, ontology: makeOntology(), loadInlineCatalog: async () => inlineCatalog() },
+          deps: { ai },
           maxCostUsd: 1,
           baselinesDir: dirs.baselines,
           costPrinter: () => {},
@@ -232,7 +221,7 @@ describe("runEval regression handling", () => {
       }),
     });
     const scenarioRegistry = createScenarioRegistry();
-    scenarioRegistry.register("intent", createIntentScenario());
+    scenarioRegistry.register("intent", makeMockIntentScenario());
     const matcherRegistry = createMatcherRegistry<IntentEvalOutput>();
     registerIntentMatchers(matcherRegistry);
 
@@ -244,7 +233,7 @@ describe("runEval regression handling", () => {
           scenario: "intent",
           fixturesDir: dirs.fixtures,
           live: true,
-          deps: { ai, ontology: makeOntology(), loadInlineCatalog: async () => inlineCatalog() },
+          deps: { ai },
           refreshBaseline: true,
           baselinesDir: dirs.baselines,
           costPrinter: () => {},
@@ -305,7 +294,7 @@ describe("runEval regression handling", () => {
       }),
     });
     const scenarioRegistry = createScenarioRegistry();
-    scenarioRegistry.register("intent", createIntentScenario());
+    scenarioRegistry.register("intent", makeMockIntentScenario());
     const matcherRegistry = createMatcherRegistry<IntentEvalOutput>();
     registerIntentMatchers(matcherRegistry);
 
@@ -315,7 +304,7 @@ describe("runEval regression handling", () => {
           scenario: "intent",
           fixturesDir: dirs.fixtures,
           live: true,
-          deps: { ai, ontology: makeOntology(), loadInlineCatalog: async () => inlineCatalog() },
+          deps: { ai },
           forceRefreshBaseline: true,
           baselinesDir: dirs.baselines,
           costPrinter: () => {},

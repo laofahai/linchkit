@@ -10,18 +10,14 @@ import path from "node:path";
 import {
   type CliDeps,
   type EvalFixture,
+  hashFixture,
   type IntentFixtureContext,
   type IntentFixtureInput,
   runCli,
+  type ScenarioRegistry,
   writeCanonicalBaseline,
 } from "../../src/ai-eval";
-import {
-  buildOkResponse,
-  fixturesDirFromMap,
-  inlineCatalog,
-  makeMockAi,
-  makeOntology,
-} from "./helpers";
+import { buildOkResponse, fixturesDirFromMap, makeMockAi, makeMockIntentScenario } from "./helpers";
 
 interface TempLayout {
   root: string;
@@ -88,22 +84,26 @@ function liveDepsRecorder(opts?: {
   aiResponses?: Record<string, string>;
   onAiCall?: () => void;
 }): LiveDepsRecorder {
-  const rec: LiveDepsRecorder = { called: false, factory: async () => ({}) as never };
+  const rec: LiveDepsRecorder = { called: false, factory: async () => ({}) };
   rec.factory = async () => {
     rec.called = true;
     return {
       ai: makeMockAi(opts?.aiResponses ?? {}, opts?.onAiCall),
-      ontology: makeOntology(),
-      loadInlineCatalog: async () => inlineCatalog(),
     };
   };
   return rec;
 }
 
+/** Centralised registerScenarios for CLI tests — registers the mock scenario. */
+const registerMockScenarios = (registry: ScenarioRegistry) => {
+  registry.register("intent", makeMockIntentScenario());
+};
+
 describe("runCli — help", () => {
   it("prints usage and exits 0", async () => {
     const io = captureIo();
     const result = await runCli(["--help"], {
+      registerScenarios: registerMockScenarios,
       loadLiveDeps: async () => {
         throw new Error("should not be called");
       },
@@ -120,6 +120,7 @@ describe("runCli — help", () => {
   it("accepts -h as alias", async () => {
     const io = captureIo();
     const result = await runCli(["-h"], {
+      registerScenarios: registerMockScenarios,
       loadLiveDeps: async () => {
         throw new Error("should not be called");
       },
@@ -146,7 +147,10 @@ describe("runCli — replay mode (no AI_EVAL_LIVE)", () => {
     ]);
     await fixturesDirFromMap(layout.fixturesDir, [f]);
 
-    // Seed canonical baseline matching the fixture so replay passes.
+    // Seed canonical baseline matching the fixture so replay passes. The
+    // hash must be the REAL hash of the fixture — `findBaselineEntry` is
+    // fail-loud on any drift, including stub hashes that were tolerated
+    // before the P2 fix.
     await writeCanonicalBaseline({
       scenario: "intent",
       baselinesDir: layout.baselinesDir,
@@ -156,7 +160,7 @@ describe("runCli — replay mode (no AI_EVAL_LIVE)", () => {
         fixtures: [
           {
             fixtureId: "replay_ok",
-            fixtureHash: "stub",
+            fixtureHash: hashFixture(f),
             aiOutput: {
               action: "create_purchase_request",
               input: { amount: 5000 },
@@ -184,7 +188,13 @@ describe("runCli — replay mode (no AI_EVAL_LIVE)", () => {
         "--baselines-dir",
         layout.baselinesDir,
       ],
-      { loadLiveDeps: recorder.factory, out: io.out, err: io.err, env: {} },
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: recorder.factory,
+        out: io.out,
+        err: io.err,
+        env: {},
+      },
     );
 
     expect(recorder.called).toBe(false);
@@ -224,6 +234,7 @@ describe("runCli — live mode (AI_EVAL_LIVE=1)", () => {
         "mock-sonnet",
       ],
       {
+        registerScenarios: registerMockScenarios,
         loadLiveDeps: recorder.factory,
         out: io.out,
         err: io.err,
@@ -259,6 +270,7 @@ describe("runCli — live mode (AI_EVAL_LIVE=1)", () => {
         "0.01",
       ],
       {
+        registerScenarios: registerMockScenarios,
         loadLiveDeps: recorder.factory,
         out: io.out,
         err: io.err,
@@ -324,6 +336,7 @@ describe("runCli — filters", () => {
         "purchase",
       ],
       {
+        registerScenarios: registerMockScenarios,
         loadLiveDeps: recorder.factory,
         out: io.out,
         err: io.err,
@@ -361,6 +374,7 @@ describe("runCli — filters", () => {
         layout.baselinesDir,
       ],
       {
+        registerScenarios: registerMockScenarios,
         loadLiveDeps: recorder.factory,
         out: io.out,
         err: io.err,
@@ -428,7 +442,13 @@ describe("runCli — diff op", () => {
     const recorder = liveDepsRecorder();
     const result = await runCli(
       ["--scenario", "intent", "--diff", otherPath, "--baselines-dir", layout.baselinesDir],
-      { loadLiveDeps: recorder.factory, out: io.out, err: io.err, env: {} },
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: recorder.factory,
+        out: io.out,
+        err: io.err,
+        env: {},
+      },
     );
 
     expect(recorder.called).toBe(false);
@@ -508,6 +528,7 @@ describe("runCli — regression still prints report", () => {
         layout.baselinesDir,
       ],
       {
+        registerScenarios: registerMockScenarios,
         loadLiveDeps: recorder.factory,
         out: io.out,
         err: io.err,
@@ -525,6 +546,7 @@ describe("runCli — argument errors", () => {
   it("exits 1 when neither --scenario nor --fixture is given", async () => {
     const io = captureIo();
     const result = await runCli([], {
+      registerScenarios: registerMockScenarios,
       loadLiveDeps: async () => {
         throw new Error("not called");
       },
@@ -539,6 +561,7 @@ describe("runCli — argument errors", () => {
   it("exits 1 on unknown flag", async () => {
     const io = captureIo();
     const result = await runCli(["--bogus"], {
+      registerScenarios: registerMockScenarios,
       loadLiveDeps: async () => {
         throw new Error("not called");
       },
@@ -553,6 +576,7 @@ describe("runCli — argument errors", () => {
   it("exits 1 on invalid --max-cost-usd", async () => {
     const io = captureIo();
     const result = await runCli(["--scenario", "intent", "--max-cost-usd", "not-a-number"], {
+      registerScenarios: registerMockScenarios,
       loadLiveDeps: async () => {
         throw new Error("not called");
       },

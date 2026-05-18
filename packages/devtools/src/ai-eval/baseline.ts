@@ -23,6 +23,51 @@ import type {
   RunReport,
 } from "./types";
 
+/**
+ * Look up the recorded entry for a fixture in a loaded baseline.
+ *
+ * Fail-loud per spec §6.4 when any of the following hold:
+ *  - `baseline` is `null` (no canonical snapshot loaded at all);
+ *  - the fixture id has no entry in the baseline (drift / unrecorded fixture);
+ *  - the fixture's current hash differs from the recorded hash (the fixture's
+ *    `input` or `context` changed since the baseline was written, so the
+ *    recorded `aiOutput` no longer corresponds to the live fixture shape).
+ *
+ * All thrown errors instruct the operator to refresh the baseline via
+ * `AI_EVAL_LIVE=1 ... --refresh-baseline`, matching the spec's wording.
+ *
+ * Centralising this in baseline.ts (rather than inside each scenario adapter)
+ * guarantees every scenario observes the same fail-loud semantics — and that
+ * the P2 hash-drift check cannot be silently omitted by a new adapter.
+ */
+export function findBaselineEntry<TOutput = unknown>(
+  fx: EvalFixture,
+  baseline: BaselineFile<TOutput> | null,
+): BaselineFixtureEntry<TOutput> {
+  if (!baseline) {
+    throw new Error(
+      `ai-eval replay: cannot replay fixture "${fx.id}" — no canonical baseline loaded. ` +
+        "Run with AI_EVAL_LIVE=1 ... --refresh-baseline to produce one.",
+    );
+  }
+  const entry = baseline.fixtures.find((e) => e.fixtureId === fx.id);
+  if (!entry) {
+    throw new Error(
+      `ai-eval replay: fixture "${fx.id}" has no recorded AI output in canonical baseline. ` +
+        "Run with AI_EVAL_LIVE=1 ... --refresh-baseline to record one.",
+    );
+  }
+  const currentHash = hashFixture(fx);
+  if (entry.fixtureHash !== currentHash) {
+    throw new Error(
+      `ai-eval replay: fixture "${fx.id}" hash drift — fixture input/context changed since baseline was written ` +
+        `(baseline ${entry.fixtureHash.slice(0, 12)}…, current ${currentHash.slice(0, 12)}…). ` +
+        "Run with AI_EVAL_LIVE=1 ... --refresh-baseline to re-record this fixture.",
+    );
+  }
+  return entry;
+}
+
 /** Default repo-relative directory holding all baselines. */
 export const DEFAULT_BASELINES_DIR = "__tests__/eval/baselines";
 

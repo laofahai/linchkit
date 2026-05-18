@@ -3,10 +3,12 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  type BaselineFile,
   canonicalPath,
   compareToBaseline,
   datedArchivePath,
   type EvalFixture,
+  findBaselineEntry,
   hashFixture,
   type IntentEvalOutput,
   loadCanonicalBaseline,
@@ -194,6 +196,87 @@ describe("compareToBaseline", () => {
     expect(diff.hasRegression).toBe(false);
     expect(diff.summary.regressions).toBe(0);
     expect(diff.summary.delta).toBe(0);
+  });
+});
+
+describe("findBaselineEntry", () => {
+  function makeFixture(id: string, userMessage = "hi"): EvalFixture {
+    return {
+      id,
+      scenario: "intent",
+      tags: [],
+      description: "",
+      input: { userMessage },
+      context: { catalogSource: "inline:c" },
+      expected: { matchers: [] },
+    };
+  }
+
+  function makeBaseline(
+    fx: EvalFixture,
+    overrides?: { fixtureHash?: string; aiOutput?: IntentEvalOutput },
+  ): BaselineFile<IntentEvalOutput> {
+    return {
+      scenario: "intent",
+      generatedAt: "2026-05-18T00:00:00.000Z",
+      runnerVersion: "test",
+      fixtures: [
+        {
+          fixtureId: fx.id,
+          fixtureHash: overrides?.fixtureHash ?? hashFixture(fx),
+          aiOutput: overrides?.aiOutput ?? {
+            action: "create_purchase_request",
+            input: {},
+            confidence: 0.9,
+            missingFields: [],
+            explanation: "ok",
+          },
+          matcherResults: [],
+          passed: true,
+          timestamp: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+    };
+  }
+
+  it("returns the recorded entry on the happy path", () => {
+    const fx = makeFixture("happy");
+    const baseline = makeBaseline(fx);
+    const entry = findBaselineEntry<IntentEvalOutput>(fx, baseline);
+    expect(entry.fixtureId).toBe("happy");
+    expect(entry.aiOutput.action).toBe("create_purchase_request");
+  });
+
+  it("throws when baseline is null (fail-loud, mentions refresh-baseline)", () => {
+    const fx = makeFixture("any");
+    expect(() => findBaselineEntry<IntentEvalOutput>(fx, null)).toThrow(
+      /no canonical baseline loaded.*--refresh-baseline/,
+    );
+  });
+
+  it("throws when the fixture id is absent (fail-loud, mentions refresh-baseline)", () => {
+    const fx = makeFixture("missing");
+    const baseline = makeBaseline(makeFixture("present"));
+    expect(() => findBaselineEntry<IntentEvalOutput>(fx, baseline)).toThrow(
+      /no recorded AI output.*--refresh-baseline/,
+    );
+  });
+
+  it("throws on hash drift (fixture input/context changed since baseline)", () => {
+    const fx = makeFixture("drifted", "original-message");
+    // Baseline records the hash of the ORIGINAL fixture shape …
+    const baseline = makeBaseline(fx);
+    // … but the fixture on disk has since been edited.
+    const drifted = { ...fx, input: { userMessage: "changed-message" } };
+    expect(() => findBaselineEntry<IntentEvalOutput>(drifted, baseline)).toThrow(/hash drift/);
+    expect(() => findBaselineEntry<IntentEvalOutput>(drifted, baseline)).toThrow(
+      /--refresh-baseline/,
+    );
+  });
+
+  it("error messages include the fixture id for actionable debugging", () => {
+    const fx = makeFixture("my_fixture_id");
+    expect(() => findBaselineEntry<IntentEvalOutput>(fx, null)).toThrow(/"my_fixture_id"/);
   });
 });
 
