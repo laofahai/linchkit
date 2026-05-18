@@ -163,7 +163,7 @@ export function buildBars(
     const rawEnd = parseDate(rec[endField]);
     const end = rawEnd && rawEnd >= start ? rawEnd : start;
     bars.push({
-      id: String(rec.id ?? Math.random()),
+      id: String(rec.id ?? bars.length),
       record: rec,
       start: startOfDay(start),
       end: startOfDay(end),

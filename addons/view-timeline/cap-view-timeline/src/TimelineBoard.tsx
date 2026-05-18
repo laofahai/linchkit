@@ -49,11 +49,13 @@ export function TimelineBoard({
 }: TimelineBoardProps) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<TimelineViewMode>(initialMode);
-  const [anchor, setAnchor] = useState<Date>(() => startOfDay(currentDate ?? new Date()));
+  const [anchorState, setAnchorState] = useState<Date>(() => startOfDay(currentDate ?? new Date()));
+  // When currentDate is provided (controlled), derive anchor from it; otherwise use internal state.
+  const anchor = currentDate ? startOfDay(currentDate) : anchorState;
 
   const handleAnchorChange = useCallback(
     (d: Date) => {
-      setAnchor(d);
+      setAnchorState(d);
       onDateChange?.(d);
     },
     [onDateChange],
@@ -61,9 +63,15 @@ export function TimelineBoard({
 
   const navigate = useCallback(
     (direction: "prev" | "next") => {
-      const steps = { day: 7, week: 6 * 7, month: 6 * 30 };
-      const delta = (direction === "next" ? 1 : -1) * steps[mode];
-      handleAnchorChange(addDays(anchor, delta));
+      if (mode === "month") {
+        const nextAnchor = new Date(anchor);
+        nextAnchor.setMonth(nextAnchor.getMonth() + (direction === "next" ? 6 : -6));
+        handleAnchorChange(nextAnchor);
+      } else {
+        const steps = { day: 7, week: 6 * 7 };
+        const delta = (direction === "next" ? 1 : -1) * steps[mode as "day" | "week"];
+        handleAnchorChange(addDays(anchor, delta));
+      }
     },
     [anchor, mode, handleAnchorChange],
   );
@@ -188,7 +196,7 @@ export function TimelineBoard({
                       {/* bar area — relative for absolute-positioned bar */}
                       <div className="relative flex-1 min-h-[36px]">
                         {/* column grid lines */}
-                        {columns.map((col) => (
+                        {columns.map((col, idx) => (
                           <div
                             key={col.key}
                             className={cn(
@@ -196,7 +204,7 @@ export function TimelineBoard({
                               col.isToday && "bg-blue-50/40 dark:bg-blue-950/20",
                             )}
                             style={{
-                              left: `${(columns.indexOf(col) / columns.length) * 100}%`,
+                              left: `${(idx / columns.length) * 100}%`,
                               width: `${(1 / columns.length) * 100}%`,
                             }}
                           />
