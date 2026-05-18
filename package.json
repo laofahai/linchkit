@@ -7,6 +7,7 @@
     "addons/adapter-ui/cap-adapter-ui/ui-kit"
   ],
   "scripts": {
+    "ai:eval": "bun addons/ai-provider/cap-ai-provider/bin/ai-eval.ts",
     "check": "bunx @biomejs/biome check .",
     "format": "bunx @biomejs/biome format --write .",
     "lint": "bunx @biomejs/biome lint .",

@@ -1,0 +1,30 @@
+{
+  "_comment": "Real cap-purchase-demo action catalog — backs the `demo:purchase_management` catalogSource. Mirrors the three actions actually defined in cap-purchase-demo (submit_purchase_request, approve_purchase_request, reject_purchase_request) so the eval CLI can resolve `demo:` fixtures without booting the full cap-demo capability. The bin/ai-eval.ts addon entry script loads this file to populate its OntologyRegistryLike stub. If cap-purchase-demo gains new actions, mirror them here.",
+  "actions": [
+    {
+      "name": "submit_purchase_request",
+      "entity": "purchase_request",
+      "label": "Submit purchase request for approval",
+      "description": "Submit a draft purchase request for approval",
+      "input": {
+        "notes": { "type": "text", "required": false, "label": "Notes", "allowEmpty": true }
+      }
+    },
+    {
+      "name": "approve_purchase_request",
+      "entity": "purchase_request",
+      "label": "Approve purchase request",
+      "description": "Approve a pending purchase request",
+      "input": {}
+    },
+    {
+      "name": "reject_purchase_request",
+      "entity": "purchase_request",
+      "label": "Reject pending purchase request with a reason",
+      "description": "Reject a pending purchase request with a stated reason",
+      "input": {
+        "reason": { "type": "text", "required": true, "label": "Rejection Reason" }
+      }
+    }
+  ]
+}
