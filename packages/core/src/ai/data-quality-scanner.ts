@@ -5,7 +5,7 @@
  *   - completeness: required fields null/empty
  *   - freshness:    records stuck in a state beyond a threshold
  *   - outlier:      numeric fields with z-score > OUTLIER_Z_THRESHOLD
- *   - referential:  FK-style fields (name ends with _id) that are null on a required field
+ *   - referential:  FK-style fields (name ends with _id) that hold placeholders
  *
  * The full Spec 52 suite (consistency, duplicates) requires AI or cross-record
  * fuzzy matching and is out of scope for this rule-based phase.
@@ -33,7 +33,10 @@ export interface DataQualityReport {
   score: number;
   issues: DataQualityIssue[];
   stats: {
+    /** Records fed into the scanner (full input length). */
     totalRecords: number;
+    /** Records actually analyzed after `maxRecords` slicing. */
+    scannedRecords: number;
     issueCount: number;
     byType: Record<string, number>;
     bySeverity: Record<string, number>;
@@ -55,6 +58,18 @@ export interface DataQualityScanOptions {
 const DEFAULT_FRESHNESS_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const DEFAULT_OUTLIER_Z_THRESHOLD = 3;
 const DEFAULT_MAX_RECORDS = 1000;
+
+// Severity weights for ratio-aware scoring (see computeScore).
+const SEVERITY_WEIGHT: Record<DataQualityIssue["severity"], number> = {
+  high: 1.0,
+  medium: 0.5,
+  low: 0.2,
+};
+
+// Per-issue-type deduction ceiling. Prevents a single category from running
+// the score to 0 on its own (e.g., 5 different completeness fields all at
+// 100% would otherwise sum to 500 deduction).
+const PER_TYPE_DEDUCTION_CAP = 60;
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -84,21 +99,40 @@ function stddev(values: number[], avg: number): number {
 
 /**
  * Compute quality score 0–100 from issue list.
- * Deductions are severity-weighted and capped so one category can't dominate.
+ *
+ * Design (ratio-aware, fixes #336 review):
+ *   Each issue's penalty is `(affected / scanned) * 100 * severityWeight`.
+ *   This is INDEPENDENT of dataset size — a dataset where 50% of records
+ *   fail a high-severity completeness check scores ~50 whether the dataset
+ *   has 10, 100, or 10 000 records. (Previous implementations either
+ *   diluted by record count or only counted issue *occurrences*, both of
+ *   which made larger datasets always look high-quality regardless of
+ *   issue ratio.)
+ *
+ *   Per-type deductions are capped at `PER_TYPE_DEDUCTION_CAP` so a single
+ *   category (e.g., 5 different completeness fields all at 100%) cannot
+ *   single-handedly drive the score to 0. Total deduction is capped at 100.
  */
-function computeScore(issues: DataQualityIssue[], totalRecords: number): number {
-  if (totalRecords === 0) return 100;
+function computeScore(issues: DataQualityIssue[], scannedRecords: number): number {
+  if (scannedRecords === 0) return 100;
 
-  let deduction = 0;
-  const highCount = issues.filter((i) => i.severity === "high").length;
-  const medCount = issues.filter((i) => i.severity === "medium").length;
-  const lowCount = issues.filter((i) => i.severity === "low").length;
+  const perTypeDeduction: Record<string, number> = {};
+  for (const issue of issues) {
+    const affected = issue.recordIds.length;
+    if (affected === 0) continue;
+    const ratio = Math.min(1, affected / scannedRecords);
+    const weight = SEVERITY_WEIGHT[issue.severity];
+    const issueDeduction = ratio * 100 * weight;
+    perTypeDeduction[issue.type] = (perTypeDeduction[issue.type] ?? 0) + issueDeduction;
+  }
 
-  deduction += Math.min(50, highCount * 5);
-  deduction += Math.min(30, medCount * 2);
-  deduction += Math.min(20, lowCount * 0.5);
+  let totalDeduction = 0;
+  for (const type of Object.keys(perTypeDeduction)) {
+    totalDeduction += Math.min(PER_TYPE_DEDUCTION_CAP, perTypeDeduction[type] ?? 0);
+  }
+  totalDeduction = Math.min(100, totalDeduction);
 
-  return Math.max(0, Math.round(100 - deduction));
+  return Math.max(0, Math.round(100 - totalDeduction));
 }
 
 // ── Individual checks ───────────────────────────────────────
@@ -234,13 +268,16 @@ function checkReferential(
 
   const issues: DataQualityIssue[] = [];
 
+  // Spec 52 §4 placeholder values that, while non-null, are functionally
+  // invalid foreign-key references and should be flagged for cleanup.
+  const placeholderValues = new Set(["", "null", "undefined", "0"]);
+
   for (const field of refFields) {
     // Flag records where the field is non-null but looks like an empty placeholder
     const suspicious = records.filter((r) => {
       const v = r[field];
       if (v === null || v === undefined) return false; // null is fine for non-required refs
-      if (typeof v === "string" && (v === "" || v === "null" || v === "undefined" || v === "0"))
-        return true;
+      if (typeof v === "string" && placeholderValues.has(v)) return true;
       return false;
     });
 
@@ -277,6 +314,7 @@ export function scanDataQuality(
 
   const sample = records.slice(0, maxRecords);
   const totalRecords = records.length;
+  const scannedRecords = sample.length;
 
   const issues: DataQualityIssue[] = [
     ...checkCompleteness(sample, entityDef),
@@ -294,10 +332,11 @@ export function scanDataQuality(
 
   return {
     schemaName: entityDef.name,
-    score: computeScore(issues, totalRecords),
+    score: computeScore(issues, scannedRecords),
     issues,
     stats: {
       totalRecords,
+      scannedRecords,
       issueCount: issues.length,
       byType,
       bySeverity,

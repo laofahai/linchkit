@@ -5,6 +5,11 @@
  * - POST /api/ai/chat — Vercel AI SDK streamText with tools (conversation history + function calling)
  * - POST /api/ai/resolve-intent — natural language to action proposal
  * - POST /api/ai/search — natural language to DeclarativeCondition filter
+ *
+ * TODO(#336 follow-up): this file is still ~900 lines after the data-quality
+ * split. Each remaining endpoint (auto-fill, chat, search, execute-intent,
+ * record-analysis) is a candidate for extraction into its own module.
+ * Tracked separately to keep this PR focused.
  */
 
 import type { Elysia } from "elysia";
