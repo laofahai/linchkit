@@ -409,6 +409,13 @@ export {
   type ProjectOverview,
   type RelationDescription,
 } from "./ontology";
+// Runtime env validation — Spec 12 deployment foundation (pure, browser-safe)
+export {
+  type EnvValidationResult,
+  OPTIONAL_ENV_VARS,
+  REQUIRED_ENV_VARS,
+  validateEnv,
+} from "./runtime/env";
 // Runtime override resolution (Layer 2 tenant overrides — pure logic, browser-safe)
 export {
   applyOverride,
