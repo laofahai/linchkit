@@ -110,6 +110,59 @@ describe("replayById — dry-run (default)", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
+
+  it("excludes handlers whose filter does not match the event payload", async () => {
+    const { registry, bus, replay } = makeSetup();
+
+    registry.register({
+      name: "filtered-h",
+      listen: "record.filtered",
+      filter: { status: "active" },
+      handler: async () => {},
+    });
+    registry.register({
+      name: "unfiltered-h",
+      listen: "record.filtered",
+      handler: async () => {},
+    });
+
+    const event = makeEvent("record.filtered", "exec-filter", { payload: { status: "inactive" } });
+    await bus.emit(event);
+
+    const result = await replay.replayById(event.id);
+
+    // filtered-h must not appear because payload.status !== "active"
+    expect(result.events[0]?.handlers.map((h) => h.handlerName)).toEqual(["unfiltered-h"]);
+  });
+
+  it("reports handlers sorted by priority (lower number = higher priority)", async () => {
+    const { registry, bus, replay } = makeSetup();
+
+    registry.register({
+      name: "low-prio",
+      listen: "prio.test",
+      priority: 200,
+      handler: async () => {},
+    });
+    registry.register({
+      name: "high-prio",
+      listen: "prio.test",
+      priority: 10,
+      handler: async () => {},
+    });
+    registry.register({ name: "default-prio", listen: "prio.test", handler: async () => {} });
+
+    const event = makeEvent("prio.test", "exec-prio");
+    await bus.emit(event);
+
+    const result = await replay.replayById(event.id);
+
+    expect(result.events[0]?.handlers.map((h) => h.handlerName)).toEqual([
+      "high-prio",
+      "default-prio",
+      "low-prio",
+    ]);
+  });
 });
 
 describe("replayById — live mode", () => {
@@ -186,6 +239,42 @@ describe("replayById — live mode", () => {
     expect(seenIds).toHaveLength(1);
     expect(seenIds[0]).not.toBe(event.id);
   });
+
+  it("assigns a unique idempotencyKey prefixed replay: when force:true", async () => {
+    const { bus, replay } = makeSetup();
+
+    const event = makeEvent("record.force", "exec-force", { idempotencyKey: "original-key" });
+    await bus.emit(event);
+
+    const result = await replay.replayById(event.id, { dryRun: false, force: true });
+
+    const replayedId = result.events[0]?.replayEventId;
+    expect(replayedId).toBeDefined();
+
+    const replayedEvent = bus.getEmittedEvents().find((e) => e.id === replayedId);
+    expect(replayedEvent?.idempotencyKey).toMatch(/^replay:/);
+    expect(replayedEvent?.idempotencyKey).not.toBe("original-key");
+  });
+
+  it("skips events that fail to emit and reports the error", async () => {
+    const { bus, replay } = makeSetup();
+
+    const event = makeEvent("emit.failing", "exec-err");
+    await bus.emit(event);
+
+    // biome-ignore lint/suspicious/noExplicitAny: test-only override to simulate emit failure
+    (bus as any).emit = async () => {
+      throw new Error("simulated dispatch error");
+    };
+
+    const result = await replay.replayById(event.id, { dryRun: false });
+
+    expect(result.replayed).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.events[0]?.status).toBe("skipped");
+    expect(result.events[0]?.skipReason).toBe("emit_error");
+    expect(result.events[0]?.error).toBe("simulated dispatch error");
+  });
 });
 
 describe("replayByExecution — dry-run (default)", () => {
@@ -227,6 +316,15 @@ describe("replayByExecution — dry-run (default)", () => {
 
     const updatedResult = result.events.find((e) => e.eventType === "record.updated");
     expect(updatedResult?.handlers).toEqual([]);
+  });
+
+  it("does not set truncated flag when events are within limit", async () => {
+    const { bus, replay } = makeSetup();
+    const execId = "exec-small";
+    await bus.emit(makeEvent("record.created", execId));
+
+    const result = await replay.replayByExecution(execId);
+    expect(result.truncated).toBeUndefined();
   });
 });
 

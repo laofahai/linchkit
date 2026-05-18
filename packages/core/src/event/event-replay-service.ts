@@ -9,11 +9,12 @@
 
 import type { EventRecord } from "../types/event";
 import { createExecutionMeta, extendExecutionMeta } from "../types/execution-meta";
-import type { EventBus, EventHandlerRegistry } from "./event-bus";
+import { type EventBus, type EventHandlerRegistry, matchesFilter } from "./event-bus";
 
 // ── Spec 66 §4.3 hard limit per invocation ──────────────────
 
 const MAX_EVENTS_PER_REPLAY = 10_000;
+const DEFAULT_PRIORITY = 100;
 
 // ── Public types ─────────────────────────────────────────────
 
@@ -50,7 +51,9 @@ export interface ReplayedEventResult {
   handlers: ReplayedHandlerInfo[];
   status: "replayed" | "skipped";
   /** Why the event was skipped */
-  skipReason?: "not_found";
+  skipReason?: "not_found" | "emit_error";
+  /** Error message when status is "skipped" due to emit_error */
+  error?: string;
 }
 
 export interface ReplayResult {
@@ -60,6 +63,8 @@ export interface ReplayResult {
   replayed: number;
   skipped: number;
   events: ReplayedEventResult[];
+  /** True when the execution's event count exceeded the 10k guard and results were truncated */
+  truncated?: boolean;
 }
 
 export interface EventReplayService {
@@ -78,6 +83,17 @@ export interface EventReplayService {
 
 // ── Implementation ───────────────────────────────────────────
 
+function getMatchedHandlerInfos(
+  event: EventRecord,
+  registry: EventHandlerRegistry,
+): ReplayedHandlerInfo[] {
+  return registry
+    .getByEvent(event.type)
+    .filter((h) => !h.filter || matchesFilter(event.payload as Record<string, unknown>, h.filter))
+    .sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY))
+    .map((h) => ({ handlerName: h.name }));
+}
+
 async function dispatchReplayBatch(
   events: EventRecord[],
   bus: EventBus,
@@ -89,8 +105,7 @@ async function dispatchReplayBatch(
   const results: ReplayedEventResult[] = [];
 
   for (const event of events) {
-    const handlers = registry.getByEvent(event.type);
-    const handlerInfos: ReplayedHandlerInfo[] = handlers.map((h) => ({ handlerName: h.name }));
+    const handlerInfos = getMatchedHandlerInfos(event, registry);
 
     if (dryRun) {
       results.push({
@@ -114,21 +129,31 @@ async function dispatchReplayBatch(
         ...event,
         id: crypto.randomUUID(),
         timestamp: new Date(),
-        // Clear idempotency key so the replayed event is not suppressed by dedup
-        // unless force:false and the bus dedup window would catch it via executionId
-        idempotencyKey: options.force ? undefined : event.idempotencyKey,
+        // force:true assigns a unique key so dedup never suppresses the replay.
+        // force:false keeps the original key; dedup may suppress if recently seen.
+        idempotencyKey: options.force ? `replay:${replayId}:${event.id}` : event.idempotencyKey,
         meta: newMeta,
       };
 
-      await bus.emit(replayedEvent);
-
-      results.push({
-        originEventId: event.id,
-        replayEventId: replayedEvent.id,
-        eventType: event.type,
-        handlers: handlerInfos,
-        status: "replayed",
-      });
+      try {
+        await bus.emit(replayedEvent);
+        results.push({
+          originEventId: event.id,
+          replayEventId: replayedEvent.id,
+          eventType: event.type,
+          handlers: handlerInfos,
+          status: "replayed",
+        });
+      } catch (err) {
+        results.push({
+          originEventId: event.id,
+          eventType: event.type,
+          handlers: handlerInfos,
+          status: "skipped",
+          skipReason: "emit_error",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
 
@@ -187,6 +212,7 @@ export function createEventReplayService(
       }
 
       // Spec 66 §4.3 guard: cap at MAX_EVENTS_PER_REPLAY
+      const truncated = matching.length > MAX_EVENTS_PER_REPLAY;
       const capped = matching.slice(0, MAX_EVENTS_PER_REPLAY);
 
       const eventResults = await dispatchReplayBatch(capped, bus, registry, options, replayId);
@@ -196,6 +222,7 @@ export function createEventReplayService(
         replayed: eventResults.filter((e) => e.status === "replayed").length,
         skipped: eventResults.filter((e) => e.status === "skipped").length,
         events: eventResults,
+        ...(truncated ? { truncated } : {}),
       };
     },
   };
