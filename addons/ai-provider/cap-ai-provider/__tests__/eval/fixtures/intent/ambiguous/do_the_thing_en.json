@@ -1,0 +1,22 @@
+{
+  "id": "ambiguous-do-the-thing-en",
+  "scenario": "intent",
+  "tags": ["ambiguous", "en", "refusal-expected"],
+  "description": "English: maximally vague — should refuse with null proposal",
+  "input": {
+    "userMessage": "do the thing"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "proposal_is_null", "args": {} },
+      { "name": "confidence_max", "args": { "value": 0.5 }, "strict": false }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1720, "output": 180 }
+  }
+}

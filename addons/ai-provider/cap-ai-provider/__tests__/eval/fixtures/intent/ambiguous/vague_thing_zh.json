@@ -1,0 +1,23 @@
+{
+  "id": "ambiguous-vague-thing-zh",
+  "scenario": "intent",
+  "tags": ["ambiguous", "zh", "refusal-expected"],
+  "description": "Chinese: completely vague request with no actionable intent — resolver should refuse (proposal_is_null) or confidence very low",
+  "input": {
+    "userMessage": "搞一下那个东西"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "proposal_is_null", "args": {} },
+      { "name": "confidence_max", "args": { "value": 0.5 }, "strict": false }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1750, "output": 180 },
+    "notes": "Either action is null OR confidence ≤ 0.5; matcher prefers refusal as primary signal. Below MIN_CONFIDENCE (0.4) the resolver returns null regardless."
+  }
+}

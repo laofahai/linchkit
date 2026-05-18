@@ -1,0 +1,22 @@
+{
+  "id": "ambiguous-just-handle-it-zh",
+  "scenario": "intent",
+  "tags": ["ambiguous", "zh", "refusal-expected"],
+  "description": "Chinese: 'process it' — ambiguous because approve/reject/submit are all plausible interpretations",
+  "input": {
+    "userMessage": "处理下"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "proposal_is_null", "args": {} },
+      { "name": "confidence_max", "args": { "value": 0.5 }, "strict": false }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1730, "output": 180 }
+  }
+}

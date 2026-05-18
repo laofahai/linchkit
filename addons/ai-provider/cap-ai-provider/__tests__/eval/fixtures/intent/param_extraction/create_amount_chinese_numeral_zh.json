@@ -1,0 +1,24 @@
+{
+  "id": "param-create-amount-chinese-numeral-zh",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "zh", "create", "numeric", "chinese-numeral"],
+  "description": "Chinese: amount given as Chinese numeral (五千 = 5000) — verifies AI normalizes to integer value",
+  "input": {
+    "userMessage": "建一个采购申请，标题：办公椅，金额五千元"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.6 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 5000 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1500, "output": 220 },
+    "notes": "Tests Chinese numeral → integer normalization. Confidence threshold relaxed because Chinese numerals are harder to parse than Arabic digits."
+  }
+}

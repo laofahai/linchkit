@@ -1,0 +1,24 @@
+{
+  "id": "happy-create-purchase-request-en",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "en", "create"],
+  "description": "English: explicit creation of a new purchase request with title + amount — uses inline tiny_purchase catalog",
+  "input": {
+    "userMessage": "Please create a new purchase request titled 'Office laptops' for 12000 CNY"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 12000 } },
+      { "name": "input_must_include", "args": { "key": "title", "value": "Office laptops" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1520, "output": 230 }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "param-submit-with-long-notes-en",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "en", "submit", "text-field"],
+  "description": "English: submit with explicit notes — verifies notes text is captured exactly",
+  "input": {
+    "userMessage": "Submit the purchase request with notes: Required by end of Q2 for the new product launch"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "submit_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      {
+        "name": "input_must_include",
+        "args": { "key": "notes", "value": "Required by end of Q2 for the new product launch" }
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1850, "output": 240 }
+  }
+}

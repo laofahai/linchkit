@@ -1,0 +1,24 @@
+{
+  "id": "typo-colloquial-typo-caigou-zh",
+  "scenario": "intent",
+  "tags": ["typo_colloquial", "purchase", "zh", "create", "typo"],
+  "description": "Chinese: typo (采够 instead of 采购) + colloquial amount (5k) — resolver should still infer create_purchase_request with amount 5000",
+  "input": {
+    "userMessage": "帮我建个采够单 5k"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.5 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 5000 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1500, "output": 230 },
+    "notes": "Relaxed confidence floor (0.5) because typo + abbreviated amount should still resolve but is harder than canonical phrasing."
+  }
+}

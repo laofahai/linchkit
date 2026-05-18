@@ -1,0 +1,27 @@
+{
+  "id": "happy-reject-purchase-request-en",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "en", "reject"],
+  "description": "English: reject command with explicit reason — should map to reject_purchase_request with reason captured",
+  "input": {
+    "userMessage": "Reject the laptop purchase order, reason: budget exceeded for this quarter"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "reject_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      {
+        "name": "input_must_include",
+        "args": { "key": "reason", "value": "budget exceeded for this quarter" }
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1850, "output": 220 },
+    "notes": "reason is the only required input field of reject_purchase_request."
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "happy-submit-purchase-request-zh",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "zh", "submit"],
+  "description": "Chinese: user asks to submit a draft purchase request for approval — should map to submit_purchase_request from cap-demo",
+  "input": {
+    "userMessage": "提交我刚才那个采购申请"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "submit_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1800, "output": 200 },
+    "notes": "Uses the REAL cap-purchase-demo catalog — only the 3 real actions (submit/approve/reject) are available."
+  }
+}

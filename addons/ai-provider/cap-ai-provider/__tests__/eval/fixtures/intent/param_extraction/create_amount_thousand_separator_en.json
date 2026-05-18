@@ -1,0 +1,24 @@
+{
+  "id": "param-create-amount-thousand-separator-en",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "en", "create", "numeric"],
+  "description": "English: amount given with comma thousand-separator (12,500) — must parse to integer 12500",
+  "input": {
+    "userMessage": "Create a purchase request titled 'Server hardware' for 12,500 CNY in IT department"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 12500 } },
+      { "name": "input_must_include", "args": { "key": "department", "value": "IT" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1520, "output": 240 }
+  }
+}

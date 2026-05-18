@@ -1,0 +1,23 @@
+{
+  "id": "param-create-amount-numeric-zh",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "zh", "create", "numeric"],
+  "description": "Chinese: amount given as bare number — must parse to integer 5000",
+  "input": {
+    "userMessage": "新建一个采购单，标题办公用品，金额 5000"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 5000 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1500, "output": 220 }
+  }
+}

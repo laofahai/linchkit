@@ -1,0 +1,29 @@
+{
+  "id": "multi-submit-with-hint-purchase-en",
+  "scenario": "intent",
+  "tags": ["multi_candidate", "en", "submit", "weak-disambiguator"],
+  "description": "English: 'submit my request' with a faint disambiguator — should weakly prefer submit_purchase_request but still surface submit_leave_request as alternative",
+  "input": {
+    "userMessage": "Submit my request for the office supplies"
+  },
+  "context": {
+    "catalogSource": "inline:mixed_capability",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "submit_purchase_request" } },
+      { "name": "confidence_max", "args": { "value": 0.7 } },
+      { "name": "alternatives_min_count", "args": { "value": 1 } },
+      {
+        "name": "alternatives_includes_action",
+        "args": { "value": "submit_leave_request" },
+        "strict": false
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1620, "output": 300 },
+    "notes": "'office supplies' weakly disambiguates toward purchase, but the framing 'submit my request' could still legitimately match leave_request; alternatives should still be surfaced."
+  }
+}

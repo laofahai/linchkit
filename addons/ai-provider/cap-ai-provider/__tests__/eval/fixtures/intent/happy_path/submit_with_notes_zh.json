@@ -1,0 +1,23 @@
+{
+  "id": "happy-submit-with-notes-zh",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "zh", "submit", "notes"],
+  "description": "Chinese: submit with an explicit note attached — verifies notes field is extracted",
+  "input": {
+    "userMessage": "提交采购申请，备注：紧急项目所需"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "submit_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "notes", "value": "紧急项目所需" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1820, "output": 220 }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "multi-submit-ambiguous-request-en",
+  "scenario": "intent",
+  "tags": ["multi_candidate", "en", "submit"],
+  "description": "English: 'submit the request' is ambiguous between submit_purchase_request and submit_leave_request — confidence should be ≤ 0.7 and alternatives should include the runner-up",
+  "input": {
+    "userMessage": "Submit the request please"
+  },
+  "context": {
+    "catalogSource": "inline:mixed_capability",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "confidence_max", "args": { "value": 0.7 } },
+      { "name": "alternatives_min_count", "args": { "value": 1 } },
+      { "name": "alternatives_excludes_primary", "args": {} },
+      {
+        "name": "alternatives_includes_action",
+        "args": { "value": "submit_leave_request" },
+        "strict": false
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1600, "output": 280 },
+    "notes": "Resolver only surfaces alternatives when confidence < ALTERNATIVES_CONFIDENCE_THRESHOLD (0.7). action_equals omitted — either submit_* is acceptable here. alternatives_includes_action is non-strict because we cannot deterministically predict which the model picks as primary vs alternative."
+  }
+}
