@@ -49,6 +49,7 @@ import { mountProposalAPI } from "./proposal-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
+import { mountAIByokRoutes } from "./routes/ai-byok";
 import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
@@ -187,6 +188,19 @@ export interface ServerOptions {
    * Receives the current yoga instance and triggers schema replacement.
    */
   rebuildGraphQLSchema?: () => GraphQLSchema;
+  /**
+   * BYOK key store (Spec 36 M2+) — when provided, enables the
+   * `/api/ai/byok/keys` endpoints for per-tenant AI key management.
+   * The store is opaque to the server: it only persists encrypted
+   * key references (KMS lookup tokens), never plaintext keys.
+   */
+  byokKeyStore?: import("@linchkit/core/ai").BYOKKeyStore;
+  /**
+   * AI usage meter (Spec 36 M2+) — when provided, enables the
+   * `/api/ai/byok/usage` endpoint for per-tenant AI usage aggregation
+   * and acts as the recording sink for completed AI calls.
+   */
+  usageMeter?: import("@linchkit/core/ai").UsageMeter;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -299,6 +313,10 @@ export function createServer(
   mountConfigRoutes(app, opts);
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
+  // Spec 36 M2+ BYOK + usage endpoints (per-tenant key store + meter).
+  // Mounted alongside the other AI routes; no-ops when the store /
+  // meter are not configured (returns 503 with a structured envelope).
+  mountAIByokRoutes(app, opts);
   // Spec 52 §2.6 canonical intent-resolution endpoint. Mounted AFTER
   // mountAIRoutes so the canonical handler (with permission scoping +
   // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
