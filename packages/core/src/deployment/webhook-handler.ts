@@ -56,7 +56,7 @@ export interface WebhookHandleResult {
   reason?: string;
 }
 
-// ── Internal helpers ─────────────────────────────────────────
+// ── Internal helpers ───────────────────────────────────────────
 
 /** Raw shape of a GitHub push event payload (only the fields we use). */
 interface GitHubPushPayload {
@@ -75,14 +75,17 @@ function computeExpectedSignature(secret: string, rawBody: string): string {
 }
 
 function safeEqual(a: string, b: string): boolean {
-  // Convert both to Buffer so timingSafeEqual can be used regardless of length
+  // Reject mismatched lengths on the string before allocating a Buffer from
+  // the untrusted input (b), preventing resource exhaustion on oversized headers.
+  if (a.length !== b.length) return false;
   const bufA = Buffer.from(a, "utf8");
   const bufB = Buffer.from(b, "utf8");
+  // Byte-level length check still required for timingSafeEqual (multi-byte UTF-8).
   if (bufA.length !== bufB.length) return false;
   return timingSafeEqual(bufA, bufB);
 }
 
-// ── DeployWebhookHandler ─────────────────────────────────────
+// ── DeployWebhookHandler ───────────────────────────────────────────
 
 export class DeployWebhookHandler {
   private readonly secret: string;
