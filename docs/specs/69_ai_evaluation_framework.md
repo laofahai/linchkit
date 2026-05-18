@@ -485,51 +485,18 @@ The dated baselines (§7.2) and the canonical `current.json` share the same JSON
 
 ### 9.3 GitHub Actions wiring (Phase 1 minimum)
 
-```yaml
-# .github/workflows/ai-eval.yml (Phase 1)
+Phase 1 ships **two jobs** in `.github/workflows/ai-eval.yml` matching the §9.1 tier split — neither tier is conditional on the other:
 
-name: AI Eval (prompt-quality, on prompt change)
-on:
-  pull_request:
-    paths:
-      - 'addons/ai-provider/cap-ai-provider/src/intent-prompt.ts'
-      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/fixtures/intent/**'
-  workflow_dispatch:        # manual trigger always allowed
+| Job | Trigger | Cost | Secret required | Blocks merge? |
+|---|---|---|---|---|
+| `intent-eval-replay` | every PR touching prompt/eval surface | $0 (offline) | none | yes |
+| `intent-eval-live` | `workflow_dispatch` only (maintainer) | $0.04+ (model-dependent) | active provider key only | n/a (manual) |
 
-jobs:
-  intent-eval:
-    runs-on: ubuntu-latest
-    # Skip on fork PRs (secrets not available to forks per GitHub policy) and on
-    # PRs explicitly opted out. Maintainers must trigger workflow_dispatch for
-    # fork-originated prompt changes — see §9.4 and §12 OQ #5.
-    # The `github` context IS allowed in job-level `if:` (unlike `secrets`).
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - name: Verify ANTHROPIC_API_KEY is set (defense in depth)
-        # The job-level `if:` above already excludes fork PRs. This step is a
-        # belt-and-suspenders guard for misconfigured secret rotation.
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY missing despite same-repo PR — check repo secrets."
-            exit 1
-          fi
-      - run: bun install --frozen-lockfile
-      - run: AI_EVAL_LIVE=1 bun run ai:eval --scenario intent --max-cost-usd 5
-        # NOTE: no --refresh-baseline flag. Live mode diffs against prior canonical and
-        # fails on regression (§6.3). Canonical is updated by the PR author locally with
-        # --refresh-baseline and committed alongside the prompt change.
-      - name: Comment delta on PR
-        if: always()
-        run: bun run ai:eval --diff-current --post-to-pr
-```
+The replay job is the gate. It loads the committed canonical baseline, replays per-fixture outputs through the matcher catalog, and fails on **any** delta vs baseline. Live runs are explicitly maintainer-triggered so secret-less repos can still benefit from spec 69 (the framework runs in fully-offline mode too).
 
-Replay-mode regression (`bun run ai:eval --replay`) is wired into the existing `bun test` job — no new workflow.
+The live job verifies the **active provider's** API key (parsed from `config/linchkit.config.ts` `ai.defaultProvider` — zhipu / anthropic / openai / openrouter / volcengine), so adding a new provider only needs the matching repo secret. Fork PRs are excluded by the same-repo `if:` guard (secrets policy per spec §9.4).
+
+See the workflow file for the full implementation. The replay job is what plugs into branch protection; the live job's artifact is what informs the prompt-quality decision when a maintainer wants to confirm "did this prompt change actually improve the model's behavior".
 
 ### 9.4 Failure semantics
 
