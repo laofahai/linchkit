@@ -57,8 +57,9 @@ Missing required variables abort the boot; soft issues become warnings.
 Two infrastructure-level probes are mounted by the server (`addons/adapter-server/cap-adapter-server/src/routes/health.ts`):
 
 - `GET /health` — process liveness. Always returns 200 with
-  `{ status: "ok", uptime, version }`. Used by container orchestrators to
-  decide whether to restart the process. Free of external dependencies.
+  `{ status: "healthy", timestamp, uptime, version, checks }`. Used by
+  container orchestrators to decide whether to restart the process. Free of
+  external dependencies.
 - `GET /ready` — readiness. Returns 200 with per-dependency check results
   when every dependency is reachable; otherwise 503. The current readiness
   signal is the data provider (`DrizzleDataProvider.ping()`).

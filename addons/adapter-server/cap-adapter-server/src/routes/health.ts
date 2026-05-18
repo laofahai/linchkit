@@ -25,10 +25,15 @@
 
 import { DrizzleDataProvider } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
+import pkg from "../../package.json" with { type: "json" };
 import type { ServerOptions } from "../server";
 
-/** Server version surfaced by `/health`. Kept in sync with other admin endpoints. */
-const SERVER_VERSION = "0.2.0";
+/**
+ * Server version surfaced by `/health`. Sourced from this package's own
+ * `package.json` so the runtime response never drifts from the published
+ * artefact version.
+ */
+const SERVER_VERSION: string = pkg.version;
 
 /**
  * Mount liveness + readiness probes.
