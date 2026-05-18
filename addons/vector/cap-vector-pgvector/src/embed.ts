@@ -21,16 +21,34 @@ import type { EmbeddingProvider, UpsertVectorInput, VectorStore } from "./types"
 
 // ── Function adapter ────────────────────────────────────────
 
+/**
+ * Default concurrency for the synthesised `embedMany` fallback.
+ *
+ * Most hosted embedding endpoints (OpenAI, Cohere, voyage) tolerate
+ * 4-8 concurrent requests before tripping the per-second token-bucket;
+ * 4 is conservative without serialising. Hosts that want different
+ * behaviour either supply a native `embedMany` or override
+ * {@link FunctionEmbeddingProviderOptions.embedManyConcurrency}.
+ */
+const DEFAULT_EMBED_MANY_CONCURRENCY = 4;
+
 export interface FunctionEmbeddingProviderOptions {
   /** Vector dimension produced by the embed function. */
   dimension: number;
   /** Single-text embedding function. */
   embed: (text: string) => Promise<number[]>;
   /**
-   * Optional batch variant. When omitted, `embedMany()` falls back to
-   * `Promise.all` over `embed()`.
+   * Optional batch variant. When omitted, `embedMany()` falls back to a
+   * concurrency-limited loop over `embed()` (see
+   * {@link embedManyConcurrency}).
    */
   embedMany?: (texts: readonly string[]) => Promise<number[][]>;
+  /**
+   * Maximum number of concurrent `embed()` calls when `embedMany` falls
+   * back. Ignored when a native `embedMany` is supplied. Must be a
+   * positive integer; defaults to {@link DEFAULT_EMBED_MANY_CONCURRENCY}.
+   */
+  embedManyConcurrency?: number;
 }
 
 /**
@@ -54,15 +72,58 @@ export function createFunctionEmbeddingProvider(
   if (!Number.isInteger(options.dimension) || options.dimension <= 0) {
     throw new Error("createFunctionEmbeddingProvider: dimension must be a positive integer");
   }
+  const concurrency = options.embedManyConcurrency ?? DEFAULT_EMBED_MANY_CONCURRENCY;
+  if (!Number.isInteger(concurrency) || concurrency <= 0) {
+    throw new Error(
+      "createFunctionEmbeddingProvider: embedManyConcurrency must be a positive integer",
+    );
+  }
+
   return {
     dimension: options.dimension,
     embed: options.embed,
     embedMany:
       options.embedMany ??
       (async (texts) => {
-        return Promise.all(texts.map((t) => options.embed(t)));
+        // Fallback path: dispatch `embed()` with a bounded concurrency
+        // pool so a large `documents` array doesn't open hundreds of
+        // simultaneous HTTP requests and trip the provider's rate limit.
+        return runWithConcurrency(texts, concurrency, options.embed);
       }),
   };
+}
+
+/**
+ * Run `task` over every input with at most `limit` in-flight promises,
+ * preserving input order in the output array.
+ *
+ * Kept inline (no extra dep) — the implementation is a simple sliding
+ * window over a worker pool.
+ */
+async function runWithConcurrency<TIn, TOut>(
+  inputs: readonly TIn[],
+  limit: number,
+  task: (input: TIn) => Promise<TOut>,
+): Promise<TOut[]> {
+  if (inputs.length === 0) return [];
+  const effectiveLimit = Math.max(1, Math.min(limit, inputs.length));
+  const results = new Array<TOut>(inputs.length);
+  let cursor = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const idx = cursor++;
+      if (idx >= inputs.length) return;
+      results[idx] = await task(inputs[idx] as TIn);
+    }
+  }
+
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < effectiveLimit; i++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+  return results;
 }
 
 // ── Document → vector pipeline ──────────────────────────────

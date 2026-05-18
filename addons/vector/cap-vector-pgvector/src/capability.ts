@@ -24,10 +24,12 @@ export interface CapVectorPgvectorOptions {
   /**
    * Drizzle database instance for persistent storage. When omitted, the
    * capability falls back to {@link InMemoryVectorStore} — only suitable
-   * for tests or dev environments without pgvector.
+   * for tests or dev environments without pgvector. Typed as `unknown`
+   * because the concrete driver flavour (PgDatabase, PgliteDatabase,
+   * NodePgDatabase …) varies; `PgVectorStore` validates the shape at
+   * construction time.
    */
-  // biome-ignore lint/suspicious/noExplicitAny: Drizzle DB type varies by driver
-  db?: any;
+  db?: unknown;
   /**
    * Pre-built VectorStore instance. When provided, `db` and `dimension`
    * are ignored. Useful for tests and for hosts that wire a custom

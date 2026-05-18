@@ -24,7 +24,15 @@
  */
 
 import { linchkitSchema } from "@linchkit/core/server";
-import { customType, index, jsonb, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  customType,
+  index,
+  jsonb,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 /**
  * Default embedding dimension. Matches OpenAI `text-embedding-3-small`
@@ -60,10 +68,25 @@ export const vectorColumn = customType<{
   },
   fromDriver(value: string): number[] {
     // pgvector returns text like `[1,2,3]` — strip the brackets and parse.
+    // Use `Number.parseFloat` and reject non-finite components so a malformed
+    // driver response never silently produces a NaN-laden vector that would
+    // corrupt downstream similarity math.
     if (typeof value !== "string") return [];
     const trimmed = value.replace(/^\[|\]$/g, "").trim();
     if (trimmed.length === 0) return [];
-    return trimmed.split(",").map((s) => Number(s));
+    const parts = trimmed.split(",");
+    const out = new Array<number>(parts.length);
+    for (let i = 0; i < parts.length; i++) {
+      const raw = parts[i] ?? "";
+      const n = Number.parseFloat(raw);
+      if (!Number.isFinite(n)) {
+        throw new Error(
+          `vectorColumn.fromDriver: invalid numeric component "${raw}" at index ${i} (value="${value}")`,
+        );
+      }
+      out[i] = n;
+    }
+    return out;
   },
 });
 
@@ -88,9 +111,12 @@ export const vectorsTable = linchkitSchema.table(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
   (table) => [
-    // (id, namespace) is the upsert conflict target — kept as a plain
-    // composite index so a single id can exist in multiple namespaces.
-    index("idx_vectors_id_namespace").on(table.id, table.namespace),
+    // (id, namespace) is the upsert conflict target — it MUST be a unique
+    // index so PostgreSQL can use it as the arbiter for
+    // `INSERT ... ON CONFLICT (id, namespace) DO UPDATE`. A plain composite
+    // index would cause the upsert to fail with
+    // `no unique or exclusion constraint matching the ON CONFLICT specification`.
+    uniqueIndex("ux_vectors_id_namespace").on(table.id, table.namespace),
     index("idx_vectors_namespace").on(table.namespace),
     // HNSW operator-class index for cosine similarity is created via
     // raw SQL in the follow-up migration; drizzle-kit cannot express it.

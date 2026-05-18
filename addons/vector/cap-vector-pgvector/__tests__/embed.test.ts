@@ -53,6 +53,42 @@ describe("createFunctionEmbeddingProvider", () => {
       /positive integer/,
     );
   });
+
+  it("rejects non-positive embedManyConcurrency", () => {
+    expect(() =>
+      createFunctionEmbeddingProvider({
+        dimension: D,
+        embed: async () => [0, 0, 0],
+        embedManyConcurrency: 0,
+      }),
+    ).toThrow(/embedManyConcurrency/);
+  });
+
+  it("bounds parallel embed() invocations in the fallback path", async () => {
+    let inFlight = 0;
+    let peakInFlight = 0;
+    const provider = createFunctionEmbeddingProvider({
+      dimension: D,
+      embedManyConcurrency: 2,
+      embed: async (text) => {
+        inFlight++;
+        peakInFlight = Math.max(peakInFlight, inFlight);
+        // Yield once so multiple inputs can pile up if concurrency is unbounded.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        inFlight--;
+        return stubEmbed(text);
+      },
+    });
+
+    const inputs = ["a", "b", "c", "d", "e", "f"];
+    const vectors = (await provider.embedMany?.(inputs)) ?? [];
+    expect(vectors).toHaveLength(inputs.length);
+    // Result order is preserved.
+    expect(vectors[0]).toEqual(stubEmbed("a"));
+    expect(vectors[5]).toEqual(stubEmbed("f"));
+    // Concurrency must never exceed the configured cap.
+    expect(peakInFlight).toBeLessThanOrEqual(2);
+  });
 });
 
 describe("embedAndUpsertDocuments", () => {

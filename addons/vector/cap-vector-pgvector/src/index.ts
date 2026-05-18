@@ -55,4 +55,4 @@ export type {
 } from "./types";
 
 // Math helpers (exported for consumers that want to reproduce scoring)
-export { cosineSimilarity, matchesFilter } from "./vector-math";
+export { cosineSimilarity, deepEqual, matchesFilter } from "./vector-math";

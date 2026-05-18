@@ -48,8 +48,16 @@ export interface SimilarityResult<TMeta extends Record<string, unknown> = Record
   id: string;
   /**
    * Cosine similarity score in `[0, 1]`. Higher = more similar.
-   * (Postgres pgvector's `<=>` returns cosine *distance*; the store
-   * converts it to similarity = `1 - distance` before returning.)
+   *
+   * Both backends rescale raw cosine similarity (`[-1, 1]`) into
+   * `[0, 1]` via `(sim + 1) / 2` so callers see identical ranges
+   * regardless of which `VectorStore` implementation is wired:
+   *   - `InMemoryVectorStore` applies the rescale in JS
+   *     (see `cosineSimilarity()` in `./vector-math.ts`).
+   *   - `PgVectorStore` applies the rescale in the SQL projection
+   *     (so the HNSW `ORDER BY` plan still kicks in).
+   * `minScore` filtering uses this rescaled range — `0.5` means
+   * orthogonal, `1.0` identical, `0.0` opposite.
    */
   score: number;
   /** Metadata stored at `upsert()` time. */
