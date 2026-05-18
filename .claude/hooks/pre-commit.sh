@@ -36,8 +36,16 @@ fi
 # worktree rather than from the hook's CWD (which is always the main
 # worktree on `main`). Without this, all worktree commits look like they
 # target main and get incorrectly blocked.
+#
+# Paths with spaces: try double-quoted, then single-quoted, then unquoted.
 _GIT_C_OPT=""
-_CD_PATH=$(printf '%s' "$COMMAND" | sed -n 's|^cd[[:space:]]\+\([^[:space:];&|]\+\)[[:space:]]*&&.*|\1|p')
+_CD_PATH=$(printf '%s' "$COMMAND" | sed -n 's|^cd[[:space:]]\+"\([^"]*\)"[[:space:]]*&&.*|\1|p')
+if [ -z "$_CD_PATH" ]; then
+  _CD_PATH=$(printf '%s' "$COMMAND" | sed -n "s|^cd[[:space:]]\+'\([^']*\)'[[:space:]]*&&.*|\1|p")
+fi
+if [ -z "$_CD_PATH" ]; then
+  _CD_PATH=$(printf '%s' "$COMMAND" | sed -n 's|^cd[[:space:]]\+\([^[:space:];&|]\+\)[[:space:]]*&&.*|\1|p')
+fi
 if [ -n "$_CD_PATH" ] && [ -f "$_CD_PATH/.git" ]; then
   _GIT_C_OPT="-C $_CD_PATH"
 fi
