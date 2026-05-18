@@ -109,3 +109,92 @@ export interface IntentEvalOutput {
   /** Single-call latency in milliseconds. May be `undefined` for replayed outputs. */
   latencyMs?: number;
 }
+
+// ── Runner / baseline / report types (spec 69 §6.3, §7.2, §9.2) ──
+
+/**
+ * Per-fixture outcome captured in both `RunReport` and the committed
+ * baseline JSON. Spec 69 §7.2 / §9.2 require the canonical baseline and
+ * dated archives to share this shape.
+ */
+export interface BaselineFixtureEntry<TOutput = unknown> {
+  /** Mirrors `EvalFixture.id` — primary key inside a baseline file. */
+  fixtureId: string;
+  /**
+   * SHA-256 of canonical-JSON(fixture.input + fixture.context). Lets the
+   * replay path detect drift between the fixture on disk and the
+   * recorded `aiOutput`, enforcing spec 69 §6.4 fail-loud behaviour.
+   */
+  fixtureHash: string;
+  /** Recorded AI output for this fixture. */
+  aiOutput: TOutput;
+  /** Matcher invocation results, in fixture order. */
+  matcherResults: MatcherResult[];
+  /** True iff every strict matcher passed. */
+  passed: boolean;
+  /** Model id the AI service reported (optional for replay-only runs). */
+  modelId?: string;
+  /** Provider name the AI service reported. */
+  providerName?: string;
+  /** ISO 8601 timestamp the fixture was evaluated. */
+  timestamp: string;
+}
+
+/** On-disk shape for both `<scenario>.current.json` and dated archives. */
+export interface BaselineFile<TOutput = unknown> {
+  scenario: string;
+  /** ISO 8601 timestamp the baseline was produced. */
+  generatedAt: string;
+  /** Runner version stamp — useful for invalidating after format changes. */
+  runnerVersion: string;
+  /** Model id that drove the run that produced this baseline. */
+  modelId?: string;
+  /** Provider name that produced this baseline. */
+  providerName?: string;
+  /** Per-fixture entries. Order mirrors the run order. */
+  fixtures: BaselineFixtureEntry<TOutput>[];
+}
+
+/** Aggregated run report — held in memory and emitted via reporters. */
+export interface RunReport<TOutput = unknown> {
+  scenario: string;
+  generatedAt: string;
+  modelId?: string;
+  providerName?: string;
+  fixtures: BaselineFixtureEntry<TOutput>[];
+  summary: {
+    total: number;
+    strictPass: number;
+    strictFail: number;
+    skipped: number;
+    /** Scenario-specific aggregate; intent uses it for primary confidence. */
+    avgPrimaryConfidence?: number;
+  };
+  /** Populated when a prior canonical baseline existed for diffing. */
+  diff?: BaselineDiff;
+}
+
+/** Diff between a current `RunReport` and a prior canonical baseline. */
+export interface BaselineDiff {
+  scenario: string;
+  baselineGeneratedAt: string;
+  current: { generatedAt: string; modelId?: string };
+  byFixture: Array<{
+    fixtureId: string;
+    change: "pass-to-pass" | "pass-to-fail" | "fail-to-pass" | "fail-to-fail";
+    /** Strict-fail matcher delta for explainability. */
+    diff: { newlyFailing: string[]; newlyPassing: string[] };
+  }>;
+  summary: {
+    priorPass: number;
+    currentPass: number;
+    /** `currentPass - priorPass`. */
+    delta: number;
+    /** Fixtures that went pass-to-fail. */
+    regressions: number;
+    /** Percentage-point change in hit rate. */
+    deltaPp: number;
+  };
+  /** True when any pass-to-fail OR `deltaPp <= -10` per spec §9.4. */
+  hasRegression: boolean;
+}
