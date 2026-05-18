@@ -1,0 +1,88 @@
+name: AI Eval (prompt-quality)
+
+# Implements spec 69 §9.3 prompt-quality regression gate.
+# Triggers on prompt or fixture changes; runs the eval against a real LLM.
+# Same-repo PRs only — fork PRs cannot access ANTHROPIC_API_KEY and are
+# routed through workflow_dispatch (spec 69 §9.4). The job-level `if:` uses
+# the `github` context (allowed) rather than the `secrets` context (forbidden
+# in job-level conditions per GitHub Actions docs).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'addons/ai-provider/cap-ai-provider/src/intent-prompt.ts'
+      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/fixtures/intent/**'
+      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/catalogs/**'
+      - 'addons/ai-provider/cap-ai-provider/bin/ai-eval.ts'
+      - 'packages/devtools/src/ai-eval/**'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario to evaluate (intent / anomaly / pattern / watcher)
+        required: true
+        default: intent
+        type: string
+      max_cost_usd:
+        description: Hard cost ceiling in USD
+        required: true
+        default: '5'
+        type: string
+
+jobs:
+  intent-eval:
+    name: Intent Eval (live)
+    runs-on: ubuntu-latest
+    # Skip on fork PRs: secrets are unavailable per GitHub policy.
+    # Maintainers re-trigger via workflow_dispatch after manual review.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      AI_EVAL_LIVE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Verify ANTHROPIC_API_KEY is configured
+        # Belt-and-suspenders: the job-level `if:` already excludes fork PRs,
+        # but if secret rotation lapses for a same-repo PR we want a clear
+        # error rather than a cryptic 401 from the LLM call.
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY missing despite same-repo PR — check repo secrets."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run live eval (intent)
+        # NO --refresh-baseline. Live runs in PRs are measurement-only;
+        # canonical baseline is refreshed by the PR author locally via
+        # `AI_EVAL_LIVE=1 bun run ai:eval --scenario intent --refresh-baseline`
+        # and committed alongside the prompt change. This prevents CI from
+        # silently moving the regression bar (spec 69 §6.3, §9.2).
+        run: |
+          SCENARIO="${{ github.event.inputs.scenario || 'intent' }}"
+          CAP="${{ github.event.inputs.max_cost_usd || '5' }}"
+          bun run ai:eval \
+            --scenario "$SCENARIO" \
+            --max-cost-usd "$CAP" \
+            --report-json "ai-eval-report.json" \
+            | tee ai-eval-report.md
+
+      - name: Upload report artifact
+        # Survives even on RegressionError so reviewers can inspect failures.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-report-${{ github.run_id }}
+          path: |
+            ai-eval-report.md
+            ai-eval-report.json
+          retention-days: 30
