@@ -7,6 +7,19 @@
 
 export const VERSION = "0.0.1";
 
+// === AI Evaluation Framework (spec 69) ===
+export {
+  createMatcherRegistry,
+  type EvalFixture,
+  type IntentEvalOutput,
+  intentMatchers,
+  type MatcherFn,
+  type MatcherInvocation,
+  type MatcherRegistry,
+  type MatcherResult,
+  registerIntentMatchers,
+} from "./ai-eval";
+
 // === Documentation: API doc generation, Markdown, OpenAPI, Capability Spec, Search ===
 export {
   type ActionDoc,
