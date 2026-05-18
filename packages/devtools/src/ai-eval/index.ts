@@ -28,7 +28,7 @@ export {
   type WriteBaselineOptions,
   writeCanonicalBaseline,
 } from "./baseline";
-export { type CliDeps, type CliRunResult, runCli } from "./cli";
+export { type CliDeps, type CliRunResult, type LoadLiveDepsResult, runCli } from "./cli";
 export { intentMatchers, registerIntentMatchers } from "./matchers/intent";
 export { createMatcherRegistry, type MatcherRegistry } from "./matchers/registry";
 export { type MarkdownReportOptions, renderJsonReport, renderMarkdownReport } from "./reporters";

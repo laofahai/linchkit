@@ -68,6 +68,20 @@ export interface CliRunResult {
   markdownReport?: string;
 }
 
+/**
+ * Shape returned by `CliDeps.loadLiveDeps`. The free-form key/value map is
+ * passed straight to the scenario adapter as `RunDeps.deps`; the two
+ * optional reserved keys let the entry script declare which provider/model
+ * the AIService is configured against so the runner can stamp them onto
+ * the baseline + report (instead of leaving "n/a" when the user did not
+ * pass --model). Explicit --model on the CLI still wins over the
+ * `modelId` reported here.
+ */
+export type LoadLiveDepsResult = Record<string, unknown> & {
+  modelId?: string;
+  providerName?: string;
+};
+
 export interface CliDeps {
   /**
    * Register scenario adapters into the runner's scenario registry. The
@@ -95,7 +109,7 @@ export interface CliDeps {
     catalogsDir: string;
     /** Effective model from --model, or undefined when not set. */
     model: string | undefined;
-  }) => Promise<Record<string, unknown>>;
+  }) => Promise<LoadLiveDepsResult>;
   /** Override the cwd used for default fixture/baseline/catalog roots. */
   cwd?: string;
   /** Stdout sink for the report. Defaults to `process.stdout.write`. */
@@ -232,15 +246,22 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
 
   // Live deps are only resolved when actually needed.
   let runDeps: Record<string, unknown> | undefined;
+  let resolvedModelId: string | undefined = parsed.model;
+  let resolvedProviderName: string | undefined;
   if (live) {
     try {
       const liveDeps = await deps.loadLiveDeps({ catalogsDir, model: parsed.model });
+      // Capture the entry script's reported provider/model so the runner
+      // can stamp them onto the baseline + report. Explicit --model wins
+      // over `liveDeps.modelId` (the adapter's report is purely advisory).
+      resolvedModelId = parsed.model ?? liveDeps.modelId;
+      resolvedProviderName = liveDeps.providerName;
       // Provide conventional fallbacks so most adapters do not need to wire
       // model / loadInlineCatalog by hand. The adapter can still override
       // by populating these keys explicitly in its returned object.
       runDeps = {
         loadInlineCatalog: makeDiskInlineLoader(catalogsDir),
-        model: parsed.model,
+        model: resolvedModelId,
         ...liveDeps,
       };
     } catch (e) {
@@ -260,7 +281,8 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
     maxCostUsd,
     fixtureFilter: parsed.fixture,
     tagFilter: parsed.tags.length > 0 ? parsed.tags : undefined,
-    modelId: parsed.model,
+    modelId: resolvedModelId,
+    providerName: resolvedProviderName,
     costPrinter: (msg) => err(`${msg}\n`),
   };
 

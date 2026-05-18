@@ -10,9 +10,16 @@
  * Mirrors the dev:server / dev:ui split convention in the repo root.
  */
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { ActionDefinition, FieldDefinition } from "@linchkit/core";
+import type {
+  ActionDefinition,
+  AIServiceConfig,
+  FieldDefinition,
+  LinchKitConfig,
+} from "@linchkit/core";
+import { resolveEnvVars } from "@linchkit/core";
 import {
   type CliDeps,
   type InlineCatalogAction,
@@ -22,6 +29,30 @@ import {
 import { createIntentScenario } from "../eval-runner/intent-scenario";
 import { createAIService, defaultAIConfig } from "../src/ai-service";
 import type { OntologyRegistryLike } from "../src/intent-resolver";
+
+/**
+ * Load the repo-level AI provider config from `config/linchkit.config.ts`
+ * so the eval CLI uses the same provider/model the running server uses
+ * (e.g. zhipu GLM by default in this repo). Falls back to the
+ * package-level `defaultAIConfig` only when no project config is present.
+ *
+ * Why this matters: previously bin/ai-eval.ts hardcoded `defaultAIConfig`
+ * (anthropic-only), which silently ignored the project's `defaultProvider`
+ * choice and forced operators to supply an ANTHROPIC_API_KEY even when
+ * the rest of the system was wired to a different provider.
+ */
+async function loadRepoAIConfig(): Promise<AIServiceConfig | undefined> {
+  const configPath = path.resolve(process.cwd(), "config", "linchkit.config.ts");
+  if (!existsSync(configPath)) {
+    return undefined;
+  }
+  const mod = (await import(configPath)) as { default?: LinchKitConfig };
+  const cfg = mod.default;
+  if (!cfg?.ai) {
+    return undefined;
+  }
+  return resolveEnvVars(cfg.ai) as AIServiceConfig;
+}
 
 /**
  * Fallback catalog root — only used if the CLI somehow passes an
@@ -95,13 +126,22 @@ const cliDeps: CliDeps = {
     // AND buildOntology — previously buildOntology used a hardcoded path
     // which silently ignored the flag.
     const resolvedCatalogsDir = catalogsDir ?? DEFAULT_CATALOGS_DIR;
-    const ai = createAIService(defaultAIConfig);
+    const aiConfig = (await loadRepoAIConfig()) ?? defaultAIConfig;
+    const ai = createAIService(aiConfig);
     const ontology = await buildOntology(resolvedCatalogsDir);
+    // Report the effective provider + default model so the CLI can stamp
+    // them onto the baseline + report (otherwise the markdown shows
+    // "Model: n/a / Provider: n/a"). Explicit --model on the CLI still
+    // overrides our reported `modelId`.
+    const providerName = aiConfig.defaultProvider;
+    const reportedModelId = aiConfig.providers[providerName]?.defaultModel;
     return {
       ai,
       ontology,
       loadInlineCatalog: makeCatalogReader(resolvedCatalogsDir),
       model,
+      modelId: reportedModelId,
+      providerName,
     };
   },
 };
