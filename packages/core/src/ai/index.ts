@@ -49,6 +49,34 @@ export type {
   ConversationManagerOptions,
 } from "./conversation-manager";
 export { ConversationManager } from "./conversation-manager";
+// Intent Resolver (Spec 52 §2.2 / §2.5 — NL → discriminated Intent)
+export type { IntentCatalogEntry, IntentPromptOptions } from "./intent-prompt";
+export { buildIntentSystemPrompt } from "./intent-prompt";
+export type {
+  IntentOntology,
+  ResolveIntentDeps,
+  ResolveIntentInput,
+} from "./intent-resolver";
+export {
+  ALTERNATIVES_CONFIDENCE_THRESHOLD,
+  DEFAULT_MAX_HISTORY_MESSAGES,
+  extractFirstJsonObject,
+  MAX_ALTERNATIVES,
+  MIN_CONFIDENCE,
+  resolveIntent,
+} from "./intent-resolver";
+export type {
+  Intent,
+  IntentAlternative,
+  IntentClarification,
+  IntentHistoryMessage,
+  IntentMatch,
+  IntentMultiStep,
+  IntentNoMatch,
+  IntentResolverOptions,
+  IntentSlot,
+  IntentStep,
+} from "./intent-types";
 // Message Formatter
 export type { AIMessageBlock, AIRichMessage } from "./message-formatter";
 export { formatRichMessage, parseRichMessage } from "./message-formatter";
