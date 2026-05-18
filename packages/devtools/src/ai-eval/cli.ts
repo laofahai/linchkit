@@ -183,13 +183,21 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
       optional: true,
     });
     if (!priorBaseline) {
+      // Exit 1 (NOT 0) so CI treats this as a failure rather than a silent
+      // pass (Codex R6-P1). A missing baseline means the replay gate cannot
+      // evaluate anything — that's a genuine failure of the regression check,
+      // not an informational state. Bootstrap path is via --refresh-baseline.
+      // bun test does NOT invoke this CLI, so existing test suites are
+      // unaffected; only direct `bun run ai:eval` invocations and the CI
+      // workflow hit this path, and both should fail loud.
       err(
-        `NOTICE: No canonical baseline yet for scenario "${scenario}".\n` +
-          "         Replay mode requires a baseline produced by a prior live run:\n" +
-          `           ANTHROPIC_API_KEY=... AI_EVAL_LIVE=1 bun run ai:eval --scenario ${scenario} --refresh-baseline\n` +
-          "         See spec 69 §9.2 for details.\n",
+        `ERROR: No canonical baseline yet for scenario "${scenario}".\n` +
+          "       Replay mode requires a committed baseline. Bootstrap with:\n" +
+          `         ANTHROPIC_API_KEY=... AI_EVAL_LIVE=1 bun run ai:eval --scenario ${scenario} --refresh-baseline\n` +
+          "       Then commit the resulting __tests__/eval/baselines/<scenario>.current.json.\n" +
+          "       See spec 69 §9.2 for details.\n",
       );
-      return { exitCode: 0 };
+      return { exitCode: 1 };
     }
   }
 

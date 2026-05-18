@@ -608,10 +608,13 @@ describe("runCli — fresh-clone graceful handling (P1)", () => {
     await layout.cleanup();
   });
 
-  it("replay mode with no canonical baseline exits 0 with a NOTICE", async () => {
-    // Fixtures exist but no baseline has been generated yet — the default
-    // first-time-clone state. Replay mode would normally crash inside the
-    // runner; the CLI must catch this earlier and print actionable guidance.
+  it("replay mode with no canonical baseline exits 1 with a clear ERROR", async () => {
+    // Fixtures exist but no baseline has been generated yet. Per Codex R6
+    // (overrides earlier R2 fix that returned exit 0): a missing baseline
+    // means the replay gate cannot evaluate anything, which IS a regression-
+    // check failure, not informational. Exit 1 so CI and devs both notice.
+    // Bootstrap path is --refresh-baseline; bun test does not invoke this
+    // CLI, so this exit-1 doesn't affect any existing test suite.
     const f = makeFixture("fresh", "create purchase 5000", [
       { name: "action_equals", args: { value: "create_purchase_request" } },
     ]);
@@ -631,7 +634,7 @@ describe("runCli — fresh-clone graceful handling (P1)", () => {
       {
         registerScenarios: (registry) => {
           // The scenario adapter must NOT be invoked at all — the early
-          // notice should short-circuit before the runner spins up.
+          // error should short-circuit before the runner spins up.
           registry.register("intent", {
             async runLive() {
               scenarioInvoked = true;
@@ -652,9 +655,9 @@ describe("runCli — fresh-clone graceful handling (P1)", () => {
       },
     );
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(scenarioInvoked).toBe(false);
-    expect(io.stderr).toContain("NOTICE: No canonical baseline yet");
+    expect(io.stderr).toContain("ERROR: No canonical baseline yet");
     expect(io.stderr).toContain("--refresh-baseline");
     expect(io.stdout).toBe("");
   });
