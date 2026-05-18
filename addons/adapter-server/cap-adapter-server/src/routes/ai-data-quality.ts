@@ -41,6 +41,10 @@ function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 interface ScanOptionsInput {
   freshnessThresholdMs?: unknown;
   outlierZThreshold?: unknown;
@@ -86,14 +90,15 @@ function validateScanOptions(
     maxRecords = raw.maxRecords;
   }
 
-  // freshnessThresholdMs: optional, must be a positive finite number ≤ ceiling.
+  // freshnessThresholdMs: optional, must be a non-negative finite number ≤ ceiling.
+  // Zero is valid: it marks every timestamped record as stale (useful for testing).
   let freshnessThresholdMs: number | undefined;
   if (raw?.freshnessThresholdMs !== undefined) {
-    if (!isPositiveFiniteNumber(raw.freshnessThresholdMs)) {
+    if (!isNonNegativeFiniteNumber(raw.freshnessThresholdMs)) {
       return {
         ok: false,
         field: "freshnessThresholdMs",
-        message: "freshnessThresholdMs must be a positive finite number",
+        message: "freshnessThresholdMs must be a non-negative finite number",
       };
     }
     if (raw.freshnessThresholdMs > MAX_FRESHNESS_THRESHOLD_MS) {
