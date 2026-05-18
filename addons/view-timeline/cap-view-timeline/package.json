@@ -1,0 +1,36 @@
+{
+  "name": "@linchkit/cap-view-timeline",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0",
+    "@linchkit/cap-adapter-ui": "^1.0.0",
+    "i18next": ">=23.0.0",
+    "react": "^19.0.0",
+    "react-i18next": ">=14.0.0"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "@linchkit/cap-adapter-ui": "workspace:*"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.2.0",
+    "type": "standard",
+    "category": "view",
+    "autoInstall": false
+  }
+}
