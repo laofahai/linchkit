@@ -73,7 +73,12 @@ jobs:
         # `AI_EVAL_LIVE=1 bun run ai:eval --scenario intent --refresh-baseline`
         # and committed alongside the prompt change. This prevents CI from
         # silently moving the regression bar (spec 69 §6.3, §9.2).
+        # `set -o pipefail` is critical: without it, `tee`'s exit 0 hides a
+        # non-zero exit from `bun run ai:eval` and the regression gate would
+        # silently pass on failed evals (Codex R5-P1).
+        shell: bash
         run: |
+          set -o pipefail
           SCENARIO="${{ github.event.inputs.scenario || 'intent' }}"
           CAP="${{ github.event.inputs.max_cost_usd || '5' }}"
           bun run ai:eval \

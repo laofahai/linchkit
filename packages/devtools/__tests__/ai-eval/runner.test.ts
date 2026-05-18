@@ -181,14 +181,17 @@ describe("runEval absolute-floor failure (spec §9.4)", () => {
     expect(failure.report.summary.strictFail).toBe(1);
     expect(failure.report.summary.strictPass).toBe(1);
     expect(failure.report.summary.total).toBe(2);
-    // Baseline write still happens before the throw — operators reviewing
-    // the failure can `cat` the recorded outputs to triage.
+    // Baseline write is BLOCKED when strictFail > 0 (Codex R5-P2 fix):
+    // refreshing a broken first run would commit failed outputs as the
+    // replay source, corrupting the very thing the framework protects.
+    // Use --force-refresh-baseline if you really need to capture a
+    // known-bad baseline (e.g. for replicating the failure in CI).
     const canonical = canonicalPath("intent", dirs.baselines);
     const exists = await stat(canonical).then(
       () => true,
       () => false,
     );
-    expect(exists).toBe(true);
+    expect(exists).toBe(false);
   });
 
   it("does NOT throw EvalFailureError when all live fixtures pass strict matchers", async () => {

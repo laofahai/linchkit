@@ -196,12 +196,14 @@ export function compareToBaseline<TOutput = unknown>(
   let regressions = 0;
 
   for (const cur of current.fixtures) {
-    if (cur.passed) currentPass += 1;
     const prev = priorByFixture.get(cur.fixtureId);
     if (!prev) {
       // New fixture has no prior to diff against — treat as pass-to-pass / fail-to-fail
       // to avoid spurious regressions. New fixtures are surfaced by the
       // "first-ever live run writes canonical" path in the runner.
+      // NOTE: do NOT count this fixture toward currentPass — the hit-rate
+      // denominator (priorTotal) excludes new fixtures, so counting them in
+      // the numerator would produce impossible >100% rates (Codex R5-P2).
       const change = cur.passed ? "pass-to-pass" : "fail-to-fail";
       byFixture.push({
         fixtureId: cur.fixtureId,
@@ -210,6 +212,10 @@ export function compareToBaseline<TOutput = unknown>(
       });
       continue;
     }
+
+    // Numerator + denominator both scoped to overlapping fixtures so deltaPp
+    // measures comparable populations only.
+    if (cur.passed) currentPass += 1;
     if (prev.passed) priorPass += 1;
 
     const change = diffStatus(prev.passed, cur.passed);

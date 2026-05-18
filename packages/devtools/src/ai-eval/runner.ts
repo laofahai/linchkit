@@ -218,12 +218,16 @@ export async function runEval<TOutput = unknown>(
   if (diff) report.diff = diff;
 
   // Spec 69 §9.2 baseline-write rules:
-  //   forceRefresh → always write
-  //   refresh + (no prior baseline OR no regression) → write
+  //   forceRefresh → always write (caller explicitly accepts current state as truth)
+  //   refresh + no strict failures + (no prior baseline OR no regression) → write
   //   anything else → never write
+  // The `strictFail === 0` guard prevents a first --refresh-baseline run with
+  // matcher failures from committing a broken baseline as the replay source
+  // (Codex R5-P2). forceRefresh bypasses this — the operator's job to verify.
   const shouldRefresh =
     opts.live &&
-    (opts.forceRefreshBaseline || (opts.refreshBaseline === true && !diff?.hasRegression));
+    (opts.forceRefreshBaseline ||
+      (opts.refreshBaseline === true && report.summary.strictFail === 0 && !diff?.hasRegression));
   if (shouldRefresh) {
     await writeCanonicalBaseline({
       scenario: opts.scenario,
