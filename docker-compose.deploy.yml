@@ -1,0 +1,59 @@
+# LinchKit production deployment — Spec 12 deployment foundation.
+#
+# Usage:
+#   cp .env.production.example .env.production
+#   # edit .env.production with real secrets
+#   docker compose --env-file .env.production -f docker-compose.deploy.yml up -d
+#
+# This file is intentionally minimal: server + Postgres only. Dev-only
+# services (test database, Restate dev image, Mailhog, etc.) live in the
+# top-level `docker-compose.yml` and must not be brought into production.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: linchkit-prod-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - linchkit-prod-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: linchkit-server:latest
+    container_name: linchkit-prod-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      REDIS_URL: ${REDIS_URL:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Matches the Dockerfile HEALTHCHECK start_period so both layers agree
+      # on how long to suppress unhealthy state during cold boot.
+      start_period: 15s
+
+volumes:
+  linchkit-prod-pg:

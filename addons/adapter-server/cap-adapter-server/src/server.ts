@@ -55,6 +55,7 @@ import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountEntityRoutes } from "./routes/entity-api";
+import { mountHealthRoutes } from "./routes/health";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountOnchangeRoutes } from "./routes/onchange-api";
 import { mountOverlayRoutes } from "./routes/overlay-api";
@@ -306,6 +307,10 @@ export function createServer(
 
   // ── Mount route modules ──────────────────────────────────
   mountAdminRoutes(app, opts, serverStartedAt);
+  // Mounted AFTER admin so the canonical, minimal `/health` (Spec 12 — liveness)
+  // overrides any duplicate handler in admin-api.ts. `/ready` is exclusive to
+  // this module.
+  mountHealthRoutes(app, opts);
   mountEntityRoutes(app, opts);
   mountActionRoutes(app, opts);
   mountImportRoutes(app, opts);

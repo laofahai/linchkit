@@ -14,6 +14,7 @@ addons/*/cap-*/src/**/*.d.ts
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # IDE
 .vscode/

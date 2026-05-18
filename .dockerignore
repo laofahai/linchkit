@@ -1,9 +1,11 @@
 # Dependencies (rebuilt in container)
 node_modules/
+**/node_modules/
 .bun/
 
 # Build output (rebuilt in container)
 dist/
+**/dist/
 
 # Version control
 .git/
@@ -31,6 +33,8 @@ AGENTS.md
 # Test artifacts
 coverage/
 __snapshots__/
+tmp/
+*.log
 
 # OS files
 .DS_Store
@@ -39,3 +43,4 @@ Thumbs.db
 # Docker (avoid recursive context)
 Dockerfile
 docker-compose.yml
+docker-compose.deploy.yml
