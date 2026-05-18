@@ -77,14 +77,27 @@ export interface InMemoryUsageMeterOptions {
   now?: () => number;
 }
 
+/**
+ * Internal storage shape — augments {@link UsageMeterEntry} with the
+ * pre-parsed epoch milliseconds for `ts`. Caching the parse at `record()`
+ * time turns `aggregate()` / `checkQuota()` into a single numeric compare
+ * per entry instead of an O(n) string-parse cost on every window scan.
+ *
+ * Not exported: the public surface (`UsageMeterEntry`) intentionally
+ * stays string-only so callers don't have to keep two clocks in sync.
+ */
+interface StoredUsageMeterEntry extends UsageMeterEntry {
+  tsEpochMs: number;
+}
+
 export function createInMemoryUsageMeter(options?: InMemoryUsageMeterOptions): UsageMeter {
   // Per-tenant chronological log. We keep the full history (callers
   // can prune via a wrapper if needed) so aggregation over arbitrary
   // windows stays exact.
-  const entriesByTenant: Map<string, UsageMeterEntry[]> = new Map();
+  const entriesByTenant: Map<string, StoredUsageMeterEntry[]> = new Map();
   const now = options?.now ?? (() => Date.now());
 
-  function getEntries(tenantId: string): UsageMeterEntry[] {
+  function getEntries(tenantId: string): StoredUsageMeterEntry[] {
     let list = entriesByTenant.get(tenantId);
     if (!list) {
       list = [];
@@ -96,8 +109,12 @@ export function createInMemoryUsageMeter(options?: InMemoryUsageMeterOptions): U
   return {
     async record(entry) {
       validateEntry(entry);
+      // Parse `ts` exactly once — store the epoch alongside the entry
+      // so aggregation never re-parses. `validateEntry` already proved
+      // the timestamp is valid; this call cannot throw.
+      const tsEpochMs = parseIso(entry.ts, "entry.ts");
       const list = getEntries(entry.tenantId);
-      list.push({ ...entry });
+      list.push({ ...entry, tsEpochMs });
     },
 
     async aggregate({ tenantId, since, until }) {
@@ -112,7 +129,9 @@ export function createInMemoryUsageMeter(options?: InMemoryUsageMeterOptions): U
       let totalOutputTokens = 0;
       let totalCostUsd = 0;
       for (const entry of list) {
-        const ts = parseIso(entry.ts, "entry.ts");
+        // Use the cached epoch — populated once in `record()` — to skip
+        // a per-entry Date.parse on every aggregation pass.
+        const ts = entry.tsEpochMs;
         if (ts >= sinceMs && ts < untilMs) {
           totalInputTokens += entry.inputTokens;
           totalOutputTokens += entry.outputTokens;

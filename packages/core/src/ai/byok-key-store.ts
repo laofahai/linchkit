@@ -105,6 +105,13 @@ export interface InMemoryBYOKKeyStoreOptions {
    * it can dispatch to a KMS without leaking secrets through logs.
    */
   resolveEncryptedKey?: (encryptedKeyRef: string) => Promise<string> | string;
+
+  /**
+   * Override the wall clock used to stamp `createdAt` / `lastUsedAt`.
+   * Useful for deterministic tests; mirrors the same hook on
+   * {@link InMemoryUsageMeterOptions}. Defaults to `() => Date.now()`.
+   */
+  now?: () => number;
 }
 
 export function createInMemoryBYOKKeyStore(options?: InMemoryBYOKKeyStoreOptions): BYOKKeyStore {
@@ -112,9 +119,14 @@ export function createInMemoryBYOKKeyStore(options?: InMemoryBYOKKeyStoreOptions
   // when tenant/provider ids contain ":" or "/" characters.
   const records: Map<string, BYOKKeyRecord> = new Map();
   const resolveEncryptedKey = options?.resolveEncryptedKey ?? ((ref: string) => ref);
+  const now = options?.now ?? (() => Date.now());
 
   function buildKey(tenantId: string, provider: string): string {
     return `${tenantId}\0${provider}`;
+  }
+
+  function nowIso(): string {
+    return new Date(now()).toISOString();
   }
 
   return {
@@ -130,7 +142,7 @@ export function createInMemoryBYOKKeyStore(options?: InMemoryBYOKKeyStoreOptions
       // Update lastUsedAt on successful resolve — this is the closest
       // moment we know the key was actually used. Mutating the record
       // is safe because the Map holds the same reference.
-      record.lastUsedAt = new Date().toISOString();
+      record.lastUsedAt = nowIso();
       return { provider, decryptedKey, source: "tenant" };
     },
 
@@ -142,7 +154,7 @@ export function createInMemoryBYOKKeyStore(options?: InMemoryBYOKKeyStoreOptions
 
       const key = buildKey(tenantId, provider);
       const existing = records.get(key);
-      const createdAt = existing?.createdAt ?? new Date().toISOString();
+      const createdAt = existing?.createdAt ?? nowIso();
       records.set(key, {
         tenantId,
         provider,

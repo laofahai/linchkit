@@ -270,7 +270,7 @@ export function mountAIByokRoutes(app: Elysia, options: ServerOptions): void {
   });
 
   // ── GET /api/ai/byok/usage?since=ISO&until=ISO ────────────
-  app.get("/api/ai/byok/usage", async ({ request, set }) => {
+  app.get("/api/ai/byok/usage", async ({ query, request, set }) => {
     const meter = options.usageMeter;
     if (!meter) {
       return serviceUnavailable(set, "Usage meter not configured");
@@ -279,10 +279,12 @@ export function mountAIByokRoutes(app: Elysia, options: ServerOptions): void {
     const tenantCtx = await resolveTenantContext(request, options, set);
     if (!tenantCtx.ok) return tenantCtx.response;
 
-    const url = new URL(request.url);
-    const since = url.searchParams.get("since");
-    const until = url.searchParams.get("until");
-    if (!since || !until) {
+    // Elysia parses the query string for us — read `since` / `until`
+    // off the destructured `query` object instead of re-parsing the
+    // request URL. Values arrive as `string | undefined` (or arrays
+    // when repeated); we accept only the single-string form.
+    const { since, until } = query as { since?: unknown; until?: unknown };
+    if (typeof since !== "string" || typeof until !== "string" || !since || !until) {
       return badRequest(set, "'since' and 'until' query parameters are required (ISO-8601)");
     }
     const sinceMs = Date.parse(since);

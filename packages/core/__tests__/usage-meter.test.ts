@@ -291,4 +291,100 @@ describe("createInMemoryUsageMeter", () => {
       totalCostUsd: 0,
     });
   });
+
+  // ── Cached tsEpochMs correctness across day boundaries ─────
+  //
+  // Regression guard for the internal "parse `ts` once at record()
+  // and reuse" optimization. If the cached epoch ever drifted from
+  // the stored ISO string, day-boundary semantics would silently
+  // misclassify entries straddling 00:00Z. We feed equivalent
+  // timestamps written in different ISO forms (Z suffix, +00:00,
+  // fractional seconds, off-zone with explicit offset) and confirm
+  // the aggregation still bins them by the actual UTC instant.
+
+  test("cached tsEpochMs respects UTC day boundary across equivalent ISO formats", async () => {
+    const meter = createInMemoryUsageMeter({ now: fixedNow });
+
+    // All four timestamps point at the exact same UTC instant —
+    // 2026-05-18T00:00:00.000Z — expressed via different ISO forms.
+    // They MUST all land inside the [2026-05-18, 2026-05-19) window.
+    const equivalents = [
+      "2026-05-18T00:00:00Z",
+      "2026-05-18T00:00:00.000Z",
+      "2026-05-18T00:00:00.000+00:00",
+      "2026-05-18T08:00:00.000+08:00", // 00:00Z expressed as +08:00 wall time
+    ];
+    for (const ts of equivalents) {
+      await meter.record({
+        tenantId: "tenant-bounds",
+        provider: "anthropic",
+        model: "claude-3-opus",
+        inputTokens: 10,
+        outputTokens: 0,
+        costUsd: 0,
+        ts,
+      });
+    }
+
+    // One entry one ms before midnight — must be excluded.
+    await meter.record({
+      tenantId: "tenant-bounds",
+      provider: "anthropic",
+      model: "claude-3-opus",
+      inputTokens: 999,
+      outputTokens: 999,
+      costUsd: 9.99,
+      ts: "2026-05-17T23:59:59.999Z",
+    });
+    // One entry one ms past the upper bound — must be excluded.
+    await meter.record({
+      tenantId: "tenant-bounds",
+      provider: "anthropic",
+      model: "claude-3-opus",
+      inputTokens: 999,
+      outputTokens: 999,
+      costUsd: 9.99,
+      ts: "2026-05-19T00:00:00.001Z",
+    });
+
+    const agg = await meter.aggregate({
+      tenantId: "tenant-bounds",
+      since: "2026-05-18T00:00:00.000Z",
+      until: "2026-05-19T00:00:00.000Z",
+    });
+
+    // 4 in-window entries × 10 input tokens each = 40. The two
+    // out-of-window entries (10 input tokens before midnight + 10
+    // after 24h) must NOT contribute.
+    expect(agg.totalInputTokens).toBe(40);
+    expect(agg.totalOutputTokens).toBe(0);
+    expect(agg.totalCostUsd).toBeCloseTo(0, 10);
+  });
+
+  test("cached tsEpochMs survives repeated aggregations without re-parse drift", async () => {
+    const meter = createInMemoryUsageMeter({ now: fixedNow });
+    await meter.record({
+      tenantId: "tenant-c",
+      provider: "anthropic",
+      model: "claude-3-opus",
+      inputTokens: 100,
+      outputTokens: 50,
+      costUsd: 0.25,
+      ts: "2026-05-18T00:00:00.000Z",
+    });
+
+    // Same window scanned multiple times — must produce identical
+    // results. Guards against any future bug where the cached epoch
+    // gets overwritten or mutated between calls.
+    for (let i = 0; i < 3; i++) {
+      const agg = await meter.aggregate({
+        tenantId: "tenant-c",
+        since: "2026-05-18T00:00:00.000Z",
+        until: "2026-05-19T00:00:00.000Z",
+      });
+      expect(agg.totalInputTokens).toBe(100);
+      expect(agg.totalOutputTokens).toBe(50);
+      expect(agg.totalCostUsd).toBeCloseTo(0.25, 10);
+    }
+  });
 });

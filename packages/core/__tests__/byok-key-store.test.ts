@@ -194,4 +194,88 @@ describe("createInMemoryBYOKKeyStore", () => {
       store.putKey({ tenantId: "t", provider: "p", keyAlias: "a", encryptedKeyRef: "" }),
     ).rejects.toThrow(/encryptedKeyRef/);
   });
+
+  // ── Clock override determinism ──────────────────────────
+  //
+  // The `now` hook lets tests pin the wall clock so `createdAt` /
+  // `lastUsedAt` are reproducible. These tests prove the hook is
+  // honored on both code paths and that callers can advance time
+  // step-by-step to assert ordering semantics.
+
+  test("putKey uses the injected `now` for createdAt", async () => {
+    const FIXED_MS = Date.UTC(2026, 4, 18, 12, 0, 0); // 2026-05-18T12:00:00Z
+    const FIXED_ISO = new Date(FIXED_MS).toISOString();
+    const store = createInMemoryBYOKKeyStore({ now: () => FIXED_MS });
+
+    await store.putKey({
+      tenantId: "tenant-a",
+      provider: "anthropic",
+      keyAlias: "alias",
+      encryptedKeyRef: "ref",
+    });
+
+    const list = await store.listKeys({ tenantId: "tenant-a" });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.createdAt).toBe(FIXED_ISO);
+    // lastUsedAt is only set on getKey — must remain undefined.
+    expect(list[0]?.lastUsedAt).toBeUndefined();
+  });
+
+  test("getKey uses the injected `now` for lastUsedAt and supports advancing time", async () => {
+    let currentMs = Date.UTC(2026, 4, 18, 12, 0, 0); // 2026-05-18T12:00:00Z
+    const store = createInMemoryBYOKKeyStore({ now: () => currentMs });
+
+    await store.putKey({
+      tenantId: "tenant-a",
+      provider: "anthropic",
+      keyAlias: "alias",
+      encryptedKeyRef: "ref",
+    });
+    const createdAtIso = new Date(currentMs).toISOString();
+
+    // Advance the clock by exactly one hour, then resolve the key.
+    currentMs += 60 * 60 * 1000;
+    const expectedUsedAtIso = new Date(currentMs).toISOString();
+    await store.getKey({ tenantId: "tenant-a", provider: "anthropic" });
+
+    const list = await store.listKeys({ tenantId: "tenant-a" });
+    expect(list[0]?.createdAt).toBe(createdAtIso);
+    expect(list[0]?.lastUsedAt).toBe(expectedUsedAtIso);
+
+    // Advance again and confirm lastUsedAt moves forward — proves the
+    // record reads `now()` on every resolve, not a captured value.
+    currentMs += 30 * 60 * 1000;
+    const secondUsedAtIso = new Date(currentMs).toISOString();
+    await store.getKey({ tenantId: "tenant-a", provider: "anthropic" });
+    const list2 = await store.listKeys({ tenantId: "tenant-a" });
+    expect(list2[0]?.lastUsedAt).toBe(secondUsedAtIso);
+  });
+
+  test("re-putting an existing key preserves the original createdAt under a frozen clock", async () => {
+    let currentMs = Date.UTC(2026, 4, 18, 9, 0, 0);
+    const store = createInMemoryBYOKKeyStore({ now: () => currentMs });
+
+    await store.putKey({
+      tenantId: "tenant-a",
+      provider: "anthropic",
+      keyAlias: "v1",
+      encryptedKeyRef: "kms:old",
+    });
+    const originalCreatedAt = new Date(currentMs).toISOString();
+
+    // Advance the clock and overwrite — createdAt MUST stay pinned to
+    // the original moment, not move forward with `now`.
+    currentMs += 60 * 60 * 1000;
+    await store.putKey({
+      tenantId: "tenant-a",
+      provider: "anthropic",
+      keyAlias: "v2",
+      encryptedKeyRef: "kms:new",
+    });
+
+    const list = await store.listKeys({ tenantId: "tenant-a" });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.createdAt).toBe(originalCreatedAt);
+    expect(list[0]?.keyAlias).toBe("v2");
+  });
 });
