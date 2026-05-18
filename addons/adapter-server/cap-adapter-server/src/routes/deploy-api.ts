@@ -47,10 +47,14 @@ export function mountDeployRoutes(app: Elysia, handler: DeployWebhookHandler | u
     const result = await handler.handle(rawBody, signature, eventType);
 
     if (!result.accepted) {
-      // Signature failure → 403; other skip reasons (wrong branch, event type) → 200
+      // Signature failure → 403; malformed body → 400; other skip reasons (wrong branch, event type) → 200
       if (result.reason === "invalid signature") {
         set.status = 403;
         return { success: false, error: "Signature verification failed" };
+      }
+      if (result.reason === "invalid JSON payload") {
+        set.status = 400;
+        return { success: false, error: "Invalid JSON payload" };
       }
       // Not an error — GitHub may send many event types; we just skip non-push
       return { success: true, accepted: false, reason: result.reason };
