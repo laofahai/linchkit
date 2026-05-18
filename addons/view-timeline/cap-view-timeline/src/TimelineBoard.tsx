@@ -50,8 +50,7 @@ export function TimelineBoard({
   const { t } = useTranslation();
   const [mode, setMode] = useState<TimelineViewMode>(initialMode);
   const [anchorState, setAnchorState] = useState<Date>(() => startOfDay(currentDate ?? new Date()));
-  // When currentDate is provided (controlled), derive anchor from it; otherwise use internal state.
-  const anchor = currentDate ? startOfDay(currentDate) : anchorState;
+  const anchor = currentDate ? startOfDay(currentDate) : anchorState; // controlled when currentDate is provided
 
   const handleAnchorChange = useCallback(
     (d: Date) => {
