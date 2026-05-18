@@ -542,6 +542,234 @@ describe("runCli — regression still prints report", () => {
   });
 });
 
+describe("runCli — fresh-clone graceful handling (P1)", () => {
+  let layout: TempLayout;
+  beforeEach(async () => {
+    layout = await makeLayout();
+  });
+  afterEach(async () => {
+    await layout.cleanup();
+  });
+
+  it("replay mode with no canonical baseline exits 0 with a NOTICE", async () => {
+    // Fixtures exist but no baseline has been generated yet — the default
+    // first-time-clone state. Replay mode would normally crash inside the
+    // runner; the CLI must catch this earlier and print actionable guidance.
+    const f = makeFixture("fresh", "create purchase 5000", [
+      { name: "action_equals", args: { value: "create_purchase_request" } },
+    ]);
+    await fixturesDirFromMap(layout.fixturesDir, [f]);
+
+    const io = captureIo();
+    let scenarioInvoked = false;
+    const result = await runCli(
+      [
+        "--scenario",
+        "intent",
+        "--fixtures-dir",
+        layout.fixturesDir,
+        "--baselines-dir",
+        layout.baselinesDir,
+      ],
+      {
+        registerScenarios: (registry) => {
+          // The scenario adapter must NOT be invoked at all — the early
+          // notice should short-circuit before the runner spins up.
+          registry.register("intent", {
+            async runLive() {
+              scenarioInvoked = true;
+              throw new Error("runLive should not be called");
+            },
+            replayFromBaseline() {
+              scenarioInvoked = true;
+              throw new Error("replayFromBaseline should not be called");
+            },
+          });
+        },
+        loadLiveDeps: async () => {
+          throw new Error("loadLiveDeps should not be called in replay mode");
+        },
+        out: io.out,
+        err: io.err,
+        env: {},
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(scenarioInvoked).toBe(false);
+    expect(io.stderr).toContain("NOTICE: No canonical baseline yet");
+    expect(io.stderr).toContain("--refresh-baseline");
+    expect(io.stdout).toBe("");
+  });
+
+  it("--diff <path> with no canonical baseline exits 1 with a clear error", async () => {
+    // --diff is the user explicitly asking to compare — fulfilling silently
+    // would be worse than failing loudly.
+    const otherPath = path.join(layout.root, "other.json");
+    await writeFile(
+      otherPath,
+      JSON.stringify({
+        scenario: "intent",
+        generatedAt: "2026-05-10T00:00:00Z",
+        runnerVersion: "ai-eval/0.1.0",
+        fixtures: [],
+      }),
+      "utf8",
+    );
+
+    const io = captureIo();
+    const result = await runCli(
+      ["--scenario", "intent", "--diff", otherPath, "--baselines-dir", layout.baselinesDir],
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: async () => {
+          throw new Error("loadLiveDeps should not be called");
+        },
+        out: io.out,
+        err: io.err,
+        env: {},
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(io.stderr).toContain("no canonical baseline found");
+  });
+
+  it("--diff-current on a live run with no canonical baseline exits 0 with a note", async () => {
+    // A first-ever live run wants to produce the baseline and diff against
+    // nothing — the absence of a prior canonical is not an error here, just
+    // a fact to surface to the operator.
+    const f = makeFixture("first_live", "create purchase 5000", [
+      { name: "action_equals", args: { value: "create_purchase_request" } },
+    ]);
+    await fixturesDirFromMap(layout.fixturesDir, [f]);
+
+    const io = captureIo();
+    const recorder = liveDepsRecorder({
+      aiResponses: { "5000": buildOkResponse({ amount: 5000, confidence: 0.9 }) },
+    });
+    const result = await runCli(
+      [
+        "--scenario",
+        "intent",
+        "--fixtures-dir",
+        layout.fixturesDir,
+        "--baselines-dir",
+        layout.baselinesDir,
+        "--diff-current",
+      ],
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: recorder.factory,
+        out: io.out,
+        err: io.err,
+        env: { AI_EVAL_LIVE: "1" },
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(recorder.called).toBe(true);
+    expect(io.stderr).toContain("no prior canonical baseline");
+  });
+});
+
+describe("runCli — --catalogs-dir plumbing (P3)", () => {
+  let layout: TempLayout;
+  beforeEach(async () => {
+    layout = await makeLayout();
+  });
+  afterEach(async () => {
+    await layout.cleanup();
+  });
+
+  it("forwards --catalogs-dir override to loadLiveDeps ctx", async () => {
+    // Without this, the addon entry script's own buildOntology used a
+    // hardcoded path and silently ignored the flag — proven by an addon-
+    // side regression. The CLI's job here is to make sure the override
+    // makes it into loadLiveDeps' ctx so the addon can honor it.
+    const f = makeFixture("catalog_p3", "create purchase 5000", [
+      { name: "action_equals", args: { value: "create_purchase_request" } },
+    ]);
+    await fixturesDirFromMap(layout.fixturesDir, [f]);
+
+    const customCatalogs = path.join(layout.root, "custom-catalogs");
+
+    const observedCtx: Array<{ catalogsDir: string; model: string | undefined }> = [];
+    const io = captureIo();
+    const result = await runCli(
+      [
+        "--scenario",
+        "intent",
+        "--fixtures-dir",
+        layout.fixturesDir,
+        "--baselines-dir",
+        layout.baselinesDir,
+        "--catalogs-dir",
+        customCatalogs,
+        "--model",
+        "mock-haiku",
+      ],
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: async (ctx) => {
+          observedCtx.push({ catalogsDir: ctx.catalogsDir, model: ctx.model });
+          return {
+            ai: makeMockAi({ "5000": buildOkResponse({ amount: 5000, confidence: 0.9 }) }),
+          };
+        },
+        out: io.out,
+        err: io.err,
+        env: { AI_EVAL_LIVE: "1" },
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(observedCtx).toHaveLength(1);
+    expect(observedCtx[0]?.catalogsDir).toBe(customCatalogs);
+    expect(observedCtx[0]?.model).toBe("mock-haiku");
+  });
+
+  it("defaults --catalogs-dir to the conventional path under cwd when not overridden", async () => {
+    const f = makeFixture("catalog_default", "create purchase 5000", [
+      { name: "action_equals", args: { value: "create_purchase_request" } },
+    ]);
+    await fixturesDirFromMap(layout.fixturesDir, [f]);
+
+    const observedCtx: Array<{ catalogsDir: string }> = [];
+    const io = captureIo();
+    const result = await runCli(
+      [
+        "--scenario",
+        "intent",
+        "--fixtures-dir",
+        layout.fixturesDir,
+        "--baselines-dir",
+        layout.baselinesDir,
+      ],
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: async (ctx) => {
+          observedCtx.push({ catalogsDir: ctx.catalogsDir });
+          return {
+            ai: makeMockAi({ "5000": buildOkResponse({ amount: 5000, confidence: 0.9 }) }),
+          };
+        },
+        out: io.out,
+        err: io.err,
+        env: { AI_EVAL_LIVE: "1" },
+        cwd: layout.root,
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(observedCtx).toHaveLength(1);
+    // Under the CLI's default convention rooted at cwd.
+    expect(observedCtx[0]?.catalogsDir).toBe(
+      path.join(layout.root, "addons/ai-provider/cap-ai-provider/__tests__/eval/catalogs"),
+    );
+  });
+});
+
 describe("runCli — argument errors", () => {
   it("exits 1 when neither --scenario nor --fixture is given", async () => {
     const io = captureIo();

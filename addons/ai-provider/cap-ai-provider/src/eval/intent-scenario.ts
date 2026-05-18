@@ -81,6 +81,9 @@ export function createIntentScenario(): IntentScenarioAdapter {
           prompt: fx.input.userMessage,
           scope: fx.context?.scope,
           tenant: deps.tenantId,
+          // Forward the pinned model — without this the AIService picks its
+          // configured default and the eval baseline gets mislabeled.
+          ...(deps.model ? { model: deps.model } : {}),
         },
         { ai: deps.ai, ontology },
       );

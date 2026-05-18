@@ -61,6 +61,13 @@ export interface ResolveIntentInput {
   tenant?: string;
   /** Calling user id — currently logged for traceability only. */
   userId?: string;
+  /**
+   * Model alias / id forwarded to `ai.complete()`. When unset, the AIService
+   * picks its configured default. Surfaced so the eval framework (spec 69)
+   * can record proposals against an explicitly-pinned model rather than
+   * whatever the provider happens to default to.
+   */
+  model?: string;
 }
 
 /**
@@ -179,6 +186,9 @@ export async function resolveIntent(
       ],
       temperature: 0,
       tenantId: input.tenant,
+      // Only forward `model` when the caller pinned one — otherwise the
+      // AIService picks its configured default.
+      ...(input.model ? { model: input.model } : {}),
     });
     rawContent = result.content;
   } catch {

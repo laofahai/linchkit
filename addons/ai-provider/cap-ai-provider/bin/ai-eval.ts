@@ -23,36 +23,49 @@ import { createAIService, defaultAIConfig } from "../src/ai-service";
 import { createIntentScenario } from "../src/eval/intent-scenario";
 import type { OntologyRegistryLike } from "../src/intent-resolver";
 
-const CATALOGS_DIR = path.resolve(import.meta.dir, "..", "__tests__", "eval", "catalogs");
+/**
+ * Fallback catalog root — only used if the CLI somehow passes an
+ * undefined `catalogsDir` to loadLiveDeps (the CLI always defaults it,
+ * so this is defensive). Honors --catalogs-dir overrides automatically
+ * because the CLI provides the resolved path in the loadLiveDeps ctx.
+ */
+const DEFAULT_CATALOGS_DIR = path.resolve(import.meta.dir, "..", "__tests__", "eval", "catalogs");
 
 /**
- * Disk-backed inline catalog reader. The CLI also has a fallback loader,
- * but we explicitly inject one here so the addon entry has a single place
- * controlling catalog resolution.
+ * Disk-backed inline catalog reader factory. Bound to a specific
+ * catalogs root so the same closure can be re-used for both the inline
+ * loader injected into scenario deps AND the buildOntology call below
+ * — both must honor `--catalogs-dir`.
  */
-async function loadCatalogFile(name: string): Promise<ReadonlyArray<InlineCatalogAction>> {
-  const file = path.join(CATALOGS_DIR, `${name}.json`);
-  const raw = await readFile(file, "utf8");
-  const parsed = JSON.parse(raw) as { actions?: unknown };
-  if (!Array.isArray(parsed.actions)) {
-    throw new Error(`catalog ${file} missing "actions" array`);
-  }
-  return parsed.actions as ReadonlyArray<InlineCatalogAction>;
+function makeCatalogReader(
+  catalogsDir: string,
+): (name: string) => Promise<ReadonlyArray<InlineCatalogAction>> {
+  return async (name: string) => {
+    const file = path.join(catalogsDir, `${name}.json`);
+    const raw = await readFile(file, "utf8");
+    const parsed = JSON.parse(raw) as { actions?: unknown };
+    if (!Array.isArray(parsed.actions)) {
+      throw new Error(`catalog ${file} missing "actions" array`);
+    }
+    return parsed.actions as ReadonlyArray<InlineCatalogAction>;
+  };
 }
 
 /**
  * Build a minimal production-shape OntologyRegistryLike from
- * `purchase_management.json`. The intent scenario routes `demo:*`
- * catalog sources through `deps.ontology`; without booting
- * cap-purchase-demo, this stub mirrors that capability's three real
- * actions so fixtures referencing `demo:purchase_management` resolve.
+ * `purchase_management.json` resolved relative to the supplied
+ * `catalogsDir`. The intent scenario routes `demo:*` catalog sources
+ * through `deps.ontology`; without booting cap-purchase-demo, this stub
+ * mirrors that capability's three real actions so fixtures referencing
+ * `demo:purchase_management` resolve.
  *
  * Coerce inline-catalog entries to `ActionDefinition` here once so the
  * cast doesn't leak into the scenario adapter — the resolver only reads
  * the structurally compatible fields (name/entity/label/description/input).
  */
-async function buildOntology(): Promise<OntologyRegistryLike> {
-  const actions = await loadCatalogFile("purchase_management");
+async function buildOntology(catalogsDir: string): Promise<OntologyRegistryLike> {
+  const reader = makeCatalogReader(catalogsDir);
+  const actions = await reader("purchase_management");
   const byEntity = new Map<string, ActionDefinition[]>();
   for (const a of actions) {
     const def: ActionDefinition = {
@@ -77,10 +90,19 @@ const cliDeps: CliDeps = {
   registerScenarios: (registry: ScenarioRegistry) => {
     registry.register("intent", createIntentScenario());
   },
-  loadLiveDeps: async ({ model }) => {
+  loadLiveDeps: async ({ catalogsDir, model }) => {
+    // Honor the CLI's --catalogs-dir override for BOTH the inline loader
+    // AND buildOntology — previously buildOntology used a hardcoded path
+    // which silently ignored the flag.
+    const resolvedCatalogsDir = catalogsDir ?? DEFAULT_CATALOGS_DIR;
     const ai = createAIService(defaultAIConfig);
-    const ontology = await buildOntology();
-    return { ai, ontology, loadInlineCatalog: loadCatalogFile, model };
+    const ontology = await buildOntology(resolvedCatalogsDir);
+    return {
+      ai,
+      ontology,
+      loadInlineCatalog: makeCatalogReader(resolvedCatalogsDir),
+      model,
+    };
   },
 };
 

@@ -166,6 +166,32 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
     return { exitCode: 1 };
   }
 
+  // Fresh-clone guard: replay mode needs a canonical baseline to read AI
+  // outputs from. On a brand-new checkout the file doesn't exist yet, and
+  // the default `bun run ai:eval --scenario intent` (replay) would crash
+  // inside the runner with a per-fixture "no canonical baseline loaded"
+  // error. Detect the situation here and exit 0 with actionable guidance
+  // so first-time users (and CI on a fresh clone) aren't broken.
+  //
+  // Live mode is unaffected — the runner produces a fresh report and only
+  // reads the prior baseline for diffing (treated as optional below).
+  if (!live) {
+    const priorBaseline = await loadCanonicalBaseline({
+      scenario,
+      baselinesDir,
+      optional: true,
+    });
+    if (!priorBaseline) {
+      err(
+        `NOTICE: No canonical baseline yet for scenario "${scenario}".\n` +
+          "         Replay mode requires a baseline produced by a prior live run:\n" +
+          `           ANTHROPIC_API_KEY=... AI_EVAL_LIVE=1 bun run ai:eval --scenario ${scenario} --refresh-baseline\n` +
+          "         See spec 69 §9.2 for details.\n",
+      );
+      return { exitCode: 0 };
+    }
+  }
+
   // Cost banner + cap check happen BEFORE loadLiveDeps so that an over-budget
   // run aborts without bootstrapping the AIService.
   if (live) {

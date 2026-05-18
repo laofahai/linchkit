@@ -66,13 +66,20 @@ function makeFixture(
  * latest user message; falls back to a refusal JSON otherwise. The
  * scenario adapter calls `resolveIntent`, which in turn calls
  * `ai.complete()`. Mocking here exercises the full production path.
+ *
+ * `onCall` exposes the raw `AICompletionOptions` to tests that need to
+ * assert what the production resolver forwarded (e.g. `model` plumbing).
  */
-function makeMockAi(responses: Record<string, string>): AIService {
+function makeMockAi(
+  responses: Record<string, string>,
+  onCall?: (options: AICompletionOptions) => void,
+): AIService {
   return {
     configured: true,
     defaultProvider: "mock",
     providerNames: ["mock"],
     async complete(options: AICompletionOptions): Promise<AICompletionResult> {
+      onCall?.(options);
       const lastUser = [...options.messages].reverse().find((m) => m.role === "user");
       const userText = lastUser?.content ?? "";
       let body = JSON.stringify({
@@ -226,6 +233,56 @@ describe("createIntentScenario.runLive", () => {
     await expect(
       scenario.runLive(makeFixture("e", "msg", "weird:source"), makeDeps(makeMockAi({}))),
     ).rejects.toThrow(/unsupported catalogSource/);
+  });
+
+  it("forwards deps.model to resolveIntent → ai.complete (Spec 69 P2)", async () => {
+    // Verifies the full pipeline: CLI --model → cliDeps.loadLiveDeps
+    // → deps.model → intent scenario → resolveIntent → ai.complete().
+    // Without this plumbing the eval framework records a model name in
+    // the report that doesn't match what the AIService actually used.
+    const scenario = createIntentScenario();
+    const observed: AICompletionOptions[] = [];
+    const ai = makeMockAi(
+      {
+        "5000": JSON.stringify({
+          action: "create_purchase_request",
+          input: { amount: 5000 },
+          confidence: 0.85,
+          explanation: "ok",
+        }),
+      },
+      (opts) => observed.push(opts),
+    );
+
+    const deps: IntentScenarioDeps = {
+      ...makeDeps(ai),
+      model: "claude-haiku-4-5-20251001",
+    };
+    await scenario.runLive(makeFixture("ok", "create purchase 5000"), deps);
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0]?.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("omits model from ai.complete when deps.model is unset (preserves default)", async () => {
+    const scenario = createIntentScenario();
+    const observed: AICompletionOptions[] = [];
+    const ai = makeMockAi(
+      {
+        "5000": JSON.stringify({
+          action: "create_purchase_request",
+          input: { amount: 5000 },
+          confidence: 0.85,
+          explanation: "ok",
+        }),
+      },
+      (opts) => observed.push(opts),
+    );
+
+    await scenario.runLive(makeFixture("ok", "create purchase 5000"), makeDeps(ai));
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0]?.model).toBeUndefined();
   });
 
   it("requires catalogSource on the fixture context", async () => {
