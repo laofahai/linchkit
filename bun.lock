@@ -391,6 +391,53 @@
         "react-i18next": ">=14.0.0",
       },
     },
+    "addons/theme/cap-theme": {
+      "name": "@linchkit/cap-theme",
+      "version": "0.1.0",
+      "dependencies": {
+        "lucide-react": "^1.7.0",
+      },
+      "devDependencies": {
+        "@linchkit/cap-adapter-ui": "workspace:*",
+        "@linchkit/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@linchkit/cap-adapter-ui": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
+        "react": "^19.0.0",
+        "react-i18next": ">=14.0.0",
+      },
+    },
+    "addons/vector/cap-vector-pgvector": {
+      "name": "@linchkit/cap-vector-pgvector",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+        "drizzle-orm": "^0.45.1",
+      },
+    },
+    "addons/view-calendar/cap-view-calendar": {
+      "name": "@linchkit/cap-view-calendar",
+      "version": "0.1.0",
+      "dependencies": {
+        "@dnd-kit/core": "^6.3.1",
+        "date-fns": "^4.1.0",
+      },
+      "devDependencies": {
+        "@linchkit/cap-adapter-ui": "workspace:*",
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/cap-adapter-ui": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
+        "react": "^19.0.0",
+      },
+    },
     "addons/view-kanban/cap-view-kanban": {
       "name": "@linchkit/cap-view-kanban",
       "version": "0.1.0",
@@ -790,6 +837,12 @@
     "@linchkit/cap-search": ["@linchkit/cap-search@workspace:addons/search/cap-search"],
 
     "@linchkit/cap-search-ui": ["@linchkit/cap-search-ui@workspace:addons/search/cap-search-ui"],
+
+    "@linchkit/cap-theme": ["@linchkit/cap-theme@workspace:addons/theme/cap-theme"],
+
+    "@linchkit/cap-vector-pgvector": ["@linchkit/cap-vector-pgvector@workspace:addons/vector/cap-vector-pgvector"],
+
+    "@linchkit/cap-view-calendar": ["@linchkit/cap-view-calendar@workspace:addons/view-calendar/cap-view-calendar"],
 
     "@linchkit/cap-view-kanban": ["@linchkit/cap-view-kanban@workspace:addons/view-kanban/cap-view-kanban"],
 
