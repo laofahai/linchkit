@@ -79,10 +79,42 @@ function sqlTypeFor(type: FieldDefinition["type"]): string {
   }
 }
 
+/**
+ * Render a SQL literal for a column DEFAULT clause. Strings are single-quoted
+ * with embedded quotes escaped (SQL standard `''`). Numbers and booleans are
+ * coerced via `String(...)`. Objects (including arrays) are serialised to JSON
+ * and treated as string literals so jsonb / text columns get a usable default.
+ *
+ * Note: this is intentionally limited to the literal forms a Proposal payload
+ * is expected to produce. Function-call defaults (e.g. `now()`) are not
+ * supported here — they belong to a future iteration.
+ */
+function renderDefaultLiteral(value: unknown): string {
+  if (value === null) {
+    return "NULL";
+  }
+  if (typeof value === "string") {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  // Objects / arrays — serialise as a JSON string literal.
+  const serialised = JSON.stringify(value);
+  return `'${serialised.replace(/'/g, "''")}'`;
+}
+
 function columnDdlFragment(field: string, def: FieldDefinition): string {
   const sqlType = sqlTypeFor(def.type);
-  const nullability = def.required ? "NOT NULL" : "NULL";
-  return `${quoteIdent(field)} ${sqlType} ${nullability}`;
+  let fragment = `${quoteIdent(field)} ${sqlType}`;
+  if (def.default !== undefined) {
+    fragment += ` DEFAULT ${renderDefaultLiteral(def.default)}`;
+  }
+  fragment += def.required ? " NOT NULL" : " NULL";
+  if (def.unique) {
+    fragment += " UNIQUE";
+  }
+  return fragment;
 }
 
 // ── Classification ───────────────────────────────────────────
@@ -132,9 +164,22 @@ function rollupClassification(changes: MigrationChange[]): MigrationClassificati
 
 function sqlForCreateTable(change: CreateTableChange): string[] {
   const { entity, definition } = change;
-  const columns = Object.entries(definition.fields)
-    .filter(([, def]) => def.type !== "computed")
-    .map(([name, def]) => `  ${columnDdlFragment(name, def)}`);
+  const persistable = Object.entries(definition.fields).filter(
+    ([, def]) => def.type !== "computed",
+  );
+  if (persistable.length === 0) {
+    throw new Error(`Cannot create table ${entity} with no columns`);
+  }
+  const columns = persistable.map(([name, def]) => {
+    let fragment = columnDdlFragment(name, def);
+    // The `id` field is always the table's primary key — Spec 62 mandates
+    // every persisted entity expose an `id`. Append the constraint inline
+    // so CREATE TABLE renders a single canonical PRIMARY KEY clause.
+    if (name === "id") {
+      fragment += " PRIMARY KEY";
+    }
+    return `  ${fragment}`;
+  });
   const stmts: string[] = [`CREATE TABLE ${quoteIdent(entity)} (\n${columns.join(",\n")}\n);`];
   for (const fk of definition.foreignKeys ?? []) {
     stmts.push(addForeignKeySql(entity, fk));
@@ -253,6 +298,50 @@ interface PhaseBuckets {
   contract: string[];
 }
 
+/**
+ * Within the `contract` phase, PostgreSQL requires that referential constraints
+ * (foreign keys) be dropped before the columns or tables they reference —
+ * otherwise `DROP TABLE` / `DROP COLUMN` fails with a "depends on" error.
+ *
+ * `contract`-phase ordering (smaller value = earlier):
+ *  1. drop_foreign_key — break references first
+ *  2. drop_column      — then narrow columns
+ *  3. drop_table       — finally remove tables
+ *
+ * Non-contract changes (`expand` / `migrate`) keep their original
+ * detection order, which already matches schema-evolution best practice.
+ */
+const CONTRACT_PRIORITY: Partial<Record<MigrationChange["kind"], number>> = {
+  drop_foreign_key: 0,
+  drop_column: 1,
+  drop_table: 2,
+};
+
+function orderChangesForContractPhase(changes: MigrationChange[]): MigrationChange[] {
+  // Stable sort: contract-eligible changes keep their relative order within
+  // each priority bucket, and non-contract changes stay in their original
+  // positions relative to one another. A stable sort handles this when the
+  // comparator returns 0 for equal keys (Array.prototype.sort is stable in
+  // modern JS engines and Bun).
+  return [...changes]
+    .map((change, index) => ({ change, index }))
+    .sort((a, b) => {
+      const aPriority = CONTRACT_PRIORITY[a.change.kind];
+      const bPriority = CONTRACT_PRIORITY[b.change.kind];
+      // Both non-contract: preserve original order
+      if (aPriority === undefined && bPriority === undefined) {
+        return a.index - b.index;
+      }
+      // Non-contract before contract — leaves contract block at the end
+      // grouped by priority (FK drops → column drops → table drops).
+      if (aPriority === undefined) return -1;
+      if (bPriority === undefined) return 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.index - b.index;
+    })
+    .map(({ change }) => change);
+}
+
 function assignToPhases(change: MigrationChange, buckets: PhaseBuckets): void {
   switch (change.kind) {
     case "create_table":
@@ -319,7 +408,11 @@ function summarise(changes: MigrationChange[], classification: MigrationClassifi
  */
 export function planMigration(changes: MigrationChange[]): MigrationPlan {
   const buckets: PhaseBuckets = { expand: [], migrate: [], contract: [] };
-  for (const change of changes) {
+  // Reorder for forward SQL emission only — `changes` and `rollback` keep
+  // their original ordering. Sorting here ensures the contract phase emits
+  // FK drops before column / table drops, which PostgreSQL requires.
+  const orderedForForward = orderChangesForContractPhase(changes);
+  for (const change of orderedForForward) {
     assignToPhases(change, buckets);
   }
 

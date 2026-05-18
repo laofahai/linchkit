@@ -175,4 +175,205 @@ describe("planMigration", () => {
     expect(plan.rollback).toEqual([]);
     expect(plan.summary).toContain("No schema changes");
   });
+
+  // ── DEFAULT rendering (Gemini review #1) ───────────────────
+
+  it("renders a string DEFAULT and escapes embedded single quotes", () => {
+    const plan = planMigration([
+      {
+        kind: "add_column",
+        entity: "order",
+        field: "status",
+        definition: { type: "string", default: "o'reilly" },
+      },
+    ]);
+    expect(plan.forward[0]?.statements[0]).toBe(
+      "ALTER TABLE \"order\" ADD COLUMN \"status\" varchar(255) DEFAULT 'o''reilly' NULL;",
+    );
+  });
+
+  it("renders numeric and boolean DEFAULTs without quoting", () => {
+    const plan = planMigration([
+      {
+        kind: "add_column",
+        entity: "order",
+        field: "qty",
+        definition: { type: "number", default: 0 },
+      },
+      {
+        kind: "add_column",
+        entity: "order",
+        field: "active",
+        definition: { type: "boolean", default: true, required: true },
+      },
+    ]);
+    expect(plan.forward[0]?.statements[0]).toBe(
+      'ALTER TABLE "order" ADD COLUMN "qty" double precision DEFAULT 0 NULL;',
+    );
+    expect(plan.forward[0]?.statements[1]).toBe(
+      'ALTER TABLE "order" ADD COLUMN "active" boolean DEFAULT true NOT NULL;',
+    );
+  });
+
+  it("renders a JSON DEFAULT as a quoted JSON literal", () => {
+    const plan = planMigration([
+      {
+        kind: "add_column",
+        entity: "order",
+        field: "tags",
+        definition: { type: "json", default: { audit: true } },
+      },
+    ]);
+    expect(plan.forward[0]?.statements[0]).toBe(
+      'ALTER TABLE "order" ADD COLUMN "tags" jsonb DEFAULT \'{"audit":true}\' NULL;',
+    );
+  });
+
+  // ── UNIQUE constraint (Gemini review #1) ───────────────────
+
+  it("renders a UNIQUE constraint when the field is marked unique", () => {
+    const plan = planMigration([
+      {
+        kind: "add_column",
+        entity: "user",
+        field: "email",
+        definition: { type: "string", required: true, unique: true },
+      },
+    ]);
+    expect(plan.forward[0]?.statements[0]).toBe(
+      'ALTER TABLE "user" ADD COLUMN "email" varchar(255) NOT NULL UNIQUE;',
+    );
+  });
+
+  // ── PRIMARY KEY on id (Gemini review #2) ───────────────────
+
+  it("marks the id column as PRIMARY KEY in CREATE TABLE", () => {
+    const plan = planMigration([
+      {
+        kind: "create_table",
+        entity: "audit_log",
+        definition: {
+          name: "audit_log",
+          fields: {
+            id: { type: "string", required: true },
+            message: { type: "text" },
+          },
+        },
+      },
+    ]);
+    expect(plan.forward[0]?.statements[0]).toContain('"id" varchar(255) NOT NULL PRIMARY KEY');
+    // Non-id columns should NOT get PRIMARY KEY appended.
+    expect(plan.forward[0]?.statements[0]).toContain('"message" text NULL');
+    expect(plan.forward[0]?.statements[0]).not.toContain('"message" text NULL PRIMARY KEY');
+  });
+
+  it("throws when a create_table change has no persistable columns", () => {
+    expect(() =>
+      planMigration([
+        {
+          kind: "create_table",
+          entity: "empty_table",
+          definition: {
+            name: "empty_table",
+            fields: {},
+          },
+        },
+      ]),
+    ).toThrow(/Cannot create table empty_table with no columns/);
+  });
+
+  it("throws when all columns are filtered out as computed", () => {
+    expect(() =>
+      planMigration([
+        {
+          kind: "create_table",
+          entity: "all_computed",
+          definition: {
+            name: "all_computed",
+            fields: {
+              total: { type: "computed" },
+            },
+          },
+        },
+      ]),
+    ).toThrow(/Cannot create table all_computed with no columns/);
+  });
+
+  // ── Contract-phase ordering (Gemini review #3) ─────────────
+
+  it("emits drop_foreign_key before drop_column and drop_table in the contract phase", () => {
+    const plan = planMigration([
+      // Detector emits drops in order: drop_table, drop_column, drop_foreign_key
+      // The planner must reorder them so FK drops come first, then column drops,
+      // then table drops — PostgreSQL otherwise rejects DROP TABLE / COLUMN
+      // when a constraint still references it.
+      {
+        kind: "drop_table",
+        entity: "supplier",
+        previousDefinition: {
+          name: "supplier",
+          fields: { id: { type: "string", required: true } },
+        },
+      },
+      {
+        kind: "drop_column",
+        entity: "order",
+        field: "legacy_notes",
+        previousDefinition: { type: "string" },
+      },
+      {
+        kind: "drop_foreign_key",
+        entity: "order",
+        foreignKey: { field: "supplier_id", toEntity: "supplier" },
+      },
+    ]);
+    const contractPhase = plan.forward.find((p) => p.name === "contract");
+    expect(contractPhase).toBeDefined();
+    expect(contractPhase?.statements).toEqual([
+      'ALTER TABLE "order" DROP CONSTRAINT "fk_order_supplier_id";',
+      'ALTER TABLE "order" DROP COLUMN "legacy_notes";',
+      'DROP TABLE "supplier";',
+    ]);
+    // The plan's recorded `changes` array preserves the original input order
+    // — only the SQL emission within the contract phase is reordered.
+    expect(plan.changes.map((c) => c.kind)).toEqual([
+      "drop_table",
+      "drop_column",
+      "drop_foreign_key",
+    ]);
+  });
+
+  it("preserves non-contract order while reordering only the contract block", () => {
+    const plan = planMigration([
+      {
+        kind: "drop_table",
+        entity: "supplier",
+        previousDefinition: {
+          name: "supplier",
+          fields: { id: { type: "string", required: true } },
+        },
+      },
+      {
+        kind: "add_column",
+        entity: "order",
+        field: "priority",
+        definition: { type: "string" },
+      },
+      {
+        kind: "drop_foreign_key",
+        entity: "order",
+        foreignKey: { field: "supplier_id", toEntity: "supplier" },
+      },
+    ]);
+    // expand phase keeps the lone add_column; contract phase reorders FK → table.
+    const expandPhase = plan.forward.find((p) => p.name === "expand");
+    const contractPhase = plan.forward.find((p) => p.name === "contract");
+    expect(expandPhase?.statements).toEqual([
+      'ALTER TABLE "order" ADD COLUMN "priority" varchar(255) NULL;',
+    ]);
+    expect(contractPhase?.statements).toEqual([
+      'ALTER TABLE "order" DROP CONSTRAINT "fk_order_supplier_id";',
+      'DROP TABLE "supplier";',
+    ]);
+  });
 });
