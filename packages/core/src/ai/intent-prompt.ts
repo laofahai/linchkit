@@ -47,7 +47,20 @@ export interface IntentCatalogEntry {
 // ── System prompt builder ───────────────────────────────────
 
 export interface IntentPromptOptions {
-  /** Confidence below which the AI is invited to surface alternatives. */
+  /**
+   * Confidence floor below which `resolveIntent()` demotes a match to a
+   * clarification (Spec 52 §2.2 step 5). Used in the prompt's clarification
+   * instructions so the model's "ask a question" threshold matches the
+   * runtime's demotion threshold — otherwise the model over-returns
+   * clarifications for the entire `[minConfidence, alternativesThreshold)`
+   * band and bypasses the intended match-plus-alternatives path.
+   */
+  minConfidence: number;
+  /**
+   * Confidence below which the resolver invites the AI to surface
+   * "Did you mean..." alternatives alongside an accepted primary match.
+   * Strictly above `minConfidence`.
+   */
   alternativesThreshold: number;
   /** Cap on the number of alternatives the AI is asked to emit. */
   maxAlternatives: number;
@@ -98,7 +111,7 @@ A) High-confidence single action:
      "input": { "<field>": <value>, ... },
      "slots": [ { "name": "<field>", "value": <value>, "source": "<utterance span>" }, ... ],
      "confidence": <number in [0, 1]>,
-     "explanation": "<one short English sentence for a confirmation card>",
+     "explanation": "<one short sentence for a confirmation card, written in the same language as the user message>",
      "alternatives": [ /* optional N-best when confidence < ${opts.alternativesThreshold} */ ]
    }
 
@@ -106,12 +119,12 @@ B) Multi-step sequence (e.g. "create X and submit it"):
    {
      "kind": "multi_step",
      "steps": [
-       { "action": "<name>", "input": { ... }, "explanation": "<short>",
+       { "action": "<name>", "input": { ... }, "explanation": "<short, in the user's language>",
          "dependsOn": <index of prior step whose output this step needs, optional> },
        ...
      ],
      "confidence": <number in [0, 1]>,
-     "explanation": "<one short English sentence summarizing the sequence>",
+     "explanation": "<one short sentence summarizing the sequence, in the user's language>",
      "saga": <true|false — true when failure mid-sequence should roll back>
    }
 
@@ -120,7 +133,7 @@ C) Ambiguous / low confidence — ASK A CLARIFYING QUESTION:
      "kind": "clarification",
      "question": "<plain-language question to the user>",
      "candidates": [ /* optional N-best like alternatives */ ],
-     "confidence": <best confidence considered, < ${opts.alternativesThreshold}>
+     "confidence": <best confidence considered, < ${opts.minConfidence}>
    }
 
 D) Truly no match (gibberish, off-topic, requires an action that isn't listed):
@@ -140,9 +153,11 @@ Rules:
  4. Pick \`kind: "multi_step"\` only when the utterance explicitly describes more than
     one action (e.g. "create X and submit it for approval"). Single-action
     requests must use \`kind: "match"\`.
- 5. Pick \`kind: "clarification"\` when overall confidence is below ${opts.alternativesThreshold} AND
+ 5. Pick \`kind: "clarification"\` ONLY when overall confidence is below ${opts.minConfidence} AND
     you can ask a question that would resolve the ambiguity. Include up to
-    ${opts.maxAlternatives} \`candidates\`.
+    ${opts.maxAlternatives} \`candidates\`. When confidence is between ${opts.minConfidence} and
+    ${opts.alternativesThreshold}, prefer \`kind: "match"\` with N-best \`alternatives\` instead of
+    asking the user a question.
  6. Pick \`kind: "no_match"\` when no listed action is a plausible fit at all.
  7. Return STRICT JSON only — no prose outside the JSON, no Markdown fences.
 `;

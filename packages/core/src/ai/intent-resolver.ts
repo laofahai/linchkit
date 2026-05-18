@@ -62,6 +62,52 @@ export const MAX_ALTERNATIVES = 3;
 /** Default history messages forwarded to the AI. */
 export const DEFAULT_MAX_HISTORY_MESSAGES = 6;
 
+// ── User-facing messages (i18n hook) ────────────────────────
+
+/**
+ * Default English message catalog for resolver outcomes surfaced to the UI.
+ *
+ * Full per-request i18n of resolver output is tracked as a follow-up — the
+ * resolver receives no locale today, so wiring i18next here would require
+ * a wider call-site refactor. As an interim step we centralize every
+ * user-visible string the resolver emits so callers (or future locale-aware
+ * wrappers) can override them in one place instead of grepping the file.
+ *
+ * Note: the `message` field on `IntentNoMatch` is documented as
+ * human-readable; downstream UIs typically render their own copy keyed
+ * off `reason`, so this catalog is a backstop rather than a UX surface.
+ */
+export const INTENT_RESOLVER_MESSAGES = {
+  emptyUtterance: "Utterance is empty; nothing to resolve.",
+  blockedBySanitizer: "Utterance blocked by prompt sanitizer (possible injection attempt).",
+  noActionsInScope: "No actions are available in the requested scope.",
+  aiUnavailable: "AI provider unavailable.",
+  aiUnavailableWithMessage: (message: string) => `AI provider error: ${message}`,
+  aiMalformedResponse: "AI returned malformed JSON; could not parse intent.",
+  aiReturnedNoAction: "AI returned no action.",
+  aiNoMatch: "AI could not match any listed action.",
+  unknownAction: (action: string) => `AI proposed unknown action "${action}".`,
+  multiStepNoUsableSteps: "AI returned multi_step with no usable steps.",
+  multiStepUnknownAction: (action: string) =>
+    `Multi-step sequence referenced unknown action "${action}".`,
+  singleStepUnknownAction: (action: string) =>
+    `Single-step fallback referenced unknown action "${action}".`,
+  multiStepLowConfidenceClarification:
+    "I think you want to perform multiple steps but I'm not sure. Could you clarify?",
+  matchLowConfidenceClarification: (explanation: string) =>
+    explanation && explanation.length > 0
+      ? `${explanation} Could you clarify which action you want?`
+      : "I'm not sure which action you meant. Could you rephrase?",
+  singleStepFallbackClarification: "Could you confirm what you want to do?",
+  fallbackClarification: "Could you clarify which action you want to perform?",
+  defaultMatchExplanation: (action: string) => `Proposed action: ${action}`,
+  defaultMultiStepExplanation: (stepCount: number) => `Sequence of ${stepCount} actions`,
+  defaultStepExplanation: (oneBasedIndex: number, action: string) =>
+    `Step ${oneBasedIndex}: ${action}`,
+} as const;
+
+export type IntentResolverMessages = typeof INTENT_RESOLVER_MESSAGES;
+
 // ── Ontology shape (structural, dependency-light) ───────────
 
 /**
@@ -121,7 +167,14 @@ export async function resolveIntent(
   const minConfidence = options.minConfidence ?? MIN_CONFIDENCE;
   const altThreshold = options.alternativesThreshold ?? ALTERNATIVES_CONFIDENCE_THRESHOLD;
   const maxAlternatives = options.maxAlternatives ?? MAX_ALTERNATIVES;
-  const maxHistory = options.maxHistoryMessages ?? DEFAULT_MAX_HISTORY_MESSAGES;
+  // Clamp to a non-negative integer. `maxHistoryMessages: 0` MUST mean
+  // "forward no history" — left unguarded, `slice(-0)` is `slice(0)` which
+  // forwards the whole transcript and silently leaks every prior turn to
+  // the provider, breaking both the option contract and the security
+  // posture documented at the top of this file.
+  const rawMaxHistory = options.maxHistoryMessages ?? DEFAULT_MAX_HISTORY_MESSAGES;
+  const maxHistory =
+    Number.isFinite(rawMaxHistory) && rawMaxHistory > 0 ? Math.floor(rawMaxHistory) : 0;
   const sanitize = options.sanitizeUtterance ?? true;
 
   // Step 1 — Sanitize the utterance.
@@ -131,7 +184,7 @@ export async function resolveIntent(
     return {
       kind: "no_match",
       reason: "empty_utterance",
-      message: "Utterance is empty; nothing to resolve.",
+      message: INTENT_RESOLVER_MESSAGES.emptyUtterance,
     };
   }
   let utterance = trimmed;
@@ -141,9 +194,7 @@ export async function resolveIntent(
       return {
         kind: "no_match",
         reason: "blocked_by_sanitizer",
-        message:
-          result.blockReason ??
-          "Utterance blocked by prompt sanitizer (possible injection attempt).",
+        message: result.blockReason ?? INTENT_RESOLVER_MESSAGES.blockedBySanitizer,
       };
     }
     utterance = result.sanitized;
@@ -155,21 +206,40 @@ export async function resolveIntent(
     return {
       kind: "no_match",
       reason: "no_actions_in_scope",
-      message: "No actions are available in the requested scope.",
+      message: INTENT_RESOLVER_MESSAGES.noActionsInScope,
     };
   }
   const catalogIndex = new Map(catalog.map((entry) => [entry.name, entry]));
 
   // Steps 3-4 — Build system prompt + compose chat messages.
   const systemPrompt = buildIntentSystemPrompt(catalog, {
+    minConfidence,
     alternativesThreshold: altThreshold,
     maxAlternatives,
   });
   const messages: AIMessage[] = [{ role: "system", content: systemPrompt }];
-  if (input.history && input.history.length > 0) {
+  if (maxHistory > 0 && input.history && input.history.length > 0) {
     const tail = input.history.slice(-maxHistory);
     for (const msg of tail) {
-      messages.push({ role: msg.role, content: msg.content });
+      const rawContent = typeof msg.content === "string" ? msg.content : "";
+      const trimmedContent = rawContent.trim();
+      if (trimmedContent.length === 0) continue;
+      // Historical turns are still user/model-controlled text. Without
+      // re-sanitization a stored prompt-injection attempt from an earlier
+      // turn would slip past `sanitize` (which only runs on the current
+      // utterance) and steer the resolver from inside the chat transcript.
+      // When sanitization is disabled (trusted callers — tests / MCP) we
+      // preserve the original content unchanged, matching the contract for
+      // the live utterance above.
+      if (sanitize) {
+        const result = sanitizePrompt(trimmedContent);
+        // Blocked turns are dropped — never forwarded to the provider. A
+        // partial transcript is preferable to surfacing jailbreak content.
+        if (result.blocked) continue;
+        messages.push({ role: msg.role, content: result.sanitized });
+      } else {
+        messages.push({ role: msg.role, content: trimmedContent });
+      }
     }
   }
   messages.push({ role: "user", content: utterance });
@@ -188,7 +258,9 @@ export async function resolveIntent(
       kind: "no_match",
       reason: "ai_unavailable",
       message:
-        err instanceof Error ? `AI provider error: ${err.message}` : "AI provider unavailable.",
+        err instanceof Error
+          ? INTENT_RESOLVER_MESSAGES.aiUnavailableWithMessage(err.message)
+          : INTENT_RESOLVER_MESSAGES.aiUnavailable,
     };
   }
 
@@ -198,7 +270,7 @@ export async function resolveIntent(
     return {
       kind: "no_match",
       reason: "ai_malformed_response",
-      message: "AI returned malformed JSON; could not parse intent.",
+      message: INTENT_RESOLVER_MESSAGES.aiMalformedResponse,
     };
   }
 
@@ -209,10 +281,10 @@ export async function resolveIntent(
       return {
         kind: "no_match",
         reason: "no_action_matched",
-        message: parsed.explanation || "AI could not match any listed action.",
+        message: parsed.explanation || INTENT_RESOLVER_MESSAGES.aiNoMatch,
       };
     case "clarification":
-      return buildClarification(parsed, catalogIndex);
+      return buildClarification(parsed, catalogIndex, maxAlternatives);
     case "multi_step":
       return buildMultiStep(parsed, catalogIndex, minConfidence);
     case "match":
@@ -273,8 +345,15 @@ function toCatalogEntry(action: ActionDefinition): IntentCatalogEntry {
   };
 }
 
+/**
+ * Convert a filter list to a Set, distinguishing "unset" (undefined) from
+ * "explicitly empty" ([]). An empty array means "no candidates allowed" and
+ * MUST produce an empty Set so the caller short-circuits to an empty catalog
+ * — collapsing it to `undefined` would silently widen scope and re-admit the
+ * full ontology, which is a security/correctness regression.
+ */
 function toFilterSet(values: readonly string[] | undefined): Set<string> | undefined {
-  if (!values || values.length === 0) return undefined;
+  if (values === undefined) return undefined;
   return new Set(values);
 }
 
@@ -356,7 +435,7 @@ function reconcileAlternatives(
       entity: entry.entity,
       input,
       confidence,
-      explanation: explanation || `Proposed action: ${entry.name}`,
+      explanation: explanation || INTENT_RESOLVER_MESSAGES.defaultMatchExplanation(entry.name),
       missingFields,
     });
   }
@@ -376,7 +455,7 @@ function buildMatch(
     return {
       kind: "no_match",
       reason: "no_action_matched",
-      message: parsed.explanation || "AI returned no action.",
+      message: parsed.explanation || INTENT_RESOLVER_MESSAGES.aiReturnedNoAction,
     };
   }
   const entry = catalogIndex.get(parsed.action);
@@ -384,7 +463,7 @@ function buildMatch(
     return {
       kind: "no_match",
       reason: "no_action_matched",
-      message: `AI proposed unknown action "${parsed.action}".`,
+      message: INTENT_RESOLVER_MESSAGES.unknownAction(parsed.action),
     };
   }
   const confidence = clampConfidence(parsed.confidence);
@@ -400,10 +479,7 @@ function buildMatch(
     );
     return {
       kind: "clarification",
-      question:
-        parsed.explanation && parsed.explanation.length > 0
-          ? `${parsed.explanation} Could you clarify which action you want?`
-          : "I'm not sure which action you meant. Could you rephrase?",
+      question: INTENT_RESOLVER_MESSAGES.matchLowConfidenceClarification(parsed.explanation ?? ""),
       candidates,
       bestConfidence: confidence,
     };
@@ -430,7 +506,7 @@ function buildMatch(
     slots,
     missingFields,
     confidence,
-    explanation: parsed.explanation || `Proposed action: ${entry.name}`,
+    explanation: parsed.explanation || INTENT_RESOLVER_MESSAGES.defaultMatchExplanation(entry.name),
     ...(alternatives && alternatives.length > 0 ? { alternatives } : {}),
   };
 }
@@ -478,7 +554,7 @@ function buildMultiStep(
       : {
           kind: "no_match",
           reason: "no_action_matched",
-          message: "AI returned multi_step with no usable steps.",
+          message: INTENT_RESOLVER_MESSAGES.multiStepNoUsableSteps,
         };
   }
 
@@ -492,7 +568,7 @@ function buildMultiStep(
       return {
         kind: "no_match",
         reason: "no_action_matched",
-        message: `Multi-step sequence referenced unknown action "${raw.action}".`,
+        message: INTENT_RESOLVER_MESSAGES.multiStepUnknownAction(raw.action),
       };
     }
     const { input, missingFields } = reconcileInput(entry, raw.input ?? {});
@@ -506,7 +582,8 @@ function buildMultiStep(
       entity: entry.entity,
       input,
       missingFields,
-      explanation: raw.explanation || `Step ${i + 1}: ${entry.name}`,
+      explanation:
+        raw.explanation || INTENT_RESOLVER_MESSAGES.defaultStepExplanation(i + 1, entry.name),
       ...(dependsOn !== undefined ? { dependsOn } : {}),
     });
   }
@@ -515,7 +592,7 @@ function buildMultiStep(
   if (confidence < minConfidence) {
     return {
       kind: "clarification",
-      question: "I think you want to perform multiple steps but I'm not sure. Could you clarify?",
+      question: INTENT_RESOLVER_MESSAGES.multiStepLowConfidenceClarification,
       bestConfidence: confidence,
     };
   }
@@ -524,7 +601,8 @@ function buildMultiStep(
     kind: "multi_step",
     steps,
     confidence,
-    explanation: parsed.explanation || `Sequence of ${steps.length} actions`,
+    explanation:
+      parsed.explanation || INTENT_RESOLVER_MESSAGES.defaultMultiStepExplanation(steps.length),
     // Default to saga unless the AI explicitly opted out.
     saga: parsed.saga ?? true,
   };
@@ -541,7 +619,7 @@ function buildSingleStepFallback(
     return {
       kind: "no_match",
       reason: "no_action_matched",
-      message: "AI returned multi_step with no usable steps.",
+      message: INTENT_RESOLVER_MESSAGES.multiStepNoUsableSteps,
     };
   }
   const entry = catalogIndex.get(only.action);
@@ -549,7 +627,7 @@ function buildSingleStepFallback(
     return {
       kind: "no_match",
       reason: "no_action_matched",
-      message: `Single-step fallback referenced unknown action "${only.action}".`,
+      message: INTENT_RESOLVER_MESSAGES.singleStepUnknownAction(only.action),
     };
   }
   const { input, missingFields } = reconcileInput(entry, only.input ?? {});
@@ -557,7 +635,7 @@ function buildSingleStepFallback(
   if (confidence < minConfidence) {
     return {
       kind: "clarification",
-      question: "Could you confirm what you want to do?",
+      question: INTENT_RESOLVER_MESSAGES.singleStepFallbackClarification,
       bestConfidence: confidence,
     };
   }
@@ -569,24 +647,28 @@ function buildSingleStepFallback(
     slots: buildSlots(undefined, input),
     missingFields,
     confidence,
-    explanation: only.explanation || parsed.explanation || `Proposed action: ${entry.name}`,
+    explanation:
+      only.explanation ||
+      parsed.explanation ||
+      INTENT_RESOLVER_MESSAGES.defaultMatchExplanation(entry.name),
   };
 }
 
 function buildClarification(
   parsed: AiResponse,
   catalogIndex: Map<string, IntentCatalogEntry>,
+  maxAlternatives: number,
 ): Intent {
   const question =
     parsed.question && parsed.question.trim().length > 0
       ? parsed.question
-      : "Could you clarify which action you want to perform?";
+      : INTENT_RESOLVER_MESSAGES.fallbackClarification;
   const candidates = reconcileAlternatives(
     parsed.candidates ?? parsed.alternatives,
     catalogIndex,
     null,
     0, // surface every plausible candidate — UI shows them as chips
-    MAX_ALTERNATIVES,
+    maxAlternatives,
   );
   return {
     kind: "clarification",

@@ -764,8 +764,14 @@ function toCatalogPreviewEntry(action: ActionDefinition): ActionCatalogEntry {
   };
 }
 
+/**
+ * Convert a filter list to a Set. An explicitly empty array is preserved as
+ * an empty Set ("no candidates allowed"); only an `undefined` filter means
+ * "do not filter". This mirrors the resolver's own `toFilterSet` semantics
+ * so the preview catalog and the resolver agree on what an empty filter means.
+ */
 function toFilterSet(values: readonly string[] | undefined): Set<string> | undefined {
-  if (!values || values.length === 0) return undefined;
+  if (values === undefined) return undefined;
   return new Set(values);
 }
 

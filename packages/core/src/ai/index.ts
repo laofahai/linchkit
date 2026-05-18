@@ -54,6 +54,7 @@ export type { IntentCatalogEntry, IntentPromptOptions } from "./intent-prompt";
 export { buildIntentSystemPrompt } from "./intent-prompt";
 export type {
   IntentOntology,
+  IntentResolverMessages,
   ResolveIntentDeps,
   ResolveIntentInput,
 } from "./intent-resolver";
@@ -61,6 +62,7 @@ export {
   ALTERNATIVES_CONFIDENCE_THRESHOLD,
   DEFAULT_MAX_HISTORY_MESSAGES,
   extractFirstJsonObject,
+  INTENT_RESOLVER_MESSAGES,
   MAX_ALTERNATIVES,
   MIN_CONFIDENCE,
   resolveIntent,
