@@ -399,6 +399,24 @@ export {
   resolveOverrides,
   resolveRuleOverride,
 } from "./runtime/override-resolver";
+// Saga module — declarative Saga composition with compensation (Spec 26 §1.2)
+export {
+  createSagaRunner,
+  defineSaga,
+  type RunActionCallback,
+  runSaga,
+  type SagaCompensationEntry,
+  type SagaDefinition,
+  type SagaExecutionState,
+  type SagaFailurePolicy,
+  type SagaRunner,
+  type SagaRunnerOptions,
+  type SagaStateListener,
+  type SagaStatus,
+  type SagaStepDefinition,
+  type SagaStepState,
+  type SagaStepStatus,
+} from "./saga";
 // Security — data masking types only (runtime functions in server-entry.ts due to node:crypto dep)
 export type { MaskRecordOptions } from "./security";
 // Type exports
