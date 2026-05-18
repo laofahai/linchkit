@@ -57,3 +57,6 @@ export { AdminLayout } from "./pages/admin-layout";
 export { EntityFormPage } from "./pages/entity-form";
 export { EntityListPage } from "./pages/entity-list";
 export { WorkspacePage } from "./pages/workspace";
+
+// Tenant self-service surface (Spec 30 M2+, issue #133)
+export * from "./tenant";
