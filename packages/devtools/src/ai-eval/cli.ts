@@ -40,6 +40,7 @@ import { registerIntentMatchers } from "./matchers/intent";
 import { createMatcherRegistry } from "./matchers/registry";
 import { renderJsonReport, renderMarkdownReport } from "./reporters";
 import {
+  EvalFailureError,
   estimateCost,
   loadFixtures,
   RegressionError,
@@ -274,6 +275,21 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
       const md = renderRegressionOnlyReport(e);
       out(md);
       err(`REGRESSION: ${e.message}\n`);
+      return { exitCode: 1, markdownReport: md };
+    }
+    if (e instanceof EvalFailureError) {
+      // Spec §9.4 absolute floor: live runs must fail on any strict matcher
+      // failure even without a prior baseline (the no-diff first-run path).
+      // The runner attaches the full report to the error so we render the
+      // standard markdown — operators see the same per-fixture detail they
+      // would have seen on a passing run.
+      const failureReport = e.report as RunReport<IntentEvalOutput>;
+      const md = renderMarkdownReport(failureReport, {
+        includeDiff: Boolean(failureReport.diff),
+        fixtureTags: Object.fromEntries(fixtures.map((f) => [f.id, f.tags])),
+      });
+      out(md);
+      err(`EVAL FAILURE: ${e.message}\n`);
       return { exitCode: 1, markdownReport: md };
     }
     err(`ERROR during eval: ${(e as Error).message}\n`);

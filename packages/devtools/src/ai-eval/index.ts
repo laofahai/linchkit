@@ -30,6 +30,7 @@ export { intentMatchers, registerIntentMatchers } from "./matchers/intent";
 export { createMatcherRegistry, type MatcherRegistry } from "./matchers/registry";
 export { type MarkdownReportOptions, renderJsonReport, renderMarkdownReport } from "./reporters";
 export {
+  EvalFailureError,
   estimateCost,
   loadFixtures,
   RegressionError,

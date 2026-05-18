@@ -19,8 +19,8 @@ import {
   runCli,
   type ScenarioRegistry,
 } from "@linchkit/devtools";
+import { createIntentScenario } from "../eval-runner/intent-scenario";
 import { createAIService, defaultAIConfig } from "../src/ai-service";
-import { createIntentScenario } from "../src/eval/intent-scenario";
 import type { OntologyRegistryLike } from "../src/intent-resolver";
 
 /**

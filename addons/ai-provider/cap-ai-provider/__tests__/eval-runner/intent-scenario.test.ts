@@ -18,7 +18,7 @@ import {
   type IntentFixtureContext,
   type IntentFixtureInput,
 } from "@linchkit/devtools";
-import { createIntentScenario, type IntentScenarioDeps } from "../../src/eval/intent-scenario";
+import { createIntentScenario, type IntentScenarioDeps } from "../../eval-runner/intent-scenario";
 
 // ── Fixtures ─────────────────────────────────────────────────
 

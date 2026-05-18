@@ -542,6 +542,63 @@ describe("runCli — regression still prints report", () => {
   });
 });
 
+describe("runCli — absolute-floor failure (spec §9.4)", () => {
+  let layout: TempLayout;
+  beforeEach(async () => {
+    layout = await makeLayout();
+  });
+  afterEach(async () => {
+    await layout.cleanup();
+  });
+
+  it("exits 1 and prints the markdown report when a live run has strict failures with no prior baseline", async () => {
+    // This is the bug the brief calls out: without the absolute-floor check,
+    // the very first live run with 100% strict failures would exit 0 because
+    // there is no prior baseline to diff against. The CLI must surface the
+    // failure AND still print the full report so CI logs are diagnostic.
+    const f = makeFixture("first_run_fail", "create purchase 5000", [
+      { name: "action_equals", args: { value: "create_purchase_request" } },
+    ]);
+    await fixturesDirFromMap(layout.fixturesDir, [f]);
+
+    const io = captureIo();
+    const recorder = liveDepsRecorder({
+      aiResponses: {
+        "5000": JSON.stringify({
+          action: "approve_purchase_request",
+          input: {},
+          confidence: 0.7,
+          explanation: "wrong",
+        }),
+      },
+    });
+    const result = await runCli(
+      [
+        "--scenario",
+        "intent",
+        "--fixtures-dir",
+        layout.fixturesDir,
+        "--baselines-dir",
+        layout.baselinesDir,
+      ],
+      {
+        registerScenarios: registerMockScenarios,
+        loadLiveDeps: recorder.factory,
+        out: io.out,
+        err: io.err,
+        env: { AI_EVAL_LIVE: "1" },
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(io.stderr).toContain("EVAL FAILURE:");
+    expect(io.stdout).toContain("# AI Eval Baseline");
+    // The markdown report carries the failed fixture so reviewers can diff
+    // the actual aiOutput against expectations.
+    expect(io.stdout).toContain("first_run_fail");
+  });
+});
+
 describe("runCli — fresh-clone graceful handling (P1)", () => {
   let layout: TempLayout;
   beforeEach(async () => {

@@ -89,6 +89,30 @@ export class RegressionError extends Error {
   }
 }
 
+/**
+ * Thrown when a live run finishes with at least one fixture failing strict
+ * matchers — even without a prior canonical baseline to diff against.
+ *
+ * Distinct from `RegressionError`:
+ *   - `RegressionError` = "got worse than the prior canonical baseline"
+ *   - `EvalFailureError` = "absolute strict-matcher failure(s) observed"
+ *
+ * Spec 69 §9.4 requires the live job to fail on strict failures regardless
+ * of whether a baseline existed; otherwise the very first live run can land
+ * a green CI status while the strict hit rate is 0%.
+ */
+export class EvalFailureError<TOutput = unknown> extends Error {
+  public readonly kind = "eval-failure" as const;
+  constructor(public readonly report: RunReport<TOutput>) {
+    super(
+      `AI eval failed for scenario "${report.scenario}": ` +
+        `${report.summary.strictFail}/${report.summary.total} ` +
+        `fixtures had strict matcher failures.`,
+    );
+    this.name = "EvalFailureError";
+  }
+}
+
 // ── Public API ──────────────────────────────────────────────
 
 export async function runEval<TOutput = unknown>(
@@ -209,8 +233,26 @@ export async function runEval<TOutput = unknown>(
     });
   }
 
+  // Spec §9.4: live runs must fail on strict matcher failures even
+  // without a prior baseline. Diff-based regression detection is for
+  // AFTER the first baseline is established; before that, the absolute
+  // strictFail count is the only gate.
+  //
+  // Replay mode is intentionally excluded: replay re-runs matchers
+  // against recorded outputs, so failures there indicate matcher-schema
+  // drift, which the `bun test` matcher suite catches separately
+  // (spec §9.1). Throwing here would double-gate that case.
+  //
+  // RegressionError takes precedence when applicable — it carries
+  // strictly more diagnostic info (transitions, deltaPp) than the
+  // absolute-floor EvalFailureError, and any regression already implies
+  // strictFail > 0.
   if (diff?.hasRegression) {
     throw new RegressionError(diff);
+  }
+
+  if (opts.live && report.summary.strictFail > 0) {
+    throw new EvalFailureError<TOutput>(report);
   }
 
   return report;

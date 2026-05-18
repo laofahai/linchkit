@@ -14,7 +14,12 @@
  *   • The generic framework (types, matchers, runner, baseline, CLI, registry)
  *     stays scenario-agnostic in `@linchkit/devtools`.
  *   • This adapter — and any future capability-specific adapter — lives
- *     inside the capability that owns the production code being evaluated.
+ *     inside the capability that owns the production code being evaluated,
+ *     but in a sibling `eval-runner/` directory (NOT under `src/`) so it
+ *     stays outside the published library surface. The package's `files`
+ *     field only ships `src/`, which means `eval-runner/` is internal to
+ *     the monorepo and never leaks the `@linchkit/devtools` devDependency
+ *     to downstream consumers. See spec 69 §11 (Phase 1 P2 fix).
  *
  * # Hash-drift detection
  *
@@ -39,7 +44,7 @@ import {
   type ActionProposal,
   type OntologyRegistryLike as ResolverOntologyRegistryLike,
   resolveIntent,
-} from "../intent-resolver";
+} from "../src/intent-resolver";
 
 // ── Public deps shape ────────────────────────────────────────
 
