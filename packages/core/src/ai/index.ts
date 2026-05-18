@@ -49,6 +49,13 @@ export type {
   ConversationManagerOptions,
 } from "./conversation-manager";
 export { ConversationManager } from "./conversation-manager";
+// Data Quality Scanner
+export type {
+  DataQualityIssue,
+  DataQualityReport,
+  DataQualityScanOptions,
+} from "./data-quality-scanner";
+export { scanDataQuality } from "./data-quality-scanner";
 // Intent Resolver (Spec 52 §2.2 / §2.5 — NL → discriminated Intent)
 export type { IntentCatalogEntry, IntentPromptOptions } from "./intent-prompt";
 export { buildIntentSystemPrompt } from "./intent-prompt";

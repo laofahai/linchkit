@@ -5,11 +5,17 @@
  * - POST /api/ai/chat — Vercel AI SDK streamText with tools (conversation history + function calling)
  * - POST /api/ai/resolve-intent — natural language to action proposal
  * - POST /api/ai/search — natural language to DeclarativeCondition filter
+ *
+ * TODO(#336 follow-up): this file is still ~900 lines after the data-quality
+ * split. Each remaining endpoint (auto-fill, chat, search, execute-intent,
+ * record-analysis) is a candidate for extraction into its own module.
+ * Tracked separately to keep this PR focused.
  */
 
 import type { Elysia } from "elysia";
 import { extractLocale, getLanguageInstruction } from "../ai/system-prompt";
 import type { ServerOptions } from "../server";
+import { mountDataQualityRoute } from "./ai-data-quality";
 
 // ── Analysis cache (in-memory, 15 min TTL) ──────────────────
 const ANALYSIS_CACHE_TTL = 15 * 60 * 1000;
@@ -916,4 +922,6 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         return { success: false, error: { message: errMsg } };
       }
     });
+
+  mountDataQualityRoute(app, options);
 }

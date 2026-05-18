@@ -1,0 +1,34 @@
+{
+  "name": "@linchkit/cap-vector-pgvector",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "package.json",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0",
+    "drizzle-orm": "^0.45.1"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "typescript": "^6.0.2"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.2.0",
+    "type": "standard",
+    "category": "system",
+    "autoInstall": false
+  }
+}
