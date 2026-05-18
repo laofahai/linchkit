@@ -274,6 +274,11 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
       regressed = true;
       const md = renderRegressionOnlyReport(e);
       out(md);
+      // Failure-path JSON artifact: write the diff as the machine-readable
+      // record so CI uploads still produce the requested file. The shape
+      // differs from the success-path report (diff-only vs full report),
+      // documented inline so consumers know to discriminate.
+      await writeReportJsonIfRequested(parsed.reportJson, { diff: e.diff }, err);
       err(`REGRESSION: ${e.message}\n`);
       return { exitCode: 1, markdownReport: md };
     }
@@ -289,6 +294,10 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
         fixtureTags: Object.fromEntries(fixtures.map((f) => [f.id, f.tags])),
       });
       out(md);
+      // EvalFailureError carries the full RunReport so the JSON artifact is
+      // identical in shape to the success path — CI tooling can rely on a
+      // single schema regardless of run outcome.
+      await writeReportJsonIfRequested(parsed.reportJson, failureReport, err);
       err(`EVAL FAILURE: ${e.message}\n`);
       return { exitCode: 1, markdownReport: md };
     }
@@ -305,15 +314,7 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliRunResul
 
   // Optional JSON artifact for CI uploads — separate from the canonical
   // baseline JSON the runner writes when --refresh-baseline is set.
-  if (parsed.reportJson) {
-    try {
-      const { writeFile, mkdir } = await import("node:fs/promises");
-      await mkdir(path.dirname(parsed.reportJson), { recursive: true });
-      await writeFile(parsed.reportJson, renderJsonReport(report), "utf8");
-    } catch (e) {
-      err(`WARN: could not write --report-json: ${(e as Error).message}\n`);
-    }
-  }
+  await writeReportJsonIfRequested(parsed.reportJson, report, err);
 
   // --diff-current modifies a live run by comparing the in-memory report
   // against the canonical baseline. Replay-mode invocation with
@@ -528,6 +529,34 @@ function renderCostBanner(opts: {
     "",
   ];
   return lines.join("\n");
+}
+
+/**
+ * Write the optional --report-json artifact for any outcome (success,
+ * RegressionError, EvalFailureError). Centralised so failure paths never
+ * skip the artifact — CI tooling relies on the file existing.
+ *
+ * Payload shape varies by outcome:
+ *  - Success / EvalFailureError: full RunReport (rendered via renderJsonReport).
+ *  - RegressionError: { diff: BaselineDiff } only — runner discards the
+ *    in-memory report after throwing. Documented in the file header so
+ *    consumers know to discriminate by presence of `fixtures`.
+ */
+async function writeReportJsonIfRequested(
+  reportJsonPath: string | undefined,
+  payload: RunReport<IntentEvalOutput> | { diff: ReturnType<typeof compareToBaseline> },
+  err: (msg: string) => void,
+): Promise<void> {
+  if (!reportJsonPath) return;
+  try {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    await mkdir(path.dirname(reportJsonPath), { recursive: true });
+    const content =
+      "fixtures" in payload ? renderJsonReport(payload) : `${JSON.stringify(payload, null, 2)}\n`;
+    await writeFile(reportJsonPath, content, "utf8");
+  } catch (e) {
+    err(`WARN: could not write --report-json: ${(e as Error).message}\n`);
+  }
 }
 
 function renderRegressionOnlyReport(err: RegressionError): string {

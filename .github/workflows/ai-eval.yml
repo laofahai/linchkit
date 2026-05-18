@@ -11,10 +11,16 @@ on:
   pull_request:
     branches: [main]
     paths:
+      # Production prompt + resolver — the actual code spec 69 protects.
+      # Changes here MUST trigger the live regression check even when no
+      # fixtures or framework code changed (per Codex R4-P2 fix).
       - 'addons/ai-provider/cap-ai-provider/src/intent-prompt.ts'
+      - 'addons/ai-provider/cap-ai-provider/src/intent-resolver.ts'
+      # Eval-side wiring: scenario adapter + bin entry + framework.
+      - 'addons/ai-provider/cap-ai-provider/eval-runner/**'
+      - 'addons/ai-provider/cap-ai-provider/bin/ai-eval.ts'
       - 'addons/ai-provider/cap-ai-provider/__tests__/eval/fixtures/intent/**'
       - 'addons/ai-provider/cap-ai-provider/__tests__/eval/catalogs/**'
-      - 'addons/ai-provider/cap-ai-provider/bin/ai-eval.ts'
       - 'packages/devtools/src/ai-eval/**'
   workflow_dispatch:
     inputs:
