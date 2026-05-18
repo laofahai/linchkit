@@ -535,6 +535,28 @@ function makeDiskInlineLoader(
     if (!Array.isArray(actions)) {
       throw new Error(`inline catalog ${file} must contain an "actions" array`);
     }
+    // Validate each entry up-front so authoring errors fail loud here
+    // instead of producing a cryptic "cannot read .name of undefined"
+    // deep inside the scenario adapter. The intent-resolver only relies
+    // on (name, entity); other fields are forwarded as-is.
+    actions.forEach((entry, idx) => {
+      if (!entry || typeof entry !== "object") {
+        throw new Error(
+          `inline catalog ${file}: action[${idx}] must be an object, got ${typeof entry}`,
+        );
+      }
+      const rec = entry as Record<string, unknown>;
+      if (typeof rec.name !== "string" || rec.name.length === 0) {
+        throw new Error(
+          `inline catalog ${file}: action[${idx}] missing required string field "name"`,
+        );
+      }
+      if (typeof rec.entity !== "string" || rec.entity.length === 0) {
+        throw new Error(
+          `inline catalog ${file}: action[${idx}] ("${rec.name}") missing required string field "entity"`,
+        );
+      }
+    });
     return actions as ReadonlyArray<InlineCatalogAction>;
   };
 }

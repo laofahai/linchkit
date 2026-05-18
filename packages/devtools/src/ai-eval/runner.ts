@@ -28,16 +28,54 @@ import type {
 // ── Approximate-pricing constants ───────────────────────────
 
 /**
- * Per-million-token USD pricing used by `estimateCost`. Hard-coded here
+ * Per-million-token USD pricing keyed by model-id prefix. Hard-coded here
  * because devtools must remain decoupled from `cap-ai-provider`'s
- * CostEstimator. C3 may replace this with a pluggable hook once the CLI
- * lands. Constants reflect Claude Sonnet 4 list price as of 2026-05.
+ * CostEstimator. Phase 2 may replace this with a pluggable hook injected
+ * by the CLI's loadLiveDeps.
+ *
+ * Prefix-matched (longest-first), so dated variants like
+ * `claude-sonnet-4-20250514` resolve to the `claude-sonnet-4` row.
+ * Unknown models fall back to `FALLBACK_PRICING` (conservative Claude
+ * Sonnet pricing) and emit a banner via the CLI's costPrinter so a
+ * misconfigured run does not silently under-budget.
  */
-const PRICE_PER_M_INPUT_USD = 3;
-const PRICE_PER_M_OUTPUT_USD = 15;
+const PRICING_PER_M_TOKENS: ReadonlyArray<{
+  prefix: string;
+  input: number;
+  output: number;
+}> = [
+  // Anthropic (list price as of 2026-05)
+  { prefix: "claude-opus-4", input: 15, output: 75 },
+  { prefix: "claude-sonnet-4", input: 3, output: 15 },
+  { prefix: "claude-haiku-4-5", input: 1, output: 5 },
+  // Zhipu (https://open.bigmodel.cn/pricing — flash tier is effectively
+  // free; air is the paid baseline. Numbers in USD-equivalent after CNY
+  // conversion, rounded up to be conservative.)
+  { prefix: "glm-4-flash", input: 0.001, output: 0.001 },
+  { prefix: "glm-4-air", input: 0.07, output: 0.07 },
+  { prefix: "glm-4-plus", input: 0.7, output: 0.7 },
+  // OpenAI
+  { prefix: "gpt-4o-mini", input: 0.15, output: 0.6 },
+  { prefix: "gpt-4o", input: 2.5, output: 10 },
+];
+const FALLBACK_PRICING = { input: 3, output: 15 }; // conservative Claude Sonnet
 const DEFAULT_INPUT_TOKENS = 2000;
 const DEFAULT_OUTPUT_TOKENS = 500;
 const DEFAULT_MAX_COST_USD = 5;
+
+function resolvePricing(modelId: string | undefined): {
+  input: number;
+  output: number;
+  matched: boolean;
+} {
+  if (!modelId) return { ...FALLBACK_PRICING, matched: false };
+  const matches = PRICING_PER_M_TOKENS.filter((r) => modelId.startsWith(r.prefix)).sort(
+    (a, b) => b.prefix.length - a.prefix.length,
+  );
+  const hit = matches[0];
+  if (hit) return { input: hit.input, output: hit.output, matched: true };
+  return { ...FALLBACK_PRICING, matched: false };
+}
 
 // ── Public types ────────────────────────────────────────────
 
@@ -145,9 +183,12 @@ export async function runEval<TOutput = unknown>(
     const cost = estimateCost(fixtures, opts.modelId ?? "default");
     const printer = opts.costPrinter ?? defaultCostPrinter;
     const cap = opts.maxCostUsd ?? DEFAULT_MAX_COST_USD;
+    const pricingNote = cost.pricingMatched
+      ? `model ${opts.modelId}`
+      : `UNKNOWN model "${opts.modelId ?? "default"}" — falling back to conservative Claude Sonnet pricing; actual cost may be much lower`;
     printer(
       `[ai-eval] live run cost estimate: $${cost.totalUsd.toFixed(2)} ` +
-        `(${fixtures.length} fixtures × ~$${cost.perFixtureUsd.toFixed(4)}/fixture, cap $${cap.toFixed(2)})`,
+        `(${fixtures.length} fixtures × ~$${cost.perFixtureUsd.toFixed(4)}/fixture, cap $${cap.toFixed(2)}, ${pricingNote})`,
     );
     if (cost.totalUsd > cap) {
       throw new Error(
@@ -302,17 +343,18 @@ export async function loadFixtures<TInput = unknown, TContext = unknown>(opts: {
 
 export function estimateCost(
   fixtures: EvalFixture[],
-  _modelId: string,
-): { totalUsd: number; perFixtureUsd: number } {
+  modelId: string,
+): { totalUsd: number; perFixtureUsd: number; pricingMatched: boolean } {
+  const pricing = resolvePricing(modelId);
   let total = 0;
   for (const fx of fixtures) {
     const inTok = fx.meta?.estimatedTokens?.input ?? DEFAULT_INPUT_TOKENS;
     const outTok = fx.meta?.estimatedTokens?.output ?? DEFAULT_OUTPUT_TOKENS;
-    total += (inTok / 1_000_000) * PRICE_PER_M_INPUT_USD;
-    total += (outTok / 1_000_000) * PRICE_PER_M_OUTPUT_USD;
+    total += (inTok / 1_000_000) * pricing.input;
+    total += (outTok / 1_000_000) * pricing.output;
   }
   const per = fixtures.length === 0 ? 0 : total / fixtures.length;
-  return { totalUsd: total, perFixtureUsd: per };
+  return { totalUsd: total, perFixtureUsd: per, pricingMatched: pricing.matched };
 }
 
 // ── helpers ─────────────────────────────────────────────

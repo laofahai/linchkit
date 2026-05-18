@@ -98,7 +98,13 @@ export function renderMarkdownReport<TOutput = unknown>(
 
   lines.push("## Reproduction");
   lines.push("");
-  const reproCmd = `bun run ai:eval --scenario ${report.scenario}${
+  // Live reports must reproduce as live runs — without AI_EVAL_LIVE=1 the
+  // copied command would silently run in replay mode and re-read the
+  // baseline that produced this very report. Replay reports omit the env
+  // var because they really *are* offline (modelId is only set on live).
+  const isLiveReport = report.modelId !== undefined;
+  const envPrefix = isLiveReport ? "AI_EVAL_LIVE=1 " : "";
+  const reproCmd = `${envPrefix}bun run ai:eval --scenario ${report.scenario}${
     report.modelId ? ` --model ${report.modelId}` : ""
   }`;
   lines.push("```bash");
