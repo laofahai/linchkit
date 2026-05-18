@@ -1,15 +1,19 @@
 /**
  * Spec 52 §2.6 — POST /api/ai/resolve-intent
  *
- * Wires the canonical `resolveIntent()` resolver from `@linchkit/cap-ai-provider`
+ * Wires the canonical `resolveIntent()` engine from `@linchkit/core/server`
  * into a real HTTP endpoint. The route is a thin consumer of the resolver:
  *
  *  - Validates `{ prompt, scope }` with Zod.
  *  - Builds a permission-scoped Ontology view so the AI only sees actions the
  *    calling actor can actually execute (Spec 52 §1.1 — "AI sees only what the
  *    current user can see").
- *  - Returns `{ proposal: ActionProposal | null }` (200 either way — a null
- *    proposal is a normal "no usable match" outcome, not an error).
+ *  - Returns a `ResolveIntentResponse` envelope (200 either way) carrying:
+ *      * `proposal` — legacy single-step Action Proposal (back-compat).
+ *      * `clarification` — Spec 52 §2.2 step 5 clarifying question, when low-confidence.
+ *      * `multiStep` — Spec 52 §2.5 multi-action sequence (Saga-flagged), when applicable.
+ *    A null `proposal` with no `clarification`/`multiStep` is a normal
+ *    "no usable match" outcome, not an error.
  *  - Emits one AI audit entry per call (success, no-match, or failure) using
  *    the canonical `logIntentResolution()` helper so the full intent-resolution
  *    traffic is auditable per Spec 52 §8.1.4.
@@ -21,11 +25,7 @@
  *    503 with a structured envelope so the UI can show "AI unavailable" UX.
  */
 
-import {
-  type ActionCatalogEntry,
-  type ActionProposal,
-  resolveIntent,
-} from "@linchkit/cap-ai-provider";
+import type { ActionCatalogEntry, ActionProposal } from "@linchkit/cap-ai-provider";
 import type {
   ActionDefinition,
   Actor,
@@ -34,8 +34,15 @@ import type {
   OntologyRegistry,
   PermissionRegistry,
 } from "@linchkit/core";
-import type { AIAuditLogger } from "@linchkit/core/server";
-import { checkActionPermission } from "@linchkit/core/server";
+import type {
+  AIAuditLogger,
+  Intent,
+  IntentAlternative,
+  IntentClarification,
+  IntentMultiStep,
+  IntentStep,
+} from "@linchkit/core/server";
+import { checkActionPermission, resolveIntent } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import { z } from "zod";
 import {
@@ -267,24 +274,24 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
     });
 
     const startedAt = Date.now();
-    let proposal: Awaited<ReturnType<typeof resolveIntent>> = null;
+    let intent: Intent;
     try {
-      proposal = await resolveIntent(
+      intent = await resolveIntent(
         {
-          prompt: parsed.data.prompt,
+          utterance: parsed.data.prompt,
           scope: augmentedScope,
-          tenant: tenantId,
+          tenantId,
           userId: actor.id,
         },
         {
-          ai: aiService,
+          provider: aiService,
           ontology: scopedOntology,
         },
       );
     } catch (err) {
-      // The resolver itself swallows AI errors and returns null, so reaching
-      // this branch means a programmer error / unexpected throw. Surface a
-      // 500 but still emit an audit entry so the failure isn't invisible.
+      // The new core resolver swallows AI errors and returns IntentNoMatch,
+      // so reaching this branch means a programmer error / unexpected throw.
+      // Surface 500 but still emit an audit entry so the failure isn't invisible.
       const durationMs = Date.now() - startedAt;
       auditLogger &&
         emitIntentResolutionAudit({
@@ -310,6 +317,15 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
 
     const durationMs = Date.now() - startedAt;
 
+    // Project the discriminated `Intent` into the wire shapes the UI
+    // already understands: the legacy `proposal` slot stays populated for
+    // match outcomes (backward compat), and we add OPTIONAL `clarification`
+    // / `multiStep` slots so the chat UI can render the new cards without
+    // a second round-trip (Spec 52 §2.2 step 5 + §2.5).
+    const legacyProposal = intentToLegacyProposal(intent);
+    const matched = legacyProposal !== null;
+    const proposalView = enrichProposal(legacyProposal, scopedOntology);
+
     if (auditLogger) {
       emitIntentResolutionAudit({
         logger: auditLogger,
@@ -317,24 +333,164 @@ export function mountResolveIntentRoute(app: Elysia, options: ServerOptions): vo
         tenantId,
         prompt: parsed.data.prompt,
         durationMs,
-        matched: proposal !== null,
-        action: proposal?.action ?? null,
-        confidence: proposal?.confidence ?? null,
+        matched,
+        action: legacyProposal?.action ?? null,
+        confidence: legacyProposal?.confidence ?? null,
         catalogSize,
         scoped: Boolean(options.permissionRegistry),
         serviceUnavailable: false,
       });
     }
 
-    // Enrich the proposal with the action's display metadata so the UI can
-    // render an Action Proposal Card without a second round-trip. The
-    // resolver itself returns the bare ActionProposal; callers (UI / MCP)
-    // need entity name, action label/description, and the input schema for
-    // form rendering. None of these are user-controlled — they all come
-    // from the (already-permission-scoped) ontology.
-    const view = enrichProposal(proposal, scopedOntology);
-    return { proposal: view };
+    const response: ResolveIntentResponse = { proposal: proposalView };
+    if (intent.kind === "clarification") {
+      response.clarification = toClarificationView(intent, scopedOntology);
+    } else if (intent.kind === "multi_step") {
+      response.multiStep = toMultiStepView(intent, scopedOntology);
+    }
+    return response;
   });
+}
+
+// ── Intent → wire format conversion ─────────────────────────
+
+/**
+ * Wire-format response envelope. The legacy `proposal` slot is preserved
+ * for backward compatibility; `clarification` and `multiStep` are
+ * NEW optional fields surfacing Spec 52 §2.2 step 5 / §2.5 outcomes.
+ */
+export interface ResolveIntentResponse {
+  /** Match outcome (legacy shape). `null` when intent is not a single-step match. */
+  proposal: ActionProposalView | null;
+  /** Clarification outcome (Spec 52 §2.2 step 5). Present only when AI was unsure. */
+  clarification?: ClarificationView;
+  /** Multi-step sequence outcome (Spec 52 §2.5). Present only when AI proposed >1 step. */
+  multiStep?: MultiStepView;
+}
+
+/**
+ * Project an `IntentMatch` back to the legacy `ActionProposal` shape so
+ * `enrichProposal()` can reuse the existing UI-display enrichment logic.
+ * Returns null for every non-match outcome — callers branch on the
+ * companion `clarification` / `multiStep` slots instead.
+ */
+function intentToLegacyProposal(intent: Intent): ActionProposal | null {
+  if (intent.kind !== "match") return null;
+  return {
+    action: intent.action,
+    input: intent.input,
+    confidence: intent.confidence,
+    missingFields: intent.missingFields,
+    explanation: intent.explanation,
+    ...(intent.alternatives && intent.alternatives.length > 0
+      ? { alternatives: intent.alternatives.map(intentAlternativeToLegacy) }
+      : {}),
+  };
+}
+
+function intentAlternativeToLegacy(alt: IntentAlternative): ActionProposal {
+  return {
+    action: alt.action,
+    input: alt.input,
+    confidence: alt.confidence,
+    missingFields: alt.missingFields,
+    explanation: alt.explanation,
+  };
+}
+
+// ── Clarification & multi-step view shapes ──────────────────
+
+/**
+ * Wire-format clarification — `IntentClarification` enriched with the
+ * same display metadata as match-path alternatives so the UI can render
+ * "Did you mean..." chips without a second round-trip.
+ */
+export interface ClarificationView {
+  question: string;
+  bestConfidence: number;
+  candidates?: IntentAlternativeView[];
+}
+
+function toClarificationView(
+  clarification: IntentClarification,
+  ontology: OntologyRegistryLike,
+): ClarificationView {
+  const actionIndex = buildScopedActionIndex(ontology);
+  const view: ClarificationView = {
+    question: clarification.question,
+    bestConfidence: clarification.bestConfidence,
+  };
+  if (clarification.candidates && clarification.candidates.length > 0) {
+    const enriched = enrichAlternatives(
+      clarification.candidates.map(intentAlternativeToLegacy),
+      actionIndex,
+    );
+    if (enriched) view.candidates = enriched;
+  }
+  return view;
+}
+
+/**
+ * Wire-format multi-step sequence — `IntentMultiStep` enriched with the
+ * same display metadata each step needs to render in an Action Sequence
+ * Card (Spec 52 §2.5).
+ */
+export interface MultiStepView {
+  steps: MultiStepStepView[];
+  confidence: number;
+  explanation: string;
+  saga: boolean;
+}
+
+export interface MultiStepStepView {
+  index: number;
+  action: string;
+  schema: string;
+  actionLabel: string;
+  actionDescription?: string;
+  input: Record<string, unknown>;
+  missingFields: string[];
+  explanation: string;
+  inputSchema: Record<string, IntentFieldSchema>;
+  dependsOn?: number;
+}
+
+function toMultiStepView(
+  multiStep: IntentMultiStep,
+  ontology: OntologyRegistryLike,
+): MultiStepView {
+  const actionIndex = buildScopedActionIndex(ontology);
+  const steps: MultiStepStepView[] = [];
+  for (const step of multiStep.steps) {
+    const action = actionIndex.get(step.action);
+    // Hallucination defense — the core resolver should have refused
+    // unknown actions already, but the view layer enforces it again at
+    // the exit point. A dropped step is preferable to one the user
+    // cannot inspect.
+    if (!action) continue;
+    steps.push(toMultiStepStepView(step, action));
+  }
+  return {
+    steps,
+    confidence: multiStep.confidence,
+    explanation: multiStep.explanation,
+    saga: multiStep.saga,
+  };
+}
+
+function toMultiStepStepView(step: IntentStep, action: ActionDefinition): MultiStepStepView {
+  return {
+    index: step.index,
+    action: step.action,
+    schema: action.entity,
+    actionLabel: action.label ?? action.name,
+    actionDescription: action.description,
+    input: step.input,
+    missingFields: step.missingFields,
+    explanation: step.explanation,
+    inputSchema: buildInputSchema(action),
+    ...(step.dependsOn !== undefined ? { dependsOn: step.dependsOn } : {}),
+  };
 }
 
 // ── Response enrichment ─────────────────────────────────────
@@ -608,8 +764,14 @@ function toCatalogPreviewEntry(action: ActionDefinition): ActionCatalogEntry {
   };
 }
 
+/**
+ * Convert a filter list to a Set. An explicitly empty array is preserved as
+ * an empty Set ("no candidates allowed"); only an `undefined` filter means
+ * "do not filter". This mirrors the resolver's own `toFilterSet` semantics
+ * so the preview catalog and the resolver agree on what an empty filter means.
+ */
 function toFilterSet(values: readonly string[] | undefined): Set<string> | undefined {
-  if (!values || values.length === 0) return undefined;
+  if (values === undefined) return undefined;
   return new Set(values);
 }
 

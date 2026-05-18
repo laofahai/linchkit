@@ -287,6 +287,32 @@ export {
   sanitizeRecordForAI,
 } from "./ai";
 
+// === AI Intent Resolver (server-only — natural language → discriminated Intent, Spec 52 §2.2 / §2.5) ===
+
+export {
+  ALTERNATIVES_CONFIDENCE_THRESHOLD as INTENT_ALTERNATIVES_CONFIDENCE_THRESHOLD,
+  buildIntentSystemPrompt,
+  DEFAULT_MAX_HISTORY_MESSAGES as INTENT_DEFAULT_MAX_HISTORY_MESSAGES,
+  type Intent,
+  type IntentAlternative,
+  type IntentCatalogEntry,
+  type IntentClarification,
+  type IntentHistoryMessage,
+  type IntentMatch,
+  type IntentMultiStep,
+  type IntentNoMatch,
+  type IntentOntology,
+  type IntentPromptOptions,
+  type IntentResolverOptions,
+  type IntentSlot,
+  type IntentStep,
+  MAX_ALTERNATIVES as INTENT_MAX_ALTERNATIVES,
+  MIN_CONFIDENCE as INTENT_MIN_CONFIDENCE,
+  type ResolveIntentDeps,
+  type ResolveIntentInput,
+  resolveIntent,
+} from "./ai";
+
 // === AI Output Validator (server-only — output safety checks) ===
 
 export {
