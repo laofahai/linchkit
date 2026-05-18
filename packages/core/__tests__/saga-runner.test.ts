@@ -87,6 +87,74 @@ describe("defineSaga", () => {
   });
 });
 
+describe("Saga runner — accumulated context propagation", () => {
+  it("merges sagaInput, prior step outputs (keyed by id), then step static input", async () => {
+    // Three-step Saga where step 3 must read step 1's output via the
+    // accumulated context (Spec 26 §1.2 + the SagaStepDefinition.input
+    // doc-comment: { ...sagaInput, [previousStepId]: output, ..., ...stepDef.input }).
+    const calls: ActionCall[] = [];
+    const runAction = buildRunAction(
+      {
+        create_inbound: () => ({ inboundId: "ib_1" }),
+        create_payment: () => ({ paymentId: "pm_1" }),
+        // Step 3 reads step 1's output (`context.inbound.inboundId`) AND keeps
+        // its own static `tag` override that wins on key collision.
+        confirm_order: (input: Record<string, unknown>) => ({
+          received: input,
+        }),
+      },
+      calls,
+    );
+
+    const saga = defineSaga({
+      name: "p2p_context",
+      steps: [
+        { id: "inbound", action: "create_inbound" },
+        { id: "payment", action: "create_payment" },
+        // `orderId` exists in sagaInput — step input must override it so the
+        // merge order (base → priors → static) is observable.
+        { id: "confirm", action: "confirm_order", input: { orderId: "override" } },
+      ],
+    });
+
+    const state = await runSaga({
+      definition: saga,
+      runAction,
+      runId: "run-ctx",
+      input: { orderId: "o_1", tenantId: "t_1" },
+    });
+
+    expect(state.status).toBe("succeeded");
+
+    // First call — static input only, plus sagaInput
+    expect(calls[0]?.input).toEqual({ orderId: "o_1", tenantId: "t_1" });
+    // Second call — sagaInput plus inbound output
+    expect(calls[1]?.input).toEqual({
+      orderId: "o_1",
+      tenantId: "t_1",
+      inbound: { inboundId: "ib_1" },
+    });
+    // Third call — sagaInput, both prior outputs keyed by step id, plus the
+    // step's static input wins on `orderId`
+    expect(calls[2]?.input).toEqual({
+      orderId: "override",
+      tenantId: "t_1",
+      inbound: { inboundId: "ib_1" },
+      payment: { paymentId: "pm_1" },
+    });
+
+    // Confirms the handler actually saw step 1's output (the core regression).
+    expect(state.output).toEqual({
+      received: {
+        orderId: "override",
+        tenantId: "t_1",
+        inbound: { inboundId: "ib_1" },
+        payment: { paymentId: "pm_1" },
+      },
+    });
+  });
+});
+
 describe("Saga runner — forward happy path", () => {
   it("invokes steps in order and surfaces the last output", async () => {
     const calls: ActionCall[] = [];
@@ -523,5 +591,132 @@ describe("Saga runner — state snapshots", () => {
     const last = snapshots[snapshots.length - 1];
     expect(last?.status).toBe("succeeded");
     expect(last?.steps[0]?.status).toBe("succeeded");
+  });
+
+  it("deep-clones nested payloads so handlers cannot leak mutation into runner state", async () => {
+    // The shallow clone bug: snapshot.input/steps[].output were shared
+    // references with the live runner state. A handler that mutated those
+    // (e.g. to redact PII before persisting) would corrupt later snapshots
+    // and the final result. structuredClone fixes it.
+    const snapshots: SagaExecutionState[] = [];
+    const runAction = buildRunAction(
+      {
+        a: () => ({ nested: { secret: "value-a" }, list: [1, 2, 3] }),
+        b: () => ({ nested: { secret: "value-b" } }),
+      },
+      [],
+    );
+    const saga = defineSaga({
+      name: "deep_clone",
+      steps: [
+        { id: "a", action: "a", compensation: "undo_a" },
+        { id: "b", action: "b" },
+      ],
+    });
+
+    const finalState = await runSaga({
+      definition: saga,
+      runAction,
+      runId: "clone-1",
+      input: { profile: { name: "alice", tags: ["x"] } },
+      onStateChange: (snap) => {
+        snapshots.push(snap);
+        // Aggressively mutate every nested payload exposed to the listener.
+        if (snap.input.profile && typeof snap.input.profile === "object") {
+          (snap.input.profile as { name?: string }).name = "HIJACKED";
+          (snap.input.profile as { tags?: string[] }).tags?.push("HIJACKED");
+        }
+        for (const step of snap.steps) {
+          if (step.output && typeof step.output === "object") {
+            const nested = (step.output as { nested?: { secret?: string } }).nested;
+            if (nested) nested.secret = "HIJACKED";
+            const list = (step.output as { list?: number[] }).list;
+            if (Array.isArray(list)) list.push(999);
+          }
+        }
+        for (const entry of snap.compensationLog) {
+          entry.error = "HIJACKED";
+        }
+      },
+    });
+
+    // Final state returned from run() is a fresh snapshot — must also be
+    // pristine even though earlier listener calls tried to corrupt it.
+    expect(finalState.input).toEqual({ profile: { name: "alice", tags: ["x"] } });
+    const stepA = finalState.steps.find((s) => s.stepId === "a");
+    const stepB = finalState.steps.find((s) => s.stepId === "b");
+    expect(stepA?.output).toEqual({ nested: { secret: "value-a" }, list: [1, 2, 3] });
+    expect(stepB?.output).toEqual({ nested: { secret: "value-b" } });
+
+    // Cross-snapshot independence: distinct snapshots own distinct nested
+    // objects (no shared reference). Two snapshots from different
+    // transitions must not share their `input.profile` object — that's the
+    // exact aliasing the old shallow clone allowed.
+    expect(snapshots.length).toBeGreaterThan(1);
+    const first = snapshots[0];
+    const final = snapshots[snapshots.length - 1];
+    expect(first?.input.profile).not.toBe(final?.input.profile);
+  });
+});
+
+describe("Saga runner — error cause preservation", () => {
+  it("preserves the original error type and custom fields via Error cause", async () => {
+    // Custom error subclass with a domain-specific `code` property — the
+    // wrapped error must still let observers downcast and read it.
+    class PaymentDeclined extends Error {
+      readonly code: string;
+      constructor(message: string, code: string) {
+        super(message);
+        this.name = "PaymentDeclined";
+        this.code = code;
+      }
+    }
+
+    const calls: ActionCall[] = [];
+    const originalStack = { stack: "" };
+    const runAction = buildRunAction(
+      {
+        create_inbound: () => ({ inboundId: "ib_1" }),
+        create_payment: () => {
+          const err = new PaymentDeclined("payment_declined", "INSUFFICIENT_FUNDS");
+          originalStack.stack = err.stack ?? "";
+          throw err;
+        },
+        // Force a compensation failure so the wrapping path runs.
+        cancel_inbound: () => {
+          throw new Error("cancel_failed");
+        },
+      },
+      calls,
+    );
+
+    const saga = defineSaga({
+      name: "cause_preserve",
+      steps: [
+        { id: "inbound", action: "create_inbound", compensation: "cancel_inbound" },
+        { id: "payment", action: "create_payment", compensation: "cancel_payment" },
+      ],
+    });
+
+    let caught: unknown;
+    try {
+      await runSaga({ definition: saga, runAction, runId: "cause-1" });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const wrapped = caught as Error & { cause?: unknown };
+    // Message is the compensation-wrapped form
+    expect(wrapped.message).toMatch(
+      /payment_declined.*compensation failures.*inbound->cancel_inbound/,
+    );
+    // Cause carries the ORIGINAL subclass instance, with stack and properties intact
+    expect(wrapped.cause).toBeInstanceOf(PaymentDeclined);
+    const cause = wrapped.cause as PaymentDeclined;
+    expect(cause.code).toBe("INSUFFICIENT_FUNDS");
+    expect(cause.name).toBe("PaymentDeclined");
+    expect(cause.message).toBe("payment_declined");
+    expect(cause.stack).toBe(originalStack.stack);
   });
 });
