@@ -3,7 +3,7 @@
 #
 # Claude Code's `if: "Bash(git commit*)"` matcher substring-matches the whole
 # command string, so this hook receives invocations it shouldn't enforce on
-# (e.g. `gh issue create --body "... git commit ..."`). We parse the real tool
+# (e.g. `gh issue create --body "... git commit ..."` ). We parse the real tool
 # input from stdin and only enforce when `git commit` appears as an actual
 # command boundary:
 #   - at the start of the command, OR
@@ -30,7 +30,18 @@ fi
 # branch worktrees for all changes; an accidental cd/pwd slip during parallel
 # work just landed an empty commit on main (issue #291). This must run BEFORE
 # the gate-freshness check so a fresh-gate state cannot bypass the guard.
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+#
+# Worktree-aware: when the command starts with `cd <path> &&` and <path>
+# contains a .git FILE (worktree marker), resolve the branch from that
+# worktree rather than from the hook's CWD (which is always the main
+# worktree on `main`). Without this, all worktree commits look like they
+# target main and get incorrectly blocked.
+_GIT_C_OPT=""
+_CD_PATH=$(printf '%s' "$COMMAND" | sed -n 's|^cd[[:space:]]\+\([^[:space:];&|]\+\)[[:space:]]*&&.*|\1|p')
+if [ -n "$_CD_PATH" ] && [ -f "$_CD_PATH/.git" ]; then
+  _GIT_C_OPT="-C $_CD_PATH"
+fi
+BRANCH=$(git $_GIT_C_OPT rev-parse --abbrev-ref HEAD 2>/dev/null)
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
   echo "BLOCKED: refusing to commit on $BRANCH. Use 'git worktree add .claude/worktrees/<name> -b <branch>' for a feature branch." >&2
   exit 2
