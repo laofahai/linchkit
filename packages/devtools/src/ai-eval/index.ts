@@ -1,5 +1,8 @@
 /**
- * @linchkit/devtools/ai-eval — AI Evaluation Framework public surface.
+ * AI Evaluation Framework — internal barrel re-exported from the root
+ * `@linchkit/devtools` package surface. This module is NOT exposed as a
+ * separate `./ai-eval` subpath in package.json; consumers import everything
+ * via `import { ... } from "@linchkit/devtools"` (see `../index.ts`).
  *
  * See `docs/specs/69_ai_evaluation_framework.md`.
  *
