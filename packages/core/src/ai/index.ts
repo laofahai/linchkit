@@ -33,6 +33,27 @@ export type {
 } from "./ai-rate-limiter";
 export { AIRateLimiter } from "./ai-rate-limiter";
 export { createNoopAIService } from "./ai-service";
+// BYOK Key Store (Spec 36 M2+)
+export type {
+  BYOKKeyStore,
+  GetKeyParams,
+  InMemoryBYOKKeyStoreOptions,
+  ListKeysParams,
+  PutKeyParams,
+  RevokeKeyParams,
+} from "./byok-key-store";
+export { createInMemoryBYOKKeyStore } from "./byok-key-store";
+// BYOK Resolver (Spec 36 M2+)
+export type { ResolveAIKeyParams } from "./byok-resolver";
+export { resolveAIKey } from "./byok-resolver";
+// BYOK / Usage Control Types (Spec 36 M2+)
+export type {
+  BYOKKeyRecord,
+  BYOKKeyResolution,
+  QuotaCheckResult,
+  UsageMeterEntry,
+  UsageQuotaPolicy,
+} from "./byok-types";
 // Anomaly Detector — moved to @linchkit/cap-ai-provider (Spec 56 Phase 2 Step 2c).
 // Context Masker
 export type {
@@ -196,3 +217,12 @@ export type {
   RecordInsight,
 } from "./record-analyzer";
 export { analyzeRecord, buildAnalysisPrompt, parseAnalysisResponse } from "./record-analyzer";
+// Usage Meter (Spec 36 M2+)
+export type {
+  AggregateUsageParams,
+  CheckQuotaParams,
+  InMemoryUsageMeterOptions,
+  UsageAggregate,
+  UsageMeter,
+} from "./usage-meter";
+export { createInMemoryUsageMeter } from "./usage-meter";
