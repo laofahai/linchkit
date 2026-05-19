@@ -162,6 +162,14 @@ describe("ProposalGitCommitter.commitAndOpenPR — success path", () => {
     expect(commitMsg).toContain("feat(proposal): Auto-approve small orders");
     expect(commitMsg).toContain(`Proposal-ID: ${proposal.id}`);
     expect(commitMsg).toContain("Generated from insight #42.");
+    // Conventional Commits invariant: trailers (footer block) MUST come
+    // AFTER the body so `git interpret-trailers` and GitHub's PR parser pick
+    // them up as metadata rather than treating them as prose. (Fix for the
+    // earlier subject→trailers→body layout flagged by Gemini.)
+    const bodyIdx = commitMsg.indexOf("Generated from insight #42.");
+    const trailerIdx = commitMsg.indexOf(`Proposal-ID: ${proposal.id}`);
+    expect(bodyIdx).toBeGreaterThan(0);
+    expect(trailerIdx).toBeGreaterThan(bodyIdx);
     // --no-verify is forbidden.
     expect(calls[5].args).not.toContain("--no-verify");
 

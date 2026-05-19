@@ -81,7 +81,9 @@ const DEFAULT_BRANCH_PREFIX = "proposal/";
 const MAX_SUBJECT_LENGTH = 72;
 const MAX_SLUG_LENGTH = 40;
 const SHORT_ID_LENGTH = 8;
-const PR_URL_REGEX = /https:\/\/github\.com\/.+\/pull\/\d+/;
+// Match owner/repo segments without slashes or whitespace so we never overrun
+// path boundaries on lines that contain unrelated trailing text or extra URLs.
+const PR_URL_REGEX = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/;
 
 // ── Helpers (pure) ──────────────────────────────────────────
 
@@ -150,12 +152,14 @@ function defaultCommitMessage(
     trailers.push(`Source-Insights: ${insights.join(", ")}`);
   }
   const body = proposal.description?.trim();
-  // Conventional-commit-ish layout: subject, blank line, trailers, blank,
-  // optional body. The trailers form a parseable block for downstream tools.
-  const segments: string[] = [subject, "", trailers.join("\n")];
+  // Conventional Commits layout: subject, optional body, trailers — trailers
+  // MUST come last for `git interpret-trailers` and GitHub PR parsing to pick
+  // them up as metadata rather than free-form prose.
+  const segments: string[] = [subject];
   if (body && body.length > 0) {
     segments.push("", body);
   }
+  segments.push("", trailers.join("\n"));
   return segments.join("\n");
 }
 
