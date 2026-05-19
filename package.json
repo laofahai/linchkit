@@ -37,7 +37,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@restatedev/restate-sdk": "1.14.2",
+    "@restatedev/restate-sdk": "1.14.3",
     "@tanstack/react-table": "^8.21.3",
     "ai": "^6.0.134",
     "dataloader": "^2.2.3",
