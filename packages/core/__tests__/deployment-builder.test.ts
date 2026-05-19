@@ -23,9 +23,16 @@ function fail(stderr: string, exitCode = 1, stdout = ""): ExecResult {
 /**
  * Builds an executor that maps "cmd arg1 arg2" keys to ExecResult values.
  * Throws for any unmapped command so tests fail fast on unexpected calls.
+ * Also asserts that every call uses the expected cwd.
  */
-function makeExecutor(responses: Record<string, ExecResult>): ProcessExecutor {
-  return async (cmd, args, _cwd) => {
+function makeExecutor(
+  responses: Record<string, ExecResult>,
+  expectedCwd = REPO_DIR,
+): ProcessExecutor {
+  return async (cmd, args, cwd) => {
+    if (cwd !== expectedCwd) {
+      throw new Error(`Unexpected cwd: "${cwd}" (expected "${expectedCwd}")`);
+    }
     const key = [cmd, ...args].join(" ");
     const result = responses[key];
     if (result === undefined) throw new Error(`Unexpected exec call: "${key}"`);
@@ -62,7 +69,7 @@ describe("DeployBuilder — success paths", () => {
   it("runs build without install when changed files do not include lockfiles", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\nFast-forward\n src/foo.ts | 1 +\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("src/foo.ts\nsrc/bar.ts\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("src/foo.ts\nsrc/bar.ts\n"),
       "bun run build": ok("Build complete"),
     });
 
@@ -79,7 +86,7 @@ describe("DeployBuilder — success paths", () => {
   it("runs bun install when root package.json changes", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("package.json\nsrc/index.ts\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("package.json\nsrc/index.ts\n"),
       "bun install": ok("bun install v1.0.0\n"),
       "bun run build": ok("Build done"),
     });
@@ -96,7 +103,7 @@ describe("DeployBuilder — success paths", () => {
   it("runs bun install when root bun.lockb changes", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("bun.lockb\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("bun.lockb\n"),
       "bun install": ok("Installed\n"),
       "bun run build": ok("OK"),
     });
@@ -111,7 +118,7 @@ describe("DeployBuilder — success paths", () => {
   it("runs bun install when nested package.json changes", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("packages/core/package.json\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("packages/core/package.json\n"),
       "bun install": ok("Installed\n"),
       "bun run build": ok("OK"),
     });
@@ -125,7 +132,7 @@ describe("DeployBuilder — success paths", () => {
   it("runs bun install when nested bun.lockb changes", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("addons/auth/bun.lockb\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("addons/auth/bun.lockb\n"),
       "bun install": ok("Installed\n"),
       "bun run build": ok("OK"),
     });
@@ -156,7 +163,7 @@ describe("DeployBuilder — success paths", () => {
     expect(calls[0]).toBe("git pull upstream release");
   });
 
-  it("respects custom buildScript", async () => {
+  it("respects custom buildScript and does not run the default script", async () => {
     const calls: string[] = [];
     const executor: ProcessExecutor = async (cmd, args, _cwd) => {
       calls.push([cmd, ...args].join(" "));
@@ -173,6 +180,7 @@ describe("DeployBuilder — success paths", () => {
     await builder.build();
 
     expect(calls).toContain("bun run build:production");
+    expect(calls).not.toContain("bun run build");
   });
 
   it("includes durationMs in successful result", async () => {
@@ -209,7 +217,7 @@ describe("DeployBuilder — failure paths", () => {
   it("returns failed result when bun install exits non-zero", async () => {
     const executor = makeExecutor({
       "git pull origin main": ok("Updating abc..def\n"),
-      "git diff --name-only HEAD~1 HEAD": ok("package.json\n"),
+      "git diff --name-only ORIG_HEAD HEAD": ok("package.json\n"),
       "bun install": fail("error: package resolution failed", 1),
     });
 
@@ -328,7 +336,7 @@ describe("DeployBuilder — gitPullOutput", () => {
         stderr: "warning: x\n",
         exitCode: 0,
       },
-      "git diff --name-only HEAD~1 HEAD": ok(""),
+      "git diff --name-only ORIG_HEAD HEAD": ok(""),
       "bun run build": ok("OK"),
     });
 

@@ -96,7 +96,13 @@ export class DeployBuilder {
 
     // ── Step 1: git pull ─────────────────────────────────────────────────
     if (remaining() <= 0) {
-      return this.makeTimeoutResult(elapsed(), "pulling", "", false, false);
+      return this.makeTimeoutResult({
+        durationMs: elapsed(),
+        phase: "pulling",
+        gitPullOutput: "",
+        upToDate: false,
+        depsChanged: false,
+      });
     }
 
     this.logger.info("DeployBuilder: git pull", { remote: this.remote, branch: this.branch });
@@ -139,11 +145,13 @@ export class DeployBuilder {
     this.logger.info("DeployBuilder: git pull complete", { upToDate });
 
     // ── Step 2: detect lockfile / manifest changes ────────────────────────
+    // Use ORIG_HEAD (set by git after pull/merge) so multi-commit fast-forwards
+    // are fully covered — HEAD~1 would only compare the latest commit.
     let depsChanged = false;
     if (!upToDate) {
       try {
         const diffResult = await withTimeout(
-          this.executor("git", ["diff", "--name-only", "HEAD~1", "HEAD"], this.repoDir),
+          this.executor("git", ["diff", "--name-only", "ORIG_HEAD", "HEAD"], this.repoDir),
           remaining(),
         );
         const changedFiles = diffResult.stdout.split("\n").filter(Boolean);
@@ -165,7 +173,13 @@ export class DeployBuilder {
     let installOutput: string | undefined;
     if (depsChanged) {
       if (remaining() <= 0) {
-        return this.makeTimeoutResult(elapsed(), "installing", gitPullOutput, upToDate, true);
+        return this.makeTimeoutResult({
+          durationMs: elapsed(),
+          phase: "installing",
+          gitPullOutput,
+          upToDate,
+          depsChanged: true,
+        });
       }
 
       this.logger.info("DeployBuilder: running bun install");
@@ -211,7 +225,13 @@ export class DeployBuilder {
 
     // ── Step 4: bun run build ────────────────────────────────────────────
     if (remaining() <= 0) {
-      return this.makeTimeoutResult(elapsed(), "building", gitPullOutput, upToDate, depsChanged);
+      return this.makeTimeoutResult({
+        durationMs: elapsed(),
+        phase: "building",
+        gitPullOutput,
+        upToDate,
+        depsChanged,
+      });
     }
 
     this.logger.info("DeployBuilder: running build script", { script: this.buildScript });
@@ -268,13 +288,14 @@ export class DeployBuilder {
     };
   }
 
-  private makeTimeoutResult(
-    durationMs: number,
-    phase: BuildPhase,
-    gitPullOutput: string,
-    upToDate: boolean,
-    depsChanged: boolean,
-  ): BuildResult {
+  private makeTimeoutResult(options: {
+    durationMs: number;
+    phase: BuildPhase;
+    gitPullOutput: string;
+    upToDate: boolean;
+    depsChanged: boolean;
+  }): BuildResult {
+    const { durationMs, phase, gitPullOutput, upToDate, depsChanged } = options;
     this.logger.error("DeployBuilder: timed out", { phase, timeoutMs: this.timeoutMs });
     return {
       success: false,
@@ -296,8 +317,12 @@ const defaultExecutor: ProcessExecutor = async (cmd, args, cwd) => {
     stdout: "pipe",
     stderr: "pipe",
   });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
+  // Drain stdout and stderr concurrently to prevent deadlock when either
+  // pipe's buffer fills while the other is being read sequentially.
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
   const exitCode = await proc.exited;
   return { stdout, stderr, exitCode };
 };
@@ -305,10 +330,12 @@ const defaultExecutor: ProcessExecutor = async (cmd, args, cwd) => {
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), Math.max(ms, 0)),
-    ),
-  ]);
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timerId = setTimeout(
+      () => reject(new Error(`Operation timed out after ${ms}ms`)),
+      Math.max(ms, 0),
+    );
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timerId));
 }
