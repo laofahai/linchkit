@@ -1,8 +1,17 @@
 /**
- * Deployment utilities — Health checks, graceful shutdown, environment detection.
+ * Deployment utilities — Health checks, graceful shutdown, environment detection, build pipeline.
  *
  * Server-only module. Used by the server adapter and CLI for production deployments.
  */
+
+export {
+  type BuildConfig,
+  type BuildPhase,
+  type BuildResult,
+  DeployBuilder,
+  type ExecResult,
+  type ProcessExecutor,
+} from "./builder";
 
 export {
   detectEnvironment,
