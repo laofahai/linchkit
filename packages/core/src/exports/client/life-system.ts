@@ -4,8 +4,8 @@
  * Spec 56 Phase 2 Step 2a adds lifecycle-style Sensor/Signal/Baseline/MemoryStore
  * abstractions (Lifecycle* prefix) plus the lifecycle-sensor registry helpers
  * (registerSensor & friends). `clearSensors` is intentionally NOT re-exported
- * here — it's a test-only helper, available via `./life-system` and the
- * sensor-registry module path.
+ * here — it's a test-only helper, available via `../../life-system` and
+ * the sensor-registry module path.
  *
  * Browser-safe surface: types + pure factory functions. AwarenessEngine and
  * other server-only runtime live in ../server/life-system.ts.

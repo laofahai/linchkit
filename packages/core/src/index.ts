@@ -18,6 +18,7 @@ export const VERSION = "0.0.1";
 // Disambiguate names that exist in both ../types and other sub-barrels.
 // Explicit re-exports take precedence over `export *` so the "real" symbol
 // (the class / dedicated interface) wins, matching the pre-split behaviour.
+// Keep all explicit overrides grouped here, NOT scattered through the file.
 export type { ValidationResult } from "./capability";
 export type { SlotName } from "./engine/command-layer";
 export { ValidationError } from "./errors";
