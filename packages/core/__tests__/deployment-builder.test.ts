@@ -29,7 +29,7 @@ function makeExecutor(
   responses: Record<string, ExecResult>,
   expectedCwd = REPO_DIR,
 ): ProcessExecutor {
-  return async (cmd, args, cwd) => {
+  return async (cmd, args, cwd, _options) => {
     if (cwd !== expectedCwd) {
       throw new Error(`Unexpected cwd: "${cwd}" (expected "${expectedCwd}")`);
     }
@@ -42,8 +42,28 @@ function makeExecutor(
 
 /** Executor that resolves after a delay — used for timeout tests */
 function slowExecutor(delayMs: number): ProcessExecutor {
-  return async (_cmd, _args, _cwd) =>
+  return async (_cmd, _args, _cwd, _options) =>
     new Promise((resolve) => setTimeout(() => resolve(ok("done")), delayMs));
+}
+
+/**
+ * Executor that waits until the provided AbortSignal is aborted, then resolves.
+ * Lets tests verify that the signal is forwarded and fires on timeout.
+ */
+function signalAwareExecutor(onAbort: () => void): ProcessExecutor {
+  return async (_cmd, _args, _cwd, options) =>
+    new Promise((resolve) => {
+      const signal = options?.signal;
+      if (signal) {
+        signal.addEventListener("abort", () => {
+          onAbort();
+          resolve(ok("aborted"));
+        });
+      } else {
+        // No signal provided — resolve immediately so the test doesn't hang
+        resolve(ok("no-signal"));
+      }
+    });
 }
 
 // ── Successful build paths ────────────────────────────────────────────────
@@ -145,7 +165,7 @@ describe("DeployBuilder — success paths", () => {
 
   it("respects custom remote and branch", async () => {
     const calls: string[] = [];
-    const executor: ProcessExecutor = async (cmd, args, _cwd) => {
+    const executor: ProcessExecutor = async (cmd, args, _cwd, _options) => {
       calls.push([cmd, ...args].join(" "));
       if (cmd === "git" && args[0] === "pull") return ok("Already up to date.\n");
       return ok("OK");
@@ -165,7 +185,7 @@ describe("DeployBuilder — success paths", () => {
 
   it("respects custom buildScript and does not run the default script", async () => {
     const calls: string[] = [];
-    const executor: ProcessExecutor = async (cmd, args, _cwd) => {
+    const executor: ProcessExecutor = async (cmd, args, _cwd, _options) => {
       calls.push([cmd, ...args].join(" "));
       if (cmd === "git" && args[0] === "pull") return ok("Already up to date.\n");
       return ok("OK");
@@ -323,6 +343,44 @@ describe("DeployBuilder — timeout", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("pulling");
+  });
+
+  it("aborts the subprocess AbortSignal when the pipeline times out", async () => {
+    let abortFired = false;
+    const builder = new DeployBuilder({
+      repoDir: REPO_DIR,
+      timeoutMs: 50,
+      executor: signalAwareExecutor(() => {
+        abortFired = true;
+      }),
+      logger: silentLogger,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/timed out/i);
+    expect(abortFired).toBe(true);
+  });
+
+  it("forwards AbortSignal to each executor call", async () => {
+    const receivedSignals: AbortSignal[] = [];
+    const executor: ProcessExecutor = async (_cmd, _args, _cwd, options) => {
+      if (options?.signal) receivedSignals.push(options.signal);
+      return ok("Already up to date.\n");
+    };
+
+    const builder = new DeployBuilder({
+      repoDir: REPO_DIR,
+      executor,
+      logger: silentLogger,
+    });
+    await builder.build();
+
+    expect(receivedSignals.length).toBeGreaterThan(0);
+    for (const signal of receivedSignals) {
+      expect(signal).toBeInstanceOf(AbortSignal);
+    }
   });
 });
 
