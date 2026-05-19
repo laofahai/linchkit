@@ -44,8 +44,16 @@ export interface DeployWebhookConfig {
   /**
    * Called when a qualifying push event passes signature verification.
    * Implement git-pull → bun-install → bun-build → blue-green-switch here.
+   * Invoked asynchronously (fire-and-forget) so the HTTP response can return
+   * within GitHub's 10-second webhook timeout regardless of deploy duration.
    */
   onDeploy: (event: DeployEvent) => Promise<void>;
+  /**
+   * Optional sink for errors thrown by the async `onDeploy`. Because the
+   * deployment runs after the HTTP response is sent, callers cannot observe
+   * failures via the return value — wire this to your logger to capture them.
+   */
+  onDeployError?: (error: unknown, event: DeployEvent) => void;
 }
 
 /** Outcome of processing a single webhook request. */
@@ -91,6 +99,7 @@ export class DeployWebhookHandler {
   private readonly secret: string;
   private readonly branchFilter: string;
   private readonly onDeploy: (event: DeployEvent) => Promise<void>;
+  private readonly onDeployError?: (error: unknown, event: DeployEvent) => void;
 
   constructor(config: DeployWebhookConfig) {
     if (!config.secret) {
@@ -102,6 +111,7 @@ export class DeployWebhookHandler {
     this.secret = config.secret;
     this.branchFilter = config.branchFilter ?? "main";
     this.onDeploy = config.onDeploy;
+    this.onDeployError = config.onDeployError;
   }
 
   /**
@@ -175,8 +185,14 @@ export class DeployWebhookHandler {
       timestamp,
     };
 
-    // 7. Fire the deploy callback (errors propagate to caller for HTTP 500)
-    await this.onDeploy(event);
+    // 7. Fire the deploy callback asynchronously. GitHub webhooks time out
+    //    at ~10s; full deploys (git pull + bun install + bun build) routinely
+    //    exceed that, so awaiting here would cause delivery failures and
+    //    retries. The response returns 200 once signature + payload are valid;
+    //    errors from the actual deploy flow into `onDeployError` for logging.
+    void this.onDeploy(event).catch((error: unknown) => {
+      this.onDeployError?.(error, event);
+    });
 
     return { accepted: true };
   }

@@ -282,18 +282,74 @@ describe("handle — DeployEvent payload", () => {
   });
 });
 
-// ── handle — callback error propagation ──────────────────────
+// ── handle — fire-and-forget semantics ─────────────────────────
+//
+// GitHub webhooks time out at ~10s. The handler kicks off `onDeploy` without
+// awaiting it so the HTTP response can return immediately; deployment errors
+// flow into the optional `onDeployError` sink for logging.
 
-describe("handle — onDeploy error propagation", () => {
-  it("propagates errors from onDeploy to the caller", async () => {
+describe("handle — async onDeploy semantics", () => {
+  it("returns immediately even when onDeploy is slow", async () => {
+    let deployFinished = false;
+    const handler = new DeployWebhookHandler({
+      secret: SECRET,
+      onDeploy: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        deployFinished = true;
+      },
+    });
+
+    const body = makePushPayload();
+    const start = Date.now();
+    const result = await handler.handle(body, sign(body), "push");
+    const elapsed = Date.now() - start;
+
+    expect(result.accepted).toBe(true);
+    expect(elapsed).toBeLessThan(20);
+    expect(deployFinished).toBe(false);
+
+    // Drain the in-flight deploy so the test cleans up properly.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(deployFinished).toBe(true);
+  });
+
+  it("routes async onDeploy failures to onDeployError instead of rejecting handle()", async () => {
+    const errors: Array<{ error: unknown; event: DeployEvent }> = [];
     const handler = new DeployWebhookHandler({
       secret: SECRET,
       onDeploy: async () => {
         throw new Error("deployment failed");
       },
+      onDeployError: (error, event) => {
+        errors.push({ error, event });
+      },
+    });
+
+    const body = makePushPayload({ commitSha: "deadbeef" });
+    const result = await handler.handle(body, sign(body), "push");
+    expect(result.accepted).toBe(true);
+
+    // Allow the rejected promise to settle.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(errors).toHaveLength(1);
+    expect((errors[0]?.error as Error).message).toBe("deployment failed");
+    expect(errors[0]?.event.commitSha).toBe("deadbeef");
+  });
+
+  it("does not crash when onDeploy throws and no onDeployError is configured", async () => {
+    const handler = new DeployWebhookHandler({
+      secret: SECRET,
+      onDeploy: async () => {
+        throw new Error("silent failure");
+      },
     });
 
     const body = makePushPayload();
-    await expect(handler.handle(body, sign(body), "push")).rejects.toThrow("deployment failed");
+    const result = await handler.handle(body, sign(body), "push");
+    expect(result.accepted).toBe(true);
+
+    // Give the rejected promise a tick to settle without taking down the process.
+    await new Promise((resolve) => setTimeout(resolve, 5));
   });
 });
