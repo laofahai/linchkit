@@ -309,7 +309,7 @@ export function registerProposalTools(
         const approverType = sessionActor?.type === "human" ? "human" : "ai";
         const approverId = args.reviewer ?? sessionActor?.id ?? "mcp-agent";
 
-        const approved = proposalEngine.approveProposal({
+        const approved = await proposalEngine.approveProposal({
           proposalId: args.proposalId,
           approvedBy: { type: approverType, id: approverId },
         });

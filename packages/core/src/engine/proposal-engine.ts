@@ -13,6 +13,7 @@
  */
 
 import { analyzeImpact } from "../ontology/impact-analysis";
+import type { Logger } from "../types/logger";
 import type {
   ChangeType,
   ProposalAuthor,
@@ -42,12 +43,42 @@ export interface CreateProposalOptions {
   impact?: Partial<ProposalImpact>;
 }
 
+// ── Engine options ───────────────────────────────────────
+
+/**
+ * Hook invoked after a proposal transitions from "validated" → "approved".
+ *
+ * Used to wire the Spec 55 §7.6 graduation step: a `ProposalFileWriter`
+ * (or any other downstream persistence — Git PR, hot-reload, etc.) can be
+ * attached here to materialise the approved change as Layer 0 source code.
+ *
+ * The hook is awaited. If it throws, the engine captures the error message
+ * in `proposal.persistenceError` and continues — the approval status is
+ * NOT rolled back. Persistence is treated as a separate concern from the
+ * approval decision itself.
+ */
+export type OnApprovedHook = (proposal: ProposalDefinition) => Promise<void> | void;
+
+export interface ProposalEngineOptions {
+  /** Hook fired after a successful approval. See {@link OnApprovedHook}. */
+  onApproved?: OnApprovedHook;
+  /** Optional logger used to surface hook failures. */
+  logger?: Logger;
+}
+
 // ── Proposal Engine ──────────────────────────────────────
 
 export class ProposalEngine {
   private proposals = new Map<string, ProposalDefinition>();
   private versions = new Map<string, VersionRecord>();
   private semanticRelations: SemanticRelation[] = [];
+  private readonly onApproved?: OnApprovedHook;
+  private readonly logger?: Logger;
+
+  constructor(options: ProposalEngineOptions = {}) {
+    this.onApproved = options.onApproved;
+    this.logger = options.logger;
+  }
 
   /**
    * Set the semantic relation graph for cascading impact analysis.
@@ -210,11 +241,16 @@ export class ProposalEngine {
 
   /**
    * Approve a validated proposal (validated → approved).
+   *
+   * If an `onApproved` hook is configured on the engine, it is invoked AFTER
+   * the status transition. Hook failures are captured in
+   * `proposal.persistenceError` and do NOT roll back the approval — the
+   * approval decision stands, persistence is a separate concern.
    */
-  approveProposal(options: {
+  async approveProposal(options: {
     proposalId: string;
     approvedBy: { type: string; id: string };
-  }): ProposalDefinition {
+  }): Promise<ProposalDefinition> {
     const { proposalId, approvedBy } = options;
     const proposal = this.getProposal(proposalId);
 
@@ -228,6 +264,21 @@ export class ProposalEngine {
     proposal.approvedBy = approvedBy;
     proposal.approvedAt = new Date();
     proposal.updatedAt = new Date();
+    // Clear any stale persistence error from a previous attempt.
+    proposal.persistenceError = undefined;
+
+    if (this.onApproved) {
+      try {
+        await this.onApproved(proposal);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        proposal.persistenceError = message;
+        this.logger?.error?.(
+          `ProposalEngine.onApproved hook failed for proposal "${proposalId}": ${message}`,
+          { proposalId, error: message },
+        );
+      }
+    }
 
     return proposal;
   }
@@ -411,6 +462,6 @@ export function compareSemver(a: string, b: string): number {
 // ── Factory ──────────────────────────────────────────────
 
 /** Create a new ProposalEngine instance */
-export function createProposalEngine(): ProposalEngine {
-  return new ProposalEngine();
+export function createProposalEngine(options: ProposalEngineOptions = {}): ProposalEngine {
+  return new ProposalEngine(options);
 }

@@ -147,12 +147,12 @@ describe("ProposalEngine.submitProposal", () => {
 // ── ProposalEngine: approveProposal ─────────────────────
 
 describe("ProposalEngine.approveProposal", () => {
-  it("moves a validated proposal to 'approved'", () => {
+  it("moves a validated proposal to 'approved'", async () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
 
-    const result = engine.approveProposal({
+    const result = await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "admin-1" },
     });
@@ -162,16 +162,16 @@ describe("ProposalEngine.approveProposal", () => {
     expect(result.approvedAt).toBeInstanceOf(Date);
   });
 
-  it("throws when approving a non-validated proposal", () => {
+  it("throws when approving a non-validated proposal", async () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
 
-    expect(() =>
+    await expect(
       engine.approveProposal({
         proposalId: proposal.id,
         approvedBy: { type: "human", id: "admin-1" },
       }),
-    ).toThrow('expected status "validated"');
+    ).rejects.toThrow('expected status "validated"');
   });
 });
 
@@ -205,11 +205,11 @@ describe("ProposalEngine.rejectProposal", () => {
 // ── ProposalEngine: commitProposal ──────────────────────
 
 describe("ProposalEngine.commitProposal", () => {
-  it("commits an approved proposal and creates a version record", () => {
+  it("commits an approved proposal and creates a version record", async () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
-    engine.approveProposal({
+    await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "admin-1" },
     });
@@ -232,12 +232,12 @@ describe("ProposalEngine.commitProposal", () => {
     expect(version.status).toBe("active");
   });
 
-  it("bumps version correctly based on changeType", () => {
+  it("bumps version correctly based on changeType", async () => {
     // patch
     const engine1 = createTestEngine();
     const p1 = engine1.createProposal({ ...baseProposalOptions, changeType: "patch" });
     engine1.submitProposal({ proposalId: p1.id });
-    engine1.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
+    await engine1.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
     const { version: v1 } = engine1.commitProposal({
       proposalId: p1.id,
       previousVersion: "2.3.5",
@@ -248,7 +248,7 @@ describe("ProposalEngine.commitProposal", () => {
     const engine2 = createTestEngine();
     const p2 = engine2.createProposal({ ...baseProposalOptions, changeType: "major" });
     engine2.submitProposal({ proposalId: p2.id });
-    engine2.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
+    await engine2.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
     const { version: v2 } = engine2.commitProposal({
       proposalId: p2.id,
       previousVersion: "2.3.5",
@@ -265,11 +265,11 @@ describe("ProposalEngine.commitProposal", () => {
     );
   });
 
-  it("defaults previousVersion to 0.0.0 when not provided", () => {
+  it("defaults previousVersion to 0.0.0 when not provided", async () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
-    engine.approveProposal({
+    await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "a" },
     });
@@ -283,11 +283,11 @@ describe("ProposalEngine.commitProposal", () => {
 // ── ProposalEngine: deployProposal ──────────────────────
 
 describe("ProposalEngine.deployProposal", () => {
-  it("deploys a committed proposal", () => {
+  it("deploys a committed proposal", async () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
-    engine.approveProposal({
+    await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "admin-1" },
     });
@@ -343,13 +343,13 @@ describe("ProposalEngine.listProposals", () => {
 // ── ProposalEngine: listVersions ────────────────────────
 
 describe("ProposalEngine.listVersions", () => {
-  it("returns version records for a capability", () => {
+  it("returns version records for a capability", async () => {
     const engine = createTestEngine();
 
     // Commit two proposals
     const p1 = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: p1.id });
-    engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
     engine.commitProposal({ proposalId: p1.id, previousVersion: "0.0.0" });
 
     const p2 = engine.createProposal({
@@ -358,7 +358,7 @@ describe("ProposalEngine.listVersions", () => {
       changeType: "patch",
     });
     engine.submitProposal({ proposalId: p2.id });
-    engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
     engine.commitProposal({ proposalId: p2.id, previousVersion: "0.1.0" });
 
     const versions = engine.listVersions("inventory_management");
@@ -977,7 +977,7 @@ describe("validatePhase1 dead-end state detection", () => {
 // ── Full lifecycle: happy path ──────────────────────────
 
 describe("Full proposal lifecycle", () => {
-  it("draft → validated → approved → committed → deployed", () => {
+  it("draft → validated → approved → committed → deployed", async () => {
     const engine = createTestEngine();
 
     // Create
@@ -989,7 +989,7 @@ describe("Full proposal lifecycle", () => {
     expect(engine.getProposal(proposal.id).status).toBe("validated");
 
     // Approve
-    engine.approveProposal({
+    await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "admin-1" },
     });
@@ -1029,38 +1029,38 @@ describe("Full proposal lifecycle", () => {
 // ── P1: Duplicate version detection ─────────────────────
 
 describe("ProposalEngine: duplicate version detection", () => {
-  it("auto-detects latest version when previousVersion is not provided", () => {
+  it("auto-detects latest version when previousVersion is not provided", async () => {
     const engine = createTestEngine();
 
     // First proposal: commits as 0.1.0
     const p1 = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: p1.id });
-    engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
     const { version: v1 } = engine.commitProposal({ proposalId: p1.id });
     expect(v1.version).toBe("0.1.0");
 
     // Second proposal: should auto-detect 0.1.0 and bump to 0.2.0
     const p2 = engine.createProposal({ ...baseProposalOptions, title: "Second" });
     engine.submitProposal({ proposalId: p2.id });
-    engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
     const { version: v2 } = engine.commitProposal({ proposalId: p2.id });
     expect(v2.version).toBe("0.2.0");
     expect(v2.previousVersion).toBe("0.1.0");
   });
 
-  it("throws when committing would create a duplicate version", () => {
+  it("throws when committing would create a duplicate version", async () => {
     const engine = createTestEngine();
 
     // First proposal: commits as 1.1.0
     const p1 = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: p1.id });
-    engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p1.id, approvedBy: { type: "human", id: "a" } });
     engine.commitProposal({ proposalId: p1.id, previousVersion: "1.0.0" });
 
     // Second proposal with explicit previousVersion that would create the same version
     const p2 = engine.createProposal({ ...baseProposalOptions, title: "Duplicate" });
     engine.submitProposal({ proposalId: p2.id });
-    engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
+    await engine.approveProposal({ proposalId: p2.id, approvedBy: { type: "human", id: "a" } });
 
     expect(() => engine.commitProposal({ proposalId: p2.id, previousVersion: "1.0.0" })).toThrow(
       'Version "1.1.0" already exists',

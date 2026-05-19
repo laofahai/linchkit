@@ -208,7 +208,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
   app.post(
     "/api/proposals/:id/approve",
-    ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
       try {
         const proposal = proposalEngine.getProposal(params.id);
 
@@ -228,7 +228,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
           };
         }
 
-        const approved = proposalEngine.approveProposal({
+        const approved = await proposalEngine.approveProposal({
           proposalId: params.id,
           approvedBy: { type: "human", id: "admin" },
         });
