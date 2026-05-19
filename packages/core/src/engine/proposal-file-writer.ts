@@ -186,6 +186,11 @@ export class ProposalFileWriter {
       );
     }
 
+    // Resolve the capability group once per proposal — all changes share
+    // the same capability, so the readdir scan in resolveCapGroup would
+    // otherwise repeat for every change.
+    const groupCache = new Map<string, string>();
+
     const written: string[] = [];
     for (const change of proposal.changes) {
       if (change.operation === "delete") {
@@ -196,19 +201,27 @@ export class ProposalFileWriter {
         continue;
       }
 
-      const targetPath = await this.resolvePath(proposal, change);
-
-      if (change.operation === "create" && existsSync(targetPath)) {
-        throw new Error(
-          `ProposalFileWriter: refusing to overwrite existing file at "${targetPath}" ` +
-            `(proposal "${proposal.id}" change "${change.name}" is a create operation). ` +
-            `If this is an intentional rewrite, change operation to "update".`,
-        );
-      }
-
+      const targetPath = await this.resolvePath(proposal, change, groupCache);
       const source = this.codegen(proposal, change);
       await mkdir(dirname(targetPath), { recursive: true });
-      await writeFile(targetPath, source, "utf8");
+
+      // Use the `wx` flag for creates so the OS atomically refuses an
+      // existing file — avoids the TOCTOU race between an `existsSync`
+      // check and the subsequent write.
+      const flag = change.operation === "create" ? "wx" : "w";
+      try {
+        await writeFile(targetPath, source, { encoding: "utf8", flag });
+      } catch (err) {
+        if (change.operation === "create" && (err as NodeJS.ErrnoException).code === "EEXIST") {
+          throw new Error(
+            `ProposalFileWriter: refusing to overwrite existing file at "${targetPath}" ` +
+              `(proposal "${proposal.id}" change "${change.name}" is a create operation). ` +
+              `If this is an intentional rewrite, change operation to "update".`,
+          );
+        }
+        throw err;
+      }
+
       this.logger?.info?.(`ProposalFileWriter: wrote ${targetPath}`, {
         proposalId: proposal.id,
         target: change.target,
@@ -222,14 +235,25 @@ export class ProposalFileWriter {
   }
 
   /** Resolve the absolute write path for a change. */
-  private async resolvePath(proposal: ProposalDefinition, change: ProposalChange): Promise<string> {
+  private async resolvePath(
+    proposal: ProposalDefinition,
+    change: ProposalChange,
+    groupCache?: Map<string, string>,
+  ): Promise<string> {
     if (this.pathResolver) return this.pathResolver(proposal, change);
 
     const capName = normaliseCapName(proposal.capability);
-    const group = await resolveCapGroup(this.rootDir, capName);
+    let group = groupCache?.get(capName);
+    if (group === undefined) {
+      group = await resolveCapGroup(this.rootDir, capName);
+      groupCache?.set(capName, group);
+    }
     const subdir = TARGET_SUBDIR[change.target];
     const kindSuffix = TARGET_KIND_SUFFIX[change.target];
-    const filename = `_${proposal.id}.${kindSuffix}.ts`;
+    // Include the change name so multiple changes of the same target kind
+    // within one proposal don't collide on the same path.
+    const safeName = change.name.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `_${proposal.id}.${safeName}.${kindSuffix}.ts`;
     return join(this.rootDir, "addons", group, capName, "src", subdir, filename);
   }
 }

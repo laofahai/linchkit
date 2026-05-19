@@ -102,7 +102,7 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
       "cap-life-demo",
       "src",
       "rules",
-      `_${proposal.id}.rule.ts`,
+      `_${proposal.id}.auto_approve_small_orders.rule.ts`,
     );
     expect(written).toEqual([expected]);
     expect(existsSync(expected)).toBe(true);
@@ -141,6 +141,38 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     }
   });
 
+  it("writes two changes of the same target kind to distinct files (no collision)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "create",
+          name: "rule_one",
+          definition: { name: "rule_one" } as never,
+        },
+        {
+          target: "rule",
+          operation: "create",
+          name: "rule_two",
+          definition: { name: "rule_two" } as never,
+        },
+      ],
+    });
+
+    const written = await writer.writeApprovedProposal(proposal);
+
+    expect(written).toHaveLength(2);
+    // Distinct paths — the change name must disambiguate.
+    expect(new Set(written).size).toBe(2);
+    expect(written[0]).toContain("rule_one");
+    expect(written[1]).toContain("rule_two");
+    // Both files actually written, neither was clobbered by the other.
+    for (const p of written) {
+      expect(existsSync(p)).toBe(true);
+    }
+  });
+
   it("refuses to overwrite on create operation", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const proposal = makeApprovedProposal();
@@ -153,7 +185,7 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
       "cap-life-demo",
       "src",
       "rules",
-      `_${proposal.id}.rule.ts`,
+      `_${proposal.id}.auto_approve_small_orders.rule.ts`,
     );
     await mkdir(join(tmpDir, "addons", "demo", "cap-life-demo", "src", "rules"), {
       recursive: true,
@@ -186,7 +218,7 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
       "cap-life-demo",
       "src",
       "rules",
-      `_${proposal.id}.rule.ts`,
+      `_${proposal.id}.auto_approve_small_orders.rule.ts`,
     );
     await mkdir(join(tmpDir, "addons", "demo", "cap-life-demo", "src", "rules"), {
       recursive: true,
@@ -217,7 +249,14 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
       const written = await writer.writeApprovedProposal(proposal);
       // Default fallback: addons/<short>/cap-<full>/src/rules/...
       expect(written[0]).toContain(
-        join("addons", "unknown", "cap-unknown", "src", "rules", `_${proposal.id}.rule.ts`),
+        join(
+          "addons",
+          "unknown",
+          "cap-unknown",
+          "src",
+          "rules",
+          `_${proposal.id}.auto_approve_small_orders.rule.ts`,
+        ),
       );
     } finally {
       await rm(isolatedRoot, { recursive: true, force: true });
@@ -273,7 +312,7 @@ describe("ProposalEngine.onApproved hook", () => {
       "cap-life-demo",
       "src",
       "entities",
-      `_${proposal.id}.entity.ts`,
+      `_${proposal.id}.widget.entity.ts`,
     );
     expect(existsSync(expected)).toBe(true);
 
