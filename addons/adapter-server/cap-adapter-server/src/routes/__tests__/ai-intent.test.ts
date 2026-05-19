@@ -170,7 +170,9 @@ function buildTestServer(aiService: AIService): {
 
 // ── Main test server ──────────────────────────────────────
 
-const PORT = 34210;
+// Hardcoded ports collide on shared CI runners (see #359). Each server binds
+// to port 0 and the OS-assigned port is read back from `app.server.port`.
+let MAIN_PORT = 0;
 // biome-ignore lint/suspicious/noExplicitAny: test server type
 let mainApp: any;
 let mainStore: InMemoryStore;
@@ -189,7 +191,9 @@ beforeAll(() => {
   const { server, store } = buildTestServer(createMockAIService(mockResponse));
   mainApp = server;
   mainStore = store;
-  mainApp.listen(PORT);
+  mainApp.listen(0);
+  MAIN_PORT = mainApp.server?.port;
+  if (!MAIN_PORT) throw new Error("mainApp failed to bind");
 });
 
 afterAll(() => {
@@ -202,8 +206,9 @@ beforeEach(() => {
 
 // ── HTTP helper ───────────────────────────────────────────
 
-async function post(path: string, body: unknown, port = PORT) {
-  const res = await fetch(`http://localhost:${port}${path}`, {
+async function post(path: string, body: unknown, port?: number) {
+  const target = port ?? MAIN_PORT;
+  const res = await fetch(`http://localhost:${target}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -247,14 +252,15 @@ describe("POST /api/ai/resolve-intent", () => {
   });
 
   test("returns 503 when AI service is not configured", async () => {
-    const PORT2 = PORT + 1;
     const { server: noAIApp } = buildTestServer(noopAIService);
-    noAIApp.listen(PORT2);
+    noAIApp.listen(0);
+    const port2 = noAIApp.server?.port;
+    if (!port2) throw new Error("noAIApp failed to bind");
     try {
       const { status, body } = await post(
         "/api/ai/resolve-intent",
         { prompt: "Create a purchase request" },
-        PORT2,
+        port2,
       );
       expect(status).toBe(503);
       const result = body as { success: boolean; error: { message: string } };
@@ -365,16 +371,21 @@ interface EnrichedProposal {
 describe("POST /api/ai/resolve-intent — alternatives enrichment", () => {
   /**
    * Build a port-isolated server whose mock AI returns the given JSON string.
-   * Mirrors the inline server pattern used by the 503 test above.
+   * Mirrors the inline server pattern used by the 503 test above. Binds to an
+   * OS-assigned port (see #359) and returns it alongside the server.
    */
-  function buildServerWithMock(port: number, mockJson: string) {
+  function buildServerWithMock(mockJson: string): {
+    app: ReturnType<typeof buildTestServer>["server"];
+    port: number;
+  } {
     const { server } = buildTestServer(createMockAIService(mockJson));
-    server.listen(port);
-    return server;
+    server.listen(0);
+    const port = server.server?.port;
+    if (!port) throw new Error("mock server failed to bind");
+    return { app: server, port };
   }
 
   test("alternative with valid scoped action is enriched with full display metadata", async () => {
-    const PORT3 = PORT + 10;
     const mock = JSON.stringify({
       // Primary confidence below ALTERNATIVES_CONFIDENCE_THRESHOLD (0.7) so
       // the resolver actually surfaces alternatives.
@@ -391,12 +402,12 @@ describe("POST /api/ai/resolve-intent — alternatives enrichment", () => {
         },
       ],
     });
-    const app = buildServerWithMock(PORT3, mock);
+    const { app, port } = buildServerWithMock(mock);
     try {
       const { status, body } = await post(
         "/api/ai/resolve-intent",
         { prompt: "Order laptops" },
-        PORT3,
+        port,
       );
       expect(status).toBe(200);
       const proposal = (body as { proposal: EnrichedProposal | null }).proposal;
@@ -422,7 +433,6 @@ describe("POST /api/ai/resolve-intent — alternatives enrichment", () => {
   });
 
   test("alternatives are sorted DESC by confidence after enrichment", async () => {
-    const PORT3 = PORT + 11;
     // AI returns alternatives in scrambled order; the route must hand back a
     // confidence-DESC list. The resolver itself already sorts but filtering
     // could shift positions, so the route's defensive resort matters.
@@ -446,9 +456,9 @@ describe("POST /api/ai/resolve-intent — alternatives enrichment", () => {
         },
       ],
     });
-    const app = buildServerWithMock(PORT3, mock);
+    const { app, port } = buildServerWithMock(mock);
     try {
-      const { body } = await post("/api/ai/resolve-intent", { prompt: "ambiguous" }, PORT3);
+      const { body } = await post("/api/ai/resolve-intent", { prompt: "ambiguous" }, port);
       const proposal = (body as { proposal: EnrichedProposal | null }).proposal;
       if (!proposal) throw new Error("expected proposal");
       const alternatives = proposal.alternatives ?? [];
