@@ -99,6 +99,16 @@ export {
   ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./proposal-generator";
+// Proposal git committer (Spec 55 §7.7)
+export {
+  createProposalGitCommitter,
+  type ProposalGhRunner,
+  type ProposalGitCommitResult,
+  ProposalGitCommitter,
+  type ProposalGitCommitterOptions,
+  type ProposalGitCommitterRunResult,
+  type ProposalGitRunner,
+} from "./proposal-git-committer";
 // Rule engine
 export {
   collectRules,

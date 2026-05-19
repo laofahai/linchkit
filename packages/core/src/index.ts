@@ -177,6 +177,7 @@ export type {
 } from "./engine/proposal-engine";
 export type { ProposalFileWriterOptions } from "./engine/proposal-file-writer";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
+export type * from "./engine/proposal-git-committer";
 export type {
   RuleEvalInput,
   RuleEvalOptions,
