@@ -30,6 +30,17 @@ const TEST_TITLE_SLUG = "auto-approve-small-orders";
 /** Full filename prefix used by makeApprovedProposal()'s default fixture. */
 const TEST_PREFIX = `_${FIXED_DATE_STAMP}__${TEST_TITLE_SLUG}__${TEST_SHORT_ID}`;
 
+/**
+ * Build the same `YYYYMMDD` stamp the writer uses for fallbacks. UTC, zero-padded.
+ * Shared by every "today UTC fallback" assertion so the formula lives in one place.
+ */
+function todayUtcDateStamp(now: Date = new Date()): string {
+  const yyyy = now.getUTCFullYear().toString().padStart(4, "0");
+  const mm = (now.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd = now.getUTCDate().toString().padStart(2, "0");
+  return `${yyyy}${mm}${dd}`;
+}
+
 function makeApprovedProposal(overrides: Partial<ProposalDefinition> = {}): ProposalDefinition {
   const ruleChange: ProposalChange = {
     target: "rule",
@@ -364,13 +375,7 @@ describe("ProposalFileWriter filename format", () => {
     });
 
     const [written] = await writer.writeApprovedProposal(proposal);
-
-    const today = new Date();
-    const yyyy = today.getUTCFullYear().toString().padStart(4, "0");
-    const mm = (today.getUTCMonth() + 1).toString().padStart(2, "0");
-    const dd = today.getUTCDate().toString().padStart(2, "0");
-    const stamp = `${yyyy}${mm}${dd}`;
-    expect(written.split("/").pop()).toContain(stamp);
+    expect(written.split("/").pop()).toContain(todayUtcDateStamp());
   });
 
   it("parses string createdAt values", async () => {
@@ -390,13 +395,7 @@ describe("ProposalFileWriter filename format", () => {
     });
 
     const [written] = await writer.writeApprovedProposal(proposal);
-
-    const today = new Date();
-    const stamp =
-      today.getUTCFullYear().toString().padStart(4, "0") +
-      (today.getUTCMonth() + 1).toString().padStart(2, "0") +
-      today.getUTCDate().toString().padStart(2, "0");
-    expect(written.split("/").pop()).toContain(stamp);
+    expect(written.split("/").pop()).toContain(todayUtcDateStamp());
   });
 
   it("uses entire id when shorter than 8 chars", async () => {
