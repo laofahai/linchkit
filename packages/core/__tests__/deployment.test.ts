@@ -4,10 +4,13 @@ import {
   createDatabaseCheck,
   createEntityCheck,
   createEventBusCheck,
+  DeployBuilder,
   detectEnvironment,
+  type ExecResult,
   GracefulShutdownManager,
   HealthCheckRegistry,
   livenessCheck,
+  type ProcessExecutor,
   validateRequiredEnvVars,
 } from "../src/deployment";
 
@@ -471,5 +474,168 @@ describe("validateRequiredEnvVars", () => {
   it("returns valid for empty required list", () => {
     const result = validateRequiredEnvVars([]);
     expect(result.valid).toBe(true);
+  });
+});
+
+// ── DeployBuilder ───────────────────────────────────────────
+
+describe("DeployBuilder", () => {
+  /** Build a stubbed executor that records every call. */
+  function makeRecordingExecutor(
+    handler: (
+      cmd: string,
+      args: string[],
+      cwd: string,
+      signal: AbortSignal | undefined,
+    ) => Promise<ExecResult>,
+  ): {
+    executor: ProcessExecutor;
+    calls: Array<{
+      cmd: string;
+      args: string[];
+      cwd: string;
+      signal: AbortSignal | undefined;
+    }>;
+  } {
+    const calls: Array<{
+      cmd: string;
+      args: string[];
+      cwd: string;
+      signal: AbortSignal | undefined;
+    }> = [];
+    const executor: ProcessExecutor = async (cmd, args, cwd, options) => {
+      calls.push({ cmd, args, cwd, signal: options?.signal });
+      return handler(cmd, args, cwd, options?.signal);
+    };
+    return { executor, calls };
+  }
+
+  it("forwards an AbortSignal to the executor on every step", async () => {
+    const { executor, calls } = makeRecordingExecutor(async (cmd, _args) => {
+      if (cmd === "git" && _args[0] === "diff") {
+        // Pretend package.json changed so the install step is reachable.
+        return { stdout: "package.json\n", stderr: "", exitCode: 0 };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    });
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/fake-repo",
+      timeoutMs: 5_000,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(true);
+    expect(result.phase).toBe("done");
+    // Each step (pull, diff, install, build) should have received a signal.
+    expect(calls.length).toBeGreaterThanOrEqual(4);
+    for (const call of calls) {
+      expect(call.signal).toBeInstanceOf(AbortSignal);
+      // Signal must NOT be aborted after a successful, in-time call.
+      expect(call.signal?.aborted).toBe(false);
+    }
+  });
+
+  it("aborts the in-flight subprocess signal when the timeout elapses", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const executor: ProcessExecutor = async (_cmd, _args, _cwd, options) => {
+      capturedSignal = options?.signal;
+      // Simulate a slow subprocess that does NOT cooperate with the signal —
+      // we want to assert the signal is aborted regardless of the executor's
+      // own behavior. The withTimeout wrapper rejects independently.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/fake-repo",
+      timeoutMs: 50,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(false);
+    expect(result.phase).toBe("failed");
+    expect(result.error).toContain("git pull error");
+    // The key assertion for issue #361: the signal handed to the executor
+    // must be in `aborted=true` state after the deadline fires, so that
+    // cooperative executors can SIGTERM their subprocess instead of leaking it.
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it("reports successful build with up-to-date repo", async () => {
+    const { executor } = makeRecordingExecutor(async (cmd, args) => {
+      if (cmd === "git" && args[0] === "pull") {
+        return { stdout: "Already up to date.\n", stderr: "", exitCode: 0 };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    });
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/fake-repo",
+      timeoutMs: 5_000,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(true);
+    expect(result.upToDate).toBe(true);
+    // Up-to-date short-circuits the diff/install steps.
+    expect(result.depsChanged).toBe(false);
+    expect(result.installOutput).toBeUndefined();
+  });
+
+  it("surfaces non-zero git pull exit codes as a failed BuildResult", async () => {
+    const { executor } = makeRecordingExecutor(async (cmd) => {
+      if (cmd === "git") {
+        return { stdout: "", stderr: "fatal: not a git repository", exitCode: 128 };
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    });
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/not-a-repo",
+      timeoutMs: 5_000,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(false);
+    expect(result.phase).toBe("failed");
+    expect(result.error).toContain("git pull failed (exit 128)");
+  });
+
+  it("translates executor abort errors into a failed BuildResult", async () => {
+    // Mimic the defaultExecutor behavior of throwing when signal.aborted is true.
+    const executor: ProcessExecutor = async (_cmd, _args, _cwd, options) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+      if (options?.signal?.aborted) {
+        throw new Error("Subprocess aborted: git pull (sent SIGTERM)");
+      }
+      return { stdout: "", stderr: "", exitCode: 0 };
+    };
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/fake-repo",
+      timeoutMs: 50,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(false);
+    expect(result.phase).toBe("failed");
+    expect(result.error).toContain("git pull error");
   });
 });
