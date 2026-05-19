@@ -1,0 +1,16 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "paths": {
+      "@linchkit/core": ["../../../packages/core/src/index.ts"],
+      "@linchkit/core/*": ["../../../packages/core/src/*"],
+      "@linchkit/cap-adapter-ui": ["../../../addons/adapter-ui/cap-adapter-ui/src/index.ts"],
+      "@linchkit/cap-adapter-ui/*": ["../../../addons/adapter-ui/cap-adapter-ui/src/*"],
+      "@linchkit/ui-kit": ["../../../addons/adapter-ui/cap-adapter-ui/ui-kit/src/index.ts"],
+      "@linchkit/ui-kit/*": ["../../../addons/adapter-ui/cap-adapter-ui/ui-kit/src/*"]
+    }
+  },
+  "include": ["src/**/*", "__tests__/**/*"]
+}
