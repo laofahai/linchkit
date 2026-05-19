@@ -275,6 +275,21 @@ describe("buildBars", () => {
     const bars = buildBars(records, "start", "end", "name");
     expect(bars.find((b) => b.id === "r1")?.group).toBeUndefined();
   });
+
+  it("uses a stable index-based id fallback when rec.id is missing", () => {
+    // Stable fallback (vs Math.random) means the same input always yields the
+    // same id, so React reconciles bars without unmount/remount on re-render.
+    const recordsWithoutId = [
+      { name: "Task A", start: "2026-05-15", end: "2026-05-20" },
+      { name: "Task B", start: "2026-05-18", end: "2026-05-25" },
+    ];
+    const first = buildBars(recordsWithoutId, "start", "end", "name");
+    const second = buildBars(recordsWithoutId, "start", "end", "name");
+    expect(first.map((b) => b.id)).toEqual(second.map((b) => b.id));
+    // Each id is a unique stable string (the bar's index at insertion).
+    expect(new Set(first.map((b) => b.id)).size).toBe(first.length);
+    for (const b of first) expect(typeof b.id).toBe("string");
+  });
 });
 
 // ---------------------------------------------------------------------------
