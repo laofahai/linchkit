@@ -17,11 +17,25 @@ export {
   matchesFilter,
 } from "./event-bus";
 export {
-  createEventReplayService,
-  type EventReplayService,
-  type ReplayedEventResult,
-  type ReplayedHandlerInfo,
+  createEventBusReplayService,
+  type EventBusReplayedEventResult,
+  type EventBusReplayedHandlerInfo,
+  type EventBusReplayOptions,
+  type EventBusReplayResult,
+  type EventBusReplayService,
   type ReplayMeta,
+} from "./event-bus-replay-service";
+export {
+  type BatchReplayResult,
+  createEventReplayService,
+  type EventDetail,
+  type EventListOptions,
+  type EventReplayService,
+  type EventReplayServiceOptions,
+  type EventSummary,
+  type HandlerExecution,
+  type HandlerHistoryQuery,
+  type ReplayError,
   type ReplayOptions,
   type ReplayResult,
 } from "./event-replay-service";

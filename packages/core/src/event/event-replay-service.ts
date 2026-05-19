@@ -1,229 +1,488 @@
 /**
- * EventReplayService — in-memory event replay (Spec 66 §4.1–4.3)
+ * EventReplayService — Re-dispatch past events and inspect handler delivery
  *
- * Supports replaying events from the EventBus in-memory log by ID or by
- * execution ID. Two modes: dry-run (default) simulates dispatch and reports
- * which handlers would fire; live re-emits events with replay metadata so
- * handlers can detect and conditionally skip non-idempotent side effects.
+ * Operates on the existing `_linchkit.events` table — does NOT introduce a new
+ * system table. Provides:
+ *   - `list` / `get` for browsing persisted events
+ *   - `replay` / `replayBatch` for re-dispatching events through registered
+ *     handlers WITHOUT mutating the original row (no new outbox entry, no
+ *     status change on the source event)
+ *   - `handlerHistory` for the per-event delivery summary
+ *
+ * Replay re-runs handlers in the registry for the event type, collecting
+ * per-handler results so the caller can surface failures rather than have
+ * them silently swallowed (cf. Spec 66 §4 "replay must not silently ignore
+ * handler failures"). The original event row is never modified.
  */
 
-import type { EventRecord } from "../types/event";
-import { createExecutionMeta, extendExecutionMeta } from "../types/execution-meta";
-import { type EventBus, type EventHandlerRegistry, matchesFilter } from "./event-bus";
+import { and, count, desc, eq, gte, inArray, lte, type SQL, sql } from "drizzle-orm";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { withTraceId } from "../observability/trace-context";
+import { eventsTable } from "../persistence/system-tables";
+import type { EventHandlerContext, EventHandlerDefinition, EventRecord } from "../types/event";
+import { ExecutionMetaImpl } from "../types/execution-meta";
+import { type EventHandlerRegistry, matchesFilter } from "./event-bus";
 
-// ── Spec 66 §4.3 hard limit per invocation ──────────────────
+// ── Public types ────────────────────────────────────────────
 
-const MAX_EVENTS_PER_REPLAY = 10_000;
-const DEFAULT_PRIORITY = 100;
-
-// ── Public types ─────────────────────────────────────────────
-
-/** Replay context injected into replayed events via ExecutionMeta (Spec 66 §4.3) */
-export interface ReplayMeta {
-  originEventId: string;
-  replayId: string;
-  dryRun: boolean;
-}
-
-export interface ReplayOptions {
-  /**
-   * When true (default), simulates dispatch and reports which handlers would
-   * fire without invoking them. No side effects, no database writes.
-   */
-  dryRun?: boolean;
-  /**
-   * When true, bypasses the EventBus dedup window so the event is dispatched
-   * even if its idempotency key was recently seen. Useful for bug-fix replays.
-   * Default: false.
-   */
-  force?: boolean;
-}
-
-export interface ReplayedHandlerInfo {
-  handlerName: string;
-}
-
-export interface ReplayedEventResult {
-  originEventId: string;
-  /** ID of the newly emitted event. Set only in live mode. */
-  replayEventId?: string;
+export interface EventSummary {
+  id: string;
+  tenantId?: string;
   eventType: string;
-  handlers: ReplayedHandlerInfo[];
-  status: "replayed" | "skipped";
-  /** Why the event was skipped */
-  skipReason?: "not_found" | "emit_error";
-  /** Error message when status is "skipped" due to emit_error */
-  error?: string;
+  status: "pending" | "processing" | "completed" | "failed" | "dead_letter";
+  sourceAction?: string;
+  sourceExecutionId?: string;
+  retryCount: number;
+  errorMessage?: string;
+  createdAt: Date;
+  processedAt?: Date;
+  /**
+   * Projected from `payload->>'recordId'`. Present when the originating
+   * EventRecord stored a recordId in its payload (framework events do this
+   * by default; arbitrary domain events may omit it).
+   */
+  recordId?: string;
+}
+
+export interface EventDetail extends EventSummary {
+  payload: Record<string, unknown>;
+  meta: Record<string, unknown> | null;
+  /** Per-event delivery history (current schema records the latest aggregate result). */
+  history: HandlerExecution[];
+}
+
+/**
+ * Handler execution summary derived from the events row.
+ *
+ * The current schema stores a single aggregate status per event row, not per
+ * (event, handler) pair. Each event therefore produces exactly one
+ * `HandlerExecution` whose `handler` is the wildcard sentinel `"*"`. Once
+ * outbox_completions (Spec 66 §2.4) lands this becomes per-handler.
+ */
+export interface HandlerExecution {
+  eventId: string;
+  /** `"*"` until per-handler completion tracking exists (Spec 66 §2.4). */
+  handler: string;
+  status: "pending" | "processing" | "completed" | "failed" | "dead_letter";
+  retryCount: number;
+  errorMessage?: string;
+  attemptedAt: Date;
+  completedAt?: Date;
+}
+
+export interface ReplayError {
+  handler: string;
+  message: string;
 }
 
 export interface ReplayResult {
-  /** Identifies this replay operation; matches `ReplayMeta.replayId` on live events */
-  replayId: string;
-  dryRun: boolean;
-  replayed: number;
-  skipped: number;
-  events: ReplayedEventResult[];
-  /** True when the execution's event count exceeded the 10k guard and results were truncated */
-  truncated?: boolean;
+  /** Number of (handler, event) pairs successfully invoked */
+  delivered: number;
+  errors: ReplayError[];
+}
+
+export interface BatchReplayResult {
+  /** Per-event replay outcome, keyed by event id (in input order) */
+  results: Array<{ id: string; replayed: boolean; delivered: number; errors: ReplayError[] }>;
+  /** Total handler invocations succeeded across all events */
+  totalDelivered: number;
+  /** Total handler errors collected across all events */
+  totalErrors: number;
+}
+
+export interface EventListOptions {
+  tenantId?: string;
+  /** Filter by sourceAction (the action that emitted the event). */
+  entity?: string;
+  eventType?: string;
+  /**
+   * Filter by payload-side `recordId`. Applied as a JSONB predicate
+   * (`payload->>'recordId' = $value`) so the filter is evaluated server-side
+   * BEFORE pagination — fixing the previous client-side N+1 + post-limit-filter
+   * issue (#PR320 Gemini finding 1).
+   */
+  recordId?: string;
+  /** Lower-bound (inclusive) on `createdAt`. */
+  since?: Date;
+  /** Upper-bound (inclusive) on `createdAt`. */
+  until?: Date;
+  /** Max entries to return (default: 50, max: 100) */
+  limit?: number;
+  /** Number of entries to skip (default: 0) */
+  offset?: number;
+}
+
+export interface ReplayOptions {
+  /** When set, only the named handler is invoked (bypassing other listeners). */
+  onlyHandler?: string;
+}
+
+export interface HandlerHistoryQuery {
+  eventId: string;
+  /** When set, restrict history to the named handler. */
+  handler?: string;
 }
 
 export interface EventReplayService {
-  /**
-   * Replay a single event from the in-memory log by its ID.
-   * Dry-run by default — pass `{ dryRun: false }` for live dispatch.
-   */
-  replayById(eventId: string, options?: ReplayOptions): Promise<ReplayResult>;
-
-  /**
-   * Replay all events belonging to an execution from the in-memory log.
-   * Capped at 10,000 events per invocation (Spec 66 §4.3 guard).
-   */
-  replayByExecution(executionId: string, options?: ReplayOptions): Promise<ReplayResult>;
+  /** Paginated list of persisted events with optional filtering. */
+  list(options?: EventListOptions): Promise<{ items: EventSummary[]; total: number }>;
+  /** Full event detail (payload + delivery history) by id; null if missing. */
+  get(id: string): Promise<EventDetail | null>;
+  /** Re-dispatch a single event to its registered handlers. */
+  replay(id: string, opts?: ReplayOptions): Promise<ReplayResult>;
+  /** Bulk replay; processes ids sequentially. */
+  replayBatch(ids: string[], opts?: ReplayOptions): Promise<BatchReplayResult>;
+  /** Per-event handler delivery history; empty when event missing. */
+  handlerHistory(query: HandlerHistoryQuery): Promise<HandlerExecution[]>;
 }
 
-// ── Implementation ───────────────────────────────────────────
-
-function getMatchedHandlerInfos(
-  event: EventRecord,
-  registry: EventHandlerRegistry,
-): ReplayedHandlerInfo[] {
-  return registry
-    .getByEvent(event.type)
-    .filter((h) => !h.filter || matchesFilter(event.payload as Record<string, unknown>, h.filter))
-    .sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY))
-    .map((h) => ({ handlerName: h.name }));
+export interface EventReplayServiceOptions {
+  db: PostgresJsDatabase;
+  registry: EventHandlerRegistry;
 }
 
-async function dispatchReplayBatch(
-  events: EventRecord[],
-  bus: EventBus,
-  registry: EventHandlerRegistry,
-  options: ReplayOptions,
-  replayId: string,
-): Promise<ReplayedEventResult[]> {
-  const dryRun = options.dryRun ?? true;
-  const results: ReplayedEventResult[] = [];
+// ── Internal helpers ────────────────────────────────────────
 
-  for (const event of events) {
-    const handlerInfos = getMatchedHandlerInfos(event, registry);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_PRIORITY = 100;
+const MAX_BATCH_SIZE = 100;
 
-    if (dryRun) {
-      results.push({
-        originEventId: event.id,
-        eventType: event.type,
-        handlers: handlerInfos,
-        status: "replayed",
-      });
-    } else {
-      const replayMeta: ReplayMeta = {
-        originEventId: event.id,
-        replayId,
-        dryRun: false,
-      };
+function clampLimit(value: unknown, fallback: number, max: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(1, Math.min(Math.trunc(n), max)) : fallback;
+}
 
-      const baseMeta = event.meta ?? createExecutionMeta();
-      // systemOverrides ensures replay key is always set even if base meta has it
-      const newMeta = extendExecutionMeta(baseMeta, {}, { replay: replayMeta });
+function clampOffset(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+}
 
-      const replayedEvent: EventRecord = {
-        ...event,
-        id: crypto.randomUUID(),
-        timestamp: new Date(),
-        // force:true assigns a unique key so dedup never suppresses the replay.
-        // force:false keeps the original key; dedup may suppress if recently seen.
-        idempotencyKey: options.force ? `replay:${replayId}:${event.id}` : event.idempotencyKey,
-        meta: newMeta,
-      };
+function rowToSummary(row: typeof eventsTable.$inferSelect): EventSummary {
+  const payload = (row.payload as Record<string, unknown> | null) ?? null;
+  const recordId = payload ? pickStringField(payload, "recordId") : undefined;
+  return {
+    id: row.id,
+    tenantId: row.tenantId ?? undefined,
+    eventType: row.eventType,
+    status: row.status,
+    sourceAction: row.sourceAction ?? undefined,
+    sourceExecutionId: row.sourceExecutionId ?? undefined,
+    retryCount: row.retryCount,
+    errorMessage: row.errorMessage ?? undefined,
+    createdAt: row.createdAt,
+    processedAt: row.processedAt ?? undefined,
+    recordId,
+  };
+}
 
-      try {
-        await bus.emit(replayedEvent);
-        results.push({
-          originEventId: event.id,
-          replayEventId: replayedEvent.id,
-          eventType: event.type,
-          handlers: handlerInfos,
-          status: "replayed",
-        });
-      } catch (err) {
-        results.push({
-          originEventId: event.id,
-          eventType: event.type,
-          handlers: handlerInfos,
-          status: "skipped",
-          skipReason: "emit_error",
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+function rowToDetail(row: typeof eventsTable.$inferSelect): EventDetail {
+  return {
+    ...rowToSummary(row),
+    payload: (row.payload as Record<string, unknown>) ?? {},
+    meta: (row.meta as Record<string, unknown> | null) ?? null,
+    history: [rowToHistory(row)],
+  };
+}
+
+function rowToHistory(row: typeof eventsTable.$inferSelect): HandlerExecution {
+  return {
+    eventId: row.id,
+    handler: "*",
+    status: row.status,
+    retryCount: row.retryCount,
+    errorMessage: row.errorMessage ?? undefined,
+    attemptedAt: row.processedAt ?? row.createdAt,
+    completedAt: row.processedAt ?? undefined,
+  };
+}
+
+/**
+ * Reconstruct an EventRecord from a persisted row. Mirrors OutboxWorker's
+ * rowToEventRecord — keep the two shapes in sync if either changes.
+ */
+function rowToEventRecord(row: typeof eventsTable.$inferSelect): EventRecord {
+  const payload = (row.payload as Record<string, unknown>) ?? {};
+  const metaJson = (row.meta as Record<string, unknown> | null | undefined) ?? undefined;
+  let meta: ExecutionMetaImpl | undefined;
+  if (metaJson) {
+    try {
+      meta = new ExecutionMetaImpl(metaJson);
+    } catch {
+      // Persisted meta failed validation — fall back to empty so replay still
+      // proceeds. OutboxWorker logs this case; the replay path leaves
+      // observability to the caller (which sees `errors` per-handler if
+      // anything downstream throws).
+      meta = undefined;
     }
   }
+  // Re-hydrate top-level EventRecord fields from the persisted payload so
+  // the dispatched record matches the original shape. For framework events
+  // (record.created/updated/deleted, state.changed, ...) the producer puts
+  // entity/recordId/action inside the payload jsonb; the EventRecord type
+  // also exposes them at the top level. Handlers like cache invalidation
+  // read the top-level fields, so dropping them silently no-ops the replay.
+  const entity = pickStringField(payload, "entity");
+  const recordId = pickStringField(payload, "recordId");
+  const action = pickStringField(payload, "action") ?? row.sourceAction ?? undefined;
+  const capability = pickStringField(payload, "capability");
 
-  return results;
+  return {
+    id: row.id,
+    type: row.eventType,
+    category: "runtime",
+    timestamp: row.createdAt,
+    actor: { type: "system", id: "event-replay" },
+    executionId: row.sourceExecutionId ?? "",
+    tenantId: row.tenantId ?? undefined,
+    entity,
+    recordId,
+    action,
+    capability,
+    payload,
+    meta,
+  };
 }
 
-export function createEventReplayService(
-  bus: EventBus,
-  registry: EventHandlerRegistry,
-): EventReplayService {
+function pickStringField(payload: Record<string, unknown>, key: string): string | undefined {
+  const v = payload[key];
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+/**
+ * Handler context for replay — emits are swallowed to avoid cascading
+ * replays, and the meta is tagged with `_replay`/`_replay_origin_id`
+ * (Spec 66 §4.3 safety markers) so handlers can short-circuit
+ * non-idempotent side effects (sending email, billing, calling
+ * external APIs) when invoked from a replay rather than the
+ * original delivery.
+ */
+function createReplayContext(
+  meta: ExecutionMetaImpl | undefined,
+  originEventId: string,
+): EventHandlerContext {
+  const base = meta ?? new ExecutionMetaImpl({});
+  const tagged = base.extend({}, { _replay: true, _replay_origin_id: originEventId });
   return {
-    async replayById(eventId, options = {}) {
-      const replayId = crypto.randomUUID();
-      const dryRun = options.dryRun ?? true;
-
-      const log = bus.getEmittedEvents();
-      const event = log.find((e) => e.id === eventId);
-
-      if (!event) {
-        return {
-          replayId,
-          dryRun,
-          replayed: 0,
-          skipped: 1,
-          events: [
-            {
-              originEventId: eventId,
-              eventType: "unknown",
-              handlers: [],
-              status: "skipped",
-              skipReason: "not_found",
-            },
-          ],
-        };
-      }
-
-      const eventResults = await dispatchReplayBatch([event], bus, registry, options, replayId);
-      return {
-        replayId,
-        dryRun,
-        replayed: eventResults.filter((e) => e.status === "replayed").length,
-        skipped: eventResults.filter((e) => e.status === "skipped").length,
-        events: eventResults,
-      };
+    emit: () => {
+      // Replay does not propagate chained emits; downstream events are out of
+      // scope for a single-event re-dispatch (Spec 66 §4.3 safety guards).
     },
-
-    async replayByExecution(executionId, options = {}) {
-      const replayId = crypto.randomUUID();
-      const dryRun = options.dryRun ?? true;
-
-      const log = bus.getEmittedEvents();
-      const matching = log.filter((e) => e.executionId === executionId);
-
-      if (matching.length === 0) {
-        return { replayId, dryRun, replayed: 0, skipped: 0, events: [] };
-      }
-
-      // Spec 66 §4.3 guard: cap at MAX_EVENTS_PER_REPLAY
-      const truncated = matching.length > MAX_EVENTS_PER_REPLAY;
-      const capped = matching.slice(0, MAX_EVENTS_PER_REPLAY);
-
-      const eventResults = await dispatchReplayBatch(capped, bus, registry, options, replayId);
-      return {
-        replayId,
-        dryRun,
-        replayed: eventResults.filter((e) => e.status === "replayed").length,
-        skipped: eventResults.filter((e) => e.status === "skipped").length,
-        events: eventResults,
-        ...(truncated ? { truncated } : {}),
-      };
-    },
+    meta: tagged,
   };
+}
+
+interface SelectHandlersOptions {
+  registry: EventHandlerRegistry;
+  eventType: string;
+  payload: Record<string, unknown>;
+  onlyHandler?: string;
+}
+
+function selectHandlers(options: SelectHandlersOptions): EventHandlerDefinition[] {
+  const { registry, eventType, payload, onlyHandler } = options;
+  const all = registry.getByEvent(eventType);
+  const filtered = all.filter((h) => {
+    if (onlyHandler && h.name !== onlyHandler) return false;
+    if (!h.filter) return true;
+    return matchesFilter(payload, h.filter);
+  });
+  filtered.sort((a, b) => (a.priority ?? DEFAULT_PRIORITY) - (b.priority ?? DEFAULT_PRIORITY));
+  return filtered;
+}
+
+/**
+ * `instanceof Date` matches `new Date("not-a-date")` (an "Invalid Date"
+ * whose getTime() is NaN). Treat those as missing so the SQL filter
+ * never carries an invalid timestamp.
+ */
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+/**
+ * Deep clone via `structuredClone` so handler mutations on nested objects
+ * (e.g. `event.payload.user.name = "x"`) cannot leak to subsequent
+ * handlers in the same replay or to a later replay of the same row.
+ * Falls back to `JSON.parse(JSON.stringify(...))` if structuredClone is
+ * unavailable in the runtime (older bun versions).
+ */
+function deepClonePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  if (typeof structuredClone === "function") {
+    return structuredClone(payload);
+  }
+  return JSON.parse(JSON.stringify(payload));
+}
+
+// ── Factory ─────────────────────────────────────────────────
+
+export function createEventReplayService(opts: EventReplayServiceOptions): EventReplayService {
+  const { db, registry } = opts;
+
+  function buildWhere(options?: EventListOptions): SQL | undefined {
+    const filters: SQL[] = [];
+    if (options?.tenantId !== undefined) filters.push(eq(eventsTable.tenantId, options.tenantId));
+    if (options?.eventType !== undefined)
+      filters.push(eq(eventsTable.eventType, options.eventType));
+    if (options?.entity !== undefined) filters.push(eq(eventsTable.sourceAction, options.entity));
+    if (options?.recordId !== undefined) {
+      // JSONB path extract — parameterized via drizzle's sql template so the
+      // recordId value is bound as a placeholder rather than interpolated.
+      filters.push(
+        sql`(${eventsTable.payload}->>'recordId') = ${options.recordId}` as unknown as SQL,
+      );
+    }
+    if (isValidDate(options?.since)) filters.push(gte(eventsTable.createdAt, options.since));
+    if (isValidDate(options?.until)) filters.push(lte(eventsTable.createdAt, options.until));
+    if (filters.length === 0) return undefined;
+    if (filters.length === 1) return filters[0];
+    return and(...filters);
+  }
+
+  async function list(
+    options?: EventListOptions,
+  ): Promise<{ items: EventSummary[]; total: number }> {
+    const limit = clampLimit(options?.limit, 50, 100);
+    const offset = clampOffset(options?.offset);
+    const where = buildWhere(options);
+
+    // Drizzle's `.where(undefined)` is a no-op, so we can pass `where`
+    // directly and skip the redundant ternary branches.
+    const [rows, totals] = await Promise.all([
+      db
+        .select()
+        .from(eventsTable)
+        .where(where)
+        .orderBy(desc(eventsTable.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ total: count() }).from(eventsTable).where(where),
+    ]);
+
+    return {
+      items: rows.map(rowToSummary),
+      total: Number(totals[0]?.total ?? 0),
+    };
+  }
+
+  async function get(id: string): Promise<EventDetail | null> {
+    if (!UUID_RE.test(id)) return null;
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, id)).limit(1);
+    return rows[0] ? rowToDetail(rows[0]) : null;
+  }
+
+  async function fetchRow(id: string): Promise<typeof eventsTable.$inferSelect | null> {
+    if (!UUID_RE.test(id)) return null;
+    const rows = await db.select().from(eventsTable).where(eq(eventsTable.id, id)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async function replay(id: string, options?: ReplayOptions): Promise<ReplayResult> {
+    const row = await fetchRow(id);
+    if (!row) return { delivered: 0, errors: [] };
+    return dispatchRow(row, options?.onlyHandler);
+  }
+
+  async function dispatchRow(
+    row: typeof eventsTable.$inferSelect,
+    onlyHandler: string | undefined,
+  ): Promise<ReplayResult> {
+    const event = rowToEventRecord(row);
+    const handlers = selectHandlers({
+      registry,
+      eventType: event.type,
+      payload: event.payload,
+      onlyHandler,
+    });
+    if (handlers.length === 0) return { delivered: 0, errors: [] };
+
+    const ctx = createReplayContext(event.meta as ExecutionMetaImpl | undefined, event.id);
+    const traceId = (event.payload as Record<string, unknown>)?._traceId as string | undefined;
+
+    let delivered = 0;
+    const errors: ReplayError[] = [];
+
+    for (const handler of handlers) {
+      // Deep clone via structuredClone so nested-object mutations from one
+      // handler cannot leak to siblings or to a later replay of the same row.
+      const eventCopy: EventRecord = { ...event, payload: deepClonePayload(event.payload) };
+      try {
+        const exec = () => handler.handler(eventCopy, ctx);
+        if (traceId) {
+          await withTraceId(traceId, exec);
+        } else {
+          await exec();
+        }
+        delivered++;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ handler: handler.name, message });
+      }
+    }
+
+    return { delivered, errors };
+  }
+
+  async function replayBatch(ids: string[], options?: ReplayOptions): Promise<BatchReplayResult> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { results: [], totalDelivered: 0, totalErrors: 0 };
+    }
+    if (ids.length > MAX_BATCH_SIZE) {
+      throw new Error(`replayBatch: batch size ${ids.length} exceeds maximum of ${MAX_BATCH_SIZE}`);
+    }
+
+    // Partition once: keep the original order so the caller's `ids` line up
+    // with `results`, but bulk-fetch the valid UUIDs in a single query
+    // instead of issuing one round-trip per id.
+    const validIds = ids.filter((id) => UUID_RE.test(id));
+    const rowsById = new Map<string, typeof eventsTable.$inferSelect>();
+    if (validIds.length > 0) {
+      const rows = await db.select().from(eventsTable).where(inArray(eventsTable.id, validIds));
+      for (const row of rows) {
+        rowsById.set(row.id, row);
+      }
+    }
+
+    const results: BatchReplayResult["results"] = [];
+    let totalDelivered = 0;
+    let totalErrors = 0;
+
+    for (const id of ids) {
+      const row = rowsById.get(id);
+      if (!row) {
+        // Either the id was malformed (filtered out above) or no row
+        // matched it in the bulk fetch.
+        results.push({ id, replayed: false, delivered: 0, errors: [] });
+        continue;
+      }
+      const outcome = await dispatchRow(row, options?.onlyHandler);
+      results.push({
+        id,
+        replayed: true,
+        delivered: outcome.delivered,
+        errors: outcome.errors,
+      });
+      totalDelivered += outcome.delivered;
+      totalErrors += outcome.errors.length;
+    }
+
+    return { results, totalDelivered, totalErrors };
+  }
+
+  async function handlerHistory(query: HandlerHistoryQuery): Promise<HandlerExecution[]> {
+    if (!UUID_RE.test(query.eventId)) return [];
+    const rows = await db
+      .select()
+      .from(eventsTable)
+      .where(eq(eventsTable.id, query.eventId))
+      .limit(1);
+    if (rows.length === 0) return [];
+
+    const history = rows.map(rowToHistory);
+    if (query.handler === undefined) return history;
+    // Wildcard sentinel `"*"` represents "all handlers"; until per-handler
+    // tracking exists, only the wildcard matches an explicit name filter.
+    return history.filter((h) => h.handler === query.handler || h.handler === "*");
+  }
+
+  return { list, get, replay, replayBatch, handlerHistory };
 }
