@@ -24,7 +24,12 @@ export interface ExecResult {
 }
 
 /** Inject a custom executor in tests to avoid real subprocesses. */
-export type ProcessExecutor = (cmd: string, args: string[], cwd: string) => Promise<ExecResult>;
+export type ProcessExecutor = (
+  cmd: string,
+  args: string[],
+  cwd: string,
+  options?: { signal?: AbortSignal },
+) => Promise<ExecResult>;
 
 export type BuildPhase = "idle" | "pulling" | "installing" | "building" | "done" | "failed";
 
@@ -110,7 +115,8 @@ export class DeployBuilder {
     let pullResult: ExecResult;
     try {
       pullResult = await withTimeout(
-        this.executor("git", ["pull", this.remote, this.branch], this.repoDir),
+        (signal) =>
+          this.executor("git", ["pull", this.remote, this.branch], this.repoDir, { signal }),
         remaining(),
       );
     } catch (err) {
@@ -151,7 +157,10 @@ export class DeployBuilder {
     if (!upToDate) {
       try {
         const diffResult = await withTimeout(
-          this.executor("git", ["diff", "--name-only", "ORIG_HEAD", "HEAD"], this.repoDir),
+          (signal) =>
+            this.executor("git", ["diff", "--name-only", "ORIG_HEAD", "HEAD"], this.repoDir, {
+              signal,
+            }),
           remaining(),
         );
         const changedFiles = diffResult.stdout.split("\n").filter(Boolean);
@@ -187,7 +196,7 @@ export class DeployBuilder {
       let installResult: ExecResult;
       try {
         installResult = await withTimeout(
-          this.executor("bun", ["install"], this.repoDir),
+          (signal) => this.executor("bun", ["install"], this.repoDir, { signal }),
           remaining(),
         );
       } catch (err) {
@@ -239,7 +248,7 @@ export class DeployBuilder {
     let buildExecResult: ExecResult;
     try {
       buildExecResult = await withTimeout(
-        this.executor("bun", ["run", this.buildScript], this.repoDir),
+        (signal) => this.executor("bun", ["run", this.buildScript], this.repoDir, { signal }),
         remaining(),
       );
     } catch (err) {
@@ -311,11 +320,12 @@ export class DeployBuilder {
 
 // ── Default executor using Bun.spawn ─────────────────────────────────────
 
-const defaultExecutor: ProcessExecutor = async (cmd, args, cwd) => {
+const defaultExecutor: ProcessExecutor = async (cmd, args, cwd, options) => {
   const proc = Bun.spawn([cmd, ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
+    signal: options?.signal,
   });
   // Drain stdout and stderr concurrently to prevent deadlock when either
   // pipe's buffer fills while the other is being read sequentially.
@@ -329,13 +339,16 @@ const defaultExecutor: ProcessExecutor = async (cmd, args, cwd) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timerId: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timerId = setTimeout(
-      () => reject(new Error(`Operation timed out after ${ms}ms`)),
-      Math.max(ms, 0),
-    );
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timerId));
+// withTimeout takes a callback so it can propagate the AbortSignal to the
+// subprocess — when the deadline fires the controller aborts, which causes
+// Bun.spawn to send SIGTERM to the child process instead of leaving it as
+// an orphan.
+async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(ms, 0));
+  try {
+    return await run(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
 }
