@@ -39,6 +39,15 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "spikes/baml-spike/baml_client/**",
+        "spikes/baml-spike/intent-scenario-baml.ts",
+        "spikes/baml-parser-quality/**"
+      ],
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false }
     }
   ],
   "css": {
